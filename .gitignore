@@ -1,0 +1,8 @@
+.idea
+build/
+
+# Test artifacts
+test-coverage.out
+test-coverage-cobertura.xml
+test-coverage.html
+gosec_report.json

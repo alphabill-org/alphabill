@@ -129,17 +129,17 @@ func ErrorCausedBy(err error, cause error) bool {
 		return false
 	}
 	var expectedMessage, message string
-	expectedKcashErr, ok := cause.(*AlphabillError)
+	expectedABErr, ok := cause.(*AlphabillError)
 	if ok {
-		expectedMessage = expectedKcashErr.Message()
+		expectedMessage = expectedABErr.Message()
 	} else {
 		expectedMessage = cause.Error()
 	}
 
 	for {
-		kcashErr, ok := err.(*AlphabillError)
+		abErr, ok := err.(*AlphabillError)
 		if ok {
-			message = kcashErr.Message()
+			message = abErr.Message()
 		} else {
 			message = err.Error()
 		}
@@ -148,8 +148,8 @@ func ErrorCausedBy(err error, cause error) bool {
 			return true
 		}
 
-		if kcashErr != nil {
-			err = kcashErr.Unwrap()
+		if abErr != nil {
+			err = abErr.Unwrap()
 			if err == nil {
 				return false
 			}

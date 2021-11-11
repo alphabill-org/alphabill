@@ -12,7 +12,7 @@ type PackageNameResolver struct {
 
 func (r *PackageNameResolver) PackageName() string {
 	pc, _, _, _ := runtime.Caller(r.depth())
-	// For example: gitdc.ee.guardtime.com/ksi-cash/kcash-proto/internal/logger.TestPackageName
+	// For example: gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger.TestPackageName
 	pcName := runtime.FuncForPC(pc).Name()
 	split1 := strings.SplitN(pcName, r.BasePackage, 2)
 	var packageAfterBase string

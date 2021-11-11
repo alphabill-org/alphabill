@@ -19,7 +19,7 @@ func initializeGlobalFactory() {
 		context:                 make(Context),
 		consoleTimeFormat:       "15:04:05.000",
 		callerSkipFrames:        4, // This depends on the logger code, not meant to be changed by callers.
-		packageNameResolver:     &PackageNameResolver{BasePackage: "kcash-proto"},
+		packageNameResolver:     &PackageNameResolver{BasePackage: "alphabill/alphabill"},
 		nonAlphaNumericRegex:    regexp.MustCompile(`[^a-zA-Z0-9]`),
 		globalLoggerInitialized: false,
 	}
@@ -39,9 +39,10 @@ func initializeGlobalConfig() {
 		}
 	)
 
-	config := &LoggerConfiguration{}
-
+	return
 	// TODO read a config file.
+
+	config := &LoggerConfiguration{}
 
 	// --- Setup globals
 	globalConfig := GlobalConfig{

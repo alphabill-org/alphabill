@@ -6,14 +6,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestKsiCashErrorType_Error(t *testing.T) {
+func TestAlphabillErrorType_Error(t *testing.T) {
 	expectedMsg := "invalid something"
 	errorType := newErrorType(expectedMsg)
 
 	assert.Equal(t, expectedMsg, errorType.Error())
 }
 
-func TestKsiCashErrorType_FindErrorType(t *testing.T) {
+func TestAlphabillErrorType_FindErrorType(t *testing.T) {
 	wrappedErr := Wrap(Wrap(ErrInvalidHashField, "first"), "second)")
 	assert.Equal(t, ErrInvalidHashField, FindErrorType(wrappedErr))
 

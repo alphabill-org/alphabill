@@ -1,0 +1,77 @@
+stages:
+  - init
+  - test
+  - analyze
+
+image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20211112
+
+# Debugging info and initialization goes here
+init:
+  script: go env
+
+test:
+  stage: test
+  script:
+    - make test
+    - gocover-cobertura < test-coverage.out > test-coverage-cobertura.xml
+  artifacts:
+    reports:
+      cobertura: test-coverage-cobertura.xml
+    paths:
+      - test-coverage.out
+    when: always
+
+gosec:
+  stage: test
+  script:
+    - make gosec
+  artifacts:
+    paths:
+      - gosec_report.json
+
+sonarqube-check:
+  stage: analyze
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [ "" ]
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Defines the location of the analysis task cache
+    GIT_DEPTH: "0"  # Tells git to fetch all the branches of the project, required by the analysis task
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script: >
+    if [ "$CI_OPEN_MERGE_REQUESTS" == "" ]; then
+      # Merge request not available, running Sonar without it.
+      sonar-scanner
+    else
+      # Place the CI_OPEN_MERGE_REQUESTS in between single quotes, because ! is special character for bash.
+      QUOTED_CI_OPEN_MERGE_REQUESTS="'${CI_OPEN_MERGE_REQUESTS}'"
+
+      # Takes part between last ! and ' character. Job rules makes sure that $CI_OPEN_MERGE_REQUESTS is not empty.
+      MERGE_REQUEST_ID=`echo ${QUOTED_CI_OPEN_MERGE_REQUESTS} | rev | cut -d'!' -f1 | cut -d"'" -f2 | rev`
+
+      sonar-scanner -Dsonar.pullrequest.key=${MERGE_REQUEST_ID} -Dsonar.pullrequest.branch=${CI_COMMIT_BRANCH} -Dsonar.pullrequest.base=master
+    fi
+  allow_failure: true
+
+trivy:
+  stage: analyze
+  script:
+    # build report
+    - trivy --cache-dir .trivycache/ fs --exit-code 0 --no-progress --format template --template "@/html.tpl" -o trivy-report.html .
+    # print report
+    - trivy --cache-dir .trivycache/ fs --exit-code 1 --no-progress --severity "HIGH,CRITICAL" .
+  cache:
+    paths:
+      - .trivycache/
+  artifacts:
+    paths:
+      - trivy-report.html
+    when: always
+
+nancy:
+  stage: analyze
+  script:
+    - go list -json -m all | nancy sleuth

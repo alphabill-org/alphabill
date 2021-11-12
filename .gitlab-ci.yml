@@ -7,6 +7,7 @@ image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20211112
 
 # Debugging info and initialization goes here
 init:
+  stage: init
   script: go env
 
 test:

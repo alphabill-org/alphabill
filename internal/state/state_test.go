@@ -174,77 +174,24 @@ func TestGetBillNode_NotFound(t *testing.T) {
 	assert.Nil(t, node)
 }
 
-func TestRemoveRootBill(t *testing.T) {
-	s := New()
-	put(key1, newBillContent(10), nil, &s.root)
-	put(key2, newBillContent(20), nil, &s.root)
-	put(key3, newBillContent(30), nil, &s.root)
-
-	assert.Equal(t, s.root.BillID, key2)
-	assert.Equal(t, s.root.Children[0].BillID, key1)
-	assert.Equal(t, s.root.Children[1].BillID, key3)
-
-	s.removeBill(key2)
-
-	assert.NotNil(t, s.GetRootHash())
-	assert.Equal(t, s.root.BillID, key3)
-	assert.Equal(t, s.root.Children[0].BillID, key1)
-	assert.Equal(t, uint32(40), s.root.Bill.TotalValue)
-}
-
-func TestRemoveBill_Left(t *testing.T) {
-	s := New()
-	put(key1, newBillContent(10), nil, &s.root)
-	put(key2, newBillContent(20), nil, &s.root)
-	put(key3, newBillContent(30), nil, &s.root)
-
-	assert.Equal(t, s.root.BillID, key2)
-	assert.Equal(t, s.root.Children[0].BillID, key1)
-	assert.Equal(t, s.root.Children[1].BillID, key3)
-
-	s.removeBill(key1)
-	assert.NotNil(t, s.GetRootHash())
-	assert.Equal(t, s.root.BillID, key2)
-	assert.Equal(t, s.root.Children[1].BillID, key3)
-	assert.Equal(t, uint32(50), s.root.Bill.TotalValue)
-}
-
-func TestRemoveBill_Right(t *testing.T) {
-	s := New()
-
-	put(key1, newBillContent(10), nil, &s.root)
-	put(key2, newBillContent(20), nil, &s.root)
-	put(key3, newBillContent(30), nil, &s.root)
-
-	assert.Equal(t, s.root.BillID, key2)
-	assert.Equal(t, s.root.Children[0].BillID, key1)
-	assert.Equal(t, s.root.Children[1].BillID, key3)
-
-	s.removeBill(key3)
-	assert.NotNil(t, s.GetRootHash())
-	assert.Equal(t, s.root.BillID, key2)
-	assert.Equal(t, s.root.Children[0].BillID, key1)
-	assert.Equal(t, uint32(30), s.root.Bill.TotalValue)
-}
-
 func TestState_GetRootHash(t *testing.T) {
 	s := New()
 
-	s.addBill(newBillContent(10))
-	s.addBill(newBillContent(20))
-	s.addBill(newBillContent(30))
+	k1 := s.addBill(newBillContent(10))
+	k2 := s.addBill(newBillContent(20))
+	k3 := s.addBill(newBillContent(30))
 
 	root := s.GetRootHash()
 	assert.NotNil(t, root)
-	// TODO assert root hash
-}
 
-func TestCalculateBillStateHash_BillNotChanged(t *testing.T) {
-	bc := newBillContent(100)
-	hash := bc.calculateStateHash(crypto.SHA256.New())
+	bill1, _ := s.getBill(k1)
+	bill2, _ := s.getBill(k2)
+	bill3, _ := s.getBill(k3)
+	assert.False(t, bill1.recompute)
+	assert.False(t, bill2.recompute)
+	assert.False(t, bill3.recompute)
 
-	assert.NotNil(t, hash)
-	assert.Equal(t, make([]byte, 32), hash)
+	//TODO assert root hash
 }
 
 func TestState_ProcessTransferOrder(t *testing.T) {
@@ -262,20 +209,6 @@ func TestState_ProcessTransferOrder(t *testing.T) {
 	n, _ = s.getBill(uint64(1))
 	s.GetRootHash()
 	assert.NotNil(t, n)
-}
-
-func TestState_ProcessTransferOrder_JoinBillIDPresent(t *testing.T) {
-	s := New()
-	s.addBill(newBillContent(10))
-
-	n, _ := s.getBill(uint64(1))
-
-	order := newTransferOrder(n.BillID, n.Bill.Backlink, []byte{0x1})
-	order.JoinBillId = uint64(2)
-
-	err := s.Process(order)
-	assert.Error(t, err)
-	assert.Equal(t, ErrInvalidPaymentOrder, err)
 }
 
 func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
@@ -320,16 +253,15 @@ func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
 
 func TestBillContent_CalculateStateHash_StateIsNotChanged(t *testing.T) {
 	bc := newBillContent(10)
-	hash := bc.calculateStateHash(crypto.SHA256.New())
+	hash := bc.calculateStateHash(nil, crypto.SHA256.New())
 	assert.Equal(t, bc.StateHash, hash)
 }
 
-func TestBillContent_CalculateStateHash_NewPayment(t *testing.T) {
+func TestBillContent_CalculateStateHash_TransferBill(t *testing.T) {
 	bc := newBillContent(10)
 	oldStateHash := bc.StateHash
 	transfer := newTransferOrder(uint64(1), bc.Backlink, []byte{1})
-	bc.PaymentOrder = &transfer
-	hash := bc.calculateStateHash(crypto.SHA256.New())
+	hash := bc.calculateStateHash(transfer, crypto.SHA256.New())
 
 	hasher := crypto.SHA256.New()
 	hasher.Write(transfer.Bytes())
@@ -343,15 +275,10 @@ func TestBillContent_CalculateStateHash_NewPayment(t *testing.T) {
 	assert.Equal(t, bc.StateHash, newBillHash)
 }
 
-func TestBillContent_CalculateStateHash_JoinsAndPayment(t *testing.T) {
-	t.Skip("Add Join Payment type!")
-}
-
-func newTransferOrder(billID uint64, backlink []byte, newPredicate Predicate) PaymentOrder {
-	return PaymentOrder{
+func newTransferOrder(billID uint64, backlink []byte, newPredicate Predicate) *PaymentOrder {
+	return &PaymentOrder{
 		BillID:            billID,
 		Type:              PaymentTypeTransfer,
-		JoinBillId:        0,
 		Amount:            0,
 		PayeePredicate:    newPredicate,
 		Backlink:          backlink,

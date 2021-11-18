@@ -37,13 +37,12 @@ type (
 
 	// BillContent contains bill related information.
 	BillContent struct {
-		Value           uint32          // value of the given bill
-		TotalValue      uint32          // total value
-		StateHash       []byte          // state hash of the bill state
-		Backlink        []byte          // backlink to the payment/emission order
-		BearerPredicate Predicate       // bearer predicate
-		PaymentOrder    *PaymentOrder   // payment or emission order
-		JoinOrders      []*PaymentOrder // incoming join orders
+		Value           uint32    // value of the given bill
+		TotalValue      uint32    // total value
+		StateHash       []byte    // state hash of the bill state
+		Backlink        []byte    // backlink to the payment/emission order
+		BearerPredicate Predicate // bearer predicate
+
 	}
 
 	Predicate []byte
@@ -55,19 +54,18 @@ func New() *State {
 }
 
 // Process validates and processes a payment order.
-func (s *State) Process(payment PaymentOrder) error {
+func (s *State) Process(payment *PaymentOrder) error {
+	if payment == nil {
+		//TODO
+		return ErrInvalidPaymentOrder
+	}
 	switch payment.Type {
 	case PaymentTypeTransfer:
 		return s.processTransfer(payment)
 	case PaymentTypeSplit:
-		if payment.JoinBillId > 0 {
-			return ErrInvalidPaymentOrder
-		}
 		// TODO
-	case PaymentTypeJoin:
-		//TODO implement
 	}
-
+	//TODO
 	return errors.New("not implemented")
 }
 
@@ -77,10 +75,7 @@ func (s *State) GetRootHash() []byte {
 	return s.root.Hash
 }
 
-func (s *State) processTransfer(payment PaymentOrder) error {
-	if payment.JoinBillId > 0 {
-		return ErrInvalidPaymentOrder
-	}
+func (s *State) processTransfer(payment *PaymentOrder) error {
 	if payment.Amount != 0 {
 		return ErrInvalidPaymentAmount
 	}
@@ -91,11 +86,14 @@ func (s *State) processTransfer(payment PaymentOrder) error {
 		return ErrBillNotFound
 	}
 
-	if b.Bill.PaymentOrder != nil || !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
+	if !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
 		return ErrInvalidPaymentBacklink
 	}
-	b.Bill.PaymentOrder = &payment
+	paymentHash := sha256.Sum256(payment.Bytes())
+	b.Bill.Backlink = paymentHash[:]
+	b.Bill.calculateStateHash(payment, sha256.New())
 	b.Bill.BearerPredicate = payment.PayeePredicate
+
 	return s.updateBill(payment.BillID, b.Bill)
 }
 
@@ -115,11 +113,6 @@ func (s *State) updateBill(billID uint64, content *BillContent) error {
 		return nil
 	}
 	return ErrBillNotFound
-}
-
-// removeBill removes the bill from the state by billID.
-func (s *State) removeBill(billID uint64) {
-	remove(billID, &s.root)
 }
 
 // getBill searches the bill in the state by billID and returns its value or nil if bill is not found in state.
@@ -153,12 +146,7 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 			rightTotalValue = right.Bill.TotalValue
 			rightHash = right.Hash
 		}
-
-		// TODO joins
 		n.Bill.TotalValue = n.Bill.Value + leftTotalValue + rightTotalValue
-
-		billStateHash := n.Bill.calculateStateHash(hasher)
-		n.Bill.StateHash = billStateHash
 		hasher.Reset()
 
 		// write bill ID
@@ -168,7 +156,7 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 		hasher.Write(Uint32ToBytes(n.Bill.Value))
 
 		// write bill state hash
-		hasher.Write(billStateHash)
+		hasher.Write(n.Bill.StateHash)
 
 		// write left child hash
 		hasher.Write(leftHash)
@@ -185,39 +173,22 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 		n.Hash = hasher.Sum(nil)
 		hasher.Reset()
 		n.recompute = false
-		n.Bill.PaymentOrder = nil
-		n.Bill.JoinOrders = nil
 	}
 }
 
-func (c *BillContent) calculateStateHash(hasher hash.Hash) []byte {
-	ordersHash := c.calculateOrdersHash(hasher)
-	if ordersHash != nil {
-		hasher.Write(c.StateHash)
-		hasher.Write(ordersHash)
-		c.StateHash = hasher.Sum(nil)
+func (c *BillContent) calculateStateHash(payment *PaymentOrder, hasher hash.Hash) []byte {
+	if payment == nil {
+		return c.StateHash
 	}
+	// calculate payment order hash
+	hasher.Write(payment.Bytes())
+	paymentHash := hasher.Sum(nil)
+	hasher.Reset()
+	// calculate state hash
+	hasher.Write(c.StateHash)
+	hasher.Write(paymentHash)
+	c.StateHash = hasher.Sum(nil)
 	return c.StateHash
-}
-
-func (c *BillContent) calculateOrdersHash(hasher hash.Hash) []byte {
-	calculateOrdersHash := false
-	if c.PaymentOrder != nil {
-		hasher.Write(c.PaymentOrder.Bytes())
-		calculateOrdersHash = true
-	}
-	if c.JoinOrders != nil && len(c.JoinOrders) > 0 {
-		calculateOrdersHash = true
-		for _, order := range c.JoinOrders {
-			hasher.Write(order.Bytes())
-		}
-	}
-	var ordersHash []byte = nil
-	if calculateOrdersHash {
-		ordersHash = hasher.Sum(nil)
-		hasher.Reset()
-	}
-	return ordersHash
 }
 
 // String returns a string representation of state.

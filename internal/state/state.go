@@ -13,6 +13,7 @@ var (
 	ErrInvalidPaymentAmount   = errors.New("invalid payment amount")
 	ErrInvalidPaymentBacklink = errors.New("invalid payment backlink")
 	ErrInvalidPaymentOrder    = errors.New("invalid payment order")
+	ErrInvalidPaymentType    = errors.New("invalid payment type")
 )
 
 type (
@@ -56,17 +57,15 @@ func New() *State {
 // Process validates and processes a payment order.
 func (s *State) Process(payment *PaymentOrder) error {
 	if payment == nil {
-		//TODO
 		return ErrInvalidPaymentOrder
 	}
 	switch payment.Type {
 	case PaymentTypeTransfer:
 		return s.processTransfer(payment)
 	case PaymentTypeSplit:
-		// TODO
+		return s.processSplit(payment)
 	}
-	//TODO
-	return errors.New("not implemented")
+	return ErrInvalidPaymentType
 }
 
 // GetRootHash returns the root hash of the State.
@@ -95,6 +94,33 @@ func (s *State) processTransfer(payment *PaymentOrder) error {
 	b.Bill.BearerPredicate = payment.PayeePredicate
 
 	return s.updateBill(payment.BillID, b.Bill)
+}
+
+func (s *State) processSplit(payment *PaymentOrder) error {
+	b, found := s.getBill(payment.BillID)
+	if !found {
+		return ErrBillNotFound
+	}
+	if !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
+		return ErrInvalidPaymentBacklink
+	}
+	amount := payment.Amount
+	if b.Bill.Value < amount {
+		return ErrInvalidPaymentAmount
+	}
+	paymentHash := sha256.Sum256(payment.Bytes())
+	b.Bill.Backlink = paymentHash[:]
+	b.Bill.calculateStateHash(payment, sha256.New())
+	b.Bill.Value = b.Bill.Value - payment.Amount
+
+	bc := &BillContent{
+		Value:           payment.Amount,
+		StateHash:       make([]byte, 32),
+		Backlink:        paymentHash[:],
+		BearerPredicate: payment.PayeePredicate,
+	}
+	s.addBill(bc)
+	return nil
 }
 
 // addBill inserts a new bill to the state. Return parameter is the bill ID.

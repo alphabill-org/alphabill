@@ -194,7 +194,29 @@ func TestState_GetRootHash(t *testing.T) {
 	//TODO assert root hash
 }
 
-func TestState_ProcessTransferOrder(t *testing.T) {
+func TestState_ProcessNilPayment(t *testing.T) {
+	s := New()
+	s.addBill(newBillContent(10))
+
+	err := s.Process(nil)
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidPaymentOrder, err)
+}
+
+func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
+	s := New()
+	s.addBill(newBillContent(10))
+	n, _ := s.getBill(uint64(1))
+
+	payment := newTransferOrder(n.BillID, n.Bill.Backlink, []byte{0x1})
+	payment.Type = 10
+	err := s.Process(payment)
+
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidPaymentType, err)
+}
+
+func TestState_ProcessTransferOrder_Ok(t *testing.T) {
 	s := New()
 	s.addBill(newBillContent(10))
 	s.addBill(newBillContent(20))
@@ -251,6 +273,73 @@ func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
 	assert.Equal(t, ErrInvalidPaymentBacklink, err)
 }
 
+func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
+	s := New()
+	s.addBill(newBillContent(10))
+
+	n, _ := s.getBill(uint64(1))
+
+	order := newSplitOrder(uint64(2), n.Bill.Backlink, []byte{0x1}, 1)
+
+	err := s.Process(order)
+	assert.Error(t, err)
+	assert.Equal(t, ErrBillNotFound, err)
+}
+
+func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
+	s := New()
+	s.addBill(newBillContent(10))
+
+	n, _ := s.getBill(uint64(1))
+
+	order := newSplitOrder(n.BillID, []byte("invalid"), []byte{0x1}, 1)
+
+	err := s.Process(order)
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidPaymentBacklink, err)
+}
+
+func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
+	s := New()
+	s.addBill(newBillContent(10))
+
+	n, _ := s.getBill(uint64(1))
+
+	order := newSplitOrder(n.BillID, n.Bill.Backlink, []byte{0x1}, 11)
+
+	err := s.Process(order)
+	assert.Error(t, err)
+	assert.Equal(t, ErrInvalidPaymentAmount, err)
+}
+
+func TestState_ProcessSplitOrder_Ok(t *testing.T) {
+	s := New()
+	s.addBill(newBillContent(10))
+	n, _ := s.getBill(uint64(1))
+
+	order := newSplitOrder(n.BillID, n.Bill.Backlink, []byte{0x1}, 6)
+
+	err := s.Process(order)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(2), s.maxBillID)
+
+	s.GetRootHash()
+
+	n, _ = s.getBill(uint64(1))
+	assert.NotNil(t, n)
+
+	n2, _ := s.getBill(uint64(2))
+	assert.NotNil(t, n)
+
+	assert.Equal(t, uint32(10), n.Bill.TotalValue)
+	assert.Equal(t, uint32(4), n.Bill.Value)
+	assert.NotEqual(t, order.PayeePredicate, n.Bill.BearerPredicate)
+
+	assert.Equal(t, uint32(6), n2.Bill.TotalValue)
+	assert.Equal(t, uint32(6), n2.Bill.Value)
+	assert.Equal(t, order.PayeePredicate, n2.Bill.BearerPredicate)
+}
+
 func TestBillContent_CalculateStateHash_StateIsNotChanged(t *testing.T) {
 	bc := newBillContent(10)
 	hash := bc.calculateStateHash(nil, crypto.SHA256.New())
@@ -276,15 +365,22 @@ func TestBillContent_CalculateStateHash_TransferBill(t *testing.T) {
 }
 
 func newTransferOrder(billID uint64, backlink []byte, newPredicate Predicate) *PaymentOrder {
+	return newPaymentOrder(PaymentTypeTransfer, billID, backlink, newPredicate, 0)
+}
+
+func newSplitOrder(billID uint64, backlink []byte, newPredicate Predicate, amount uint32) *PaymentOrder {
+	return newPaymentOrder(PaymentTypeSplit, billID, backlink, newPredicate, amount)
+}
+
+func newPaymentOrder(t PaymentType, billID uint64, backlink []byte, payeePredicate Predicate, amount uint32) *PaymentOrder {
 	return &PaymentOrder{
 		BillID:            billID,
-		Type:              PaymentTypeTransfer,
-		Amount:            0,
-		PayeePredicate:    newPredicate,
+		Type:              t,
+		Amount:            amount,
+		PayeePredicate:    payeePredicate,
 		Backlink:          backlink,
 		PredicateArgument: []byte{},
 	}
-
 }
 
 func newBillContent(v uint32) *BillContent {

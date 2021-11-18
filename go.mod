@@ -11,6 +11,8 @@ require (
 require (
 	github.com/btcsuite/btcd v0.20.1-beta // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2 // indirect
 	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912 // indirect

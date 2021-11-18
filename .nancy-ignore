@@ -1,6 +1,2 @@
-# We are not using golang.org/x/crypto actually
-CVE-2020-29652
-CVE-2020-9283
-
 # We are not using github.com/dgrijalva/jwt-go, it's transitive from go-ethereum
 CVE-2020-26160

@@ -1,6 +1,9 @@
 package state
 
-import "bytes"
+import (
+	"bytes"
+	"hash"
+)
 
 const (
 	PaymentTypeTransfer PaymentType = 1
@@ -28,4 +31,9 @@ func (o *PaymentOrder) Bytes() []byte {
 	bytes.Write(o.Backlink)
 	bytes.Write(o.PredicateArgument)
 	return bytes.Bytes()
+}
+
+func (o *PaymentOrder) Hash(hasher hash.Hash) []byte {
+	hasher.Write(o.Bytes())
+	return hasher.Sum(nil)
 }

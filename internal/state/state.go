@@ -2,7 +2,7 @@ package state
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"crypto"
 	"errors"
 	"fmt"
 	"hash"
@@ -13,16 +13,19 @@ var (
 	ErrInvalidPaymentAmount   = errors.New("invalid payment amount")
 	ErrInvalidPaymentBacklink = errors.New("invalid payment backlink")
 	ErrInvalidPaymentOrder    = errors.New("invalid payment order")
-	ErrInvalidPaymentType    = errors.New("invalid payment type")
+	ErrInvalidPaymentType     = errors.New("invalid payment type")
+
+	ErrInvalidHashAlgorithm = errors.New("invalid hash algorithm")
 )
 
 type (
 
 	// State holds the state of all bills.
 	State struct {
-		root        *Node  // root node
-		roundNumber uint64 // number of the round
-		maxBillID   uint64 // maximum bill identifier
+		root          *Node       // root node
+		roundNumber   uint64      // number of the round
+		maxBillID     uint64      // maximum bill identifier
+		hashAlgorithm crypto.Hash // hash function algorithm
 	}
 
 	// Node is a single element within the State.
@@ -49,9 +52,15 @@ type (
 	Predicate []byte
 )
 
-// New instantiates a new empty state.
-func New() *State {
-	return &State{}
+// New instantiates a new empty state with given hash function.
+func New(hashAlgorithm crypto.Hash) (*State, error) {
+	if hashAlgorithm != crypto.SHA256 && hashAlgorithm != crypto.SHA512 {
+		return nil, ErrInvalidHashAlgorithm
+	}
+
+	return &State{
+		hashAlgorithm: hashAlgorithm,
+	}, nil
 }
 
 // Process validates and processes a payment order.
@@ -70,7 +79,7 @@ func (s *State) Process(payment *PaymentOrder) error {
 
 // GetRootHash returns the root hash of the State.
 func (s *State) GetRootHash() []byte {
-	s.recompute(s.root, sha256.New())
+	s.recompute(s.root, s.hashAlgorithm.New())
 	return s.root.Hash
 }
 
@@ -88,9 +97,11 @@ func (s *State) processTransfer(payment *PaymentOrder) error {
 	if !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
 		return ErrInvalidPaymentBacklink
 	}
-	paymentHash := sha256.Sum256(payment.Bytes())
+	hasher := s.hashAlgorithm.New()
+	paymentHash := payment.Hash(hasher)
+	hasher.Reset()
 	b.Bill.Backlink = paymentHash[:]
-	b.Bill.calculateStateHash(payment, sha256.New())
+	b.Bill.calculateStateHash(payment, hasher)
 	b.Bill.BearerPredicate = payment.PayeePredicate
 
 	return s.updateBill(payment.BillID, b.Bill)
@@ -108,9 +119,13 @@ func (s *State) processSplit(payment *PaymentOrder) error {
 	if b.Bill.Value < amount {
 		return ErrInvalidPaymentAmount
 	}
-	paymentHash := sha256.Sum256(payment.Bytes())
+
+	hasher := s.hashAlgorithm.New()
+	paymentHash := payment.Hash(hasher)
+	hasher.Reset()
+
 	b.Bill.Backlink = paymentHash[:]
-	b.Bill.calculateStateHash(payment, sha256.New())
+	b.Bill.calculateStateHash(payment, hasher)
 	b.Bill.Value = b.Bill.Value - payment.Amount
 
 	bc := &BillContent{

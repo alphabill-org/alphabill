@@ -21,16 +21,33 @@ const (
 	key31 = uint64(31)
 )
 
-func TestCreateEmptyState_Ok(t *testing.T) {
-	s := New()
+func TestCreateEmptyState_SHA256_Ok(t *testing.T) {
+	s, _ := New(crypto.SHA256)
 	assert.Equal(t, uint64(0), s.maxBillID)
 	assert.Equal(t, uint64(0), s.roundNumber)
 	assert.Nil(t, s.root)
 	assert.True(t, s.empty())
+	assert.Equal(t, crypto.SHA256, s.hashAlgorithm)
+}
+
+func TestCreateEmptyState_SHA512_Ok(t *testing.T) {
+	s, _ := New(crypto.SHA512)
+	assert.Equal(t, uint64(0), s.maxBillID)
+	assert.Equal(t, uint64(0), s.roundNumber)
+	assert.Nil(t, s.root)
+	assert.True(t, s.empty())
+	assert.Equal(t, crypto.SHA512, s.hashAlgorithm)
+}
+
+func TestCreateStateWithUnsupportedHashAlgorithm(t *testing.T) {
+	s, err := New(crypto.MD5)
+	assert.Nil(t, s)
+	assert.NotNil(t, err)
+	assert.Error(t, ErrInvalidHashAlgorithm, err)
 }
 
 func TestAddBills_Ok(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	total := 0
 	for i := 1; i <= 10; i++ {
 		s.addBill(newBillContent(uint32(i)))
@@ -50,7 +67,7 @@ func TestAddBills_Ok(t *testing.T) {
 }
 
 func TestUpdateNodeContent_Ok(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
@@ -59,7 +76,7 @@ func TestUpdateNodeContent_Ok(t *testing.T) {
 }
 
 func TestUpdateNodeContent_BillNotPresent(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
@@ -69,7 +86,7 @@ func TestUpdateNodeContent_BillNotPresent(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	put(key1, newBillContent(1), nil, &s.root)
 	put(key2, newBillContent(2), nil, &s.root)
@@ -81,7 +98,7 @@ func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateRight(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	put(key3, newBillContent(3), nil, &s.root)
 	put(key2, newBillContent(2), nil, &s.root)
@@ -93,7 +110,7 @@ func TestAddBill_AVLTreeRotateRight(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	put(key10, newBillContent(10), nil, &s.root)
 	put(key20, newBillContent(20), nil, &s.root)
@@ -111,7 +128,7 @@ func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	put(key10, newBillContent(10), nil, &s.root)
 	put(key30, newBillContent(30), nil, &s.root)
@@ -130,7 +147,7 @@ func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
 }
 
 func TestGetBillNode_LeftChild(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	put(key1, newBillContent(1), nil, &s.root)
 	put(key2, newBillContent(2), nil, &s.root)
@@ -147,7 +164,7 @@ func TestGetBillNode_LeftChild(t *testing.T) {
 }
 
 func TestGetBillNode_RightChild(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	put(key1, newBillContent(1), nil, &s.root)
 	put(key2, newBillContent(2), nil, &s.root)
@@ -163,7 +180,7 @@ func TestGetBillNode_RightChild(t *testing.T) {
 }
 
 func TestGetBillNode_NotFound(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	put(key1, newBillContent(1), nil, &s.root)
 	put(key2, newBillContent(2), nil, &s.root)
@@ -175,7 +192,7 @@ func TestGetBillNode_NotFound(t *testing.T) {
 }
 
 func TestState_GetRootHash(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 
 	k1 := s.addBill(newBillContent(10))
 	k2 := s.addBill(newBillContent(20))
@@ -195,7 +212,7 @@ func TestState_GetRootHash(t *testing.T) {
 }
 
 func TestState_ProcessNilPayment(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 
 	err := s.Process(nil)
@@ -204,7 +221,7 @@ func TestState_ProcessNilPayment(t *testing.T) {
 }
 
 func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 	n, _ := s.getBill(uint64(1))
 
@@ -217,7 +234,7 @@ func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_Ok(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 	s.addBill(newBillContent(20))
 	s.addBill(newBillContent(30))
@@ -234,7 +251,7 @@ func TestState_ProcessTransferOrder_Ok(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 
 	n, _ := s.getBill(uint64(1))
@@ -248,7 +265,7 @@ func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 
 	n, _ := s.getBill(uint64(1))
@@ -261,7 +278,7 @@ func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 
 	n, _ := s.getBill(uint64(1))
@@ -274,7 +291,7 @@ func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 
 	n, _ := s.getBill(uint64(1))
@@ -287,7 +304,7 @@ func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 
 	n, _ := s.getBill(uint64(1))
@@ -300,7 +317,7 @@ func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 
 	n, _ := s.getBill(uint64(1))
@@ -313,7 +330,7 @@ func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_Ok(t *testing.T) {
-	s := New()
+	s, _ := New(crypto.SHA256)
 	s.addBill(newBillContent(10))
 	n, _ := s.getBill(uint64(1))
 

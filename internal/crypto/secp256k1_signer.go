@@ -2,7 +2,6 @@ package crypto
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -23,12 +22,12 @@ type (
 	}
 )
 
-// PrivateKeySecp256K1Size is size of private in bytes
+// PrivateKeySecp256K1Size is the size of the private key in bytes
 const PrivateKeySecp256K1Size = 32
 
 // NewInMemorySecp256K1Signer generates new key pair and creates a new inMemorySecp256K1Signer.
 func NewInMemorySecp256K1Signer() (*inMemorySecp256K1Signer, error) {
-	_, privKey, err := generateSecp256K1KeyPair()
+	privKey, err := generateSecp256K1PrivateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -77,16 +76,15 @@ func (s *inMemorySecp256K1Signer) MarshalPrivateKey() ([]byte, error) {
 	return s.privKey, nil
 }
 
-func generateSecp256K1KeyPair() (pubkey, privkey []byte, err error) {
+func generateSecp256K1PrivateKey() (privkey []byte, err error) {
 	key, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "could not generate random key")
+		return nil, errors.Wrap(err, "could not generate random key")
 	}
-	pubkey = elliptic.Marshal(secp256k1.S256(), key.X, key.Y)
 
 	privkey = make([]byte, 32)
 	blob := key.D.Bytes()
 	copy(privkey[32-len(blob):], blob)
 
-	return pubkey, privkey, nil
+	return privkey, nil
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain/canonicalizer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -16,6 +17,9 @@ type (
 		Signature []byte `hsh:"idx=2"` // must be excluded from signature
 	}
 
+	notCanonicalizable struct {
+	}
+
 	SigningTestSuite struct {
 		suite.Suite
 	}
@@ -23,6 +27,10 @@ type (
 
 func (a A) Canonicalize() ([]byte, error) {
 	return a.Content, nil
+}
+
+func (n notCanonicalizable) Canonicalize() ([]byte, error) {
+	return nil, errors.New("cannot canonicalize")
 }
 
 func TestSigningTestSuite(t *testing.T) {
@@ -90,6 +98,62 @@ func (s *SigningTestSuite) Test_MarshallingPrivateKey() {
 	require.NoError(s.T(), err)
 
 	s.assertSignAndVerify(signerFromKey, verifier)
+}
+
+func TestSignerNilArguments(t *testing.T) {
+	var signer inMemorySecp256K1Signer
+
+	bytes, err := signer.SignBytes([]byte{1, 2, 3})
+	require.Error(t, err)
+	require.Nil(t, bytes)
+
+	bytes2, err2 := signer.SignObject(A{Content: []byte("asdf")})
+	require.Error(t, err2)
+	require.Nil(t, bytes2)
+}
+
+func TestSignerNilData(t *testing.T) {
+	signer, err := NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+
+	bytes, err := signer.SignBytes(nil)
+	require.Error(t, err)
+	require.Nil(t, bytes)
+
+	bytes2, err2 := signer.SignObject(nil)
+	require.Error(t, err2)
+	require.Nil(t, bytes2)
+}
+
+func TestVerifierNilVerifier(t *testing.T) {
+	var verifier verifierSecp256k1
+
+	err := verifier.VerifyBytes([]byte{1}, []byte{2})
+	require.Error(t, err)
+
+	key, err := verifier.MarshalPublicKey()
+	require.Error(t, err)
+	require.Nil(t, key)
+}
+
+func TestVerifierIllegalInput(t *testing.T) {
+	signer, err := NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+
+	data := []byte{1, 2, 3, 4}
+	sig, err := signer.SignBytes(data)
+	require.NoError(t, err)
+
+	err = verifier.VerifyBytes([]byte{1, 2}, data)
+	require.Error(t, err, "verifying signature with illegal size must fail")
+
+	err = verifier.VerifyObject(sig, notCanonicalizable{})
+	require.Error(t, err, "verifying object that returns error from canonicalizing must fail")
+
+	err = verifier.VerifyBytes(sig, append(data, 5))
+	require.Error(t, err, "verifying not matching data and signature must fail")
 }
 
 func (s *SigningTestSuite) assertSignAndVerify(signer Signer, verifier Verifier) {

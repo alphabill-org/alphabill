@@ -8,6 +8,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain/canonicalizer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -46,7 +47,10 @@ func NewInMemoryEd25519SignerFromKeys(privKey []byte) (*inMemorySecp256K1Signer,
 // The produced signature is in the 65-byte [R || S || V] format where V is 0 or 1.
 func (s *inMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
 	if s == nil {
-		return nil, errors.Wrap(errors.ErrInvalidArgument, "nil argument")
+		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+	}
+	if data == nil {
+		return nil, errors.Wrap(errors.ErrInvalidArgument, "cannot sign nil data")
 	}
 	return secp256k1.Sign(hash.Sum256(data), s.privKey)
 }
@@ -54,7 +58,7 @@ func (s *inMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
 // SignObject transforms the object to canonical form and then signs the data using SignBytes method.
 func (s *inMemorySecp256K1Signer) SignObject(obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) ([]byte, error) {
 	if s == nil {
-		return nil, errors.Wrap(errors.ErrInvalidArgument, "nil argument")
+		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
 	data, err := canonicalizer.Canonicalize(obj, opts...)
 	if err != nil {

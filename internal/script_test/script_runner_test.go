@@ -24,6 +24,12 @@ func TestP2pkhScript_Ok(t *testing.T) {
 	assert.True(t, result)
 }
 
+func TestP2pkhScriptSha512_Ok(t *testing.T) {
+	tx := newP2pkhSha512Tx(t)
+	result := script.RunScript(tx.predicateArgument, tx.bearerPredicate, tx.sigData)
+	assert.True(t, result)
+}
+
 func TestEmptyScriptWithTrailingBoolTrue_Nok(t *testing.T) {
 	predicateArgument := []byte{script.StartByte}
 	bearerPredicate := []byte{script.StartByte, 0x01}
@@ -76,24 +82,18 @@ func createValidScriptWithMinLength(minLength int) []byte {
 	return append(s, script.OP_PUSH_BOOL, 0x01)
 }
 
+type tx struct {
+	sigData           []byte
+	predicateArgument []byte
+	bearerPredicate   []byte
+}
+
 func newP2pkhTx(t *testing.T) tx {
-	signer, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-
-	verifier, err := signer.Verifier()
-	require.NoError(t, err)
-
-	pubKey, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-
+	sig, sigData, pubKey := createSignature(t)
 	pubKeyHash := hash.Sum256(pubKey)
 
-	sigData := getDummyPaymentOrder()
-	sig, err := signer.SignBytes(sigData)
-	require.NoError(t, err)
-
 	predicateArgument := createPredicateArgument(sig, pubKey)
-	bearerPredicate := createBearerPredicate(pubKeyHash)
+	bearerPredicate := createBearerPredicate(0x01, pubKeyHash)
 
 	return tx{
 		sigData:           sigData,
@@ -102,10 +102,35 @@ func newP2pkhTx(t *testing.T) tx {
 	}
 }
 
-type tx struct {
-	sigData           []byte
-	predicateArgument []byte
-	bearerPredicate   []byte
+func newP2pkhSha512Tx(t *testing.T) tx {
+	sig, sigData, pubKey := createSignature(t)
+	pubKeyHash := hash.Sum512(pubKey)
+
+	predicateArgument := createPredicateArgument(sig, pubKey)
+	bearerPredicate := createBearerPredicate(0x02, pubKeyHash)
+
+	return tx{
+		sigData:           sigData,
+		predicateArgument: predicateArgument,
+		bearerPredicate:   bearerPredicate,
+	}
+}
+
+func createSignature(t *testing.T) ([]byte, []byte, []byte) {
+	signer, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+
+	sigData := getDummyPaymentOrder()
+	sig, err := signer.SignBytes(sigData)
+	require.NoError(t, err)
+
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+
+	pubKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+
+	return sig, sigData, pubKey
 }
 
 func getDummyPaymentOrder() []byte {
@@ -121,9 +146,9 @@ func getDummyPaymentOrder() []byte {
 	return po.SigBytes()
 }
 
-func createBearerPredicate(pubKeyHash []byte) []byte {
+func createBearerPredicate(hashType byte, pubKeyHash []byte) []byte {
 	p := make([]byte, 0, 42)
-	p = append(p, 0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01)
+	p = append(p, 0x53, 0x76, 0xa8, hashType, 0x4f, hashType)
 	p = append(p, pubKeyHash...)
 	p = append(p, 0x87, 0x69, 0xac, 0x01)
 	return p

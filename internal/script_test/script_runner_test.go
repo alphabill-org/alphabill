@@ -53,41 +53,30 @@ func TestScriptWithoutFirstByte_Nok(t *testing.T) {
 	assert.False(t, result)
 }
 
-func TestPredicateMaxScriptBytes_Nok(t *testing.T) {
-	predicateArgument := []byte{script.StartByte}
-	bearerPredicate := make([]byte, 0, script.MaxScriptBytes+10)
-	bearerPredicate = append(bearerPredicate, script.StartByte)
+func TestMaxScriptBytes_Nok(t *testing.T) {
+	emptyScript := []byte{script.StartByte}
+	overfilledScript := createValidScriptWithMinLength(script.MaxScriptBytes + 10)
 
-	// overfill the script with valid opcode combinations (OP_PUSH_BOOL TRUE OP_VERIFY)
-	for i := 0; i < script.MaxScriptBytes+10; i += 3 {
-		bearerPredicate = append(bearerPredicate, script.OP_PUSH_BOOL, 0x01, script.OP_VERIFY)
-	}
-	// add final OP_PUSH_BOOL TRUE without verify making the script valid
-	bearerPredicate = append(bearerPredicate, script.OP_PUSH_BOOL, 0x01)
+	r := script.RunScript(emptyScript, overfilledScript, nil)
+	assert.False(t, r)
 
-	r1 := script.RunScript(predicateArgument, bearerPredicate, nil)
-	r2 := script.RunScript(bearerPredicate, predicateArgument, nil)
-	assert.False(t, r1)
-	assert.False(t, r2)
+	r = script.RunScript(overfilledScript, emptyScript, nil)
+	assert.False(t, r)
 }
 
-func TestSignatureMaxScriptBytes_Nok(t *testing.T) {
-	bearerPredicate := []byte{script.StartByte}
-	predicateArgument := make([]byte, 0, script.MaxScriptBytes+10)
-	predicateArgument = append(bearerPredicate, script.StartByte)
+func createValidScriptWithMinLength(minLength int) []byte {
+	s := make([]byte, 0, minLength)
+	s = append(s, script.StartByte)
 
-	// overfill the script with valid opcodes OP_PUSH_BOOL TRUE OP_VERIFY
-	for i := 0; i < script.MaxScriptBytes+10; i += 3 {
-		bearerPredicate = append(bearerPredicate, script.OP_PUSH_BOOL, 0x01, script.OP_VERIFY)
+	// fill the script with valid opcodes (OP_PUSH_BOOL TRUE OP_VERIFY)
+	for i := 0; i < minLength; i += 3 {
+		s = append(s, script.OP_PUSH_BOOL, 0x01, script.OP_VERIFY)
 	}
-	// add final OP_PUSH_BOOL TRUE without verify making the script valid
-	bearerPredicate = append(bearerPredicate, script.OP_PUSH_BOOL, 0x01)
-
-	result := script.RunScript(predicateArgument, bearerPredicate, nil)
-	assert.False(t, result)
+	// add TRUE at the end to make the script valid
+	return append(s, script.OP_PUSH_BOOL, 0x01)
 }
 
-func newP2pkhTx(t *testing.T) p2pkh {
+func newP2pkhTx(t *testing.T) tx {
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
@@ -106,15 +95,14 @@ func newP2pkhTx(t *testing.T) p2pkh {
 	predicateArgument := createPredicateArgument(sig, pubKey)
 	bearerPredicate := createBearerPredicate(pubKeyHash)
 
-	return p2pkh{
+	return tx{
 		sigData:           sigData,
 		predicateArgument: predicateArgument,
 		bearerPredicate:   bearerPredicate,
 	}
 }
 
-// encapsulates dummy p2pkh tx data
-type p2pkh struct {
+type tx struct {
 	sigData           []byte
 	predicateArgument []byte
 	bearerPredicate   []byte

@@ -366,6 +366,6 @@ func newBillContent(v uint32) *BillContent {
 		Value:           v,
 		Backlink:        make([]byte, 32),
 		StateHash:       make([]byte, 32),
-		BearerPredicate: []byte{0x53, script.OP_PUSH_BOOL, 0x01}, // always true predicate
+		BearerPredicate: []byte{script.StartByte, script.OP_PUSH_BOOL, 0x01}, // always true predicate
 	}
 }

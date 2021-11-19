@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	PaymentTypeTransfer PaymentType = 1
-	PaymentTypeSplit    PaymentType = 2
+	PaymentTypeTransfer PaymentType = 0
+	PaymentTypeSplit    PaymentType = 1
 )
 
 type (

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"hash"
 )
 
@@ -13,6 +14,7 @@ var (
 	ErrInvalidPaymentAmount   = errors.New("invalid payment amount")
 	ErrInvalidPaymentBacklink = errors.New("invalid payment backlink")
 	ErrInvalidPaymentOrder    = errors.New("invalid payment order")
+	ErrScriptExecutionFailed  = errors.New("script execution failed")
 )
 
 type (
@@ -84,7 +86,6 @@ func (s *State) processTransfer(payment PaymentOrder) error {
 	if payment.Amount != 0 {
 		return ErrInvalidPaymentAmount
 	}
-	// TODO check predicate
 
 	b, found := s.getBill(payment.BillID)
 	if !found {
@@ -94,6 +95,11 @@ func (s *State) processTransfer(payment PaymentOrder) error {
 	if b.Bill.PaymentOrder != nil || !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
 		return ErrInvalidPaymentBacklink
 	}
+
+	if !script.RunScript(payment.PredicateArgument[:], b.Bill.BearerPredicate[:], payment.SigBytes()[:]) {
+		return ErrScriptExecutionFailed
+	}
+
 	b.Bill.PaymentOrder = &payment
 	b.Bill.BearerPredicate = payment.PayeePredicate
 	return s.updateBill(payment.BillID, b.Bill)

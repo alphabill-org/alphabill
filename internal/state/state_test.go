@@ -2,6 +2,7 @@ package state
 
 import (
 	"crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -355,7 +356,7 @@ func newTransferOrder(billID uint64, backlink []byte, newPredicate Predicate) Pa
 		Amount:            0,
 		PayeePredicate:    newPredicate,
 		Backlink:          backlink,
-		PredicateArgument: []byte{},
+		PredicateArgument: []byte{0x53},
 	}
 
 }
@@ -365,6 +366,6 @@ func newBillContent(v uint32) *BillContent {
 		Value:           v,
 		Backlink:        make([]byte, 32),
 		StateHash:       make([]byte, 32),
-		BearerPredicate: make([]byte, 32),
+		BearerPredicate: []byte{0x53, script.OP_PUSH_BOOL, 0x01}, // always true predicate
 	}
 }

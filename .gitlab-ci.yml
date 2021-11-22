@@ -43,7 +43,18 @@ sonarqube-check:
     paths:
       - .sonar/cache
   script: >
+    if [ "$CI_OPEN_MERGE_REQUESTS" == "" ]; then
+      # Merge request not available, running Sonar without it.
       sonar-scanner
+    else
+      # Place the CI_OPEN_MERGE_REQUESTS in between single quotes, because ! is special character for bash.
+      QUOTED_CI_OPEN_MERGE_REQUESTS="'${CI_OPEN_MERGE_REQUESTS}'"
+
+      # Takes part between last ! and ' character. Job rules makes sure that $CI_OPEN_MERGE_REQUESTS is not empty.
+      MERGE_REQUEST_ID=`echo ${QUOTED_CI_OPEN_MERGE_REQUESTS} | rev | cut -d'!' -f1 | cut -d"'" -f2 | rev`
+
+      sonar-scanner -Dsonar.pullrequest.key=${MERGE_REQUEST_ID} -Dsonar.pullrequest.branch=${CI_COMMIT_BRANCH} -Dsonar.pullrequest.base=master
+    fi
   allow_failure: true
 
 trivy:

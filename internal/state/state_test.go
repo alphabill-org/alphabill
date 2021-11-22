@@ -6,21 +6,6 @@ import (
 	"testing"
 )
 
-const (
-	key1  = uint64(1)
-	key2  = uint64(2)
-	key3  = uint64(3)
-	key4  = uint64(4)
-	key10 = uint64(10)
-	key12 = uint64(12)
-	key15 = uint64(15)
-	key20 = uint64(20)
-	key24 = uint64(24)
-	key25 = uint64(25)
-	key30 = uint64(30)
-	key31 = uint64(31)
-)
-
 func TestCreateEmptyState_SHA256_Ok(t *testing.T) {
 	s, _ := New(crypto.SHA256)
 	assert.Equal(t, uint64(0), s.maxBillID)
@@ -58,12 +43,11 @@ func TestAddBills_Ok(t *testing.T) {
 	assert.NotNil(t, s.root)
 	assert.False(t, s.empty())
 
-	assert.Equal(t, key4, s.root.BillID)
+	assert.Equal(t, key4, s.root.ID)
 	assert.Equal(t, uint32(4), s.root.Bill.Value)
 
 	assert.NotNil(t, s.GetRootHash())
 	assert.Equal(t, uint32(total), s.root.Bill.TotalValue)
-
 }
 
 func TestUpdateNodeContent_Ok(t *testing.T) {
@@ -71,7 +55,7 @@ func TestUpdateNodeContent_Ok(t *testing.T) {
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
-	err := s.updateBill(uint64(2), newBillContent(10))
+	err := s.updateBill(2, newBillContent(10))
 	assert.NoError(t, err)
 }
 
@@ -80,111 +64,29 @@ func TestUpdateNodeContent_BillNotPresent(t *testing.T) {
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
-	err := s.updateBill(uint64(10), newBillContent(10))
+	err := s.updateBill(10, newBillContent(10))
 	assert.Error(t, err)
 	assert.Equal(t, ErrBillNotFound, err)
 }
 
-func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
+func TestGetBill_Ok(t *testing.T) {
 	s, _ := New(crypto.SHA256)
+	value1 := uint32(1)
+	k1 := s.addBill(newBillContent(value1))
+	s.addBill(newBillContent(2))
+	s.addBill(newBillContent(3))
 
-	put(key1, newBillContent(1), nil, &s.root)
-	put(key2, newBillContent(2), nil, &s.root)
-	put(key3, newBillContent(3), nil, &s.root)
-
-	assert.Equal(t, s.root.BillID, key2)
-	assert.Equal(t, s.root.Children[0].BillID, key1)
-	assert.Equal(t, s.root.Children[1].BillID, key3)
-}
-
-func TestAddBill_AVLTreeRotateRight(t *testing.T) {
-	s, _ := New(crypto.SHA256)
-
-	put(key3, newBillContent(3), nil, &s.root)
-	put(key2, newBillContent(2), nil, &s.root)
-	put(key1, newBillContent(1), nil, &s.root)
-
-	assert.Equal(t, s.root.BillID, key2)
-	assert.Equal(t, s.root.Children[0].BillID, key1)
-	assert.Equal(t, s.root.Children[1].BillID, key3)
-}
-
-func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
-	s, _ := New(crypto.SHA256)
-
-	put(key10, newBillContent(10), nil, &s.root)
-	put(key20, newBillContent(20), nil, &s.root)
-	put(key30, newBillContent(30), nil, &s.root)
-	put(key1, newBillContent(1), nil, &s.root)
-	put(key15, newBillContent(15), nil, &s.root)
-	put(key12, newBillContent(12), nil, &s.root)
-
-	assert.Equal(t, s.root.BillID, key15)
-	assert.Equal(t, s.root.Children[0].BillID, key10)
-	assert.Equal(t, s.root.Children[0].Children[0].BillID, key1)
-	assert.Equal(t, s.root.Children[0].Children[1].BillID, key12)
-	assert.Equal(t, s.root.Children[1].BillID, key20)
-	assert.Equal(t, s.root.Children[1].Children[1].BillID, key30)
-}
-
-func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
-	s, _ := New(crypto.SHA256)
-
-	put(key10, newBillContent(10), nil, &s.root)
-	put(key30, newBillContent(30), nil, &s.root)
-	put(key20, newBillContent(20), nil, &s.root)
-
-	put(key25, newBillContent(25), nil, &s.root)
-	put(key31, newBillContent(31), nil, &s.root)
-	put(key24, newBillContent(24), nil, &s.root)
-
-	assert.Equal(t, s.root.BillID, key25)
-	assert.Equal(t, s.root.Children[0].BillID, key20)
-	assert.Equal(t, s.root.Children[0].Children[0].BillID, key10)
-	assert.Equal(t, s.root.Children[0].Children[1].BillID, key24)
-	assert.Equal(t, s.root.Children[1].BillID, key30)
-	assert.Equal(t, s.root.Children[1].Children[1].BillID, key31)
-}
-
-func TestGetBillNode_LeftChild(t *testing.T) {
-	s, _ := New(crypto.SHA256)
-
-	put(key1, newBillContent(1), nil, &s.root)
-	put(key2, newBillContent(2), nil, &s.root)
-	put(key3, newBillContent(3), nil, &s.root)
-
-	node, found := s.getBill(key1)
+	bill, found := s.getBill(k1)
 	assert.True(t, found)
-	assert.NotNil(t, node)
-	assert.Equal(t, key1, node.BillID)
-	assert.Equal(t, uint32(1), node.Bill.Value)
-	assert.Nil(t, node.Children[0])
-	assert.Nil(t, node.Children[1])
-
+	assert.NotNil(t, bill)
+	assert.Equal(t, value1, bill.Value)
 }
 
-func TestGetBillNode_RightChild(t *testing.T) {
+func TestGetBill_NotFound(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-
-	put(key1, newBillContent(1), nil, &s.root)
-	put(key2, newBillContent(2), nil, &s.root)
-	put(key3, newBillContent(3), nil, &s.root)
-
-	node, found := s.getBill(key3)
-	assert.True(t, found)
-	assert.NotNil(t, node)
-	assert.Equal(t, key3, node.BillID)
-	assert.Equal(t, uint32(3), node.Bill.Value)
-	assert.Nil(t, node.Children[0])
-	assert.Nil(t, node.Children[1])
-}
-
-func TestGetBillNode_NotFound(t *testing.T) {
-	s, _ := New(crypto.SHA256)
-
-	put(key1, newBillContent(1), nil, &s.root)
-	put(key2, newBillContent(2), nil, &s.root)
-	put(key3, newBillContent(3), nil, &s.root)
+	s.addBill(newBillContent(1))
+	s.addBill(newBillContent(1))
+	s.addBill(newBillContent(1))
 
 	node, found := s.getBill(key4)
 	assert.False(t, found)
@@ -201,14 +103,18 @@ func TestState_GetRootHash(t *testing.T) {
 	root := s.GetRootHash()
 	assert.NotNil(t, root)
 
-	bill1, _ := s.getBill(k1)
-	bill2, _ := s.getBill(k2)
-	bill3, _ := s.getBill(k3)
+	bill1, _ := getNode(s.root, k1)
+	bill2, _ := getNode(s.root, k2)
+	bill3, _ := getNode(s.root, k3)
 	assert.False(t, bill1.recompute)
 	assert.False(t, bill2.recompute)
 	assert.False(t, bill3.recompute)
 
-	//TODO assert root hash
+	var zeroHash = make([]byte, 32)
+	left := calculateHash(t, bill1, zeroHash, 0, zeroHash, 0)
+	right := calculateHash(t, bill3, zeroHash, 0, zeroHash, 0)
+	rootHash := calculateHash(t, bill2, left, bill1.Bill.TotalValue, right, bill3.Bill.TotalValue)
+	assert.Equal(t, rootHash, root)
 }
 
 func TestState_ProcessNilPayment(t *testing.T) {
@@ -222,10 +128,10 @@ func TestState_ProcessNilPayment(t *testing.T) {
 
 func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
-	n, _ := s.getBill(uint64(1))
+	billID := s.addBill(newBillContent(10))
+	b, _ := s.getBill(billID)
 
-	payment := newTransferOrder(n.BillID, n.Bill.Backlink, []byte{0x1})
+	payment := newTransferOrder(billID, b.Backlink, []byte{0x1})
 	payment.Type = 10
 	err := s.Process(payment)
 
@@ -235,29 +141,26 @@ func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
 
 func TestState_ProcessTransferOrder_Ok(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
+	billID := s.addBill(newBillContent(10))
 	s.addBill(newBillContent(20))
 	s.addBill(newBillContent(30))
 
-	s.GetRootHash()
-
-	n, _ := s.getBill(uint64(1))
-	err := s.Process(newTransferOrder(n.BillID, n.Bill.Backlink, []byte{0x1}))
-
+	b, _ := s.getBill(billID)
+	err := s.Process(newTransferOrder(billID, b.Backlink, []byte{0x1}))
 	assert.NoError(t, err)
-	n, _ = s.getBill(uint64(1))
-	s.GetRootHash()
-	assert.NotNil(t, n)
+
+	b, _ = s.getBill(billID)
+	assert.NotNil(t, b)
 }
 
 func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
+	billID := s.addBill(newBillContent(10))
 
-	n, _ := s.getBill(uint64(1))
+	b, _ := s.getBill(billID)
 
-	order := newTransferOrder(n.BillID, n.Bill.Backlink, []byte{0x1})
-	order.Amount = uint32(10)
+	order := newTransferOrder(billID, b.Backlink, []byte{0x1})
+	order.Amount = 10
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -266,11 +169,11 @@ func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
 
 func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
+	billID := s.addBill(newBillContent(10))
 
-	n, _ := s.getBill(uint64(1))
+	b, _ := s.getBill(billID)
 
-	order := newTransferOrder(uint64(2), n.Bill.Backlink, []byte{0x1})
+	order := newTransferOrder(2, b.Backlink, []byte{0x1})
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -279,11 +182,8 @@ func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
 
 func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
-
-	n, _ := s.getBill(uint64(1))
-
-	order := newTransferOrder(n.BillID, []byte("invalid"), []byte{0x1})
+	billID := s.addBill(newBillContent(10))
+	order := newTransferOrder(billID, []byte("invalid"), []byte{0x1})
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -292,11 +192,11 @@ func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
 
 func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
+	billID := s.addBill(newBillContent(10))
 
-	n, _ := s.getBill(uint64(1))
+	b, _ := s.getBill(billID)
 
-	order := newSplitOrder(uint64(2), n.Bill.Backlink, []byte{0x1}, 1)
+	order := newSplitOrder(2, b.Backlink, []byte{0x1}, 1)
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -305,11 +205,8 @@ func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
 
 func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
-
-	n, _ := s.getBill(uint64(1))
-
-	order := newSplitOrder(n.BillID, []byte("invalid"), []byte{0x1}, 1)
+	billID := s.addBill(newBillContent(10))
+	order := newSplitOrder(billID, []byte("invalid"), []byte{0x1}, 1)
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -318,11 +215,11 @@ func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
 
 func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
+	billID := s.addBill(newBillContent(10))
 
-	n, _ := s.getBill(uint64(1))
+	b, _ := s.getBill(billID)
 
-	order := newSplitOrder(n.BillID, n.Bill.Backlink, []byte{0x1}, 11)
+	order := newSplitOrder(billID, b.Backlink, []byte{0x1}, 11)
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -331,10 +228,10 @@ func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
 
 func TestState_ProcessSplitOrder_Ok(t *testing.T) {
 	s, _ := New(crypto.SHA256)
-	s.addBill(newBillContent(10))
-	n, _ := s.getBill(uint64(1))
+	billID := s.addBill(newBillContent(10))
+	b, _ := s.getBill(billID)
 
-	order := newSplitOrder(n.BillID, n.Bill.Backlink, []byte{0x1}, 6)
+	order := newSplitOrder(billID, b.Backlink, []byte{0x1}, 6)
 
 	err := s.Process(order)
 	assert.NoError(t, err)
@@ -342,19 +239,19 @@ func TestState_ProcessSplitOrder_Ok(t *testing.T) {
 
 	s.GetRootHash()
 
-	n, _ = s.getBill(uint64(1))
-	assert.NotNil(t, n)
+	b, _ = s.getBill(billID)
+	assert.NotNil(t, b)
 
-	n2, _ := s.getBill(uint64(2))
-	assert.NotNil(t, n)
+	b2, _ := s.getBill(s.maxBillID)
+	assert.NotNil(t, b2)
 
-	assert.Equal(t, uint32(10), n.Bill.TotalValue)
-	assert.Equal(t, uint32(4), n.Bill.Value)
-	assert.NotEqual(t, order.PayeePredicate, n.Bill.BearerPredicate)
+	assert.Equal(t, uint32(10), b.TotalValue)
+	assert.Equal(t, uint32(4), b.Value)
+	assert.NotEqual(t, order.PayeePredicate, b.BearerPredicate)
 
-	assert.Equal(t, uint32(6), n2.Bill.TotalValue)
-	assert.Equal(t, uint32(6), n2.Bill.Value)
-	assert.Equal(t, order.PayeePredicate, n2.Bill.BearerPredicate)
+	assert.Equal(t, uint32(6), b2.TotalValue)
+	assert.Equal(t, uint32(6), b2.Value)
+	assert.Equal(t, order.PayeePredicate, b2.BearerPredicate)
 }
 
 func TestBillContent_CalculateStateHash_StateIsNotChanged(t *testing.T) {
@@ -366,7 +263,7 @@ func TestBillContent_CalculateStateHash_StateIsNotChanged(t *testing.T) {
 func TestBillContent_CalculateStateHash_TransferBill(t *testing.T) {
 	bc := newBillContent(10)
 	oldStateHash := bc.StateHash
-	transfer := newTransferOrder(uint64(1), bc.Backlink, []byte{1})
+	transfer := newTransferOrder(1, bc.Backlink, []byte{1})
 	hash := bc.calculateStateHash(transfer, crypto.SHA256.New())
 
 	hasher := crypto.SHA256.New()
@@ -407,4 +304,24 @@ func newBillContent(v uint32) *BillContent {
 		StateHash:       make([]byte, 32),
 		BearerPredicate: make([]byte, 32),
 	}
+}
+
+func calculateHash(t *testing.T, parent *Node, leftHash []byte, leftTotalValue uint32, rightHash []byte, rightTotalValue uint32) []byte {
+	t.Helper()
+	hasher := crypto.SHA256.New()
+	// write bill ID
+	hasher.Write(Uint64ToBytes(parent.ID))
+	// write bill value
+	hasher.Write(Uint32ToBytes(parent.Bill.Value))
+	// write bill state hash
+	hasher.Write(parent.Bill.StateHash)
+	// write left child hash
+	hasher.Write(leftHash)
+	// write left child totalValue
+	hasher.Write(Uint32ToBytes(leftTotalValue))
+	// write right child hash
+	hasher.Write(rightHash)
+	// write right child totalValue
+	hasher.Write(Uint32ToBytes(rightTotalValue))
+	return hasher.Sum(nil)
 }

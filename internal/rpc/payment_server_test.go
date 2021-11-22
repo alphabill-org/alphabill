@@ -16,7 +16,7 @@ import (
 )
 
 var paymentProcessingFails = &payment.PaymentRequest{
-	BillId:            uint64(1000),
+	BillId:            1000,
 	PaymentType:       payment.PaymentRequest_TRANSFER,
 	Amount:            0,
 	PayeePredicate:    make([]byte, 32),
@@ -69,7 +69,7 @@ func TestPaymentsServer_MakePayment_Ok(t *testing.T) {
 	defer con.Close()
 
 	req := &payment.PaymentRequest{
-		BillId:            uint64(1),
+		BillId:            1,
 		PaymentType:       payment.PaymentRequest_TRANSFER,
 		Amount:            0,
 		PayeePredicate:    make([]byte, 32),

@@ -6,36 +6,31 @@ package state
 func put(key uint64, content *BillContent, p *Node, qp **Node) bool {
 	q := *qp
 	if q == nil {
-		*qp = &Node{BillID: key, Bill: content, Parent: p, recompute: true}
+		*qp = &Node{ID: key, Bill: content, Parent: p, recompute: true}
 		return true
 	}
 
 	q.recompute = true
-	c := compare(key, q.BillID)
+	c := compare(key, q.ID)
 	if c == 0 {
-		q.BillID = key
+		q.ID = key
 		q.Bill = content
 		return false
 	}
 
-	if c < 0 {
-		c = -1
-	} else {
-		c = 1
-	}
 	a := (c + 1) / 2
 	var fix bool
 	fix = put(key, content, q, &q.Children[a])
 	if fix {
-		return putFix(int8(c), qp)
+		return putFix(c, qp)
 	}
 	return false
 }
 
-func getNode(s *State, key uint64) (*Node, bool) {
-	n := s.root
+func getNode(s *Node, key uint64) (*Node, bool) {
+	n := s
 	for n != nil {
-		cmp := compare(key, n.BillID)
+		cmp := compare(key, n.ID)
 		switch {
 		case cmp == 0:
 			return n, true
@@ -113,7 +108,7 @@ func rotate(c int8, s *Node) *Node {
 	return r
 }
 
-func compare(a, b uint64) int {
+func compare(a, b uint64) int8 {
 	switch {
 	case a > b:
 		return 1

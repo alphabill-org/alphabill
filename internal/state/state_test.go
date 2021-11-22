@@ -55,7 +55,7 @@ func TestUpdateNodeContent_Ok(t *testing.T) {
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
-	err := s.updateBill(uint64(2), newBillContent(10))
+	err := s.updateBill(2, newBillContent(10))
 	assert.NoError(t, err)
 }
 
@@ -64,7 +64,7 @@ func TestUpdateNodeContent_BillNotPresent(t *testing.T) {
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
-	err := s.updateBill(uint64(10), newBillContent(10))
+	err := s.updateBill(10, newBillContent(10))
 	assert.Error(t, err)
 	assert.Equal(t, ErrBillNotFound, err)
 }
@@ -144,14 +144,12 @@ func TestState_ProcessTransferOrder_Ok(t *testing.T) {
 	billID := s.addBill(newBillContent(10))
 	s.addBill(newBillContent(20))
 	s.addBill(newBillContent(30))
-	s.GetRootHash()
 
 	b, _ := s.getBill(billID)
 	err := s.Process(newTransferOrder(billID, b.Backlink, []byte{0x1}))
 	assert.NoError(t, err)
 
 	b, _ = s.getBill(billID)
-	s.GetRootHash()
 	assert.NotNil(t, b)
 }
 
@@ -175,7 +173,7 @@ func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
 
 	b, _ := s.getBill(billID)
 
-	order := newTransferOrder(uint64(2), b.Backlink, []byte{0x1})
+	order := newTransferOrder(2, b.Backlink, []byte{0x1})
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -198,7 +196,7 @@ func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
 
 	b, _ := s.getBill(billID)
 
-	order := newSplitOrder(uint64(2), b.Backlink, []byte{0x1}, 1)
+	order := newSplitOrder(2, b.Backlink, []byte{0x1}, 1)
 
 	err := s.Process(order)
 	assert.Error(t, err)
@@ -265,7 +263,7 @@ func TestBillContent_CalculateStateHash_StateIsNotChanged(t *testing.T) {
 func TestBillContent_CalculateStateHash_TransferBill(t *testing.T) {
 	bc := newBillContent(10)
 	oldStateHash := bc.StateHash
-	transfer := newTransferOrder(uint64(1), bc.Backlink, []byte{1})
+	transfer := newTransferOrder(1, bc.Backlink, []byte{1})
 	hash := bc.calculateStateHash(transfer, crypto.SHA256.New())
 
 	hasher := crypto.SHA256.New()

@@ -11,24 +11,24 @@ func TestPaymentOrder_Bytes(t *testing.T) {
 		Type:              PaymentTypeSplit,
 		BillID:            uint64(1),
 		Amount:            uint32(10),
-		Backlink:          make([]byte, 32),
-		PredicateArgument: make([]byte, 32),
-		PayeePredicate:    nil,
+		Backlink:          []byte{1},
+		PredicateArgument: []byte{2},
+		PayeePredicate:    []byte{3},
 	}
 
 	var bytes bytes.Buffer
 	// type
 	bytes.WriteByte(0x02)
-	// ID (LE)
-	bytes.WriteByte(1)
+	// ID
 	bytes.Write(make([]byte, 7))
-	// amount (LE)
-	bytes.WriteByte(0x0A)
+	bytes.WriteByte(1)
+	// amount
 	bytes.Write(make([]byte, 3))
+	bytes.WriteByte(0x0A)
 	// backlink
-	bytes.Write(make([]byte, 32))
+	bytes.Write([]byte{1})
 	// predicate
-	bytes.Write(make([]byte, 32))
+	bytes.Write([]byte{3})
 
 	assert.Equal(t, bytes.Bytes(), p.Bytes())
 }

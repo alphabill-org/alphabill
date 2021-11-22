@@ -16,8 +16,8 @@ type (
 		BillID            uint64
 		Amount            uint32
 		Backlink          []byte
-		PredicateArgument Predicate
 		PayeePredicate    Predicate
+		PredicateArgument Predicate
 	}
 
 	PaymentType uint8
@@ -29,7 +29,7 @@ func (o *PaymentOrder) Bytes() []byte {
 	bytes.Write(Uint64ToBytes(o.BillID))
 	bytes.Write(Uint32ToBytes(o.Amount))
 	bytes.Write(o.Backlink)
-	bytes.Write(o.PredicateArgument)
+	bytes.Write(o.PayeePredicate)
 	return bytes.Bytes()
 }
 

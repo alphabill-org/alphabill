@@ -30,7 +30,7 @@ type (
 
 	// Node is a single element within the State.
 	Node struct {
-		BillID    uint64       // BillID of the node/bill
+		ID        uint64       // ID of the node
 		Bill      *BillContent // BillContent contains bill related information
 		Parent    *Node        // Parent node
 		Children  [2]*Node     // Children nodes
@@ -44,9 +44,8 @@ type (
 		Value           uint32    // value of the given bill
 		TotalValue      uint32    // total value
 		StateHash       []byte    // state hash of the bill state
-		Backlink        []byte    // backlink to the payment/emission order
+		Backlink        []byte    // pre-calculated backlink value
 		BearerPredicate Predicate // bearer predicate
-
 	}
 
 	Predicate []byte
@@ -94,17 +93,17 @@ func (s *State) processTransfer(payment *PaymentOrder) error {
 		return ErrBillNotFound
 	}
 
-	if !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
+	if !bytes.Equal(b.Backlink, payment.Backlink) {
 		return ErrInvalidPaymentBacklink
 	}
 	hasher := s.hashAlgorithm.New()
 	paymentHash := payment.Hash(hasher)
 	hasher.Reset()
-	b.Bill.Backlink = paymentHash[:]
-	b.Bill.calculateStateHash(payment, hasher)
-	b.Bill.BearerPredicate = payment.PayeePredicate
+	b.Backlink = paymentHash[:]
+	b.calculateStateHash(payment, hasher)
+	b.BearerPredicate = payment.PayeePredicate
 
-	return s.updateBill(payment.BillID, b.Bill)
+	return s.updateBill(payment.BillID, b)
 }
 
 func (s *State) processSplit(payment *PaymentOrder) error {
@@ -112,11 +111,11 @@ func (s *State) processSplit(payment *PaymentOrder) error {
 	if !found {
 		return ErrBillNotFound
 	}
-	if !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
+	if !bytes.Equal(b.Backlink, payment.Backlink) {
 		return ErrInvalidPaymentBacklink
 	}
 	amount := payment.Amount
-	if b.Bill.Value < amount {
+	if b.Value < amount {
 		return ErrInvalidPaymentAmount
 	}
 
@@ -124,9 +123,9 @@ func (s *State) processSplit(payment *PaymentOrder) error {
 	paymentHash := payment.Hash(hasher)
 	hasher.Reset()
 
-	b.Bill.Backlink = paymentHash[:]
-	b.Bill.calculateStateHash(payment, hasher)
-	b.Bill.Value = b.Bill.Value - payment.Amount
+	b.Backlink = paymentHash[:]
+	b.calculateStateHash(payment, hasher)
+	b.Value = b.Value - payment.Amount
 
 	bc := &BillContent{
 		Value:           payment.Amount,
@@ -148,7 +147,7 @@ func (s *State) addBill(content *BillContent) (billID uint64) {
 
 // updateBill updates bill with given billID.
 func (s *State) updateBill(billID uint64, content *BillContent) error {
-	_, found := getNode(s, billID)
+	_, found := s.getBill(billID)
 	if found {
 		put(billID, content, nil, &s.root)
 		return nil
@@ -156,10 +155,14 @@ func (s *State) updateBill(billID uint64, content *BillContent) error {
 	return ErrBillNotFound
 }
 
-// getBill searches the bill in the state by billID and returns its value or nil if bill is not found in state.
+// getBill searches the bill in the state by billID and returns its content or nil if bill is not found in state.
 // Second return parameter is true if bill was found, otherwise false.
-func (s *State) getBill(billID uint64) (value *Node, found bool) {
-	return getNode(s, billID)
+func (s *State) getBill(billID uint64) (*BillContent, bool) {
+	node, b := getNode(s.root, billID)
+	if !b {
+		return nil, b
+	}
+	return node.Bill, b
 }
 
 // empty returns true if state does not contain any nodes/bills.
@@ -191,7 +194,7 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 		hasher.Reset()
 
 		// write bill ID
-		hasher.Write(Uint64ToBytes(n.BillID))
+		hasher.Write(Uint64ToBytes(n.ID))
 
 		// write bill value
 		hasher.Write(Uint32ToBytes(n.Bill.Value))
@@ -243,7 +246,7 @@ func (s *State) String() string {
 
 // String returns a string representation of the node
 func (n *Node) String() string {
-	m := fmt.Sprintf("ID=%v, ", n.BillID)
+	m := fmt.Sprintf("ID=%v, ", n.ID)
 	if n.recompute {
 		m = m + "*"
 	}

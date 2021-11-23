@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"hash"
 )
@@ -42,14 +43,12 @@ type (
 
 	// BillContent contains bill related information.
 	BillContent struct {
-		Value           uint32    // value of the given bill
-		TotalValue      uint32    // total value
-		StateHash       []byte    // state hash of the bill state
-		Backlink        []byte    // pre-calculated backlink value
-		BearerPredicate Predicate // bearer predicate
+		Value           uint32           // value of the given bill
+		TotalValue      uint32           // total value
+		StateHash       []byte           // state hash of the bill state
+		Backlink        []byte           // pre-calculated backlink value
+		BearerPredicate domain.Predicate // bearer predicate
 	}
-
-	Predicate []byte
 )
 
 // New instantiates a new empty state with given hash function.
@@ -64,14 +63,14 @@ func New(hashAlgorithm crypto.Hash) (*State, error) {
 }
 
 // Process validates and processes a payment order.
-func (s *State) Process(payment *PaymentOrder) error {
+func (s *State) Process(payment *domain.PaymentOrder) error {
 	if payment == nil {
 		return ErrInvalidPaymentOrder
 	}
 	switch payment.Type {
-	case PaymentTypeTransfer:
+	case domain.PaymentTypeTransfer:
 		return s.processTransfer(payment)
-	case PaymentTypeSplit:
+	case domain.PaymentTypeSplit:
 		return s.processSplit(payment)
 	}
 	return ErrInvalidPaymentType
@@ -83,7 +82,7 @@ func (s *State) GetRootHash() []byte {
 	return s.root.Hash
 }
 
-func (s *State) processTransfer(payment *PaymentOrder) error {
+func (s *State) processTransfer(payment *domain.PaymentOrder) error {
 	if payment.Amount != 0 {
 		return ErrInvalidPaymentAmount
 	}
@@ -112,7 +111,7 @@ func (s *State) processTransfer(payment *PaymentOrder) error {
 	return s.updateBill(payment.BillID, b)
 }
 
-func (s *State) processSplit(payment *PaymentOrder) error {
+func (s *State) processSplit(payment *domain.PaymentOrder) error {
 	b, found := s.getBill(payment.BillID)
 	if !found {
 		return ErrBillNotFound
@@ -205,10 +204,10 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 		hasher.Reset()
 
 		// write bill ID
-		hasher.Write(Uint64ToBytes(n.ID))
+		hasher.Write(domain.Uint64ToBytes(n.ID))
 
 		// write bill value
-		hasher.Write(Uint32ToBytes(n.Bill.Value))
+		hasher.Write(domain.Uint32ToBytes(n.Bill.Value))
 
 		// write bill state hash
 		hasher.Write(n.Bill.StateHash)
@@ -217,13 +216,13 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 		hasher.Write(leftHash)
 
 		// write left child totalValue
-		hasher.Write(Uint32ToBytes(leftTotalValue))
+		hasher.Write(domain.Uint32ToBytes(leftTotalValue))
 
 		// write right child hash
 		hasher.Write(rightHash)
 
 		// write right child totalValue
-		hasher.Write(Uint32ToBytes(rightTotalValue))
+		hasher.Write(domain.Uint32ToBytes(rightTotalValue))
 
 		n.Hash = hasher.Sum(nil)
 		hasher.Reset()
@@ -231,7 +230,7 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 	}
 }
 
-func (c *BillContent) calculateStateHash(payment *PaymentOrder, hasher hash.Hash) []byte {
+func (c *BillContent) calculateStateHash(payment *domain.PaymentOrder, hasher hash.Hash) []byte {
 	if payment == nil {
 		return c.StateHash
 	}

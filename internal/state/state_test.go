@@ -2,6 +2,7 @@ package state
 
 import (
 	"crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -288,7 +289,6 @@ func TestState_ProcessTransferOrder_InvalidPredicate(t *testing.T) {
 	//err := s.Process(order)
 	//assert.Error(t, err)
 
-
 	s, _ := New(crypto.SHA256)
 	bc := newBillContent(10)
 	bc.BearerPredicate = []byte{script.StartByte, script.OpPushBool, script.BoolFalse}
@@ -301,16 +301,16 @@ func TestState_ProcessTransferOrder_InvalidPredicate(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func newTransferOrder(billID uint64, backlink []byte, newPredicate Predicate) *PaymentOrder {
-	return newPaymentOrder(PaymentTypeTransfer, billID, backlink, newPredicate, 0)
+func newTransferOrder(billID uint64, backlink []byte, newPredicate domain.Predicate) *domain.PaymentOrder {
+	return newPaymentOrder(domain.PaymentTypeTransfer, billID, backlink, newPredicate, 0)
 }
 
-func newSplitOrder(billID uint64, backlink []byte, newPredicate Predicate, amount uint32) *PaymentOrder {
-	return newPaymentOrder(PaymentTypeSplit, billID, backlink, newPredicate, amount)
+func newSplitOrder(billID uint64, backlink []byte, newPredicate domain.Predicate, amount uint32) *domain.PaymentOrder {
+	return newPaymentOrder(domain.PaymentTypeSplit, billID, backlink, newPredicate, amount)
 }
 
-func newPaymentOrder(t PaymentType, billID uint64, backlink []byte, payeePredicate Predicate, amount uint32) *PaymentOrder {
-	return &PaymentOrder{
+func newPaymentOrder(t domain.PaymentType, billID uint64, backlink []byte, payeePredicate domain.Predicate, amount uint32) *domain.PaymentOrder {
+	return &domain.PaymentOrder{
 		BillID:            billID,
 		Type:              t,
 		Amount:            amount,
@@ -333,18 +333,18 @@ func calculateHash(t *testing.T, parent *Node, leftHash []byte, leftTotalValue u
 	t.Helper()
 	hasher := crypto.SHA256.New()
 	// write bill ID
-	hasher.Write(Uint64ToBytes(parent.ID))
+	hasher.Write(domain.Uint64ToBytes(parent.ID))
 	// write bill value
-	hasher.Write(Uint32ToBytes(parent.Bill.Value))
+	hasher.Write(domain.Uint32ToBytes(parent.Bill.Value))
 	// write bill state hash
 	hasher.Write(parent.Bill.StateHash)
 	// write left child hash
 	hasher.Write(leftHash)
 	// write left child totalValue
-	hasher.Write(Uint32ToBytes(leftTotalValue))
+	hasher.Write(domain.Uint32ToBytes(leftTotalValue))
 	// write right child hash
 	hasher.Write(rightHash)
 	// write right child totalValue
-	hasher.Write(Uint32ToBytes(rightTotalValue))
+	hasher.Write(domain.Uint32ToBytes(rightTotalValue))
 	return hasher.Sum(nil)
 }

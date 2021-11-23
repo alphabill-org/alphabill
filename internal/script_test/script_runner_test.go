@@ -139,11 +139,10 @@ func createDummyPaymentOrder() []byte {
 	po := state.PaymentOrder{
 		BillID:            1,
 		Type:              state.PaymentTypeTransfer,
-		JoinBillId:        1,
 		Amount:            0,
 		Backlink:          []byte{},
 		PayeePredicate:    []byte{},
 		PredicateArgument: []byte{},
 	}
-	return po.SigBytes()
+	return po.Bytes()
 }

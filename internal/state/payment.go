@@ -37,14 +37,3 @@ func (o *PaymentOrder) Hash(hasher hash.Hash) []byte {
 	hasher.Write(o.Bytes())
 	return hasher.Sum(nil)
 }
-
-// Canonical serialization for signature generation, serializes all fields except PredicateArgument
-func (o *PaymentOrder) SigBytes() []byte {
-	var b bytes.Buffer
-	b.WriteByte(byte(o.Type))
-	b.Write(Uint64ToBytes(o.BillID))
-	b.Write(Uint32ToBytes(o.Amount))
-	b.Write(o.Backlink)
-	b.Write(o.PayeePredicate) // PayeePredicate must be serialized last
-	return b.Bytes()
-}

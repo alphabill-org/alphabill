@@ -2,7 +2,7 @@ package state
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"crypto"
 	"errors"
 	"fmt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
@@ -14,20 +14,24 @@ var (
 	ErrInvalidPaymentAmount   = errors.New("invalid payment amount")
 	ErrInvalidPaymentBacklink = errors.New("invalid payment backlink")
 	ErrInvalidPaymentOrder    = errors.New("invalid payment order")
+	ErrInvalidPaymentType     = errors.New("invalid payment type")
+
+	ErrInvalidHashAlgorithm = errors.New("invalid hash algorithm")
 )
 
 type (
 
 	// State holds the state of all bills.
 	State struct {
-		root        *Node  // root node
-		roundNumber uint64 // number of the round
-		maxBillID   uint64 // maximum bill identifier
+		root          *Node       // root node
+		roundNumber   uint64      // number of the round
+		maxBillID     uint64      // maximum bill identifier
+		hashAlgorithm crypto.Hash // hash function algorithm
 	}
 
 	// Node is a single element within the State.
 	Node struct {
-		BillID    uint64       // BillID of the node/bill
+		ID        uint64       // ID of the node
 		Bill      *BillContent // BillContent contains bill related information
 		Parent    *Node        // Parent node
 		Children  [2]*Node     // Children nodes
@@ -38,50 +42,48 @@ type (
 
 	// BillContent contains bill related information.
 	BillContent struct {
-		Value           uint32          // value of the given bill
-		TotalValue      uint32          // total value
-		StateHash       []byte          // state hash of the bill state
-		Backlink        []byte          // backlink to the payment/emission order
-		BearerPredicate Predicate       // bearer predicate
-		PaymentOrder    *PaymentOrder   // payment or emission order
-		JoinOrders      []*PaymentOrder // incoming join orders
+		Value           uint32    // value of the given bill
+		TotalValue      uint32    // total value
+		StateHash       []byte    // state hash of the bill state
+		Backlink        []byte    // pre-calculated backlink value
+		BearerPredicate Predicate // bearer predicate
 	}
 
 	Predicate []byte
 )
 
-// New instantiates a new empty state.
-func New() *State {
-	return &State{}
+// New instantiates a new empty state with given hash function.
+func New(hashAlgorithm crypto.Hash) (*State, error) {
+	if hashAlgorithm != crypto.SHA256 && hashAlgorithm != crypto.SHA512 {
+		return nil, ErrInvalidHashAlgorithm
+	}
+
+	return &State{
+		hashAlgorithm: hashAlgorithm,
+	}, nil
 }
 
 // Process validates and processes a payment order.
-func (s *State) Process(payment PaymentOrder) error {
+func (s *State) Process(payment *PaymentOrder) error {
+	if payment == nil {
+		return ErrInvalidPaymentOrder
+	}
 	switch payment.Type {
 	case PaymentTypeTransfer:
 		return s.processTransfer(payment)
 	case PaymentTypeSplit:
-		if payment.JoinBillId > 0 {
-			return ErrInvalidPaymentOrder
-		}
-		// TODO
-	case PaymentTypeJoin:
-		//TODO implement
+		return s.processSplit(payment)
 	}
-
-	return errors.New("not implemented")
+	return ErrInvalidPaymentType
 }
 
 // GetRootHash returns the root hash of the State.
 func (s *State) GetRootHash() []byte {
-	s.recompute(s.root, sha256.New())
+	s.recompute(s.root, s.hashAlgorithm.New())
 	return s.root.Hash
 }
 
-func (s *State) processTransfer(payment PaymentOrder) error {
-	if payment.JoinBillId > 0 {
-		return ErrInvalidPaymentOrder
-	}
+func (s *State) processTransfer(payment *PaymentOrder) error {
 	if payment.Amount != 0 {
 		return ErrInvalidPaymentAmount
 	}
@@ -91,18 +93,59 @@ func (s *State) processTransfer(payment PaymentOrder) error {
 		return ErrBillNotFound
 	}
 
-	if b.Bill.PaymentOrder != nil || !bytes.Equal(b.Bill.Backlink, payment.Backlink) {
+	if !bytes.Equal(b.Backlink, payment.Backlink) {
 		return ErrInvalidPaymentBacklink
 	}
 
-	err := script.RunScript(payment.PredicateArgument[:], b.Bill.BearerPredicate[:], payment.SigBytes()[:])
+	err := script.RunScript(payment.PredicateArgument[:], b.BearerPredicate[:], payment.Bytes()[:])
 	if err != nil {
 		return err
 	}
 
-	b.Bill.PaymentOrder = &payment
-	b.Bill.BearerPredicate = payment.PayeePredicate
-	return s.updateBill(payment.BillID, b.Bill)
+	hasher := s.hashAlgorithm.New()
+	paymentHash := payment.Hash(hasher)
+	hasher.Reset()
+	b.Backlink = paymentHash[:]
+	b.calculateStateHash(payment, hasher)
+	b.BearerPredicate = payment.PayeePredicate
+
+	return s.updateBill(payment.BillID, b)
+}
+
+func (s *State) processSplit(payment *PaymentOrder) error {
+	b, found := s.getBill(payment.BillID)
+	if !found {
+		return ErrBillNotFound
+	}
+	if !bytes.Equal(b.Backlink, payment.Backlink) {
+		return ErrInvalidPaymentBacklink
+	}
+	amount := payment.Amount
+	if b.Value < amount {
+		return ErrInvalidPaymentAmount
+	}
+
+	err := script.RunScript(payment.PredicateArgument[:], b.BearerPredicate[:], payment.Bytes()[:])
+	if err != nil {
+		return err
+	}
+
+	hasher := s.hashAlgorithm.New()
+	paymentHash := payment.Hash(hasher)
+	hasher.Reset()
+
+	b.Backlink = paymentHash[:]
+	b.calculateStateHash(payment, hasher)
+	b.Value = b.Value - payment.Amount
+
+	bc := &BillContent{
+		Value:           payment.Amount,
+		StateHash:       make([]byte, 32),
+		Backlink:        paymentHash[:],
+		BearerPredicate: payment.PayeePredicate,
+	}
+	s.addBill(bc)
+	return nil
 }
 
 // addBill inserts a new bill to the state. Return parameter is the bill ID.
@@ -115,7 +158,7 @@ func (s *State) addBill(content *BillContent) (billID uint64) {
 
 // updateBill updates bill with given billID.
 func (s *State) updateBill(billID uint64, content *BillContent) error {
-	_, found := getNode(s, billID)
+	_, found := s.getBill(billID)
 	if found {
 		put(billID, content, nil, &s.root)
 		return nil
@@ -123,15 +166,14 @@ func (s *State) updateBill(billID uint64, content *BillContent) error {
 	return ErrBillNotFound
 }
 
-// removeBill removes the bill from the state by billID.
-func (s *State) removeBill(billID uint64) {
-	remove(billID, &s.root)
-}
-
-// getBill searches the bill in the state by billID and returns its value or nil if bill is not found in state.
+// getBill searches the bill in the state by billID and returns its content or nil if bill is not found in state.
 // Second return parameter is true if bill was found, otherwise false.
-func (s *State) getBill(billID uint64) (value *Node, found bool) {
-	return getNode(s, billID)
+func (s *State) getBill(billID uint64) (*BillContent, bool) {
+	node, b := getNode(s.root, billID)
+	if !b {
+		return nil, b
+	}
+	return node.Bill, b
 }
 
 // empty returns true if state does not contain any nodes/bills.
@@ -159,22 +201,17 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 			rightTotalValue = right.Bill.TotalValue
 			rightHash = right.Hash
 		}
-
-		// TODO joins
 		n.Bill.TotalValue = n.Bill.Value + leftTotalValue + rightTotalValue
-
-		billStateHash := n.Bill.calculateStateHash(hasher)
-		n.Bill.StateHash = billStateHash
 		hasher.Reset()
 
 		// write bill ID
-		hasher.Write(Uint64ToBytes(n.BillID))
+		hasher.Write(Uint64ToBytes(n.ID))
 
 		// write bill value
 		hasher.Write(Uint32ToBytes(n.Bill.Value))
 
 		// write bill state hash
-		hasher.Write(billStateHash)
+		hasher.Write(n.Bill.StateHash)
 
 		// write left child hash
 		hasher.Write(leftHash)
@@ -191,39 +228,22 @@ func (s *State) recompute(n *Node, hasher hash.Hash) {
 		n.Hash = hasher.Sum(nil)
 		hasher.Reset()
 		n.recompute = false
-		n.Bill.PaymentOrder = nil
-		n.Bill.JoinOrders = nil
 	}
 }
 
-func (c *BillContent) calculateStateHash(hasher hash.Hash) []byte {
-	ordersHash := c.calculateOrdersHash(hasher)
-	if ordersHash != nil {
-		hasher.Write(c.StateHash)
-		hasher.Write(ordersHash)
-		c.StateHash = hasher.Sum(nil)
+func (c *BillContent) calculateStateHash(payment *PaymentOrder, hasher hash.Hash) []byte {
+	if payment == nil {
+		return c.StateHash
 	}
+	// calculate payment order hash
+	hasher.Write(payment.Bytes())
+	paymentHash := hasher.Sum(nil)
+	hasher.Reset()
+	// calculate state hash
+	hasher.Write(c.StateHash)
+	hasher.Write(paymentHash)
+	c.StateHash = hasher.Sum(nil)
 	return c.StateHash
-}
-
-func (c *BillContent) calculateOrdersHash(hasher hash.Hash) []byte {
-	calculateOrdersHash := false
-	if c.PaymentOrder != nil {
-		hasher.Write(c.PaymentOrder.Bytes())
-		calculateOrdersHash = true
-	}
-	if c.JoinOrders != nil && len(c.JoinOrders) > 0 {
-		calculateOrdersHash = true
-		for _, order := range c.JoinOrders {
-			hasher.Write(order.Bytes())
-		}
-	}
-	var ordersHash []byte = nil
-	if calculateOrdersHash {
-		ordersHash = hasher.Sum(nil)
-		hasher.Reset()
-	}
-	return ordersHash
 }
 
 // String returns a string representation of state.
@@ -237,7 +257,7 @@ func (s *State) String() string {
 
 // String returns a string representation of the node
 func (n *Node) String() string {
-	m := fmt.Sprintf("ID=%v, ", n.BillID)
+	m := fmt.Sprintf("ID=%v, ", n.ID)
 	if n.recompute {
 		m = m + "*"
 	}

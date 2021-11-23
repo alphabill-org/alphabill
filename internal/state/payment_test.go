@@ -1,22 +1,34 @@
 package state
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"bytes"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestSigBytesSerializationOrder(t *testing.T) {
-	po := PaymentOrder{
-		BillID:            1,
-		Type:              PaymentTypeJoin,
-		JoinBillId:        2,
-		Amount:            5,
-		PayeePredicate:    []byte{0x01},
-		Backlink:          []byte{0x02},
-		PredicateArgument: []byte{script.StartByte},
+func TestPaymentOrder_Bytes(t *testing.T) {
+	p := &PaymentOrder{
+		Type:              PaymentTypeSplit,
+		BillID:            uint64(1),
+		Amount:            uint32(10),
+		Backlink:          []byte{1},
+		PredicateArgument: []byte{2},
+		PayeePredicate:    []byte{3},
 	}
-	// 8 bytes id + 1 type byte + 8 bytes join bill id + 4 bytes amount  + backlink byte + payee predicate byte
-	expectedBytes := []byte{1, 0, 0, 0, 0, 0, 0, 0, 3, 2, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 2, 1}
-	assert.Equal(t, expectedBytes, po.SigBytes())
+
+	var bytes bytes.Buffer
+	// type
+	bytes.WriteByte(0x02)
+	// ID
+	bytes.Write(make([]byte, 7))
+	bytes.WriteByte(1)
+	// amount
+	bytes.Write(make([]byte, 3))
+	bytes.WriteByte(0x0A)
+	// backlink
+	bytes.Write([]byte{1})
+	// predicate
+	bytes.Write([]byte{3})
+
+	assert.Equal(t, bytes.Bytes(), p.Bytes())
 }

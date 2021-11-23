@@ -8,22 +8,21 @@ import (
 )
 
 type opCode struct {
-	value         byte
-	dataLength    int
-	exec          func(*context, []byte) error
-	getDataLength func(opCode, []byte) (int, error)
+	value         byte                               // identifier of the op code
+	exec          func(*scriptContext, []byte) error // executes opCode logic, modifies the *scriptContext
+	getDataLength func(script []byte) (int, error)   // parses the length of data following the given opcode
 }
 
 const (
-	OP_DUP          = 0x76
-	OP_HASH         = 0xa8
-	OP_PUSH_HASH    = 0x4f
-	OP_PUSH_PUB_KEY = 0x55
-	OP_PUSH_SIG     = 0x54
-	OP_CHECKSIG     = 0xac
-	OP_EQUAL        = 0x87
-	OP_VERIFY       = 0x69
-	OP_PUSH_BOOL    = 0x51
+	OpDup        = 0x76
+	OpHash       = 0xa8
+	OpPushHash   = 0x4f
+	OpPushPubKey = 0x55
+	OpPushSig    = 0x54
+	OpCheckSig   = 0xac
+	OpEqual      = 0x87
+	OpVerify     = 0x69
+	OpPushBool   = 0x51
 
 	// TODO implement below opcodes
 	//OP_PUSH_INT64   = 0x01
@@ -35,91 +34,101 @@ const (
 	//OP_NOT          = 0x91
 )
 
+const (
+	HashAlgSha256      = 0x01
+	HashAlgSha512      = 0x02
+	BoolFalse          = 0x00
+	BoolTrue           = 0x01
+	SigSchemeSecp256k1 = 0x01
+)
+
 var opCodes = map[byte]opCode{
-	OP_PUSH_BOOL:    {OP_PUSH_BOOL, 1, opPushBool, getDataLength},
-	OP_PUSH_SIG:     {OP_PUSH_SIG, 66, opPushSig, getDataLength},
-	OP_PUSH_PUB_KEY: {OP_PUSH_PUB_KEY, 34, opPushPubKey, getDataLength},
-	OP_PUSH_HASH:    {OP_PUSH_HASH, -1, opPushHash, getPushHashDataLength},
-	OP_HASH:         {OP_HASH, 1, opHash, getDataLength},
-	OP_DUP:          {OP_DUP, 0, opDup, getDataLength},
-	OP_EQUAL:        {OP_EQUAL, 0, opEqual, getDataLength},
-	OP_VERIFY:       {OP_VERIFY, 0, opVerify, getDataLength},
-	OP_CHECKSIG:     {OP_CHECKSIG, 1, opCheckSig, getDataLength},
+	OpPushBool:   {OpPushBool, opPushBool, fixedDataLength(1)},
+	OpPushSig:    {OpPushSig, opPushSig, fixedDataLength(66)},
+	OpPushPubKey: {OpPushPubKey, opPushPubKey, fixedDataLength(34)},
+	OpPushHash:   {OpPushHash, opPushHash, opPushHashDataLength},
+	OpHash:       {OpHash, opHash, fixedDataLength(1)},
+	OpDup:        {OpDup, opDup, fixedDataLength(0)},
+	OpEqual:      {OpEqual, opEqual, fixedDataLength(0)},
+	OpVerify:     {OpVerify, opVerify, fixedDataLength(0)},
+	OpCheckSig:   {OpCheckSig, opCheckSig, fixedDataLength(1)},
 }
 
 var (
 	errInvalidOpcodeData = errors.New("invalid opcode data")
 )
 
-// Returns fixed opCode dataLength or error if data is out of bounds from script
-func getDataLength(opCode opCode, script []byte) (int, error) {
-	if len(script) < opCode.dataLength {
-		return 0, errInvalidOpcodeData
+// fixedDataLength returns fixed opCode dataLength or error if data is out of bounds from script
+func fixedDataLength(length int) func(script []byte) (int, error) {
+	return func(script []byte) (int, error) {
+		if len(script) < length {
+			return 0, errInvalidOpcodeData
+		}
+		return length, nil
 	}
-	return opCode.dataLength, nil
 }
 
-// Returns parsed data length of OP_PUSH_HASH
-func getPushHashDataLength(code opCode, script []byte) (int, error) {
+// opPushHashDataLength returns parsed data length of OpPushHash
+func opPushHashDataLength(script []byte) (int, error) {
 	if len(script) == 0 {
 		return 0, errInvalidOpcodeData
 	}
-	lenByte := script[0]
-	if lenByte == 0x01 && len(script) >= 33 {
+	hashAlg := script[0]
+	if hashAlg == HashAlgSha256 && len(script) >= 33 {
 		return 33, nil
 	}
-	if lenByte == 0x02 && len(script) >= 65 {
+	if hashAlg == HashAlgSha512 && len(script) >= 65 {
 		return 65, nil
 	}
 	return 0, errInvalidOpcodeData
 }
 
-// Push bool to stack, returns error if data is not a valid bool
-func opPushBool(c *context, data []byte) error {
-	if len(data) == 1 && (data[0] == 0x00 || data[0] == 0x01) {
+// opPushBool pushes bool to stack, returns error if data is not a valid bool
+func opPushBool(c *scriptContext, data []byte) error {
+	if len(data) == 1 && (data[0] == BoolFalse || data[0] == BoolTrue) {
 		c.stack.push(data)
 		return nil
 	}
 	return errInvalidOpcodeData
 }
 
-// Push sig to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
+// opPushSig pushes sig to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
 // 0x01 – <secp256k1>, 65 bytes
-func opPushSig(c *context, data []byte) error {
-	if len(data) == 66 && data[0] == 0x01 {
+func opPushSig(c *scriptContext, data []byte) error {
+	if len(data) == 66 && data[0] == SigSchemeSecp256k1 {
 		c.stack.push(data[1:])
 		return nil
 	}
 	return errInvalidOpcodeData
 }
 
-// Push pubKey to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
+// opPushPubKey pushes pubKey to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
 // 0x01 – <secp256k1>, 33 bytes
-func opPushPubKey(c *context, data []byte) error {
-	if len(data) == 34 && data[0] == 0x01 {
+func opPushPubKey(c *scriptContext, data []byte) error {
+	if len(data) == 34 && data[0] == SigSchemeSecp256k1 {
 		c.stack.push(data[1:])
 		return nil
 	}
 	return errInvalidOpcodeData
 }
 
-// Push a hash value to the stack. The number of bytes of data to read is determined by first byte <HashAlg> label:
+// opPushHash pushes a hash value to the stack. The number of bytes of data to read is determined by first byte <HashAlg> label:
 // 0x01 – SHA256, 32 bytes
 // 0x02 – SHA512, 64 bytes
-func opPushHash(c *context, data []byte) error {
-	if len(data) == 33 && data[0] == 0x01 {
+func opPushHash(c *scriptContext, data []byte) error {
+	if len(data) == 33 && data[0] == HashAlgSha256 {
 		c.stack.push(data[1:])
 		return nil
 	}
-	if len(data) == 65 && data[0] == 0x02 {
+	if len(data) == 65 && data[0] == HashAlgSha512 {
 		c.stack.push(data[1:])
 		return nil
 	}
 	return errInvalidOpcodeData
 }
 
-// Duplicate the value at the top of the stack, returns error if stack is empty
-func opDup(c *context, data []byte) error {
+// opDup duplicates top element on the stack, returns error if stack is empty
+func opDup(c *scriptContext, data []byte) error {
 	peek, err := c.stack.peek()
 	if err != nil {
 		return err
@@ -128,8 +137,8 @@ func opDup(c *context, data []byte) error {
 	return nil
 }
 
-// Removes two top elements, compares them for equality and push the resulting bool to the stack.
-func opEqual(c *context, data []byte) error {
+// opEqual removes two top elements, compares them for equality and push the resulting bool to the stack.
+func opEqual(c *scriptContext, data []byte) error {
 	a, err := c.stack.pop()
 	if err != nil {
 		return err
@@ -142,22 +151,23 @@ func opEqual(c *context, data []byte) error {
 	return nil
 }
 
-// Checks if top of the stack is bool TRUE and removes it from the stack.
-func opVerify(c *context, data []byte) error {
+// opVerify checks if top of the stack is bool TRUE and removes it from the stack.
+func opVerify(c *scriptContext, data []byte) error {
 	pop, err := c.stack.popBool()
 	if err != nil {
 		return err
 	}
 	if !pop {
-		return errors.New("expected top value to be true but was false")
+		return errInvalidOpcodeData
 	}
 	return nil
 }
 
-// Hash the value at the top of the stack using the hash algorithm specified in the byte following the opcode. HashAlgs:
+// opHash hashes the top value on the stack using the hash algorithm specified in the byte following the opcode.
+// HashAlgs:
 // 0x01 – SHA256
 // 0x02 – SHA512
-func opHash(c *context, data []byte) error {
+func opHash(c *scriptContext, data []byte) error {
 	pop, err := c.stack.pop()
 	if err != nil {
 		return err
@@ -165,21 +175,21 @@ func opHash(c *context, data []byte) error {
 	if len(data) != 1 {
 		return errInvalidOpcodeData
 	}
-	if data[0] == 0x01 {
+	if data[0] == HashAlgSha256 {
 		c.stack.push(hash.Sum256(pop))
 		return nil
 	}
-	if data[0] == 0x02 {
+	if data[0] == HashAlgSha512 {
 		c.stack.push(hash.Sum512(pop))
 		return nil
 	}
 	return errInvalidOpcodeData
 }
 
-// Verifies that top of the stack contains pubKey and signature that were used to sign sigData
+// opCheckSig verifies that top of the stack contains pubKey and signature that were used to sign sigData
 // Returns either error or pushes TRUE/FALSE to the stack indicating signature verification result
-func opCheckSig(c *context, data []byte) error {
-	if len(data) != 1 || data[0] != 0x01 { // <secp256k1> SigScheme
+func opCheckSig(c *scriptContext, data []byte) error {
+	if len(data) != 1 || data[0] != SigSchemeSecp256k1 {
 		return errInvalidOpcodeData
 	}
 	pubKey, err := c.stack.pop()

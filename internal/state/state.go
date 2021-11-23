@@ -14,7 +14,6 @@ var (
 	ErrInvalidPaymentAmount   = errors.New("invalid payment amount")
 	ErrInvalidPaymentBacklink = errors.New("invalid payment backlink")
 	ErrInvalidPaymentOrder    = errors.New("invalid payment order")
-	ErrScriptExecutionFailed  = errors.New("script execution failed")
 )
 
 type (
@@ -96,8 +95,9 @@ func (s *State) processTransfer(payment PaymentOrder) error {
 		return ErrInvalidPaymentBacklink
 	}
 
-	if !script.RunScript(payment.PredicateArgument[:], b.Bill.BearerPredicate[:], payment.SigBytes()[:]) {
-		return ErrScriptExecutionFailed
+	err := script.RunScript(payment.PredicateArgument[:], b.Bill.BearerPredicate[:], payment.SigBytes()[:])
+	if err != nil {
+		return err
 	}
 
 	b.Bill.PaymentOrder = &payment

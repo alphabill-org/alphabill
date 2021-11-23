@@ -3,9 +3,9 @@ package script
 import "errors"
 
 var (
-	errPopEmptyStack  = errors.New("cannot pop from empty stack")
-	errPeekEmptyStack = errors.New("cannot peek into empty stack")
-	errPopBool        = errors.New("popped value is not a boolean")
+	errPopEmptyStack       = errors.New("cannot pop from empty stack")
+	errPeekEmptyStack      = errors.New("cannot peek into empty stack")
+	errPopValueNotABoolean = errors.New("popped value is not a boolean")
 )
 
 type stack struct {
@@ -60,5 +60,5 @@ func (s *stack) popBool() (bool, error) {
 	if top[0] == 0x01 {
 		return true, nil
 	}
-	return false, errPopBool
+	return false, errPopValueNotABoolean
 }

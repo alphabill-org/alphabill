@@ -344,6 +344,20 @@ func TestBillContent_CalculateStateHash_NewPayment(t *testing.T) {
 	assert.Equal(t, bc.StateHash, newBillHash)
 }
 
+func TestState_ProcessTransferOrder_InvalidPredicate(t *testing.T) {
+	s := New()
+	billContent := newBillContent(10)
+	billContent.BearerPredicate = []byte{script.StartByte, script.OpPushBool, script.BoolFalse} // always false script
+	s.addBill(billContent)
+
+	n, _ := s.getBill(uint64(1))
+
+	order := newTransferOrder(n.BillID, n.Bill.Backlink, []byte{0x1})
+
+	err := s.Process(order)
+	assert.Error(t, err)
+}
+
 func TestBillContent_CalculateStateHash_JoinsAndPayment(t *testing.T) {
 	t.Skip("Add Join Payment type!")
 }
@@ -366,6 +380,6 @@ func newBillContent(v uint32) *BillContent {
 		Value:           v,
 		Backlink:        make([]byte, 32),
 		StateHash:       make([]byte, 32),
-		BearerPredicate: []byte{script.StartByte, script.OP_PUSH_BOOL, 0x01}, // always true predicate
+		BearerPredicate: []byte{script.StartByte, script.OpPushBool, script.BoolTrue}, // always true predicate
 	}
 }

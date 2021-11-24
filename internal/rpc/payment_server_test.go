@@ -79,7 +79,7 @@ func TestPaymentsServer_MakePayment_Ok(t *testing.T) {
 	response, err := client.MakePayment(ctx, req)
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
-	assert.Equal(t, "TEST", response.PaymentID)
+	assert.Equal(t, "TEST", response.PaymentId)
 }
 
 func TestPaymentsServer_PaymentStatus_ProcessingFails(t *testing.T) {
@@ -88,7 +88,7 @@ func TestPaymentsServer_PaymentStatus_ProcessingFails(t *testing.T) {
 	defer con.Close()
 
 	response, err := client.PaymentStatus(ctx,
-		&payment.PaymentStatusRequest{PaymentID: strconv.FormatUint(paymentProcessingFails.BillId, 10)},
+		&payment.PaymentStatusRequest{PaymentId: strconv.FormatUint(paymentProcessingFails.BillId, 10)},
 	)
 	assert.Nil(t, response)
 	assert.True(t, strings.Contains(err.Error(), "failed to process payment status request"))
@@ -100,7 +100,7 @@ func TestPaymentsServer_PaymentStatus_Ok(t *testing.T) {
 	defer con.Close()
 
 	response, err := client.PaymentStatus(ctx,
-		&payment.PaymentStatusRequest{PaymentID: "10"},
+		&payment.PaymentStatusRequest{PaymentId: "10"},
 	)
 	assert.Nil(t, err)
 	assert.True(t, response.Status)

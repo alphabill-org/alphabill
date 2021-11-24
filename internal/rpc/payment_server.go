@@ -31,11 +31,11 @@ func (pss *PaymentsServer) MakePayment(_ context.Context, req *payment.PaymentRe
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to process payment order request")
 	}
-	return &payment.PaymentResponse{PaymentID: paymentID}, nil
+	return &payment.PaymentResponse{PaymentId: paymentID}, nil
 }
 
 func (pss *PaymentsServer) PaymentStatus(_ context.Context, req *payment.PaymentStatusRequest) (*payment.PaymentStatusResponse, error) {
-	s, err := pss.paymentProcessor.Status(req.PaymentID)
+	s, err := pss.paymentProcessor.Status(req.PaymentId)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to process payment status request")
 	}

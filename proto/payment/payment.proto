@@ -18,16 +18,16 @@ message PaymentRequest {
 }
 
 message PaymentResponse {
-  string PaymentID = 1;
+  string payment_id = 1;
 }
 
 message PaymentStatusRequest {
-  string PaymentID = 1;
+  string payment_id = 1;
 }
 
 // Simplified for now. Will be replaced when proof is defined.
 message PaymentStatusResponse {
-  bool Status = 1;
+  bool status = 1;
 }
 
 // The proof delivery service is put into BSN for now.

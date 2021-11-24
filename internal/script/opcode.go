@@ -153,6 +153,9 @@ func pushData(data []byte, dataLength int, c *scriptContext) error {
 
 // opDup duplicates top element on the stack, returns error if stack is empty
 func opDup(c *scriptContext, data []byte) error {
+	if len(data) != 0 {
+		return errInvalidOpcodeData
+	}
 	peek, err := c.stack.peek()
 	if err != nil {
 		return err
@@ -163,6 +166,9 @@ func opDup(c *scriptContext, data []byte) error {
 
 // opEqual removes two top elements, compares them for equality and push the resulting bool to the stack.
 func opEqual(c *scriptContext, data []byte) error {
+	if len(data) != 0 {
+		return errInvalidOpcodeData
+	}
 	a, err := c.stack.pop()
 	if err != nil {
 		return err
@@ -177,6 +183,9 @@ func opEqual(c *scriptContext, data []byte) error {
 
 // opVerify checks if top of the stack is bool TRUE and removes it from the stack.
 func opVerify(c *scriptContext, data []byte) error {
+	if len(data) != 0 {
+		return errInvalidOpcodeData
+	}
 	pop, err := c.stack.popBool()
 	if err != nil {
 		return err

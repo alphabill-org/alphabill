@@ -281,14 +281,6 @@ func TestBillContent_CalculateStateHash_TransferBill(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_InvalidPredicate(t *testing.T) {
-	//billContent := newBillContent(10)
-	//billContent.BearerPredicate = []byte{script.StartByte, script.OpPushBool, script.BoolFalse} // always false script
-	//
-	//transfer := newTransferOrder(1, billContent.Backlink, []byte{0x01})
-	//
-	//err := s.Process(order)
-	//assert.Error(t, err)
-
 	s, _ := New(crypto.SHA256)
 	bc := newBillContent(10)
 	bc.BearerPredicate = []byte{script.StartByte, script.OpPushBool, script.BoolFalse}

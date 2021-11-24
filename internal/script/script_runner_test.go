@@ -5,7 +5,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -13,33 +13,33 @@ func TestAlwaysTrueScript_Ok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := []byte{StartByte, OpPushBool, BoolTrue}
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 }
 
 func TestP2pkhScript_Ok(t *testing.T) {
 	tx := newP2pkhTx(t, HashAlgSha256)
 	err := RunScript(tx.predicateArgument, tx.bearerPredicate, tx.sigData)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 }
 
 func TestP2pkhScriptSha512_Ok(t *testing.T) {
 	tx := newP2pkhTx(t, HashAlgSha512)
 	err := RunScript(tx.predicateArgument, tx.bearerPredicate, tx.sigData)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 }
 
 func TestEmptyScriptWithTrailingBoolTrue_Nok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := []byte{StartByte, BoolTrue}
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 }
 
 func TestOpcodeDataOutOfBounds_Nok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := []byte{StartByte, OpPushBool} // removed data byte from OP_PUSH_BOOL
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 }
 
 func TestOpPushHashInvalidType_Nok(t *testing.T) {
@@ -47,14 +47,14 @@ func TestOpPushHashInvalidType_Nok(t *testing.T) {
 	tx.bearerPredicate[5] = HashAlgSha512 // set OP_PUSH_HASH type to sha512
 
 	err := RunScript(tx.predicateArgument, tx.bearerPredicate, tx.sigData)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 }
 
 func TestScriptWithoutFirstByte_Nok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := []byte{OpPushBool, BoolTrue} // missing start byte
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 }
 
 func TestMaxScriptBytes_Nok(t *testing.T) {
@@ -64,14 +64,14 @@ func TestMaxScriptBytes_Nok(t *testing.T) {
 
 	// test that script creaated by createValidScriptWithMinLength can be valid
 	err := RunScript(emptyScript, validScript, nil)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	err = RunScript(validScript, emptyScript, nil)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	err = RunScript(emptyScript, overfilledScript, nil)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 	err = RunScript(overfilledScript, emptyScript, nil)
-	assert.NotNil(t, err)
+	require.NotNil(t, err)
 }
 
 func createValidScriptWithMinLength(minLength int) []byte {

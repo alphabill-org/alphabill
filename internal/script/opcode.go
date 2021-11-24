@@ -56,6 +56,9 @@ var opCodes = map[byte]opCode{
 
 var (
 	errInvalidOpcodeData = errors.New("invalid opcode data")
+	errInvalidHashAlgo   = errors.New("invalid hash algorithm")
+	errInvalidSigScheme  = errors.New("invalid sig scheme")
+	errInvalidBool       = errors.New("invalid bool")
 )
 
 // fixedDataLength returns fixed opCode dataLength or error if data is out of bounds from script
@@ -85,42 +88,63 @@ func opPushHashDataLength(script []byte) (int, error) {
 
 // opPushBool pushes bool to stack, returns error if data is not a valid bool
 func opPushBool(c *scriptContext, data []byte) error {
-	if len(data) == 1 && (data[0] == BoolFalse || data[0] == BoolTrue) {
+	if len(data) != 1 {
+		return errInvalidOpcodeData
+	}
+	if data[0] == BoolFalse || data[0] == BoolTrue {
 		c.stack.push(data)
 		return nil
 	}
-	return errInvalidOpcodeData
+	return errInvalidBool
 }
 
 // opPushSig pushes sig to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
 // 0x01 – <secp256k1>, 65 bytes
 func opPushSig(c *scriptContext, data []byte) error {
-	if len(data) == 66 && data[0] == SigSchemeSecp256k1 {
-		c.stack.push(data[1:])
-		return nil
+	if len(data) == 0 {
+		return errInvalidOpcodeData
 	}
-	return errInvalidOpcodeData
+	switch data[0] {
+	case SigSchemeSecp256k1:
+		return pushData(data, 66, c)
+	default:
+		return errInvalidSigScheme
+	}
 }
 
 // opPushPubKey pushes pubKey to the stack. The number of bytes of data to read is determined by first byte <SigScheme> label:
 // 0x01 – <secp256k1>, 33 bytes
 func opPushPubKey(c *scriptContext, data []byte) error {
-	if len(data) == 34 && data[0] == SigSchemeSecp256k1 {
-		c.stack.push(data[1:])
-		return nil
+	if len(data) == 0 {
+		return errInvalidOpcodeData
 	}
-	return errInvalidOpcodeData
+	switch data[0] {
+	case SigSchemeSecp256k1:
+		return pushData(data, 34, c)
+	default:
+		return errInvalidSigScheme
+	}
 }
 
 // opPushHash pushes a hash value to the stack. The number of bytes of data to read is determined by first byte <HashAlg> label:
 // 0x01 – SHA256, 32 bytes
 // 0x02 – SHA512, 64 bytes
 func opPushHash(c *scriptContext, data []byte) error {
-	if len(data) == 33 && data[0] == HashAlgSha256 {
-		c.stack.push(data[1:])
-		return nil
+	if len(data) == 0 {
+		return errInvalidOpcodeData
 	}
-	if len(data) == 65 && data[0] == HashAlgSha512 {
+	switch data[0] {
+	case HashAlgSha256:
+		return pushData(data, 33, c)
+	case HashAlgSha512:
+		return pushData(data, 65, c)
+	default:
+		return errInvalidHashAlgo
+	}
+}
+
+func pushData(data []byte, dataLength int, c *scriptContext) error {
+	if len(data) == dataLength {
 		c.stack.push(data[1:])
 		return nil
 	}
@@ -175,22 +199,26 @@ func opHash(c *scriptContext, data []byte) error {
 	if len(data) != 1 {
 		return errInvalidOpcodeData
 	}
-	if data[0] == HashAlgSha256 {
+	switch data[0] {
+	case HashAlgSha256:
 		c.stack.push(hash.Sum256(pop))
 		return nil
-	}
-	if data[0] == HashAlgSha512 {
+	case HashAlgSha512:
 		c.stack.push(hash.Sum512(pop))
 		return nil
+	default:
+		return errInvalidHashAlgo
 	}
-	return errInvalidOpcodeData
 }
 
 // opCheckSig verifies that top of the stack contains pubKey and signature that were used to sign sigData
 // Returns either error or pushes TRUE/FALSE to the stack indicating signature verification result
 func opCheckSig(c *scriptContext, data []byte) error {
-	if len(data) != 1 || data[0] != SigSchemeSecp256k1 {
+	if len(data) != 1 {
 		return errInvalidOpcodeData
+	}
+	if data[0] != SigSchemeSecp256k1 {
+		return errInvalidSigScheme
 	}
 	pubKey, err := c.stack.pop()
 	if err != nil {
@@ -206,10 +234,6 @@ func opCheckSig(c *scriptContext, data []byte) error {
 		return err
 	}
 	err = verifier.VerifyBytes(sig, c.sigData)
-	if err != nil {
-		c.stack.pushBool(false)
-	} else {
-		c.stack.pushBool(true)
-	}
+	c.stack.pushBool(err == nil)
 	return nil
 }

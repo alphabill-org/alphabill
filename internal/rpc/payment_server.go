@@ -8,7 +8,12 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 )
 
-type PaymentsServer struct {
+const (
+	errPaymentOrderProcessingFailed  = "failed to process payment order request"
+	errPaymentStatusProcessingFailed = "failed to process payment status request"
+)
+
+type paymentsServer struct {
 	payment.UnimplementedPaymentsServer
 	paymentProcessor PaymentProcessor
 }
@@ -18,34 +23,34 @@ type PaymentProcessor interface {
 	Status(paymentID string) (interface{}, error)
 }
 
-func (pss *PaymentsServer) MakePayment(_ context.Context, req *payment.PaymentRequest) (*payment.PaymentResponse, error) {
+func (pss *paymentsServer) MakePayment(_ context.Context, req *payment.PaymentRequest) (*payment.PaymentResponse, error) {
 	paymentOrder := &state.PaymentOrder{
 		Type:              state.PaymentType(req.PaymentType),
 		BillID:            req.BillId,
 		Amount:            req.Amount,
 		Backlink:          req.Backlink,
 		PredicateArgument: req.PredicateArgument,
-		PayeePredicate:    req.PredicateArgument,
+		PayeePredicate:    req.PayeePredicate,
 	}
 	paymentID, err := pss.paymentProcessor.Process(paymentOrder)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to process payment order request")
+		return nil, errors.Wrap(err, errPaymentOrderProcessingFailed)
 	}
 	return &payment.PaymentResponse{PaymentId: paymentID}, nil
 }
 
-func (pss *PaymentsServer) PaymentStatus(_ context.Context, req *payment.PaymentStatusRequest) (*payment.PaymentStatusResponse, error) {
+func (pss *paymentsServer) PaymentStatus(_ context.Context, req *payment.PaymentStatusRequest) (*payment.PaymentStatusResponse, error) {
 	s, err := pss.paymentProcessor.Status(req.PaymentId)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to process payment status request")
+		return nil, errors.Wrap(err, errPaymentStatusProcessingFailed)
 	}
 	// TODO PaymentStatusResponse
 	return &payment.PaymentStatusResponse{Status: s != nil}, nil
 }
 
-func New(processor PaymentProcessor) (*PaymentsServer, error) {
+func New(processor PaymentProcessor) (*paymentsServer, error) {
 	if processor == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
-	return &PaymentsServer{paymentProcessor: processor}, nil
+	return &paymentsServer{paymentProcessor: processor}, nil
 }

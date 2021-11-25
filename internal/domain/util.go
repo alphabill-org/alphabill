@@ -1,4 +1,4 @@
-package state
+package domain
 
 import "encoding/binary"
 

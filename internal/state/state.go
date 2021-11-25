@@ -5,9 +5,10 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"hash"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"hash"
 )
 
 var (
@@ -51,15 +52,28 @@ type (
 	}
 )
 
-// New instantiates a new empty state with given hash function.
-func New(hashAlgorithm crypto.Hash) (*State, error) {
+// New instantiates a new empty state with given hash function and the initial state.
+// Initial state may be nil, but then the state is empty and not usable.
+func New(hashAlgorithm crypto.Hash, initialState []*BillContent) (*State, error) {
 	if hashAlgorithm != crypto.SHA256 && hashAlgorithm != crypto.SHA512 {
 		return nil, ErrInvalidHashAlgorithm
 	}
 
-	return &State{
-		hashAlgorithm: hashAlgorithm,
-	}, nil
+	s := &State{hashAlgorithm: hashAlgorithm}
+
+	for _, bc := range initialState {
+		s.addBill(bc)
+	}
+
+	return s, nil
+}
+
+// NewInitialBill creates BillContent for creating initial state.
+func NewInitialBill(value uint32, bearerPredicate domain.Predicate) *BillContent {
+	return &BillContent{
+		Value:           value,
+		BearerPredicate: bearerPredicate,
+	}
 }
 
 // Process validates and processes a payment order.

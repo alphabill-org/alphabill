@@ -82,10 +82,9 @@ func newConfigUnmarshaller(envPrefix string) *viper.ConfigurationUnmarshaler {
 
 	deserializer.RegisterDeserializer(reflect.TypeOf((*crypto.InMemorySecp256K1Signer)(nil)).Elem(),
 		func(bytes []byte) (interface{}, error) {
-			return crypto.NewInMemoryEd25519SignerFromKey(bytes)
+			return crypto.NewInMemorySecp256K1SignerFromKey(bytes)
 		},
 	)
-	// Add converters here to convert from base64 to a specific type (crypto keys, verifier etc)
 
 	return configUnmarshaler
 }

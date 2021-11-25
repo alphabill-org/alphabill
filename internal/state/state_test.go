@@ -2,14 +2,15 @@ package state
 
 import (
 	"crypto"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestCreateEmptyState_SHA256_Ok(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	assert.Equal(t, uint64(0), s.maxBillID)
 	assert.Equal(t, uint64(0), s.roundNumber)
 	assert.Nil(t, s.root)
@@ -18,7 +19,7 @@ func TestCreateEmptyState_SHA256_Ok(t *testing.T) {
 }
 
 func TestCreateEmptyState_SHA512_Ok(t *testing.T) {
-	s, _ := New(crypto.SHA512)
+	s, _ := New(crypto.SHA512, nil)
 	assert.Equal(t, uint64(0), s.maxBillID)
 	assert.Equal(t, uint64(0), s.roundNumber)
 	assert.Nil(t, s.root)
@@ -27,14 +28,23 @@ func TestCreateEmptyState_SHA512_Ok(t *testing.T) {
 }
 
 func TestCreateStateWithUnsupportedHashAlgorithm(t *testing.T) {
-	s, err := New(crypto.MD5)
+	s, err := New(crypto.MD5, nil)
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
 	assert.Error(t, ErrInvalidHashAlgorithm, err)
 }
 
+func TestAddBillsWithInitialContent_Ok(t *testing.T) {
+	initialState := []*BillContent{newBillContent(1), newBillContent(2)}
+	s, _ := New(crypto.SHA256, initialState)
+	assert.EqualValues(t, 2, s.maxBillID)
+
+	s.addBill(newBillContent(3))
+	assert.EqualValues(t, 3, s.maxBillID)
+}
+
 func TestAddBills_Ok(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	total := 0
 	for i := 1; i <= 10; i++ {
 		s.addBill(newBillContent(uint32(i)))
@@ -53,7 +63,7 @@ func TestAddBills_Ok(t *testing.T) {
 }
 
 func TestUpdateNodeContent_Ok(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
@@ -62,7 +72,7 @@ func TestUpdateNodeContent_Ok(t *testing.T) {
 }
 
 func TestUpdateNodeContent_BillNotPresent(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 
@@ -72,7 +82,7 @@ func TestUpdateNodeContent_BillNotPresent(t *testing.T) {
 }
 
 func TestGetBill_Ok(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	value1 := uint32(1)
 	k1 := s.addBill(newBillContent(value1))
 	s.addBill(newBillContent(2))
@@ -85,7 +95,7 @@ func TestGetBill_Ok(t *testing.T) {
 }
 
 func TestGetBill_NotFound(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
 	s.addBill(newBillContent(1))
@@ -96,7 +106,7 @@ func TestGetBill_NotFound(t *testing.T) {
 }
 
 func TestState_GetRootHash(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 
 	k1 := s.addBill(newBillContent(10))
 	k2 := s.addBill(newBillContent(20))
@@ -120,7 +130,7 @@ func TestState_GetRootHash(t *testing.T) {
 }
 
 func TestState_ProcessNilPayment(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	s.addBill(newBillContent(10))
 
 	err := s.Process(nil)
@@ -129,7 +139,7 @@ func TestState_ProcessNilPayment(t *testing.T) {
 }
 
 func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 	b, _ := s.getBill(billID)
 
@@ -142,7 +152,7 @@ func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_Ok(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 	s.addBill(newBillContent(20))
 	s.addBill(newBillContent(30))
@@ -156,7 +166,7 @@ func TestState_ProcessTransferOrder_Ok(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 
 	b, _ := s.getBill(billID)
@@ -170,7 +180,7 @@ func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 
 	b, _ := s.getBill(billID)
@@ -183,7 +193,7 @@ func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 	order := newTransferOrder(billID, []byte("invalid"), []byte{0x1})
 
@@ -193,7 +203,7 @@ func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 
 	b, _ := s.getBill(billID)
@@ -206,7 +216,7 @@ func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 	order := newSplitOrder(billID, []byte("invalid"), []byte{0x1}, 1)
 
@@ -216,7 +226,7 @@ func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 
 	b, _ := s.getBill(billID)
@@ -229,7 +239,7 @@ func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
 }
 
 func TestState_ProcessSplitOrder_Ok(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	billID := s.addBill(newBillContent(10))
 	b, _ := s.getBill(billID)
 
@@ -281,7 +291,7 @@ func TestBillContent_CalculateStateHash_TransferBill(t *testing.T) {
 }
 
 func TestState_ProcessTransferOrder_InvalidPredicate(t *testing.T) {
-	s, _ := New(crypto.SHA256)
+	s, _ := New(crypto.SHA256, nil)
 	bc := newBillContent(10)
 	bc.BearerPredicate = []byte{script.StartByte, script.OpPushBool, script.BoolFalse}
 	billID := s.addBill(bc)
@@ -291,6 +301,21 @@ func TestState_ProcessTransferOrder_InvalidPredicate(t *testing.T) {
 
 	err := s.Process(order)
 	assert.Error(t, err)
+}
+
+func TestNewInitialBill_Empty(t *testing.T) {
+	ib := NewInitialBill(0, nil)
+	assert.EqualValues(t, 0, ib.Value)
+	assert.Equal(t, domain.Predicate(nil), ib.BearerPredicate)
+}
+
+func TestNewInitialBill_Ok(t *testing.T) {
+	ib := NewInitialBill(100, []byte{script.BoolTrue})
+	assert.EqualValues(t, 100, ib.Value)
+	assert.EqualValues(t, 0, ib.TotalValue)
+	assert.Equal(t, domain.Predicate{script.BoolTrue}, ib.BearerPredicate)
+	assert.Equal(t, []byte(nil), ib.Backlink)
+	assert.Equal(t, []byte(nil), ib.StateHash)
 }
 
 func newTransferOrder(billID uint64, backlink []byte, newPredicate domain.Predicate) *domain.PaymentOrder {
@@ -313,12 +338,10 @@ func newPaymentOrder(t domain.PaymentType, billID uint64, backlink []byte, payee
 }
 
 func newBillContent(v uint32) *BillContent {
-	return &BillContent{
-		Value:           v,
-		Backlink:        make([]byte, 32),
-		StateHash:       make([]byte, 32),
-		BearerPredicate: []byte{script.StartByte, script.OpPushBool, script.BoolTrue}, // always true predicate
-	}
+	return NewInitialBill(
+		v,
+		[]byte{script.StartByte, script.OpPushBool, script.BoolTrue}, // always true predicate
+	)
 }
 
 func calculateHash(t *testing.T, parent *Node, leftHash []byte, leftTotalValue uint32, rightHash []byte, rightTotalValue uint32) []byte {

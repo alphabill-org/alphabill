@@ -18,7 +18,7 @@ func TestPaymentOrder_Bytes(t *testing.T) {
 
 	var bytes bytes.Buffer
 	// type
-	bytes.WriteByte(0x02)
+	bytes.WriteByte(0x01)
 	// ID
 	bytes.Write(make([]byte, 7))
 	bytes.WriteByte(1)

@@ -5,6 +5,8 @@ clean:
 
 generate:
 	go generate proto/generate.go
+	find . -type f -name 'generate_test.go' -exec \
+	go generate {} \;
 
 test:
 	go test ./... -count=1 -coverprofile test-coverage.out
@@ -15,6 +17,7 @@ gosec:
 tools:
 	go install github.com/golang/protobuf/protoc-gen-go
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
+	go install github.com/vektra/mockery/v2
 
 .PHONY: \
 	all

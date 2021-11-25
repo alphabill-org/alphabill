@@ -16,8 +16,8 @@ import (
 )
 
 type (
-	// inMemorySecp256K1Signer for using during development
-	inMemorySecp256K1Signer struct {
+	// InMemorySecp256K1Signer for using during development
+	InMemorySecp256K1Signer struct {
 		privKey []byte
 		rand    io.Reader
 	}
@@ -26,26 +26,26 @@ type (
 // PrivateKeySecp256K1Size is the size of the private key in bytes
 const PrivateKeySecp256K1Size = 32
 
-// NewInMemorySecp256K1Signer generates new key pair and creates a new inMemorySecp256K1Signer.
-func NewInMemorySecp256K1Signer() (*inMemorySecp256K1Signer, error) {
+// NewInMemorySecp256K1Signer generates new key pair and creates a new InMemorySecp256K1Signer.
+func NewInMemorySecp256K1Signer() (*InMemorySecp256K1Signer, error) {
 	privKey, err := generateSecp256K1PrivateKey()
 	if err != nil {
 		return nil, err
 	}
-	return NewInMemoryEd25519SignerFromKeys(privKey)
+	return NewInMemoryEd25519SignerFromKey(privKey)
 }
 
-// NewInMemoryEd25519SignerFromKeys creates signer from an existing private key.
-func NewInMemoryEd25519SignerFromKeys(privKey []byte) (*inMemorySecp256K1Signer, error) {
+// NewInMemoryEd25519SignerFromKey creates signer from an existing private key.
+func NewInMemoryEd25519SignerFromKey(privKey []byte) (*InMemorySecp256K1Signer, error) {
 	if len(privKey) != PrivateKeySecp256K1Size {
 		return nil, errors.New(fmt.Sprintf("invalid private key length. Is %d (expected %d)", len(privKey), PrivateKeySecp256K1Size))
 	}
-	return &inMemorySecp256K1Signer{privKey: privKey}, nil
+	return &InMemorySecp256K1Signer{privKey: privKey}, nil
 }
 
 // SignBytes hashes the data with SHA256 and creates a recoverable ECDSA signature.
 // The produced signature is in the 65-byte [R || S || V] format where V is 0 or 1.
-func (s *inMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
+func (s *InMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
 	if s == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
@@ -56,7 +56,7 @@ func (s *inMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
 }
 
 // SignObject transforms the object to canonical form and then signs the data using SignBytes method.
-func (s *inMemorySecp256K1Signer) SignObject(obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) ([]byte, error) {
+func (s *InMemorySecp256K1Signer) SignObject(obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) ([]byte, error) {
 	if s == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
@@ -67,7 +67,7 @@ func (s *inMemorySecp256K1Signer) SignObject(obj canonicalizer.Canonicalizer, op
 	return s.SignBytes(data)
 }
 
-func (s *inMemorySecp256K1Signer) Verifier() (Verifier, error) {
+func (s *InMemorySecp256K1Signer) Verifier() (Verifier, error) {
 	ecdsaPrivKey, err := crypto.ToECDSA(s.privKey)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (s *inMemorySecp256K1Signer) Verifier() (Verifier, error) {
 	return NewVerifierSecp256k1(compressPubkey)
 }
 
-func (s *inMemorySecp256K1Signer) MarshalPrivateKey() ([]byte, error) {
+func (s *InMemorySecp256K1Signer) MarshalPrivateKey() ([]byte, error) {
 	return s.privKey, nil
 }
 

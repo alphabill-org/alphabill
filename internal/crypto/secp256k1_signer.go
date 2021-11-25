@@ -32,11 +32,11 @@ func NewInMemorySecp256K1Signer() (*InMemorySecp256K1Signer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewInMemoryEd25519SignerFromKey(privKey)
+	return NewInMemorySecp256K1SignerFromKey(privKey)
 }
 
-// NewInMemoryEd25519SignerFromKey creates signer from an existing private key.
-func NewInMemoryEd25519SignerFromKey(privKey []byte) (*InMemorySecp256K1Signer, error) {
+// NewInMemorySecp256K1SignerFromKey creates signer from an existing private key.
+func NewInMemorySecp256K1SignerFromKey(privKey []byte) (*InMemorySecp256K1Signer, error) {
 	if len(privKey) != PrivateKeySecp256K1Size {
 		return nil, errors.New(fmt.Sprintf("invalid private key length. Is %d (expected %d)", len(privKey), PrivateKeySecp256K1Size))
 	}

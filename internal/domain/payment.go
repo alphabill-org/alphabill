@@ -1,4 +1,4 @@
-package state
+package domain
 
 import (
 	"bytes"
@@ -21,16 +21,18 @@ type (
 	}
 
 	PaymentType uint8
+
+	Predicate []byte
 )
 
 func (o *PaymentOrder) Bytes() []byte {
-	var bytes bytes.Buffer
-	bytes.WriteByte(byte(o.Type))
-	bytes.Write(Uint64ToBytes(o.BillID))
-	bytes.Write(Uint32ToBytes(o.Amount))
-	bytes.Write(o.Backlink)
-	bytes.Write(o.PayeePredicate)
-	return bytes.Bytes()
+	var b bytes.Buffer
+	b.WriteByte(byte(o.Type))
+	b.Write(Uint64ToBytes(o.BillID))
+	b.Write(Uint32ToBytes(o.Amount))
+	b.Write(o.Backlink)
+	b.Write(o.PayeePredicate)
+	return b.Bytes()
 }
 
 func (o *PaymentOrder) Hash(hasher hash.Hash) []byte {

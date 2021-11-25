@@ -2,10 +2,10 @@ package rpc
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 )
 
 const (
@@ -19,13 +19,13 @@ type paymentsServer struct {
 }
 
 type PaymentProcessor interface {
-	Process(payment *state.PaymentOrder) (string, error)
+	Process(payment *domain.PaymentOrder) (string, error)
 	Status(paymentID string) (interface{}, error)
 }
 
 func (pss *paymentsServer) MakePayment(_ context.Context, req *payment.PaymentRequest) (*payment.PaymentResponse, error) {
-	paymentOrder := &state.PaymentOrder{
-		Type:              state.PaymentType(req.PaymentType),
+	paymentOrder := &domain.PaymentOrder{
+		Type:              domain.PaymentType(req.PaymentType),
 		BillID:            req.BillId,
 		Amount:            req.Amount,
 		Backlink:          req.Backlink,

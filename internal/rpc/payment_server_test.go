@@ -2,10 +2,10 @@ package rpc
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
@@ -27,7 +27,7 @@ var paymentProcessingFails = &payment.PaymentRequest{
 type MockPaymentProcessor struct {
 }
 
-func (mpp *MockPaymentProcessor) Process(payment *state.PaymentOrder) (string, error) {
+func (mpp *MockPaymentProcessor) Process(payment *domain.PaymentOrder) (string, error) {
 	if payment.BillID == paymentProcessingFails.BillId {
 		return "", errors.New("failed")
 	}

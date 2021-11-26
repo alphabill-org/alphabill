@@ -20,7 +20,7 @@ gosec:
 
 tools:
 	go install github.com/vektra/mockery/v2
-	go install github.com/golang/protobuf/protoc-gen-go
+	go install google.golang.org/protobuf/cmd/protoc-gen-go
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
 
 .PHONY: \

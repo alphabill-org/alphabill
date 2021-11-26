@@ -2,11 +2,12 @@ module gitdc.ee.guardtime.com/alphabill/alphabill
 
 go 1.17
 
+replace github.com/coreos/etcd => github.com/coreos/etcd v3.3.24+incompatible
+
 require (
 	github.com/creasty/defaults v1.5.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/ethereum/go-ethereum v1.10.12
-	github.com/golang/protobuf v1.5.2
 	github.com/mitchellh/mapstructure v1.4.2
 	github.com/rs/zerolog v1.26.0
 	github.com/spf13/jwalterweatherman v1.1.0
@@ -22,6 +23,7 @@ require (
 require (
 	github.com/btcsuite/btcd v0.20.1-beta // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/leodido/go-urn v1.1.0 // indirect

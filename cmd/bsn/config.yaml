@@ -1,0 +1,4 @@
+server:
+  address: ":9543"
+
+initialBillValue: 1000000000

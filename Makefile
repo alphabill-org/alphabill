@@ -1,6 +1,7 @@
-all: clean tools generate test gosec
+all: clean tools generate test build gosec
 
 clean:
+	rm -rf build/
 	rm -rf internal/rpc/payment/*.pb.go
 
 generate:
@@ -10,6 +11,9 @@ generate:
 
 test:
 	go test ./... -count=1 -coverprofile test-coverage.out
+
+build:
+	go build -o build/ab-bsn ./cmd/bsn/
 
 gosec:
 	gosec -fmt=sonarqube -out gosec_report.json -no-fail ./...
@@ -25,4 +29,5 @@ tools:
 	generate
 	tools
 	test
+	build
 	gosec

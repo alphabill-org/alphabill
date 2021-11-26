@@ -17,7 +17,12 @@ import (
 
 func TestRunBsn_Ok(t *testing.T) {
 
-	const address = "localhost:9543"
+	// In case of docker networks, the host might not be localhost.
+	host := os.Getenv("NETWORK_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	address := host + ":9543"
 
 	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", address)
 	_ = os.Setenv("AB_BSN_INITIAL_BILL_VALUE", "100")

@@ -2,18 +2,20 @@ package main
 
 import (
 	"context"
+	"crypto"
 	"net"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/bsn"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/bsn"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/cli"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 )
 
 type starter struct {
@@ -31,7 +33,12 @@ func (s starter) Start(ctx context.Context) {
 func runBillShardNode(ctx context.Context, config *configuration) error {
 	bsnCli, err := cli.New("bsn", config, func(ctx context.Context) (cli.ComponentStarter, error) {
 
-		bsnComponent, err := bsn.New(config.InitialBillValue)
+		billsState, err := state.New(crypto.SHA256, []*state.BillContent{state.NewInitialBill(config.InitialBillValue, script.PredicateAlwaysTrue())})
+		if err != nil {
+			return nil, err
+		}
+
+		bsnComponent, err := bsn.New(billsState)
 		if err != nil {
 			return nil, err
 		}

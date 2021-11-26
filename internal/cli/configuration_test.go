@@ -176,7 +176,6 @@ func TestConfigKey_Int64(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
-
 }
 
 func TestConfigKey_IsPresent(t *testing.T) {

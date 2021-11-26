@@ -41,10 +41,10 @@ func (o *allCliOptions) EnvironmentVariablePrefix(prefix string) Option {
 
 func aggregateCliOptions(componentName string, opts []Option) cliOptions {
 	options := cliOptions{
-		envPrefix: "KCASH",
+		envPrefix: "AB",
 	}
 	if len(componentName) > 1 {
-		options.envPrefix = strings.ToUpper("KCASH_" + componentName)
+		options.envPrefix = strings.ToUpper("AB_" + componentName)
 	}
 	for _, opt := range opts {
 		opt(&options)

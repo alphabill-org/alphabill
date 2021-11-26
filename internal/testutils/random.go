@@ -1,14 +1,13 @@
 package test
 
 import (
-	"math/rand"
+	"math/rand" // #nosec 404 - using math/rand, test code
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 )
 
 func RandomBytes(len int) []byte {
 	bytes := make([]byte, len)
-	// #nosec 404 - using math/rand, test code
 	_, err := rand.Read(bytes)
 	if err != nil {
 		panic(err)

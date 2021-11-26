@@ -14,8 +14,6 @@ init:
 test:
   stage: test
   script:
-    - export SERVE_HOST=0.0.0.0
-    - export CONNECT_HOST=localhost
     - make test
     - gocover-cobertura < test-coverage.out > test-coverage-cobertura.xml
   artifacts:

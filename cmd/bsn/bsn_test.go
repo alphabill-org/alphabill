@@ -17,11 +17,8 @@ import (
 
 func TestRunBsn_Ok(t *testing.T) {
 
-	// Needed for CI, which runs inside Docker bridge network.
-	serveHost := getEnv("SERVE_HOST", "localhost")
-	connectHost := getEnv("CONNECT_HOST", "localhost")
-	serveAddr := serveHost + ":9543"
-	connectAddr := connectHost + ":9543"
+	serveAddr := ":9543"
+	connectAddr := "localhost:9543"
 
 	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", serveAddr)
 	_ = os.Setenv("AB_BSN_INITIAL_BILL_VALUE", "100")
@@ -86,12 +83,4 @@ func runBSNApp(t *testing.T, ctx context.Context, appStoppedWg *sync.WaitGroup, 
 		assert.EqualValues(t, address, config.Server.Address)
 		appStoppedWg.Done()
 	}()
-}
-
-func getEnv(key, fallback string) string {
-	value, exists := os.LookupEnv(key)
-	if !exists {
-		value = fallback
-	}
-	return value
 }

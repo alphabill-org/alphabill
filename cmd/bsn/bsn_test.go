@@ -17,24 +17,23 @@ import (
 
 func TestRunBsn_Ok(t *testing.T) {
 
-	// In case of docker networks, the host might not be localhost.
-	host := os.Getenv("NETWORK_HOST")
-	if host == "" {
-		host = "localhost"
-	}
-	address := host + ":9543"
+	// Needed for CI, which runs inside Docker bridge network.
+	serveHost := getEnv("SERVE_HOST", "localhost")
+	connectHost := getEnv("CONNECT_HOST", "localhost")
+	serveAddr := serveHost + ":9543"
+	connectAddr := connectHost + ":9543"
 
-	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", address)
+	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", serveAddr)
 	_ = os.Setenv("AB_BSN_INITIAL_BILL_VALUE", "100")
 
 	appStoppedWg := sync.WaitGroup{}
 	ctx, _ := async.WithWaitGroup(context.Background())
 	ctx, ctxCancel := context.WithCancel(ctx)
 
-	runBSNApp(t, ctx, &appStoppedWg, address)
+	runBSNApp(t, ctx, &appStoppedWg, serveAddr)
 
 	// Create the gRPC client
-	conn, err := grpc.DialContext(ctx, address, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, connectAddr, grpc.WithInsecure())
 	require.NoError(t, err)
 	defer conn.Close()
 	paymentsClient := payment.NewPaymentsClient(conn)
@@ -87,4 +86,12 @@ func runBSNApp(t *testing.T, ctx context.Context, appStoppedWg *sync.WaitGroup, 
 		assert.EqualValues(t, address, config.Server.Address)
 		appStoppedWg.Done()
 	}()
+}
+
+func getEnv(key, fallback string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		value = fallback
+	}
+	return value
 }

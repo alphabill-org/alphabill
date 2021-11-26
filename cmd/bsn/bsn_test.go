@@ -21,6 +21,7 @@ func TestRunBsn_Ok(t *testing.T) {
 
 	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", address)
 	_ = os.Setenv("AB_BSN_INITIAL_BILL_VALUE", "100")
+	_ = os.Setenv("AB_BSN_SERVER_MAX_CONNECTION_AGE_MS", "500")
 
 	appStoppedWg := sync.WaitGroup{}
 	ctx, _ := async.WithWaitGroup(context.Background())
@@ -80,6 +81,8 @@ func runBSNApp(t *testing.T, ctx context.Context, appStoppedWg *sync.WaitGroup, 
 		// Sanity check
 		assert.EqualValues(t, 100, config.InitialBillValue)
 		assert.EqualValues(t, address, config.Server.Address)
+		assert.EqualValues(t, 500, *config.Server.MaxConnectionAgeMs)
+		assert.Nil(t, config.Server.MaxConnectionAgeGraceMs)
 		appStoppedWg.Done()
 	}()
 }

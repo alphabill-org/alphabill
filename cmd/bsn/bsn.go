@@ -45,7 +45,7 @@ func runBillShardNode(ctx context.Context, config *configuration) error {
 
 		grpcServer := grpc.NewServer(
 			grpc.MaxSendMsgSize(config.Server.MaxRecvMsgSize),
-		// TODO add keepalive options
+			grpc.KeepaliveParams(config.Server.GrpcKeepAliveServerParameters()),
 		)
 		grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 

@@ -10,7 +10,7 @@ generate:
 	go generate {} \;
 
 test:
-	go test ./... -count=1 -coverprofile test-coverage.out
+	go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
 
 build:
 	go build -o build/ab-bsn ./cmd/bsn/

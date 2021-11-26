@@ -29,7 +29,7 @@ build:
     - make build
 
 gosec:
-  stage: analyze
+  stage: test
   script:
     - make gosec
   artifacts:

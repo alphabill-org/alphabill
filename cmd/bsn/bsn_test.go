@@ -17,7 +17,7 @@ import (
 
 func TestRunBsn_Ok(t *testing.T) {
 
-	serveAddr := ":9543"
+	serveAddr := "localhost:9543"
 	connectAddr := "localhost:9543"
 
 	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", serveAddr)

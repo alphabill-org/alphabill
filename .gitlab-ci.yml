@@ -1,6 +1,7 @@
 stages:
   - init
   - test
+  - build
   - analyze
 
 image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20211112
@@ -21,6 +22,11 @@ test:
     paths:
       - test-coverage.out
     when: always
+
+build:
+  stage: build
+  script:
+    - make build
 
 gosec:
   stage: test

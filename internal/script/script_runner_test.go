@@ -2,16 +2,17 @@
 package script
 
 import (
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestAlwaysTrueScript_Ok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
-	bearerPredicate := []byte{StartByte, OpPushBool, BoolTrue}
+	bearerPredicate := PredicateAlwaysTrue()
 	err := RunScript(predicateArgument, bearerPredicate, nil)
 	require.Nil(t, err)
 }

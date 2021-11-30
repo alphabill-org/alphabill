@@ -340,7 +340,7 @@ func newPaymentOrder(t domain.PaymentType, billID uint64, backlink []byte, payee
 func newBillContent(v uint32) *BillContent {
 	return NewInitialBill(
 		v,
-		[]byte{script.StartByte, script.OpPushBool, script.BoolTrue}, // always true predicate
+		script.PredicateAlwaysTrue(),
 	)
 }
 

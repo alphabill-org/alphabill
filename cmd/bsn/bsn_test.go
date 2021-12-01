@@ -17,9 +17,10 @@ import (
 
 func TestRunBsn_Ok(t *testing.T) {
 
-	address := "localhost:9543"
+	port := "9543"
+	address := "localhost:" + port
 
-	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", address)
+	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", ":"+port)
 	_ = os.Setenv("AB_BSN_INITIAL_BILL_VALUE", "100")
 	_ = os.Setenv("AB_BSN_SERVER_MAX_CONNECTION_AGE_MS", "500")
 

@@ -18,9 +18,10 @@ import (
 func TestRunBsn_Ok(t *testing.T) {
 
 	port := "9543"
-	address := "localhost:" + port
+	listenAddr := ":" + port
+	dialAddr := "localhost:" + port
 
-	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", ":"+port)
+	_ = os.Setenv("AB_BSN_SERVER_ADDRESS", listenAddr)
 	_ = os.Setenv("AB_BSN_INITIAL_BILL_VALUE", "100")
 	_ = os.Setenv("AB_BSN_SERVER_MAX_CONNECTION_AGE_MS", "500")
 
@@ -28,10 +29,10 @@ func TestRunBsn_Ok(t *testing.T) {
 	ctx, _ := async.WithWaitGroup(context.Background())
 	ctx, ctxCancel := context.WithCancel(ctx)
 
-	runBSNApp(t, ctx, &appStoppedWg, address)
+	runBSNApp(t, ctx, &appStoppedWg, listenAddr)
 
 	// Create the gRPC client
-	conn, err := grpc.DialContext(ctx, address, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
 	require.NoError(t, err)
 	defer conn.Close()
 	paymentsClient := payment.NewPaymentsClient(conn)

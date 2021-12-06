@@ -1,9 +1,19 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"google.golang.org/grpc"
 
 	"github.com/stretchr/testify/require"
 
@@ -12,7 +22,7 @@ import (
 
 type envVar [2]string
 
-func TestShardConfig_Table(t *testing.T) {
+func TestShardConfig_EnvAndFlags(t *testing.T) {
 	tests := []struct {
 		args           string   // arguments as a space separated string
 		envVars        []envVar // Environment variables that will be set before creating command
@@ -104,7 +114,7 @@ func TestShardConfig_Table(t *testing.T) {
 	for _, tt := range tests {
 		t.Run("shard_conf|"+tt.args+"|"+envVarsStr(tt.envVars), func(t *testing.T) {
 			var actualConfig *shardConfiguration
-			shardRunFunc := func(sc *shardConfiguration) error {
+			shardRunFunc := func(ctx context.Context, sc *shardConfiguration) error {
 				actualConfig = sc
 				return nil
 			}
@@ -118,7 +128,7 @@ func TestShardConfig_Table(t *testing.T) {
 
 			abApp := New()
 			abApp.rootCmd.SetArgs(strings.Split(tt.args, " "))
-			abApp.Execute(Opts.ShardRunFunc(shardRunFunc))
+			abApp.Execute(context.Background(), Opts.ShardRunFunc(shardRunFunc))
 
 			assert.Equal(t, tt.expectedConfig, actualConfig)
 		})
@@ -153,7 +163,7 @@ server-max-recv-msg-size=9999
 
 	// Set up shard runner mock
 	var actualConfig *shardConfiguration
-	shardRunFunc := func(sc *shardConfiguration) error {
+	shardRunFunc := func(ctx context.Context, sc *shardConfiguration) error {
 		actualConfig = sc
 		return nil
 	}
@@ -161,7 +171,7 @@ server-max-recv-msg-size=9999
 	abApp := New()
 	args := "shard --config=" + f.Name()
 	abApp.rootCmd.SetArgs(strings.Split(args, " "))
-	abApp.Execute(Opts.ShardRunFunc(shardRunFunc))
+	abApp.Execute(context.Background(), Opts.ShardRunFunc(shardRunFunc))
 
 	assert.Equal(t, expectedConfig, actualConfig)
 }
@@ -193,4 +203,69 @@ func envVarsStr(envVars []envVar) (out string) {
 		out += ev[0] + "=" + ev[1]
 	}
 	return
+}
+
+func TestRunShard_Ok(t *testing.T) {
+	test.MustRunInTime(t, 5*time.Second, func() {
+		port := "9543"
+		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
+		dialAddr := "localhost:" + port
+
+		conf := defaultShardConfiguration()
+		conf.Server.Address = listenAddr
+
+		appStoppedWg := sync.WaitGroup{}
+		ctx, _ := async.WithWaitGroup(context.Background())
+		ctx, ctxCancel := context.WithCancel(ctx)
+
+		// Starting the shard in background
+		appStoppedWg.Add(1)
+		go func() {
+			err := defaultShardRunFunc(ctx, conf)
+			require.NoError(t, err)
+			appStoppedWg.Done()
+		}()
+
+		log.Info("Started shard and dialing...")
+		// Create the gRPC client
+		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
+		require.NoError(t, err)
+		defer conn.Close()
+		paymentsClient := payment.NewPaymentsClient(conn)
+
+		// Test cases
+		makeSuccessfulPayment(t, ctx, paymentsClient)
+		makeFailingPayment(t, ctx, paymentsClient)
+
+		// Close the app
+		ctxCancel()
+		// Wait for test asserts to be completed
+		appStoppedWg.Wait()
+	})
+}
+
+func makeSuccessfulPayment(t *testing.T, ctx context.Context, paymentsClient payment.PaymentsClient) {
+	paymentResponse, err := paymentsClient.MakePayment(ctx, &payment.PaymentRequest{
+		BillId:            1,
+		PaymentType:       payment.PaymentRequest_TRANSFER,
+		Amount:            0,
+		PayeePredicate:    script.PredicateAlwaysTrue(),
+		Backlink:          []byte{},
+		PredicateArgument: []byte{script.StartByte},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, paymentResponse.PaymentId, "Successful payment should return some ID")
+}
+
+func makeFailingPayment(t *testing.T, ctx context.Context, paymentsClient payment.PaymentsClient) {
+	paymentResponse, err := paymentsClient.MakePayment(ctx, &payment.PaymentRequest{
+		BillId:            100,
+		PaymentType:       payment.PaymentRequest_TRANSFER,
+		Amount:            0,
+		PayeePredicate:    script.PredicateAlwaysTrue(),
+		Backlink:          []byte{},
+		PredicateArgument: []byte{script.StartByte},
+	})
+	require.Error(t, err)
+	require.Nil(t, paymentResponse, "Failing payment should return response")
 }

@@ -15,8 +15,14 @@ limitations under the License.
 */
 package main
 
-import "gitdc.ee.guardtime.com/alphabill/alphabill/cmd"
+import (
+	"context"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/cmd"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
+)
 
 func main() {
-	cmd.New().Execute()
+	ctx, _ := async.WithWaitGroup(context.Background())
+	cmd.New().Execute(ctx)
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -41,13 +42,13 @@ func New() *alphabillApp {
 }
 
 // Execute adds all child commands and runs the application
-func (a *alphabillApp) Execute(opts ...Option) {
+func (a *alphabillApp) Execute(ctx context.Context, opts ...Option) {
 	executeOpts := Options{}
 	for _, o := range opts {
 		o(&executeOpts)
 	}
 
-	a.rootCmd.AddCommand(newShardCmd(a.rootConfig, executeOpts.shardRunFunc))
+	a.rootCmd.AddCommand(newShardCmd(ctx, a.rootConfig, executeOpts.shardRunFunc))
 
 	cobra.CheckErr(a.rootCmd.Execute())
 }

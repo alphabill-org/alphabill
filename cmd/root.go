@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -18,21 +17,6 @@ type (
 		rootCmd    *cobra.Command
 		rootConfig *rootConfiguration
 	}
-	rootConfiguration struct {
-		// The Alphabill home directory
-		HomeDir string
-		// Configuration file URL. If it's relative, then it's relative from the HomeDir.
-		CfgFile string
-	}
-)
-
-const (
-	// The prefix for configuration keys inside environment.
-	envPrefix = "AB"
-	// The default name for config file.
-	defaultConfigFile = "config.props"
-	// The default home directory.
-	defaultHomeDir = "$HOME/.alphabill"
 )
 
 // New creates a new Alphabill application
@@ -66,8 +50,7 @@ func newRootCmd() (*cobra.Command, *rootConfiguration) {
 			return initializeConfig(cmd, config)
 		},
 	}
-	rootCmd.PersistentFlags().StringVar(&config.HomeDir, "home", defaultHomeDir, "set the AB_HOME for this invocation (default is $HOME/.alphabill")
-	rootCmd.PersistentFlags().StringVar(&config.CfgFile, "config", "", "config file location (default is $AB_HOME/config.yaml)")
+	config.addRootConfigurationFlags(rootCmd)
 
 	return rootCmd, config
 }
@@ -76,14 +59,9 @@ func newRootCmd() (*cobra.Command, *rootConfiguration) {
 func initializeConfig(cmd *cobra.Command, rootConfig *rootConfiguration) error {
 	v := viper.New()
 
-	if rootConfig.CfgFile == "" {
-		rootConfig.CfgFile = defaultConfigFile
-	}
-	if !strings.HasPrefix(rootConfig.CfgFile, string(os.PathSeparator)) {
-		// Relative path
-		rootConfig.CfgFile = rootConfig.HomeDir + string(os.PathSeparator) + rootConfig.CfgFile
-	}
-	if fileExists(rootConfig.CfgFile) {
+	rootConfig.initConfigFileLocation()
+
+	if rootConfig.configFileExists() {
 		v.SetConfigFile(rootConfig.CfgFile)
 	}
 
@@ -140,11 +118,4 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 		}
 	})
 	return bindFlagErr
-}
-
-func fileExists(name string) bool {
-	_, err := os.Stat(name)
-	return err == nil
-	// P.S. the file might actually exist.
-	// But in our case we consider the file missing.
 }

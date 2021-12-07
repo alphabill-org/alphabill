@@ -13,7 +13,7 @@ test:
 	go test ./... -coverpkg=./... -count=1 -coverprofile test-coverage.out
 
 build:
-	go build -o build/alphabill .
+	go build -o build/alphabill cmd/alphabill/main.go
 
 gosec:
 	gosec -fmt=sonarqube -out gosec_report.json -no-fail ./...

@@ -22,6 +22,7 @@ tools:
 	go install github.com/vektra/mockery/v2
 	go install google.golang.org/protobuf/cmd/protoc-gen-go
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 .PHONY: \
 	all

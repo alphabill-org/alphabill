@@ -1,8 +1,15 @@
-# Build and run
+# Build
 
-Run `make` to build the system
+Run `make` to test and build the application.
 
-Executable will be built to `build/alphabill`.
+### Build dependencies
+
+* `golang` version 1.17 or newer. (https://go.dev/doc/install)
+* `protoc` version 3 or newer. (https://grpc.io/docs/protoc-installation)
+
+# Run
+
+Executable will be built to `build/alphabill`
 
 Run the executable `alphabill shard` to start shard node with default configuration. To see possible configuration options run with `--help` flag.
 

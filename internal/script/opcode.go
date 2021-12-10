@@ -3,6 +3,7 @@ package script
 import (
 	"bytes"
 	"errors"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 )

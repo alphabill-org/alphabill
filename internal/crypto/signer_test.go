@@ -42,11 +42,11 @@ func (s *SigningTestSuite) SetupTest() {
 }
 
 func (s *SigningTestSuite) Test_InvalidPrivateKeySizes() {
-	signer, err := NewInMemorySecp256K1SignerFromKeys(nil)
+	signer, err := NewInMemorySecp256K1SignerFromKey(nil)
 	require.Error(s.T(), err)
 	require.Nil(s.T(), signer)
 
-	signer2, err := NewInMemorySecp256K1SignerFromKeys(make([]byte, 33))
+	signer2, err := NewInMemorySecp256K1SignerFromKey(make([]byte, 33))
 	require.Error(s.T(), err)
 	require.Nil(s.T(), signer2)
 }
@@ -91,7 +91,7 @@ func (s *SigningTestSuite) Test_MarshallingPrivateKey() {
 	privKey, err := signer.MarshalPrivateKey()
 	require.NoError(s.T(), err)
 
-	signerFromKey, err := NewInMemorySecp256K1SignerFromKeys(privKey)
+	signerFromKey, err := NewInMemorySecp256K1SignerFromKey(privKey)
 	require.NoError(s.T(), err)
 
 	verifier, err := signerFromKey.Verifier()
@@ -101,7 +101,7 @@ func (s *SigningTestSuite) Test_MarshallingPrivateKey() {
 }
 
 func TestSignerNilArguments(t *testing.T) {
-	var signer inMemorySecp256K1Signer
+	var signer InMemorySecp256K1Signer
 
 	bytes, err := signer.SignBytes([]byte{1, 2, 3})
 	require.Error(t, err)

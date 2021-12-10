@@ -5,11 +5,11 @@ import (
 	"crypto"
 	"net"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/bsn"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 
@@ -22,7 +22,7 @@ import (
 type (
 	shardConfiguration struct {
 		Root   *rootConfiguration
-		Server *serverConfiguration
+		Server *grpcServerConfiguration
 		// The value of initial bill in AlphaBills.
 		InitialBillValue uint32 `validate:"gte=0"`
 	}
@@ -42,7 +42,7 @@ var log = logger.CreateForPackage()
 func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFunc shardRunnable) *cobra.Command {
 	config := &shardConfiguration{
 		Root:   rootConfig,
-		Server: &serverConfiguration{},
+		Server: &grpcServerConfiguration{},
 	}
 	// shardCmd represents the shard command
 	var shardCmd = &cobra.Command{
@@ -58,7 +58,7 @@ func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFun
 	}
 
 	shardCmd.Flags().Uint32Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value for new shard")
-	addServerConfigurationFlags(shardCmd, config.Server)
+	config.Server.addConfigurationFlags(shardCmd)
 
 	return shardCmd
 }
@@ -69,7 +69,7 @@ func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
 		return err
 	}
 
-	bsnComponent, err := bsn.New(billsState)
+	shardComponent, err := shard.New(billsState)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
 		return err
 	}
 
-	paymentServer, err := rpc.New(bsnComponent)
+	paymentServer, err := rpc.New(shardComponent)
 	if err != nil {
 		return err
 	}

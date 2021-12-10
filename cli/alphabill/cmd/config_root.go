@@ -25,7 +25,7 @@ const (
 	defaultHomeDir = "$HOME/.alphabill"
 )
 
-func (r *rootConfiguration) addRootConfigurationFlags(cmd *cobra.Command) {
+func (r *rootConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&r.HomeDir, "home", defaultHomeDir, "set the AB_HOME for this invocation (default is $HOME/.alphabill")
 	cmd.PersistentFlags().StringVar(&r.CfgFile, "config", "", "config file location (default is $AB_HOME/config.yaml)")
 }

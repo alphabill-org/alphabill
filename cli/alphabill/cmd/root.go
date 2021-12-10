@@ -50,12 +50,12 @@ func newRootCmd() (*cobra.Command, *rootConfiguration) {
 			return initializeConfig(cmd, config)
 		},
 	}
-	config.addRootConfigurationFlags(rootCmd)
+	config.addConfigurationFlags(rootCmd)
 
 	return rootCmd, config
 }
 
-// initConfig reads in config file and ENV variables if set.
+// initializeConfig reads in config file and ENV variables if set.
 func initializeConfig(cmd *cobra.Command, rootConfig *rootConfiguration) error {
 	v := viper.New()
 

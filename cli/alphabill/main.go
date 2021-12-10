@@ -3,8 +3,7 @@ package main
 import (
 	"context"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/cmd/alphabill/cmd"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/cli/alphabill/cmd"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 )
 

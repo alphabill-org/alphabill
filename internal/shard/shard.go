@@ -1,4 +1,4 @@
-package bsn
+package shard
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	billShardNode struct {
+	shardNode struct {
 		stateProcessor StateProcessor
 	}
 	StateProcessor interface {
@@ -19,17 +19,17 @@ type (
 
 var log = logger.CreateForPackage()
 
-// New create a new Bill Shard Component.
+// New create a new Shard Component.
 // At the moment it only updates the state. In the future it should synchronize with other shards
 // communicate with Core and Blockchain.
-func New(stateProcessor StateProcessor) (*billShardNode, error) {
+func New(stateProcessor StateProcessor) (*shardNode, error) {
 	if stateProcessor == nil {
 		return nil, errors.Wrapf(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
-	return &billShardNode{stateProcessor}, nil
+	return &shardNode{stateProcessor}, nil
 }
 
-func (b *billShardNode) Process(payment *domain.PaymentOrder) (status string, err error) {
+func (b *shardNode) Process(payment *domain.PaymentOrder) (status string, err error) {
 	err = b.stateProcessor.Process(payment)
 	if err != nil {
 		return "", err
@@ -37,7 +37,7 @@ func (b *billShardNode) Process(payment *domain.PaymentOrder) (status string, er
 	return "1", nil
 }
 
-func (b *billShardNode) Status(paymentID string) (interface{}, error) {
+func (b *shardNode) Status(paymentID string) (interface{}, error) {
 	log.Debug("Received status request for payment ID: %s", paymentID)
 	return nil, errors.ErrNotImplemented
 }

@@ -8,8 +8,8 @@ import (
 )
 
 type (
-	// serverConfiguration is a common configuration for gRPC servers.
-	serverConfiguration struct {
+	// grpcServerConfiguration is a common configuration for gRPC servers.
+	grpcServerConfiguration struct {
 		// Listen address together with port.
 		Address string `validate:"empty=false"`
 
@@ -33,14 +33,14 @@ const (
 	defaultMaxRecvMsgSize = 256000
 )
 
-func addServerConfigurationFlags(cmd *cobra.Command, config *serverConfiguration) {
-	cmd.Flags().StringVar(&config.Address, "server-address", defaultServerAddr, "The gRPC server listen address with port.")
-	cmd.Flags().IntVar(&config.MaxRecvMsgSize, "server-max-recv-msg-size", defaultMaxRecvMsgSize, "Maximum number of bytes the incoming message may be.")
-	cmd.Flags().Int64Var(&config.MaxConnectionAgeMs, "server-max-connection-age-ms", 0, "a duration for the maximum amount of time a connection may exist before it will be closed by sending a GoAway in milliseconds. 0 means forever.")
-	cmd.Flags().Int64Var(&config.MaxConnectionAgeGraceMs, "server-max-connection-age-grace-ms", 0, "is an additive period after MaxConnectionAgeMs after which the connection will be forcibly closed in milliseconds. 0 means no grace period.")
+func (c *grpcServerConfiguration) addConfigurationFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.Address, "server-address", defaultServerAddr, "The gRPC server listen address with port.")
+	cmd.Flags().IntVar(&c.MaxRecvMsgSize, "server-max-recv-msg-size", defaultMaxRecvMsgSize, "Maximum number of bytes the incoming message may be.")
+	cmd.Flags().Int64Var(&c.MaxConnectionAgeMs, "server-max-connection-age-ms", 0, "a duration for the maximum amount of time a connection may exist before it will be closed by sending a GoAway in milliseconds. 0 means forever.")
+	cmd.Flags().Int64Var(&c.MaxConnectionAgeGraceMs, "server-max-connection-age-grace-ms", 0, "is an additive period after MaxConnectionAgeMs after which the connection will be forcibly closed in milliseconds. 0 means no grace period.")
 }
 
-func (c *serverConfiguration) GrpcKeepAliveServerParameters() grpckeepalive.ServerParameters {
+func (c *grpcServerConfiguration) GrpcKeepAliveServerParameters() grpckeepalive.ServerParameters {
 	p := grpckeepalive.ServerParameters{}
 	if c.MaxConnectionAgeMs != 0 {
 		p.MaxConnectionAge = time.Duration(c.MaxConnectionAgeMs) * time.Millisecond

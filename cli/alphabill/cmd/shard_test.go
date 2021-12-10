@@ -75,7 +75,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			args: "shard --server-address=srv:1234 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
 			expectedConfig: func() *shardConfiguration {
 				sc := defaultShardConfiguration()
-				sc.Server = &serverConfiguration{
+				sc.Server = &grpcServerConfiguration{
 					Address:                 "srv:1234",
 					MaxRecvMsgSize:          66,
 					MaxConnectionAgeMs:      77,
@@ -182,7 +182,7 @@ func defaultShardConfiguration() *shardConfiguration {
 			HomeDir: defaultHomeDir,
 			CfgFile: defaultHomeDir + string(os.PathSeparator) + defaultConfigFile,
 		},
-		Server: &serverConfiguration{
+		Server: &grpcServerConfiguration{
 			Address:        defaultServerAddr,
 			MaxRecvMsgSize: defaultMaxRecvMsgSize,
 		},

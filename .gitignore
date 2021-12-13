@@ -1,0 +1,5 @@
+.idea
+*.iml
+build/
+gosec_report.json
+test-coverage.out

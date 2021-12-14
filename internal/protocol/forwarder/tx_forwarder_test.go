@@ -12,7 +12,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
-	mathRand "math/rand"
 	"strings"
 	"testing"
 )
@@ -22,8 +21,8 @@ const (
 )
 
 var (
-	transfer = RandomPaymentRequest(payment.PaymentRequest_TRANSFER)
-	split    = RandomPaymentRequest(payment.PaymentRequest_SPLIT)
+	transfer = test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER)
+	split    = test.RandomPaymentRequest(payment.PaymentRequest_SPLIT)
 )
 
 type FixedLeader struct {
@@ -172,9 +171,9 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	_, err = New(leader, fixedLeader, leaderTxPool)
 	require.NoError(t, err)
 	// send transactions to follower
-	err = txHandler.Handle(context.Background(), RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
+	err = txHandler.Handle(context.Background(), test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
 	require.NoError(t, err)
-	err = txHandler.Handle(context.Background(), RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
+	err = txHandler.Handle(context.Background(), test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { return leaderTxPool.Count() == 3 }, test.WaitDuration, test.WaitTick)
 
@@ -244,17 +243,4 @@ func InitPeer(t *testing.T, conf *network.PeerConfiguration) *network.Peer {
 	return peer
 }
 
-// TODO replace with test.RandomPaymentRequest
-func RandomPaymentRequest(pt payment.PaymentRequest_PaymentType) *payment.PaymentRequest {
-	return &payment.PaymentRequest{
-		PaymentType: pt,
-		// #nosec G404
-		BillId: mathRand.Uint64(),
-		// #nosec G404
-		Amount:            mathRand.Uint32(),
-		Backlink:          []byte{},
-		PayeePredicate:    []byte{},
-		PredicateArgument: []byte{},
-	}
-}
 

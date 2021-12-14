@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/stretchr/testify/require"
 	"strings"
@@ -26,7 +27,7 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 	ctx := context.Background()
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
-			Priv: RandomBytes(30),
+			Priv: test.RandomBytes(30),
 		},
 	}
 	_, err := NewPeer(ctx, conf)
@@ -41,7 +42,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
 			Priv: privKeyBytes,
-			Pub:  RandomBytes(30),
+			Pub:  test.RandomBytes(30),
 		},
 	}
 	_, err := NewPeer(ctx, conf)
@@ -69,7 +70,3 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 	require.Equal(t, pubKeyBytes[4:], raw)
 }
 
-// TODO replace with test.RandomBytes
-func RandomBytes(l int) []byte {
-	return make([]byte, l)
-}

@@ -2,16 +2,17 @@
 package script
 
 import (
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestAlwaysTrueScript_Ok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
-	bearerPredicate := []byte{StartByte, OpPushBool, BoolTrue}
+	bearerPredicate := PredicateAlwaysTrue()
 	err := RunScript(predicateArgument, bearerPredicate, nil)
 	require.Nil(t, err)
 }
@@ -97,8 +98,8 @@ func newP2pkhTx(t *testing.T, hashAlg byte) tx {
 	sig, pubKey := testsig.SignBytes(t, po)
 	pubKeyHash := hashBytes(pubKey, hashAlg)
 
-	predicateArgument := createPredicateArgument(sig, pubKey)
-	bearerPredicate := createBearerPredicate(hashAlg, pubKeyHash)
+	predicateArgument := PredicateArgumentPayToPublicKeyHash(sig, SigSchemeSecp256k1, pubKey)
+	bearerPredicate := PredicatePayToPublicKeyHash(hashAlg, pubKeyHash, SigSchemeSecp256k1)
 
 	return tx{
 		sigData:           po,
@@ -115,23 +116,6 @@ func hashBytes(data []byte, hashAlg byte) []byte {
 		return hash.Sum512(data)
 	}
 	return data
-}
-
-func createBearerPredicate(hashType byte, pubKeyHash []byte) []byte {
-	p := make([]byte, 0, 42)
-	p = append(p, StartByte, OpDup, OpHash, hashType, OpPushHash, hashType)
-	p = append(p, pubKeyHash...)
-	p = append(p, OpEqual, OpVerify, OpCheckSig, SigSchemeSecp256k1)
-	return p
-}
-
-func createPredicateArgument(sig []byte, pubKey []byte) []byte {
-	s := make([]byte, 0, 103)
-	s = append(s, StartByte, OpPushSig, SigSchemeSecp256k1)
-	s = append(s, sig...)
-	s = append(s, OpPushPubKey, HashAlgSha256)
-	s = append(s, pubKey...)
-	return s
 }
 
 func createDummyPaymentOrder() []byte {

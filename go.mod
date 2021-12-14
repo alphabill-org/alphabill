@@ -3,7 +3,11 @@ module gitdc.ee.guardtime.com/alphabill/alphabill
 go 1.17
 
 replace github.com/coreos/etcd => github.com/coreos/etcd v3.3.24+incompatible
+
+replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20190108173120-83c051b701d3
+
 replace github.com/apache/thrift => github.com/apache/thrift v0.14.0
+
 replace github.com/buger/jsonparser => github.com/buger/jsonparser v1.1.1
 
 require (

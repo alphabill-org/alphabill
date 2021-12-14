@@ -1,17 +1,11 @@
 package domain
 
+// TODO AB-33
 type (
-	// TODO AB-33
+
 	Tx interface {
-
 		ID() TxID
-
 	}
 
-	// TODO AB-33
 	TxID string
-
-
-
-
 )

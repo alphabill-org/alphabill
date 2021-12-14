@@ -87,8 +87,11 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration) (*Peer, error) {
 	}
 	dht, err := newDHT(ctx, h, bootstrapNodes)
 	if err != nil {
-		logger.Error("Initializing DHT failed: %v. Closing peer.", err)
-		p.Close()
+		logger.Error("DHT init failed: %v. Closing peer.", err)
+		closeErr := p.Close()
+		if closeErr != nil {
+			err = multierror.Append(err, closeErr)
+		}
 		return nil, err
 	}
 	p.dht = dht
@@ -137,11 +140,11 @@ func (p *Peer) Close() (res error) {
 	}
 
 	// close libp2p host
-	logger.Debug("stopping libp2p node")
+	logger.Debug("Stopping libp2p node")
 	if err := p.host.Close(); err != nil {
 		res = multierror.Append(res, err)
 	}
-	logger.Debug("closing peer store")
+	logger.Debug("Closing peer store")
 	// to prevent peerstore go routine leak (https://github.com/libp2p/go-libp2p/issues/718)
 	if err := p.host.Peerstore().Close(); err != nil {
 		res = multierror.Append(res, err)

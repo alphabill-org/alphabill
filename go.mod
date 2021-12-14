@@ -4,6 +4,7 @@ go 1.17
 
 replace github.com/coreos/etcd => github.com/coreos/etcd v3.3.24+incompatible
 replace github.com/apache/thrift => github.com/apache/thrift v0.14.0
+replace github.com/buger/jsonparser => github.com/buger/jsonparser v1.1.1
 
 require (
 	github.com/ethereum/go-ethereum v1.10.12

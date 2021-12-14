@@ -2,6 +2,8 @@ package domain
 
 import (
 	"bytes"
+	"crypto"
+	"fmt"
 	"hash"
 )
 
@@ -38,4 +40,11 @@ func (o *PaymentOrder) Bytes() []byte {
 func (o *PaymentOrder) Hash(hasher hash.Hash) []byte {
 	hasher.Write(o.Bytes())
 	return hasher.Sum(nil)
+}
+
+func (o *PaymentOrder) ID() TxID {
+	hasher := crypto.SHA256.New()
+	hasher.Write(o.Bytes())
+	hasher.Write(o.PredicateArgument)
+	return TxID(fmt.Sprintf("%X", hasher.Sum(nil)))
 }

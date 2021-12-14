@@ -85,7 +85,7 @@ func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
 		return err
 	}
 
-	paymentServer, err := rpc.New(shardComponent)
+	paymentServer, err := rpc.NewPaymentServer(shardComponent)
 	if err != nil {
 		return err
 	}

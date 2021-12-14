@@ -1,4 +1,4 @@
-package domain
+package rpc
 
 import (
 	"testing"
@@ -10,32 +10,35 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	testbytes "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/bytes"
 )
 
-func TestFromProtobuf(t *testing.T) {
+func TestPbToTransactionOrder(t *testing.T) {
 	var (
 		txId       = testbytes.RandomBytes(32)
 		ownerProof = []byte{'p', 'r', 'o', 'o', 'f'}
 		backlink   = []byte{'b', 'a', 'c', 'k', 'l', 'i', 'n', 'k'}
 		newBearer  = []byte{'n', 'e', 'w', 'b', 'e', 'a', 'r', 'e', 'r'}
 		timeout    = uint64(678)
+
+		converter = &defaultConverter{}
 	)
 
 	type args struct {
-		pbTxOrder transaction.TransactionOrder
+		pbTxOrder *transaction.TransactionOrder
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    *TransactionOrder
+		want    *domain.TransactionOrder
 		wantErr error // The expected error or nil if not expecting
 	}{
 		{
 			name: "Bill Transfer type",
 			args: func() args {
-				pbTxOrder := transaction.TransactionOrder{
+				pbTxOrder := &transaction.TransactionOrder{
 					TransactionId:         txId,
 					TransactionAttributes: new(anypb.Any),
 					Timeout:               timeout,
@@ -49,9 +52,9 @@ func TestFromProtobuf(t *testing.T) {
 				require.NoError(t, err)
 				return args{pbTxOrder}
 			}(),
-			want: &TransactionOrder{
+			want: &domain.TransactionOrder{
 				TransactionId: uint256.NewInt(0).SetBytes(txId),
-				TransactionAttributes: &BillTransfer{
+				TransactionAttributes: &domain.BillTransfer{
 					NewBearer: newBearer,
 					Backlink:  backlink,
 				},
@@ -63,7 +66,7 @@ func TestFromProtobuf(t *testing.T) {
 		{
 			name: "unknown type fails",
 			args: func() args {
-				pbTxOrder := transaction.TransactionOrder{
+				pbTxOrder := &transaction.TransactionOrder{
 					TransactionId:         txId,
 					TransactionAttributes: new(anypb.Any),
 					Timeout:               timeout,
@@ -77,9 +80,9 @@ func TestFromProtobuf(t *testing.T) {
 				require.NoError(t, err)
 				return args{pbTxOrder}
 			}(),
-			want: &TransactionOrder{
+			want: &domain.TransactionOrder{
 				TransactionId: uint256.NewInt(0).SetBytes(txId),
-				TransactionAttributes: &BillTransfer{
+				TransactionAttributes: &domain.BillTransfer{
 					NewBearer: newBearer,
 					Backlink:  backlink,
 				},
@@ -91,7 +94,7 @@ func TestFromProtobuf(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FromProtobuf(tt.args.pbTxOrder)
+			got, err := converter.ConvertPbToDomain(tt.args.pbTxOrder)
 			if tt.wantErr == nil {
 				require.NoError(t, err)
 			} else {

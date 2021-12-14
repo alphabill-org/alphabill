@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
@@ -13,6 +14,7 @@ const (
 	errPaymentStatusProcessingFailed = "failed to process payment status request"
 )
 
+// Deprecated: paymentsServer in favor of transactions server
 type paymentsServer struct {
 	payment.UnimplementedPaymentsServer
 	paymentProcessor PaymentProcessor
@@ -48,7 +50,8 @@ func (pss *paymentsServer) PaymentStatus(_ context.Context, req *payment.Payment
 	return &payment.PaymentStatusResponse{Status: s != nil}, nil
 }
 
-func New(processor PaymentProcessor) (*paymentsServer, error) {
+// Deprecated: NewPaymentServer in favor of transactions server
+func NewPaymentServer(processor PaymentProcessor) (*paymentsServer, error) {
 	if processor == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}

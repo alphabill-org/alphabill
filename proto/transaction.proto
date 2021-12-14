@@ -14,6 +14,15 @@ message TransactionOrder {
   bytes owner_proof = 4;
 }
 
+message TransactionResponse {
+  // True if request passed initial validation.
+  bool ok = 1;
+}
+
+service Transactions {
+  rpc ProcessTransaction(TransactionOrder) returns (TransactionResponse) {};
+}
+
 // Alphabill specific transaction attributes.
 message BillTransfer {
   bytes new_bearer = 1;

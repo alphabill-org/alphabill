@@ -6,6 +6,7 @@ Run `make` to test and build the application.
 
 * `golang` version 1.17 or newer. (https://go.dev/doc/install)
 * `protoc` version 3 or newer. (https://grpc.io/docs/protoc-installation)
+* `protoc-gen-go` (https://grpc.io/docs/languages/go/quickstart/)
 
 # Run
 

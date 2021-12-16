@@ -66,7 +66,7 @@ func TestTxHandler_FollowerForwardsRequestToLeader(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify tx buffers
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 2 }, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool { return followerTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
 }
 

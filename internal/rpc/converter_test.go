@@ -20,12 +20,12 @@ func TestPbToTransactionOrder(t *testing.T) {
 	var (
 		txId           = testbytes.RandomBytes(32)
 		billIds        = [][]byte{testbytes.RandomBytes(32), testbytes.RandomBytes(32)}
-		ownerProof     = []byte{'p', 'r', 'o', 'o', 'f'}
-		ownerCondition = []byte{'c', 'o', 'n', 'd', 'i', 't', 'i', 'o', 'n'}
-		backlink       = []byte{'b', 'a', 'c', 'k', 'l', 'i', 'n', 'k'}
-		nonce          = []byte{'n', 'o', 'n', 'c', 'e'}
-		newBearer      = []byte{'n', 'e', 'w', 'b', 'e', 'a', 'r', 'e', 'r'}
-		targetBearer   = []byte{'t', 'a', 'r', 'g', 'e', 't', 'b', 'e', 'a', 'r', 'e', 'r'}
+		ownerProof     = []byte("proof")
+		ownerCondition = []byte("ownerCondition")
+		backlink       = []byte("backlink")
+		nonce          = []byte("nonce")
+		newBearer      = []byte("newBearer")
+		targetBearer   = []byte("targetBearer")
 		amount         = uint64(999)
 		timeout        = uint64(777)
 		targetValue    = uint64(111)

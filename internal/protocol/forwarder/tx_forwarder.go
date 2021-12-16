@@ -10,7 +10,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txpool"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"sync"
@@ -34,26 +34,26 @@ type LeaderSelector interface {
 // TxForwarder sends transactions, as they arrive, to the expected next leader.
 type TxForwarder struct {
 	leaderSelector LeaderSelector // leader selector
-	txPool         *txpool.TxPool
-	self           *network.Peer
+	txBuffer *txbuffer.TxBuffer
+	self     *network.Peer
 	ctx            context.Context
 	ctxCancel      context.CancelFunc
 	refCount       sync.WaitGroup // track resources that need to be shut down
 }
 
 // New constructs a new *TxForwarder and activates it by attaching its stream handler to the given network.Peer.
-func New(self *network.Peer, leaderSelector LeaderSelector, txPool *txpool.TxPool) (*TxForwarder, error) {
+func New(self *network.Peer, leaderSelector LeaderSelector, txBuffer *txbuffer.TxBuffer) (*TxForwarder, error) {
 	if self == nil {
 		return nil, errors.New(errstr.NilArgument)
 	}
 	if leaderSelector == nil {
 		return nil, errors.New(errstr.NilArgument)
 	}
-	if txPool == nil {
+	if txBuffer == nil {
 		return nil, errors.New(errstr.NilArgument)
 	}
 	tf := &TxForwarder{
-		txPool:         txPool,
+		txBuffer:       txBuffer,
 		leaderSelector: leaderSelector,
 		self:           self,
 	}
@@ -63,7 +63,7 @@ func New(self *network.Peer, leaderSelector LeaderSelector, txPool *txpool.TxPoo
 }
 
 // Handle handles the incoming transaction. If current node isn't the leader then the transaction is forwarded to the
-// expected next leader. If current node is the leader then the transaction is added the txpool.TxPool.
+// expected next leader. If current node is the leader then the transaction is added the txbuffer.TxBuffer.
 func (tf *TxForwarder) Handle(ctx context.Context, req *payment.PaymentRequest) error {
 	nextLeader, err := tf.leaderSelector.NextLeader()
 	if err != nil {
@@ -126,12 +126,12 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 	}
 	err = tf.handleTx(req)
 	if err != nil {
-		logger.Warning("Transaction was not added to the TxPool: %v", err)
+		logger.Warning("Transaction was not added to the TxBuffer: %v", err)
 	}
 }
 
 func (tf *TxForwarder) handleTx(req *payment.PaymentRequest) error {
-	return tf.txPool.Add(&domain.PaymentOrder{
+	return tf.txBuffer.Add(&domain.PaymentOrder{
 		Type:              domain.PaymentType(req.PaymentType),
 		BillID:            req.BillId,
 		Amount:            req.Amount,

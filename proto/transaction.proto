@@ -35,13 +35,13 @@ message DustTransfer {
   bytes backlink = 2;
   bytes nonce = 3;
   bytes target_bearer = 4;
-  uint32 target_value = 5; // TODO type might be to small. Change when AB sums are decided.
+  uint64 target_value = 5;
 }
 
 message BillSplit {
-  uint32 amount = 1; // TODO type might be to small. Change when AB sums are decided.
+  uint64 amount = 1;
   bytes target_bearer = 2;
-  uint32 target_value = 3; // TODO type might be to small. Change when AB sums are decided.
+  uint64 target_value = 3;
   bytes backlink = 4;
 }
 
@@ -50,7 +50,7 @@ message Swap {
   repeated bytes bill_identifiers = 2;
   repeated DustTransfer dust_transfer_orders = 3;
   repeated LedgerProof proofs = 4;
-  uint32 target_value = 5; // TODO type might be to small. Change when AB sums are decided.
+  uint64 target_value = 5;
 }
 
 

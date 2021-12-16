@@ -11,6 +11,7 @@ const (
 )
 
 type (
+	// Deprecated: use TransactionOrder instead
 	PaymentOrder struct {
 		Type              PaymentType
 		BillID            uint64
@@ -21,8 +22,6 @@ type (
 	}
 
 	PaymentType uint8
-
-	Predicate []byte
 )
 
 func (o *PaymentOrder) Bytes() []byte {

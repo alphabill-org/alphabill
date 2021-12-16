@@ -5,3 +5,7 @@ type (
 		PreviousStateHash []byte
 	}
 )
+
+func (l *LedgerProof) Normalise() []byte {
+	return l.PreviousStateHash
+}

@@ -11,17 +11,24 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/ledger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	testbytes "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/bytes"
 )
 
 func TestPbToTransactionOrder(t *testing.T) {
 	var (
-		txId       = testbytes.RandomBytes(32)
-		ownerProof = []byte{'p', 'r', 'o', 'o', 'f'}
-		backlink   = []byte{'b', 'a', 'c', 'k', 'l', 'i', 'n', 'k'}
-		newBearer  = []byte{'n', 'e', 'w', 'b', 'e', 'a', 'r', 'e', 'r'}
-		timeout    = uint64(678)
+		txId           = testbytes.RandomBytes(32)
+		billIds        = [][]byte{testbytes.RandomBytes(32), testbytes.RandomBytes(32)}
+		ownerProof     = []byte{'p', 'r', 'o', 'o', 'f'}
+		ownerCondition = []byte{'c', 'o', 'n', 'd', 'i', 't', 'i', 'o', 'n'}
+		backlink       = []byte{'b', 'a', 'c', 'k', 'l', 'i', 'n', 'k'}
+		nonce          = []byte{'n', 'o', 'n', 'c', 'e'}
+		newBearer      = []byte{'n', 'e', 'w', 'b', 'e', 'a', 'r', 'e', 'r'}
+		targetBearer   = []byte{'t', 'a', 'r', 'g', 'e', 't', 'b', 'e', 'a', 'r', 'e', 'r'}
+		amount         = uint64(999)
+		timeout        = uint64(777)
+		targetValue    = uint64(111)
 
 		converter = &defaultConverter{}
 	)
@@ -36,59 +43,48 @@ func TestPbToTransactionOrder(t *testing.T) {
 		wantErr error // The expected error or nil if not expecting
 	}{
 		{
-			name: "Bill Transfer type",
-			args: func() args {
-				pbTxOrder := &transaction.TransactionOrder{
-					TransactionId:         txId,
-					TransactionAttributes: new(anypb.Any),
-					Timeout:               timeout,
-					OwnerProof:            ownerProof,
-				}
-				err := anypb.MarshalFrom(pbTxOrder.TransactionAttributes,
-					&transaction.BillTransfer{
-						NewBearer: newBearer,
-						Backlink:  backlink,
-					}, proto.MarshalOptions{})
-				require.NoError(t, err)
-				return args{pbTxOrder}
-			}(),
-			want: &domain.TransactionOrder{
-				TransactionId: uint256.NewInt(0).SetBytes(txId),
-				TransactionAttributes: &domain.BillTransfer{
-					NewBearer: newBearer,
-					Backlink:  backlink,
-				},
-				Timeout:    timeout,
-				OwnerProof: ownerProof,
-			},
+			name:    "Bill Transfer type",
+			args:    args{newPBTransactionOrder(t, txId, ownerProof, timeout, newPBBillTransfer(newBearer, backlink))},
+			want:    newDomainTransactionOrder(txId, ownerProof, timeout, newDomainBillTransfer(newBearer, backlink)),
 			wantErr: nil,
 		},
 		{
-			name: "unknown type fails",
-			args: func() args {
-				pbTxOrder := &transaction.TransactionOrder{
-					TransactionId:         txId,
-					TransactionAttributes: new(anypb.Any),
-					Timeout:               timeout,
-					OwnerProof:            ownerProof,
-				}
-				err := anypb.MarshalFrom(pbTxOrder.TransactionAttributes,
-					// Transaction Order is not expected inside the convert function
-					&transaction.TransactionOrder{
-						TransactionId: []byte{1},
-					}, proto.MarshalOptions{})
-				require.NoError(t, err)
-				return args{pbTxOrder}
-			}(),
-			want: &domain.TransactionOrder{
-				TransactionId: uint256.NewInt(0).SetBytes(txId),
-				TransactionAttributes: &domain.BillTransfer{
-					NewBearer: newBearer,
-					Backlink:  backlink,
-				},
-				Timeout:    timeout,
-				OwnerProof: ownerProof,
-			},
+			name: "Dust Transfer type",
+			args: args{newPBTransactionOrder(t, txId, ownerProof, timeout,
+				newPBDustTransfer(newBearer, backlink, nonce, targetBearer, targetValue))},
+			want: newDomainTransactionOrder(txId, ownerProof, timeout,
+				newDomainDustTransfer(newBearer, backlink, nonce, targetBearer, targetValue)),
+			wantErr: nil,
+		},
+		{
+			name: "Bill Split type",
+			args: args{newPBTransactionOrder(t, txId, ownerProof, timeout,
+				newPBBillSplit(amount, targetBearer, targetValue, backlink))},
+			want: newDomainTransactionOrder(txId, ownerProof, timeout,
+				newDomainBillSplit(amount, targetBearer, targetValue, backlink)),
+			wantErr: nil,
+		},
+		{
+			name: "Swap type",
+			args: args{newPBTransactionOrder(t, txId, ownerProof, timeout,
+				newPBSwap(
+					ownerCondition,
+					billIds,
+					[]*transaction.DustTransfer{newPBDustTransfer(newBearer, backlink, nonce, targetBearer, targetValue)},
+					[]*ledger.LedgerProof{{PreviousStateHash: []byte{1}}},
+					targetValue))},
+			want: newDomainTransactionOrder(txId, ownerProof, timeout,
+				newDomainSwap(ownerCondition,
+					billIds,
+					[]*domain.DustTransfer{newDomainDustTransfer(newBearer, backlink, nonce, targetBearer, targetValue)},
+					[]*domain.LedgerProof{{PreviousStateHash: []byte{1}}},
+					targetValue)),
+			wantErr: nil,
+		},
+		{
+			name:    "unknown type fails",
+			args:    args{newPBTransactionOrder(t, txId, ownerProof, timeout, &transaction.TransactionOrder{TransactionId: []byte{1}})},
+			want:    nil,
 			wantErr: UnknownType,
 		},
 	}
@@ -103,5 +99,101 @@ func TestPbToTransactionOrder(t *testing.T) {
 			}
 			assert.Equalf(t, tt.want, got, "FromProtobuf(%v)", tt.args.pbTxOrder)
 		})
+	}
+}
+
+func newPBTransactionOrder(t *testing.T, id, ownerProof []byte, timeout uint64, attr proto.Message) *transaction.TransactionOrder {
+	to := &transaction.TransactionOrder{
+		TransactionId:         id,
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               timeout,
+		OwnerProof:            ownerProof,
+	}
+	err := anypb.MarshalFrom(to.TransactionAttributes, attr, proto.MarshalOptions{})
+	require.NoError(t, err)
+	return to
+}
+
+func newDomainTransactionOrder(id, ownerProof []byte, timeout uint64, attr domain.Normaliser) *domain.TransactionOrder {
+	return &domain.TransactionOrder{
+		TransactionId:         uint256.NewInt(0).SetBytes(id),
+		TransactionAttributes: attr,
+		Timeout:               timeout,
+		OwnerProof:            ownerProof,
+	}
+}
+
+func newPBBillTransfer(newBearer, backlink []byte) *transaction.BillTransfer {
+	return &transaction.BillTransfer{
+		NewBearer: newBearer,
+		Backlink:  backlink,
+	}
+}
+
+func newDomainBillTransfer(newBearer, backlink []byte) *domain.BillTransfer {
+	return &domain.BillTransfer{
+		NewBearer: newBearer,
+		Backlink:  backlink,
+	}
+}
+
+func newPBDustTransfer(newBearer, backlink, nonce, targetBearer []byte, targetValue uint64) *transaction.DustTransfer {
+	return &transaction.DustTransfer{
+		NewBearer:    newBearer,
+		Backlink:     backlink,
+		Nonce:        nonce,
+		TargetBearer: targetBearer,
+		TargetValue:  targetValue,
+	}
+}
+
+func newDomainDustTransfer(newBearer, backlink, nonce, targetBearer []byte, targetValue uint64) *domain.DustTransfer {
+	return &domain.DustTransfer{
+		NewBearer:    newBearer,
+		Backlink:     backlink,
+		Nonce:        uint256.NewInt(0).SetBytes(nonce),
+		TargetBearer: targetBearer,
+		TargetValue:  targetValue,
+	}
+}
+
+func newPBBillSplit(amount uint64, targetBearer []byte, targetValue uint64, backlink []byte) *transaction.BillSplit {
+	return &transaction.BillSplit{
+		Amount:       amount,
+		TargetBearer: targetBearer,
+		TargetValue:  targetValue,
+		Backlink:     backlink,
+	}
+}
+
+func newDomainBillSplit(amount uint64, targetBearer []byte, targetValue uint64, backlink []byte) *domain.BillSplit {
+	return &domain.BillSplit{
+		Amount:       amount,
+		TargetBearer: targetBearer,
+		TargetValue:  targetValue,
+		Backlink:     backlink,
+	}
+}
+func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dustTransferOrder []*transaction.DustTransfer, proofs []*ledger.LedgerProof, targetValue uint64) *transaction.Swap {
+	return &transaction.Swap{
+		OwnerCondition:     ownerCondition,
+		BillIdentifiers:    billIdentifiers,
+		DustTransferOrders: dustTransferOrder,
+		Proofs:             proofs,
+		TargetValue:        targetValue,
+	}
+}
+
+func newDomainSwap(ownerCondition []byte, billIdentifiers [][]byte, dustTransferOrder []*domain.DustTransfer, proofs []*domain.LedgerProof, targetValue uint64) *domain.Swap {
+	var billIds []*uint256.Int
+	for _, biBytes := range billIdentifiers {
+		billIds = append(billIds, uint256.NewInt(0).SetBytes(biBytes))
+	}
+	return &domain.Swap{
+		OwnerCondition:     ownerCondition,
+		BillIdentifiers:    billIds,
+		DustTransferOrders: dustTransferOrder,
+		Proofs:             proofs,
+		TargetValue:        targetValue,
 	}
 }

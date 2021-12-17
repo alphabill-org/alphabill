@@ -2,6 +2,11 @@ package rpc
 
 import (
 	"context"
+	"net"
+	"strconv"
+	"strings"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
@@ -9,10 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
-	"net"
-	"strconv"
-	"strings"
-	"testing"
 )
 
 var paymentProcessingFails = &payment.PaymentRequest{
@@ -42,14 +43,14 @@ func (mpp *MockPaymentProcessor) Status(paymentID string) (interface{}, error) {
 }
 
 func TestNewPaymentsServer_PaymentProcessorMissing(t *testing.T) {
-	p, err := New(nil)
+	p, err := NewPaymentServer(nil)
 	assert.Nil(t, p)
 	assert.NotNil(t, err)
 	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
 }
 
 func TestNewPaymentsServer_Ok(t *testing.T) {
-	p, err := New(&MockPaymentProcessor{})
+	p, err := NewPaymentServer(&MockPaymentProcessor{})
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 }
@@ -111,7 +112,7 @@ func createClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, payment.
 	processor := &MockPaymentProcessor{}
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
-	paymentServer, _ := New(processor)
+	paymentServer, _ := NewPaymentServer(processor)
 	payment.RegisterPaymentsServer(grpcServer, paymentServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

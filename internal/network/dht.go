@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+
 	"github.com/libp2p/go-libp2p-core/host"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 )
@@ -16,11 +17,9 @@ func newDHT(ctx context.Context, host host.Host, options ...dht.Option) (*dht.Ip
 		dht.ProtocolPrefix(AlphaBillProtocolPrefix),
 		dht.Mode(dht.ModeServer),
 	}
-	if options != nil && len(options) > 0 {
-		for _, option := range options {
-			if option != nil {
-				opts = append(opts, option)
-			}
+	for _, option := range options {
+		if option != nil {
+			opts = append(opts, option)
 		}
 	}
 

@@ -1,23 +1,25 @@
 package txpool
 
 import (
+	"sync"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"sync"
 )
 
 var (
-	ErrTxPoolFull        = errors.New("tx pool is full")
-	ErrInvalidMaxSize    = errors.New("invalid tx pool maximum size")
-	ErrTxIsNil           = errors.New("tx is nil")
-	ErrTxInPool          = errors.New("tx already in tx pool")
+	ErrTxPoolFull     = errors.New("tx pool is full")
+	ErrInvalidMaxSize = errors.New("invalid tx pool maximum size")
+	ErrTxIsNil        = errors.New("tx is nil")
+	ErrTxInPool       = errors.New("tx already in tx pool")
 )
+
 // TODO AB-33
 type (
 
 	// TxPool is an in-memory data structure containing the set of unconfirmed transactions.
 	TxPool struct {
-		mutext       sync.Mutex                           // mutex for locks
+		mutex        sync.Mutex                           // mutex for locks
 		transactions map[domain.TxID]*domain.PaymentOrder // map containing valid pending transactions.
 		maxSize      uint32                               // maximum TxPool size.
 	}
@@ -40,8 +42,8 @@ func (t *TxPool) Add(tx *domain.PaymentOrder) error {
 	if tx == nil {
 		return ErrTxIsNil
 	}
-	t.mutext.Lock()
-	defer t.mutext.Unlock()
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 
 	if t.size() >= t.maxSize {
 		return ErrTxPoolFull
@@ -57,8 +59,8 @@ func (t *TxPool) Add(tx *domain.PaymentOrder) error {
 }
 
 func (t *TxPool) Count() uint32 {
-	t.mutext.Lock()
-	defer t.mutext.Unlock()
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	return t.size()
 }
 

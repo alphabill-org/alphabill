@@ -3,6 +3,9 @@ package forwarder
 import (
 	"context"
 	"crypto/rand"
+	"strings"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
@@ -12,8 +15,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
 )
 
 const (
@@ -26,8 +27,9 @@ var (
 )
 
 type FixedLeader struct {
-	Leader *network.Peer
-	Error error
+	Leader        *network.Peer
+	Error         error
+	LeaderUnknown bool
 }
 
 func init() {
@@ -35,6 +37,9 @@ func init() {
 }
 
 func (l *FixedLeader) NextLeader() (peer.ID, error) {
+	if l.LeaderUnknown {
+		return UnknownLeader, nil
+	}
 	if l.Error != nil {
 		return "", l.Error
 	}
@@ -48,9 +53,8 @@ func TestTxHandler_FollowerForwardsRequestToLeader(t *testing.T) {
 	// init leader
 	leader := InitPeer(t, nil)
 	defer leader.Close()
-	fixedLeader := &FixedLeader{leader, nil}
+	fixedLeader := &FixedLeader{Leader: leader}
 	_, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
-
 
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
@@ -84,19 +88,32 @@ func TestTxHandler_NextLeaderSelectorReturnsError(t *testing.T) {
 	require.EqualError(t, err, noLeaderErr.Error())
 }
 
+func TestTxHandler_NextLeaderIsUnknown(t *testing.T) {
+	// init follower
+	fixedLeader := &FixedLeader{LeaderUnknown: true}
+	follower := InitPeer(t, nil)
+	defer follower.Close()
+	followerTxHandler, followerTxPool := RegisterTxHandler(t, follower, fixedLeader)
+
+	// send requests
+	err := followerTxHandler.Handle(context.Background(), transfer)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return followerTxPool.Count() == 1 }, test.WaitDuration, test.WaitTick)
+}
+
 func TestTxHandler_LeaderChangedWhenTxWasForwarded(t *testing.T) {
 	leader2 := InitPeer(t, nil)
 
 	// init leader
 	leader := InitPeer(t, nil)
 	defer leader.Close()
-	errLeader := &FixedLeader{Leader:leader2 }
+	errLeader := &FixedLeader{Leader: leader2}
 	_, leaderTxPool := RegisterTxHandler(t, leader, errLeader)
 
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
-	fixedLeader := &FixedLeader{leader, nil}
+	fixedLeader := &FixedLeader{leader, nil, false}
 	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
 	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
 
@@ -119,7 +136,7 @@ func TestTxHandler_LeaderFailsLeaderCheck(t *testing.T) {
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
-	fixedLeader := &FixedLeader{leader, nil}
+	fixedLeader := &FixedLeader{Leader: leader}
 	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
 	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
 
@@ -137,15 +154,15 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	pubKeyBytes, _ := crypto.MarshalPublicKey(pubKey)
 
 	leaderConf := &network.PeerConfiguration{
-		KeyPair:       &network.PeerKeyPair{
+		KeyPair: &network.PeerKeyPair{
 			Priv: privKeyBytes,
-			Pub: pubKeyBytes,
+			Pub:  pubKeyBytes,
 		},
 	}
 
 	// init leader
 	leader := InitPeer(t, leaderConf)
-	fixedLeader := &FixedLeader{leader, nil}
+	fixedLeader := &FixedLeader{Leader: leader}
 	_, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
@@ -158,7 +175,7 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	// verify tx pools
 	require.Eventually(t, func() bool { return leaderTxPool.Count() == 1 }, test.WaitDuration, test.WaitTick)
 
-	leaderAddress :=  leader.MultiAddresses()[0].String()
+	leaderAddress := leader.MultiAddresses()[0].String()
 	// shut down leader
 
 	err = leader.Close()
@@ -183,7 +200,7 @@ func TestTxHandler_LeaderDoesNotForward(t *testing.T) {
 	// init leader
 	leader := InitPeer(t, nil)
 	defer leader.Close()
-	fixedLeader := &FixedLeader{leader, nil}
+	fixedLeader := &FixedLeader{Leader: leader}
 	txHandler, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
 
 	// send requests
@@ -198,7 +215,7 @@ func TestTxHandler_LeaderDoesNotForward(t *testing.T) {
 func TestTxHandler_LeaderDown(t *testing.T) {
 	// init leader
 	leader := InitPeer(t, nil)
-	fixedLeader := &FixedLeader{leader, nil}
+	fixedLeader := &FixedLeader{Leader: leader}
 	_, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
@@ -229,7 +246,7 @@ func RegisterTxHandler(t *testing.T, p *network.Peer, leaderSelector LeaderSelec
 
 func CreateBootstrapConfiguration(t *testing.T, p *network.Peer) *network.PeerConfiguration {
 	t.Helper()
-	return &network.PeerConfiguration{BootstapPeers: []*network.PeerInfo{{
+	return &network.PeerConfiguration{BootstrapPeers: []*network.PeerInfo{{
 		ID:      peer.Encode(p.ID()),
 		Address: p.MultiAddresses()[0].String(),
 	}}}
@@ -242,5 +259,3 @@ func InitPeer(t *testing.T, conf *network.PeerConfiguration) *network.Peer {
 	require.NoError(t, err)
 	return peer
 }
-
-

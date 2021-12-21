@@ -3,6 +3,8 @@ package forwarder
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
@@ -13,16 +15,15 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"sync"
-	"time"
 )
 
 var logger = log.CreateForPackage()
 
 const (
 	// ProtocolIdTxForwarder is the protocol.ID of the AlphaBill transaction forwarding protocol.
-	ProtocolIdTxForwarder    = "/ab/tx/1.0.0"
-	DefaultForwardingTimeout = 2 * time.Second
+	ProtocolIdTxForwarder            = "/ab/tx/1.0.0"
+	DefaultForwardingTimeout         = 2 * time.Second
+	UnknownLeader            peer.ID = ""
 )
 
 // LeaderSelector interface is used to get the next leader.
@@ -33,12 +34,9 @@ type LeaderSelector interface {
 
 // TxForwarder sends transactions, as they arrive, to the expected next leader.
 type TxForwarder struct {
-	leaderSelector LeaderSelector // leader selector
-	txBuffer *txbuffer.TxBuffer
-	self     *network.Peer
-	ctx            context.Context
-	ctxCancel      context.CancelFunc
-	refCount       sync.WaitGroup // track resources that need to be shut down
+	leaderSelector LeaderSelector
+	txBuffer       *txbuffer.TxBuffer
+	self           *network.Peer
 }
 
 // New constructs a new *TxForwarder and activates it by attaching its stream handler to the given network.Peer.
@@ -57,7 +55,6 @@ func New(self *network.Peer, leaderSelector LeaderSelector, txBuffer *txbuffer.T
 		leaderSelector: leaderSelector,
 		self:           self,
 	}
-	tf.ctx, tf.ctxCancel = context.WithCancel(context.Background())
 	self.RegisterProtocolHandler(ProtocolIdTxForwarder, tf.handleStream)
 	return tf, nil
 }
@@ -69,8 +66,8 @@ func (tf *TxForwarder) Handle(ctx context.Context, req *payment.PaymentRequest) 
 	if err != nil {
 		return err
 	}
-	if nextLeader == tf.self.ID() {
-		// current node is the leader
+	if nextLeader == UnknownLeader || nextLeader == tf.self.ID() {
+		// leader is unknown or the current node is the leader
 		return tf.handleTx(req)
 	}
 	// forward transaction to the leader
@@ -79,7 +76,6 @@ func (tf *TxForwarder) Handle(ctx context.Context, req *payment.PaymentRequest) 
 
 // Close shuts down the TxForwarder.
 func (tf *TxForwarder) Close() error {
-	tf.ctxCancel()
 	tf.self.RemoveProtocolHandler(ProtocolIdTxForwarder)
 	return nil
 }
@@ -99,7 +95,7 @@ func (tf *TxForwarder) forwardTx(ctx context.Context, req *payment.PaymentReques
 		_ = s.Reset()
 		return fmt.Errorf("failed to forward transaction, %w", err)
 	}
-	logger.Debug("forwarded tx to peer %v with address %v", tf.self.ID(), tf.self.MultiAddresses())
+	logger.Debug("forwarded tx to peer %v", receiver)
 	return nil
 }
 

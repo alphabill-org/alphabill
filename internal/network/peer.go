@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"crypto/rand"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"github.com/hashicorp/go-multierror"
@@ -31,9 +32,9 @@ type (
 
 	// PeerConfiguration includes single peer configuration values.
 	PeerConfiguration struct {
-		Address       string       // address to listen for incoming connections. Uses libp2p multiaddress format.
-		KeyPair       *PeerKeyPair // Secp256k1 keypair for the peer.
-		BootstapPeers []*PeerInfo  // a list of bootstrap peers.
+		Address        string       // address to listen for incoming connections. Uses libp2p multiaddress format.
+		KeyPair        *PeerKeyPair // keypair for the peer.
+		BootstrapPeers []*PeerInfo  // a list of bootstrap peers.
 	}
 
 	// PeerInfo contains peer.ID and address.
@@ -172,14 +173,20 @@ func readOrGenerateKeyPair(conf *PeerConfiguration) (privateKey crypto.PrivKey, 
 }
 
 func getBootstrapNodes(conf *PeerConfiguration) (dht.Option, error) {
-	if conf == nil || len(conf.BootstapPeers) == 0 {
+	if conf == nil || len(conf.BootstrapPeers) == 0 {
 		return nil, nil
 	}
-	peers := conf.BootstapPeers
+	peers := conf.BootstrapPeers
 	peerInfos := make([]peer.AddrInfo, len(peers))
 	for i, p := range peers {
-		var maddrPeer = ma.StringCast(p2pProtocolPrefix + p.ID)
-		maddrTpt := ma.StringCast(p.Address)
+		maddrPeer, err := ma.NewMultiaddr(p2pProtocolPrefix + p.ID)
+		if err != nil {
+			return nil, err
+		}
+		maddrTpt, err := ma.NewMultiaddr(p.Address)
+		if err != nil {
+			return nil, err
+		}
 		maddrFull := maddrTpt.Encapsulate(maddrPeer)
 
 		addInfo, err := peer.AddrInfoFromP2pAddr(maddrFull)

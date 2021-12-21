@@ -3,12 +3,11 @@ package network
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
+	"testing"
+
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
 )
 
 func TestNewPeer_GeneratesKeys(t *testing.T) {
@@ -32,7 +31,7 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 	}
 	_, err := NewPeer(ctx, conf)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), ErrStringInvalidPrivateKey))
+	require.Errorf(t, err, ErrStringInvalidPrivateKey)
 }
 
 func TestNewPeer_InvalidPublicKey(t *testing.T) {
@@ -47,8 +46,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 	}
 	_, err := NewPeer(ctx, conf)
 	require.Error(t, err)
-	fmt.Println(err)
-	require.True(t, strings.Contains(err.Error(), ErrStringInvalidPublicKey))
+	require.Errorf(t, err, ErrStringInvalidPublicKey)
 }
 
 func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
@@ -69,4 +67,3 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 	raw, _ := pub.Raw()
 	require.Equal(t, pubKeyBytes[4:], raw)
 }
-

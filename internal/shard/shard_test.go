@@ -25,7 +25,7 @@ func TestProcess_Ok(t *testing.T) {
 	s, err := New(sp)
 	require.Nil(t, err)
 
-	sp.On("Process", mock.Anything).Return(nil)
+	sp.On("ProcessPayment", mock.Anything).Return(nil)
 
 	status, err := s.Process(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
 	require.Nil(t, err)
@@ -37,7 +37,7 @@ func TestProcess_Nok(t *testing.T) {
 	s, err := New(sp)
 	require.Nil(t, err)
 
-	sp.On("Process", mock.Anything).Return(errors.New("expecting error"))
+	sp.On("ProcessPayment", mock.Anything).Return(errors.New("expecting error"))
 
 	status, err := s.Process(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
 	require.Error(t, err)

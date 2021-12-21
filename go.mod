@@ -12,6 +12,7 @@ replace github.com/buger/jsonparser => github.com/buger/jsonparser v1.1.1
 
 require (
 	github.com/ethereum/go-ethereum v1.10.12
+	github.com/holiman/uint256 v1.2.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/ipfs/go-log v1.0.5
 	github.com/libp2p/go-libp2p v0.16.0

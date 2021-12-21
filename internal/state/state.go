@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/holiman/uint256"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 )
 
@@ -21,7 +24,59 @@ var (
 	ErrInvalidHashAlgorithm = errors.New("invalid hash algorithm")
 )
 
+var log = logger.CreateForPackage()
+
+const (
+	TypeTransfer TransactionType = iota
+	TypeDCTransfer
+	TypeSplit
+	TypeSwap
+)
+
 type (
+	Transaction interface {
+		Type() TransactionType
+	}
+
+	TransactionType int
+
+	GenericTransaction interface {
+		UnitId() *uint256.Int
+		Timeout() uint64
+		OwnerProof() []byte
+	}
+
+	Transfer interface {
+		GenericTransaction
+		NewBearer() []byte
+		Backlink() []byte
+		TargetValue() uint64
+	}
+
+	DustTransfer interface {
+		GenericTransaction
+		NewBearer() []byte
+		Backlink() []byte
+		Nonce() []byte
+		TargetValue() uint64
+	}
+
+	Split interface {
+		GenericTransaction
+		Amount() uint64
+		TargetBearer() []byte
+		RemainingValue() uint64
+		Backlink() []byte
+	}
+
+	Swap interface {
+		GenericTransaction
+		OwnerCondition() []byte
+		BillIdentifiers() []*uint256.Int
+		DustTransfers() []*DustTransfer
+		Proofs() [][]byte
+		TargetValue() uint64
+	}
 
 	// State holds the state of all bills.
 	State struct {
@@ -76,8 +131,24 @@ func NewInitialBill(value uint32, bearerPredicate domain.Predicate) *BillContent
 	}
 }
 
-// Process validates and processes a payment order.
-func (s *State) Process(payment *domain.PaymentOrder) error {
+// Process processes the transaction. Will return an error if the transaction type is unknown or validation fails.
+func (s *State) Process(tx Transaction) error {
+	switch tx.Type() {
+	case TypeTransfer: // cast to Transfer and process it
+		if transfer, ok := tx.(Transfer); ok {
+			log.Debug("Processing transfer %v", transfer)
+			// TODO implement
+			return nil
+		} else {
+			return errors.New("could not convert to Transfer")
+		}
+	// TODO ... other types
+	default:
+		return errors.New(fmt.Sprintf("Unknown type %v", tx.Type()))
+	}
+}
+
+func (s *State) ProcessPayment(payment *domain.PaymentOrder) error {
 	if payment == nil {
 		return ErrInvalidPaymentOrder
 	}

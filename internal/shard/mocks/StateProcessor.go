@@ -12,8 +12,8 @@ type StateProcessor struct {
 	mock.Mock
 }
 
-// Process provides a mock function with given fields: payment
-func (_m *StateProcessor) Process(payment *domain.PaymentOrder) error {
+// ProcessPayment provides a mock function with given fields: payment
+func (_m *StateProcessor) ProcessPayment(payment *domain.PaymentOrder) error {
 	ret := _m.Called(payment)
 
 	var r0 error

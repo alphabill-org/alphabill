@@ -6,6 +6,7 @@ replace github.com/coreos/etcd => github.com/coreos/etcd v3.3.24+incompatible
 
 require (
 	github.com/ethereum/go-ethereum v1.10.12
+	github.com/holiman/uint256 v1.2.0
 	github.com/rs/zerolog v1.26.0
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5

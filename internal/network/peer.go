@@ -183,7 +183,10 @@ func getBootstrapNodes(conf *PeerConfiguration) (dht.Option, error) {
 		if err != nil {
 			return nil, err
 		}
-		maddrTpt := ma.StringCast(p.Address)
+		maddrTpt, err := ma.NewMultiaddr(p.Address)
+		if err != nil {
+			return nil, err
+		}
 		maddrFull := maddrTpt.Encapsulate(maddrPeer)
 
 		addInfo, err := peer.AddrInfoFromP2pAddr(maddrFull)

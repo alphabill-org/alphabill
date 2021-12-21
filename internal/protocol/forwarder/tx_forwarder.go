@@ -97,7 +97,7 @@ func (tf *TxForwarder) forwardTx(ctx context.Context, req *payment.PaymentReques
 		_ = s.Reset()
 		return fmt.Errorf("failed to forward transaction, %w", err)
 	}
-	logger.Debug("forwarded tx to peer %v with address %v", receiver, tf.self.MultiAddresses())
+	logger.Debug("forwarded tx to peer %v", receiver)
 	return nil
 }
 

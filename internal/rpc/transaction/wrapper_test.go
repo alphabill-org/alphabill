@@ -17,22 +17,13 @@ import (
 
 func TestWrapper_InterfaceAssertion(t *testing.T) {
 	var (
-		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), test.RandomBytes(32), 100)
+		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), 100, test.RandomBytes(32))
 		pbTransaction  = newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, pbBillTransfer)
 	)
 	genericTx, err := New(pbTransaction)
 	require.NoError(t, err)
 
 	hashValue1 := genericTx.Hash(crypto.SHA256)
-
-	transfer, ok := genericTx.(state.Transfer)
-	require.True(t, ok)
-
-	// Bill transfer fields
-	assert.Equal(t, pbTransaction.Timeout, transfer.Timeout())
-	assert.Equal(t, pbBillTransfer.NewBearer, transfer.NewBearer())
-	assert.Equal(t, pbBillTransfer.Backlink, transfer.Backlink())
-	assert.Equal(t, pbBillTransfer.TargetValue, transfer.TargetValue())
 
 	// Type switch can be used to find which interface is satisfied
 	// If a transfer with exactly same fields would be added, then the switch will find the first one.
@@ -45,8 +36,8 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 		assert.Equal(t, pbBillTransfer.TargetValue, w.TargetValue())
 		hashValue2 := w.Hash(crypto.SHA256)
 		assert.Equal(t, hashValue1, hashValue2)
-	case state.DustTransfer:
-		require.Fail(t, "Should not be dust transfer")
+	case state.TransferDC:
+		require.Fail(t, "Should not be transferDC")
 	default:
 		require.Fail(t, "Should find the correct type")
 	}
@@ -54,7 +45,7 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 
 func TestWrapper_Transfer(t *testing.T) {
 	var (
-		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), test.RandomBytes(32), 100)
+		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), 100, test.RandomBytes(32))
 		pbTransaction  = newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, pbBillTransfer)
 	)
 	genericTx, err := New(pbTransaction)
@@ -72,18 +63,18 @@ func TestWrapper_Transfer(t *testing.T) {
 	assert.Equal(t, pbBillTransfer.TargetValue, transfer.TargetValue())
 }
 
-func TestWrapper_DustTransfer(t *testing.T) {
+func TestWrapper_TransferDC(t *testing.T) {
 	var (
-		pbDustTransfer = newPBDustTransfer(test.RandomBytes(32), test.RandomBytes(32), test.RandomBytes(32), 777)
-		pbTransaction  = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbDustTransfer)
+		pbTransferDC  = newPBTransferDC(test.RandomBytes(32), test.RandomBytes(32), 777, test.RandomBytes(32))
+		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbTransferDC)
 	)
 	genericTx, err := New(pbTransaction)
 	require.NoError(t, err)
-	transfer, ok := genericTx.(state.DustTransfer)
+	transfer, ok := genericTx.(state.TransferDC)
 	require.True(t, ok)
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 
-	requireDustTransferEquals(t, pbDustTransfer, pbTransaction, transfer)
+	requireTransferDCEquals(t, pbTransferDC, pbTransaction, transfer)
 }
 
 func TestWrapper_Split(t *testing.T) {
@@ -110,12 +101,12 @@ func TestWrapper_Split(t *testing.T) {
 
 func TestWrapper_Swap(t *testing.T) {
 	var (
-		pbDustTransfer            = newPBDustTransfer(test.RandomBytes(32), test.RandomBytes(32), test.RandomBytes(32), 777)
-		pbDustTransferTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 444, pbDustTransfer)
-		pbSwap                    = newPBSwap(
+		pbTransferDC            = newPBTransferDC(test.RandomBytes(32), test.RandomBytes(32), 777, test.RandomBytes(32))
+		pbTransferDCTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 444, pbTransferDC)
+		pbSwap                  = newPBSwap(
 			test.RandomBytes(32),
 			[][]byte{test.RandomBytes(10)},
-			[]*Transaction{pbDustTransferTransaction},
+			[]*Transaction{pbTransferDCTransaction},
 			[][]byte{test.RandomBytes(32)},
 			777)
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbSwap)
@@ -130,17 +121,15 @@ func TestWrapper_Swap(t *testing.T) {
 	assert.Equal(t, toUint256(pbTransaction.UnitId), swap.UnitId())
 	assert.Equal(t, pbTransaction.OwnerProof, swap.OwnerProof())
 	assert.Equal(t, pbTransaction.Timeout, swap.Timeout())
-	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 
 	assert.Equal(t, pbSwap.OwnerCondition, swap.OwnerCondition())
 	assert.Equal(t, []*uint256.Int{uint256.NewInt(0).SetBytes(pbSwap.BillIdentifiers[0])}, swap.BillIdentifiers())
-	assert.NotEmpty(t, swap.DustTransfers())
-	for _, sdt := range swap.DustTransfers() {
-		requireDustTransferEquals(t, pbDustTransfer, pbDustTransferTransaction, sdt)
+	assert.NotEmpty(t, swap.DCTransfers())
+	for _, sdt := range swap.DCTransfers() {
+		requireTransferDCEquals(t, pbTransferDC, pbTransferDCTransaction, sdt)
 	}
 	assert.Equal(t, pbSwap.Proofs, swap.Proofs())
 	assert.Equal(t, pbSwap.TargetValue, swap.TargetValue())
-
 }
 
 func TestUint256Hashing(t *testing.T) {
@@ -161,16 +150,16 @@ func TestUint256Hashing(t *testing.T) {
 	assert.Equal(t, expected, b1Int.Bytes32())
 }
 
-// requireDustTransferEquals compares protobuf object fields and the state.DustTransfer corresponding getters to be equal.
-func requireDustTransferEquals(t *testing.T, pbDustTransfer *DustTransfer, pbTransaction *Transaction, transfer state.DustTransfer) {
+// requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
+func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransaction *Transaction, transfer state.TransferDC) {
 	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitId())
 	require.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
 	require.Equal(t, pbTransaction.Timeout, transfer.Timeout())
 
-	require.Equal(t, pbDustTransfer.NewBearer, transfer.NewBearer())
-	require.Equal(t, pbDustTransfer.Backlink, transfer.Backlink())
-	require.Equal(t, pbDustTransfer.Nonce, transfer.Nonce())
-	require.Equal(t, pbDustTransfer.TargetValue, transfer.TargetValue())
+	require.Equal(t, pbTransferDC.TargetBearer, transfer.TargetBearer())
+	require.Equal(t, pbTransferDC.Backlink, transfer.Backlink())
+	require.Equal(t, pbTransferDC.Nonce, transfer.Nonce())
+	require.Equal(t, pbTransferDC.TargetValue, transfer.TargetValue())
 }
 
 func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *Transaction {
@@ -187,20 +176,20 @@ func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Mes
 	return to
 }
 
-func newPBBillTransfer(newBearer, backlink []byte, targetValue uint64) *BillTransfer {
+func newPBBillTransfer(newBearer []byte, targetValue uint64, backlink []byte) *BillTransfer {
 	return &BillTransfer{
 		NewBearer:   newBearer,
-		Backlink:    backlink,
 		TargetValue: targetValue,
+		Backlink:    backlink,
 	}
 }
 
-func newPBDustTransfer(newBearer, backlink, nonce []byte, targetValue uint64) *DustTransfer {
-	return &DustTransfer{
-		NewBearer:   newBearer,
-		Backlink:    backlink,
-		Nonce:       nonce,
-		TargetValue: targetValue,
+func newPBTransferDC(nonce, targetBearer []byte, targetValue uint64, backlink []byte) *TransferDC {
+	return &TransferDC{
+		Nonce:        nonce,
+		TargetBearer: targetBearer,
+		TargetValue:  targetValue,
+		Backlink:     backlink,
 	}
 }
 
@@ -213,11 +202,11 @@ func newPBBillSplit(amount uint64, targetBearer []byte, remainingValue uint64, b
 	}
 }
 
-func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dustTransfers []*Transaction, proofs [][]byte, targetValue uint64) *Swap {
+func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*Transaction, proofs [][]byte, targetValue uint64) *Swap {
 	return &Swap{
 		OwnerCondition:  ownerCondition,
 		BillIdentifiers: billIdentifiers,
-		DustTransfers:   dustTransfers,
+		DcTransfers:     dcTransfers,
 		Proofs:          proofs,
 		TargetValue:     targetValue,
 	}

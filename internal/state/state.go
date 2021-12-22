@@ -36,16 +36,16 @@ type (
 	Transfer interface {
 		GenericTransaction
 		NewBearer() []byte
-		Backlink() []byte
 		TargetValue() uint64
+		Backlink() []byte
 	}
 
-	DustTransfer interface {
+	TransferDC interface {
 		GenericTransaction
-		NewBearer() []byte
-		Backlink() []byte
 		Nonce() []byte
+		TargetBearer() []byte
 		TargetValue() uint64
+		Backlink() []byte
 	}
 
 	Split interface {
@@ -60,7 +60,7 @@ type (
 		GenericTransaction
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
-		DustTransfers() []DustTransfer
+		DCTransfers() []TransferDC
 		Proofs() [][]byte
 		TargetValue() uint64
 	}

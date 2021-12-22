@@ -32,9 +32,9 @@ type (
 		transfer *BillTransfer
 	}
 
-	dustTransferWrapper struct {
+	transferDCWrapper struct {
 		wrapper
-		dustTransfer *DustTransfer
+		transferDC *TransferDC
 	}
 
 	billSplitWrapper struct {
@@ -45,8 +45,8 @@ type (
 	swapWrapper struct {
 		wrapper
 		swap *Swap
-		// The dust transfers, that also exist inside swap as generic Transaction
-		dustTransfers []*dustTransferWrapper
+		// The dust collector transfers, that also exist inside swap as generic Transaction
+		dcTransfers []*transferDCWrapper
 	}
 )
 
@@ -64,15 +64,15 @@ func New(tx *Transaction) (GenericTransaction, error) {
 			wrapper:  wrapper{transaction: tx},
 			transfer: pb,
 		}, nil
-	case protobufTypeUrlPrefix + "DustTransfer":
-		pb := &DustTransfer{}
+	case protobufTypeUrlPrefix + "TransferDC":
+		pb := &TransferDC{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
 		}
-		return &dustTransferWrapper{
-			wrapper:      wrapper{transaction: tx},
-			dustTransfer: pb,
+		return &transferDCWrapper{
+			wrapper:    wrapper{transaction: tx},
+			transferDC: pb,
 		}, nil
 	case protobufTypeUrlPrefix + "BillSplit":
 		pb := &BillSplit{}
@@ -94,16 +94,16 @@ func New(tx *Transaction) (GenericTransaction, error) {
 			wrapper: wrapper{transaction: tx},
 			swap:    pb,
 		}
-		for _, dtTx := range pb.DustTransfers {
+		for _, dtTx := range pb.DcTransfers {
 			dt, err := New(dtTx)
 			if err != nil {
-				return nil, errors.Wrap(err, "dust transfer wrapping failed")
+				return nil, errors.Wrap(err, "transfer DC wrapping failed")
 			}
-			dtw, ok := dt.(*dustTransferWrapper)
+			dtw, ok := dt.(*transferDCWrapper)
 			if !ok {
-				return nil, errors.Errorf("dust transfer wrapper is invalid type: %T", dt)
+				return nil, errors.Errorf("transfer DC wrapper is invalid type: %T", dt)
 			}
-			swapWr.dustTransfers = append(swapWr.dustTransfers, dtw)
+			swapWr.dcTransfers = append(swapWr.dcTransfers, dtw)
 		}
 		return swapWr, nil
 	default:
@@ -133,15 +133,15 @@ func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
 
 	hasher.Write(w.transfer.NewBearer)
-	hasher.Write(w.transfer.Backlink)
 	hasher.Write(Uint64ToBytes(w.transfer.TargetValue))
+	hasher.Write(w.transfer.Backlink)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
 }
 
-func (w *dustTransferWrapper) Hash(hashFunc crypto.Hash) []byte {
+func (w *transferDCWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.wrapper.hashComputed(hashFunc) {
 		return w.wrapper.hashValue
 	}
@@ -154,9 +154,9 @@ func (w *dustTransferWrapper) Hash(hashFunc crypto.Hash) []byte {
 	return w.wrapper.hashValue
 }
 
-func (w *dustTransferWrapper) addToHasher(hasher hash.Hash) {
+func (w *transferDCWrapper) addToHasher(hasher hash.Hash) {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
-	w.dustTransfer.addFieldsToHasher(hasher)
+	w.transferDC.addFieldsToHasher(hasher)
 }
 
 func (w *billSplitWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -188,7 +188,7 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 		hasher.Write(bi)
 	}
 
-	for _, dt := range w.dustTransfers {
+	for _, dt := range w.dcTransfers {
 		dt.addToHasher(hasher)
 	}
 
@@ -209,11 +209,11 @@ func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(Uint64ToBytes(w.transaction.Timeout))
 }
 
-func (x *DustTransfer) addFieldsToHasher(hasher hash.Hash) {
-	hasher.Write(x.NewBearer)
-	hasher.Write(x.Backlink)
+func (x *TransferDC) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
+	hasher.Write(x.TargetBearer)
 	hasher.Write(Uint64ToBytes(x.TargetValue))
+	hasher.Write(x.Backlink)
 }
 
 func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {
@@ -223,13 +223,13 @@ func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {
 // State interfaces compatibility
 
 func (w *transferWrapper) NewBearer() []byte   { return w.transfer.NewBearer }
-func (w *transferWrapper) Backlink() []byte    { return w.transfer.Backlink }
 func (w *transferWrapper) TargetValue() uint64 { return w.transfer.TargetValue }
+func (w *transferWrapper) Backlink() []byte    { return w.transfer.Backlink }
 
-func (w *dustTransferWrapper) NewBearer() []byte   { return w.dustTransfer.NewBearer }
-func (w *dustTransferWrapper) Backlink() []byte    { return w.dustTransfer.Backlink }
-func (w *dustTransferWrapper) Nonce() []byte       { return w.dustTransfer.Nonce }
-func (w *dustTransferWrapper) TargetValue() uint64 { return w.dustTransfer.TargetValue }
+func (w *transferDCWrapper) Nonce() []byte        { return w.transferDC.Nonce }
+func (w *transferDCWrapper) TargetBearer() []byte { return w.transferDC.TargetBearer }
+func (w *transferDCWrapper) TargetValue() uint64  { return w.transferDC.TargetValue }
+func (w *transferDCWrapper) Backlink() []byte     { return w.transferDC.Backlink }
 
 func (w *billSplitWrapper) Amount() uint64         { return w.billSplit.Amount }
 func (w *billSplitWrapper) TargetBearer() []byte   { return w.billSplit.TargetBearer }
@@ -239,9 +239,9 @@ func (w *billSplitWrapper) Backlink() []byte       { return w.billSplit.Backlink
 func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }
 func (w *swapWrapper) TargetValue() uint64    { return w.swap.TargetValue }
-func (w *swapWrapper) DustTransfers() []state.DustTransfer {
-	var sdt []state.DustTransfer
-	for _, dt := range w.dustTransfers {
+func (w *swapWrapper) DCTransfers() []state.TransferDC {
+	var sdt []state.TransferDC
+	for _, dt := range w.dcTransfers {
 		sdt = append(sdt, dt)
 	}
 	return sdt

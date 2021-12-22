@@ -4,15 +4,15 @@ import (
 	"crypto"
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
+
 	"github.com/holiman/uint256"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 )
 
 const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
 
-// wrapper wraps the protobuf struct and provides implementations for interfaces used in AlphaBill components.
 type (
 	GenericTransaction interface {
 		UnitId() *uint256.Int
@@ -23,6 +23,8 @@ type (
 
 	wrapper struct {
 		transaction *Transaction
+		hashFunc    crypto.Hash
+		hashValue   []byte
 	}
 
 	transferWrapper struct {
@@ -48,7 +50,7 @@ func New(tx *Transaction) (GenericTransaction, error) {
 			return nil, err
 		}
 		return &transferWrapper{
-			wrapper:  wrapper{tx},
+			wrapper:  wrapper{transaction: tx},
 			transfer: pb,
 		}, nil
 	case protobufTypeUrlPrefix + "DustTransfer":
@@ -58,7 +60,7 @@ func New(tx *Transaction) (GenericTransaction, error) {
 			return nil, err
 		}
 		return &dustTransferWrapper{
-			wrapper:      wrapper{tx},
+			wrapper:      wrapper{transaction: tx},
 			dustTransfer: pb,
 		}, nil
 	default:
@@ -80,6 +82,45 @@ func (w *wrapper) OwnerProof() []byte {
 	return w.transaction.OwnerProof
 }
 
+func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if w.wrapper.hashComputed(hashFunc) {
+		return w.wrapper.hashValue
+	}
+	hasher := hashFunc.New()
+	w.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(w.transfer.NewBearer)
+	hasher.Write(w.transfer.Backlink)
+	hasher.Write(Uint64ToBytes(w.transfer.TargetValue))
+	w.wrapper.hashValue = hasher.Sum(nil)
+	w.wrapper.hashFunc = hashFunc
+	return w.wrapper.hashValue
+}
+
+func (w *dustTransferWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if w.wrapper.hashComputed(hashFunc) {
+		return w.wrapper.hashValue
+	}
+	hasher := hashFunc.New()
+	w.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(w.dustTransfer.NewBearer)
+	hasher.Write(w.dustTransfer.Backlink)
+	hasher.Write(w.dustTransfer.Nonce)
+	hasher.Write(Uint64ToBytes(w.dustTransfer.TargetValue))
+	w.wrapper.hashValue = hasher.Sum(nil)
+	w.wrapper.hashFunc = hashFunc
+	return w.wrapper.hashValue
+}
+
+func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
+	hasher.Write(w.transaction.UnitId)
+	hasher.Write(w.transaction.OwnerProof)
+	hasher.Write(Uint64ToBytes(w.transaction.Timeout))
+}
+
+func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {
+	return w.hashFunc == hashFunc && w.hashValue != nil
+}
+
 // State interfaces compatibility
 
 func (w *transferWrapper) NewBearer() []byte           { return w.transfer.NewBearer }
@@ -92,28 +133,3 @@ func (w *dustTransferWrapper) Backlink() []byte            { return w.dustTransf
 func (w *dustTransferWrapper) Nonce() []byte               { return w.dustTransfer.Nonce }
 func (w *dustTransferWrapper) TargetValue() uint64         { return w.dustTransfer.TargetValue }
 func (w *dustTransferWrapper) Type() state.TransactionType { return state.TypeDCTransfer }
-
-func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
-	hasher := hashFunc.New()
-	w.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(w.transfer.NewBearer)
-	hasher.Write(w.transfer.Backlink)
-	hasher.Write(Uint64ToBytes(w.transfer.TargetValue))
-	return hasher.Sum(nil)
-}
-
-func (w *dustTransferWrapper) Hash(hashFunc crypto.Hash) []byte {
-	hasher := hashFunc.New()
-	w.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(w.dustTransfer.NewBearer)
-	hasher.Write(w.dustTransfer.Backlink)
-	hasher.Write(w.dustTransfer.Nonce)
-	hasher.Write(Uint64ToBytes(w.dustTransfer.TargetValue))
-	return hasher.Sum(nil)
-}
-
-func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
-	hasher.Write(w.transaction.UnitId)
-	hasher.Write(w.transaction.OwnerProof)
-	hasher.Write(Uint64ToBytes(w.transaction.Timeout))
-}

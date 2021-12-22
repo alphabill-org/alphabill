@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"crypto"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,8 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 	)
 	wr, err := New(pbTransferTransaction)
 	require.NoError(t, err)
+
+	hashValue1 := wr.Hash(crypto.SHA256)
 
 	// The assertion works only with interfaces.
 	wrapperInterface := interface{}(wr)
@@ -43,6 +46,8 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 		assert.Equal(t, pbBillTransfer.NewBearer, w.NewBearer())
 		assert.Equal(t, pbBillTransfer.Backlink, w.Backlink())
 		assert.Equal(t, pbBillTransfer.TargetValue, w.TargetValue())
+		hashValue2 := w.Hash(crypto.SHA256)
+		assert.Equal(t, hashValue1, hashValue2)
 	case state.DustTransfer:
 		require.Fail(t, "Should not be dust transfer")
 	default:

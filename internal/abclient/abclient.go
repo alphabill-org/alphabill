@@ -1,17 +1,22 @@
 package abclient
 
 import (
-	rpcab "ab-faucet-api/internal/rpc"
+	"alphabill-wallet-sdk/internal/rpc/alphabill"
+	"alphabill-wallet-sdk/internal/rpc/transaction"
+	"alphabill-wallet-sdk/pkg/wallet/config"
+	"context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"log"
 )
 
 type AlphaBillClient struct {
-	config     *AlphaBillClientConfig
+	config     *config.AlphaBillClientConfig
 	connection *grpc.ClientConn
-	client     rpcab.AlphaBillServiceClient
+	client     alphabill.AlphaBillServiceClient
 }
 
-func New(config *AlphaBillClientConfig) (*AlphaBillClient, error) {
+func New(config *config.AlphaBillClientConfig) (*AlphaBillClient, error) {
 	conn, err := grpc.Dial(config.Uri, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
@@ -19,10 +24,38 @@ func New(config *AlphaBillClientConfig) (*AlphaBillClient, error) {
 	return &AlphaBillClient{
 		config:     config,
 		connection: conn,
-		client:     rpcab.NewAlphaBillServiceClient(conn),
+		client:     alphabill.NewAlphaBillServiceClient(conn),
 	}, nil
 }
 
-func (c *AlphaBillClient) Shutdown() error {
-	return c.connection.Close()
+func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan *alphabill.Block) error {
+	defer close(ch)
+	stream, err := c.client.GetBlocks(context.Background(),
+		&alphabill.GetBlocksRequest{
+			BlockHeight: blockHeight,
+		})
+	if err != nil {
+		return err
+	}
+
+	for {
+		block, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		ch <- block
+	}
+}
+
+func (c *AlphaBillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+	return c.client.ProcessTransaction(context.Background(), tx)
+}
+
+func (c *AlphaBillClient) Shutdown() {
+	err := c.connection.Close()
+	log.Printf("error shutting down alphabill client %s", err) // TODO how to log in embedded SDK?
+}
+
+func (c *AlphaBillClient) IsShutdown() bool {
+	return c.connection.GetState() == connectivity.Shutdown
 }

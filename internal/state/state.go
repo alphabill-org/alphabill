@@ -25,16 +25,7 @@ var (
 
 var log = logger.CreateForPackage()
 
-const (
-	TypeTransfer TransactionType = iota
-	TypeDCTransfer
-	TypeSplit
-	TypeSwap
-)
-
 type (
-	TransactionType int
-
 	GenericTransaction interface {
 		UnitId() *uint256.Int
 		Timeout() uint64
@@ -42,17 +33,8 @@ type (
 		Hash(hashFunc crypto.Hash) []byte
 	}
 
-	// Typed objects know their state.TransactionType.
-	// Useful in case 2 transaction types will have exactly the same fields/interfaces
-	// TODO is this needed at this stage? We don't have any conflicting transactions.
-	// Another option would be to add a marker method to the similar types, so go compiler can be differentiate between them.
-	Typed interface {
-		Type() TransactionType
-	}
-
 	Transfer interface {
 		GenericTransaction
-		Typed
 		NewBearer() []byte
 		Backlink() []byte
 		TargetValue() uint64
@@ -78,7 +60,7 @@ type (
 		GenericTransaction
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
-		DustTransfers() []*DustTransfer
+		DustTransfers() []DustTransfer
 		Proofs() [][]byte
 		TargetValue() uint64
 	}

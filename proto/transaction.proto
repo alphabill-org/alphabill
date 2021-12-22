@@ -48,7 +48,7 @@ message BillSplit {
 message Swap {
   bytes owner_condition = 1;
   repeated bytes bill_identifiers = 2;
-  repeated DustTransfer dust_transfer_orders = 3;
+  repeated Transaction dust_transfers = 3;
   repeated bytes proofs = 4;
   uint64 target_value = 5;
 }

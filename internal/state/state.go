@@ -20,45 +20,32 @@ var (
 	ErrInvalidPaymentBacklink = errors.New("invalid payment backlink")
 	ErrInvalidPaymentOrder    = errors.New("invalid payment order")
 	ErrInvalidPaymentType     = errors.New("invalid payment type")
-
-	ErrInvalidHashAlgorithm = errors.New("invalid hash algorithm")
+	ErrInvalidHashAlgorithm   = errors.New("invalid hash algorithm")
 )
 
 var log = logger.CreateForPackage()
 
-const (
-	TypeTransfer TransactionType = iota
-	TypeDCTransfer
-	TypeSplit
-	TypeSwap
-)
-
 type (
-	Transaction interface {
-		Type() TransactionType
-	}
-
-	TransactionType int
-
 	GenericTransaction interface {
 		UnitId() *uint256.Int
 		Timeout() uint64
 		OwnerProof() []byte
+		Hash(hashFunc crypto.Hash) []byte
 	}
 
 	Transfer interface {
 		GenericTransaction
 		NewBearer() []byte
-		Backlink() []byte
 		TargetValue() uint64
+		Backlink() []byte
 	}
 
-	DustTransfer interface {
+	TransferDC interface {
 		GenericTransaction
-		NewBearer() []byte
-		Backlink() []byte
 		Nonce() []byte
+		TargetBearer() []byte
 		TargetValue() uint64
+		Backlink() []byte
 	}
 
 	Split interface {
@@ -73,7 +60,7 @@ type (
 		GenericTransaction
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
-		DustTransfers() []*DustTransfer
+		DCTransfers() []TransferDC
 		Proofs() [][]byte
 		TargetValue() uint64
 	}
@@ -132,19 +119,14 @@ func NewInitialBill(value uint32, bearerPredicate domain.Predicate) *BillContent
 }
 
 // Process processes the transaction. Will return an error if the transaction type is unknown or validation fails.
-func (s *State) Process(tx Transaction) error {
-	switch tx.Type() {
-	case TypeTransfer: // cast to Transfer and process it
-		if transfer, ok := tx.(Transfer); ok {
-			log.Debug("Processing transfer %v", transfer)
-			// TODO implement
-			return nil
-		} else {
-			return errors.New("could not convert to Transfer")
-		}
+func (s *State) Process(gtx GenericTransaction) error {
+	switch tx := gtx.(type) {
+	case Transfer:
+		log.Debug("Processing transfer %v", tx)
+		return nil
 	// TODO ... other types
 	default:
-		return errors.New(fmt.Sprintf("Unknown type %v", tx.Type()))
+		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
 	}
 }
 

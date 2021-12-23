@@ -9,11 +9,11 @@ type (
 	// billContainer wrapper struct around bills for thread safe access
 	billContainer struct {
 		mu    sync.RWMutex
-		bills map[*uint256.Int]bill
+		bills map[uint256.Int]bill
 	}
 
 	bill struct {
-		id     *uint256.Int
+		id     uint256.Int
 		value  uint64
 		txHash []byte
 	}
@@ -21,7 +21,7 @@ type (
 
 func NewBillContainer() *billContainer {
 	return &billContainer{
-		bills: map[*uint256.Int]bill{},
+		bills: map[uint256.Int]bill{},
 	}
 }
 
@@ -44,14 +44,14 @@ func (c *billContainer) getBalance() uint64 {
 func (c *billContainer) containsBill(id *uint256.Int) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	_, exists := c.bills[id]
+	_, exists := c.bills[*id]
 	return exists
 }
 
 func (c *billContainer) removeBill(id *uint256.Int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.bills, id)
+	delete(c.bills, *id)
 }
 
 // removeBillIfExists checks if bill exists with read lock and only takes write lock if bill actually exists

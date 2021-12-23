@@ -26,7 +26,7 @@ type InMemoryWallet struct {
 	blockHeight   uint64
 
 	// network
-	alphaBillClient *abclient.AlphaBillClient
+	alphaBillClient abclient.ABClient
 	txMapper        rpc.TransactionMapper
 }
 
@@ -48,6 +48,9 @@ func (w *InMemoryWallet) GetBalance() uint64 {
 }
 
 func (w *InMemoryWallet) Send(pubKey []byte, amount uint64) error {
+	if len(pubKey) != 33 {
+		return errors.New("invalid public key, must be 33 bytes in length")
+	}
 	if amount > w.GetBalance() {
 		return errors.New("cannot send more than existing balance")
 	}
@@ -64,7 +67,6 @@ func (w *InMemoryWallet) Send(pubKey []byte, amount uint64) error {
 	if err != nil {
 		return err
 	}
-
 	res, err := w.alphaBillClient.SendTransaction(txRpc)
 	if err != nil {
 		return err
@@ -81,13 +83,13 @@ func (w *InMemoryWallet) createSplitTx(amount uint64, pubKey []byte, bill *bill)
 	if err != nil {
 		return nil, err
 	}
-	billOwnerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, w.key.pubKeyHashSha256)
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, w.key.pubKeyHashSha256)
 
 	tx := &transaction.Transaction{
 		UnitId:                bill.id.Bytes(),
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               1000,
-		OwnerProof:            billOwnerProof,
+		OwnerProof:            ownerProof,
 	}
 
 	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillSplit{
@@ -108,26 +110,27 @@ func (w *InMemoryWallet) Sync(conf *config.AlphaBillClientConfig) error {
 	if err != nil {
 		return err
 	}
+	w.syncWithAlphaBill(abClient)
+	return nil
+}
+
+func (w *InMemoryWallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	w.alphaBillClient = abClient
-
 	ch := make(chan *alphabill.Block, 10) // randomly chosen number, prefetches up to 10 blocks from AB node
-
 	go func() {
 		err := w.alphaBillClient.InitBlockReceiver(w.blockHeight, ch)
 		if err != nil {
 			log.Printf("error receiving block %s", err) // TODO how to log in embedded SDK?
-			abClient.Shutdown()
+			w.alphaBillClient.Shutdown()
 		}
 	}()
 	go func() {
 		err := w.initBlockProcessor(ch)
 		if err != nil {
 			log.Printf("error processing block %s", err) // TODO how to log in embedded SDK?
-			abClient.Shutdown()
+			w.alphaBillClient.Shutdown()
 		}
 	}()
-
-	return nil
 }
 
 func (w *InMemoryWallet) Shutdown() {
@@ -176,14 +179,14 @@ func (w *InMemoryWallet) collectBills(tx *domain.Transaction) {
 	if isSplitTx {
 		if w.billContainer.containsBill(tx.UnitId) {
 			w.billContainer.addBill(bill{
-				id:     tx.UnitId,
+				id:     *tx.UnitId,
 				value:  txSplit.RemainingValue,
 				txHash: tx.Hash(),
 			})
 		}
 		if w.isOwner(txSplit.TargetBearer) {
 			w.billContainer.addBill(bill{
-				id:     uint256.NewInt(0).SetBytes(tx.Hash()), // TODO generate id properly
+				id:     *uint256.NewInt(0).SetBytes(tx.Hash()), // TODO generate id properly
 				value:  txSplit.Amount,
 				txHash: tx.Hash(),
 			})
@@ -191,7 +194,7 @@ func (w *InMemoryWallet) collectBills(tx *domain.Transaction) {
 	} else {
 		if w.isOwner(tx.TransactionAttributes.OwnerCondition()) {
 			w.billContainer.addBill(bill{
-				id:     tx.UnitId,
+				id:     *tx.UnitId,
 				value:  tx.TransactionAttributes.Value(),
 				txHash: tx.Hash(),
 			})

@@ -10,6 +10,13 @@ import (
 	"log"
 )
 
+type ABClient interface {
+	SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error)
+	Shutdown()
+	IsShutdown() bool
+	InitBlockReceiver(blockHeight uint64, ch chan *alphabill.Block) error
+}
+
 type AlphaBillClient struct {
 	config     *config.AlphaBillClientConfig
 	connection *grpc.ClientConn
@@ -52,8 +59,13 @@ func (c *AlphaBillClient) SendTransaction(tx *transaction.Transaction) (*transac
 }
 
 func (c *AlphaBillClient) Shutdown() {
+	if c.IsShutdown() {
+		return
+	}
 	err := c.connection.Close()
-	log.Printf("error shutting down alphabill client %s", err) // TODO how to log in embedded SDK?
+	if err != nil {
+		log.Printf("error shutting down alphabill client %s", err) // TODO how to log in embedded SDK?
+	}
 }
 
 func (c *AlphaBillClient) IsShutdown() bool {

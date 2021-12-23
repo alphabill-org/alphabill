@@ -1,160 +1,65 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/abclient"
 	"alphabill-wallet-sdk/internal/alphabill/script"
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/pkg/wallet/config"
-	"context"
-	"fmt"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/anypb"
-	"log"
-	"net"
-	"strconv"
 	"testing"
-	"time"
 )
 
-func TestWalletCanProcessBlocks(t *testing.T) {
+func TestWalletCanSendTx(t *testing.T) {
 	w, err := NewInMemoryWallet()
 	require.NoError(t, err)
+	w.syncWithAlphaBill(&mockAlphaBillClient{})
 
-	blocks := []*alphabill.Block{
-		{
-			BlockNo:       1,
-			PrevBlockHash: hash.Sum256([]byte{}),
-			Transactions: []*transaction.Transaction{
-				// random dust transfer can be processed
-				{
-					UnitId:                hash.Sum256([]byte{0x00}),
-					TransactionAttributes: createDustTransferTx(),
-					Timeout:               1000,
-					OwnerProof:            script.PredicateArgumentEmpty(),
-				},
-				// receive transfer of 100 bills
-				{
-					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: createBillTransferTx(w.key.pubKeyHashSha256),
-					Timeout:               1000,
-					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, w.key.pubKey),
-				},
-				// receive split of 100 bills
-				{
-					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: createBillSplitTx(w.key.pubKeyHashSha256),
-					Timeout:               1000,
-					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, w.key.pubKey),
-				},
-				// receive swap of 100 bills
-				{
-					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: createSwapTx(w.key.pubKeyHashSha256),
-					Timeout:               1000,
-					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, w.key.pubKey),
-				},
-			},
-			UnicityCertificate: []byte{},
-		},
+	b := bill{
+		id:     *uint256.NewInt(0),
+		value:  100,
+		txHash: hash.Sum256([]byte{0x01}),
 	}
-	port := 9543
-	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks})
-	defer server.GracefulStop()
+	w.billContainer.addBill(b)
 
-	require.EqualValues(t, 0, w.blockHeight)
-	err = w.Sync(&config.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
-	defer w.Shutdown()
-
-	// if getBlocks finishes processing alphabill client is shut down
-	waitForShutdown(w.alphaBillClient)
-
+	receiverPubKey := make([]byte, 33)
+	err = w.Send(receiverPubKey, 50)
 	require.NoError(t, err)
-	require.EqualValues(t, 300, w.GetBalance())
-	require.EqualValues(t, 1, w.blockHeight)
-}
 
-type testAlphaBillServiceServer struct {
-	pubKey []byte
-	blocks []*alphabill.Block
-	alphabill.UnimplementedAlphaBillServiceServer
-}
-
-func (s *testAlphaBillServiceServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphaBillService_GetBlocksServer) error {
-	for _, block := range s.blocks {
-		stream.Send(block)
+	billId := b.id.Bytes32()
+	block := &alphabill.Block{
+		BlockNo:       1,
+		PrevBlockHash: hash.Sum256([]byte{}),
+		Transactions: []*transaction.Transaction{
+			{
+				UnitId:                billId[:],
+				TransactionAttributes: createBillSplitTx(hash.Sum256(receiverPubKey), 50, 50),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, w.key.pubKeyHashSha256),
+			},
+		},
+		UnicityCertificate: []byte{},
 	}
+	err = w.processBlock(block)
+	require.NoError(t, err)
+	require.EqualValues(t, 50, w.GetBalance())
+}
+
+type mockAlphaBillClient struct {
+}
+
+func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan *alphabill.Block) error {
 	return nil
 }
 
-func (s *testAlphaBillServiceServer) ProcessTransaction(ctx context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (c *mockAlphaBillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
 	return &transaction.TransactionResponse{Ok: true}, nil
 }
 
-func createBillTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&transaction.BillTransfer{
-		TargetValue: 100,
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		Backlink:    hash.Sum256([]byte{}),
-	})
-	return tx
+func (c *mockAlphaBillClient) Shutdown() {
+	// do nothing
 }
 
-func createBillSplitTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&transaction.BillSplit{
-		Amount:         100,
-		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		RemainingValue: 100,
-		Backlink:       hash.Sum256([]byte{}),
-	})
-	return tx
-}
-
-func createDustTransferTx() *anypb.Any {
-	tx, _ := anypb.New(&transaction.DustTransfer{
-		NewBearer:   script.PredicateAlwaysTrue(),
-		Backlink:    hash.Sum256([]byte{}),
-		Nonce:       hash.Sum256([]byte{}),
-		TargetValue: 100,
-	})
-	return tx
-}
-
-func createSwapTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&transaction.Swap{
-		OwnerCondition:     script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		BillIdentifiers:    [][]byte{},
-		DustTransferOrders: []*transaction.DustTransfer{},
-		Proofs:             [][]byte{},
-		TargetValue:        100,
-	})
-	return tx
-}
-
-func startServer(port int, alphaBillService *testAlphaBillServiceServer) *grpc.Server {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	grpcServer := grpc.NewServer()
-	alphabill.RegisterAlphaBillServiceServer(grpcServer, alphaBillService)
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			defer lis.Close()
-		}
-	}()
-	return grpcServer
-}
-
-func waitForShutdown(abClient *abclient.AlphaBillClient) {
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if abClient.IsShutdown() || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+func (c *mockAlphaBillClient) IsShutdown() bool {
+	return false
 }

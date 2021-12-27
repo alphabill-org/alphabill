@@ -112,7 +112,6 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 		logger.Warning("Failed to read the transaction: %v", err)
 		return
 	}
-	// TODO some transaction must be included to the txbuffer
 	logger.Debug("Got a new transaction %v", req)
 	nextLeader, err := tf.leaderSelector.NextLeader()
 	if err != nil {

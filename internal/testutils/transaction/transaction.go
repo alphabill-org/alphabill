@@ -4,7 +4,6 @@ import (
 	"math/rand"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -17,7 +16,8 @@ func RandomBillTransfer() *transaction.Transaction {
 		TargetValue: rand.Uint64(),
 		Backlink:    randomBytes(3),
 	}
-	anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
+	// #nosec G104
+	tx.TransactionAttributes.MarshalFrom(bt)
 	return tx
 }
 
@@ -32,7 +32,8 @@ func RandomBillSplit() *transaction.Transaction {
 		RemainingValue: rand.Uint64(),
 		Backlink:       randomBytes(3),
 	}
-	anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
+	// #nosec G104
+	tx.TransactionAttributes.MarshalFrom(bt)
 	return tx
 }
 

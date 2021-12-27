@@ -1,26 +1,29 @@
 package txbuffer
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"sync"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
 
 var (
 	ErrTxBufferFull   = errors.New("tx buffer is full")
-	ErrInvalidMaxSize = errors.New("invalid tx buffer maximum size")
+	ErrInvalidMaxSize = errors.New("invalid maximum size")
 	ErrTxIsNil        = errors.New("tx is nil")
 	ErrTxInBuffer     = errors.New("tx already in tx buffer")
 	ErrTxNotFound     = errors.New("tx not found")
 )
 
 type (
+	Transaction interface {
+		IDHash() string
+	}
 
 	// TxBuffer is an in-memory data structure containing the set of unconfirmed transactions.
 	TxBuffer struct {
-		mutex        sync.Mutex                           // mutex for locks
-		transactions map[domain.TxID]*domain.PaymentOrder // map containing valid pending transactions.
-		maxSize      uint32                               // maximum TxBuffer size.
+		mutex        sync.Mutex               // mutex for locks
+		transactions map[string][]Transaction // map containing valid pending transactions.
+		maxSize      uint32                   // maximum TxBuffer size.
 	}
 )
 
@@ -32,13 +35,13 @@ func New(maxSize uint32) (*TxBuffer, error) {
 	}
 	return &TxBuffer{
 		maxSize:      maxSize,
-		transactions: make(map[domain.TxID]*domain.PaymentOrder),
+		transactions: make(map[string][]Transaction),
 	}, nil
 }
 
 // Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
 // already present in the TxBuffer, or TxBuffer is full.
-func (t *TxBuffer) Add(tx *domain.PaymentOrder) error {
+func (t *TxBuffer) Add(tx Transaction) error {
 	if tx == nil {
 		return ErrTxIsNil
 	}
@@ -49,30 +52,33 @@ func (t *TxBuffer) Add(tx *domain.PaymentOrder) error {
 		return ErrTxBufferFull
 	}
 
-	txId := tx.ID()
+	txId := tx.IDHash()
 	_, found := t.transactions[txId]
 	if found {
 		return ErrTxInBuffer
 	}
-	t.transactions[txId] = tx
+	t.transactions[txId] = append(t.transactions[txId], tx)
 	return nil
 }
 
 // GetAll returns all transactions from the TxBuffer. All returned transactions are removed from the TxBuffer.
-func (t *TxBuffer) GetAll() []*domain.PaymentOrder {
+func (t *TxBuffer) GetAll() []Transaction {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	values := make([]*domain.PaymentOrder, 0)
+	values := make([]Transaction, 0)
 
 	for k, v := range t.transactions {
-		values = append(values, v)
+		for _, tr := range v {
+			values = append(values, tr)
+		}
 		delete(t.transactions, k)
 	}
 	return values
 }
 
 // Remove removes the transaction with given domain.TxID from the TxBuffer.
-func (t *TxBuffer) Remove(id domain.TxID) error {
+func (t *TxBuffer) Remove(id string) error {
+	// TODO is it needed?
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	_, found := t.transactions[id]

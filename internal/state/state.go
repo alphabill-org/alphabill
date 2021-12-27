@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/holiman/uint256"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 )
 
@@ -17,11 +20,50 @@ var (
 	ErrInvalidPaymentBacklink = errors.New("invalid payment backlink")
 	ErrInvalidPaymentOrder    = errors.New("invalid payment order")
 	ErrInvalidPaymentType     = errors.New("invalid payment type")
-
-	ErrInvalidHashAlgorithm = errors.New("invalid hash algorithm")
+	ErrInvalidHashAlgorithm   = errors.New("invalid hash algorithm")
 )
 
+var log = logger.CreateForPackage()
+
 type (
+	GenericTransaction interface {
+		UnitId() *uint256.Int
+		Timeout() uint64
+		OwnerProof() []byte
+		Hash(hashFunc crypto.Hash) []byte
+	}
+
+	Transfer interface {
+		GenericTransaction
+		NewBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	TransferDC interface {
+		GenericTransaction
+		Nonce() []byte
+		TargetBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	Split interface {
+		GenericTransaction
+		Amount() uint64
+		TargetBearer() []byte
+		RemainingValue() uint64
+		Backlink() []byte
+	}
+
+	Swap interface {
+		GenericTransaction
+		OwnerCondition() []byte
+		BillIdentifiers() []*uint256.Int
+		DCTransfers() []TransferDC
+		Proofs() [][]byte
+		TargetValue() uint64
+	}
 
 	// State holds the state of all bills.
 	State struct {
@@ -76,8 +118,19 @@ func NewInitialBill(value uint32, bearerPredicate domain.Predicate) *BillContent
 	}
 }
 
-// Process validates and processes a payment order.
-func (s *State) Process(payment *domain.PaymentOrder) error {
+// Process processes the transaction. Will return an error if the transaction type is unknown or validation fails.
+func (s *State) Process(gtx GenericTransaction) error {
+	switch tx := gtx.(type) {
+	case Transfer:
+		log.Debug("Processing transfer %v", tx)
+		return nil
+	// TODO ... other types
+	default:
+		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
+	}
+}
+
+func (s *State) ProcessPayment(payment *domain.PaymentOrder) error {
 	if payment == nil {
 		return ErrInvalidPaymentOrder
 	}

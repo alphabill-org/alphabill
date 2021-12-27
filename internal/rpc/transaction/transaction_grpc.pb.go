@@ -18,7 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TransactionsClient interface {
-	ProcessTransaction(ctx context.Context, in *TransactionOrder, opts ...grpc.CallOption) (*TransactionResponse, error)
+	ProcessTransaction(ctx context.Context, in *Transaction, opts ...grpc.CallOption) (*TransactionResponse, error)
 }
 
 type transactionsClient struct {
@@ -29,7 +29,7 @@ func NewTransactionsClient(cc grpc.ClientConnInterface) TransactionsClient {
 	return &transactionsClient{cc}
 }
 
-func (c *transactionsClient) ProcessTransaction(ctx context.Context, in *TransactionOrder, opts ...grpc.CallOption) (*TransactionResponse, error) {
+func (c *transactionsClient) ProcessTransaction(ctx context.Context, in *Transaction, opts ...grpc.CallOption) (*TransactionResponse, error) {
 	out := new(TransactionResponse)
 	err := c.cc.Invoke(ctx, "/rpc.Transactions/ProcessTransaction", in, out, opts...)
 	if err != nil {
@@ -42,7 +42,7 @@ func (c *transactionsClient) ProcessTransaction(ctx context.Context, in *Transac
 // All implementations must embed UnimplementedTransactionsServer
 // for forward compatibility
 type TransactionsServer interface {
-	ProcessTransaction(context.Context, *TransactionOrder) (*TransactionResponse, error)
+	ProcessTransaction(context.Context, *Transaction) (*TransactionResponse, error)
 	mustEmbedUnimplementedTransactionsServer()
 }
 
@@ -50,7 +50,7 @@ type TransactionsServer interface {
 type UnimplementedTransactionsServer struct {
 }
 
-func (UnimplementedTransactionsServer) ProcessTransaction(context.Context, *TransactionOrder) (*TransactionResponse, error) {
+func (UnimplementedTransactionsServer) ProcessTransaction(context.Context, *Transaction) (*TransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessTransaction not implemented")
 }
 func (UnimplementedTransactionsServer) mustEmbedUnimplementedTransactionsServer() {}
@@ -67,7 +67,7 @@ func RegisterTransactionsServer(s grpc.ServiceRegistrar, srv TransactionsServer)
 }
 
 func _Transactions_ProcessTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TransactionOrder)
+	in := new(Transaction)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func _Transactions_ProcessTransaction_Handler(srv interface{}, ctx context.Conte
 		FullMethod: "/rpc.Transactions/ProcessTransaction",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TransactionsServer).ProcessTransaction(ctx, req.(*TransactionOrder))
+		return srv.(TransactionsServer).ProcessTransaction(ctx, req.(*Transaction))
 	}
 	return interceptor(ctx, in, info, handler)
 }

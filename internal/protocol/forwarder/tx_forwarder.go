@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -26,18 +26,20 @@ const (
 	UnknownLeader            peer.ID = ""
 )
 
-// LeaderSelector interface is used to get the next leader.
-type LeaderSelector interface {
-	// NextLeader returns the identifier of the next leader.
-	NextLeader() (peer.ID, error)
-}
+type (
+	// LeaderSelector interface is used to get the next leader.
+	LeaderSelector interface {
+		// NextLeader returns the identifier of the next leader.
+		NextLeader() (peer.ID, error)
+	}
 
-// TxForwarder sends transactions, as they arrive, to the expected next leader.
-type TxForwarder struct {
-	leaderSelector LeaderSelector
-	txBuffer       *txbuffer.TxBuffer
-	self           *network.Peer
-}
+	// TxForwarder sends transactions, as they arrive, to the expected next leader.
+	TxForwarder struct {
+		leaderSelector LeaderSelector
+		txBuffer       *txbuffer.TxBuffer
+		self           *network.Peer
+	}
+)
 
 // New constructs a new *TxForwarder and activates it by attaching its stream handler to the given network.Peer.
 func New(self *network.Peer, leaderSelector LeaderSelector, txBuffer *txbuffer.TxBuffer) (*TxForwarder, error) {
@@ -61,7 +63,7 @@ func New(self *network.Peer, leaderSelector LeaderSelector, txBuffer *txbuffer.T
 
 // Handle handles the incoming transaction. If current node isn't the leader then the transaction is forwarded to the
 // expected next leader. If current node is the leader then the transaction is added the txbuffer.TxBuffer.
-func (tf *TxForwarder) Handle(ctx context.Context, req *payment.PaymentRequest) error {
+func (tf *TxForwarder) Handle(ctx context.Context, req *transaction.Transaction) error {
 	nextLeader, err := tf.leaderSelector.NextLeader()
 	if err != nil {
 		return err
@@ -81,7 +83,7 @@ func (tf *TxForwarder) Close() error {
 }
 
 // forwardTx forwards the transaction to the receiver.
-func (tf *TxForwarder) forwardTx(ctx context.Context, req *payment.PaymentRequest, receiver peer.ID) error {
+func (tf *TxForwarder) forwardTx(ctx context.Context, req *transaction.Transaction, receiver peer.ID) error {
 	ctx, cancel := context.WithTimeout(ctx, DefaultForwardingTimeout)
 	defer cancel()
 
@@ -104,12 +106,13 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 	r := protocol.NewProtoBufReader(s)
 	defer r.Close()
 
-	req := &payment.PaymentRequest{}
+	req := &transaction.Transaction{}
 	err := r.Read(req)
 	if err != nil {
 		logger.Warning("Failed to read the transaction: %v", err)
 		return
 	}
+	// TODO some transaction must be included to the txbuffer
 	logger.Debug("Got a new transaction %v", req)
 	nextLeader, err := tf.leaderSelector.NextLeader()
 	if err != nil {
@@ -126,13 +129,10 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 	}
 }
 
-func (tf *TxForwarder) handleTx(req *payment.PaymentRequest) error {
-	return tf.txBuffer.Add(&domain.PaymentOrder{
-		Type:              domain.PaymentType(req.PaymentType),
-		BillID:            req.BillId,
-		Amount:            req.Amount,
-		Backlink:          req.Backlink,
-		PredicateArgument: req.PredicateArgument,
-		PayeePredicate:    req.PayeePredicate,
-	})
+func (tf *TxForwarder) handleTx(req *transaction.Transaction) error {
+	genericTx, err := transaction.New(req)
+	if err != nil {
+		return err
+	}
+	return tf.txBuffer.Add(genericTx)
 }

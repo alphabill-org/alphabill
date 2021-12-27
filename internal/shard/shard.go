@@ -12,8 +12,8 @@ type (
 		stateProcessor StateProcessor
 	}
 	StateProcessor interface {
-		// Process validates and processes a payment order.
-		Process(payment *domain.PaymentOrder) error
+		// ProcessPayment validates and processes a payment order.
+		ProcessPayment(payment *domain.PaymentOrder) error
 	}
 )
 
@@ -30,7 +30,7 @@ func New(stateProcessor StateProcessor) (*shardNode, error) {
 }
 
 func (b *shardNode) Process(payment *domain.PaymentOrder) (status string, err error) {
-	err = b.stateProcessor.Process(payment)
+	err = b.stateProcessor.ProcessPayment(payment)
 	if err != nil {
 		return "", err
 	}

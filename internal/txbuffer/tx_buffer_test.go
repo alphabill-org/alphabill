@@ -1,10 +1,11 @@
 package txbuffer
 
 import (
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 const (
@@ -117,7 +118,7 @@ func TestRemove_Ok(t *testing.T) {
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 
-	err = buffer.Remove(tx.ID())
+	err = buffer.Remove(tx.IDHash())
 	require.NoError(t, err)
 	require.Equal(t, zero, buffer.Count())
 	require.Equal(t, zero, uint32(len(buffer.transactions)))

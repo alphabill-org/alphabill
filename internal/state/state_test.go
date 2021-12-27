@@ -133,7 +133,7 @@ func TestState_ProcessNilPayment(t *testing.T) {
 	s, _ := New(crypto.SHA256, nil)
 	s.addBill(newBillContent(10))
 
-	err := s.Process(nil)
+	err := s.ProcessPayment(nil)
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidPaymentOrder, err)
 }
@@ -145,7 +145,7 @@ func TestState_ProcessPaymentWithUnknownType(t *testing.T) {
 
 	payment := newTransferOrder(billID, b.Backlink, []byte{0x1})
 	payment.Type = 10
-	err := s.Process(payment)
+	err := s.ProcessPayment(payment)
 
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidPaymentType, err)
@@ -158,7 +158,7 @@ func TestState_ProcessTransferOrder_Ok(t *testing.T) {
 	s.addBill(newBillContent(30))
 
 	b, _ := s.getBill(billID)
-	err := s.Process(newTransferOrder(billID, b.Backlink, []byte{0x1}))
+	err := s.ProcessPayment(newTransferOrder(billID, b.Backlink, []byte{0x1}))
 	assert.NoError(t, err)
 
 	b, _ = s.getBill(billID)
@@ -174,7 +174,7 @@ func TestState_ProcessTransferOrder_AmountPresent(t *testing.T) {
 	order := newTransferOrder(billID, b.Backlink, []byte{0x1})
 	order.Amount = 10
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidPaymentAmount, err)
 }
@@ -187,7 +187,7 @@ func TestState_ProcessTransferOrder_BillNotFound(t *testing.T) {
 
 	order := newTransferOrder(2, b.Backlink, []byte{0x1})
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.Error(t, err)
 	assert.Equal(t, ErrBillNotFound, err)
 }
@@ -197,7 +197,7 @@ func TestState_ProcessTransferOrder_InvalidBacklink(t *testing.T) {
 	billID := s.addBill(newBillContent(10))
 	order := newTransferOrder(billID, []byte("invalid"), []byte{0x1})
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidPaymentBacklink, err)
 }
@@ -210,7 +210,7 @@ func TestState_ProcessSplitOrder_BillNotFound(t *testing.T) {
 
 	order := newSplitOrder(2, b.Backlink, []byte{0x1}, 1)
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.Error(t, err)
 	assert.Equal(t, ErrBillNotFound, err)
 }
@@ -220,7 +220,7 @@ func TestState_ProcessSplitOrder_InvalidBacklink(t *testing.T) {
 	billID := s.addBill(newBillContent(10))
 	order := newSplitOrder(billID, []byte("invalid"), []byte{0x1}, 1)
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidPaymentBacklink, err)
 }
@@ -233,7 +233,7 @@ func TestState_ProcessSplitOrder_AmountInvalid(t *testing.T) {
 
 	order := newSplitOrder(billID, b.Backlink, []byte{0x1}, 11)
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidPaymentAmount, err)
 }
@@ -245,7 +245,7 @@ func TestState_ProcessSplitOrder_Ok(t *testing.T) {
 
 	order := newSplitOrder(billID, b.Backlink, []byte{0x1}, 6)
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), s.maxBillID)
 
@@ -299,7 +299,7 @@ func TestState_ProcessTransferOrder_InvalidPredicate(t *testing.T) {
 	b, _ := s.getBill(billID)
 	order := newTransferOrder(billID, b.Backlink, []byte{0x01})
 
-	err := s.Process(order)
+	err := s.ProcessPayment(order)
 	assert.Error(t, err)
 }
 

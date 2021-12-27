@@ -3,8 +3,10 @@ package txbuffer
 import (
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +41,7 @@ func TestAddTx_TxIsNil(t *testing.T) {
 func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
 	buffer, err := New(testBufferSize)
 	require.NoError(t, err)
-	tx := test.RandomPaymentOrder(domain.PaymentTypeTransfer)
+	tx := NewRandomTx(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 	err = buffer.Add(tx)
@@ -55,11 +57,11 @@ func TestAddTx_TxBufferFull(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
+		err = buffer.Add(NewRandomTx(t))
 		require.NoError(t, err)
 	}
 
-	err = buffer.Add(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
+	err = buffer.Add(NewRandomTx(t))
 
 	require.Error(t, err)
 	require.Equal(t, ErrTxBufferFull, err)
@@ -70,7 +72,7 @@ func TestAddTx_TxBufferFull(t *testing.T) {
 func TestAddTx_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize)
 	require.NoError(t, err)
-	err = buffer.Add(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
+	err = buffer.Add(NewRandomTx(t))
 	require.NoError(t, err)
 	require.Equal(t, one, buffer.Count())
 	require.Equal(t, one, uint32(len(buffer.transactions)))
@@ -80,7 +82,7 @@ func TestCount_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize)
 	require.NoError(t, err)
 	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
+		err = buffer.Add(NewRandomTx(t))
 		require.NoError(t, err)
 	}
 	require.Equal(t, testBufferSize, buffer.Count())
@@ -91,7 +93,7 @@ func TestGetAll_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize)
 	require.NoError(t, err)
 	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
+		err = buffer.Add(NewRandomTx(t))
 		require.NoError(t, err)
 	}
 
@@ -114,7 +116,7 @@ func TestRemove_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize)
 	require.NoError(t, err)
 
-	tx := test.RandomPaymentOrder(domain.PaymentTypeTransfer)
+	tx := NewRandomTx(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 
@@ -122,4 +124,11 @@ func TestRemove_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, zero, buffer.Count())
 	require.Equal(t, zero, uint32(len(buffer.transactions)))
+}
+
+func NewRandomTx(t *testing.T) transaction.GenericTransaction {
+	t.Helper()
+	tx, err := transaction.New(testtransaction.RandomBillTransfer())
+	require.NoError(t, err)
+	return tx
 }

@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	golog "github.com/ipfs/go-log"
@@ -22,8 +23,8 @@ const (
 )
 
 var (
-	transfer = test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER)
-	split    = test.RandomPaymentRequest(payment.PaymentRequest_SPLIT)
+	transfer = testtransaction.RandomBillTransfer()
+	split    = testtransaction.RandomBillSplit()
 )
 
 type FixedLeader struct {
@@ -188,9 +189,9 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	_, err = New(leader, fixedLeader, leaderTxBuffer)
 	require.NoError(t, err)
 	// send transactions to follower
-	err = txHandler.Handle(context.Background(), test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
+	err = txHandler.Handle(context.Background(), testtransaction.RandomBillTransfer())
 	require.NoError(t, err)
-	err = txHandler.Handle(context.Background(), test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
+	err = txHandler.Handle(context.Background(), testtransaction.RandomBillTransfer())
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 3 }, test.WaitDuration, test.WaitTick)
 

@@ -78,7 +78,6 @@ func (t *TxBuffer) GetAll() []Transaction {
 
 // Remove removes the transaction with given domain.TxID from the TxBuffer.
 func (t *TxBuffer) Remove(id string) error {
-	// TODO is it needed?
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	_, found := t.transactions[id]

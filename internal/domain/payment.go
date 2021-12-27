@@ -2,11 +2,7 @@ package domain
 
 import (
 	"bytes"
-	"crypto"
-	"fmt"
 	"hash"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 )
 
 const (
@@ -42,11 +38,4 @@ func (o *PaymentOrder) Bytes() []byte {
 func (o *PaymentOrder) Hash(hasher hash.Hash) []byte {
 	hasher.Write(o.Bytes())
 	return hasher.Sum(nil)
-}
-
-func (o *PaymentOrder) IDHash() txbuffer.IDHash {
-	hasher := crypto.SHA256.New()
-	hasher.Write(o.Bytes())
-	hasher.Write(o.PredicateArgument)
-	return txbuffer.IDHash(fmt.Sprintf("%X", hasher.Sum(nil)))
 }

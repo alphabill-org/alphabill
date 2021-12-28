@@ -12,11 +12,12 @@ type Wallet interface {
 	// Sync synchronises wallet with given alphabill node
 	Sync(conf *config.AlphaBillClientConfig) error
 
-	// Shutdown terminates connection to alphabill node
+	// Shutdown terminates connection to alphabill node and closes wallet db
 	Shutdown()
 }
 
-// NewInMemoryWallet creates a new in memory wallet. To synchronize wallet with node call Sync
-func NewInMemoryWallet() (Wallet, error) {
-	return wallet.NewInMemoryWallet()
+// NewWallet creates a new in memory wallet. To synchronize wallet with node call Sync.
+// Shutdown needs to be called to release resources used by wallet.
+func NewWallet() (Wallet, error) {
+	return wallet.NewWallet()
 }

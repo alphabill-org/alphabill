@@ -6,7 +6,7 @@ import (
 )
 
 func TestInMemoryWalletCanBeCreated(t *testing.T) {
-	w, err := NewInMemoryWallet()
+	w, err := NewWallet()
 	require.NoError(t, err)
 	require.EqualValues(t, 0, w.GetBalance())
 }

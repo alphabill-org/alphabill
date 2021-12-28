@@ -20,7 +20,10 @@ import (
 )
 
 func TestWalletCanProcessBlocks(t *testing.T) {
-	w, err := NewInMemoryWallet()
+	w, err := NewWallet()
+	require.NoError(t, err)
+
+	k, err := w.db.GetKey()
 	require.NoError(t, err)
 
 	blocks := []*alphabill.Block{
@@ -38,23 +41,23 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 				// receive transfer of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: createBillTransferTx(w.key.pubKeyHashSha256),
+					TransactionAttributes: createBillTransferTx(k.PubKeyHashSha256),
 					Timeout:               1000,
-					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, w.key.pubKey),
+					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive split of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: createBillSplitTx(w.key.pubKeyHashSha256, 100, 100),
+					TransactionAttributes: createBillSplitTx(k.PubKeyHashSha256, 100, 100),
 					Timeout:               1000,
-					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, w.key.pubKey),
+					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive swap of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: createSwapTx(w.key.pubKeyHashSha256),
+					TransactionAttributes: createSwapTx(k.PubKeyHashSha256),
 					Timeout:               1000,
-					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, w.key.pubKey),
+					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 			},
 			UnicityCertificate: []byte{},
@@ -64,16 +67,17 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks})
 	defer server.GracefulStop()
 
-	require.EqualValues(t, 0, w.blockHeight)
+	require.EqualValues(t, 0, w.db.GetBlockHeight())
+	require.EqualValues(t, 0, w.GetBalance())
 	err = w.Sync(&config.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
 	defer w.Shutdown()
+	require.NoError(t, err)
 
 	// if getBlocks finishes processing alphabill client is shut down
+	// time.Sleep(5 * time.Second)
 	waitForShutdown(w.alphaBillClient)
-
-	require.NoError(t, err)
+	require.EqualValues(t, 1, w.db.GetBlockHeight())
 	require.EqualValues(t, 300, w.GetBalance())
-	require.EqualValues(t, 1, w.blockHeight)
 }
 
 type testAlphaBillServiceServer struct {
@@ -84,7 +88,10 @@ type testAlphaBillServiceServer struct {
 
 func (s *testAlphaBillServiceServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphaBillService_GetBlocksServer) error {
 	for _, block := range s.blocks {
-		stream.Send(block)
+		err := stream.Send(block)
+		if err != nil {
+			log.Printf("error sending block %s", err)
+		}
 	}
 	return nil
 }

@@ -14,10 +14,19 @@ type Wallet interface {
 
 	// Shutdown terminates connection to alphabill node and closes wallet db
 	Shutdown()
+
+	// DeleteDb deletes the wallet database
+	DeleteDb() error
 }
 
-// NewWallet creates a new in memory wallet. To synchronize wallet with node call Sync.
+// CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func NewWallet() (Wallet, error) {
-	return wallet.NewWallet()
+func CreateNewWallet() (Wallet, error) {
+	return wallet.CreateNewWallet()
+}
+
+// LoadExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
+// Shutdown needs to be called to release resources used by wallet.
+func LoadExistingWallet() (Wallet, error) {
+	return wallet.LoadExistingWallet()
 }

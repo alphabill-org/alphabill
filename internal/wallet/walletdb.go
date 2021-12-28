@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"alphabill-wallet-sdk/internal/errors"
+	"alphabill-wallet-sdk/internal/util"
 	"encoding/binary"
 	"encoding/json"
 	"github.com/holiman/uint256"
@@ -14,19 +15,33 @@ var (
 	metaBucket  = []byte("meta")
 )
 
+var (
+	keyKey         = []byte("key")
+	blockHeightKey = []byte("blockHeight")
+)
+
 type Db struct {
 	db *bolt.DB
 }
 
-func NewDb(path string) (*Db, error) {
-	db, err := bolt.Open(path+"/wallet.db", 0600, nil)
+func CreateNewDb(path string) (*Db, error) {
+	dbFilePath := path + "/wallet.db"
+	if util.FileExists(dbFilePath) {
+		return nil, errors.New("wallet db already exists")
+	}
+	return OpenDb(path)
+}
+
+func OpenDb(path string) (*Db, error) {
+	dbFilePath := path + "/wallet.db"
+	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
 	if err != nil {
 		return nil, err
 	}
 	return &Db{db}, nil
 }
 
-func (d *Db) createBuckets() error {
+func (d *Db) CreateBuckets() error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(keysBucket)
 		if err != nil {
@@ -44,22 +59,22 @@ func (d *Db) createBuckets() error {
 	})
 }
 
-func (d *Db) AddKey(key *Key) error {
+func (d *Db) AddKey(key *key) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(keysBucket).Put([]byte("Key"), val)
+		return tx.Bucket(keysBucket).Put(keyKey, val)
 	})
 }
 
-func (d *Db) GetKey() (*Key, error) {
-	var key *Key
+func (d *Db) GetKey() (*key, error) {
+	var key *key
 	err := d.db.View(func(tx *bolt.Tx) error {
-		k := tx.Bucket(keysBucket).Get([]byte("Key"))
+		k := tx.Bucket(keysBucket).Get(keyKey)
 		if k == nil {
-			return errors.New("Key not found in wallet")
+			return errors.New("key not found in wallet")
 		}
 		return json.Unmarshal(k, &key)
 	})
@@ -148,7 +163,7 @@ func (d *Db) GetBalance() uint64 {
 func (d *Db) GetBlockHeight() uint64 {
 	blockHeight := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
-		blockHeightBytes := tx.Bucket(metaBucket).Get([]byte("blockHeight"))
+		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKey)
 		if blockHeightBytes == nil {
 			return errors.New("blockHeight not saved")
 		}
@@ -165,7 +180,7 @@ func (d *Db) SetBlockHeight(blockHeight uint64) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
-		return tx.Bucket(metaBucket).Put([]byte("blockHeight"), b)
+		return tx.Bucket(metaBucket).Put(blockHeightKey, b)
 	})
 }
 

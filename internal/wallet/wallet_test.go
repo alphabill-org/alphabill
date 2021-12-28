@@ -11,7 +11,8 @@ import (
 )
 
 func TestWalletCanSendTx(t *testing.T) {
-	w, err := NewWallet()
+	w, err := CreateNewWallet()
+	defer cleanup(w)
 	require.NoError(t, err)
 
 	w.syncWithAlphaBill(&mockAlphaBillClient{})
@@ -29,7 +30,8 @@ func TestWalletCanSendTx(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
-	w, err := NewWallet()
+	w, err := CreateNewWallet()
+	defer cleanup(w)
 	require.NoError(t, err)
 
 	k, err := w.db.GetKey()
@@ -83,21 +85,9 @@ func TestBlockProcessing(t *testing.T) {
 	require.EqualValues(t, 1, w.db.GetBlockHeight())
 }
 
-type mockAlphaBillClient struct {
-}
-
-func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.Block) error {
-	return nil
-}
-
-func (c *mockAlphaBillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
-	return &transaction.TransactionResponse{Ok: true}, nil
-}
-
-func (c *mockAlphaBillClient) Shutdown() {
-	// do nothing
-}
-
-func (c *mockAlphaBillClient) IsShutdown() bool {
-	return false
+func cleanup(w *Wallet) {
+	if w != nil {
+		w.Shutdown()
+		_ = w.DeleteDb()
+	}
 }

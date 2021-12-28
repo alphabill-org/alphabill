@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"log"
+	"os"
 )
 
 type Wallet struct {
@@ -27,8 +28,17 @@ type Wallet struct {
 	txMapper        rpc.TransactionMapper
 }
 
-func NewWallet() (*Wallet, error) {
-	db, err := NewDb(".")
+func CreateNewWallet() (*Wallet, error) {
+	walletDir, err := getWalletDir()
+	if err != nil {
+		return nil, err
+	}
+	err = os.MkdirAll(walletDir, 0700) // -rwx------
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := CreateNewDb(walletDir)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +48,7 @@ func NewWallet() (*Wallet, error) {
 		txMapper: rpc.NewDefaultTxMapper(),
 	}
 
-	err = db.createBuckets()
+	err = db.CreateBuckets()
 	if err != nil {
 		return w, err
 	}
@@ -55,13 +65,38 @@ func NewWallet() (*Wallet, error) {
 	return w, nil
 }
 
+func LoadExistingWallet() (*Wallet, error) {
+	walletDir, err := getWalletDir()
+	if err != nil {
+		return nil, err
+	}
+	db, err := OpenDb(walletDir)
+	if err != nil {
+		return nil, err
+	}
+	w := &Wallet{
+		db:       db,
+		txMapper: rpc.NewDefaultTxMapper(),
+	}
+	return w, nil
+}
+
+func getWalletDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	walletDir := homeDir + string(os.PathSeparator) + ".alphabill"
+	return walletDir, nil
+}
+
 func (w *Wallet) GetBalance() uint64 {
 	return w.db.GetBalance()
 }
 
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != 33 {
-		return errors.New("invalid public Key, must be 33 bytes in length")
+		return errors.New("invalid public key, must be 33 bytes in length")
 	}
 	if amount > w.GetBalance() {
 		return errors.New("cannot send more than existing balance")
@@ -131,27 +166,6 @@ func (w *Wallet) Sync(conf *config.AlphaBillClientConfig) error {
 	return nil
 }
 
-// GRACEFUL SHUTDOWN FLOW
-// Things to terminate:
-// goroutines InitBlockReceiver and initBlockProcessor and channel between them
-// alphabill GetBlocks streaming request and alphabill client itself
-//
-// manual shutdown:
-// shutdown function -> alphaBillClient.close is called -> block receiver receives error and returns ->
-// channel is closed in error handling block ->
-// block processor receives channel closed event and returns
-//
-//
-// failed to start alphabill stream
-// InitBlockReceiver returns error and closes channel in error handling block ->
-// initBlockProcessor channel receives channel closed event ->
-// close alphabill client
-//
-//
-// error on receiving alphabill block i.e. network error:
-// initBlockProcessor returns error -> calls shutdown alphabill client ->
-// InitBlockReceiver receives error and closes channel in error handling block
-
 func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	w.alphaBillClient = abClient
 	ch := make(chan *alphabill.Block, 10) // randomly chosen number, prefetches up to 10 blocks from AB node
@@ -180,6 +194,12 @@ func (w *Wallet) Shutdown() {
 	if w.db != nil {
 		w.db.Close()
 	}
+}
+
+func (w *Wallet) DeleteDb() error {
+	walletDir, _ := getWalletDir()
+	dbFilePath := walletDir + "/wallet.db"
+	return os.Remove(dbFilePath)
 }
 
 func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {

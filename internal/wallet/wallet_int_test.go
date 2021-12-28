@@ -20,7 +20,8 @@ import (
 )
 
 func TestWalletCanProcessBlocks(t *testing.T) {
-	w, err := NewWallet()
+	w, err := CreateNewWallet()
+	defer cleanup(w)
 	require.NoError(t, err)
 
 	k, err := w.db.GetKey()
@@ -73,9 +74,8 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	defer w.Shutdown()
 	require.NoError(t, err)
 
-	// if getBlocks finishes processing alphabill client is shut down
-	// time.Sleep(5 * time.Second)
 	waitForShutdown(w.alphaBillClient)
+
 	require.EqualValues(t, 1, w.db.GetBlockHeight())
 	require.EqualValues(t, 300, w.GetBalance())
 }

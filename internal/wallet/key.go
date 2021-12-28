@@ -5,14 +5,14 @@ import (
 	"alphabill-wallet-sdk/internal/crypto/hash"
 )
 
-type Key struct {
+type key struct {
 	PubKey           []byte `json:"pubKey"`
 	PrivKey          []byte `json:"privKey"`
 	PubKeyHashSha256 []byte `json:"pubKeyHashSha256"`
 	PubKeyHashSha512 []byte `json:"pubKeyHashSha512"`
 }
 
-func NewKey() (*Key, error) {
+func NewKey() (*key, error) {
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func NewKey() (*Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Key{
+	return &key{
 		PubKey:           pubKey,
 		PrivKey:          privKey,
 		PubKeyHashSha256: hash.Sum256(pubKey),

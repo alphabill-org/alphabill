@@ -11,7 +11,9 @@ func TestWalletCanBeCreated(t *testing.T) {
 	w, err := CreateNewWallet()
 	defer deleteWallet(w)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, w.GetBalance())
+	balance, err := w.GetBalance()
+	require.EqualValues(t, 0, balance)
+	require.NoError(t, err)
 }
 
 func TestWalletCanBeLoaded(t *testing.T) {

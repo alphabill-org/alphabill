@@ -6,7 +6,7 @@ import (
 )
 
 type Wallet interface {
-	GetBalance() uint64
+	GetBalance() (uint64, error)
 	Send(pubKey []byte, amount uint64) error
 
 	// Sync synchronises wallet with given alphabill node

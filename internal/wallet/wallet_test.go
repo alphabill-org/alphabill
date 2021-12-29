@@ -19,7 +19,7 @@ func TestWalletCanSendTx(t *testing.T) {
 
 	w.syncWithAlphaBill(&mockAlphaBillClient{})
 	b := bill{
-		Id:     *uint256.NewInt(0),
+		Id:     uint256.NewInt(0),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
@@ -78,12 +78,22 @@ func TestBlockProcessing(t *testing.T) {
 		},
 	}
 
-	require.EqualValues(t, 0, w.db.GetBlockHeight())
-	require.EqualValues(t, 0, w.db.GetBalance())
+	height, err := w.db.GetBlockHeight()
+	require.EqualValues(t, 0, height)
+	require.NoError(t, err)
+	balance, err := w.db.GetBalance()
+	require.EqualValues(t, 0, balance)
+	require.NoError(t, err)
+
 	for _, block := range blocks {
 		err := w.processBlock(block)
 		require.NoError(t, err)
 	}
-	require.EqualValues(t, 300, w.GetBalance())
-	require.EqualValues(t, 1, w.db.GetBlockHeight())
+
+	height, err = w.db.GetBlockHeight()
+	require.EqualValues(t, 1, height)
+	require.NoError(t, err)
+	balance, err = w.db.GetBalance()
+	require.EqualValues(t, 300, balance)
+	require.NoError(t, err)
 }

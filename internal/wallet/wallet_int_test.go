@@ -70,15 +70,24 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks})
 	defer server.GracefulStop()
 
-	require.EqualValues(t, 0, w.db.GetBlockHeight())
-	require.EqualValues(t, 0, w.GetBalance())
+	height, err := w.db.GetBlockHeight()
+	require.EqualValues(t, 0, height)
+	require.NoError(t, err)
+	balance, err := w.GetBalance()
+	require.EqualValues(t, 0, balance)
+	require.NoError(t, err)
+
 	err = w.Sync(&config.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
 	require.NoError(t, err)
 
 	waitForShutdown(w.alphaBillClient)
 
-	require.EqualValues(t, 1, w.db.GetBlockHeight())
-	require.EqualValues(t, 300, w.GetBalance())
+	height, err = w.db.GetBlockHeight()
+	require.EqualValues(t, 1, height)
+	require.NoError(t, err)
+	balance, err = w.GetBalance()
+	require.EqualValues(t, 300, balance)
+	require.NoError(t, err)
 }
 
 type testAlphaBillServiceServer struct {

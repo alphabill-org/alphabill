@@ -104,7 +104,7 @@ func (d *Db) SetBill(bill *bill) error {
 	})
 }
 
-func (d *Db) ContainsBill(id *uint256.Int) bool {
+func (d *Db) ContainsBill(id *uint256.Int) (bool, error) {
 	res := false
 	err := d.db.View(func(tx *bolt.Tx) error {
 		billId := id.Bytes32()
@@ -112,9 +112,9 @@ func (d *Db) ContainsBill(id *uint256.Int) bool {
 		return nil
 	})
 	if err != nil {
-		return false // ignore error
+		return false, err
 	}
-	return res
+	return res, nil
 }
 
 func (d *Db) RemoveBill(id *uint256.Int) error {
@@ -146,7 +146,7 @@ func (d *Db) GetBillWithMinValue(minVal uint64) (*bill, error) {
 	return minValBill, nil
 }
 
-func (d *Db) GetBalance() uint64 {
+func (d *Db) GetBalance() (uint64, error) {
 	sum := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
 		err := tx.Bucket(billsBucket).ForEach(func(k, v []byte) error {
@@ -164,12 +164,12 @@ func (d *Db) GetBalance() uint64 {
 		return nil
 	})
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return sum
+	return sum, nil
 }
 
-func (d *Db) GetBlockHeight() uint64 {
+func (d *Db) GetBlockHeight() (uint64, error) {
 	blockHeight := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKey)
@@ -179,10 +179,10 @@ func (d *Db) GetBlockHeight() uint64 {
 		blockHeight = binary.BigEndian.Uint64(blockHeightBytes)
 		return nil
 	})
-	if err != nil {
-		return 0
+	if err != nil && err != errBlockHeightNotFound {
+		return 0, err
 	}
-	return blockHeight
+	return blockHeight, nil
 }
 
 func (d *Db) SetBlockHeight(blockHeight uint64) error {

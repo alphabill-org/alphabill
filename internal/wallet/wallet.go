@@ -20,6 +20,8 @@ import (
 	"os"
 )
 
+const prefetchBlockCount = 10
+
 type Wallet struct {
 	db *Db
 
@@ -90,7 +92,7 @@ func getWalletDir() (string, error) {
 	return walletDir, nil
 }
 
-func (w *Wallet) GetBalance() uint64 {
+func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.GetBalance()
 }
 
@@ -98,7 +100,11 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != 33 {
 		return errors.New("invalid public key, must be 33 bytes in length")
 	}
-	if amount > w.GetBalance() {
+	balance, err := w.GetBalance()
+	if err != nil {
+		return err
+	}
+	if amount > balance {
 		return errors.New("cannot send more than existing balance")
 	}
 
@@ -168,9 +174,14 @@ func (w *Wallet) Sync(conf *config.AlphaBillClientConfig) error {
 
 func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	w.alphaBillClient = abClient
-	ch := make(chan *alphabill.Block, 10) // randomly chosen number, prefetches up to 10 blocks from AB node
+	height, err := w.db.GetBlockHeight()
+	if err != nil {
+		return
+	}
+
+	ch := make(chan *alphabill.Block, prefetchBlockCount)
 	go func() {
-		err := w.alphaBillClient.InitBlockReceiver(w.db.GetBlockHeight(), ch)
+		err = w.alphaBillClient.InitBlockReceiver(height, ch)
 		if err != nil {
 			log.Printf("error receiving block %s", err) // TODO how to log in embedded SDK?
 			close(ch)
@@ -215,16 +226,24 @@ func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {
 	return nil
 }
 
-func (w *Wallet) verifyBlockHeight(b *alphabill.Block) bool {
+func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 	// verify that we are processing blocks sequentially
 	// it may be possible to improve block processing speed by parallel processing
+	height, err := w.db.GetBlockHeight()
+	if err != nil {
+		return err
+	}
 	// TODO will genesis block be height 0 or 1?
-	return b.BlockNo-w.db.GetBlockHeight() == 1
+	if b.BlockNo-height != 1 {
+		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNo, height))
+	}
+	return nil
 }
 
 func (w *Wallet) processBlock(b *alphabill.Block) error {
-	if !w.verifyBlockHeight(b) {
-		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNo, w.db.GetBlockHeight()))
+	err := w.verifyBlockHeight(b)
+	if err != nil {
+		return err
 	}
 	for _, txPb := range b.Transactions {
 		tx, err := w.txMapper.MapPbToDomain(txPb)
@@ -242,9 +261,13 @@ func (w *Wallet) processBlock(b *alphabill.Block) error {
 func (w *Wallet) collectBills(tx *domain.Transaction) error {
 	txSplit, isSplitTx := tx.TransactionAttributes.(*domain.BillSplit)
 	if isSplitTx {
-		if w.db.ContainsBill(tx.UnitId) {
+		containsBill, err := w.db.ContainsBill(tx.UnitId)
+		if err != nil {
+			return err
+		}
+		if containsBill {
 			err := w.db.SetBill(&bill{
-				Id:     *tx.UnitId,
+				Id:     tx.UnitId,
 				Value:  txSplit.RemainingValue,
 				TxHash: tx.Hash(),
 			})
@@ -254,7 +277,7 @@ func (w *Wallet) collectBills(tx *domain.Transaction) error {
 		}
 		if w.isOwner(txSplit.TargetBearer) {
 			err := w.db.SetBill(&bill{
-				Id:     *uint256.NewInt(0).SetBytes(tx.Hash()), // TODO generate Id properly
+				Id:     uint256.NewInt(0).SetBytes(tx.Hash()), // TODO generate Id properly
 				Value:  txSplit.Amount,
 				TxHash: tx.Hash(),
 			})
@@ -265,7 +288,7 @@ func (w *Wallet) collectBills(tx *domain.Transaction) error {
 	} else {
 		if w.isOwner(tx.TransactionAttributes.OwnerCondition()) {
 			err := w.db.SetBill(&bill{
-				Id:     *tx.UnitId,
+				Id:     tx.UnitId,
 				Value:  tx.TransactionAttributes.Value(),
 				TxHash: tx.Hash(),
 			})

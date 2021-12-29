@@ -26,6 +26,7 @@ type (
 	}
 )
 
+// NewRevertible creates a state that can be reverted. See Revert and Commit methods for details.
 func NewRevertible(unitsTree UnitsTree) *revertibleState {
 	return &revertibleState{
 		unitsTree: unitsTree,
@@ -69,12 +70,33 @@ func (r *revertibleState) DeleteItem(id ID) error {
 }
 
 func (r *revertibleState) SetOwner(id ID, owner Predicate) error {
-	panic("not implemented")
+	oldOwner, _, err := r.unitsTree.Get(id)
+	if err != nil {
+		return errors.Wrapf(err, "setting owner of item that does not exist. ID %d", id)
+	}
+	err = r.unitsTree.SetOwner(id, owner)
+	if err != nil {
+		return errors.Wrapf(err, "setting owner failed. ID %d", id)
+	}
+	r.changes = append(r.changes, func() error {
+		return r.unitsTree.SetOwner(id, oldOwner)
+	})
 	return nil
 }
 
-func (r *revertibleState) UpdateData(id ID, owner Predicate, f UpdateFunction) error {
-	panic("not implemented")
+func (r *revertibleState) UpdateData(id ID, f UpdateFunction) error {
+	_, oldData, err := r.unitsTree.Get(id)
+	if err != nil {
+		return errors.Wrapf(err, "updating data of item that does not exist. ID %d", id)
+	}
+	newData := f(oldData)
+	err = r.unitsTree.SetData(id, newData)
+	if err != nil {
+		return errors.Wrapf(err, "setting data failed. ID %d", id)
+	}
+	r.changes = append(r.changes, func() error {
+		return r.unitsTree.SetData(id, oldData)
+	})
 	return nil
 }
 

@@ -197,8 +197,11 @@ func (w *Wallet) Shutdown() {
 }
 
 func (w *Wallet) DeleteDb() error {
-	walletDir, _ := getWalletDir()
-	dbFilePath := walletDir + "/wallet.db"
+	walletDir, err := getWalletDir()
+	if err != nil {
+		return err
+	}
+	dbFilePath := walletDir + walletFileName
 	return os.Remove(dbFilePath)
 }
 

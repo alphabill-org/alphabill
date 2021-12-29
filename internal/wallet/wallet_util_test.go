@@ -23,3 +23,10 @@ func (c *mockAlphaBillClient) Shutdown() {
 func (c *mockAlphaBillClient) IsShutdown() bool {
 	return false
 }
+
+func DeleteWallet(w *Wallet) {
+	if w != nil {
+		w.Shutdown()
+		w.DeleteDb()
+	}
+}

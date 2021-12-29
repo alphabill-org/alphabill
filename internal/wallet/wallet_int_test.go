@@ -6,6 +6,7 @@ import (
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
+	"alphabill-wallet-sdk/internal/testutil"
 	"alphabill-wallet-sdk/pkg/wallet/config"
 	"context"
 	"fmt"
@@ -20,8 +21,9 @@ import (
 )
 
 func TestWalletCanProcessBlocks(t *testing.T) {
+	testutil.DeleteWalletDb()
 	w, err := CreateNewWallet()
-	defer cleanup(w)
+	defer DeleteWallet(w)
 	require.NoError(t, err)
 
 	k, err := w.db.GetKey()
@@ -71,7 +73,6 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	require.EqualValues(t, 0, w.db.GetBlockHeight())
 	require.EqualValues(t, 0, w.GetBalance())
 	err = w.Sync(&config.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
-	defer w.Shutdown()
 	require.NoError(t, err)
 
 	waitForShutdown(w.alphaBillClient)

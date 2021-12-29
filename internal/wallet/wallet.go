@@ -53,12 +53,12 @@ func CreateNewWallet() (*Wallet, error) {
 		return w, err
 	}
 
-	key, err := NewKey()
+	k, err := NewKey()
 	if err != nil {
 		return w, err
 	}
 
-	err = db.AddKey(key)
+	err = db.SetKey(k)
 	if err != nil {
 		return w, err
 	}
@@ -243,7 +243,7 @@ func (w *Wallet) collectBills(tx *domain.Transaction) error {
 	txSplit, isSplitTx := tx.TransactionAttributes.(*domain.BillSplit)
 	if isSplitTx {
 		if w.db.ContainsBill(tx.UnitId) {
-			err := w.db.AddBill(&bill{
+			err := w.db.SetBill(&bill{
 				Id:     *tx.UnitId,
 				Value:  txSplit.RemainingValue,
 				TxHash: tx.Hash(),
@@ -253,7 +253,7 @@ func (w *Wallet) collectBills(tx *domain.Transaction) error {
 			}
 		}
 		if w.isOwner(txSplit.TargetBearer) {
-			err := w.db.AddBill(&bill{
+			err := w.db.SetBill(&bill{
 				Id:     *uint256.NewInt(0).SetBytes(tx.Hash()), // TODO generate Id properly
 				Value:  txSplit.Amount,
 				TxHash: tx.Hash(),
@@ -264,7 +264,7 @@ func (w *Wallet) collectBills(tx *domain.Transaction) error {
 		}
 	} else {
 		if w.isOwner(tx.TransactionAttributes.OwnerCondition()) {
-			err := w.db.AddBill(&bill{
+			err := w.db.SetBill(&bill{
 				Id:     *tx.UnitId,
 				Value:  tx.TransactionAttributes.Value(),
 				TxHash: tx.Hash(),

@@ -1,30 +1,34 @@
 package wallet
 
 import (
+	"alphabill-wallet-sdk/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
 func TestWalletCanBeCreated(t *testing.T) {
+	testutil.DeleteWalletDb()
 	w, err := CreateNewWallet()
-	defer cleanup(w)
+	defer deleteWallet(w)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, w.GetBalance())
 }
 
 func TestWalletCanBeLoaded(t *testing.T) {
+	testutil.DeleteWalletDb()
 	w, err := CreateNewWallet()
-	defer cleanup(w)
+	defer deleteWallet(w)
+	require.NoError(t, err)
 	w.Shutdown()
-	require.NoError(t, err)
 
-	w, err = LoadExistingWallet()
-	require.NoError(t, err)
+	w2, err2 := LoadExistingWallet()
+	defer deleteWallet(w2)
+	require.NoError(t, err2)
 }
 
-func cleanup(w Wallet) {
+func deleteWallet(w Wallet) {
 	if w != nil {
 		w.Shutdown()
-		_ = w.DeleteDb()
+		w.DeleteDb()
 	}
 }

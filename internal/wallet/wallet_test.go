@@ -5,14 +5,16 @@ import (
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
+	"alphabill-wallet-sdk/internal/testutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
 func TestWalletCanSendTx(t *testing.T) {
+	testutil.DeleteWalletDb()
 	w, err := CreateNewWallet()
-	defer cleanup(w)
+	defer DeleteWallet(w)
 	require.NoError(t, err)
 
 	w.syncWithAlphaBill(&mockAlphaBillClient{})
@@ -21,7 +23,7 @@ func TestWalletCanSendTx(t *testing.T) {
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	err = w.db.AddBill(&b)
+	err = w.db.SetBill(&b)
 	require.NoError(t, err)
 
 	receiverPubKey := make([]byte, 33)
@@ -30,8 +32,9 @@ func TestWalletCanSendTx(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
+	testutil.DeleteWalletDb()
 	w, err := CreateNewWallet()
-	defer cleanup(w)
+	defer DeleteWallet(w)
 	require.NoError(t, err)
 
 	k, err := w.db.GetKey()
@@ -83,11 +86,4 @@ func TestBlockProcessing(t *testing.T) {
 	}
 	require.EqualValues(t, 300, w.GetBalance())
 	require.EqualValues(t, 1, w.db.GetBlockHeight())
-}
-
-func cleanup(w *Wallet) {
-	if w != nil {
-		w.Shutdown()
-		_ = w.DeleteDb()
-	}
 }

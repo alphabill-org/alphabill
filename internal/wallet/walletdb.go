@@ -68,7 +68,7 @@ func (d *Db) CreateBuckets() error {
 	})
 }
 
-func (d *Db) AddKey(key *key) error {
+func (d *Db) SetKey(key *key) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
@@ -93,7 +93,7 @@ func (d *Db) GetKey() (*key, error) {
 	return key, nil
 }
 
-func (d *Db) AddBill(bill *bill) error {
+func (d *Db) SetBill(bill *bill) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(bill)
 		if err != nil {

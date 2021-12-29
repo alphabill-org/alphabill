@@ -1,11 +1,15 @@
 package util
 
-import "os"
+import (
+	"errors"
+	"io/fs"
+	"os"
+)
 
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false
 		}
 	}

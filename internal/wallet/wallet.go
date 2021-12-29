@@ -86,7 +86,7 @@ func getWalletDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	walletDir := homeDir + string(os.PathSeparator) + ".alphabill"
+	walletDir := homeDir + string(os.PathSeparator) + ".alphabill" + string(os.PathSeparator)
 	return walletDir, nil
 }
 

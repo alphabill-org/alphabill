@@ -20,20 +20,29 @@ var (
 	blockHeightKey = []byte("blockHeight")
 )
 
+var (
+	errWalletDbAlreadyExists    = errors.New("wallet db already exists")
+	errKeyNotFound              = errors.New("key not found in wallet")
+	errBillWithMinValueNotFound = errors.New("spendable bill with min value not found")
+	errBlockHeightNotFound      = errors.New("block height not found")
+)
+
+const walletFileName = "wallet.db"
+
 type Db struct {
 	db *bolt.DB
 }
 
 func CreateNewDb(path string) (*Db, error) {
-	dbFilePath := path + "/wallet.db"
+	dbFilePath := path + walletFileName
 	if util.FileExists(dbFilePath) {
-		return nil, errors.New("wallet db already exists")
+		return nil, errWalletDbAlreadyExists
 	}
 	return OpenDb(path)
 }
 
 func OpenDb(path string) (*Db, error) {
-	dbFilePath := path + "/wallet.db"
+	dbFilePath := path + walletFileName
 	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
 	if err != nil {
 		return nil, err
@@ -74,7 +83,7 @@ func (d *Db) GetKey() (*key, error) {
 	err := d.db.View(func(tx *bolt.Tx) error {
 		k := tx.Bucket(keysBucket).Get(keyKey)
 		if k == nil {
-			return errors.New("key not found in wallet")
+			return errKeyNotFound
 		}
 		return json.Unmarshal(k, &key)
 	})
@@ -129,7 +138,7 @@ func (d *Db) GetBillWithMinValue(minVal uint64) (*bill, error) {
 				return nil
 			}
 		}
-		return errors.New("bill with min value not found")
+		return errBillWithMinValueNotFound
 	})
 	if err != nil {
 		return nil, err
@@ -165,7 +174,7 @@ func (d *Db) GetBlockHeight() uint64 {
 	err := d.db.View(func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKey)
 		if blockHeightBytes == nil {
-			return errors.New("blockHeight not saved")
+			return errBlockHeightNotFound
 		}
 		blockHeight = binary.BigEndian.Uint64(blockHeightBytes)
 		return nil

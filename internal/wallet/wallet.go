@@ -9,6 +9,7 @@ import (
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
+	"alphabill-wallet-sdk/pkg/log"
 	"alphabill-wallet-sdk/pkg/wallet/config"
 	"bytes"
 	"errors"
@@ -16,7 +17,6 @@ import (
 	"github.com/holiman/uint256"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"log"
 	"os"
 	"sync"
 )
@@ -32,6 +32,11 @@ type Wallet struct {
 }
 
 func CreateNewWallet() (*Wallet, error) {
+	err := log.InitDefaultLogger()
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := CreateNewDb()
 	if err != nil {
 		return nil, err
@@ -60,6 +65,11 @@ func CreateNewWallet() (*Wallet, error) {
 }
 
 func LoadExistingWallet() (*Wallet, error) {
+	err := log.InitDefaultLogger()
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := OpenDb()
 	if err != nil {
 		return nil, err
@@ -164,7 +174,7 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	go func() {
 		err = w.alphaBillClient.InitBlockReceiver(height, ch)
 		if err != nil {
-			log.Printf("error receiving block %s", err) // TODO how to log in embedded SDK?
+			log.Error("error receiving block", err)
 		}
 		close(ch)
 		wg.Done()
@@ -172,14 +182,15 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	go func() {
 		err = w.initBlockProcessor(ch)
 		if err != nil {
-			log.Printf("error processing block %s", err) // TODO how to log in embedded SDK?
+			log.Error("error processing block", err)
 		} else {
-			log.Printf("block processor channel closed") // TODO how to log in embedded SDK?
+			log.Info("block processor channel closed")
 		}
 		w.alphaBillClient.Shutdown()
 		wg.Done()
 	}()
 	wg.Wait()
+	log.Info("alphabill sync finished")
 }
 
 func (w *Wallet) Shutdown() {

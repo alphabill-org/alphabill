@@ -3,11 +3,11 @@ package abclient
 import (
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
+	"alphabill-wallet-sdk/pkg/log"
 	"alphabill-wallet-sdk/pkg/wallet/config"
 	"context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"log"
 )
 
 type ABClient interface {
@@ -63,7 +63,7 @@ func (c *AlphaBillClient) Shutdown() {
 	}
 	err := c.connection.Close()
 	if err != nil {
-		log.Printf("error shutting down alphabill client %s", err) // TODO how to log in embedded SDK?
+		log.Error("error shutting down alphabill client", err)
 	}
 }
 

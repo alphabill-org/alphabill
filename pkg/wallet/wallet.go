@@ -9,7 +9,7 @@ type Wallet interface {
 	GetBalance() (uint64, error)
 	Send(pubKey []byte, amount uint64) error
 
-	// Sync synchronises wallet with given alphabill node
+	// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
 	Sync(conf *config.AlphaBillClientConfig) error
 
 	// Shutdown terminates connection to alphabill node and closes wallet db

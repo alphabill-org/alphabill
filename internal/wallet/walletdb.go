@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
+	"os"
 )
 
 var (
@@ -29,28 +30,65 @@ var (
 
 const walletFileName = "wallet.db"
 
-type Db struct {
+type Db interface {
+	CreateBuckets() error
+	SetKey(key *key) error
+	GetKey() (*key, error)
+	SetBill(bill *bill) error
+	ContainsBill(id *uint256.Int) (bool, error)
+	RemoveBill(id *uint256.Int) error
+	GetBillWithMinValue(minVal uint64) (*bill, error)
+	GetBalance() (uint64, error)
+	GetBlockHeight() (uint64, error)
+	SetBlockHeight(blockHeight uint64) error
+	Close()
+}
+
+type WDb struct {
 	db *bolt.DB
 }
 
-func CreateNewDb(path string) (*Db, error) {
-	dbFilePath := path + walletFileName
+func CreateNewDb() (*WDb, error) {
+	walletDir, err := getWalletDir()
+	if err != nil {
+		return nil, err
+	}
+	err = os.MkdirAll(walletDir, 0700) // -rwx------
+	if err != nil {
+		return nil, err
+	}
+
+	dbFilePath := walletDir + walletFileName
 	if util.FileExists(dbFilePath) {
 		return nil, errWalletDbAlreadyExists
 	}
-	return OpenDb(path)
+	return OpenDb()
 }
 
-func OpenDb(path string) (*Db, error) {
-	dbFilePath := path + walletFileName
+func OpenDb() (*WDb, error) {
+	walletDir, err := getWalletDir()
+	if err != nil {
+		return nil, err
+	}
+	dbFilePath := walletDir + walletFileName
 	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
 	if err != nil {
 		return nil, err
 	}
-	return &Db{db}, nil
+	return &WDb{db}, nil
 }
 
-func (d *Db) CreateBuckets() error {
+func getWalletDir() (string, error) {
+	// TODO add wallet dir to configuration parameter
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	walletDir := homeDir + string(os.PathSeparator) + ".alphabill" + string(os.PathSeparator)
+	return walletDir, nil
+}
+
+func (d *WDb) CreateBuckets() error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(keysBucket)
 		if err != nil {
@@ -68,7 +106,7 @@ func (d *Db) CreateBuckets() error {
 	})
 }
 
-func (d *Db) SetKey(key *key) error {
+func (d *WDb) SetKey(key *key) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
@@ -78,7 +116,7 @@ func (d *Db) SetKey(key *key) error {
 	})
 }
 
-func (d *Db) GetKey() (*key, error) {
+func (d *WDb) GetKey() (*key, error) {
 	var key *key
 	err := d.db.View(func(tx *bolt.Tx) error {
 		k := tx.Bucket(keysBucket).Get(keyKey)
@@ -93,7 +131,7 @@ func (d *Db) GetKey() (*key, error) {
 	return key, nil
 }
 
-func (d *Db) SetBill(bill *bill) error {
+func (d *WDb) SetBill(bill *bill) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(bill)
 		if err != nil {
@@ -104,7 +142,7 @@ func (d *Db) SetBill(bill *bill) error {
 	})
 }
 
-func (d *Db) ContainsBill(id *uint256.Int) (bool, error) {
+func (d *WDb) ContainsBill(id *uint256.Int) (bool, error) {
 	res := false
 	err := d.db.View(func(tx *bolt.Tx) error {
 		billId := id.Bytes32()
@@ -117,13 +155,13 @@ func (d *Db) ContainsBill(id *uint256.Int) (bool, error) {
 	return res, nil
 }
 
-func (d *Db) RemoveBill(id *uint256.Int) error {
+func (d *WDb) RemoveBill(id *uint256.Int) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(keysBucket).Delete(id.Bytes())
 	})
 }
 
-func (d *Db) GetBillWithMinValue(minVal uint64) (*bill, error) {
+func (d *WDb) GetBillWithMinValue(minVal uint64) (*bill, error) {
 	var minValBill *bill
 	err := d.db.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket(billsBucket).Cursor()
@@ -146,7 +184,7 @@ func (d *Db) GetBillWithMinValue(minVal uint64) (*bill, error) {
 	return minValBill, nil
 }
 
-func (d *Db) GetBalance() (uint64, error) {
+func (d *WDb) GetBalance() (uint64, error) {
 	sum := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
 		err := tx.Bucket(billsBucket).ForEach(func(k, v []byte) error {
@@ -169,7 +207,7 @@ func (d *Db) GetBalance() (uint64, error) {
 	return sum, nil
 }
 
-func (d *Db) GetBlockHeight() (uint64, error) {
+func (d *WDb) GetBlockHeight() (uint64, error) {
 	blockHeight := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKey)
@@ -185,7 +223,7 @@ func (d *Db) GetBlockHeight() (uint64, error) {
 	return blockHeight, nil
 }
 
-func (d *Db) SetBlockHeight(blockHeight uint64) error {
+func (d *WDb) SetBlockHeight(blockHeight uint64) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
@@ -193,11 +231,11 @@ func (d *Db) SetBlockHeight(blockHeight uint64) error {
 	})
 }
 
-func (d *Db) Path() string {
+func (d *WDb) Path() string {
 	return d.db.Path()
 }
 
-func (d *Db) Close() {
+func (d *WDb) Close() {
 	err := d.db.Close()
 	if err != nil {
 		// ignore error

@@ -18,12 +18,13 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"os"
+	"sync"
 )
 
 const prefetchBlockCount = 10
 
 type Wallet struct {
-	db *Db
+	db Db
 
 	// network
 	alphaBillClient abclient.ABClient
@@ -31,16 +32,7 @@ type Wallet struct {
 }
 
 func CreateNewWallet() (*Wallet, error) {
-	walletDir, err := getWalletDir()
-	if err != nil {
-		return nil, err
-	}
-	err = os.MkdirAll(walletDir, 0700) // -rwx------
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := CreateNewDb(walletDir)
+	db, err := CreateNewDb()
 	if err != nil {
 		return nil, err
 	}
@@ -68,11 +60,7 @@ func CreateNewWallet() (*Wallet, error) {
 }
 
 func LoadExistingWallet() (*Wallet, error) {
-	walletDir, err := getWalletDir()
-	if err != nil {
-		return nil, err
-	}
-	db, err := OpenDb(walletDir)
+	db, err := OpenDb()
 	if err != nil {
 		return nil, err
 	}
@@ -81,15 +69,6 @@ func LoadExistingWallet() (*Wallet, error) {
 		txMapper: rpc.NewDefaultTxMapper(),
 	}
 	return w, nil
-}
-
-func getWalletDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	walletDir := homeDir + string(os.PathSeparator) + ".alphabill" + string(os.PathSeparator)
-	return walletDir, nil
 }
 
 func (w *Wallet) GetBalance() (uint64, error) {
@@ -179,23 +158,28 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 		return
 	}
 
+	var wg sync.WaitGroup // used to wait for channels to close
+	wg.Add(2)
 	ch := make(chan *alphabill.Block, prefetchBlockCount)
 	go func() {
 		err = w.alphaBillClient.InitBlockReceiver(height, ch)
 		if err != nil {
 			log.Printf("error receiving block %s", err) // TODO how to log in embedded SDK?
-			close(ch)
 		}
+		close(ch)
+		wg.Done()
 	}()
 	go func() {
-		err := w.initBlockProcessor(ch)
+		err = w.initBlockProcessor(ch)
 		if err != nil {
 			log.Printf("error processing block %s", err) // TODO how to log in embedded SDK?
 		} else {
 			log.Printf("block processor channel closed") // TODO how to log in embedded SDK?
 		}
 		w.alphaBillClient.Shutdown()
+		wg.Done()
 	}()
+	wg.Wait()
 }
 
 func (w *Wallet) Shutdown() {

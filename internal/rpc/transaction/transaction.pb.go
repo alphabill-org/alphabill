@@ -7,9 +7,9 @@
 package transaction
 
 import (
-	any "github.com/golang/protobuf/ptypes/any"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	anypb "google.golang.org/protobuf/types/known/anypb"
 	reflect "reflect"
 	sync "sync"
 )
@@ -27,10 +27,10 @@ type Transaction struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	UnitId                []byte   `protobuf:"bytes,1,opt,name=unit_id,json=unitId,proto3" json:"unit_id,omitempty"`
+	UnitId                []byte     `protobuf:"bytes,1,opt,name=unit_id,json=unitId,proto3" json:"unit_id,omitempty"`
 	TransactionAttributes *any.Any `protobuf:"bytes,2,opt,name=transaction_attributes,json=transactionAttributes,proto3" json:"transaction_attributes,omitempty"`
-	Timeout               uint64   `protobuf:"varint,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
-	OwnerProof            []byte   `protobuf:"bytes,4,opt,name=owner_proof,json=ownerProof,proto3" json:"owner_proof,omitempty"`
+	Timeout               uint64     `protobuf:"varint,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	OwnerProof            []byte     `protobuf:"bytes,4,opt,name=owner_proof,json=ownerProof,proto3" json:"owner_proof,omitempty"`
 }
 
 func (x *Transaction) Reset() {

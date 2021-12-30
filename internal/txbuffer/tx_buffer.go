@@ -65,14 +65,15 @@ func (t *TxBuffer) Add(tx Transaction) error {
 func (t *TxBuffer) GetAll() []Transaction {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	values := make([]Transaction, 0)
+	values := make([]Transaction, len(t.transactions))
 
-	for k, v := range t.transactions {
+	for _, v := range t.transactions {
 		for _, tr := range v {
 			values = append(values, tr)
 		}
-		delete(t.transactions, k)
 	}
+	t.transactions = make(map[string][]Transaction)
+
 	return values
 }
 

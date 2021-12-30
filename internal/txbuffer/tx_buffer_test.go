@@ -18,8 +18,7 @@ const (
 
 func TestNewTxBuffer_InvalidNegative(t *testing.T) {
 	_, err := New(zero)
-	require.Error(t, err)
-	require.Equal(t, err, ErrInvalidMaxSize)
+	require.ErrorIs(t, err, ErrInvalidMaxSize)
 }
 func TestNewTxBuffer_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize)
@@ -34,8 +33,7 @@ func TestAddTx_TxIsNil(t *testing.T) {
 	buffer, err := New(testBufferSize)
 	require.NoError(t, err)
 	err = buffer.Add(nil)
-	require.Error(t, err)
-	require.Equal(t, ErrTxIsNil, err)
+	require.ErrorIs(t, err, ErrTxIsNil)
 }
 
 func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
@@ -46,8 +44,7 @@ func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
 	require.NoError(t, err)
 	err = buffer.Add(tx)
 
-	require.Error(t, err)
-	require.Equal(t, ErrTxInBuffer, err)
+	require.ErrorIs(t, err, ErrTxInBuffer)
 	require.Equal(t, one, buffer.Count())
 	require.Equal(t, one, uint32(len(buffer.transactions)))
 }
@@ -63,8 +60,7 @@ func TestAddTx_TxBufferFull(t *testing.T) {
 
 	err = buffer.Add(NewRandomTx(t))
 
-	require.Error(t, err)
-	require.Equal(t, ErrTxBufferFull, err)
+	require.ErrorIs(t, err, ErrTxBufferFull)
 	require.Equal(t, testBufferSize, buffer.Count())
 	require.Equal(t, testBufferSize, uint32(len(buffer.transactions)))
 }
@@ -108,8 +104,7 @@ func TestRemove_NotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	err = buffer.Remove("1")
-	require.Error(t, err)
-	require.Equal(t, ErrTxNotFound, err)
+	require.ErrorIs(t, err, ErrTxNotFound)
 }
 
 func TestRemove_Ok(t *testing.T) {

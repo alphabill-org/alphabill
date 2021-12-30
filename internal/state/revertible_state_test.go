@@ -290,7 +290,7 @@ func TestRevertible_UpdateData(t *testing.T) {
 		{
 			name: "revert: setData fails",
 			expectForUpdateData: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(oldOwner, data, nil)
+				utree.On("Get", id).Return(oldOwner, oldData, nil)
 				utree.On("SetData", id, newData).Return(nil)
 			},
 			updateDataErr: nil,

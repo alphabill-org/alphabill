@@ -6,11 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txpool"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	golog "github.com/ipfs/go-log"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -18,12 +19,12 @@ import (
 )
 
 const (
-	TxPoolSize = 100
+	TxBufferSize = 100
 )
 
 var (
-	transfer = test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER)
-	split    = test.RandomPaymentRequest(payment.PaymentRequest_SPLIT)
+	transfer = testtransaction.RandomBillTransfer()
+	split    = testtransaction.RandomBillSplit()
 )
 
 type FixedLeader struct {
@@ -54,12 +55,12 @@ func TestTxHandler_FollowerForwardsRequestToLeader(t *testing.T) {
 	leader := InitPeer(t, nil)
 	defer leader.Close()
 	fixedLeader := &FixedLeader{Leader: leader}
-	_, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
+	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
-	followerTxHandler, followerTxPool := RegisterTxHandler(t, follower, fixedLeader)
+	followerTxHandler, followerTxBuffer := RegisterTxHandler(t, follower, fixedLeader)
 	defer followerTxHandler.Close()
 	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
 
@@ -69,9 +70,9 @@ func TestTxHandler_FollowerForwardsRequestToLeader(t *testing.T) {
 	err = followerTxHandler.Handle(context.Background(), split)
 	require.NoError(t, err)
 
-	// verify tx pools
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 2 }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { return followerTxPool.Count() == 0 }, test.WaitDuration, test.WaitTick)
+	// verify tx buffers
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 2 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return followerTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
 }
 
 func TestTxHandler_NextLeaderSelectorReturnsError(t *testing.T) {
@@ -108,7 +109,7 @@ func TestTxHandler_LeaderChangedWhenTxWasForwarded(t *testing.T) {
 	leader := InitPeer(t, nil)
 	defer leader.Close()
 	errLeader := &FixedLeader{Leader: leader2}
-	_, leaderTxPool := RegisterTxHandler(t, leader, errLeader)
+	_, leaderTxBuffer := RegisterTxHandler(t, leader, errLeader)
 
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
@@ -121,8 +122,8 @@ func TestTxHandler_LeaderChangedWhenTxWasForwarded(t *testing.T) {
 	err := followerTxHandler.Handle(context.Background(), transfer)
 	require.NoError(t, err)
 
-	// verify tx pools
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 0 }, test.WaitDuration, test.WaitTick)
+	// verify tx buffers
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
 }
 
 func TestTxHandler_LeaderFailsLeaderCheck(t *testing.T) {
@@ -131,7 +132,7 @@ func TestTxHandler_LeaderFailsLeaderCheck(t *testing.T) {
 	defer leader.Close()
 	noLeaderErr := errors.New("no leader")
 	errLeader := &FixedLeader{Error: noLeaderErr}
-	_, leaderTxPool := RegisterTxHandler(t, leader, errLeader)
+	_, leaderTxBuffer := RegisterTxHandler(t, leader, errLeader)
 
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
@@ -144,8 +145,8 @@ func TestTxHandler_LeaderFailsLeaderCheck(t *testing.T) {
 	err := followerTxHandler.Handle(context.Background(), transfer)
 	require.NoError(t, err)
 
-	// verify tx pools
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 0 }, test.WaitDuration, test.WaitTick)
+	// verify tx buffers
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
 }
 
 func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
@@ -163,7 +164,7 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	// init leader
 	leader := InitPeer(t, leaderConf)
 	fixedLeader := &FixedLeader{Leader: leader}
-	_, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
+	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
@@ -172,8 +173,8 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
 	// send requests
 	err := txHandler.Handle(context.Background(), transfer)
-	// verify tx pools
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 1 }, test.WaitDuration, test.WaitTick)
+	// verify tx buffers
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 1 }, test.WaitDuration, test.WaitTick)
 
 	leaderAddress := leader.MultiAddresses()[0].String()
 	// shut down leader
@@ -185,14 +186,14 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	// init leader again
 	leader = InitPeer(t, leaderConf)
 	defer leader.Close()
-	_, err = New(leader, fixedLeader, leaderTxPool)
+	_, err = New(leader, fixedLeader, leaderTxBuffer)
 	require.NoError(t, err)
 	// send transactions to follower
-	err = txHandler.Handle(context.Background(), test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
+	err = txHandler.Handle(context.Background(), testtransaction.RandomBillTransfer())
 	require.NoError(t, err)
-	err = txHandler.Handle(context.Background(), test.RandomPaymentRequest(payment.PaymentRequest_TRANSFER))
+	err = txHandler.Handle(context.Background(), testtransaction.RandomBillTransfer())
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 3 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 3 }, test.WaitDuration, test.WaitTick)
 
 }
 
@@ -201,22 +202,22 @@ func TestTxHandler_LeaderDoesNotForward(t *testing.T) {
 	leader := InitPeer(t, nil)
 	defer leader.Close()
 	fixedLeader := &FixedLeader{Leader: leader}
-	txHandler, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
+	txHandler, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
 
 	// send requests
 	err := txHandler.Handle(context.Background(), transfer)
 	require.NoError(t, err)
 	err = txHandler.Handle(context.Background(), split)
 	require.NoError(t, err)
-	// verify tx pools
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 2 }, test.WaitDuration, test.WaitTick)
+	// verify tx buffers
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 2 }, test.WaitDuration, test.WaitTick)
 }
 
 func TestTxHandler_LeaderDown(t *testing.T) {
 	// init leader
 	leader := InitPeer(t, nil)
 	fixedLeader := &FixedLeader{Leader: leader}
-	_, leaderTxPool := RegisterTxHandler(t, leader, fixedLeader)
+	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
 	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
@@ -231,17 +232,17 @@ func TestTxHandler_LeaderDown(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "failed to dial"))
 
-	// verify tx pools
-	require.Eventually(t, func() bool { return leaderTxPool.Count() == 0 }, test.WaitDuration, test.WaitTick)
+	// verify tx buffers
+	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
 }
 
-func RegisterTxHandler(t *testing.T, p *network.Peer, leaderSelector LeaderSelector) (*TxForwarder, *txpool.TxPool) {
+func RegisterTxHandler(t *testing.T, p *network.Peer, leaderSelector LeaderSelector) (*TxForwarder, *txbuffer.TxBuffer) {
 	t.Helper()
-	pool, err := txpool.New(TxPoolSize)
+	b, err := txbuffer.New(TxBufferSize)
 	require.NoError(t, err)
-	handler, err := New(p, leaderSelector, pool)
+	handler, err := New(p, leaderSelector, b)
 	require.NoError(t, err)
-	return handler, pool
+	return handler, b
 }
 
 func CreateBootstrapConfiguration(t *testing.T, p *network.Peer) *network.PeerConfiguration {

@@ -11,18 +11,20 @@ type (
 		changes   []func() error
 	}
 
-	ID             *uint256.Int
 	Predicate      []byte
 	Data           interface{}
 	UpdateFunction func(data Data) (newData Data)
+	SummaryValue   interface{}
 
 	UnitsTree interface {
-		Delete(id ID) error
-		Get(id ID) (owner Predicate, data Data, err error)
-		Set(id ID, owner Predicate, data Data) error
-		SetOwner(id ID, owner Predicate) error
-		SetData(id ID, data Data) error
-		Exists(id ID) (bool, error)
+		Delete(id *uint256.Int) error
+		Get(id *uint256.Int) (owner Predicate, data Data, err error)
+		Set(id *uint256.Int, owner Predicate, data Data) error
+		SetOwner(id *uint256.Int, owner Predicate) error
+		SetData(id *uint256.Int, data Data) error
+		Exists(id *uint256.Int) (bool, error)
+		GetRootHash() []byte
+		GetSummaryValue() SummaryValue
 	}
 )
 
@@ -35,7 +37,7 @@ func NewRevertible(unitsTree UnitsTree) *revertibleState {
 }
 
 // AddItem adds new element to the state. Id must not exist in the state.
-func (r *revertibleState) AddItem(id ID, owner Predicate, data Data) error {
+func (r *revertibleState) AddItem(id *uint256.Int, owner Predicate, data Data) error {
 	exists, err := r.unitsTree.Exists(id)
 	if err != nil {
 		return errors.Wrapf(err, "item exists check failed. ID: %d", id)
@@ -54,7 +56,7 @@ func (r *revertibleState) AddItem(id ID, owner Predicate, data Data) error {
 	return nil
 }
 
-func (r *revertibleState) DeleteItem(id ID) error {
+func (r *revertibleState) DeleteItem(id *uint256.Int) error {
 	owner, data, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "deleting item that does not exist. ID %d", id)
@@ -69,7 +71,7 @@ func (r *revertibleState) DeleteItem(id ID) error {
 	return nil
 }
 
-func (r *revertibleState) SetOwner(id ID, owner Predicate) error {
+func (r *revertibleState) SetOwner(id *uint256.Int, owner Predicate) error {
 	oldOwner, _, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "setting owner of item that does not exist. ID %d", id)
@@ -84,7 +86,7 @@ func (r *revertibleState) SetOwner(id ID, owner Predicate) error {
 	return nil
 }
 
-func (r *revertibleState) UpdateData(id ID, f UpdateFunction) error {
+func (r *revertibleState) UpdateData(id *uint256.Int, f UpdateFunction) error {
 	_, oldData, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "updating data of item that does not exist. ID %d", id)

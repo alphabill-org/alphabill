@@ -240,10 +240,11 @@ func (w *transferDCWrapper) TargetBearer() []byte { return w.transferDC.TargetBe
 func (w *transferDCWrapper) TargetValue() uint64  { return w.transferDC.TargetValue }
 func (w *transferDCWrapper) Backlink() []byte     { return w.transferDC.Backlink }
 
-func (w *billSplitWrapper) Amount() uint64         { return w.billSplit.Amount }
-func (w *billSplitWrapper) TargetBearer() []byte   { return w.billSplit.TargetBearer }
-func (w *billSplitWrapper) RemainingValue() uint64 { return w.billSplit.RemainingValue }
-func (w *billSplitWrapper) Backlink() []byte       { return w.billSplit.Backlink }
+func (w *billSplitWrapper) Amount() uint64                         { return w.billSplit.Amount }
+func (w *billSplitWrapper) TargetBearer() []byte                   { return w.billSplit.TargetBearer }
+func (w *billSplitWrapper) RemainingValue() uint64                 { return w.billSplit.RemainingValue }
+func (w *billSplitWrapper) Backlink() []byte                       { return w.billSplit.Backlink }
+func (w *billSplitWrapper) HashPrndSh(hashFunc crypto.Hash) []byte { panic("not implemented") } // TODO implement
 
 func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }

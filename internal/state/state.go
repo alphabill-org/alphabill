@@ -54,6 +54,7 @@ type (
 		TargetBearer() []byte
 		RemainingValue() uint64
 		Backlink() []byte
+		HashPrndSh(hashFunc crypto.Hash) []byte // Returns hash value for the PrndSh function
 	}
 
 	Swap interface {

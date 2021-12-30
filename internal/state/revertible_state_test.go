@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	id         ID             = uint256.NewInt(1)
+	id                        = uint256.NewInt(1)
 	owner      Predicate      = []byte("owner")
 	oldOwner   Predicate      = []byte("old owner")
 	data                      = "data"

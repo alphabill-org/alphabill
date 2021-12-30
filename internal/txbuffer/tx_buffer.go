@@ -23,6 +23,7 @@ type (
 	TxBuffer struct {
 		mutex        sync.Mutex               // mutex for locks
 		transactions map[string][]Transaction // map containing valid pending transactions.
+		count        uint32                   // number of transactions in the tx-buffer
 		maxSize      uint32                   // maximum TxBuffer size.
 	}
 )
@@ -48,7 +49,7 @@ func (t *TxBuffer) Add(tx Transaction) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	if t.size() >= t.maxSize {
+	if t.count >= t.maxSize {
 		return ErrTxBufferFull
 	}
 
@@ -58,6 +59,7 @@ func (t *TxBuffer) Add(tx Transaction) error {
 		return ErrTxInBuffer
 	}
 	t.transactions[txId] = append(t.transactions[txId], tx)
+	t.count++
 	return nil
 }
 
@@ -65,15 +67,17 @@ func (t *TxBuffer) Add(tx Transaction) error {
 func (t *TxBuffer) GetAll() []Transaction {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	values := make([]Transaction, len(t.transactions))
+	values := make([]Transaction, t.count)
 
+	var i uint32 = 0
 	for _, v := range t.transactions {
 		for _, tr := range v {
-			values = append(values, tr)
+			values[i] = tr
+			i++
 		}
 	}
 	t.transactions = make(map[string][]Transaction)
-
+	t.count = 0
 	return values
 }
 
@@ -81,11 +85,12 @@ func (t *TxBuffer) GetAll() []Transaction {
 func (t *TxBuffer) Remove(id string) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	_, found := t.transactions[id]
+	values, found := t.transactions[id]
 	if !found {
 		return ErrTxNotFound
 	}
 	delete(t.transactions, id)
+	t.count -= uint32(len(values))
 	return nil
 }
 
@@ -93,9 +98,5 @@ func (t *TxBuffer) Remove(id string) error {
 func (t *TxBuffer) Count() uint32 {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	return t.size()
-}
-
-func (t *TxBuffer) size() uint32 {
-	return uint32(len(t.transactions))
+	return t.count
 }

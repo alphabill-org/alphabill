@@ -94,7 +94,7 @@ func TestGetAll_Ok(t *testing.T) {
 	}
 
 	txs := buffer.GetAll()
-	require.Equal(t, testBufferSize, uint32(len(txs)))
+	require.Equal(t, testBufferSize, uint32(cap(txs)))
 	require.Equal(t, zero, buffer.Count())
 	require.Equal(t, zero, uint32(len(buffer.transactions)))
 }

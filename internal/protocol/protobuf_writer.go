@@ -4,8 +4,12 @@ import (
 	"encoding/binary"
 	"io"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+
 	"google.golang.org/protobuf/proto"
 )
+
+var ErrNotProtoMessage = errors.New("input isn't protobuf message")
 
 type ProtobufWriter struct {
 	w io.Writer
@@ -15,8 +19,12 @@ func NewProtoBufWriter(w io.Writer) *ProtobufWriter {
 	return &ProtobufWriter{w}
 }
 
-func (pw *ProtobufWriter) Write(msg proto.Message) (err error) {
-	data, err := proto.Marshal(msg)
+func (pw *ProtobufWriter) Write(msg interface{}) (err error) {
+	protoMsg, ok := msg.(proto.Message)
+	if !ok {
+		return ErrNotProtoMessage
+	}
+	data, err := proto.Marshal(protoMsg)
 	if err != nil {
 		return err
 	}

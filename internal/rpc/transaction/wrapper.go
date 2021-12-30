@@ -2,7 +2,10 @@ package transaction
 
 import (
 	"crypto"
+	"encoding/base64"
 	"hash"
+
+	hasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 
@@ -16,6 +19,7 @@ const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
 type (
 	GenericTransaction interface {
 		UnitId() *uint256.Int
+		IDHash() string
 		Timeout() uint64
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte
@@ -115,6 +119,11 @@ func New(tx *Transaction) (GenericTransaction, error) {
 
 func (w *wrapper) UnitId() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(w.transaction.UnitId)
+}
+
+func (w *wrapper) IDHash() string {
+	idHash := hasher.Sum256(w.UnitId().Bytes())
+	return base64.StdEncoding.EncodeToString(idHash)
 }
 
 func (w *wrapper) Timeout() uint64 {

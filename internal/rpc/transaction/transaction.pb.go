@@ -28,7 +28,7 @@ type Transaction struct {
 	unknownFields protoimpl.UnknownFields
 
 	UnitId                []byte     `protobuf:"bytes,1,opt,name=unit_id,json=unitId,proto3" json:"unit_id,omitempty"`
-	TransactionAttributes *any.Any `protobuf:"bytes,2,opt,name=transaction_attributes,json=transactionAttributes,proto3" json:"transaction_attributes,omitempty"`
+	TransactionAttributes *anypb.Any `protobuf:"bytes,2,opt,name=transaction_attributes,json=transactionAttributes,proto3" json:"transaction_attributes,omitempty"`
 	Timeout               uint64     `protobuf:"varint,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	OwnerProof            []byte     `protobuf:"bytes,4,opt,name=owner_proof,json=ownerProof,proto3" json:"owner_proof,omitempty"`
 }
@@ -72,7 +72,7 @@ func (x *Transaction) GetUnitId() []byte {
 	return nil
 }
 
-func (x *Transaction) GetTransactionAttributes() *any.Any {
+func (x *Transaction) GetTransactionAttributes() *anypb.Any {
 	if x != nil {
 		return x.TransactionAttributes
 	}
@@ -527,7 +527,7 @@ var file_transaction_proto_goTypes = []interface{}{
 	(*TransferDC)(nil),          // 3: rpc.TransferDC
 	(*BillSplit)(nil),           // 4: rpc.BillSplit
 	(*Swap)(nil),                // 5: rpc.Swap
-	(*any.Any)(nil),             // 6: google.protobuf.Any
+	(*anypb.Any)(nil),           // 6: google.protobuf.Any
 }
 var file_transaction_proto_depIdxs = []int32{
 	6, // 0: rpc.Transaction.transaction_attributes:type_name -> google.protobuf.Any

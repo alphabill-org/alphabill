@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"fmt"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"github.com/holiman/uint256"
 )
@@ -18,7 +20,7 @@ type (
 	InitialBill struct {
 		ID    *uint256.Int
 		Value uint64
-		Owner Predicate
+		Owner tree.Predicate
 	}
 
 	BillData struct {
@@ -28,9 +30,9 @@ type (
 	}
 
 	RevertibleState interface {
-		AddItem(id *uint256.Int, owner Predicate, data Data) error
+		AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data) error
 		DeleteItem(id *uint256.Int) error
-		SetOwner(id *uint256.Int, owner Predicate) error
+		SetOwner(id *uint256.Int, owner tree.Predicate) error
 		UpdateData(id *uint256.Int, f UpdateFunction) error
 		Revert() error
 		Commit()
@@ -45,7 +47,7 @@ func NewMoneySchemeState(initialBill *InitialBill, dcMoneyAmount uint64, customO
 		hashAlgorithm: crypto.SHA256, // TODO add hash function argument
 	}
 
-	defaultTree := NewUnitsTree()
+	defaultTree := tree.New()
 	options := MoneySchemeOptions{
 		unitsTree:       defaultTree,
 		revertibleState: NewRevertible(defaultTree),
@@ -67,7 +69,7 @@ func NewMoneySchemeState(initialBill *InitialBill, dcMoneyAmount uint64, customO
 	}
 
 	// TODO Not sure what the DC money owner predicate should be
-	err = msState.tree.Set(dustCollectorMoneySupplyID, Predicate{}, BillData{
+	err = msState.tree.Set(dustCollectorMoneySupplyID, tree.Predicate{}, BillData{
 		Value:    dcMoneyAmount,
 		T:        0,
 		Backlink: nil,
@@ -87,7 +89,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 	case Split:
 		log.Debug("Processing split %v", tx)
 		// TODO transaction specific validity function
-		err := m.revertibleState.UpdateData(tx.UnitId(), func(data Data) (newData Data) {
+		err := m.revertibleState.UpdateData(tx.UnitId(), func(data tree.Data) (newData tree.Data) {
 			bd, ok := data.(BillData)
 			if !ok {
 				// No change in case of incorrect data type.
@@ -122,12 +124,14 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 
 // GetRootHash starts root hash value computation and returns it.
 func (m *moneySchemeState) GetRootHash() []byte {
+	// TODO maybe it's better to delegate this though the reversible state
 	return m.tree.GetRootHash()
 }
 
 // TotalValue starts tree calculation and returns the root node monetary value.
 // It must remain constant during the lifetime of the state.
 func (m *moneySchemeState) TotalValue() (uint64, error) {
+	// TODO maybe it's better to delegate this though the reversible state
 	sum := m.tree.GetSummaryValue()
 	intVal, ok := sum.(uint64)
 	if !ok {

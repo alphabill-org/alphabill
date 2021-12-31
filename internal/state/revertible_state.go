@@ -2,6 +2,7 @@ package state
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
 	"github.com/holiman/uint256"
 )
 
@@ -11,20 +12,17 @@ type (
 		changes   []func() error
 	}
 
-	Predicate      []byte
-	Data           interface{}
-	UpdateFunction func(data Data) (newData Data)
-	SummaryValue   interface{}
+	UpdateFunction func(data tree.Data) (newData tree.Data)
 
 	UnitsTree interface {
 		Delete(id *uint256.Int) error
-		Get(id *uint256.Int) (owner Predicate, data Data, err error)
-		Set(id *uint256.Int, owner Predicate, data Data) error
-		SetOwner(id *uint256.Int, owner Predicate) error
-		SetData(id *uint256.Int, data Data) error
+		Get(id *uint256.Int) (owner tree.Predicate, data tree.Data, err error)
+		Set(id *uint256.Int, owner tree.Predicate, data tree.Data) error
+		SetOwner(id *uint256.Int, owner tree.Predicate) error
+		SetData(id *uint256.Int, data tree.Data) error
 		Exists(id *uint256.Int) (bool, error)
 		GetRootHash() []byte
-		GetSummaryValue() SummaryValue
+		GetSummaryValue() tree.SummaryValue
 	}
 )
 
@@ -37,7 +35,7 @@ func NewRevertible(unitsTree UnitsTree) *revertibleState {
 }
 
 // AddItem adds new element to the state. Id must not exist in the state.
-func (r *revertibleState) AddItem(id *uint256.Int, owner Predicate, data Data) error {
+func (r *revertibleState) AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data) error {
 	exists, err := r.unitsTree.Exists(id)
 	if err != nil {
 		return errors.Wrapf(err, "item exists check failed. ID: %d", id)
@@ -71,7 +69,7 @@ func (r *revertibleState) DeleteItem(id *uint256.Int) error {
 	return nil
 }
 
-func (r *revertibleState) SetOwner(id *uint256.Int, owner Predicate) error {
+func (r *revertibleState) SetOwner(id *uint256.Int, owner tree.Predicate) error {
 	oldOwner, _, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "setting owner of item that does not exist. ID %d", id)

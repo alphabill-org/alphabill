@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
+
 	"github.com/stretchr/testify/mock"
 
 	"github.com/holiman/uint256"
@@ -30,7 +32,7 @@ func TestNewMoneyScheme(t *testing.T) {
 	).Return(nil)
 
 	// The dust collector money gets set
-	mockTree.On("Set", dustCollectorMoneySupplyID, Predicate{},
+	mockTree.On("Set", dustCollectorMoneySupplyID, tree.Predicate{},
 		BillData{Value: dcMoneyAmount, T: 0, Backlink: nil},
 	).Return(nil)
 
@@ -51,7 +53,7 @@ func TestProcessTransfer(t *testing.T) {
 			name:        "transfer ok",
 			transaction: transferOk,
 			expect: func(rs *MockRevertibleState) {
-				rs.On("SetOwner", transferOk.unitId, Predicate(transferOk.newBearer)).Return(nil)
+				rs.On("SetOwner", transferOk.unitId, tree.Predicate(transferOk.newBearer)).Return(nil)
 			},
 			expectErr: nil,
 		},
@@ -59,7 +61,7 @@ func TestProcessTransfer(t *testing.T) {
 			name:        "split ok",
 			transaction: splitOk,
 			expect: func(rs *MockRevertibleState) {
-				var newGenericData Data
+				var newGenericData tree.Data
 				oldBillData := BillData{
 					Value:    100,
 					T:        0,
@@ -78,15 +80,15 @@ func TestProcessTransfer(t *testing.T) {
 					actualId := args.Get(addItemId).(*uint256.Int)
 					require.Equal(t, expectedNewId, actualId)
 
-					actualOwner := args.Get(addItemOwner).(Predicate)
-					require.Equal(t, Predicate(splitOk.targetBearer), actualOwner)
+					actualOwner := args.Get(addItemOwner).(tree.Predicate)
+					require.Equal(t, tree.Predicate(splitOk.targetBearer), actualOwner)
 
 					expectedNewItemData := BillData{
 						Value:    splitOk.Amount(),
 						T:        0,
 						Backlink: nil,
 					}
-					actualData := args.Get(addItemData).(Data)
+					actualData := args.Get(addItemData).(tree.Data)
 					require.Equal(t, expectedNewItemData, actualData)
 				}).Return(nil)
 			},

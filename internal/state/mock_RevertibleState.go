@@ -3,6 +3,7 @@
 package state
 
 import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
 	uint256 "github.com/holiman/uint256"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -13,11 +14,11 @@ type MockRevertibleState struct {
 }
 
 // AddItem provides a mock function with given fields: id, owner, data
-func (_m *MockRevertibleState) AddItem(id *uint256.Int, owner Predicate, data Data) error {
+func (_m *MockRevertibleState) AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data) error {
 	ret := _m.Called(id, owner, data)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, Predicate, Data) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate, tree.Data) error); ok {
 		r0 = rf(id, owner, data)
 	} else {
 		r0 = ret.Error(0)
@@ -60,11 +61,11 @@ func (_m *MockRevertibleState) Revert() error {
 }
 
 // SetOwner provides a mock function with given fields: id, owner
-func (_m *MockRevertibleState) SetOwner(id *uint256.Int, owner Predicate) error {
+func (_m *MockRevertibleState) SetOwner(id *uint256.Int, owner tree.Predicate) error {
 	ret := _m.Called(id, owner)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, Predicate) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate) error); ok {
 		r0 = rf(id, owner)
 	} else {
 		r0 = ret.Error(0)

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
+
 	"github.com/holiman/uint256"
 
 	"github.com/stretchr/testify/mock"
@@ -12,12 +14,12 @@ import (
 
 var (
 	id                        = uint256.NewInt(1)
-	owner      Predicate      = []byte("owner")
-	oldOwner   Predicate      = []byte("old owner")
+	owner      tree.Predicate = []byte("owner")
+	oldOwner   tree.Predicate = []byte("old owner")
 	data                      = "data"
 	oldData                   = "old data"
 	newData                   = "new data"
-	updateFunc UpdateFunction = func(data Data) Data {
+	updateFunc UpdateFunction = func(data tree.Data) tree.Data {
 		return newData
 	}
 )

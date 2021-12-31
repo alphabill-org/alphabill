@@ -3,6 +3,7 @@
 package state
 
 import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
 	uint256 "github.com/holiman/uint256"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -48,24 +49,24 @@ func (_m *MockUnitsTree) Exists(id *uint256.Int) (bool, error) {
 }
 
 // Get provides a mock function with given fields: id
-func (_m *MockUnitsTree) Get(id *uint256.Int) (Predicate, Data, error) {
+func (_m *MockUnitsTree) Get(id *uint256.Int) (tree.Predicate, tree.Data, error) {
 	ret := _m.Called(id)
 
-	var r0 Predicate
-	if rf, ok := ret.Get(0).(func(*uint256.Int) Predicate); ok {
+	var r0 tree.Predicate
+	if rf, ok := ret.Get(0).(func(*uint256.Int) tree.Predicate); ok {
 		r0 = rf(id)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(Predicate)
+			r0 = ret.Get(0).(tree.Predicate)
 		}
 	}
 
-	var r1 Data
-	if rf, ok := ret.Get(1).(func(*uint256.Int) Data); ok {
+	var r1 tree.Data
+	if rf, ok := ret.Get(1).(func(*uint256.Int) tree.Data); ok {
 		r1 = rf(id)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(Data)
+			r1 = ret.Get(1).(tree.Data)
 		}
 	}
 
@@ -96,15 +97,15 @@ func (_m *MockUnitsTree) GetRootHash() []byte {
 }
 
 // GetSummaryValue provides a mock function with given fields:
-func (_m *MockUnitsTree) GetSummaryValue() SummaryValue {
+func (_m *MockUnitsTree) GetSummaryValue() tree.SummaryValue {
 	ret := _m.Called()
 
-	var r0 SummaryValue
-	if rf, ok := ret.Get(0).(func() SummaryValue); ok {
+	var r0 tree.SummaryValue
+	if rf, ok := ret.Get(0).(func() tree.SummaryValue); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(SummaryValue)
+			r0 = ret.Get(0).(tree.SummaryValue)
 		}
 	}
 
@@ -112,11 +113,11 @@ func (_m *MockUnitsTree) GetSummaryValue() SummaryValue {
 }
 
 // Set provides a mock function with given fields: id, owner, data
-func (_m *MockUnitsTree) Set(id *uint256.Int, owner Predicate, data Data) error {
+func (_m *MockUnitsTree) Set(id *uint256.Int, owner tree.Predicate, data tree.Data) error {
 	ret := _m.Called(id, owner, data)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, Predicate, Data) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate, tree.Data) error); ok {
 		r0 = rf(id, owner, data)
 	} else {
 		r0 = ret.Error(0)
@@ -126,11 +127,11 @@ func (_m *MockUnitsTree) Set(id *uint256.Int, owner Predicate, data Data) error 
 }
 
 // SetData provides a mock function with given fields: id, data
-func (_m *MockUnitsTree) SetData(id *uint256.Int, data Data) error {
+func (_m *MockUnitsTree) SetData(id *uint256.Int, data tree.Data) error {
 	ret := _m.Called(id, data)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, Data) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Data) error); ok {
 		r0 = rf(id, data)
 	} else {
 		r0 = ret.Error(0)
@@ -140,11 +141,11 @@ func (_m *MockUnitsTree) SetData(id *uint256.Int, data Data) error {
 }
 
 // SetOwner provides a mock function with given fields: id, owner
-func (_m *MockUnitsTree) SetOwner(id *uint256.Int, owner Predicate) error {
+func (_m *MockUnitsTree) SetOwner(id *uint256.Int, owner tree.Predicate) error {
 	ret := _m.Called(id, owner)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, Predicate) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate) error); ok {
 		r0 = rf(id, owner)
 	} else {
 		r0 = ret.Error(0)

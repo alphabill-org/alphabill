@@ -1,19 +1,35 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/crypto"
+	abcrypto "alphabill-wallet-sdk/internal/crypto"
 	"alphabill-wallet-sdk/internal/crypto/hash"
+	"crypto/ecdsa"
+	"github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type key struct {
-	PubKey           []byte `json:"pubKey"`
+type accountKey struct {
+	PubKey           []byte `json:"pubKey"` // compressed secp256k1 key 33 bytes
 	PrivKey          []byte `json:"privKey"`
 	PubKeyHashSha256 []byte `json:"pubKeyHashSha256"`
 	PubKeyHashSha512 []byte `json:"pubKeyHashSha512"`
+	DerivationPath   []byte `json:"derivationPath"`
 }
 
-func NewKey() (*key, error) {
-	signer, err := crypto.NewInMemorySecp256K1Signer()
+func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*accountKey, error) {
+	path, err := accounts.ParseDerivationPath(derivationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := derivePrivateKey(path, masterKey)
+	if err != nil {
+		return nil, err
+	}
+	privateKeyBytes := crypto.FromECDSA(privateKey)
+
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(privateKeyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -21,18 +37,48 @@ func NewKey() (*key, error) {
 	if err != nil {
 		return nil, err
 	}
-	pubKey, err := verifier.MarshalPublicKey()
+	compressedPubKey, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := signer.MarshalPrivateKey()
-	if err != nil {
-		return nil, err
-	}
-	return &key{
-		PubKey:           pubKey,
-		PrivKey:          privKey,
-		PubKeyHashSha256: hash.Sum256(pubKey),
-		PubKeyHashSha512: hash.Sum512(pubKey),
+	return &accountKey{
+		PubKey:           compressedPubKey,
+		PrivKey:          privateKeyBytes,
+		PubKeyHashSha256: hash.Sum256(compressedPubKey),
+		PubKeyHashSha512: hash.Sum512(compressedPubKey),
+		DerivationPath:   []byte(derivationPath),
 	}, nil
 }
+
+// derivePrivateKey derives the private accountKey of the derivation path.
+func derivePrivateKey(path accounts.DerivationPath, masterKey *hdkeychain.ExtendedKey) (*ecdsa.PrivateKey, error) {
+	var err error
+	var derivedKey = masterKey
+	for _, n := range path {
+		derivedKey, err = derivedKey.Derive(n)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	privateKey, err := masterKey.ECPrivKey()
+	if err != nil {
+		return nil, err
+	}
+	return privateKey.ToECDSA(), nil
+}
+
+//func derivePublicKey(path accounts.DerivationPath, masterKeyName *hdkeychain.ExtendedKey) (*ecdsa.PublicKey, error) {
+//	privateKeyECDSA, err := derivePrivateKey(path, masterKeyName)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	publicKey := privateKeyECDSA.Public()
+//	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+//	if !ok {
+//		return nil, errors.New("failed to get public key")
+//	}
+//
+//	return publicKeyECDSA, nil
+//}

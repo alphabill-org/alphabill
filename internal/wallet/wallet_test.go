@@ -6,14 +6,31 @@ import (
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
 	"alphabill-wallet-sdk/internal/testutil"
+	"alphabill-wallet-sdk/pkg/wallet/config"
+	"encoding/hex"
+	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+	"github.com/tyler-smith/go-bip39"
+	"os"
+	"path"
 	"testing"
 )
 
+const (
+	testMnemonic                 = "dinosaur simple verify deliver bless ridge monkey design venue six problem lucky"
+	testMasterKeyBase58          = "xprv9s21ZrQH143K4ZSw4N2P35FTs9PNiLAuufvQWoodWoneZ71o52jTL4VJuEXHej21BPUF9dQm5u3curjcem5zsARtq1MKP9mrbbq1qKqyuFX"
+	testPubKeyHex                = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
+	testPrivKeyHex               = "a5e8bff9733ebc751a45ca4b8cc6ce8e76c8316a5eb556f738092df6232e78de"
+	testPubKeyHashSha256Hex      = "35e22185db8875c75af23b334676e76b723f10eba2a314b2c64d71c0299b5e3a"
+	testPubKeyHashSha512Hex      = "be7a5c70c13611ea4cdc075c50e6a1cbbca54fc7acf6e330436d04d91063eab80e8f45864895f793d5bc5fb2c57c6813e3dd8b773286d716938537f0a9794b2e"
+	testAccountKeyDerivationPath = "m/44'/634'/0'/0/0"
+)
+
 func TestWalletCanSendTx(t *testing.T) {
-	testutil.DeleteWalletDb()
-	w, err := CreateNewWallet()
+	testutil.DeleteWalletDb(os.TempDir())
+	c := &config.WalletConfig{DbPath: os.TempDir()}
+	w, err := CreateNewWallet(c)
 	defer DeleteWallet(w)
 	require.NoError(t, err)
 
@@ -32,12 +49,12 @@ func TestWalletCanSendTx(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
-	testutil.DeleteWalletDb()
-	w, err := CreateNewWallet()
+	testutil.DeleteWalletDb(os.TempDir())
+	w, err := CreateNewWallet(&config.WalletConfig{DbPath: os.TempDir()})
 	defer DeleteWallet(w)
 	require.NoError(t, err)
 
-	k, err := w.db.GetKey()
+	k, err := w.db.GetAccountKey()
 	require.NoError(t, err)
 
 	blocks := []*alphabill.Block{
@@ -96,4 +113,65 @@ func TestBlockProcessing(t *testing.T) {
 	balance, err = w.db.GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
+}
+
+func TestWalletCanBeCreated(t *testing.T) {
+	testutil.DeleteWalletDb(os.TempDir())
+
+	w, err := CreateNewWallet(&config.WalletConfig{DbPath: os.TempDir()})
+	defer DeleteWallet(w)
+	require.NoError(t, err)
+
+	mnemonic, err := w.db.GetMnemonic()
+	require.NoError(t, err)
+	require.True(t, bip39.IsMnemonicValid(mnemonic))
+
+	masterKeyString, err := w.db.GetMasterKey()
+	masterKey, err := hdkeychain.NewKeyFromString(masterKeyString)
+	require.NoError(t, err)
+
+	ac, err := w.db.GetAccountKey()
+	require.NoError(t, err)
+
+	eac, err := NewAccountKey(masterKey, testAccountKeyDerivationPath)
+	require.NoError(t, err)
+	require.NotNil(t, eac)
+	require.EqualValues(t, eac, ac)
+}
+
+func TestWalletCanBeCreatedFromSeed(t *testing.T) {
+	testutil.DeleteWalletDb(os.TempDir())
+
+	w, err := CreateWalletFromSeed(testMnemonic, &config.WalletConfig{DbPath: os.TempDir()})
+	defer DeleteWallet(w)
+	require.NoError(t, err)
+
+	verifyTestWallet(t, err, w)
+}
+
+func TestExistingWalletCanBeLoaded(t *testing.T) {
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	walletDbPath := path.Join(wd, "testdata")
+
+	w, err := LoadExistingWallet(&config.WalletConfig{DbPath: walletDbPath})
+	require.NoError(t, err)
+
+	verifyTestWallet(t, err, w)
+}
+
+func verifyTestWallet(t *testing.T, err error, w *Wallet) {
+	mnemonic, err := w.db.GetMnemonic()
+	require.NoError(t, err)
+	require.Equal(t, testMnemonic, mnemonic)
+
+	mk, err := w.db.GetMasterKey()
+	require.Equal(t, testMasterKeyBase58, mk)
+
+	ac, err := w.db.GetAccountKey()
+	require.NoError(t, err)
+	require.Equal(t, testPubKeyHex, hex.EncodeToString(ac.PubKey))
+	require.Equal(t, testPrivKeyHex, hex.EncodeToString(ac.PrivKey))
+	require.Equal(t, testPubKeyHashSha256Hex, hex.EncodeToString(ac.PubKeyHashSha256))
+	require.Equal(t, testPubKeyHashSha512Hex, hex.EncodeToString(ac.PubKeyHashSha512))
 }

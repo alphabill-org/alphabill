@@ -15,18 +15,23 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"testing"
 	"time"
 )
 
 func TestWalletCanProcessBlocks(t *testing.T) {
-	testutil.DeleteWalletDb()
-	w, err := CreateNewWallet()
+	testutil.DeleteWalletDb(os.TempDir())
+	port := 9543
+	w, err := CreateNewWallet(&config.WalletConfig{
+		DbPath:                os.TempDir(),
+		AlphaBillClientConfig: &config.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+	)
 	defer DeleteWallet(w)
 	require.NoError(t, err)
 
-	k, err := w.db.GetKey()
+	k, err := w.db.GetAccountKey()
 	require.NoError(t, err)
 
 	blocks := []*alphabill.Block{
@@ -66,7 +71,6 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 			UnicityCertificate: []byte{},
 		},
 	}
-	port := 9543
 	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks})
 	defer server.GracefulStop()
 
@@ -77,7 +81,7 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
-	err = w.Sync(&config.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
+	err = w.Sync()
 	require.NoError(t, err)
 
 	waitForShutdown(w.alphaBillClient)

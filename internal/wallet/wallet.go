@@ -5,7 +5,7 @@ import (
 	"alphabill-wallet-sdk/internal/alphabill/domain"
 	"alphabill-wallet-sdk/internal/alphabill/rpc"
 	"alphabill-wallet-sdk/internal/alphabill/script"
-	"alphabill-wallet-sdk/internal/crypto"
+	abcrypto "alphabill-wallet-sdk/internal/crypto"
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
@@ -14,7 +14,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
+	"github.com/tyler-smith/go-bip39"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"os"
@@ -24,26 +27,63 @@ import (
 const prefetchBlockCount = 10
 
 type Wallet struct {
-	db Db
-
-	// network
+	config          *config.WalletConfig
+	db              Db
 	alphaBillClient abclient.ABClient
 	txMapper        rpc.TransactionMapper
 }
 
-func CreateNewWallet() (*Wallet, error) {
+func CreateNewWallet(config *config.WalletConfig) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := CreateNewDb()
+	mnemonic, err := generateMnemonic()
+	if err != nil {
+		return nil, err
+	}
+	return createWallet(mnemonic, config)
+}
+
+func generateMnemonic() (string, error) {
+	entropy, err := bip39.NewEntropy(128)
+	if err != nil {
+		return "", err
+	}
+	return bip39.NewMnemonic(entropy)
+}
+
+func CreateWalletFromSeed(mnemonic string, config *config.WalletConfig) (*Wallet, error) {
+	err := log.InitDefaultLogger()
+	if err != nil {
+		return nil, err
+	}
+	return createWallet(mnemonic, config)
+}
+
+func createWallet(mnemonic string, config *config.WalletConfig) (*Wallet, error) {
+	if !bip39.IsMnemonicValid(mnemonic) {
+		return nil, errors.New("mnemonicKeyName is invalid")
+	}
+	seed, err := bip39.NewSeedWithErrorChecking(mnemonic, "")
+	if err != nil {
+		return nil, err
+	}
+	// TODO what is HDPrivateKeyID in MainNetParams that is used for key generation
+	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := CreateNewDb(config)
 	if err != nil {
 		return nil, err
 	}
 
 	w := &Wallet{
 		db:       db,
+		config:   config,
 		txMapper: rpc.NewDefaultTxMapper(),
 	}
 
@@ -52,25 +92,44 @@ func CreateNewWallet() (*Wallet, error) {
 		return w, err
 	}
 
-	k, err := NewKey()
+	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
+	// m / purpose' / coin_type' / account' / change / address_index
+	// m - master key
+	// 44' - cryptocurrencies
+	// 634' - coin type, randomly chosen number from https://github.com/satoshilabs/slips/blob/master/slip-0044.md
+	// 0' - account number (currently use only one account)
+	// 0 - change address 0 or 1; 0 = externally used address, 1 = internal address, currently always 0
+	// 0 - address index
+	// we currently have an ethereum like account based model meaning 1 account = 1 address and no plans to support multiple accounts at this time,
+	// so we use wallet's "HD" part only for generating single key from seed
+	derivationPath := "m/44'/634'/0'/0/0"
+
+	k, err := NewAccountKey(masterKey, derivationPath)
 	if err != nil {
 		return w, err
 	}
-
-	err = db.SetKey(k)
+	err = db.SetAccountKey(k)
+	if err != nil {
+		return w, err
+	}
+	err = db.SetMasterKey(masterKey.String())
+	if err != nil {
+		return w, err
+	}
+	err = db.SetMnemonic(mnemonic)
 	if err != nil {
 		return w, err
 	}
 	return w, nil
 }
 
-func LoadExistingWallet() (*Wallet, error) {
+func LoadExistingWallet(config *config.WalletConfig) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := OpenDb()
+	db, err := OpenDb(config)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +148,13 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != 33 {
 		return errors.New("invalid public key, must be 33 bytes in length")
 	}
+	if w.alphaBillClient == nil {
+		return errors.New("alphabill client not initialized, need to sync with alphabill node before attempting to send transactions")
+	}
+	if w.alphaBillClient.IsShutdown() {
+		return errors.New("alphabill client connection is shut down, resync with alphabill node before attempting to send transactions")
+	}
+
 	balance, err := w.GetBalance()
 	if err != nil {
 		return err
@@ -125,7 +191,7 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	if err != nil {
 		return nil, err
 	}
-	k, err := w.db.GetKey()
+	k, err := w.db.GetAccountKey()
 	if err != nil {
 		return nil, err
 	}
@@ -152,8 +218,8 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	return tx, nil
 }
 
-func (w *Wallet) Sync(conf *config.AlphaBillClientConfig) error {
-	abClient, err := abclient.New(conf)
+func (w *Wallet) Sync() error {
+	abClient, err := abclient.New(w.config.AlphaBillClientConfig)
 	if err != nil {
 		return err
 	}
@@ -203,7 +269,7 @@ func (w *Wallet) Shutdown() {
 }
 
 func (w *Wallet) DeleteDb() error {
-	walletDir, err := getWalletDir()
+	walletDir, err := w.config.GetWalletDir()
 	if err != nil {
 		return err
 	}
@@ -316,13 +382,13 @@ func (w *Wallet) isOwner(bp []byte) bool {
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
 	hashAlgo := bp[5]
 	if hashAlgo == 0x01 {
-		k, err := w.db.GetKey()
+		k, err := w.db.GetAccountKey()
 		if err != nil {
 			return false // ignore error
 		}
 		return bytes.Equal(bp[6:38], k.PubKeyHashSha256)
 	} else if hashAlgo == 0x02 {
-		k, err := w.db.GetKey()
+		k, err := w.db.GetAccountKey()
 		if err != nil {
 			return false // ignore error
 		}
@@ -332,11 +398,11 @@ func (w *Wallet) isOwner(bp []byte) bool {
 }
 
 func (w *Wallet) signBytes(b []byte) ([]byte, error) {
-	k, err := w.db.GetKey()
+	k, err := w.db.GetAccountKey()
 	if err != nil {
 		return nil, err
 	}
-	signer, err := crypto.NewInMemorySecp256K1SignerFromKey(k.PrivKey)
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(k.PrivKey)
 	if err != nil {
 		return nil, err
 	}

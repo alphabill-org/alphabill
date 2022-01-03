@@ -3,11 +3,13 @@ package wallet
 import (
 	"alphabill-wallet-sdk/internal/errors"
 	"alphabill-wallet-sdk/internal/util"
+	"alphabill-wallet-sdk/pkg/wallet/config"
 	"encoding/binary"
 	"encoding/json"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
 	"os"
+	"path"
 )
 
 var (
@@ -17,8 +19,10 @@ var (
 )
 
 var (
-	keyKey         = []byte("key")
-	blockHeightKey = []byte("blockHeight")
+	accountKeyName     = []byte("accountKey")
+	masterKeyName      = []byte("masterKey")
+	mnemonicKeyName    = []byte("mnemonicKey")
+	blockHeightKeyName = []byte("blockHeightKey")
 )
 
 var (
@@ -32,8 +36,12 @@ const walletFileName = "wallet.db"
 
 type Db interface {
 	CreateBuckets() error
-	SetKey(key *key) error
-	GetKey() (*key, error)
+	SetAccountKey(key *accountKey) error
+	GetAccountKey() (*accountKey, error)
+	SetMasterKey(string) error
+	GetMasterKey() (string, error)
+	SetMnemonic(string) error
+	GetMnemonic() (string, error)
 	SetBill(bill *bill) error
 	ContainsBill(id *uint256.Int) (bool, error)
 	RemoveBill(id *uint256.Int) error
@@ -48,8 +56,8 @@ type WDb struct {
 	db *bolt.DB
 }
 
-func CreateNewDb() (*WDb, error) {
-	walletDir, err := getWalletDir()
+func CreateNewDb(config *config.WalletConfig) (*WDb, error) {
+	walletDir, err := config.GetWalletDir()
 	if err != nil {
 		return nil, err
 	}
@@ -58,34 +66,27 @@ func CreateNewDb() (*WDb, error) {
 		return nil, err
 	}
 
-	dbFilePath := walletDir + walletFileName
+	dbFilePath := path.Join(walletDir, walletFileName)
 	if util.FileExists(dbFilePath) {
 		return nil, errWalletDbAlreadyExists
 	}
-	return OpenDb()
+	return openDb(dbFilePath)
 }
 
-func OpenDb() (*WDb, error) {
-	walletDir, err := getWalletDir()
-	if err != nil {
-		return nil, err
+func OpenDb(config *config.WalletConfig) (*WDb, error) {
+	dbFilePath := path.Join(config.DbPath, walletFileName)
+	if !util.FileExists(dbFilePath) {
+		return nil, errors.New("cannot open wallet db, file does not exits")
 	}
-	dbFilePath := walletDir + walletFileName
+	return openDb(dbFilePath)
+}
+
+func openDb(dbFilePath string) (*WDb, error) {
 	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
 	if err != nil {
 		return nil, err
 	}
 	return &WDb{db}, nil
-}
-
-func getWalletDir() (string, error) {
-	// TODO add wallet dir to configuration parameter
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	walletDir := homeDir + string(os.PathSeparator) + ".alphabill" + string(os.PathSeparator)
-	return walletDir, nil
 }
 
 func (d *WDb) CreateBuckets() error {
@@ -106,20 +107,20 @@ func (d *WDb) CreateBuckets() error {
 	})
 }
 
-func (d *WDb) SetKey(key *key) error {
+func (d *WDb) SetAccountKey(key *accountKey) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(keysBucket).Put(keyKey, val)
+		return tx.Bucket(keysBucket).Put(accountKeyName, val)
 	})
 }
 
-func (d *WDb) GetKey() (*key, error) {
-	var key *key
+func (d *WDb) GetAccountKey() (*accountKey, error) {
+	var key *accountKey
 	err := d.db.View(func(tx *bolt.Tx) error {
-		k := tx.Bucket(keysBucket).Get(keyKey)
+		k := tx.Bucket(keysBucket).Get(accountKeyName)
 		if k == nil {
 			return errKeyNotFound
 		}
@@ -129,6 +130,48 @@ func (d *WDb) GetKey() (*key, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+func (d *WDb) SetMasterKey(masterKey string) error {
+	return d.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(keysBucket).Put(masterKeyName, []byte(masterKey))
+	})
+}
+
+func (d *WDb) GetMasterKey() (string, error) {
+	var masterKey []byte
+	err := d.db.View(func(tx *bolt.Tx) error {
+		masterKey = tx.Bucket(keysBucket).Get(masterKeyName)
+		if masterKey == nil {
+			return errKeyNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(masterKey), nil
+}
+
+func (d *WDb) SetMnemonic(mnemonic string) error {
+	return d.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(keysBucket).Put(mnemonicKeyName, []byte(mnemonic))
+	})
+}
+
+func (d *WDb) GetMnemonic() (string, error) {
+	var mnemonic []byte
+	err := d.db.View(func(tx *bolt.Tx) error {
+		mnemonic = tx.Bucket(keysBucket).Get(mnemonicKeyName)
+		if mnemonic == nil {
+			return errKeyNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(mnemonic), nil
 }
 
 func (d *WDb) SetBill(bill *bill) error {
@@ -210,7 +253,7 @@ func (d *WDb) GetBalance() (uint64, error) {
 func (d *WDb) GetBlockHeight() (uint64, error) {
 	blockHeight := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
-		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKey)
+		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKeyName)
 		if blockHeightBytes == nil {
 			return errBlockHeightNotFound
 		}
@@ -227,7 +270,7 @@ func (d *WDb) SetBlockHeight(blockHeight uint64) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
-		return tx.Bucket(metaBucket).Put(blockHeightKey, b)
+		return tx.Bucket(metaBucket).Put(blockHeightKeyName, b)
 	})
 }
 

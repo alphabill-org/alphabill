@@ -3,16 +3,18 @@ module alphabill-wallet-sdk
 go 1.17
 
 require (
+	github.com/btcsuite/btcd v0.21.0-beta
+	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/ethereum/go-ethereum v1.10.12
 	github.com/holiman/uint256 v1.2.0
 	github.com/stretchr/testify v1.7.0
+	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
+	go.etcd.io/bbolt v1.3.6
 	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
-	go.etcd.io/bbolt v1.3.6
 )
 
 require (
-	github.com/btcsuite/btcd v0.20.1-beta // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect

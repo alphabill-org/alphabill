@@ -10,7 +10,7 @@ type Wallet interface {
 	Send(pubKey []byte, amount uint64) error
 
 	// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
-	Sync(conf *config.AlphaBillClientConfig) error
+	Sync() error
 
 	// Shutdown terminates connection to alphabill node and closes wallet db
 	Shutdown()
@@ -21,12 +21,12 @@ type Wallet interface {
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func CreateNewWallet() (Wallet, error) {
-	return wallet.CreateNewWallet()
+func CreateNewWallet(config *config.WalletConfig) (Wallet, error) {
+	return wallet.CreateNewWallet(config)
 }
 
 // LoadExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func LoadExistingWallet() (Wallet, error) {
-	return wallet.LoadExistingWallet()
+func LoadExistingWallet(config *config.WalletConfig) (Wallet, error) {
+	return wallet.LoadExistingWallet(config)
 }

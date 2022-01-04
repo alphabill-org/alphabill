@@ -25,18 +25,18 @@ var (
 
 func TestPut_Owerwrite(t *testing.T) {
 	var root *Node
-	put(key1, TestData(1), Predicate{1}, nil, &root)
+	put(key1, newNodeContent(1), nil, &root)
 	requireNodeEquals(t, root, key1, 1)
-	put(key1, TestData(2), Predicate{2}, nil, &root)
+	put(key1, newNodeContent(2), nil, &root)
 	requireNodeEquals(t, root, key1, 2)
 }
 
 func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
 	var root *Node
 
-	put(key1, TestData(1), Predicate{1}, nil, &root)
-	put(key2, TestData(2), Predicate{2}, nil, &root)
-	put(key3, TestData(3), Predicate{3}, nil, &root)
+	put(key1, newNodeContent(1), nil, &root)
+	put(key2, newNodeContent(2), nil, &root)
+	put(key3, newNodeContent(3), nil, &root)
 
 	requireNodeEquals(t, root, key2, 2)
 	requireNodeEquals(t, root.Children[0], key1, 1)
@@ -46,9 +46,9 @@ func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
 func TestAddBill_AVLTreeRotateRight(t *testing.T) {
 	var root *Node
 
-	put(key3, TestData(3), Predicate{3}, nil, &root)
-	put(key2, TestData(2), Predicate{2}, nil, &root)
-	put(key1, TestData(1), Predicate{1}, nil, &root)
+	put(key3, newNodeContent(3), nil, &root)
+	put(key2, newNodeContent(2), nil, &root)
+	put(key1, newNodeContent(1), nil, &root)
 
 	requireNodeEquals(t, root, key2, 2)
 	requireNodeEquals(t, root.Children[0], key1, 1)
@@ -58,12 +58,12 @@ func TestAddBill_AVLTreeRotateRight(t *testing.T) {
 func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
 	var root *Node
 
-	put(key10, TestData(10), Predicate{10}, nil, &root)
-	put(key20, TestData(20), Predicate{20}, nil, &root)
-	put(key30, TestData(30), Predicate{30}, nil, &root)
-	put(key1, TestData(1), Predicate{1}, nil, &root)
-	put(key15, TestData(15), Predicate{15}, nil, &root)
-	put(key12, TestData(12), Predicate{12}, nil, &root)
+	put(key10, newNodeContent(10), nil, &root)
+	put(key20, newNodeContent(20), nil, &root)
+	put(key30, newNodeContent(30), nil, &root)
+	put(key1, newNodeContent(1), nil, &root)
+	put(key15, newNodeContent(15), nil, &root)
+	put(key12, newNodeContent(12), nil, &root)
 
 	requireNodeEquals(t, root, key15, 15)
 	requireNodeEquals(t, root.Children[0], key10, 10)
@@ -76,13 +76,13 @@ func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
 func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
 	var root *Node
 
-	put(key10, nil, nil, nil, &root)
-	put(key30, nil, nil, nil, &root)
-	put(key20, nil, nil, nil, &root)
+	put(key10, nil, nil, &root)
+	put(key30, nil, nil, &root)
+	put(key20, nil, nil, &root)
 
-	put(key25, nil, nil, nil, &root)
-	put(key31, nil, nil, nil, &root)
-	put(key24, nil, nil, nil, &root)
+	put(key25, nil, nil, &root)
+	put(key31, nil, nil, &root)
+	put(key24, nil, nil, &root)
 
 	assert.Equal(t, root.ID, key25)
 	assert.Equal(t, root.Children[0].ID, key20)
@@ -95,9 +95,9 @@ func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
 func TestGetNode_LeftChild(t *testing.T) {
 	var root *Node
 
-	put(key1, TestData(1), Predicate{1}, nil, &root)
-	put(key2, TestData(2), Predicate{2}, nil, &root)
-	put(key3, TestData(3), Predicate{3}, nil, &root)
+	put(key1, newNodeContent(1), nil, &root)
+	put(key2, newNodeContent(2), nil, &root)
+	put(key3, newNodeContent(3), nil, &root)
 
 	node, found := getNode(root, key1)
 	assert.True(t, found)
@@ -110,9 +110,9 @@ func TestGetNode_LeftChild(t *testing.T) {
 func TestGetNode_RightChild(t *testing.T) {
 	var root *Node
 
-	put(key1, nil, nil, nil, &root)
-	put(key2, nil, nil, nil, &root)
-	put(key3, nil, nil, nil, &root)
+	put(key1, nil, nil, &root)
+	put(key2, nil, nil, &root)
+	put(key3, nil, nil, &root)
 
 	node, found := getNode(root, key3)
 	assert.True(t, found)
@@ -122,9 +122,9 @@ func TestGetNode_RightChild(t *testing.T) {
 func TestGetNode_NotFound(t *testing.T) {
 	var root *Node
 
-	put(key1, nil, nil, nil, &root)
-	put(key2, nil, nil, nil, &root)
-	put(key3, nil, nil, nil, &root)
+	put(key1, nil, nil, &root)
+	put(key2, nil, nil, &root)
+	put(key3, nil, nil, &root)
 
 	node, found := getNode(root, key4)
 	assert.False(t, found)
@@ -133,8 +133,18 @@ func TestGetNode_NotFound(t *testing.T) {
 
 func requireNodeEquals(t *testing.T, node *Node, key *uint256.Int, val int) {
 	require.Equal(t, key, node.ID)
-	value, ok := node.Data.(TestData)
+	value, ok := node.Content.Data.(TestData)
 	require.True(t, ok, "should be TestData, as inserted")
 	require.Equal(t, TestData(val), value)
-	require.Equal(t, Predicate{byte(val)}, node.Bearer)
+	require.Equal(t, Predicate{byte(val)}, node.Content.Bearer)
+
+	require.Equal(t, []byte{byte(val)}, node.Content.StateHash)
+}
+
+func newNodeContent(val int) *NodeContent {
+	return &NodeContent{
+		Bearer:    Predicate{byte(val)},
+		Data:      TestData(uint64(val)),
+		StateHash: []byte{byte(val)},
+	}
 }

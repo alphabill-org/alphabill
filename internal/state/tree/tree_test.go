@@ -23,7 +23,7 @@ func TestEmpty(t *testing.T) {
 	require.Nil(t, tr.GetRootHash())
 	require.Nil(t, tr.GetSummaryValue())
 
-	owner, data, err := tr.Get(uint256.NewInt(0))
+	owner, data, _, err := tr.Get(uint256.NewInt(0))
 	require.Error(t, err)
 	require.Nil(t, owner, data)
 
@@ -31,8 +31,8 @@ func TestEmpty(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	require.Error(t, tr.SetData(uint256.NewInt(0), TestData(2)))
-	require.Error(t, tr.SetOwner(uint256.NewInt(0), Predicate{1, 2, 3}))
+	require.Error(t, tr.SetData(uint256.NewInt(0), TestData(2), nil))
+	require.Error(t, tr.SetOwner(uint256.NewInt(0), Predicate{1, 2, 3}, nil))
 }
 
 func TestHashAlgorithms(t *testing.T) {
@@ -52,7 +52,7 @@ func TestHashAlgorithms(t *testing.T) {
 func TestOneItem(t *testing.T) {
 	tr, _ := New(crypto.SHA256)
 
-	err := tr.Set(uint256.NewInt(0), Predicate{1, 2, 3}, TestData(100))
+	err := tr.Set(uint256.NewInt(0), Predicate{1, 2, 3}, TestData(100), nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, tr.GetRootHash())
@@ -69,10 +69,11 @@ func TestTwoItems(t *testing.T) {
 	id := uint256.NewInt(0)
 	owner := Predicate{1, 2, 3}
 	data := TestData(100)
+	stateHash := []byte("state hash")
 
-	err := tr.Set(id, owner, data)
+	err := tr.Set(id, owner, data, stateHash)
 	require.NoError(t, err)
-	err = tr.Set(uint256.NewInt(1), Predicate{1, 2, 3, 4}, TestData(100))
+	err = tr.Set(uint256.NewInt(1), Predicate{1, 2, 3, 4}, TestData(100), []byte("state hash 2"))
 	require.NoError(t, err)
 
 	require.NotNil(t, tr.GetRootHash())
@@ -82,10 +83,11 @@ func TestTwoItems(t *testing.T) {
 	require.True(t, ok, "should be type of TestSummaryValue")
 	require.Equal(t, TestSummaryValue(200), sum)
 
-	getOwner, getData, err := tr.Get(id)
+	getOwner, getData, getStateHash, err := tr.Get(id)
 	require.NoError(t, err)
 	require.Equal(t, owner, getOwner)
 	require.Equal(t, data, getData)
+	require.Equal(t, stateHash, getStateHash)
 
 	exists, err := tr.Exists(id)
 	require.NoError(t, err)
@@ -102,17 +104,20 @@ func TestSetOwner(t *testing.T) {
 	id := uint256.NewInt(0)
 	owner1 := Predicate{1, 2, 3}
 	owner2 := Predicate{4, 5, 6}
+	stateHash1 := []byte("sh 1")
+	stateHash2 := []byte("sh 2")
 
-	err := tr.Set(id, owner1, TestData(1))
+	err := tr.Set(id, owner1, TestData(1), stateHash1)
 	require.NoError(t, err)
 
-	err = tr.SetOwner(id, owner2)
+	err = tr.SetOwner(id, owner2, stateHash2)
 	require.NoError(t, err)
 
-	actualOwner, _, err := tr.Get(id)
+	actualOwner, _, actualStateHash, err := tr.Get(id)
 	require.NoError(t, err)
 
 	require.Equal(t, owner2, actualOwner)
+	require.Equal(t, stateHash2, actualStateHash)
 }
 
 func TestSetData(t *testing.T) {
@@ -121,24 +126,27 @@ func TestSetData(t *testing.T) {
 	id := uint256.NewInt(0)
 	data1 := TestData(1)
 	data2 := TestData(2)
+	stateHash1 := []byte("sh 1")
+	stateHash2 := []byte("sh 2")
 
-	err := tr.Set(id, Predicate{1, 2, 3}, data1)
+	err := tr.Set(id, Predicate{1, 2, 3}, data1, stateHash1)
 	require.NoError(t, err)
 	sum1 := tr.GetSummaryValue()
 	require.Equal(t, TestSummaryValue(1), sum1)
 
-	err = tr.SetData(id, data2)
+	err = tr.SetData(id, data2, stateHash2)
 	require.NoError(t, err)
 
-	_, actualData, err := tr.Get(id)
+	_, actualData, actualStateHash, err := tr.Get(id)
 	require.NoError(t, err)
 	require.Equal(t, data2, actualData)
+	require.Equal(t, stateHash2, actualStateHash)
 
 	sum2 := tr.GetSummaryValue()
 	require.Equal(t, TestSummaryValue(2), sum2)
 }
 
-// TODO
+// TODO test hashing logic
 //func TestHashing(t *testing.T) {
 //	tr, _ := New(crypto.SHA256)
 //

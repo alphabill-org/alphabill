@@ -38,11 +38,11 @@ func (t *genericTx) OwnerProof() []byte   { return t.ownerProof }
 func (t *transfer) NewBearer() []byte                { return t.newBearer }
 func (t *transfer) TargetValue() uint64              { return t.targetValue }
 func (t *transfer) Backlink() []byte                 { return t.backlink }
-func (t *transfer) Hash(hashFunc crypto.Hash) []byte { panic("implement me") }
+func (t *transfer) Hash(hashFunc crypto.Hash) []byte { return []byte("transfer hash") }
 
 func (s split) Amount() uint64                         { return s.amount }
 func (s split) TargetBearer() []byte                   { return s.targetBearer }
 func (s split) RemainingValue() uint64                 { return s.remainingValue }
 func (s split) Backlink() []byte                       { return s.backlink }
-func (s split) Hash(hashFunc crypto.Hash) []byte       { panic("implement me") }
+func (s split) Hash(hashFunc crypto.Hash) []byte       { return []byte("split hash") }
 func (s split) HashPrndSh(hashFunc crypto.Hash) []byte { return []byte("prnd sh hash value") }

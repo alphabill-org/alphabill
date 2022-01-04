@@ -3,7 +3,7 @@
 package state
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
+	tree "gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
 	uint256 "github.com/holiman/uint256"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -13,13 +13,13 @@ type MockRevertibleState struct {
 	mock.Mock
 }
 
-// AddItem provides a mock function with given fields: id, owner, data
-func (_m *MockRevertibleState) AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data) error {
-	ret := _m.Called(id, owner, data)
+// AddItem provides a mock function with given fields: id, owner, data, stateHash
+func (_m *MockRevertibleState) AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data, stateHash []byte) error {
+	ret := _m.Called(id, owner, data, stateHash)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate, tree.Data) error); ok {
-		r0 = rf(id, owner, data)
+	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate, tree.Data, []byte) error); ok {
+		r0 = rf(id, owner, data, stateHash)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -60,13 +60,13 @@ func (_m *MockRevertibleState) Revert() error {
 	return r0
 }
 
-// SetOwner provides a mock function with given fields: id, owner
-func (_m *MockRevertibleState) SetOwner(id *uint256.Int, owner tree.Predicate) error {
-	ret := _m.Called(id, owner)
+// SetOwner provides a mock function with given fields: id, owner, stateHash
+func (_m *MockRevertibleState) SetOwner(id *uint256.Int, owner tree.Predicate, stateHash []byte) error {
+	ret := _m.Called(id, owner, stateHash)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate) error); ok {
-		r0 = rf(id, owner)
+	if rf, ok := ret.Get(0).(func(*uint256.Int, tree.Predicate, []byte) error); ok {
+		r0 = rf(id, owner, stateHash)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -74,13 +74,13 @@ func (_m *MockRevertibleState) SetOwner(id *uint256.Int, owner tree.Predicate) e
 	return r0
 }
 
-// UpdateData provides a mock function with given fields: id, f
-func (_m *MockRevertibleState) UpdateData(id *uint256.Int, f UpdateFunction) error {
-	ret := _m.Called(id, f)
+// UpdateData provides a mock function with given fields: id, f, stateHash
+func (_m *MockRevertibleState) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
+	ret := _m.Called(id, f, stateHash)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, UpdateFunction) error); ok {
-		r0 = rf(id, f)
+	if rf, ok := ret.Get(0).(func(*uint256.Int, UpdateFunction, []byte) error); ok {
+		r0 = rf(id, f, stateHash)
 	} else {
 		r0 = ret.Error(0)
 	}

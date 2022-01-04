@@ -28,12 +28,14 @@ func TestNewMoneyScheme(t *testing.T) {
 
 	// Initial bill gets set
 	mockTree.On("Set", initialBill.ID, initialBill.Owner,
-		BillData{Value: initialBill.Value, T: 0, Backlink: nil},
+		&BillData{V: initialBill.Value, T: 0, Backlink: nil},
+		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
 
 	// The dust collector money gets set
 	mockTree.On("Set", dustCollectorMoneySupplyID, tree.Predicate{},
-		BillData{Value: dcMoneyAmount, T: 0, Backlink: nil},
+		&BillData{V: dcMoneyAmount, T: 0, Backlink: nil},
+		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
 
 	_, err := NewMoneySchemeState(initialBill, dcMoneyAmount, MoneySchemeOpts.UnitsTree(mockTree))
@@ -53,7 +55,11 @@ func TestProcessTransfer(t *testing.T) {
 			name:        "transfer ok",
 			transaction: transferOk,
 			expect: func(rs *MockRevertibleState) {
-				rs.On("SetOwner", transferOk.unitId, tree.Predicate(transferOk.newBearer)).Return(nil)
+				rs.On("SetOwner",
+					transferOk.unitId,
+					tree.Predicate(transferOk.newBearer),
+					transferOk.Hash(crypto.SHA256),
+				).Return(nil)
 			},
 			expectErr: nil,
 		},
@@ -62,20 +68,20 @@ func TestProcessTransfer(t *testing.T) {
 			transaction: splitOk,
 			expect: func(rs *MockRevertibleState) {
 				var newGenericData tree.Data
-				oldBillData := BillData{
-					Value:    100,
+				oldBillData := &BillData{
+					V:        100,
 					T:        0,
 					Backlink: nil,
 				}
-				rs.On("UpdateData", splitOk.unitId, mock.Anything).Run(func(args mock.Arguments) {
+				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(UpdateDataUpdateFunction).(UpdateFunction)
 					newGenericData = upFunc(oldBillData)
-					newBD, ok := newGenericData.(BillData)
+					newBD, ok := newGenericData.(*BillData)
 					require.True(t, ok, "returned data is not BillData")
-					require.Equal(t, oldBillData.Value-splitOk.amount, newBD.Value)
+					require.Equal(t, oldBillData.V-splitOk.amount, newBD.V)
 				}).Return(nil)
 
-				rs.On("AddItem", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				rs.On("AddItem", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 					expectedNewId := PrndSh(splitOk.unitId, splitOk.HashPrndSh(crypto.SHA256))
 					actualId := args.Get(addItemId).(*uint256.Int)
 					require.Equal(t, expectedNewId, actualId)
@@ -83,8 +89,8 @@ func TestProcessTransfer(t *testing.T) {
 					actualOwner := args.Get(addItemOwner).(tree.Predicate)
 					require.Equal(t, tree.Predicate(splitOk.targetBearer), actualOwner)
 
-					expectedNewItemData := BillData{
-						Value:    splitOk.Amount(),
+					expectedNewItemData := &BillData{
+						V:        splitOk.Amount(),
 						T:        0,
 						Backlink: nil,
 					}
@@ -99,7 +105,7 @@ func TestProcessTransfer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTree := new(MockUnitsTree)
 			mockRState := new(MockRevertibleState)
-			mockTree.On("Set", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+			mockTree.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 			mss, err := NewMoneySchemeState(
 				&InitialBill{},
 				0,

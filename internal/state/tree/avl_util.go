@@ -5,10 +5,10 @@ package tree
 
 import "github.com/holiman/uint256"
 
-func put(key *uint256.Int, content Data, bearer Predicate, p *Node, qp **Node) bool {
+func put(key *uint256.Int, content *NodeContent, p *Node, qp **Node) bool {
 	q := *qp
 	if q == nil {
-		*qp = &Node{ID: key, Data: content, Bearer: bearer, Parent: p, recompute: true}
+		*qp = &Node{ID: key, Content: content, Parent: p, recompute: true}
 		return true
 	}
 
@@ -16,14 +16,13 @@ func put(key *uint256.Int, content Data, bearer Predicate, p *Node, qp **Node) b
 	c := compare(key, q.ID)
 	if c == 0 {
 		q.ID = key
-		q.Data = content
-		q.Bearer = bearer
+		q.Content = content
 		return false
 	}
 
 	a := (c + 1) / 2
 	var fix bool
-	fix = put(key, content, bearer, q, &q.Children[a])
+	fix = put(key, content, q, &q.Children[a])
 	if fix {
 		return putFix(c, qp)
 	}

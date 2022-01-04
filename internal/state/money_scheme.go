@@ -3,10 +3,11 @@ package state
 import (
 	"crypto"
 	"fmt"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
+	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
+
 	"github.com/holiman/uint256"
 )
 
@@ -24,16 +25,20 @@ type (
 	}
 
 	BillData struct {
-		Value    uint64 // The monetary value of this bill
+		V        uint64 // The monetary value of this bill
 		T        uint64 // The round number of the last transaction with the bill
 		Backlink []byte // Backlink (256-bit hash)
 	}
 
+	BillSummary struct {
+		v uint64 // The uint64 value of summary
+	}
+
 	RevertibleState interface {
-		AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data) error
+		AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data, stateHash []byte) error
 		DeleteItem(id *uint256.Int) error
-		SetOwner(id *uint256.Int, owner tree.Predicate) error
-		UpdateData(id *uint256.Int, f UpdateFunction) error
+		SetOwner(id *uint256.Int, owner tree.Predicate, stateHash []byte) error
+		UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error
 		Revert() error
 		Commit()
 	}
@@ -47,7 +52,10 @@ func NewMoneySchemeState(initialBill *InitialBill, dcMoneyAmount uint64, customO
 		hashAlgorithm: crypto.SHA256, // TODO add hash function argument
 	}
 
-	defaultTree := tree.New()
+	defaultTree, err := tree.New(msState.hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
 	options := MoneySchemeOptions{
 		unitsTree:       defaultTree,
 		revertibleState: NewRevertible(defaultTree),
@@ -59,21 +67,21 @@ func NewMoneySchemeState(initialBill *InitialBill, dcMoneyAmount uint64, customO
 	msState.tree = options.unitsTree
 	msState.revertibleState = options.revertibleState
 
-	err := msState.tree.Set(initialBill.ID, initialBill.Owner, BillData{
-		Value:    initialBill.Value,
+	err = msState.tree.Set(initialBill.ID, initialBill.Owner, &BillData{
+		V:        initialBill.Value,
 		T:        0,
 		Backlink: nil,
-	})
+	}, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not set initial bill")
 	}
 
-	// TODO Not sure what the DC money owner predicate should be
-	err = msState.tree.Set(dustCollectorMoneySupplyID, tree.Predicate{}, BillData{
-		Value:    dcMoneyAmount,
+	// TODO Not sure what the DC money owner predicate should be: https://guardtime.atlassian.net/browse/AB-93
+	err = msState.tree.Set(dustCollectorMoneySupplyID, tree.Predicate{}, &BillData{
+		V:        dcMoneyAmount,
 		T:        0,
 		Backlink: nil,
-	})
+	}, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not set DC monet supply")
 	}
@@ -81,41 +89,42 @@ func NewMoneySchemeState(initialBill *InitialBill, dcMoneyAmount uint64, customO
 }
 
 func (m *moneySchemeState) Process(gtx GenericTransaction) error {
+	// TODO transaction specific validity functions: https://guardtime.atlassian.net/browse/AB-92
+	// TODO timeouts and backlinks: https://guardtime.atlassian.net/browse/AB-92
+	// TODO add swap: https://guardtime.atlassian.net/browse/AB-46
+	// TODO add transferDC: https://guardtime.atlassian.net/browse/AB-93
 	switch tx := gtx.(type) {
 	case Transfer:
 		log.Debug("Processing transfer %v", tx)
-		// TODO transaction specific validity function
-		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer())
+		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
 	case Split:
 		log.Debug("Processing split %v", tx)
-		// TODO transaction specific validity function
 		err := m.revertibleState.UpdateData(tx.UnitId(), func(data tree.Data) (newData tree.Data) {
-			bd, ok := data.(BillData)
+			bd, ok := data.(*BillData)
 			if !ok {
 				// No change in case of incorrect data type.
 				return data
 			}
-			return BillData{
-				Value:    bd.Value - tx.Amount(),
-				T:        0, // TODO timeout and backlink
+			return &BillData{
+				V:        bd.V - tx.Amount(),
+				T:        0,
 				Backlink: nil,
 			}
-		})
+		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
 			return errors.Wrap(err, "could not update data")
 		}
 
 		newItemId := PrndSh(tx.UnitId(), tx.HashPrndSh(m.hashAlgorithm))
-		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), BillData{
-			Value:    tx.Amount(),
-			T:        0, // TODO timeout and backlink
+		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
+			V:        tx.Amount(),
+			T:        0,
 			Backlink: nil,
-		})
+		}, nil)
 		if err != nil {
 			return errors.Wrapf(err, "could not add item")
 		}
 
-		// TODO ... other types
 	default:
 		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
 	}
@@ -133,9 +142,29 @@ func (m *moneySchemeState) GetRootHash() []byte {
 func (m *moneySchemeState) TotalValue() (uint64, error) {
 	// TODO maybe it's better to delegate this though the reversible state
 	sum := m.tree.GetSummaryValue()
-	intVal, ok := sum.(uint64)
+	bs, ok := sum.(*BillSummary)
 	if !ok {
-		return 0, errors.New("summary was not uint64")
+		return 0, errors.New("summary was not *BillSummary")
 	}
-	return intVal, nil
+	return bs.v, nil
+}
+
+func (b *BillSummary) AddToHasher(hasher hash.Hash) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *BillSummary) Concatenate(left, right tree.SummaryValue) tree.SummaryValue {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *BillData) AddToHasher(hasher hash.Hash) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (b *BillData) Value() tree.SummaryValue {
+	//TODO implement me
+	panic("implement me")
 }

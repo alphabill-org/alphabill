@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"hash"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
@@ -13,16 +14,23 @@ import (
 )
 
 var (
-	id                        = uint256.NewInt(1)
-	owner      tree.Predicate = []byte("owner")
-	oldOwner   tree.Predicate = []byte("old owner")
-	data                      = "data"
-	oldData                   = "old data"
-	newData                   = "new data"
-	updateFunc UpdateFunction = func(data tree.Data) tree.Data {
-		return newData
+	id                          = uint256.NewInt(1)
+	newStateHash                = []byte("state hash")
+	oldStateHash                = []byte("old state hash")
+	newOwner     tree.Predicate = []byte("owner")
+	oldOwner     tree.Predicate = []byte("old owner")
+	newData                     = TestData("data")
+	oldData                     = TestData("old data")
+	updatedData                 = TestData("updated data")
+	updateFunc   UpdateFunction = func(data tree.Data) tree.Data {
+		return updatedData
 	}
 )
+
+type TestData string
+
+func (t TestData) AddToHasher(hasher hash.Hash) {}
+func (t TestData) Value() tree.SummaryValue     { return nil }
 
 func TestRevertible_Empty(t *testing.T) {
 	utree := new(MockUnitsTree)
@@ -43,7 +51,7 @@ func TestRevertible_AddItem(t *testing.T) {
 			name: "happy flow",
 			expectForAdd: func(utree *MockUnitsTree) {
 				utree.On("Exists", id).Return(false, nil)
-				utree.On("Set", id, owner, data).Return(nil)
+				utree.On("Set", id, newOwner, newData, newStateHash).Return(nil)
 			},
 			addErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
@@ -64,7 +72,7 @@ func TestRevertible_AddItem(t *testing.T) {
 			name: "set item fails",
 			expectForAdd: func(utree *MockUnitsTree) {
 				utree.On("Exists", id).Return(false, nil)
-				utree.On("Set", id, owner, data).Return(errors.New("set item failed"))
+				utree.On("Set", id, newOwner, newData, newStateHash).Return(errors.New("set item failed"))
 			},
 			addErr:          errors.New("set item failed"),
 			expectForRevert: func(utree *MockUnitsTree) {},
@@ -74,7 +82,7 @@ func TestRevertible_AddItem(t *testing.T) {
 			name: "revert: delete fails",
 			expectForAdd: func(utree *MockUnitsTree) {
 				utree.On("Exists", id).Return(false, nil)
-				utree.On("Set", id, owner, data).Return(nil)
+				utree.On("Set", id, newOwner, newData, newStateHash).Return(nil)
 			},
 			addErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
@@ -90,7 +98,7 @@ func TestRevertible_AddItem(t *testing.T) {
 
 			// Add item
 			tt.expectForAdd(utree)
-			err := rstate.AddItem(id, owner, data)
+			err := rstate.AddItem(id, newOwner, newData, newStateHash)
 			requireErrorMatches(t, tt.addErr, err)
 			mock.AssertExpectationsForObjects(t, utree)
 
@@ -115,19 +123,19 @@ func TestRevertible_DeleteItem(t *testing.T) {
 		{
 			name: "happy flow",
 			expectForDelete: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(owner, data, nil)
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
 				utree.On("Delete", id).Return(nil)
 			},
 			deleteErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
-				utree.On("Set", id, owner, data).Return(nil)
+				utree.On("Set", id, oldOwner, oldData, oldStateHash).Return(nil)
 			},
 			revertErr: nil,
 		},
 		{
 			name: "get fails",
 			expectForDelete: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(nil, nil, errors.New("get failed"))
+				utree.On("Get", id).Return(nil, nil, nil, errors.New("get failed"))
 			},
 			deleteErr:       errors.New("get failed"),
 			expectForRevert: func(utree *MockUnitsTree) {},
@@ -136,7 +144,7 @@ func TestRevertible_DeleteItem(t *testing.T) {
 		{
 			name: "delete fails",
 			expectForDelete: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(owner, data, nil)
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
 				utree.On("Delete", id).Return(errors.New("delete failed"))
 			},
 			deleteErr:       errors.New("delete failed"),
@@ -146,12 +154,12 @@ func TestRevertible_DeleteItem(t *testing.T) {
 		{
 			name: "revert: set fails",
 			expectForDelete: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(owner, data, nil)
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
 				utree.On("Delete", id).Return(nil)
 			},
 			deleteErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
-				utree.On("Set", id, owner, data).Return(errors.New("set failed"))
+				utree.On("Set", id, oldOwner, oldData, oldStateHash).Return(errors.New("set failed"))
 			},
 			revertErr: errors.New("set failed"),
 		},
@@ -188,19 +196,19 @@ func TestRevertible_SetOwner(t *testing.T) {
 		{
 			name: "happy flow",
 			expectForSetOwner: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(oldOwner, data, nil)
-				utree.On("SetOwner", id, owner).Return(nil)
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
+				utree.On("SetOwner", id, newOwner, newStateHash).Return(nil)
 			},
 			setOwnerErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
-				utree.On("SetOwner", id, oldOwner).Return(nil)
+				utree.On("SetOwner", id, oldOwner, oldStateHash).Return(nil)
 			},
 			revertErr: nil,
 		},
 		{
 			name: "get fails",
 			expectForSetOwner: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(nil, nil, errors.New("get failed"))
+				utree.On("Get", id).Return(nil, nil, nil, errors.New("get failed"))
 			},
 			setOwnerErr:     errors.New("get failed"),
 			expectForRevert: func(utree *MockUnitsTree) {},
@@ -209,8 +217,8 @@ func TestRevertible_SetOwner(t *testing.T) {
 		{
 			name: "set owner fails",
 			expectForSetOwner: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(oldOwner, data, nil)
-				utree.On("SetOwner", id, owner).Return(errors.New("set owner failed"))
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
+				utree.On("SetOwner", id, newOwner, newStateHash).Return(errors.New("set owner failed"))
 			},
 			setOwnerErr:     errors.New("set owner failed"),
 			expectForRevert: func(utree *MockUnitsTree) {},
@@ -219,12 +227,12 @@ func TestRevertible_SetOwner(t *testing.T) {
 		{
 			name: "revert: setOwner fails",
 			expectForSetOwner: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(oldOwner, data, nil)
-				utree.On("SetOwner", id, owner).Return(nil)
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
+				utree.On("SetOwner", id, newOwner, newStateHash).Return(nil)
 			},
 			setOwnerErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
-				utree.On("SetOwner", id, oldOwner).Return(errors.New("revert set owner failed"))
+				utree.On("SetOwner", id, oldOwner, oldStateHash).Return(errors.New("revert set owner failed"))
 			},
 			revertErr: errors.New("revert set owner failed"),
 		},
@@ -236,7 +244,7 @@ func TestRevertible_SetOwner(t *testing.T) {
 
 			// Delete item
 			tt.expectForSetOwner(utree)
-			err := rstate.SetOwner(id, owner)
+			err := rstate.SetOwner(id, newOwner, newStateHash)
 			requireErrorMatches(t, tt.setOwnerErr, err)
 			mock.AssertExpectationsForObjects(t, utree)
 
@@ -261,19 +269,19 @@ func TestRevertible_UpdateData(t *testing.T) {
 		{
 			name: "happy flow",
 			expectForUpdateData: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(owner, oldData, nil)
-				utree.On("SetData", id, newData).Return(nil)
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
+				utree.On("SetData", id, updatedData, newStateHash).Return(nil)
 			},
 			updateDataErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
-				utree.On("SetData", id, oldData).Return(nil)
+				utree.On("SetData", id, oldData, oldStateHash).Return(nil)
 			},
 			revertErr: nil,
 		},
 		{
 			name: "get fails",
 			expectForUpdateData: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(nil, nil, errors.New("get failed"))
+				utree.On("Get", id).Return(nil, nil, nil, errors.New("get failed"))
 			},
 			updateDataErr:   errors.New("get failed"),
 			expectForRevert: func(utree *MockUnitsTree) {},
@@ -282,8 +290,8 @@ func TestRevertible_UpdateData(t *testing.T) {
 		{
 			name: "set data fails",
 			expectForUpdateData: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(oldOwner, data, nil)
-				utree.On("SetData", id, newData).Return(errors.New("set data failed"))
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
+				utree.On("SetData", id, updatedData, newStateHash).Return(errors.New("set data failed"))
 			},
 			updateDataErr:   errors.New("set data failed"),
 			expectForRevert: func(utree *MockUnitsTree) {},
@@ -292,12 +300,12 @@ func TestRevertible_UpdateData(t *testing.T) {
 		{
 			name: "revert: setData fails",
 			expectForUpdateData: func(utree *MockUnitsTree) {
-				utree.On("Get", id).Return(oldOwner, oldData, nil)
-				utree.On("SetData", id, newData).Return(nil)
+				utree.On("Get", id).Return(oldOwner, oldData, oldStateHash, nil)
+				utree.On("SetData", id, updatedData, newStateHash).Return(nil)
 			},
 			updateDataErr: nil,
 			expectForRevert: func(utree *MockUnitsTree) {
-				utree.On("SetData", id, oldData).Return(errors.New("revert set data failed"))
+				utree.On("SetData", id, oldData, oldStateHash).Return(errors.New("revert set data failed"))
 			},
 			revertErr: errors.New("revert set data failed"),
 		},
@@ -309,7 +317,7 @@ func TestRevertible_UpdateData(t *testing.T) {
 
 			// Delete item
 			tt.expectForUpdateData(utree)
-			err := rstate.UpdateData(id, updateFunc)
+			err := rstate.UpdateData(id, updateFunc, newStateHash)
 			requireErrorMatches(t, tt.updateDataErr, err)
 			mock.AssertExpectationsForObjects(t, utree)
 
@@ -330,9 +338,9 @@ func TestRevertible_Commit(t *testing.T) {
 	count := 10
 
 	utree.On("Exists", id).Times(count).Return(false, nil)
-	utree.On("Set", id, owner, data).Times(count).Return(nil)
+	utree.On("Set", id, newOwner, newData, newStateHash).Times(count).Return(nil)
 	for i := 0; i < count; i++ {
-		err := rstate.AddItem(id, owner, data)
+		err := rstate.AddItem(id, newOwner, newData, newStateHash)
 		require.NoError(t, err)
 	}
 	rstate.Commit()
@@ -347,9 +355,9 @@ func TestRevertible_Commit(t *testing.T) {
 
 	// Add more items after the commit
 	utree.On("Exists", id).Times(count).Return(false, nil)
-	utree.On("Set", id, owner, data).Times(count).Return(nil)
+	utree.On("Set", id, newOwner, newData, newStateHash).Times(count).Return(nil)
 	for i := 0; i < count; i++ {
-		err := rstate.AddItem(id, owner, data)
+		err := rstate.AddItem(id, newOwner, newData, newStateHash)
 		require.NoError(t, err)
 	}
 	// Make sure the items get added to the tree

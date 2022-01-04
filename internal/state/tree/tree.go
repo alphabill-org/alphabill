@@ -43,11 +43,15 @@ type (
 		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
 	}
 
+	NodeContent struct {
+		Bearer    Predicate // The owner predicate of the Item/Node
+		Data      Data      // The Data part of the Item/Node
+		StateHash []byte    // The hash of the transaction and previous transaction. See spec 'Unit Ledger' for details.
+	}
+
 	Node struct {
 		ID           *uint256.Int // The identifier of the Item/Node
-		Bearer       Predicate    // The owner predicate of the Item/Node
-		Data         Data         // The Data part of the Item/Node
-		StateHash    []byte       // The hash of the transaction and previous transaction. See spec 'Unit Ledger' for details.
+		Content      *NodeContent // Content that moves together with Node
 		SummaryValue SummaryValue // Calculated SummaryValue of the Item/Node
 		Hash         []byte       // The hash of the node inside the tree. See spec 'State Invariants and Parameters' for details.
 		Parent       *Node        // The parent node
@@ -72,35 +76,45 @@ func (u *unitsTree) Delete(id *uint256.Int) error {
 	panic("implement me")
 }
 
-func (u *unitsTree) Get(id *uint256.Int) (owner Predicate, data Data, err error) {
+func (u *unitsTree) Get(id *uint256.Int) (owner Predicate, data Data, stateHash []byte, err error) {
 	node, exists := getNode(u.root, id)
 	if !exists {
-		return nil, nil, errors.Errorf(errStrItemDoesntExist, id)
+		return nil, nil, nil, errors.Errorf(errStrItemDoesntExist, id)
 	}
-	return node.Bearer, node.Data, nil
+	return node.Content.Bearer, node.Content.Data, node.Content.StateHash, nil
 }
 
 // Set sets the item bearer and data. It's up to the caller to make sure the Data implementation supports the all data implementations inserted into the tree.
-func (u *unitsTree) Set(id *uint256.Int, bearer Predicate, data Data) error {
-	put(id, data, bearer, nil, &u.root)
+func (u *unitsTree) Set(id *uint256.Int, owner Predicate, data Data, stateHash []byte) error {
+	put(id, &NodeContent{
+		Bearer:    owner,
+		Data:      data,
+		StateHash: stateHash},
+		nil, &u.root)
 	return nil
 }
 
-func (u *unitsTree) SetOwner(id *uint256.Int, owner Predicate) error {
+func (u *unitsTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	node, exists := getNode(u.root, id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	put(id, node.Data, owner, nil, &u.root)
+	put(id, &NodeContent{
+		Bearer:    owner,
+		Data:      node.Content.Data,
+		StateHash: stateHash}, nil, &u.root)
 	return nil
 }
 
-func (u *unitsTree) SetData(id *uint256.Int, data Data) error {
+func (u *unitsTree) SetData(id *uint256.Int, data Data, stateHash []byte) error {
 	node, exists := getNode(u.root, id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	put(id, data, node.Bearer, nil, &u.root)
+	put(id, &NodeContent{
+		Bearer:    node.Content.Bearer,
+		Data:      data,
+		StateHash: stateHash}, nil, &u.root)
 	return nil
 }
 
@@ -140,7 +154,7 @@ func (u *unitsTree) recompute(n *Node, hasher hash.Hash) {
 			u.recompute(right, hasher)
 			rightTotalValue = right.SummaryValue
 		}
-		n.SummaryValue = n.Data.Value().Concatenate(leftTotalValue, rightTotalValue)
+		n.SummaryValue = n.Content.Data.Value().Concatenate(leftTotalValue, rightTotalValue)
 
 		hasher.Reset()
 		n.addToHasher(hasher)
@@ -172,8 +186,8 @@ func (n *Node) String() string {
 	if n.recompute {
 		m = m + "*"
 	}
-	m = m + fmt.Sprintf("value=%v, total=%v, bearer=%X, ",
-		n.Data, n.SummaryValue, n.Bearer)
+	m = m + fmt.Sprintf("value=%v, total=%v, bearer=%X, stateHash=%X,",
+		n.Content.Data, n.SummaryValue, n.Content.Bearer, n.Content.StateHash)
 
 	if n.Hash != nil {
 		m = m + fmt.Sprintf("hash=%X", n.Hash)

@@ -46,14 +46,6 @@ func CreateNewWallet(config *config.WalletConfig) (*Wallet, error) {
 	return createWallet(mnemonic, config)
 }
 
-func generateMnemonic() (string, error) {
-	entropy, err := bip39.NewEntropy(128)
-	if err != nil {
-		return "", err
-	}
-	return bip39.NewMnemonic(entropy)
-}
-
 func CreateWalletFromSeed(mnemonic string, config *config.WalletConfig) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
@@ -62,82 +54,21 @@ func CreateWalletFromSeed(mnemonic string, config *config.WalletConfig) (*Wallet
 	return createWallet(mnemonic, config)
 }
 
-func createWallet(mnemonic string, config *config.WalletConfig) (*Wallet, error) {
-	if !bip39.IsMnemonicValid(mnemonic) {
-		return nil, errors.New("mnemonicKeyName is invalid")
-	}
-	seed, err := bip39.NewSeedWithErrorChecking(mnemonic, "")
-	if err != nil {
-		return nil, err
-	}
-	// TODO what is HDPrivateKeyID in MainNetParams that is used for key generation
-	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := CreateNewDb(config)
-	if err != nil {
-		return nil, err
-	}
-
-	w := &Wallet{
-		db:       db,
-		config:   config,
-		txMapper: rpc.NewDefaultTxMapper(),
-	}
-
-	err = db.CreateBuckets()
-	if err != nil {
-		return w, err
-	}
-
-	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
-	// m / purpose' / coin_type' / account' / change / address_index
-	// m - master key
-	// 44' - cryptocurrencies
-	// 634' - coin type, randomly chosen number from https://github.com/satoshilabs/slips/blob/master/slip-0044.md
-	// 0' - account number (currently use only one account)
-	// 0 - change address 0 or 1; 0 = externally used address, 1 = internal address, currently always 0
-	// 0 - address index
-	// we currently have an ethereum like account based model meaning 1 account = 1 address and no plans to support multiple accounts at this time,
-	// so we use wallet's "HD" part only for generating single key from seed
-	derivationPath := "m/44'/634'/0'/0/0"
-
-	k, err := NewAccountKey(masterKey, derivationPath)
-	if err != nil {
-		return w, err
-	}
-	err = db.SetAccountKey(k)
-	if err != nil {
-		return w, err
-	}
-	err = db.SetMasterKey(masterKey.String())
-	if err != nil {
-		return w, err
-	}
-	err = db.SetMnemonic(mnemonic)
-	if err != nil {
-		return w, err
-	}
-	return w, nil
-}
-
 func LoadExistingWallet(config *config.WalletConfig) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := OpenDb(config)
+	db, err := getDb(config, false)
 	if err != nil {
 		return nil, err
 	}
-	w := &Wallet{
+
+	return &Wallet{
 		db:       db,
 		txMapper: rpc.NewDefaultTxMapper(),
-	}
-	return w, nil
+	}, nil
 }
 
 func (w *Wallet) GetBalance() (uint64, error) {
@@ -234,7 +165,7 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 		return
 	}
 
-	var wg sync.WaitGroup // used to wait for channels to close
+	var wg sync.WaitGroup // used to wait for goroutines to close
 	wg.Add(2)
 	ch := make(chan *alphabill.Block, prefetchBlockCount)
 	go func() {
@@ -407,4 +338,94 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	return signer.SignBytes(b)
+}
+
+func createWallet(mnemonic string, config *config.WalletConfig) (*Wallet, error) {
+	db, err := getDb(config, true)
+	if err != nil {
+		return nil, err
+	}
+
+	err = generateKeys(mnemonic, db)
+	if err != nil {
+		db.DeleteDb()
+		return nil, err
+	}
+
+	return &Wallet{
+		db:       db,
+		config:   config,
+		txMapper: rpc.NewDefaultTxMapper(),
+	}, nil
+}
+
+func generateMnemonic() (string, error) {
+	entropy, err := bip39.NewEntropy(128)
+	if err != nil {
+		return "", err
+	}
+	return bip39.NewMnemonic(entropy)
+}
+
+func generateKeys(mnemonic string, db Db) error {
+	if !bip39.IsMnemonicValid(mnemonic) {
+		return errors.New("mnemonic is invalid")
+	}
+	seed, err := bip39.NewSeedWithErrorChecking(mnemonic, "")
+	if err != nil {
+		return err
+	}
+
+	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
+	// m / purpose' / coin_type' / account' / change / address_index
+	// m - master key
+	// 44' - cryptocurrencies
+	// 634' - coin type, randomly chosen number from https://github.com/satoshilabs/slips/blob/master/slip-0044.md
+	// 0' - account number (currently use only one account)
+	// 0 - change address 0 or 1; 0 = externally used address, 1 = internal address, currently always 0
+	// 0 - address index
+	// we currently have an ethereum like account based model meaning 1 account = 1 address and no plans to support multiple accounts at this time,
+	// so we use wallet's "HD" part only for generating single key from seed
+	derivationPath := "m/44'/634'/0'/0/0"
+
+	// TODO what is HDPrivateKeyID in MainNetParams that is used for key generation
+	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
+	if err != nil {
+		return err
+	}
+	k, err := NewAccountKey(masterKey, derivationPath)
+	if err != nil {
+		return err
+	}
+	err = db.SetAccountKey(k)
+	if err != nil {
+		return err
+	}
+	err = db.SetMasterKey(masterKey.String())
+	if err != nil {
+		return err
+	}
+	err = db.SetMnemonic(mnemonic)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func getDb(config *config.WalletConfig, create bool) (Db, error) {
+	var db Db
+	var err error
+	//if config.Db == nil {
+	if create {
+		db, err = CreateNewDb(config)
+	} else {
+		db, err = OpenDb(config)
+	}
+	if err != nil {
+		return nil, err
+	}
+	//} else {
+	//	db = config.Db
+	//}
+	return db, nil
 }

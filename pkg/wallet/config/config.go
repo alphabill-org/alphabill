@@ -6,7 +6,8 @@ import (
 )
 
 type WalletConfig struct {
-	DbPath                string
+	DbPath string
+	//Db                    wallet.Db
 	AlphaBillClientConfig *AlphaBillClientConfig
 }
 

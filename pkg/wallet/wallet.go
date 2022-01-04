@@ -25,6 +25,12 @@ func CreateNewWallet(config *config.WalletConfig) (Wallet, error) {
 	return wallet.CreateNewWallet(config)
 }
 
+// CreateWalletFromSeed creates a new wallet from given seed mnemonic. To synchronize wallet with a node call Sync.
+// Shutdown needs to be called to release resources used by wallet.
+func CreateWalletFromSeed(seed string, config *config.WalletConfig) (Wallet, error) {
+	return wallet.CreateWalletFromSeed(seed, config)
+}
+
 // LoadExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
 func LoadExistingWallet(config *config.WalletConfig) (Wallet, error) {

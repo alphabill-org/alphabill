@@ -3,6 +3,7 @@ package wallet
 import (
 	"alphabill-wallet-sdk/internal/errors"
 	"alphabill-wallet-sdk/internal/util"
+	"alphabill-wallet-sdk/pkg/log"
 	"alphabill-wallet-sdk/pkg/wallet/config"
 	"encoding/binary"
 	"encoding/json"
@@ -27,6 +28,7 @@ var (
 
 var (
 	errWalletDbAlreadyExists    = errors.New("wallet db already exists")
+	errWalletDbDoesNotExists    = errors.New("cannot open wallet db, file does not exits")
 	errKeyNotFound              = errors.New("key not found in wallet")
 	errBillWithMinValueNotFound = errors.New("spendable bill with min value not found")
 	errBlockHeightNotFound      = errors.New("block height not found")
@@ -35,7 +37,6 @@ var (
 const walletFileName = "wallet.db"
 
 type Db interface {
-	CreateBuckets() error
 	SetAccountKey(key *accountKey) error
 	GetAccountKey() (*accountKey, error)
 	SetMasterKey(string) error
@@ -50,6 +51,7 @@ type Db interface {
 	GetBlockHeight() (uint64, error)
 	SetBlockHeight(blockHeight uint64) error
 	Close()
+	DeleteDb()
 }
 
 type WDb struct {
@@ -67,30 +69,40 @@ func CreateNewDb(config *config.WalletConfig) (*WDb, error) {
 	}
 
 	dbFilePath := path.Join(walletDir, walletFileName)
-	if util.FileExists(dbFilePath) {
-		return nil, errWalletDbAlreadyExists
-	}
-	return openDb(dbFilePath)
+	return openDb(dbFilePath, true)
 }
 
 func OpenDb(config *config.WalletConfig) (*WDb, error) {
 	dbFilePath := path.Join(config.DbPath, walletFileName)
-	if !util.FileExists(dbFilePath) {
-		return nil, errors.New("cannot open wallet db, file does not exits")
-	}
-	return openDb(dbFilePath)
+	return openDb(dbFilePath, false)
 }
 
-func openDb(dbFilePath string) (*WDb, error) {
+func openDb(dbFilePath string, create bool) (*WDb, error) {
+	if create {
+		if util.FileExists(dbFilePath) {
+			return nil, errWalletDbAlreadyExists
+		}
+	} else {
+		if !util.FileExists(dbFilePath) {
+			return nil, errWalletDbDoesNotExists
+		}
+	}
+
 	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
 	if err != nil {
+		return nil, err
+	}
+
+	err = createBuckets(db)
+	if err != nil {
+		cleanDb(db, create)
 		return nil, err
 	}
 	return &WDb{db}, nil
 }
 
-func (d *WDb) CreateBuckets() error {
-	return d.db.Update(func(tx *bolt.Tx) error {
+func createBuckets(d *bolt.DB) error {
+	return d.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(keysBucket)
 		if err != nil {
 			return err
@@ -281,6 +293,23 @@ func (d *WDb) Path() string {
 func (d *WDb) Close() {
 	err := d.db.Close()
 	if err != nil {
-		// ignore error
+		log.Warning("error closing db", err)
+	}
+}
+
+func (d *WDb) DeleteDb() {
+	cleanDb(d.db, true)
+}
+
+func cleanDb(db *bolt.DB, remove bool) {
+	errClose := db.Close()
+	if errClose != nil {
+		log.Warning("error closing db", errClose)
+	}
+	if remove {
+		errRemove := os.Remove(db.Path())
+		if errRemove != nil {
+			log.Warning("error removing db", errRemove)
+		}
 	}
 }

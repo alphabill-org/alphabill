@@ -17,6 +17,7 @@ func put(key *uint256.Int, content Data, bearer Predicate, p *Node, qp **Node) b
 	if c == 0 {
 		q.ID = key
 		q.Data = content
+		q.Bearer = bearer
 		return false
 	}
 

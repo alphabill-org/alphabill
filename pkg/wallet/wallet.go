@@ -417,17 +417,17 @@ func generateKeys(mnemonic string, db Db) error {
 func getDb(config *Config, create bool) (Db, error) {
 	var db Db
 	var err error
-	//if config.Db == nil {
-	if create {
-		db, err = createNewDb(config)
+	if config.Db == nil {
+		if create {
+			db, err = createNewDb(config)
+		} else {
+			db, err = OpenDb(config)
+		}
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		db, err = OpenDb(config)
+		db = config.Db
 	}
-	if err != nil {
-		return nil, err
-	}
-	//} else {
-	//	db = config.Db
-	//}
 	return db, nil
 }

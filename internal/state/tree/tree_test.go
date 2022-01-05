@@ -73,10 +73,13 @@ func TestTwoItems(t *testing.T) {
 
 	err := tr.Set(id, owner, data, stateHash)
 	require.NoError(t, err)
+	rootHash1 := tr.GetRootHash()
 	err = tr.Set(uint256.NewInt(1), Predicate{1, 2, 3, 4}, TestData(100), []byte("state hash 2"))
 	require.NoError(t, err)
 
-	require.NotNil(t, tr.GetRootHash())
+	rootHash2 := tr.GetRootHash()
+	require.NotNil(t, rootHash2)
+	require.NotEqual(t, rootHash1, rootHash2)
 
 	genSum := tr.GetSummaryValue()
 	sum, ok := genSum.(TestSummaryValue)
@@ -146,17 +149,47 @@ func TestSetData(t *testing.T) {
 	require.Equal(t, TestSummaryValue(2), sum2)
 }
 
-// TODO test hashing logic
-//func TestHashing(t *testing.T) {
-//	tr, _ := New(crypto.SHA256)
-//
-//	id := uint256.NewInt(4)
-//	data := TestData(5)
-//	owner := Predicate{1, 2, 3}
-//	require.NoError(t, tr.Set(id, owner, data))
-//
-//	rootHash := tr.GetRootHash()
-//}
+func TestHashing(t *testing.T) {
+	hashAlgorithm := crypto.SHA256
+	tr, _ := New(hashAlgorithm)
+
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	owner := Predicate{1, 2, 3}
+	stateHash := []byte("state hash")
+	require.NoError(t, tr.Set(id, owner, data, stateHash))
+	actualRootHash := tr.GetRootHash()
+	summaryValue := tr.GetSummaryValue()
+
+	var expectedRootHash []byte
+	// ID, H(StateHash, H(ID, Bearer, Data)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
+	h := hashAlgorithm.New()
+	idBytes := id.Bytes32()
+
+	// Sub hash H(ID, Bearer, Data)
+	h.Write(idBytes[:])
+	h.Write(owner)
+	data.AddToHasher(h)
+	hashSub1 := h.Sum(nil)
+
+	// Sub hash H(StateHash, subHash1)
+	h.Reset()
+	h.Write(stateHash)
+	h.Write(hashSub1)
+	hashSub2 := h.Sum(nil)
+
+	// Main hash H(ID, subHash2, self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
+	h.Reset()
+	h.Write(idBytes[:])
+	h.Write(hashSub2)
+	summaryValue.AddToHasher(h)
+	// Children are empty
+	h.Write(make([]byte, hashAlgorithm.Size()))
+	h.Write(make([]byte, hashAlgorithm.Size()))
+	expectedRootHash = h.Sum(nil)
+
+	require.Equal(t, expectedRootHash, actualRootHash)
+}
 
 func (u TestData) AddToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(uint64(u)))

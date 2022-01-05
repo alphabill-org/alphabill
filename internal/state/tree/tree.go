@@ -164,7 +164,8 @@ func (u *unitsTree) recompute(n *Node, hasher hash.Hash) {
 	}
 }
 
-// ID, H(StateHash, H(ID, Bearer, Data)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
+// addToHasher calculates the hash of the node. It also resets the hasher while doing so.
+// H(ID, H(StateHash, H(ID, Bearer, Data)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
 func (n *Node) addToHasher(hasher hash.Hash) {
 	leftHash := make([]byte, hasher.Size())
 	rightHash := make([]byte, hasher.Size())
@@ -176,8 +177,36 @@ func (n *Node) addToHasher(hasher hash.Hash) {
 	if right != nil {
 		rightHash = right.Hash
 	}
+
+	idBytes := n.ID.Bytes32()
+
+	// Sub hash H(ID, Bearer, Data)
+	hasher.Reset()
+	hasher.Write(idBytes[:])
+	hasher.Write(n.Content.Bearer)
+	n.Content.Data.AddToHasher(hasher)
+	hashSub1 := hasher.Sum(nil)
+
+	// Sub hash H(StateHash, subHash1)
+	hasher.Reset()
+	hasher.Write(n.Content.StateHash)
+	hasher.Write(hashSub1)
+	hashSub2 := hasher.Sum(nil)
+
+	// Main hash
+	hasher.Reset()
+	hasher.Write(idBytes[:])
+	hasher.Write(hashSub2)
+	n.SummaryValue.AddToHasher(hasher)
+
 	hasher.Write(leftHash)
+	if left != nil {
+		left.SummaryValue.AddToHasher(hasher)
+	}
 	hasher.Write(rightHash)
+	if right != nil {
+		right.SummaryValue.AddToHasher(hasher)
+	}
 }
 
 // String returns a string representation of the node

@@ -174,15 +174,18 @@ func (w *billSplitWrapper) Hash(hashFunc crypto.Hash) []byte {
 	}
 	hasher := hashFunc.New()
 	w.wrapper.addTransactionFieldsToHasher(hasher)
-
-	hasher.Write(Uint64ToBytes(w.billSplit.Amount))
-	hasher.Write(w.billSplit.TargetBearer)
-	hasher.Write(Uint64ToBytes(w.billSplit.RemainingValue))
-	hasher.Write(w.billSplit.Backlink)
+	w.addAttributesToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *billSplitWrapper) addAttributesToHasher(hasher hash.Hash) {
+	hasher.Write(Uint64ToBytes(w.billSplit.Amount))
+	hasher.Write(w.billSplit.TargetBearer)
+	hasher.Write(Uint64ToBytes(w.billSplit.RemainingValue))
+	hasher.Write(w.billSplit.Backlink)
 }
 
 func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -240,11 +243,18 @@ func (w *transferDCWrapper) TargetBearer() []byte { return w.transferDC.TargetBe
 func (w *transferDCWrapper) TargetValue() uint64  { return w.transferDC.TargetValue }
 func (w *transferDCWrapper) Backlink() []byte     { return w.transferDC.Backlink }
 
-func (w *billSplitWrapper) Amount() uint64                         { return w.billSplit.Amount }
-func (w *billSplitWrapper) TargetBearer() []byte                   { return w.billSplit.TargetBearer }
-func (w *billSplitWrapper) RemainingValue() uint64                 { return w.billSplit.RemainingValue }
-func (w *billSplitWrapper) Backlink() []byte                       { return w.billSplit.Backlink }
-func (w *billSplitWrapper) HashPrndSh(hashFunc crypto.Hash) []byte { panic("not implemented") } // TODO implement
+func (w *billSplitWrapper) Amount() uint64         { return w.billSplit.Amount }
+func (w *billSplitWrapper) TargetBearer() []byte   { return w.billSplit.TargetBearer }
+func (w *billSplitWrapper) RemainingValue() uint64 { return w.billSplit.RemainingValue }
+func (w *billSplitWrapper) Backlink() []byte       { return w.billSplit.Backlink }
+func (w *billSplitWrapper) HashPrndSh(hashFunc crypto.Hash) []byte {
+	hasher := hashFunc.New()
+	idBytes := w.UnitId().Bytes32()
+	hasher.Write(idBytes[:])
+	w.addAttributesToHasher(hasher)
+	hasher.Write(Uint64ToBytes(w.Timeout()))
+	return hasher.Sum(nil)
+}
 
 func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }

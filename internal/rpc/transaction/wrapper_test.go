@@ -97,6 +97,21 @@ func TestWrapper_Split(t *testing.T) {
 	assert.Equal(t, pbSplit.TargetBearer, split.TargetBearer())
 	assert.Equal(t, pbSplit.RemainingValue, split.RemainingValue())
 	assert.Equal(t, pbSplit.Backlink, split.Backlink())
+
+	// PrndSh input calculation
+	actualPrndSh := split.HashPrndSh(crypto.SHA256)
+
+	hasher := crypto.SHA256.New()
+	idBytes := split.UnitId().Bytes32()
+	hasher.Write(idBytes[:])
+	hasher.Write(Uint64ToBytes(split.Amount()))
+	hasher.Write(split.TargetBearer())
+	hasher.Write(Uint64ToBytes(split.RemainingValue()))
+	hasher.Write(split.Backlink())
+	hasher.Write(Uint64ToBytes(split.Timeout()))
+	expectedPrndSh := hasher.Sum(nil)
+
+	require.Equal(t, expectedPrndSh, actualPrndSh)
 }
 
 func TestWrapper_Swap(t *testing.T) {

@@ -47,12 +47,8 @@ type (
 // The ID of the dust collector money supply
 var dustCollectorMoneySupplyID = uint256.NewInt(0)
 
-func NewMoneySchemeState(initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
-	msState := &moneySchemeState{
-		hashAlgorithm: crypto.SHA256, // TODO add hash function argument
-	}
-
-	defaultTree, err := tree.New(msState.hashAlgorithm)
+func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
+	defaultTree, err := tree.New(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +60,9 @@ func NewMoneySchemeState(initialBill *InitialBill, dcMoneyAmount uint64, customO
 		o(&options)
 	}
 
+	msState := &moneySchemeState{
+		hashAlgorithm: hashAlgorithm,
+	}
 	msState.tree = options.unitsTree
 	msState.revertibleState = options.revertibleState
 

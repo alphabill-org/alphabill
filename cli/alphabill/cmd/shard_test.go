@@ -8,16 +8,18 @@ import (
 	"testing"
 	"time"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"google.golang.org/grpc"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
 
-	"github.com/stretchr/testify/require"
-
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type envVar [2]string
@@ -231,11 +233,11 @@ func TestRunShard_Ok(t *testing.T) {
 		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
 		require.NoError(t, err)
 		defer conn.Close()
-		paymentsClient := payment.NewPaymentsClient(conn)
+		transactionsClient := transaction.NewTransactionsClient(conn)
 
 		// Test cases
-		makeSuccessfulPayment(t, ctx, paymentsClient)
-		makeFailingPayment(t, ctx, paymentsClient)
+		makeSuccessfulPayment(t, ctx, transactionsClient)
+		makeFailingPayment(t, ctx, transactionsClient)
 
 		// Close the app
 		ctxCancel()
@@ -244,28 +246,46 @@ func TestRunShard_Ok(t *testing.T) {
 	})
 }
 
-func makeSuccessfulPayment(t *testing.T, ctx context.Context, paymentsClient payment.PaymentsClient) {
-	paymentResponse, err := paymentsClient.MakePayment(ctx, &payment.PaymentRequest{
-		BillId:            1,
-		PaymentType:       payment.PaymentRequest_TRANSFER,
-		Amount:            0,
-		PayeePredicate:    script.PredicateAlwaysTrue(),
-		Backlink:          []byte{},
-		PredicateArgument: []byte{script.StartByte},
-	})
+func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient transaction.TransactionsClient) {
+	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
+
+	tx := &transaction.Transaction{
+		UnitId:                initialBillID[:],
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               0,
+		OwnerProof:            []byte{script.StartByte},
+	}
+	bt := &transaction.BillTransfer{
+		NewBearer:   script.PredicateAlwaysTrue(),
+		TargetValue: defaultInitialBillValue,
+		Backlink:    nil,
+	}
+	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
 	require.NoError(t, err)
-	require.NotEmpty(t, paymentResponse.PaymentId, "Successful payment should return some ID")
+
+	response, err := txClient.ProcessTransaction(ctx, tx)
+	require.NoError(t, err)
+	require.True(t, response.Ok, "Successful response ok should be true")
 }
 
-func makeFailingPayment(t *testing.T, ctx context.Context, paymentsClient payment.PaymentsClient) {
-	paymentResponse, err := paymentsClient.MakePayment(ctx, &payment.PaymentRequest{
-		BillId:            100,
-		PaymentType:       payment.PaymentRequest_TRANSFER,
-		Amount:            0,
-		PayeePredicate:    script.PredicateAlwaysTrue(),
-		Backlink:          []byte{},
-		PredicateArgument: []byte{script.StartByte},
-	})
+func makeFailingPayment(t *testing.T, ctx context.Context, txClient transaction.TransactionsClient) {
+	wrongBillID := uint256.NewInt(6).Bytes32()
+
+	tx := &transaction.Transaction{
+		UnitId:                wrongBillID[:],
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               0,
+		OwnerProof:            []byte{script.StartByte},
+	}
+	bt := &transaction.BillTransfer{
+		NewBearer:   script.PredicateAlwaysTrue(),
+		TargetValue: defaultInitialBillValue,
+		Backlink:    nil,
+	}
+	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
+	require.NoError(t, err)
+
+	response, err := txClient.ProcessTransaction(ctx, tx)
 	require.Error(t, err)
-	require.Nil(t, paymentResponse, "Failing payment should return response")
+	require.Nil(t, response, "Failing payment should not return response")
 }

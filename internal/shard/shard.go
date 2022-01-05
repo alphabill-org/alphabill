@@ -1,10 +1,10 @@
 package shard
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 )
 
 type (
@@ -12,12 +12,10 @@ type (
 		stateProcessor StateProcessor
 	}
 	StateProcessor interface {
-		// ProcessPayment validates and processes a payment order.
-		ProcessPayment(payment *domain.PaymentOrder) error
+		// Process validates and processes a transaction order.
+		Process(tx state.GenericTransaction) error
 	}
 )
-
-var log = logger.CreateForPackage()
 
 // New create a new Shard Component.
 // At the moment it only updates the state. In the future it should synchronize with other shards
@@ -29,15 +27,14 @@ func New(stateProcessor StateProcessor) (*shardNode, error) {
 	return &shardNode{stateProcessor}, nil
 }
 
-func (b *shardNode) Process(payment *domain.PaymentOrder) (status string, err error) {
-	err = b.stateProcessor.ProcessPayment(payment)
-	if err != nil {
-		return "", err
+func (b *shardNode) Process(gtx transaction.GenericTransaction) (err error) {
+	stx, ok := gtx.(state.GenericTransaction)
+	if !ok {
+		return errors.New("the transaction does not confirm to the state GenericTransaction interface")
 	}
-	return "1", nil
-}
-
-func (b *shardNode) Status(paymentID string) (interface{}, error) {
-	log.Debug("Received status request for payment ID: %s", paymentID)
-	return nil, errors.ErrNotImplemented
+	err = b.stateProcessor.Process(stx)
+	if err != nil {
+		return err
+	}
+	return nil
 }

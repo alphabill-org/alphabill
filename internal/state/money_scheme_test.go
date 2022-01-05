@@ -38,7 +38,7 @@ func TestNewMoneyScheme(t *testing.T) {
 		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
 
-	_, err := NewMoneySchemeState(initialBill, dcMoneyAmount, MoneySchemeOpts.UnitsTree(mockTree))
+	_, err := NewMoneySchemeState(crypto.SHA256, initialBill, dcMoneyAmount, MoneySchemeOpts.UnitsTree(mockTree))
 	require.NoError(t, err)
 }
 
@@ -107,6 +107,7 @@ func TestProcessTransfer(t *testing.T) {
 			mockRState := new(MockRevertibleState)
 			mockTree.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 			mss, err := NewMoneySchemeState(
+				crypto.SHA256,
 				&InitialBill{},
 				0,
 				MoneySchemeOpts.UnitsTree(mockTree),

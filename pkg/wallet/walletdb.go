@@ -54,7 +54,8 @@ type Db interface {
 }
 
 type wdb struct {
-	db *bolt.DB
+	db         *bolt.DB
+	dbFilePath string
 }
 
 func createNewDb(config *Config) (*wdb, error) {
@@ -92,16 +93,17 @@ func openDb(dbFilePath string, create bool) (*wdb, error) {
 		return nil, err
 	}
 
-	err = createBuckets(db)
+	w := &wdb{db, dbFilePath}
+	err = w.createBuckets()
 	if err != nil {
-		cleanDb(db, create)
+		w.DeleteDb()
 		return nil, err
 	}
-	return &wdb{db}, nil
+	return w, nil
 }
 
-func createBuckets(d *bolt.DB) error {
-	return d.Update(func(tx *bolt.Tx) error {
+func (d *wdb) createBuckets() error {
+	return d.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(keysBucket)
 		if err != nil {
 			return err
@@ -286,10 +288,13 @@ func (d *wdb) SetBlockHeight(blockHeight uint64) error {
 }
 
 func (d *wdb) Path() string {
-	return d.db.Path()
+	return d.dbFilePath
 }
 
 func (d *wdb) Close() {
+	if d.db == nil {
+		return
+	}
 	err := d.db.Close()
 	if err != nil {
 		log.Warning("error closing db: ", err)
@@ -297,18 +302,15 @@ func (d *wdb) Close() {
 }
 
 func (d *wdb) DeleteDb() {
-	cleanDb(d.db, true)
-}
-
-func cleanDb(db *bolt.DB, remove bool) {
-	errClose := db.Close()
+	if d.db == nil {
+		return
+	}
+	errClose := d.db.Close()
 	if errClose != nil {
 		log.Warning("error closing db: ", errClose)
 	}
-	if remove {
-		errRemove := os.Remove(db.Path())
-		if errRemove != nil {
-			log.Warning("error removing db: ", errRemove)
-		}
+	errRemove := os.Remove(d.dbFilePath)
+	if errRemove != nil {
+		log.Warning("error removing db: ", errRemove)
 	}
 }

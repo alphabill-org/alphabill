@@ -4,7 +4,6 @@ import (
 	"alphabill-wallet-sdk/internal/errors"
 	"alphabill-wallet-sdk/internal/util"
 	"alphabill-wallet-sdk/pkg/log"
-	"alphabill-wallet-sdk/pkg/wallet/config"
 	"encoding/binary"
 	"encoding/json"
 	"github.com/holiman/uint256"
@@ -54,11 +53,11 @@ type Db interface {
 	DeleteDb()
 }
 
-type WDb struct {
+type wdb struct {
 	db *bolt.DB
 }
 
-func CreateNewDb(config *config.WalletConfig) (*WDb, error) {
+func createNewDb(config *Config) (*wdb, error) {
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
 		return nil, err
@@ -72,12 +71,12 @@ func CreateNewDb(config *config.WalletConfig) (*WDb, error) {
 	return openDb(dbFilePath, true)
 }
 
-func OpenDb(config *config.WalletConfig) (*WDb, error) {
+func OpenDb(config *Config) (*wdb, error) {
 	dbFilePath := path.Join(config.DbPath, walletFileName)
 	return openDb(dbFilePath, false)
 }
 
-func openDb(dbFilePath string, create bool) (*WDb, error) {
+func openDb(dbFilePath string, create bool) (*wdb, error) {
 	if create {
 		if util.FileExists(dbFilePath) {
 			return nil, errWalletDbAlreadyExists
@@ -98,7 +97,7 @@ func openDb(dbFilePath string, create bool) (*WDb, error) {
 		cleanDb(db, create)
 		return nil, err
 	}
-	return &WDb{db}, nil
+	return &wdb{db}, nil
 }
 
 func createBuckets(d *bolt.DB) error {
@@ -119,7 +118,7 @@ func createBuckets(d *bolt.DB) error {
 	})
 }
 
-func (d *WDb) SetAccountKey(key *accountKey) error {
+func (d *wdb) SetAccountKey(key *accountKey) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
@@ -129,7 +128,7 @@ func (d *WDb) SetAccountKey(key *accountKey) error {
 	})
 }
 
-func (d *WDb) GetAccountKey() (*accountKey, error) {
+func (d *wdb) GetAccountKey() (*accountKey, error) {
 	var key *accountKey
 	err := d.db.View(func(tx *bolt.Tx) error {
 		k := tx.Bucket(keysBucket).Get(accountKeyName)
@@ -144,13 +143,13 @@ func (d *WDb) GetAccountKey() (*accountKey, error) {
 	return key, nil
 }
 
-func (d *WDb) SetMasterKey(masterKey string) error {
+func (d *wdb) SetMasterKey(masterKey string) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(keysBucket).Put(masterKeyName, []byte(masterKey))
 	})
 }
 
-func (d *WDb) GetMasterKey() (string, error) {
+func (d *wdb) GetMasterKey() (string, error) {
 	var masterKey []byte
 	err := d.db.View(func(tx *bolt.Tx) error {
 		masterKey = tx.Bucket(keysBucket).Get(masterKeyName)
@@ -165,13 +164,13 @@ func (d *WDb) GetMasterKey() (string, error) {
 	return string(masterKey), nil
 }
 
-func (d *WDb) SetMnemonic(mnemonic string) error {
+func (d *wdb) SetMnemonic(mnemonic string) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(keysBucket).Put(mnemonicKeyName, []byte(mnemonic))
 	})
 }
 
-func (d *WDb) GetMnemonic() (string, error) {
+func (d *wdb) GetMnemonic() (string, error) {
 	var mnemonic []byte
 	err := d.db.View(func(tx *bolt.Tx) error {
 		mnemonic = tx.Bucket(keysBucket).Get(mnemonicKeyName)
@@ -186,7 +185,7 @@ func (d *WDb) GetMnemonic() (string, error) {
 	return string(mnemonic), nil
 }
 
-func (d *WDb) SetBill(bill *bill) error {
+func (d *wdb) SetBill(bill *bill) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(bill)
 		if err != nil {
@@ -197,7 +196,7 @@ func (d *WDb) SetBill(bill *bill) error {
 	})
 }
 
-func (d *WDb) ContainsBill(id *uint256.Int) (bool, error) {
+func (d *wdb) ContainsBill(id *uint256.Int) (bool, error) {
 	res := false
 	err := d.db.View(func(tx *bolt.Tx) error {
 		billId := id.Bytes32()
@@ -210,13 +209,13 @@ func (d *WDb) ContainsBill(id *uint256.Int) (bool, error) {
 	return res, nil
 }
 
-func (d *WDb) RemoveBill(id *uint256.Int) error {
+func (d *wdb) RemoveBill(id *uint256.Int) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(keysBucket).Delete(id.Bytes())
 	})
 }
 
-func (d *WDb) GetBillWithMinValue(minVal uint64) (*bill, error) {
+func (d *wdb) GetBillWithMinValue(minVal uint64) (*bill, error) {
 	var minValBill *bill
 	err := d.db.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket(billsBucket).Cursor()
@@ -239,7 +238,7 @@ func (d *WDb) GetBillWithMinValue(minVal uint64) (*bill, error) {
 	return minValBill, nil
 }
 
-func (d *WDb) GetBalance() (uint64, error) {
+func (d *wdb) GetBalance() (uint64, error) {
 	sum := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
 		err := tx.Bucket(billsBucket).ForEach(func(k, v []byte) error {
@@ -262,7 +261,7 @@ func (d *WDb) GetBalance() (uint64, error) {
 	return sum, nil
 }
 
-func (d *WDb) GetBlockHeight() (uint64, error) {
+func (d *wdb) GetBlockHeight() (uint64, error) {
 	blockHeight := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKeyName)
@@ -278,7 +277,7 @@ func (d *WDb) GetBlockHeight() (uint64, error) {
 	return blockHeight, nil
 }
 
-func (d *WDb) SetBlockHeight(blockHeight uint64) error {
+func (d *wdb) SetBlockHeight(blockHeight uint64) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
@@ -286,22 +285,23 @@ func (d *WDb) SetBlockHeight(blockHeight uint64) error {
 	})
 }
 
-func (d *WDb) Path() string {
+func (d *wdb) Path() string {
 	return d.db.Path()
 }
 
-func (d *WDb) Close() {
+func (d *wdb) Close() {
 	err := d.db.Close()
 	if err != nil {
 		log.Warning("error closing db", err)
 	}
 }
 
-func (d *WDb) DeleteDb() {
+func (d *wdb) DeleteDb() {
 	cleanDb(d.db, true)
 }
 
 func cleanDb(db *bolt.DB, remove bool) {
+	log.Info(db.Path())
 	errClose := db.Close()
 	if errClose != nil {
 		log.Warning("error closing db", errClose)

@@ -4,7 +4,6 @@ import (
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
 	"alphabill-wallet-sdk/pkg/log"
-	"alphabill-wallet-sdk/pkg/wallet/config"
 	"context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -18,12 +17,12 @@ type ABClient interface {
 }
 
 type AlphaBillClient struct {
-	config     *config.AlphaBillClientConfig
+	config     *AlphaBillClientConfig
 	connection *grpc.ClientConn
 	client     alphabill.AlphaBillServiceClient
 }
 
-func New(config *config.AlphaBillClientConfig) (*AlphaBillClient, error) {
+func New(config *AlphaBillClientConfig) (*AlphaBillClient, error) {
 	conn, err := grpc.Dial(config.Uri, grpc.WithInsecure())
 	if err != nil {
 		return nil, err

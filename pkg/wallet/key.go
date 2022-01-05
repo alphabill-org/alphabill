@@ -17,7 +17,7 @@ type accountKey struct {
 	DerivationPath   []byte `json:"derivationPath"`
 }
 
-func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*accountKey, error) {
+func newAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*accountKey, error) {
 	path, err := accounts.ParseDerivationPath(derivationPath)
 	if err != nil {
 		return nil, err

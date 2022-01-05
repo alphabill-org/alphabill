@@ -7,7 +7,6 @@ import (
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
 	"alphabill-wallet-sdk/internal/testutil"
-	"alphabill-wallet-sdk/pkg/wallet/config"
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/require"
@@ -24,9 +23,9 @@ import (
 func TestWalletCanProcessBlocks(t *testing.T) {
 	testutil.DeleteWalletDb(os.TempDir())
 	port := 9543
-	w, err := CreateNewWallet(&config.WalletConfig{
+	w, err := CreateNewWallet(&Config{
 		DbPath:                os.TempDir(),
-		AlphaBillClientConfig: &config.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphaBillClientConfig: &abclient.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	defer DeleteWallet(w)
 	require.NoError(t, err)

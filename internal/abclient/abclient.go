@@ -62,7 +62,7 @@ func (c *AlphaBillClient) Shutdown() {
 	}
 	err := c.connection.Close()
 	if err != nil {
-		log.Error("error shutting down alphabill client", err)
+		log.Error("error shutting down alphabill client: ", err)
 	}
 }
 

@@ -176,7 +176,7 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	go func() {
 		err = w.alphaBillClient.InitBlockReceiver(height, ch)
 		if err != nil {
-			log.Error("error receiving block", err)
+			log.Error("error receiving block: ", err)
 		}
 		close(ch)
 		wg.Done()
@@ -184,7 +184,7 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	go func() {
 		err = w.initBlockProcessor(ch)
 		if err != nil {
-			log.Error("error processing block", err)
+			log.Error("error processing block: ", err)
 		} else {
 			log.Info("block processor channel closed")
 		}

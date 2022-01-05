@@ -292,7 +292,7 @@ func (d *wdb) Path() string {
 func (d *wdb) Close() {
 	err := d.db.Close()
 	if err != nil {
-		log.Warning("error closing db", err)
+		log.Warning("error closing db: ", err)
 	}
 }
 
@@ -301,15 +301,14 @@ func (d *wdb) DeleteDb() {
 }
 
 func cleanDb(db *bolt.DB, remove bool) {
-	log.Info(db.Path())
 	errClose := db.Close()
 	if errClose != nil {
-		log.Warning("error closing db", errClose)
+		log.Warning("error closing db: ", errClose)
 	}
 	if remove {
 		errRemove := os.Remove(db.Path())
 		if errRemove != nil {
-			log.Warning("error removing db", errRemove)
+			log.Warning("error removing db: ", errRemove)
 		}
 	}
 }

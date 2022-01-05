@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -194,21 +196,31 @@ func (m *moneySchemeState) TotalValue() (uint64, error) {
 }
 
 func (b *BillSummary) AddToHasher(hasher hash.Hash) {
-	//TODO implement me
-	panic("implement me")
+	hasher.Write(util.Uint64ToBytes(b.v))
 }
 
 func (b *BillSummary) Concatenate(left, right tree.SummaryValue) tree.SummaryValue {
-	//TODO implement me
-	panic("implement me")
+	var out uint64
+	out += b.v
+	if left != nil {
+		if ls, ok := left.(*BillSummary); ok {
+			out += ls.v
+		}
+	}
+	if right != nil {
+		if rs, ok := right.(*BillSummary); ok {
+			out += rs.v
+		}
+	}
+	return &BillSummary{v: out}
 }
 
 func (b *BillData) AddToHasher(hasher hash.Hash) {
-	//TODO implement me
-	panic("implement me")
+	hasher.Write(util.Uint64ToBytes(b.V))
+	hasher.Write(util.Uint64ToBytes(b.T))
+	hasher.Write(b.Backlink)
 }
 
 func (b *BillData) Value() tree.SummaryValue {
-	//TODO implement me
-	panic("implement me")
+	return &BillSummary{v: b.V}
 }

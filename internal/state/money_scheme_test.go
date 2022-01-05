@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
 
 	"github.com/stretchr/testify/mock"
@@ -123,6 +125,67 @@ func TestProcessTransfer(t *testing.T) {
 			mock.AssertExpectationsForObjects(t, mockRState)
 		})
 	}
+}
+
+func TestBillData_Value(t *testing.T) {
+	bd := &BillData{
+		V:        10,
+		T:        0,
+		Backlink: nil,
+	}
+
+	actualSumValue := bd.Value()
+	expectedSumValue := &BillSummary{v: 10}
+	require.Equal(t, expectedSumValue, actualSumValue)
+}
+
+func TestBillData_AddToHasher(t *testing.T) {
+	bd := &BillData{
+		V:        10,
+		T:        50,
+		Backlink: []byte("backlink"),
+	}
+
+	hasher := crypto.SHA256.New()
+	hasher.Write(util.Uint64ToBytes(bd.V))
+	hasher.Write(util.Uint64ToBytes(bd.T))
+	hasher.Write(bd.Backlink)
+	expectedHash := hasher.Sum(nil)
+	hasher.Reset()
+	bd.AddToHasher(hasher)
+	actualHash := hasher.Sum(nil)
+	require.Equal(t, expectedHash, actualHash)
+}
+
+func TestBillSummary_Concatenate(t *testing.T) {
+	self := &BillSummary{v: 10}
+	left := &BillSummary{v: 2}
+	right := &BillSummary{v: 3}
+
+	actualSum := self.Concatenate(left, right)
+	require.Equal(t, &BillSummary{v: 15}, actualSum)
+
+	actualSum = self.Concatenate(nil, nil)
+	require.Equal(t, &BillSummary{v: 10}, actualSum)
+
+	actualSum = self.Concatenate(left, nil)
+	require.Equal(t, &BillSummary{v: 12}, actualSum)
+
+	actualSum = self.Concatenate(nil, right)
+	require.Equal(t, &BillSummary{v: 13}, actualSum)
+}
+
+func TestBillSummary_AddToHasher(t *testing.T) {
+	bs := &BillSummary{v: 10}
+
+	hasher := crypto.SHA256.New()
+	hasher.Write(util.Uint64ToBytes(bs.v))
+	expectedHash := hasher.Sum(nil)
+	hasher.Reset()
+
+	bs.AddToHasher(hasher)
+	actualHash := hasher.Sum(nil)
+	require.Equal(t, expectedHash, actualHash)
 }
 
 func newRandomTransfer() *transfer {

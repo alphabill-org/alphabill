@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
 
@@ -12,10 +14,44 @@ import (
 )
 
 type (
-	moneySchemeState struct {
-		revertibleState RevertibleState
-		tree            UnitsTree
-		hashAlgorithm   crypto.Hash // hash function algorithm
+	GenericTransaction interface {
+		UnitId() *uint256.Int
+		Timeout() uint64
+		OwnerProof() []byte
+		Hash(hashFunc crypto.Hash) []byte
+	}
+
+	Transfer interface {
+		GenericTransaction
+		NewBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	TransferDC interface {
+		GenericTransaction
+		Nonce() []byte
+		TargetBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	Split interface {
+		GenericTransaction
+		Amount() uint64
+		TargetBearer() []byte
+		RemainingValue() uint64
+		Backlink() []byte
+		HashPrndSh(hashFunc crypto.Hash) []byte // Returns hash value for the PrndSh function
+	}
+
+	Swap interface {
+		GenericTransaction
+		OwnerCondition() []byte
+		BillIdentifiers() []*uint256.Int
+		DCTransfers() []TransferDC
+		Proofs() [][]byte
+		TargetValue() uint64
 	}
 
 	InitialBill struct {
@@ -42,12 +78,21 @@ type (
 		Revert() error
 		Commit()
 	}
+
+	moneySchemeState struct {
+		revertibleState RevertibleState
+		tree            UnitsTree
+		hashAlgorithm   crypto.Hash // hash function algorithm
+	}
 )
+
+var log = logger.CreateForPackage()
 
 // The ID of the dust collector money supply
 var dustCollectorMoneySupplyID = uint256.NewInt(0)
 
 func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
+	// TODO validate that initialBillID doesn't match with DC money ID. https://guardtime.atlassian.net/browse/AB-93
 	defaultTree, err := tree.New(hashAlgorithm)
 	if err != nil {
 		return nil, err

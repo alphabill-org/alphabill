@@ -117,6 +117,16 @@ func (r *revertibleState) Commit() {
 	r.resetChanges()
 }
 
+// GetRootHash starts root hash value computation and returns it.
+func (r *revertibleState) GetRootHash() []byte {
+	return r.unitsTree.GetRootHash()
+}
+
+// TotalValue starts tree calculation and returns the root node monetary value.
+func (r *revertibleState) TotalValue() tree.SummaryValue {
+	return r.unitsTree.GetSummaryValue()
+}
+
 func (r *revertibleState) resetChanges() {
 	r.changes = []func() error{}
 }

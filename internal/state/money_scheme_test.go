@@ -23,24 +23,24 @@ const (
 )
 
 func TestNewMoneyScheme(t *testing.T) {
-	mockTree := new(MockUnitsTree)
+	mockRevertibleState := new(MockRevertibleState)
 
 	initialBill := &InitialBill{ID: uint256.NewInt(2), Value: 100, Owner: nil}
 	dcMoneyAmount := uint64(222)
 
 	// Initial bill gets set
-	mockTree.On("Set", initialBill.ID, initialBill.Owner,
+	mockRevertibleState.On("AddItem", initialBill.ID, initialBill.Owner,
 		&BillData{V: initialBill.Value, T: 0, Backlink: nil},
 		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
 
 	// The dust collector money gets set
-	mockTree.On("Set", dustCollectorMoneySupplyID, tree.Predicate{},
+	mockRevertibleState.On("AddItem", dustCollectorMoneySupplyID, tree.Predicate{},
 		&BillData{V: dcMoneyAmount, T: 0, Backlink: nil},
 		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
 
-	_, err := NewMoneySchemeState(crypto.SHA256, initialBill, dcMoneyAmount, MoneySchemeOpts.UnitsTree(mockTree))
+	_, err := NewMoneySchemeState(crypto.SHA256, initialBill, dcMoneyAmount, MoneySchemeOpts.RevertibleState(mockRevertibleState))
 	require.NoError(t, err)
 }
 
@@ -105,14 +105,14 @@ func TestProcessTransfer(t *testing.T) {
 	}
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			mockTree := new(MockUnitsTree)
 			mockRState := new(MockRevertibleState)
-			mockTree.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+			initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: tree.Predicate{44}}
+			mockRState.On("AddItem", initialBill.ID, initialBill.Owner, mock.Anything, mock.Anything).Return(nil)
+			mockRState.On("AddItem", dustCollectorMoneySupplyID, tree.Predicate{}, mock.Anything, mock.Anything).Return(nil)
 			mss, err := NewMoneySchemeState(
 				crypto.SHA256,
-				&InitialBill{},
+				initialBill,
 				0,
-				MoneySchemeOpts.UnitsTree(mockTree),
 				MoneySchemeOpts.RevertibleState(mockRState),
 			)
 			require.NoError(t, err)

@@ -79,11 +79,12 @@ type (
 		UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error
 		Revert() error
 		Commit()
+		GetRootHash() []byte
+		TotalValue() tree.SummaryValue
 	}
 
 	moneySchemeState struct {
 		revertibleState RevertibleState
-		tree            UnitsTree
 		hashAlgorithm   crypto.Hash // hash function algorithm
 	}
 )
@@ -100,7 +101,6 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 		return nil, err
 	}
 	options := MoneySchemeOptions{
-		unitsTree:       defaultTree,
 		revertibleState: NewRevertible(defaultTree),
 	}
 	for _, o := range customOpts {
@@ -108,12 +108,11 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 	}
 
 	msState := &moneySchemeState{
-		hashAlgorithm: hashAlgorithm,
+		hashAlgorithm:   hashAlgorithm,
+		revertibleState: options.revertibleState,
 	}
-	msState.tree = options.unitsTree
-	msState.revertibleState = options.revertibleState
 
-	err = msState.tree.Set(initialBill.ID, initialBill.Owner, &BillData{
+	err = msState.revertibleState.AddItem(initialBill.ID, initialBill.Owner, &BillData{
 		V:        initialBill.Value,
 		T:        0,
 		Backlink: nil,
@@ -123,7 +122,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 	}
 
 	// TODO Not sure what the DC money owner predicate should be: https://guardtime.atlassian.net/browse/AB-93
-	err = msState.tree.Set(dustCollectorMoneySupplyID, tree.Predicate{}, &BillData{
+	err = msState.revertibleState.AddItem(dustCollectorMoneySupplyID, tree.Predicate{}, &BillData{
 		V:        dcMoneyAmount,
 		T:        0,
 		Backlink: nil,
@@ -179,15 +178,13 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 
 // GetRootHash starts root hash value computation and returns it.
 func (m *moneySchemeState) GetRootHash() []byte {
-	// TODO maybe it's better to delegate this though the reversible state
-	return m.tree.GetRootHash()
+	return m.revertibleState.GetRootHash()
 }
 
 // TotalValue starts tree calculation and returns the root node monetary value.
 // It must remain constant during the lifetime of the state.
 func (m *moneySchemeState) TotalValue() (uint64, error) {
-	// TODO maybe it's better to delegate this though the reversible state
-	sum := m.tree.GetSummaryValue()
+	sum := m.revertibleState.TotalValue()
 	bs, ok := sum.(*BillSummary)
 	if !ok {
 		return 0, errors.New("summary was not *BillSummary")

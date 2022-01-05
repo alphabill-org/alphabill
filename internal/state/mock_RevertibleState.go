@@ -46,6 +46,22 @@ func (_m *MockRevertibleState) DeleteItem(id *uint256.Int) error {
 	return r0
 }
 
+// GetRootHash provides a mock function with given fields:
+func (_m *MockRevertibleState) GetRootHash() []byte {
+	ret := _m.Called()
+
+	var r0 []byte
+	if rf, ok := ret.Get(0).(func() []byte); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	return r0
+}
+
 // Revert provides a mock function with given fields:
 func (_m *MockRevertibleState) Revert() error {
 	ret := _m.Called()
@@ -69,6 +85,22 @@ func (_m *MockRevertibleState) SetOwner(id *uint256.Int, owner tree.Predicate, s
 		r0 = rf(id, owner, stateHash)
 	} else {
 		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// TotalValue provides a mock function with given fields:
+func (_m *MockRevertibleState) TotalValue() tree.SummaryValue {
+	ret := _m.Called()
+
+	var r0 tree.SummaryValue
+	if rf, ok := ret.Get(0).(func() tree.SummaryValue); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(tree.SummaryValue)
+		}
 	}
 
 	return r0

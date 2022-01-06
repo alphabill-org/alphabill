@@ -112,7 +112,9 @@ func (r *revertibleState) Revert() error {
 	return nil
 }
 
-// Commit commits the changes. All changes done before the Commit cannot be reverted.
+// Commit commits the changes, making these not revertible.
+// Changes done before the Commit cannot be reverted anymore.
+// Changes done after the last Commit can be reverted by Revert method.
 func (r *revertibleState) Commit() {
 	r.resetChanges()
 }

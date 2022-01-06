@@ -5,13 +5,11 @@ import (
 	"encoding/base64"
 	"hash"
 
-	hasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
 
 	"github.com/holiman/uint256"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
 
 const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
@@ -122,7 +120,7 @@ func (w *wrapper) UnitId() *uint256.Int {
 }
 
 func (w *wrapper) IDHash() string {
-	idHash := hasher.Sum256(w.UnitId().Bytes())
+	idHash := hasherUtil.Sum256(w.UnitId().Bytes())
 	return base64.StdEncoding.EncodeToString(idHash)
 }
 

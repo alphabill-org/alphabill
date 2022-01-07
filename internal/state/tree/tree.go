@@ -211,7 +211,13 @@ func (n *Node) addToHasher(hasher hash.Hash) {
 
 // String returns a string representation of the node
 func (n *Node) String() string {
-	m := fmt.Sprintf("ID=%v, ", n.ID.Bytes32())
+	m := ""
+	if n.ID.IsUint64() {
+		m = fmt.Sprintf("ID=%v, ", n.ID.Uint64())
+	} else {
+		m = fmt.Sprintf("ID=%v, ", n.ID.Bytes32())
+	}
+
 	if n.recompute {
 		m = m + "*"
 	}

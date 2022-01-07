@@ -13,8 +13,15 @@ var (
 	key2  = uint256.NewInt(2)
 	key3  = uint256.NewInt(3)
 	key4  = uint256.NewInt(4)
+	key5  = uint256.NewInt(5)
+	key6  = uint256.NewInt(6)
+	key7  = uint256.NewInt(7)
+	key8  = uint256.NewInt(8)
+	key9  = uint256.NewInt(9)
 	key10 = uint256.NewInt(10)
+	key11 = uint256.NewInt(11)
 	key12 = uint256.NewInt(12)
+	key13 = uint256.NewInt(13)
 	key15 = uint256.NewInt(15)
 	key20 = uint256.NewInt(20)
 	key24 = uint256.NewInt(24)
@@ -131,6 +138,178 @@ func TestGetNode_NotFound(t *testing.T) {
 	assert.Nil(t, node)
 }
 
+func TestDeleteNode_empty(t *testing.T) {
+	var root *Node
+	put(key1, nil, nil, &root)
+	remove(key1, &root)
+	require.Nil(t, root)
+}
+
+func TestDeleteNode_NonExisting(t *testing.T) {
+	var root *Node
+	put(key1, nil, nil, &root)
+	remove(key2, &root)
+	require.Equal(t, key1, root.ID)
+}
+
+func TestRemoveNode_TwoNodes(t *testing.T) {
+	var root *Node
+	put(key1, newNodeContent(1), nil, &root)
+	put(key2, newNodeContent(2), nil, &root)
+	remove(key2, &root)
+	requireNodeExists(t, root, key1)
+	requireNodeMissing(t, root, key2)
+
+	root = nil
+	put(key1, newNodeContent(1), nil, &root)
+	put(key2, newNodeContent(2), nil, &root)
+	remove(key1, &root)
+	requireNodeMissing(t, root, key1)
+	requireNodeExists(t, root, key2)
+}
+
+func TestRemoveNode_Leaf(t *testing.T) {
+	var root *Node
+
+	put(key1, newNodeContent(1), nil, &root)
+	put(key2, newNodeContent(2), nil, &root)
+	put(key3, newNodeContent(3), nil, &root)
+
+	remove(key3, &root)
+
+	requireNodeExists(t, root, key1)
+	requireNodeExists(t, root, key2)
+	requireNodeMissing(t, root, key3)
+}
+
+func TestRemoveNode_Top(t *testing.T) {
+	var root *Node
+
+	put(key1, newNodeContent(1), nil, &root)
+	put(key2, newNodeContent(2), nil, &root)
+	put(key3, newNodeContent(3), nil, &root)
+
+	remove(key2, &root)
+
+	requireNodeExists(t, root, key1)
+	requireNodeMissing(t, root, key2)
+	requireNodeExists(t, root, key3)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_RightRight(t *testing.T) {
+	var root *Node
+
+	for i := 1; i < 11; i++ {
+		put(uint256.NewInt(uint64(i)), newNodeContent(i), nil, &root)
+	}
+
+	// Make the right-right child node subtree is the highest.
+	remove(key5, &root)
+	remove(key7, &root)
+
+	//printTree(root)
+	// Trigger rotation by deleting left sub node children.
+	remove(key3, &root)
+	//printTree(root)
+	remove(key1, &root)
+	//printTree(root)
+
+	// Node 4 became child and 6 was moved under it.
+	require.Equal(t, key8, root.ID)
+	require.Equal(t, key4, root.Children[0].ID)
+	require.Equal(t, key6, root.Children[0].Children[1].ID)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_RightLeft(t *testing.T) {
+	var root *Node
+
+	for i := 1; i < 11; i++ {
+		put(uint256.NewInt(uint64(i)), newNodeContent(i), nil, &root)
+	}
+
+	//printTree(root)
+	// Make right-left child node subtree the highest.
+	remove(key10, &root)
+
+	//printTree(root)
+	// Trigger rotation by deleting left sub node children.
+	remove(key1, &root)
+	//printTree(root)
+	remove(key3, &root)
+	//printTree(root)
+
+	// Node 6 becomes the root by two rotations.
+	require.Equal(t, key6, root.ID)
+	require.Equal(t, key8, root.Children[1].ID)
+	require.Equal(t, key4, root.Children[0].ID)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_LeftLeft(t *testing.T) {
+	var root *Node
+
+	for i := 1; i < 14; i++ {
+		put(uint256.NewInt(uint64(i)), newNodeContent(i), nil, &root)
+	}
+
+	//printTree(root)
+	// Make left-left child node subtree the highest.
+	remove(key11, &root)
+	remove(key13, &root)
+	remove(key7, &root)
+	remove(key5, &root)
+
+	//printTree(root)
+
+	// Trigger balancing by deleting sub nodes from right child.
+	remove(key12, &root)
+	//printTree(root)
+	remove(key9, &root)
+	//printTree(root)
+
+	// Node 4 becomes the root by one rotation.
+	require.Equal(t, key4, root.ID)
+	require.Equal(t, key8, root.Children[1].ID)
+	require.Equal(t, key6, root.Children[1].Children[0].ID)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_LeftRight(t *testing.T) {
+	var root *Node
+
+	for i := 1; i < 14; i++ {
+		put(uint256.NewInt(uint64(i)), newNodeContent(i), nil, &root)
+	}
+
+	//printTree(root)
+	// Make left-left child node subtree the highest.
+	remove(key11, &root)
+	remove(key13, &root)
+	remove(key3, &root)
+	remove(key1, &root)
+
+	//printTree(root)
+
+	// Trigger balancing by deleting sub nodes from right child.
+	remove(key12, &root)
+	//printTree(root)
+	remove(key9, &root)
+	//printTree(root)
+
+	// Node 6 was becomes the root by two rotations.
+	require.Equal(t, key6, root.ID)
+	require.Equal(t, key8, root.Children[1].ID)
+	require.Equal(t, key7, root.Children[1].Children[0].ID)
+}
+
+func printTree(root *Node) {
+	out := ""
+	output(root, "", false, &out)
+	println(out)
+}
+
 func requireNodeEquals(t *testing.T, node *Node, key *uint256.Int, val int) {
 	require.Equal(t, key, node.ID)
 	value, ok := node.Content.Data.(TestData)
@@ -147,4 +326,16 @@ func newNodeContent(val int) *NodeContent {
 		Data:      TestData(uint64(val)),
 		StateHash: []byte{byte(val)},
 	}
+}
+
+func requireNodeMissing(t *testing.T, root *Node, key *uint256.Int) {
+	actualNode, found := getNode(root, key)
+	require.False(t, found, "node %v exists, but should be missing", key)
+	require.Nil(t, actualNode)
+}
+
+func requireNodeExists(t *testing.T, root *Node, key *uint256.Int) {
+	actualNode, found := getNode(root, key)
+	require.True(t, found, "node %v is missing, but should exist", key)
+	require.NotNil(t, actualNode)
 }

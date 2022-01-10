@@ -1,7 +1,7 @@
 // Copyright (c) 2017, Benjamin Scher Purcell. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-package tree
+package state
 
 import "github.com/holiman/uint256"
 

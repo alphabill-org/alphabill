@@ -5,14 +5,14 @@ import (
 	"crypto"
 	"net"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
-
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 
@@ -67,7 +67,7 @@ func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFun
 }
 
 func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
-	billsState, err := state.NewMoneySchemeState(crypto.SHA256, &state.InitialBill{
+	billsState, err := txsystem.NewMoneySchemeState(crypto.SHA256, &txsystem.InitialBill{
 		ID:    uint256.NewInt(defaultInitialBillId),
 		Value: cfg.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),

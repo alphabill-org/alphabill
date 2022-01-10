@@ -5,8 +5,6 @@ import (
 	"hash"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
-
 	"github.com/holiman/uint256"
 
 	"github.com/stretchr/testify/mock"
@@ -17,20 +15,20 @@ var (
 	id                          = uint256.NewInt(1)
 	newStateHash                = []byte("state hash")
 	oldStateHash                = []byte("old state hash")
-	newOwner     tree.Predicate = []byte("owner")
-	oldOwner     tree.Predicate = []byte("old owner")
-	newData                     = TestData("data")
-	oldData                     = TestData("old data")
-	updatedData                 = TestData("updated data")
-	updateFunc   UpdateFunction = func(data tree.Data) tree.Data {
+	newOwner     Predicate      = []byte("owner")
+	oldOwner     Predicate      = []byte("old owner")
+	newData                     = TestDataStr("data")
+	oldData                     = TestDataStr("old data")
+	updatedData                 = TestDataStr("updated data")
+	updateFunc   UpdateFunction = func(data Data) Data {
 		return updatedData
 	}
 )
 
-type TestData string
+type TestDataStr string
 
-func (t TestData) AddToHasher(hasher hash.Hash) {}
-func (t TestData) Value() tree.SummaryValue     { return nil }
+func (t TestDataStr) AddToHasher(hasher hash.Hash) {}
+func (t TestDataStr) Value() SummaryValue          { return nil }
 
 func TestRevertible_Empty(t *testing.T) {
 	utree := new(MockUnitsTree)

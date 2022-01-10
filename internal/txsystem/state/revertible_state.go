@@ -2,7 +2,6 @@ package state
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
 	"github.com/holiman/uint256"
 )
 
@@ -12,17 +11,17 @@ type (
 		changes   []func() error
 	}
 
-	UpdateFunction func(data tree.Data) (newData tree.Data)
+	UpdateFunction func(data Data) (newData Data)
 
 	UnitsTree interface {
 		Delete(id *uint256.Int) error
-		Get(id *uint256.Int) (owner tree.Predicate, data tree.Data, stateHash []byte, err error)
-		Set(id *uint256.Int, owner tree.Predicate, data tree.Data, stateHash []byte) error
-		SetOwner(id *uint256.Int, owner tree.Predicate, stateHash []byte) error
-		SetData(id *uint256.Int, data tree.Data, stateHash []byte) error
+		Get(id *uint256.Int) (owner Predicate, data Data, stateHash []byte, err error)
+		Set(id *uint256.Int, owner Predicate, data Data, stateHash []byte) error
+		SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error
+		SetData(id *uint256.Int, data Data, stateHash []byte) error
 		Exists(id *uint256.Int) (bool, error)
 		GetRootHash() []byte
-		GetSummaryValue() tree.SummaryValue
+		GetSummaryValue() SummaryValue
 	}
 )
 
@@ -35,7 +34,7 @@ func NewRevertible(unitsTree UnitsTree) *revertibleState {
 }
 
 // AddItem adds new element to the state. Id must not exist in the state.
-func (r *revertibleState) AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data, stateHash []byte) error {
+func (r *revertibleState) AddItem(id *uint256.Int, owner Predicate, data Data, stateHash []byte) error {
 	exists, err := r.unitsTree.Exists(id)
 	if err != nil {
 		return errors.Wrapf(err, "item exists check failed. ID: %d", id)
@@ -69,7 +68,7 @@ func (r *revertibleState) DeleteItem(id *uint256.Int) error {
 	return nil
 }
 
-func (r *revertibleState) SetOwner(id *uint256.Int, owner tree.Predicate, stateHash []byte) error {
+func (r *revertibleState) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	oldOwner, _, oldStateHash, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "setting owner of item that does not exist. ID %d", id)
@@ -125,7 +124,7 @@ func (r *revertibleState) GetRootHash() []byte {
 }
 
 // TotalValue starts tree calculation and returns the root node monetary value.
-func (r *revertibleState) TotalValue() tree.SummaryValue {
+func (r *revertibleState) TotalValue() SummaryValue {
 	return r.unitsTree.GetSummaryValue()
 }
 

@@ -1,17 +1,17 @@
-package state
+package txsystem
 
 import (
 	"crypto"
 	"fmt"
 	"hash"
 
+	state2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state/tree"
-
 	"github.com/holiman/uint256"
 )
 
@@ -59,7 +59,7 @@ type (
 	InitialBill struct {
 		ID    *uint256.Int
 		Value uint64
-		Owner tree.Predicate
+		Owner state2.Predicate
 	}
 
 	BillData struct {
@@ -73,14 +73,14 @@ type (
 	}
 
 	RevertibleState interface {
-		AddItem(id *uint256.Int, owner tree.Predicate, data tree.Data, stateHash []byte) error
+		AddItem(id *uint256.Int, owner state2.Predicate, data state2.Data, stateHash []byte) error
 		DeleteItem(id *uint256.Int) error
-		SetOwner(id *uint256.Int, owner tree.Predicate, stateHash []byte) error
-		UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error
+		SetOwner(id *uint256.Int, owner state2.Predicate, stateHash []byte) error
+		UpdateData(id *uint256.Int, f state2.UpdateFunction, stateHash []byte) error
 		Revert() error
 		Commit()
 		GetRootHash() []byte
-		TotalValue() tree.SummaryValue
+		TotalValue() state2.SummaryValue
 	}
 
 	moneySchemeState struct {
@@ -96,12 +96,12 @@ var dustCollectorMoneySupplyID = uint256.NewInt(0)
 
 func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
 	// TODO validate that initialBillID doesn't match with DC money ID. https://guardtime.atlassian.net/browse/AB-93
-	defaultTree, err := tree.New(hashAlgorithm)
+	defaultTree, err := state2.New(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
 	options := MoneySchemeOptions{
-		revertibleState: NewRevertible(defaultTree),
+		revertibleState: state2.NewRevertible(defaultTree),
 	}
 	for _, o := range customOpts {
 		o(&options)
@@ -122,7 +122,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 	}
 
 	// TODO Not sure what the DC money owner predicate should be: https://guardtime.atlassian.net/browse/AB-93
-	err = msState.revertibleState.AddItem(dustCollectorMoneySupplyID, tree.Predicate{}, &BillData{
+	err = msState.revertibleState.AddItem(dustCollectorMoneySupplyID, state2.Predicate{}, &BillData{
 		V:        dcMoneyAmount,
 		T:        0,
 		Backlink: nil,
@@ -144,7 +144,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
 	case Split:
 		log.Debug("Processing split %v", tx)
-		err := m.revertibleState.UpdateData(tx.UnitId(), func(data tree.Data) (newData tree.Data) {
+		err := m.revertibleState.UpdateData(tx.UnitId(), func(data state2.Data) (newData state2.Data) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				// No change in case of incorrect data type.
@@ -196,7 +196,7 @@ func (b *BillSummary) AddToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(b.v))
 }
 
-func (b *BillSummary) Concatenate(left, right tree.SummaryValue) tree.SummaryValue {
+func (b *BillSummary) Concatenate(left, right state2.SummaryValue) state2.SummaryValue {
 	var out uint64
 	out += b.v
 	if left != nil {
@@ -218,6 +218,6 @@ func (b *BillData) AddToHasher(hasher hash.Hash) {
 	hasher.Write(b.Backlink)
 }
 
-func (b *BillData) Value() tree.SummaryValue {
+func (b *BillData) Value() state2.SummaryValue {
 	return &BillSummary{v: b.V}
 }

@@ -1,4 +1,4 @@
-package state
+package txsystem
 
 type (
 	MoneySchemeOptions struct {

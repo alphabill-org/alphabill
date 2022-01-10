@@ -5,10 +5,10 @@ import (
 	"encoding/base64"
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
-
 	"github.com/holiman/uint256"
 )
 
@@ -257,8 +257,8 @@ func (w *billSplitWrapper) HashPrndSh(hashFunc crypto.Hash) []byte {
 func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }
 func (w *swapWrapper) TargetValue() uint64    { return w.swap.TargetValue }
-func (w *swapWrapper) DCTransfers() []state.TransferDC {
-	var sdt []state.TransferDC
+func (w *swapWrapper) DCTransfers() []txsystem.TransferDC {
+	var sdt []txsystem.TransferDC
 	for _, dt := range w.dcTransfers {
 		sdt = append(sdt, dt)
 	}

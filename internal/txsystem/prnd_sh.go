@@ -1,9 +1,9 @@
-package state
+package txsystem
 
 import "github.com/holiman/uint256"
 
 // PrndSh creates ID that resides in the same shard.
-// By taking first 4 bytes from id and last 24 bytes from the hashValue.
+// By taking first 4 bytes from id and last 28 bytes from the hashValue.
 func PrndSh(id *uint256.Int, hashValue []byte) *uint256.Int {
 	idBytes := id.Bytes32()
 	newIdBytes := make([]byte, 4)

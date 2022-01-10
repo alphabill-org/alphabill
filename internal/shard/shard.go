@@ -4,7 +4,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 )
 
 type (
@@ -13,7 +13,7 @@ type (
 	}
 	StateProcessor interface {
 		// Process validates and processes a transaction order.
-		Process(tx state.GenericTransaction) error
+		Process(tx txsystem.GenericTransaction) error
 	}
 )
 
@@ -28,7 +28,7 @@ func New(stateProcessor StateProcessor) (*shardNode, error) {
 }
 
 func (b *shardNode) Process(gtx transaction.GenericTransaction) (err error) {
-	stx, ok := gtx.(state.GenericTransaction)
+	stx, ok := gtx.(txsystem.GenericTransaction)
 	if !ok {
 		return errors.New("the transaction does not confirm to the state GenericTransaction interface")
 	}

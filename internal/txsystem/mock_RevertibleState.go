@@ -14,11 +14,11 @@ type MockRevertibleState struct {
 }
 
 // AddItem provides a mock function with given fields: id, owner, data, stateHash
-func (_m *MockRevertibleState) AddItem(id *uint256.Int, owner state2.Predicate, data state2.Data, stateHash []byte) error {
+func (_m *MockRevertibleState) AddItem(id *uint256.Int, owner state2.Predicate, data state2.UnitData, stateHash []byte) error {
 	ret := _m.Called(id, owner, data, stateHash)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, state2.Predicate, state2.Data, []byte) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, state2.Predicate, state2.UnitData, []byte) error); ok {
 		r0 = rf(id, owner, data, stateHash)
 	} else {
 		r0 = ret.Error(0)

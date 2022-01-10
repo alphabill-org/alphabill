@@ -23,9 +23,9 @@ func TestEmpty(t *testing.T) {
 	require.Nil(t, tr.GetRootHash())
 	require.Nil(t, tr.GetSummaryValue())
 
-	owner, data, _, err := tr.Get(uint256.NewInt(0))
+	unit, err := tr.Get(uint256.NewInt(0))
 	require.Error(t, err)
-	require.Nil(t, owner, data)
+	require.Nil(t, unit)
 
 	exists, err := tr.Exists(uint256.NewInt(9))
 	require.NoError(t, err)
@@ -86,11 +86,11 @@ func TestTwoItems(t *testing.T) {
 	require.True(t, ok, "should be type of TestSummaryValue")
 	require.Equal(t, TestSummaryValue(200), sum)
 
-	getOwner, getData, getStateHash, err := tr.Get(id)
+	unit, err := tr.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, owner, getOwner)
-	require.Equal(t, data, getData)
-	require.Equal(t, stateHash, getStateHash)
+	require.Equal(t, owner, unit.Bearer)
+	require.Equal(t, data, unit.Data)
+	require.Equal(t, stateHash, unit.StateHash)
 
 	exists, err := tr.Exists(id)
 	require.NoError(t, err)
@@ -116,11 +116,11 @@ func TestSetOwner(t *testing.T) {
 	err = tr.SetOwner(id, owner2, stateHash2)
 	require.NoError(t, err)
 
-	actualOwner, _, actualStateHash, err := tr.Get(id)
+	actualUnit, err := tr.Get(id)
 	require.NoError(t, err)
 
-	require.Equal(t, owner2, actualOwner)
-	require.Equal(t, stateHash2, actualStateHash)
+	require.Equal(t, owner2, actualUnit.Bearer)
+	require.Equal(t, stateHash2, actualUnit.StateHash)
 }
 
 func TestSetData(t *testing.T) {
@@ -140,10 +140,10 @@ func TestSetData(t *testing.T) {
 	err = tr.SetData(id, data2, stateHash2)
 	require.NoError(t, err)
 
-	_, actualData, actualStateHash, err := tr.Get(id)
+	actualUnit, err := tr.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, data2, actualData)
-	require.Equal(t, stateHash2, actualStateHash)
+	require.Equal(t, data2, actualUnit.Data)
+	require.Equal(t, stateHash2, actualUnit.StateHash)
 
 	sum2 := tr.GetSummaryValue()
 	require.Equal(t, TestSummaryValue(2), sum2)
@@ -162,11 +162,11 @@ func TestHashing(t *testing.T) {
 	summaryValue := tr.GetSummaryValue()
 
 	var expectedRootHash []byte
-	// ID, H(StateHash, H(ID, Bearer, Data)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
+	// ID, H(StateHash, H(ID, Bearer, UnitData)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
 	h := hashAlgorithm.New()
 	idBytes := id.Bytes32()
 
-	// Sub hash H(ID, Bearer, Data)
+	// Sub hash H(ID, Bearer, UnitData)
 	h.Write(idBytes[:])
 	h.Write(owner)
 	data.AddToHasher(h)

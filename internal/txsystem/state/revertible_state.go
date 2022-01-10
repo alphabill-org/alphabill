@@ -11,14 +11,14 @@ type (
 		changes   []func() error
 	}
 
-	UpdateFunction func(data Data) (newData Data)
+	UpdateFunction func(data UnitData) (newData UnitData)
 
 	UnitsTree interface {
 		Delete(id *uint256.Int) error
-		Get(id *uint256.Int) (owner Predicate, data Data, stateHash []byte, err error)
-		Set(id *uint256.Int, owner Predicate, data Data, stateHash []byte) error
+		Get(id *uint256.Int) (i *Unit, err error)
+		Set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error
 		SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error
-		SetData(id *uint256.Int, data Data, stateHash []byte) error
+		SetData(id *uint256.Int, data UnitData, stateHash []byte) error
 		Exists(id *uint256.Int) (bool, error)
 		GetRootHash() []byte
 		GetSummaryValue() SummaryValue
@@ -34,7 +34,7 @@ func NewRevertible(unitsTree UnitsTree) *revertibleState {
 }
 
 // AddItem adds new element to the state. Id must not exist in the state.
-func (r *revertibleState) AddItem(id *uint256.Int, owner Predicate, data Data, stateHash []byte) error {
+func (r *revertibleState) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
 	exists, err := r.unitsTree.Exists(id)
 	if err != nil {
 		return errors.Wrapf(err, "item exists check failed. ID: %d", id)
@@ -54,7 +54,7 @@ func (r *revertibleState) AddItem(id *uint256.Int, owner Predicate, data Data, s
 }
 
 func (r *revertibleState) DeleteItem(id *uint256.Int) error {
-	owner, data, stateHash, err := r.unitsTree.Get(id)
+	unit, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "deleting item that does not exist. ID %d", id)
 	}
@@ -63,13 +63,13 @@ func (r *revertibleState) DeleteItem(id *uint256.Int) error {
 		return errors.Wrapf(err, "deleting failed. ID %d", id)
 	}
 	r.changes = append(r.changes, func() error {
-		return r.unitsTree.Set(id, owner, data, stateHash)
+		return r.unitsTree.Set(id, unit.Bearer, unit.Data, unit.StateHash)
 	})
 	return nil
 }
 
 func (r *revertibleState) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
-	oldOwner, _, oldStateHash, err := r.unitsTree.Get(id)
+	oldUnit, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "setting owner of item that does not exist. ID %d", id)
 	}
@@ -78,23 +78,23 @@ func (r *revertibleState) SetOwner(id *uint256.Int, owner Predicate, stateHash [
 		return errors.Wrapf(err, "setting owner failed. ID %d", id)
 	}
 	r.changes = append(r.changes, func() error {
-		return r.unitsTree.SetOwner(id, oldOwner, oldStateHash)
+		return r.unitsTree.SetOwner(id, oldUnit.Bearer, oldUnit.StateHash)
 	})
 	return nil
 }
 
 func (r *revertibleState) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
-	_, oldData, oldStateHash, err := r.unitsTree.Get(id)
+	oldUnit, err := r.unitsTree.Get(id)
 	if err != nil {
 		return errors.Wrapf(err, "updating data of item that does not exist. ID %d", id)
 	}
-	newData := f(oldData)
+	newData := f(oldUnit.Data)
 	err = r.unitsTree.SetData(id, newData, stateHash)
 	if err != nil {
 		return errors.Wrapf(err, "setting data failed. ID %d", id)
 	}
 	r.changes = append(r.changes, func() error {
-		return r.unitsTree.SetData(id, oldData, oldStateHash)
+		return r.unitsTree.SetData(id, oldUnit.Data, oldUnit.StateHash)
 	})
 	return nil
 }

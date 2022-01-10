@@ -141,8 +141,8 @@ func requireNodeEquals(t *testing.T, node *Node, key *uint256.Int, val int) {
 	require.Equal(t, []byte{byte(val)}, node.Content.StateHash)
 }
 
-func newNodeContent(val int) *NodeContent {
-	return &NodeContent{
+func newNodeContent(val int) *Unit {
+	return &Unit{
 		Bearer:    Predicate{byte(val)},
 		Data:      TestData(uint64(val)),
 		StateHash: []byte{byte(val)},

@@ -18,15 +18,15 @@ const (
 type (
 	Predicate []byte
 
-	// Data is generic datatype for the tree. Is connected to SummaryValue through the Value function.
-	Data interface {
+	// UnitData is generic datatype for the tree. Is connected to SummaryValue through the Value function.
+	UnitData interface {
 		// AddToHasher adds the value of summary value to the hasher
 		AddToHasher(hasher hash.Hash)
-		// Value returns the SummaryValue of this single Data.
+		// Value returns the SummaryValue of this single UnitData.
 		Value() SummaryValue
 	}
 
-	// SummaryValue is different from Data. It is derived from Data with Data.Value function.
+	// SummaryValue is different from UnitData. It is derived from UnitData with UnitData.Value function.
 	SummaryValue interface {
 		// AddToHasher adds the value of summary value to the hasher
 		AddToHasher(hasher hash.Hash)
@@ -35,7 +35,7 @@ type (
 	}
 
 	// A tree that hold any type of units
-	unitsTree struct {
+	unitTree struct {
 		hashAlgorithm crypto.Hash
 		shardId       []byte
 		roundNumber   uint64
@@ -43,15 +43,15 @@ type (
 		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
 	}
 
-	NodeContent struct {
+	Unit struct {
 		Bearer    Predicate // The owner predicate of the Item/Node
-		Data      Data      // The Data part of the Item/Node
+		Data      UnitData  // The Data part of the Item/Node
 		StateHash []byte    // The hash of the transaction and previous transaction. See spec 'Unit Ledger' for details.
 	}
 
 	Node struct {
 		ID           *uint256.Int // The identifier of the Item/Node
-		Content      *NodeContent // Content that moves together with Node
+		Content      *Unit        // Content that moves together with Node
 		SummaryValue SummaryValue // Calculated SummaryValue of the Item/Node
 		Hash         []byte       // The hash of the node inside the tree. See spec 'State Invariants and Parameters' for details.
 		Parent       *Node        // The parent node
@@ -62,31 +62,31 @@ type (
 )
 
 // New creates new UnitsTree
-func New(hashAlgorithm crypto.Hash) (*unitsTree, error) {
+func New(hashAlgorithm crypto.Hash) (*unitTree, error) {
 	if hashAlgorithm != crypto.SHA256 && hashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
-	return &unitsTree{
+	return &unitTree{
 		hashAlgorithm: hashAlgorithm,
 	}, nil
 }
 
-func (u *unitsTree) Delete(id *uint256.Int) error {
+func (u *unitTree) Delete(id *uint256.Int) error {
 	//TODO done in https://guardtime.atlassian.net/browse/AB-47
 	panic("implement me")
 }
 
-func (u *unitsTree) Get(id *uint256.Int) (owner Predicate, data Data, stateHash []byte, err error) {
+func (u *unitTree) Get(id *uint256.Int) (*Unit, error) {
 	node, exists := getNode(u.root, id)
 	if !exists {
-		return nil, nil, nil, errors.Errorf(errStrItemDoesntExist, id)
+		return nil, errors.Errorf(errStrItemDoesntExist, id)
 	}
-	return node.Content.Bearer, node.Content.Data, node.Content.StateHash, nil
+	return node.Content, nil
 }
 
-// Set sets the item bearer and data. It's up to the caller to make sure the Data implementation supports the all data implementations inserted into the tree.
-func (u *unitsTree) Set(id *uint256.Int, owner Predicate, data Data, stateHash []byte) error {
-	put(id, &NodeContent{
+// Set sets the item bearer and data. It's up to the caller to make sure the UnitData implementation supports the all data implementations inserted into the tree.
+func (u *unitTree) Set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
+	put(id, &Unit{
 		Bearer:    owner,
 		Data:      data,
 		StateHash: stateHash},
@@ -94,36 +94,36 @@ func (u *unitsTree) Set(id *uint256.Int, owner Predicate, data Data, stateHash [
 	return nil
 }
 
-func (u *unitsTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+func (u *unitTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	node, exists := getNode(u.root, id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	put(id, &NodeContent{
+	put(id, &Unit{
 		Bearer:    owner,
 		Data:      node.Content.Data,
 		StateHash: stateHash}, nil, &u.root)
 	return nil
 }
 
-func (u *unitsTree) SetData(id *uint256.Int, data Data, stateHash []byte) error {
+func (u *unitTree) SetData(id *uint256.Int, data UnitData, stateHash []byte) error {
 	node, exists := getNode(u.root, id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	put(id, &NodeContent{
+	put(id, &Unit{
 		Bearer:    node.Content.Bearer,
 		Data:      data,
 		StateHash: stateHash}, nil, &u.root)
 	return nil
 }
 
-func (u *unitsTree) Exists(id *uint256.Int) (bool, error) {
+func (u *unitTree) Exists(id *uint256.Int) (bool, error) {
 	_, exists := getNode(u.root, id)
 	return exists, nil
 }
 
-func (u *unitsTree) GetRootHash() []byte {
+func (u *unitTree) GetRootHash() []byte {
 	if u.root == nil {
 		return nil
 	}
@@ -131,7 +131,7 @@ func (u *unitsTree) GetRootHash() []byte {
 	return u.root.Hash
 }
 
-func (u *unitsTree) GetSummaryValue() SummaryValue {
+func (u *unitTree) GetSummaryValue() SummaryValue {
 	if u.root == nil {
 		return nil
 	}
@@ -139,7 +139,7 @@ func (u *unitsTree) GetSummaryValue() SummaryValue {
 	return u.root.SummaryValue
 }
 
-func (u *unitsTree) recompute(n *Node, hasher hash.Hash) {
+func (u *unitTree) recompute(n *Node, hasher hash.Hash) {
 	if n.recompute {
 		var leftTotalValue SummaryValue
 		var rightTotalValue SummaryValue
@@ -165,7 +165,7 @@ func (u *unitsTree) recompute(n *Node, hasher hash.Hash) {
 }
 
 // addToHasher calculates the hash of the node. It also resets the hasher while doing so.
-// H(ID, H(StateHash, H(ID, Bearer, Data)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
+// H(ID, H(StateHash, H(ID, Bearer, UnitData)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
 func (n *Node) addToHasher(hasher hash.Hash) {
 	leftHash := make([]byte, hasher.Size())
 	rightHash := make([]byte, hasher.Size())
@@ -180,7 +180,7 @@ func (n *Node) addToHasher(hasher hash.Hash) {
 
 	idBytes := n.ID.Bytes32()
 
-	// Sub hash H(ID, Bearer, Data)
+	// Sub hash H(ID, Bearer, UnitData)
 	hasher.Reset()
 	hasher.Write(idBytes[:])
 	hasher.Write(n.Content.Bearer)

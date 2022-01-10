@@ -5,7 +5,7 @@ package state
 
 import "github.com/holiman/uint256"
 
-func put(key *uint256.Int, content *NodeContent, p *Node, qp **Node) bool {
+func put(key *uint256.Int, content *Unit, p *Node, qp **Node) bool {
 	q := *qp
 	if q == nil {
 		*qp = &Node{ID: key, Content: content, Parent: p, recompute: true}

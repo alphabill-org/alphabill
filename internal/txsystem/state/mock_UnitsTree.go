@@ -48,7 +48,7 @@ func (_m *MockUnitsTree) Exists(id *uint256.Int) (bool, error) {
 }
 
 // Get provides a mock function with given fields: id
-func (_m *MockUnitsTree) Get(id *uint256.Int) (Predicate, Data, []byte, error) {
+func (_m *MockUnitsTree) Get(id *uint256.Int) (Predicate, UnitData, []byte, error) {
 	ret := _m.Called(id)
 
 	var r0 Predicate
@@ -60,12 +60,12 @@ func (_m *MockUnitsTree) Get(id *uint256.Int) (Predicate, Data, []byte, error) {
 		}
 	}
 
-	var r1 Data
-	if rf, ok := ret.Get(1).(func(*uint256.Int) Data); ok {
+	var r1 UnitData
+	if rf, ok := ret.Get(1).(func(*uint256.Int) UnitData); ok {
 		r1 = rf(id)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(Data)
+			r1 = ret.Get(1).(UnitData)
 		}
 	}
 
@@ -121,11 +121,11 @@ func (_m *MockUnitsTree) GetSummaryValue() SummaryValue {
 }
 
 // Set provides a mock function with given fields: id, owner, data, stateHash
-func (_m *MockUnitsTree) Set(id *uint256.Int, owner Predicate, data Data, stateHash []byte) error {
+func (_m *MockUnitsTree) Set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
 	ret := _m.Called(id, owner, data, stateHash)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, Predicate, Data, []byte) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, Predicate, UnitData, []byte) error); ok {
 		r0 = rf(id, owner, data, stateHash)
 	} else {
 		r0 = ret.Error(0)
@@ -135,11 +135,11 @@ func (_m *MockUnitsTree) Set(id *uint256.Int, owner Predicate, data Data, stateH
 }
 
 // SetData provides a mock function with given fields: id, data, stateHash
-func (_m *MockUnitsTree) SetData(id *uint256.Int, data Data, stateHash []byte) error {
+func (_m *MockUnitsTree) SetData(id *uint256.Int, data UnitData, stateHash []byte) error {
 	ret := _m.Called(id, data, stateHash)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*uint256.Int, Data, []byte) error); ok {
+	if rf, ok := ret.Get(0).(func(*uint256.Int, UnitData, []byte) error); ok {
 		r0 = rf(id, data, stateHash)
 	} else {
 		r0 = ret.Error(0)

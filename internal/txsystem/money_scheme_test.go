@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"testing"
 
-	state2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
@@ -35,7 +35,7 @@ func TestNewMoneyScheme(t *testing.T) {
 	).Return(nil)
 
 	// The dust collector money gets set
-	mockRevertibleState.On("AddItem", dustCollectorMoneySupplyID, state2.Predicate{},
+	mockRevertibleState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate{},
 		&BillData{V: dcMoneyAmount, T: 0, Backlink: nil},
 		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
@@ -59,7 +59,7 @@ func TestProcessTransfer(t *testing.T) {
 			expect: func(rs *MockRevertibleState) {
 				rs.On("SetOwner",
 					transferOk.unitId,
-					state2.Predicate(transferOk.newBearer),
+					state.Predicate(transferOk.newBearer),
 					transferOk.Hash(crypto.SHA256),
 				).Return(nil)
 			},
@@ -69,14 +69,14 @@ func TestProcessTransfer(t *testing.T) {
 			name:        "split ok",
 			transaction: splitOk,
 			expect: func(rs *MockRevertibleState) {
-				var newGenericData state2.Data
+				var newGenericData state.UnitData
 				oldBillData := &BillData{
 					V:        100,
 					T:        0,
 					Backlink: nil,
 				}
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
-					upFunc := args.Get(UpdateDataUpdateFunction).(state2.UpdateFunction)
+					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
 					newGenericData = upFunc(oldBillData)
 					newBD, ok := newGenericData.(*BillData)
 					require.True(t, ok, "returned data is not BillData")
@@ -88,15 +88,15 @@ func TestProcessTransfer(t *testing.T) {
 					actualId := args.Get(addItemId).(*uint256.Int)
 					require.Equal(t, expectedNewId, actualId)
 
-					actualOwner := args.Get(addItemOwner).(state2.Predicate)
-					require.Equal(t, state2.Predicate(splitOk.targetBearer), actualOwner)
+					actualOwner := args.Get(addItemOwner).(state.Predicate)
+					require.Equal(t, state.Predicate(splitOk.targetBearer), actualOwner)
 
 					expectedNewItemData := &BillData{
 						V:        splitOk.Amount(),
 						T:        0,
 						Backlink: nil,
 					}
-					actualData := args.Get(addItemData).(state2.Data)
+					actualData := args.Get(addItemData).(state.UnitData)
 					require.Equal(t, expectedNewItemData, actualData)
 				}).Return(nil)
 			},
@@ -106,9 +106,9 @@ func TestProcessTransfer(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRState := new(MockRevertibleState)
-			initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state2.Predicate{44}}
+			initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state.Predicate{44}}
 			mockRState.On("AddItem", initialBill.ID, initialBill.Owner, mock.Anything, mock.Anything).Return(nil)
-			mockRState.On("AddItem", dustCollectorMoneySupplyID, state2.Predicate{}, mock.Anything, mock.Anything).Return(nil)
+			mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate{}, mock.Anything, mock.Anything).Return(nil)
 			mss, err := NewMoneySchemeState(
 				crypto.SHA256,
 				initialBill,

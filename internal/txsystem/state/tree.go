@@ -18,6 +18,7 @@ const (
 type (
 	Predicate []byte
 
+	// UpdateFunction is a function for updating the data of an item. Taken in previous UnitData and returns new UnitData.
 	UpdateFunction func(data UnitData) (newData UnitData)
 
 	// UnitData is generic datatype for the tree. Is connected to SummaryValue through the Value function.

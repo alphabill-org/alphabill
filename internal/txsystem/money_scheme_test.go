@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/mocks"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
@@ -23,7 +25,7 @@ const (
 )
 
 func TestNewMoneyScheme(t *testing.T) {
-	mockRevertibleState := new(MockRevertibleState)
+	mockRevertibleState := new(mocks.RevertibleState)
 
 	initialBill := &InitialBill{ID: uint256.NewInt(2), Value: 100, Owner: nil}
 	dcMoneyAmount := uint64(222)
@@ -50,13 +52,13 @@ func TestProcessTransfer(t *testing.T) {
 	testData := []struct {
 		name        string
 		transaction GenericTransaction
-		expect      func(rs *MockRevertibleState)
+		expect      func(rs *mocks.RevertibleState)
 		expectErr   error
 	}{
 		{
 			name:        "transfer ok",
 			transaction: transferOk,
-			expect: func(rs *MockRevertibleState) {
+			expect: func(rs *mocks.RevertibleState) {
 				rs.On("SetOwner",
 					transferOk.unitId,
 					state.Predicate(transferOk.newBearer),
@@ -68,7 +70,7 @@ func TestProcessTransfer(t *testing.T) {
 		{
 			name:        "split ok",
 			transaction: splitOk,
-			expect: func(rs *MockRevertibleState) {
+			expect: func(rs *mocks.RevertibleState) {
 				var newGenericData state.UnitData
 				oldBillData := &BillData{
 					V:        100,
@@ -84,7 +86,7 @@ func TestProcessTransfer(t *testing.T) {
 				}).Return(nil)
 
 				rs.On("AddItem", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-					expectedNewId := PrndSh(splitOk.unitId, splitOk.HashPrndSh(crypto.SHA256))
+					expectedNewId := sameShardId(splitOk.unitId, splitOk.HashForIdCalculation(crypto.SHA256))
 					actualId := args.Get(addItemId).(*uint256.Int)
 					require.Equal(t, expectedNewId, actualId)
 
@@ -105,7 +107,7 @@ func TestProcessTransfer(t *testing.T) {
 	}
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRState := new(MockRevertibleState)
+			mockRState := new(mocks.RevertibleState)
 			initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state.Predicate{44}}
 			mockRState.On("AddItem", initialBill.ID, initialBill.Owner, mock.Anything, mock.Anything).Return(nil)
 			mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate{}, mock.Anything, mock.Anything).Return(nil)

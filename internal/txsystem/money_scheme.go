@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"github.com/holiman/uint256"
 )
 
@@ -44,7 +42,7 @@ type (
 		TargetBearer() []byte
 		RemainingValue() uint64
 		Backlink() []byte
-		HashPrndSh(hashFunc crypto.Hash) []byte // Returns hash value for the PrndSh function
+		HashForIdCalculation(hashFunc crypto.Hash) []byte // Returns hash value for the sameShardId function
 	}
 
 	Swap interface {
@@ -160,7 +158,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			return errors.Wrap(err, "could not update data")
 		}
 
-		newItemId := PrndSh(tx.UnitId(), tx.HashPrndSh(m.hashAlgorithm))
+		newItemId := sameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
 		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
 			V:        tx.Amount(),
 			T:        0,

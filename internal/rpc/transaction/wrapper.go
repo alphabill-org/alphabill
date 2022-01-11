@@ -245,7 +245,7 @@ func (w *billSplitWrapper) Amount() uint64         { return w.billSplit.Amount }
 func (w *billSplitWrapper) TargetBearer() []byte   { return w.billSplit.TargetBearer }
 func (w *billSplitWrapper) RemainingValue() uint64 { return w.billSplit.RemainingValue }
 func (w *billSplitWrapper) Backlink() []byte       { return w.billSplit.Backlink }
-func (w *billSplitWrapper) HashPrndSh(hashFunc crypto.Hash) []byte {
+func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	hasher := hashFunc.New()
 	idBytes := w.UnitId().Bytes32()
 	hasher.Write(idBytes[:])

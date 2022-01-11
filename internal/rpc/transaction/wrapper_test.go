@@ -99,8 +99,8 @@ func TestWrapper_Split(t *testing.T) {
 	assert.Equal(t, pbSplit.RemainingValue, split.RemainingValue())
 	assert.Equal(t, pbSplit.Backlink, split.Backlink())
 
-	// PrndSh input calculation
-	actualPrndSh := split.HashPrndSh(crypto.SHA256)
+	// sameShardId input calculation
+	actualPrndSh := split.HashForIdCalculation(crypto.SHA256)
 
 	hasher := crypto.SHA256.New()
 	idBytes := split.UnitId().Bytes32()

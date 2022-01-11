@@ -2,9 +2,9 @@ package txsystem
 
 import "github.com/holiman/uint256"
 
-// PrndSh creates ID that resides in the same shard.
+// sameShardId creates ID that resides in the same shard.
 // By taking first 4 bytes from id and last 28 bytes from the hashValue.
-func PrndSh(id *uint256.Int, hashValue []byte) *uint256.Int {
+func sameShardId(id *uint256.Int, hashValue []byte) *uint256.Int {
 	idBytes := id.Bytes32()
 	newIdBytes := make([]byte, 4)
 	copy(newIdBytes, idBytes[:4])

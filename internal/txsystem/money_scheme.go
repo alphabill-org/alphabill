@@ -96,12 +96,12 @@ var dustCollectorMoneySupplyID = uint256.NewInt(0)
 
 func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
 	// TODO validate that initialBillID doesn't match with DC money ID. https://guardtime.atlassian.net/browse/AB-93
-	defaultTree, err := state.New(hashAlgorithm)
+	defaultTree, err := state.NewRevertible(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
 	options := MoneySchemeOptions{
-		revertibleState: state.NewRevertible(defaultTree),
+		revertibleState: defaultTree,
 	}
 	for _, o := range customOpts {
 		o(&options)

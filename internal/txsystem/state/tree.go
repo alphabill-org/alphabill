@@ -18,6 +18,8 @@ const (
 type (
 	Predicate []byte
 
+	UpdateFunction func(data UnitData) (newData UnitData)
+
 	// UnitData is generic datatype for the tree. Is connected to SummaryValue through the Value function.
 	UnitData interface {
 		// AddToHasher adds the value of summary value to the hasher
@@ -71,12 +73,54 @@ func New(hashAlgorithm crypto.Hash) (*unitTree, error) {
 	}, nil
 }
 
-func (u *unitTree) Delete(id *uint256.Int) error {
-	//TODO done in https://guardtime.atlassian.net/browse/AB-47
-	panic("implement me")
+// AddItem adds new element to the state. Id must not exist in the state.
+func (u *unitTree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
+	exists := u.exists(id)
+	if exists {
+		return errors.Errorf("cannot add item that already exists. ID: %d", id)
+	}
+	u.set(id, owner, data, stateHash)
+	return nil
 }
 
-func (u *unitTree) Get(id *uint256.Int) (*Unit, error) {
+// DeleteItem removes the item from the state
+func (u *unitTree) DeleteItem(id *uint256.Int) error {
+	exists := u.exists(id)
+	if exists {
+		return errors.Errorf("deleting item that does not exist. ID %d", id)
+	}
+	err := u.delete(id)
+	if err != nil {
+		return errors.Wrapf(err, "deleting failed. ID %d", id)
+	}
+	return nil
+}
+
+// SetOwner changes the owner of the item, leaves data as is.
+func (u *unitTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+	return u.setOwner(id, owner, stateHash)
+}
+
+// UpdateData changes the data of the item, leaves owner as is.
+func (u *unitTree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
+	node, exists := getNode(u.root, id)
+	if !exists {
+		return errors.Errorf(errStrItemDoesntExist, id)
+	}
+	data := f(node.Content.Data)
+	put(id, &Unit{
+		Bearer:    node.Content.Bearer,
+		Data:      data,
+		StateHash: stateHash}, nil, &u.root)
+	return nil
+}
+
+func (u *unitTree) delete(id *uint256.Int) error {
+	//TODO done in https://guardtime.atlassian.net/browse/AB-47
+	return errors.ErrNotImplemented
+}
+
+func (u *unitTree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := getNode(u.root, id)
 	if !exists {
 		return nil, errors.Errorf(errStrItemDoesntExist, id)
@@ -85,16 +129,15 @@ func (u *unitTree) Get(id *uint256.Int) (*Unit, error) {
 }
 
 // Set sets the item bearer and data. It's up to the caller to make sure the UnitData implementation supports the all data implementations inserted into the tree.
-func (u *unitTree) Set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
+func (u *unitTree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) {
 	put(id, &Unit{
 		Bearer:    owner,
 		Data:      data,
 		StateHash: stateHash},
 		nil, &u.root)
-	return nil
 }
 
-func (u *unitTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+func (u *unitTree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	node, exists := getNode(u.root, id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
@@ -106,7 +149,7 @@ func (u *unitTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) 
 	return nil
 }
 
-func (u *unitTree) SetData(id *uint256.Int, data UnitData, stateHash []byte) error {
+func (u *unitTree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
 	node, exists := getNode(u.root, id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
@@ -118,9 +161,9 @@ func (u *unitTree) SetData(id *uint256.Int, data UnitData, stateHash []byte) err
 	return nil
 }
 
-func (u *unitTree) Exists(id *uint256.Int) (bool, error) {
+func (u *unitTree) exists(id *uint256.Int) bool {
 	_, exists := getNode(u.root, id)
-	return exists, nil
+	return exists
 }
 
 func (u *unitTree) GetRootHash() []byte {
@@ -131,7 +174,7 @@ func (u *unitTree) GetRootHash() []byte {
 	return u.root.Hash
 }
 
-func (u *unitTree) GetSummaryValue() SummaryValue {
+func (u *unitTree) TotalValue() SummaryValue {
 	if u.root == nil {
 		return nil
 	}

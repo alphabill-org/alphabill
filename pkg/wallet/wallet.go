@@ -126,6 +126,70 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
+// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
+func (w *Wallet) Sync() error {
+	abClient, err := abclient.New(w.config.AlphaBillClientConfig)
+	if err != nil {
+		return err
+	}
+	_, err = w.startDustCollectorJob()
+	if err != nil {
+		return err
+	}
+	w.alphaBillClient = abClient
+	w.syncWithAlphaBill()
+	return nil
+}
+
+func (w *Wallet) syncWithAlphaBill() {
+	height, err := w.db.GetBlockHeight()
+	if err != nil {
+		return
+	}
+
+	var wg sync.WaitGroup // used to wait for goroutines to close
+	wg.Add(2)
+	ch := make(chan *alphabill.Block, prefetchBlockCount)
+	go func() {
+		err = w.alphaBillClient.InitBlockReceiver(height, ch)
+		if err != nil {
+			log.Error("error receiving block: ", err)
+		}
+		close(ch)
+		wg.Done()
+	}()
+	go func() {
+		err = w.initBlockProcessor(ch)
+		if err != nil {
+			log.Error("error processing block: ", err)
+		} else {
+			log.Info("block processor channel closed")
+		}
+		w.alphaBillClient.Shutdown()
+		wg.Done()
+	}()
+	wg.Wait()
+	log.Info("alphabill sync finished")
+}
+
+// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines
+func (w *Wallet) Shutdown() {
+	if w.alphaBillClient != nil {
+		w.alphaBillClient.Shutdown()
+	}
+	if w.db != nil {
+		w.db.Close()
+	}
+	if w.dustCollectorJob != nil {
+		w.dustCollectorJob.Stop()
+	}
+}
+
+// DeleteDb deletes the wallet database
+func (w *Wallet) DeleteDb() {
+	w.db.DeleteDb()
+}
+
 func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
 	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
 	if err != nil {
@@ -158,7 +222,7 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	return tx, nil
 }
 
-func (w *Wallet) createDustTransferTx(bill *bill) (*transaction.Transaction, error) {
+func (w *Wallet) createDustTx(bill *bill) (*transaction.Transaction, error) {
 	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
 	if err != nil {
 		return nil, err
@@ -255,70 +319,6 @@ func (w *Wallet) createSwapTx() (*transaction.Transaction, error) {
 	return swapTx, nil
 }
 
-// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
-func (w *Wallet) Sync() error {
-	abClient, err := abclient.New(w.config.AlphaBillClientConfig)
-	if err != nil {
-		return err
-	}
-	_, err = w.startDustCollectorJob()
-	if err != nil {
-		return err
-	}
-	w.alphaBillClient = abClient
-	w.syncWithAlphaBill()
-	return nil
-}
-
-func (w *Wallet) syncWithAlphaBill() {
-	height, err := w.db.GetBlockHeight()
-	if err != nil {
-		return
-	}
-
-	var wg sync.WaitGroup // used to wait for goroutines to close
-	wg.Add(2)
-	ch := make(chan *alphabill.Block, prefetchBlockCount)
-	go func() {
-		err = w.alphaBillClient.InitBlockReceiver(height, ch)
-		if err != nil {
-			log.Error("error receiving block: ", err)
-		}
-		close(ch)
-		wg.Done()
-	}()
-	go func() {
-		err = w.initBlockProcessor(ch)
-		if err != nil {
-			log.Error("error processing block: ", err)
-		} else {
-			log.Info("block processor channel closed")
-		}
-		w.alphaBillClient.Shutdown()
-		wg.Done()
-	}()
-	wg.Wait()
-	log.Info("alphabill sync finished")
-}
-
-// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines
-func (w *Wallet) Shutdown() {
-	if w.alphaBillClient != nil {
-		w.alphaBillClient.Shutdown()
-	}
-	if w.db != nil {
-		w.db.Close()
-	}
-	if w.dustCollectorJob != nil {
-		w.dustCollectorJob.Stop()
-	}
-}
-
-// DeleteDb deletes the wallet database
-func (w *Wallet) DeleteDb() {
-	w.db.DeleteDb()
-}
-
 func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {
 	for b := range ch {
 		err := w.processBlock(b)
@@ -358,6 +358,14 @@ func (w *Wallet) processBlock(b *alphabill.Block) error {
 		return err
 	}
 
+	err = w.swapIfRequired()
+	if err != nil {
+		log.Error("error performing swap: ", err)
+	}
+	return nil
+}
+
+func (w *Wallet) swapIfRequired() error {
 	isSwapRequired, err := w.isSwapRequired()
 	if err != nil {
 		return err
@@ -410,13 +418,22 @@ func (w *Wallet) swapDcBills() error {
 	if err != nil {
 		return err
 	}
-	log.Info("Sending swap tx")
+	log.Info("sending swap tx")
 	res, err := w.alphaBillClient.SendTransaction(tx)
 	if err != nil {
 		return err
 	}
 	if !res.Ok {
-		return errors.New("Swap tx returned error code: " + res.Message)
+		return errors.New("swap tx returned error code: " + res.Message)
+	}
+
+	err = w.db.SetDcBlockHeight(0)
+	if err != nil {
+		return err
+	}
+	err = w.db.SetDcValueSum(0)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -543,6 +560,8 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 	return signer.SignBytes(b)
 }
 
+// collectDust sends dust transfer for every bill in wallet and records metadata
+// once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
 func (w *Wallet) collectDust() error {
 	bills, err := w.db.GetBills()
 	if err != nil {
@@ -560,16 +579,17 @@ func (w *Wallet) collectDust() error {
 
 	var dcValueSum uint64
 	for _, b := range bills {
+		dcValueSum += b.Value
 		if b.IsDcBill {
-			continue // ignore bills already sent to DC
+			continue // no need to send already confirmed dust transactions again
 		}
 
-		tx, err := w.createDustTransferTx(b)
+		tx, err := w.createDustTx(b)
 		if err != nil {
 			return err
 		}
 
-		log.Info("Sending dust transfer tx for bill ", b.Id)
+		log.Info("sending dust transfer tx for bill ", b.Id)
 		res, err := w.alphaBillClient.SendTransaction(tx)
 		if err != nil {
 			return err
@@ -577,7 +597,6 @@ func (w *Wallet) collectDust() error {
 		if !res.Ok {
 			return errors.New("dust transfer returned error code: " + res.Message)
 		}
-		dcValueSum += b.Value
 	}
 	return w.db.SetDcValueSum(dcValueSum)
 }

@@ -37,12 +37,12 @@ type (
 		Concatenate(left, right SummaryValue) SummaryValue
 	}
 
-	// A tree that hold any type of units
+	// unitTree holds any type of units inside avlTree
 	unitTree struct {
 		hashAlgorithm crypto.Hash
 		shardId       []byte
 		roundNumber   uint64
-		root          *Node
+		tree          *avlTree
 		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
 	}
 
@@ -70,6 +70,7 @@ func New(hashAlgorithm crypto.Hash) (*unitTree, error) {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
 	return &unitTree{
+		tree:          &avlTree{},
 		hashAlgorithm: hashAlgorithm,
 	}, nil
 }
@@ -104,15 +105,15 @@ func (u *unitTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) 
 
 // UpdateData changes the data of the item, leaves owner as is.
 func (u *unitTree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
-	node, exists := getNode(u.root, id)
+	node, exists := u.tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
 	data := f(node.Content.Data)
-	put(id, &Unit{
+	u.tree.put(id, &Unit{
 		Bearer:    node.Content.Bearer,
 		Data:      data,
-		StateHash: stateHash}, nil, &u.root)
+		StateHash: stateHash}, nil, &u.tree.root)
 	return nil
 }
 
@@ -122,7 +123,7 @@ func (u *unitTree) delete(id *uint256.Int) error {
 }
 
 func (u *unitTree) get(id *uint256.Int) (unit *Unit, err error) {
-	node, exists := getNode(u.root, id)
+	node, exists := u.tree.getNode(id)
 	if !exists {
 		return nil, errors.Errorf(errStrItemDoesntExist, id)
 	}
@@ -131,56 +132,56 @@ func (u *unitTree) get(id *uint256.Int) (unit *Unit, err error) {
 
 // Set sets the item bearer and data. It's up to the caller to make sure the UnitData implementation supports the all data implementations inserted into the tree.
 func (u *unitTree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) {
-	put(id, &Unit{
+	u.tree.put(id, &Unit{
 		Bearer:    owner,
 		Data:      data,
 		StateHash: stateHash},
-		nil, &u.root)
+		nil, &u.tree.root)
 }
 
 func (u *unitTree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
-	node, exists := getNode(u.root, id)
+	node, exists := u.tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	put(id, &Unit{
+	u.tree.put(id, &Unit{
 		Bearer:    owner,
 		Data:      node.Content.Data,
-		StateHash: stateHash}, nil, &u.root)
+		StateHash: stateHash}, nil, &u.tree.root)
 	return nil
 }
 
 func (u *unitTree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
-	node, exists := getNode(u.root, id)
+	node, exists := u.tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	put(id, &Unit{
+	u.tree.put(id, &Unit{
 		Bearer:    node.Content.Bearer,
 		Data:      data,
-		StateHash: stateHash}, nil, &u.root)
+		StateHash: stateHash}, nil, &u.tree.root)
 	return nil
 }
 
 func (u *unitTree) exists(id *uint256.Int) bool {
-	_, exists := getNode(u.root, id)
+	_, exists := u.tree.getNode(id)
 	return exists
 }
 
 func (u *unitTree) GetRootHash() []byte {
-	if u.root == nil {
+	if u.tree.root == nil {
 		return nil
 	}
-	u.recompute(u.root, u.hashAlgorithm.New())
-	return u.root.Hash
+	u.recompute(u.tree.root, u.hashAlgorithm.New())
+	return u.tree.root.Hash
 }
 
 func (u *unitTree) TotalValue() SummaryValue {
-	if u.root == nil {
+	if u.tree.root == nil {
 		return nil
 	}
-	u.recompute(u.root, u.hashAlgorithm.New())
-	return u.root.SummaryValue
+	u.recompute(u.tree.root, u.hashAlgorithm.New())
+	return u.tree.root.SummaryValue
 }
 
 func (u *unitTree) recompute(n *Node, hasher hash.Hash) {
@@ -255,12 +256,17 @@ func (n *Node) addToHasher(hasher hash.Hash) {
 
 // String returns a string representation of the node
 func (n *Node) String() string {
-	m := fmt.Sprintf("ID=%v, ", n.ID.Bytes32())
+	m := fmt.Sprintf("ID=%v", n.ID.Uint64())
 	if n.recompute {
 		m = m + "*"
 	}
-	m = m + fmt.Sprintf("value=%v, total=%v, bearer=%X, stateHash=%X,",
-		n.Content.Data, n.SummaryValue, n.Content.Bearer, n.Content.StateHash)
+
+	m = m + fmt.Sprintf(" balance=%d", n.balance)
+
+	if n.Content != nil {
+		m = m + fmt.Sprintf(" value=%v, total=%v, bearer=%X, stateHash=%X,",
+			n.Content.Data, n.SummaryValue, n.Content.Bearer, n.Content.StateHash)
+	}
 
 	if n.Hash != nil {
 		m = m + fmt.Sprintf("hash=%X", n.Hash)

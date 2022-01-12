@@ -29,6 +29,88 @@ func put(key *uint256.Int, content *Unit, p *Node, qp **Node) bool {
 	return false
 }
 
+func remove(key *uint256.Int, qp **Node) bool {
+	q := *qp
+	if q == nil {
+		return false
+	}
+
+	c := compare(key, q.ID)
+	if c == 0 {
+		if q.Children[1] == nil {
+			if q.Children[0] != nil {
+				q.Children[0].Parent = q.Parent
+			}
+			*qp = q.Children[0]
+			return true
+		}
+		fix := removeMin(&q.Children[1], &q.ID, &q.Content)
+		if fix {
+			return removeFix(-1, qp)
+		}
+		return false
+	}
+
+	if c < 0 {
+		c = -1
+	} else {
+		c = 1
+	}
+	a := (c + 1) / 2
+	fix := remove(key, &q.Children[a])
+	if fix {
+		return removeFix(-c, qp)
+	}
+	return false
+}
+
+func removeMin(qp **Node, minKey **uint256.Int, minVal **NodeContent) bool {
+	q := *qp
+	if q.Children[0] == nil {
+		*minKey = q.ID
+		*minVal = q.Content
+		if q.Children[1] != nil {
+			q.Children[1].Parent = q.Parent
+		}
+		*qp = q.Children[1]
+		return true
+	}
+	fix := removeMin(&q.Children[0], minKey, minVal)
+	if fix {
+		return removeFix(1, qp)
+	}
+	return false
+}
+
+func removeFix(c int, t **Node) bool {
+	s := *t
+	if s.balance == 0 {
+		s.balance = c
+		return false
+	}
+
+	if s.balance == -c {
+		s.balance = 0
+		return true
+	}
+
+	a := (c + 1) / 2
+	if s.Children[a].balance == 0 {
+		s = rotate(c, s)
+		s.balance = -c
+		*t = s
+		return false
+	}
+
+	if s.Children[a].balance == c {
+		s = singlerot(c, s)
+	} else {
+		s = doublerot(c, s)
+	}
+	*t = s
+	return true
+}
+
 func getNode(s *Node, key *uint256.Int) (*Node, bool) {
 	n := s
 	for n != nil {

@@ -12,6 +12,7 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1
+	github.com/robfig/cron/v3 v3.0.0
 )
 
 require (

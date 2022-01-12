@@ -84,7 +84,8 @@ func TestWalletCanSendTx(t *testing.T) {
 	defer DeleteWallet(w)
 	require.NoError(t, err)
 
-	w.syncWithAlphaBill(&mockAlphaBillClient{})
+	w.alphaBillClient = &mockAlphaBillClient{}
+	w.syncWithAlphaBill()
 	b := bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,

@@ -16,6 +16,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
+	"github.com/robfig/cron/v3"
 	"github.com/tyler-smith/go-bip39"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -23,12 +24,14 @@ import (
 )
 
 const prefetchBlockCount = 10
+const dcTimeoutBlockCount = 10
 
 type Wallet struct {
-	config          *Config
-	db              Db
-	alphaBillClient abclient.ABClient
-	txMapper        rpc.TransactionMapper
+	config           *Config
+	db               Db
+	alphaBillClient  abclient.ABClient
+	txMapper         rpc.TransactionMapper
+	dustCollectorJob *cron.Cron
 }
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -70,8 +73,10 @@ func LoadExistingWallet(config *Config) (*Wallet, error) {
 	}
 
 	return &Wallet{
-		db:       db,
-		txMapper: rpc.NewDefaultTxMapper(),
+		db:               db,
+		config:           config,
+		txMapper:         rpc.NewDefaultTxMapper(),
+		dustCollectorJob: cron.New(),
 	}, nil
 }
 
@@ -153,18 +158,119 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	return tx, nil
 }
 
+func (w *Wallet) createDustTransferTx(bill *bill) (*transaction.Transaction, error) {
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
+	if err != nil {
+		return nil, err
+	}
+	k, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
+
+	tx := &transaction.Transaction{
+		UnitId:                bill.getId(),
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               1000,
+		OwnerProof:            ownerProof,
+	}
+
+	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.DustTransfer{
+		TargetValue: bill.Value,
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		Backlink:    bill.TxHash,
+		Nonce:       nil, // TODO what is nonce?
+	}, proto.MarshalOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (w *Wallet) createSwapTx() (*transaction.Transaction, error) {
+	bills, err := w.db.GetBills()
+	if err != nil {
+		return nil, err
+	}
+
+	var dustTxs []*dustTx
+	for _, b := range bills {
+		if b.IsDcBill {
+			dustTxs = append(dustTxs, &dustTx{
+				billId:    b.getId(),
+				billValue: b.Value,
+				tx:        b.DcTx,
+				proof:     nil, // TODO get DC proof somewhere
+			})
+		}
+	}
+
+	if len(dustTxs) == 0 {
+		return nil, errors.New("cannot create swap transaction as no dust bills exist")
+	}
+
+	txSig, err := w.signBytes([]byte{}) // TODO sign correct data
+	if err != nil {
+		return nil, err
+	}
+
+	k, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+
+	var billIds [][]byte
+	var dustTransferProofs [][]byte
+	var dustTransferOrders []*transaction.Transaction
+	var billValueSum uint64
+	for _, dcTx := range dustTxs {
+		billIds = append(billIds, dcTx.billId)
+		dustTransferOrders = append(dustTransferOrders, dcTx.tx)
+		dustTransferProofs = append(dustTransferProofs, dcTx.proof)
+		billValueSum += dcTx.billValue
+	}
+
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
+	unitId := uint256.NewInt(1337).Bytes32()
+	swapTx := &transaction.Transaction{
+		UnitId:                unitId[:], // TODO generate bill id for swap?
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               1000,
+		OwnerProof:            ownerProof,
+	}
+
+	err = anypb.MarshalFrom(swapTx.TransactionAttributes, &transaction.Swap{
+		OwnerCondition:     script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		BillIdentifiers:    billIds,
+		DustTransferOrders: dustTransferOrders,
+		Proofs:             dustTransferProofs,
+		TargetValue:        billValueSum,
+	}, proto.MarshalOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+	return swapTx, nil
+}
+
 // Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
 func (w *Wallet) Sync() error {
 	abClient, err := abclient.New(w.config.AlphaBillClientConfig)
 	if err != nil {
 		return err
 	}
-	w.syncWithAlphaBill(abClient)
+	_, err = w.startDustCollectorJob()
+	if err != nil {
+		return err
+	}
+	w.alphaBillClient = abClient
+	w.syncWithAlphaBill()
 	return nil
 }
 
-func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
-	w.alphaBillClient = abClient
+func (w *Wallet) syncWithAlphaBill() {
 	height, err := w.db.GetBlockHeight()
 	if err != nil {
 		return
@@ -195,13 +301,16 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	log.Info("alphabill sync finished")
 }
 
-// Shutdown terminates connection to alphabill node and closes wallet db
+// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines
 func (w *Wallet) Shutdown() {
 	if w.alphaBillClient != nil {
 		w.alphaBillClient.Shutdown()
 	}
 	if w.db != nil {
 		w.db.Close()
+	}
+	if w.dustCollectorJob != nil {
+		w.dustCollectorJob.Stop()
 	}
 }
 
@@ -222,7 +331,6 @@ func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {
 
 func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 	// verify that we are processing blocks sequentially
-	// it may be possible to improve block processing speed by parallel processing
 	height, err := w.db.GetBlockHeight()
 	if err != nil {
 		return err
@@ -240,19 +348,89 @@ func (w *Wallet) processBlock(b *alphabill.Block) error {
 		return err
 	}
 	for _, txPb := range b.Transactions {
-		tx, err := w.txMapper.MapPbToDomain(txPb)
-		if err != nil {
-			return err
-		}
-		err = w.collectBills(tx)
+		err = w.collectBills(txPb)
 		if err != nil {
 			return err
 		}
 	}
-	return w.db.SetBlockHeight(b.BlockNo)
+	err = w.db.SetBlockHeight(b.BlockNo)
+	if err != nil {
+		return err
+	}
+
+	isSwapRequired, err := w.isSwapRequired()
+	if err != nil {
+		return err
+	}
+	if isSwapRequired {
+		err = w.swapDcBills()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (w *Wallet) collectBills(tx *domain.Transaction) error {
+func (w *Wallet) isSwapRequired() (bool, error) {
+	blockHeight, err := w.db.GetBlockHeight()
+	if err != nil {
+		return false, err
+	}
+	dcBlockHeight, err := w.db.GetDcBlockHeight()
+	if err != nil {
+		return false, err
+	}
+	if blockHeight == dcBlockHeight {
+		return true, nil
+	}
+
+	requiredDcSum, err := w.db.GetDcValueSum()
+	if err != nil {
+		return false, err
+	}
+	if requiredDcSum == 0 {
+		return false, nil
+	}
+
+	bills, err := w.db.GetBills()
+	if err != nil {
+		return false, err
+	}
+	var dcSum uint64
+	for _, b := range bills {
+		if b.IsDcBill {
+			dcSum += b.Value
+		}
+	}
+	return dcSum >= requiredDcSum, nil
+}
+
+func (w *Wallet) swapDcBills() error {
+	tx, err := w.createSwapTx()
+	if err != nil {
+		return err
+	}
+	log.Info("Sending swap tx")
+	res, err := w.alphaBillClient.SendTransaction(tx)
+	if err != nil {
+		return err
+	}
+	if !res.Ok {
+		return errors.New("Swap tx returned error code: " + res.Message)
+	}
+	return nil
+}
+
+func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
+	tx, err := w.txMapper.MapPbToDomain(txPb)
+	if err != nil {
+		return err
+	}
+
+	// split tx contains two bills: existing bill and new bill
+	// if any of these bills belong to wallet then we have to
+	// 1) update the existing bill and
+	// 2) add the new bill
 	txSplit, isSplitTx := tx.TransactionAttributes.(*domain.BillSplit)
 	if isSplitTx {
 		containsBill, err := w.db.ContainsBill(tx.UnitId)
@@ -280,17 +458,40 @@ func (w *Wallet) collectBills(tx *domain.Transaction) error {
 			}
 		}
 	} else {
+		// TODO is it possible that DustTransfer bearer and SwapTransfer bearer are different?
+		// TODO once DC bill gets deleted how is it reflected in the ledger?
 		if w.isOwner(tx.TransactionAttributes.OwnerCondition()) {
-			err := w.db.SetBill(&bill{
-				Id:     tx.UnitId,
-				Value:  tx.TransactionAttributes.Value(),
-				TxHash: tx.Hash(),
+			isDustTx, dcTx := isDustTransfer(txPb)
+			err = w.db.SetBill(&bill{
+				Id:       tx.UnitId,
+				Value:    tx.TransactionAttributes.Value(),
+				TxHash:   tx.Hash(),
+				IsDcBill: isDustTx,
+				DcTx:     dcTx,
 			})
 			if err != nil {
 				return err
 			}
+
+			// remove dust bills in case of swap tx
+			_, isSwapTx := tx.TransactionAttributes.(*domain.Swap)
+			if isSwapTx {
+				pb := &transaction.Swap{}
+				err := txPb.TransactionAttributes.UnmarshalTo(pb)
+				if err != nil {
+					return err
+				}
+				for _, dustTransfer := range pb.DustTransferOrders {
+					err := w.db.RemoveBill(uint256.NewInt(0).SetBytes(dustTransfer.UnitId))
+					if err != nil {
+						return err
+					}
+				}
+			}
 		} else {
-			err := w.db.RemoveBill(tx.UnitId) // TODO remove in batch or do whole operation collectBills in batch
+			// remove any bills that the wallet no longer owns
+			// TODO block processing should be done in a db transaction
+			err := w.db.RemoveBill(tx.UnitId)
 			if err != nil {
 				return err
 			}
@@ -342,6 +543,54 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 	return signer.SignBytes(b)
 }
 
+func (w *Wallet) collectDust() error {
+	bills, err := w.db.GetBills()
+	if err != nil {
+		return err
+	}
+	if len(bills) <= 1 {
+		return nil
+	}
+
+	height, err := w.db.GetBlockHeight()
+	if err != nil {
+		return err
+	}
+	err = w.db.SetDcBlockHeight(height + dcTimeoutBlockCount)
+
+	var dcValueSum uint64
+	for _, b := range bills {
+		if b.IsDcBill {
+			continue // ignore bills already sent to DC
+		}
+
+		tx, err := w.createDustTransferTx(b)
+		if err != nil {
+			return err
+		}
+
+		log.Info("Sending dust transfer tx for bill ", b.Id)
+		res, err := w.alphaBillClient.SendTransaction(tx)
+		if err != nil {
+			return err
+		}
+		if !res.Ok {
+			return errors.New("dust transfer returned error code: " + res.Message)
+		}
+		dcValueSum += b.Value
+	}
+	return w.db.SetDcValueSum(dcValueSum)
+}
+
+func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
+	return w.dustCollectorJob.AddFunc("@hourly", func() {
+		err := w.collectDust()
+		if err != nil {
+			log.Error("error in dust collector job: ", err)
+		}
+	})
+}
+
 func createWallet(mnemonic string, config *Config) (*Wallet, error) {
 	db, err := getDb(config, true)
 	if err != nil {
@@ -355,9 +604,10 @@ func createWallet(mnemonic string, config *Config) (*Wallet, error) {
 	}
 
 	return &Wallet{
-		db:       db,
-		config:   config,
-		txMapper: rpc.NewDefaultTxMapper(),
+		db:               db,
+		config:           config,
+		txMapper:         rpc.NewDefaultTxMapper(),
+		dustCollectorJob: cron.New(),
 	}, nil
 }
 
@@ -415,19 +665,34 @@ func generateKeys(mnemonic string, db Db) error {
 }
 
 func getDb(config *Config, create bool) (Db, error) {
-	var db Db
+	var db *wdb
 	var err error
-	if config.Db == nil {
-		if create {
-			db, err = createNewDb(config)
-		} else {
-			db, err = OpenDb(config)
-		}
-		if err != nil {
-			return nil, err
-		}
+	if config.Db != nil {
+		return config.Db, nil
+	}
+	if create {
+		db, err = createNewDb(config)
 	} else {
-		db = config.Db
+		db, err = OpenDb(config)
+	}
+	if err != nil {
+		return nil, err
 	}
 	return db, nil
+}
+
+func isDustTransfer(txPb *transaction.Transaction) (bool, *transaction.Transaction) {
+	isDustTx := txPb.TransactionAttributes.TypeUrl == rpc.ProtobufTypeUrlPrefix+"DustTransfer"
+	if !isDustTx {
+		return false, nil
+	}
+	return true, txPb
+}
+
+// dustTx helper struct for building swap transaction
+type dustTx struct {
+	billId    []byte
+	billValue uint64
+	tx        *transaction.Transaction // dustTx
+	proof     []byte
 }

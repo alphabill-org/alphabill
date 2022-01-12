@@ -6,6 +6,7 @@ import (
 )
 
 type mockAlphaBillClient struct {
+	txs []*transaction.Transaction
 }
 
 func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.Block) error {
@@ -13,6 +14,7 @@ func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *a
 }
 
 func (c *mockAlphaBillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+	c.txs = append(c.txs, tx)
 	return &transaction.TransactionResponse{Ok: true}, nil
 }
 

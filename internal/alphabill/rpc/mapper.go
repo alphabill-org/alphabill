@@ -92,7 +92,11 @@ func convertToKnownType(txAttr *anypb.Any) (domain.TxAttributes, error) {
 
 		var dustTransfers []*domain.DustTransfer
 		for _, pbDT := range pb.DustTransferOrders {
-			dustTransfers = append(dustTransfers, PbDustTransfer2Domain(pbDT))
+			dustTransfer, err := PbTx2DustTransferDomain(pbDT)
+			if err != nil {
+				return nil, err
+			}
+			dustTransfers = append(dustTransfers, dustTransfer)
 		}
 
 		//var proofs []*domain.LedgerProof
@@ -119,6 +123,15 @@ func PbDustTransfer2Domain(pb *transaction.DustTransfer) *domain.DustTransfer {
 		Nonce:       uint256.NewInt(0).SetBytes(pb.Nonce),
 		TargetValue: pb.TargetValue,
 	}
+}
+
+func PbTx2DustTransferDomain(pb *transaction.Transaction) (*domain.DustTransfer, error) {
+	dt := &transaction.DustTransfer{}
+	err := pb.TransactionAttributes.UnmarshalTo(dt)
+	if err != nil {
+		return nil, err
+	}
+	return PbDustTransfer2Domain(dt), nil
 }
 
 //func PbLedgerProof2Domain(pb *transaction.LedgerProof) *domain.LedgerProof {

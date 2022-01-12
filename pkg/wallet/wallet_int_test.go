@@ -146,7 +146,7 @@ func createSwapTx(pubKeyHash []byte) *anypb.Any {
 	tx, _ := anypb.New(&transaction.Swap{
 		OwnerCondition:     script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers:    [][]byte{},
-		DustTransferOrders: []*transaction.DustTransfer{},
+		DustTransferOrders: []*transaction.Transaction{},
 		Proofs:             [][]byte{},
 		TargetValue:        100,
 	})

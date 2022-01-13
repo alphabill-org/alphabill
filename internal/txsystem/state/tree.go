@@ -15,6 +15,12 @@ const (
 	errStrInvalidHashAlgorithm = "invalid hash algorithm"
 )
 
+const (
+	chgNodeAssignment = changeType(iota)
+	chgBalanceAssignment
+	chgContentAssignment
+)
+
 type (
 	Predicate []byte
 
@@ -37,15 +43,6 @@ type (
 		Concatenate(left, right SummaryValue) SummaryValue
 	}
 
-	// unitTree holds any type of units inside avlTree
-	unitTree struct {
-		hashAlgorithm crypto.Hash
-		shardId       []byte
-		roundNumber   uint64
-		tree          *avlTree
-		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
-	}
-
 	Unit struct {
 		Bearer    Predicate // The owner predicate of the Item/Node
 		Data      UnitData  // The Data part of the Item/Node
@@ -62,36 +59,65 @@ type (
 		recompute    bool         // true if node content (hash or summary value) needs recalculation
 		balance      int          // AVL specific balance factor
 	}
+
+	Config struct {
+		HashAlgorithm     crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
+		RecordingDisabled bool        // Optional, set to true, to disable keeping track of changes.
+		ShardId           []byte      // Optional, the ID of the shard. By default, 0.
+	}
+
+	// rmaTree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL tree manner and Merkle proofs can be generated.
+	rmaTree struct {
+		hashAlgorithm    crypto.Hash // Hash algorithm used for calculating the tree hash root and the proofs.
+		shardId          []byte      // ID of the shard.
+		roundNumber      uint64      // The current round number.
+		recordingEnabled bool        // recordingEnabled controls if changes are recorded or not.
+		root             *Node       // root is the top node of the tree.
+		changes          []change    // changes keep track of changes. Only used if recordingEnabled is true.
+		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
+	}
+
+	changeType byte
+
+	change struct {
+		typ           changeType
+		targetPointer **Node
+		oldVal        *Node
+		targetNode    *Node
+		oldBalance    int
+		oldContent    *Unit
+	}
 )
 
-// New creates new UnitsTree
-func New(hashAlgorithm crypto.Hash) (*unitTree, error) {
-	if hashAlgorithm != crypto.SHA256 && hashAlgorithm != crypto.SHA512 {
+// New creates new RMA Tree
+func New(config *Config) (*rmaTree, error) {
+	if config.HashAlgorithm != crypto.SHA256 && config.HashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
-	return &unitTree{
-		tree:          &avlTree{},
-		hashAlgorithm: hashAlgorithm,
+	return &rmaTree{
+		hashAlgorithm:    config.HashAlgorithm,
+		recordingEnabled: !config.RecordingDisabled,
+		shardId:          config.ShardId,
 	}, nil
 }
 
 // AddItem adds new element to the state. Id must not exist in the state.
-func (u *unitTree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
-	exists := u.exists(id)
+func (tree *rmaTree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
+	exists := tree.exists(id)
 	if exists {
 		return errors.Errorf("cannot add item that already exists. ID: %d", id)
 	}
-	u.set(id, owner, data, stateHash)
+	tree.set(id, owner, data, stateHash)
 	return nil
 }
 
 // DeleteItem removes the item from the state
-func (u *unitTree) DeleteItem(id *uint256.Int) error {
-	exists := u.exists(id)
+func (tree *rmaTree) DeleteItem(id *uint256.Int) error {
+	exists := tree.exists(id)
 	if exists {
 		return errors.Errorf("deleting item that does not exist. ID %d", id)
 	}
-	err := u.delete(id)
+	err := tree.delete(id)
 	if err != nil {
 		return errors.Wrapf(err, "deleting failed. ID %d", id)
 	}
@@ -99,31 +125,75 @@ func (u *unitTree) DeleteItem(id *uint256.Int) error {
 }
 
 // SetOwner changes the owner of the item, leaves data as is.
-func (u *unitTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
-	return u.setOwner(id, owner, stateHash)
+func (tree *rmaTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+	return tree.setOwner(id, owner, stateHash)
 }
 
 // UpdateData changes the data of the item, leaves owner as is.
-func (u *unitTree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
-	node, exists := u.tree.getNode(id)
+func (tree *rmaTree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
+	node, exists := tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
 	data := f(node.Content.Data)
-	u.tree.put(id, &Unit{
-		Bearer:    node.Content.Bearer,
-		Data:      data,
-		StateHash: stateHash}, nil, &u.tree.root)
+	tree.set(id, node.Content.Bearer, data, stateHash)
 	return nil
 }
 
-func (u *unitTree) delete(id *uint256.Int) error {
+// GetRootHash starts computation of the tree and returns the root node hash value.
+func (tree *rmaTree) GetRootHash() []byte {
+	if tree.root == nil {
+		return nil
+	}
+	tree.recompute(tree.root, tree.hashAlgorithm.New())
+	return tree.root.Hash
+}
+
+// TotalValue starts computation of the tree and returns the SummaryValue of the root node.
+func (tree *rmaTree) TotalValue() SummaryValue {
+	if tree.root == nil {
+		return nil
+	}
+	tree.recompute(tree.root, tree.hashAlgorithm.New())
+	return tree.root.SummaryValue
+}
+
+// Commit commits the changes, making these not revertible.
+// Changes done before the Commit cannot be reverted anymore.
+// Changes done after the last Commit can be reverted by Revert method.
+func (tree *rmaTree) Commit() {
+	tree.changes = []change{}
+}
+
+// Revert reverts all changes since the last Commit.
+func (tree *rmaTree) Revert() {
+	for i := len(tree.changes) - 1; i >= 0; i-- {
+		chg := tree.changes[i]
+		switch chg.typ {
+		case chgNodeAssignment:
+			//println("reverting", chg.targetPointer, "value to", chg.oldVal, "was(", *chg.targetPointer, ")")
+			*chg.targetPointer = chg.oldVal
+		case chgBalanceAssignment:
+			//println("reverting", chg.targetNode, "balance to", chg.oldBalance)
+			chg.targetNode.balance = chg.oldBalance
+		case chgContentAssignment:
+			chg.targetNode.Content = chg.oldContent
+		default:
+			panic(fmt.Sprintf("invalid type %d", chg.typ))
+		}
+	}
+	tree.Commit()
+}
+
+///////// private methods \\\\\\\\\\\\\
+
+func (tree *rmaTree) delete(id *uint256.Int) error {
 	//TODO done in https://guardtime.atlassian.net/browse/AB-47
 	return errors.ErrNotImplemented
 }
 
-func (u *unitTree) get(id *uint256.Int) (unit *Unit, err error) {
-	node, exists := u.tree.getNode(id)
+func (tree *rmaTree) get(id *uint256.Int) (unit *Unit, err error) {
+	node, exists := tree.getNode(id)
 	if !exists {
 		return nil, errors.Errorf(errStrItemDoesntExist, id)
 	}
@@ -131,60 +201,37 @@ func (u *unitTree) get(id *uint256.Int) (unit *Unit, err error) {
 }
 
 // Set sets the item bearer and data. It's up to the caller to make sure the UnitData implementation supports the all data implementations inserted into the tree.
-func (u *unitTree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) {
-	u.tree.put(id, &Unit{
+func (tree *rmaTree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) {
+	tree.setNode(id, &Unit{
 		Bearer:    owner,
 		Data:      data,
-		StateHash: stateHash},
-		nil, &u.tree.root)
+		StateHash: stateHash})
 }
 
-func (u *unitTree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
-	node, exists := u.tree.getNode(id)
+func (tree *rmaTree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+	node, exists := tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	u.tree.put(id, &Unit{
-		Bearer:    owner,
-		Data:      node.Content.Data,
-		StateHash: stateHash}, nil, &u.tree.root)
+	tree.set(id, owner, node.Content.Data, stateHash)
 	return nil
 }
 
-func (u *unitTree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
-	node, exists := u.tree.getNode(id)
+func (tree *rmaTree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
+	node, exists := tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
 	}
-	u.tree.put(id, &Unit{
-		Bearer:    node.Content.Bearer,
-		Data:      data,
-		StateHash: stateHash}, nil, &u.tree.root)
+	tree.set(id, node.Content.Bearer, data, stateHash)
 	return nil
 }
 
-func (u *unitTree) exists(id *uint256.Int) bool {
-	_, exists := u.tree.getNode(id)
+func (tree *rmaTree) exists(id *uint256.Int) bool {
+	_, exists := tree.getNode(id)
 	return exists
 }
 
-func (u *unitTree) GetRootHash() []byte {
-	if u.tree.root == nil {
-		return nil
-	}
-	u.recompute(u.tree.root, u.hashAlgorithm.New())
-	return u.tree.root.Hash
-}
-
-func (u *unitTree) TotalValue() SummaryValue {
-	if u.tree.root == nil {
-		return nil
-	}
-	u.recompute(u.tree.root, u.hashAlgorithm.New())
-	return u.tree.root.SummaryValue
-}
-
-func (u *unitTree) recompute(n *Node, hasher hash.Hash) {
+func (tree *rmaTree) recompute(n *Node, hasher hash.Hash) {
 	if n.recompute {
 		var leftTotalValue SummaryValue
 		var rightTotalValue SummaryValue
@@ -192,11 +239,11 @@ func (u *unitTree) recompute(n *Node, hasher hash.Hash) {
 		var left = n.Children[0]
 		var right = n.Children[1]
 		if left != nil {
-			u.recompute(left, hasher)
+			tree.recompute(left, hasher)
 			leftTotalValue = left.SummaryValue
 		}
 		if right != nil {
-			u.recompute(right, hasher)
+			tree.recompute(right, hasher)
 			rightTotalValue = right.SummaryValue
 		}
 		n.SummaryValue = n.Content.Data.Value().Concatenate(leftTotalValue, rightTotalValue)
@@ -209,68 +256,227 @@ func (u *unitTree) recompute(n *Node, hasher hash.Hash) {
 	}
 }
 
-// addToHasher calculates the hash of the node. It also resets the hasher while doing so.
-// H(ID, H(StateHash, H(ID, Bearer, UnitData)), self.SummaryValue, leftChild.hash, leftChild.SummaryValue, rightChild.hash, rightChild.summaryValue)
-func (n *Node) addToHasher(hasher hash.Hash) {
-	leftHash := make([]byte, hasher.Size())
-	rightHash := make([]byte, hasher.Size())
-	var left = n.Children[0]
-	var right = n.Children[1]
-	if left != nil {
-		leftHash = left.Hash
-	}
-	if right != nil {
-		rightHash = right.Hash
-	}
-
-	idBytes := n.ID.Bytes32()
-
-	// Sub hash H(ID, Bearer, UnitData)
-	hasher.Reset()
-	hasher.Write(idBytes[:])
-	hasher.Write(n.Content.Bearer)
-	n.Content.Data.AddToHasher(hasher)
-	hashSub1 := hasher.Sum(nil)
-
-	// Sub hash H(StateHash, subHash1)
-	hasher.Reset()
-	hasher.Write(n.Content.StateHash)
-	hasher.Write(hashSub1)
-	hashSub2 := hasher.Sum(nil)
-
-	// Main hash
-	hasher.Reset()
-	hasher.Write(idBytes[:])
-	hasher.Write(hashSub2)
-	n.SummaryValue.AddToHasher(hasher)
-
-	hasher.Write(leftHash)
-	if left != nil {
-		left.SummaryValue.AddToHasher(hasher)
-	}
-	hasher.Write(rightHash)
-	if right != nil {
-		right.SummaryValue.AddToHasher(hasher)
-	}
+// setNode adds a new node to the tree or replaces existing one.
+func (tree *rmaTree) setNode(key *uint256.Int, content *Unit) {
+	tree.put(key, content, nil, &tree.root)
 }
 
-// String returns a string representation of the node
-func (n *Node) String() string {
-	m := fmt.Sprintf("ID=%v", n.ID.Uint64())
-	if n.recompute {
-		m = m + "*"
+// put is recursive method, use setNode to add or update a node.
+func (tree *rmaTree) put(key *uint256.Int, content *Unit, p *Node, qp **Node) bool {
+	q := *qp
+	if q == nil {
+		n := &Node{ID: key, Content: content, Parent: p, recompute: true}
+		tree.assignNode(qp, n)
+		//*qp = &Node{ID: key, Content: content, Parent: p, recompute: true}
+		return true
 	}
 
-	m = m + fmt.Sprintf(" balance=%d", n.balance)
-
-	if n.Content != nil {
-		m = m + fmt.Sprintf(" value=%v, total=%v, bearer=%X, stateHash=%X,",
-			n.Content.Data, n.SummaryValue, n.Content.Bearer, n.Content.StateHash)
+	q.recompute = true
+	c := compare(key, q.ID)
+	if c == 0 {
+		tree.assignContent(q, content)
+		//q.Content = content
+		return false
 	}
 
-	if n.Hash != nil {
-		m = m + fmt.Sprintf("hash=%X", n.Hash)
+	a := (c + 1) / 2
+	var fix bool
+	fix = tree.put(key, content, q, &q.Children[a])
+	if fix {
+		return tree.putFix(c, qp)
+	}
+	return false
+}
+
+// getNode returns the node with given id
+func (tree *rmaTree) getNode(key *uint256.Int) (*Node, bool) {
+	n := tree.root
+	for n != nil {
+		cmp := compare(key, n.ID)
+		switch {
+		case cmp == 0:
+			return n, true
+		case cmp < 0:
+			n = n.Children[0]
+		case cmp > 0:
+			n = n.Children[1]
+		}
+	}
+	return nil, false
+}
+
+func (tree *rmaTree) putFix(c int, t **Node) bool {
+	s := *t
+	if s.balance == 0 {
+		tree.assignBalance(s, c)
+		//s.balance = c
+		return true
 	}
 
-	return m
+	if s.balance == -c {
+		tree.assignBalance(s, 0)
+		//s.balance = 0
+		return false
+	}
+
+	if s.Children[(c+1)/2].balance == c {
+		s = tree.singlerot(c, s)
+	} else {
+		s = tree.doublerot(c, s)
+	}
+	tree.assignNode(t, s)
+	//*t = s
+	return false
+}
+
+func (tree *rmaTree) singlerot(c int, s *Node) *Node {
+	tree.assignBalance(s, 0)
+	//s.balance = 0
+	s = tree.rotate(c, s)
+	tree.assignBalance(s, 0)
+	//s.balance = 0
+	return s
+}
+
+func (tree *rmaTree) doublerot(c int, s *Node) *Node {
+	a := (c + 1) / 2
+	r := s.Children[a]
+	tree.assignNode(&s.Children[a], tree.rotate(-c, s.Children[a]))
+	//s.Children[a] = rotate(-c, s.Children[a])
+	p := tree.rotate(c, s)
+
+	switch {
+	default:
+		tree.assignBalance(s, 0)
+		tree.assignBalance(r, 0)
+		//s.balance = 0
+		//r.balance = 0
+	case p.balance == c:
+		tree.assignBalance(s, -c)
+		tree.assignBalance(r, 0)
+		//s.balance = -c
+		//r.balance = 0
+		s.recompute = true
+	case p.balance == -c:
+		tree.assignBalance(s, 0)
+		tree.assignBalance(r, c)
+		//s.balance = 0
+		//r.balance = c
+		s.recompute = true
+	}
+
+	tree.assignBalance(p, 0)
+	//p.balance = 0
+	return p
+}
+
+func (tree *rmaTree) rotate(c int, s *Node) *Node {
+	a := (c + 1) / 2
+	r := s.Children[a]
+	tree.assignNode(&s.Children[a], r.Children[a^1])
+	//s.Children[a] = r.Children[a^1] // 0>1 ; 1>0
+	if s.Children[a] != nil {
+		tree.assignNode(&s.Children[a].Parent, s)
+		//s.Children[a].Parent = s
+	}
+	tree.assignNode(&r.Children[a^1], s)
+	//r.Children[a^1] = s
+	tree.assignNode(&r.Parent, s.Parent)
+	//r.Parent = s.Parent
+	tree.assignNode(&s.Parent, r)
+	//s.Parent = r
+	return r
+}
+
+// printlChanges is used for debugging
+func (tree *rmaTree) printChanges() {
+	println("changes")
+	for i := len(tree.changes) - 1; i >= 0; i-- {
+		chg := tree.changes[i]
+		switch chg.typ {
+		case chgNodeAssignment:
+			println(" ", i, "node assignment")
+			println("    target", chg.targetPointer, "value(", *chg.targetPointer, ") oldValue", chg.oldVal)
+		case chgBalanceAssignment:
+			println(" ", i, "balance assignment")
+			println("    target", chg.targetNode, "old balance", chg.oldBalance)
+		default:
+			panic(fmt.Sprintf("invalid type %d", chg.typ))
+		}
+	}
+	println("")
+}
+
+func (tree *rmaTree) assignNode(target **Node, source *Node) {
+	if tree.recordingEnabled {
+		tree.changes = append(tree.changes, change{
+			typ:           chgNodeAssignment,
+			targetPointer: target,
+			oldVal:        *target,
+		})
+	}
+	//println("setting", target, "value to", source, "was(", *target, ")")
+	*target = source
+}
+
+func (tree *rmaTree) assignBalance(target *Node, balance int) {
+	if tree.recordingEnabled {
+		tree.changes = append(tree.changes, change{
+			typ:        chgBalanceAssignment,
+			targetNode: target,
+			oldBalance: target.balance,
+		})
+	}
+	target.balance = balance
+}
+
+func (tree *rmaTree) assignContent(target *Node, content *Unit) {
+	if tree.recordingEnabled {
+		tree.changes = append(tree.changes, change{
+			typ:        chgContentAssignment,
+			targetNode: target,
+			oldContent: target.Content,
+		})
+	}
+	target.Content = content
+}
+
+func compare(a, b *uint256.Int) int {
+	return a.Cmp(b)
+}
+
+// print generates a human-readable presentation of the avlTree.
+func (tree *rmaTree) print() string {
+	out := ""
+	tree.output(tree.root, "", false, &out)
+	return out
+}
+
+// output is avlTree inner method for producing output
+func (tree *rmaTree) output(node *Node, prefix string, isTail bool, str *string) {
+	if node.Children[1] != nil {
+		newPrefix := prefix
+		if isTail {
+			newPrefix += "│   "
+		} else {
+			newPrefix += "    "
+		}
+		tree.output(node.Children[1], newPrefix, false, str)
+	}
+	*str += prefix
+	if isTail {
+		*str += "└── "
+	} else {
+		*str += "┌── "
+	}
+	*str += node.String() + "\n"
+	if node.Children[0] != nil {
+		newPrefix := prefix
+		if isTail {
+			newPrefix += "    "
+		} else {
+			newPrefix += "│   "
+		}
+		tree.output(node.Children[0], newPrefix, true, str)
+	}
 }

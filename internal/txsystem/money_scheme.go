@@ -75,7 +75,7 @@ type (
 		DeleteItem(id *uint256.Int) error
 		SetOwner(id *uint256.Int, owner state.Predicate, stateHash []byte) error
 		UpdateData(id *uint256.Int, f state.UpdateFunction, stateHash []byte) error
-		Revert() error
+		Revert()
 		Commit()
 		GetRootHash() []byte
 		TotalValue() state.SummaryValue
@@ -94,7 +94,7 @@ var dustCollectorMoneySupplyID = uint256.NewInt(0)
 
 func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
 	// TODO validate that initialBillID doesn't match with DC money ID. https://guardtime.atlassian.net/browse/AB-93
-	defaultTree, err := state.NewRevertible(hashAlgorithm)
+	defaultTree, err := state.New(&state.Config{HashAlgorithm: hashAlgorithm})
 	if err != nil {
 		return nil, err
 	}

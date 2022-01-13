@@ -1,6 +1,7 @@
 package state
 
 import (
+	"crypto"
 	"fmt"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/holiman/uint256"
@@ -30,15 +31,15 @@ func BenchmarkSetNode(b *testing.B) {
 	}
 
 	for _, bd := range benchData {
-		at := &avlTree{recordingEnabled: bd.trackChanges}
+		at, _ := New(&Config{HashAlgorithm: crypto.SHA256, RecordingDisabled: !bd.trackChanges})
 
 		for i := 0; i < bd.treeSize; i++ {
 			at.setNode(uint256.NewInt(uint64(i)), content)
 			if i%bd.batchSize == 0 {
-				at.resetChanges()
+				at.Commit()
 			}
 		}
-		at.resetChanges()
+		at.Commit()
 
 		idCounter := bd.treeSize
 
@@ -50,10 +51,10 @@ func BenchmarkSetNode(b *testing.B) {
 					at.setNode(uint256.NewInt(uint64(i)), content)
 				}
 				if bd.includeRevert {
-					at.revertChanges()
+					at.Revert()
 				}
 				// Always commit after the batch
-				at.resetChanges()
+				at.Commit()
 				idCounter += bd.batchSize
 			}
 		})

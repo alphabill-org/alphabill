@@ -23,6 +23,7 @@ import (
 )
 
 const prefetchBlockCount = 10
+const mnemonicEntropyBitSize = 128
 
 type Wallet struct {
 	config          *Config
@@ -75,10 +76,14 @@ func LoadExistingWallet(config *Config) (*Wallet, error) {
 	}, nil
 }
 
+// GetBalance returns sum value of all bills currently owned by the wallet
+// the value returned is the smallest denomination of alphabills (10^15)
 func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.GetBalance()
 }
 
+// Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
+// to the given public key
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != 33 {
 		return errors.New("invalid public key, must be 33 bytes in length")
@@ -121,6 +126,32 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
+// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
+func (w *Wallet) Sync() error {
+	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+	if err != nil {
+		return err
+	}
+	w.alphaBillClient = abClient
+	w.syncWithAlphaBill()
+	return nil
+}
+
+// Shutdown terminates connection to alphabill node and closes wallet db
+func (w *Wallet) Shutdown() {
+	if w.alphaBillClient != nil {
+		w.alphaBillClient.Shutdown()
+	}
+	if w.db != nil {
+		w.db.Close()
+	}
+}
+
+// DeleteDb deletes the wallet database
+func (w *Wallet) DeleteDb() {
+	w.db.DeleteDb()
+}
+
 func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
 	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
 	if err != nil {
@@ -153,18 +184,7 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	return tx, nil
 }
 
-// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
-func (w *Wallet) Sync() error {
-	abClient, err := abclient.New(w.config.AlphaBillClientConfig)
-	if err != nil {
-		return err
-	}
-	w.syncWithAlphaBill(abClient)
-	return nil
-}
-
-func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
-	w.alphaBillClient = abClient
+func (w *Wallet) syncWithAlphaBill() {
 	height, err := w.db.GetBlockHeight()
 	if err != nil {
 		return
@@ -178,6 +198,7 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 		if err != nil {
 			log.Error("error receiving block: ", err)
 		}
+		log.Info("closing block receiver channel")
 		close(ch)
 		wg.Done()
 	}()
@@ -193,21 +214,6 @@ func (w *Wallet) syncWithAlphaBill(abClient abclient.ABClient) {
 	}()
 	wg.Wait()
 	log.Info("alphabill sync finished")
-}
-
-// Shutdown terminates connection to alphabill node and closes wallet db
-func (w *Wallet) Shutdown() {
-	if w.alphaBillClient != nil {
-		w.alphaBillClient.Shutdown()
-	}
-	if w.db != nil {
-		w.db.Close()
-	}
-}
-
-// DeleteDb deletes the wallet database
-func (w *Wallet) DeleteDb() {
-	w.db.DeleteDb()
 }
 
 func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {
@@ -362,7 +368,7 @@ func createWallet(mnemonic string, config *Config) (*Wallet, error) {
 }
 
 func generateMnemonic() (string, error) {
-	entropy, err := bip39.NewEntropy(128)
+	entropy, err := bip39.NewEntropy(mnemonicEntropyBitSize)
 	if err != nil {
 		return "", err
 	}

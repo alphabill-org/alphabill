@@ -19,6 +19,7 @@ const (
 	chgNodeAssignment = changeType(iota)
 	chgBalanceAssignment
 	chgContentAssignment
+	chgMinKeyMinVal
 )
 
 type (
@@ -79,6 +80,7 @@ type (
 
 	changeType byte
 
+	// TODO benchmark if large change struct takes more memory
 	change struct {
 		typ           changeType
 		targetPointer **Node
@@ -86,6 +88,10 @@ type (
 		targetNode    *Node
 		oldBalance    int
 		oldContent    *Unit
+		minKey        **uint256.Int
+		oldMinKey     *uint256.Int
+		minVal        **Unit
+		oldMinVal     *Unit
 	}
 )
 
@@ -178,6 +184,9 @@ func (tree *rmaTree) Revert() {
 			chg.targetNode.balance = chg.oldBalance
 		case chgContentAssignment:
 			chg.targetNode.Content = chg.oldContent
+		case chgMinKeyMinVal:
+			*chg.minKey = chg.oldMinKey
+			*chg.minVal = chg.oldMinVal
 		default:
 			panic(fmt.Sprintf("invalid type %d", chg.typ))
 		}
@@ -303,6 +312,105 @@ func (tree *rmaTree) getNode(key *uint256.Int) (*Node, bool) {
 		}
 	}
 	return nil, false
+}
+
+// removeNode will find the node and remove from the tree. In case node does not exist won't do anything.
+func (tree *rmaTree) removeNode(key *uint256.Int) {
+	tree.remove(key, &tree.root)
+}
+
+// remove is a recursive function, use removeNode for deleting an item.
+func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
+	q := *qp
+	if q == nil {
+		return false
+	}
+
+	c := compare(key, q.ID)
+	if c == 0 {
+		if q.Children[1] == nil {
+			if q.Children[0] != nil {
+				tree.assignNode(&q.Children[0].Parent, q.Parent)
+				//q.Children[0].Parent = q.Parent
+			}
+			tree.assignNode(qp, q.Children[0])
+			//*qp = q.Children[0]
+			return true
+		}
+		fix := tree.removeMin(&q.Children[1], &q.ID, &q.Content)
+		if fix {
+			return tree.removeFix(-1, qp)
+		}
+		return false
+	}
+
+	if c < 0 {
+		c = -1
+	} else {
+		c = 1
+	}
+	a := (c + 1) / 2
+	fix := tree.remove(key, &q.Children[a])
+	if fix {
+		return tree.removeFix(-c, qp)
+	}
+	return false
+}
+
+func (tree *rmaTree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) bool {
+	q := *qp
+	if q.Children[0] == nil {
+		// TODO add new assign type
+		tree.assignIdAndContent(minKey, q.ID, minVal, q.Content)
+		//*minKey = q.ID
+		//*minVal = q.Content
+		if q.Children[1] != nil {
+			tree.assignNode(&q.Children[1].Parent, q.Parent)
+			//q.Children[1].Parent = q.Parent
+		}
+		tree.assignNode(qp, q.Children[1])
+		//*qp = q.Children[1]
+		return true
+	}
+	fix := tree.removeMin(&q.Children[0], minKey, minVal)
+	if fix {
+		return tree.removeFix(1, qp)
+	}
+	return false
+}
+
+func (tree *rmaTree) removeFix(c int, t **Node) bool {
+	s := *t
+	if s.balance == 0 {
+		tree.assignBalance(s, c)
+		//s.balance = c
+		return false
+	}
+
+	if s.balance == -c {
+		tree.assignBalance(s, 0)
+		//s.balance = 0
+		return true
+	}
+
+	a := (c + 1) / 2
+	if s.Children[a].balance == 0 {
+		s = tree.rotate(c, s)
+		tree.assignBalance(s, -c)
+		//s.balance = -c
+		tree.assignNode(t, s)
+		//*t = s
+		return false
+	}
+
+	if s.Children[a].balance == c {
+		s = tree.singlerot(c, s)
+	} else {
+		s = tree.doublerot(c, s)
+	}
+	tree.assignNode(t, s)
+	//*t = s
+	return true
 }
 
 func (tree *rmaTree) putFix(c int, t **Node) bool {
@@ -439,6 +547,20 @@ func (tree *rmaTree) assignContent(target *Node, content *Unit) {
 		})
 	}
 	target.Content = content
+}
+
+func (tree *rmaTree) assignIdAndContent(minKey **uint256.Int, id *uint256.Int, minVal **Unit, content *Unit) {
+	if tree.recordingEnabled {
+		tree.changes = append(tree.changes, change{
+			typ:       chgMinKeyMinVal,
+			minKey:    minKey,
+			oldMinKey: *minKey,
+			minVal:    minVal,
+			oldMinVal: *minVal,
+		})
+	}
+	*minKey = id
+	*minVal = content
 }
 
 func compare(a, b *uint256.Int) int {

@@ -23,8 +23,15 @@ var (
 	key2  = uint256.NewInt(2)
 	key3  = uint256.NewInt(3)
 	key4  = uint256.NewInt(4)
+	key5  = uint256.NewInt(5)
+	key6  = uint256.NewInt(6)
+	key7  = uint256.NewInt(7)
+	key8  = uint256.NewInt(8)
+	key9  = uint256.NewInt(9)
 	key10 = uint256.NewInt(10)
+	key11 = uint256.NewInt(11)
 	key12 = uint256.NewInt(12)
+	key13 = uint256.NewInt(13)
 	key15 = uint256.NewInt(15)
 	key20 = uint256.NewInt(20)
 	key24 = uint256.NewInt(24)
@@ -241,23 +248,6 @@ func TestUpdateData(t *testing.T) {
 	requireEqual(t, owner, newData, stateHash, unit)
 }
 
-//func TestDelete(t *testing.T) {
-//	tr, _ := New(&Config{hashAlgorithm: crypto.SHA256})
-//
-//	id := uint256.NewInt(4)
-//	data := TestData(5)
-//	owner := Predicate{1, 2, 3}
-//	stateHash := []byte("state hash")
-//
-//	err := tr.DeleteItem(id)
-//	require.Error(t, err, "deleting not existing item must fail")
-//
-//	err = tr.AddItem(id, owner, data, stateHash)
-//	require.NoError(t, err)
-//	err = tr.DeleteItem(id)
-//	require.NoError(t, err)
-//}
-
 func TestSetNode_Overwrite(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 	at.setNode(key1, newNodeContent(1))
@@ -376,6 +366,223 @@ func TestGetNode_NotFound(t *testing.T) {
 	node, found := at.getNode(key4)
 	assert.False(t, found)
 	assert.Nil(t, node)
+}
+
+func TestDeleteNode_empty(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at.setNode(key1, nil)
+	at.removeNode(key1)
+	require.Nil(t, at.root)
+}
+
+func TestDeleteNode_NonExisting(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at.setNode(key1, nil)
+	at.removeNode(key2)
+	require.Equal(t, key1, at.root.ID)
+}
+
+func TestRemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.Commit()
+	treeBefore := at.print()
+
+	at.removeNode(key2)
+	require.True(t, at.exists(key1))
+	require.False(t, at.exists(key2))
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+func TestRemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.Commit()
+	treeBefore := at.print()
+
+	at.removeNode(key1)
+	require.False(t, at.exists(key1))
+	require.True(t, at.exists(key2))
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+func TestRemoveNode_Leaf(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.setNode(key3, newNodeContent(3))
+	at.Commit()
+	treeBefore := at.print()
+
+	at.removeNode(key3)
+	require.True(t, at.exists(key1))
+	require.True(t, at.exists(key2))
+	require.False(t, at.exists(key3))
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+func TestRemoveNode_Top(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.setNode(key3, newNodeContent(3))
+	at.Commit()
+	treeBefore := at.print()
+
+	at.removeNode(key2)
+
+	require.True(t, at.exists(key1))
+	require.False(t, at.exists(key2))
+	require.True(t, at.exists(key3))
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_RightRight(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 11; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	// Make the right-right child node subtree is the highest.
+	at.removeNode(key5)
+	at.removeNode(key7)
+
+	at.Commit()
+	treeBefore := at.print()
+	//printTree(root)
+	// Trigger rotation by deleting left sub node children.
+	at.removeNode(key3)
+	//printTree(root)
+	at.removeNode(key1)
+	//printTree(root)
+
+	// Node 4 became child and 6 was moved under it.
+	require.Equal(t, key8, at.root.ID)
+	require.Equal(t, key4, at.root.Children[0].ID)
+	require.Equal(t, key6, at.root.Children[0].Children[1].ID)
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_RightLeft(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 11; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	//printTree(root)
+	// Make right-left child node subtree the highest.
+	at.removeNode(key10)
+
+	at.Commit()
+	treeBefore := at.print()
+	//printTree(root)
+	// Trigger rotation by deleting left sub node children.
+	at.removeNode(key1)
+	//printTree(root)
+	at.removeNode(key3)
+	//printTree(root)
+
+	// Node 6 becomes the root by two rotations.
+	require.Equal(t, key6, at.root.ID)
+	require.Equal(t, key8, at.root.Children[1].ID)
+	require.Equal(t, key4, at.root.Children[0].ID)
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_LeftLeft(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 14; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	//printTree(root)
+	// Make left-left child node subtree the highest.
+	at.removeNode(key11)
+	at.removeNode(key13)
+	at.removeNode(key7)
+	at.removeNode(key5)
+
+	//printTree(root)
+
+	at.Commit()
+	treeBefore := at.print()
+	// Trigger balancing by deleting sub nodes from right child.
+	at.removeNode(key12)
+	//printTree(root)
+	at.removeNode(key9)
+	//printTree(root)
+
+	// Node 4 becomes the root by one rotation.
+	require.Equal(t, key4, at.root.ID)
+	require.Equal(t, key8, at.root.Children[1].ID)
+	require.Equal(t, key6, at.root.Children[1].Children[0].ID)
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRemoveNode_LeftRight(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 14; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	//printTree(root)
+	// Make left-left child node subtree the highest.
+	at.removeNode(key11)
+	at.removeNode(key13)
+	at.removeNode(key3)
+	at.removeNode(key1)
+
+	//printTree(root)
+
+	at.Commit()
+	treeBefore := at.print()
+	// Trigger balancing by deleting sub nodes from right child.
+	at.removeNode(key12)
+	//printTree(root)
+	at.removeNode(key9)
+	//printTree(root)
+
+	// Node 6 was becomes the root by two rotations.
+	require.Equal(t, key6, at.root.ID)
+	require.Equal(t, key8, at.root.Children[1].ID)
+	require.Equal(t, key7, at.root.Children[1].Children[0].ID)
+
+	at.Revert()
+	treeAfter := at.print()
+	requireTreesEquals(t, treeBefore, treeAfter)
 }
 
 func TestRevert_FirstNode(t *testing.T) {

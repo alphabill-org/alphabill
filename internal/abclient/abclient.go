@@ -7,6 +7,7 @@ import (
 	"context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"io"
 )
 
 type ABClient interface {
@@ -14,6 +15,10 @@ type ABClient interface {
 	Shutdown()
 	IsShutdown() bool
 	InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.Block) error
+}
+
+type AlphaBillClientConfig struct {
+	Uri string
 }
 
 type AlphaBillClient struct {
@@ -46,6 +51,10 @@ func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alpha
 	for {
 		block, err := stream.Recv()
 		if err != nil {
+			if err == io.EOF {
+				log.Info("block receiver EOF")
+				return nil
+			}
 			return err
 		}
 		ch <- block
@@ -60,6 +69,7 @@ func (c *AlphaBillClient) Shutdown() {
 	if c.IsShutdown() {
 		return
 	}
+	log.Info("shutting down alphabill client")
 	err := c.connection.Close()
 	if err != nil {
 		log.Error("error shutting down alphabill client: ", err)

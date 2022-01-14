@@ -25,6 +25,7 @@ import (
 
 const prefetchBlockCount = 10
 const dcTimeoutBlockCount = 10
+const mnemonicEntropyBitSize = 128
 
 type Wallet struct {
 	config           *Config
@@ -78,10 +79,14 @@ func LoadExistingWallet(config *Config) (*Wallet, error) {
 	}, nil
 }
 
+// GetBalance returns sum value of all bills currently owned by the wallet
+// the value returned is the smallest denomination of alphabills (10^15)
 func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.GetBalance()
 }
 
+// Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
+// to the given public key
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != 33 {
 		return errors.New("invalid public key, must be 33 bytes in length")
@@ -171,6 +176,7 @@ func (w *Wallet) syncWithAlphaBill() {
 		if err != nil {
 			log.Error("error receiving block: ", err)
 		}
+		log.Info("closing block receiver channel")
 		close(ch)
 		wg.Done()
 	}()
@@ -488,7 +494,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 			err := w.db.SetBill(&bill{
 				Id:     tx.UnitId(),
 				Value:  tx.RemainingValue(),
-				TxHash: stx.Hash(crypto.SHA256),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
@@ -647,7 +653,7 @@ func createWallet(mnemonic string, config *Config) (*Wallet, error) {
 }
 
 func generateMnemonic() (string, error) {
-	entropy, err := bip39.NewEntropy(128)
+	entropy, err := bip39.NewEntropy(mnemonicEntropyBitSize)
 	if err != nil {
 		return "", err
 	}

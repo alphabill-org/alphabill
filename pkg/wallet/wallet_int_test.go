@@ -1,7 +1,6 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/abclient"
 	"alphabill-wallet-sdk/internal/alphabill/script"
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
@@ -17,15 +16,15 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 )
 
 func TestWalletCanProcessBlocks(t *testing.T) {
+	// setup wallet
 	testutil.DeleteWalletDb(os.TempDir())
 	port := 9543
 	w, err := CreateNewWallet(&Config{
 		DbPath:                os.TempDir(),
-		AlphaBillClientConfig: &abclient.AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphaBillClientConfig: &AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	defer DeleteWallet(w)
 	require.NoError(t, err)
@@ -33,6 +32,7 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	k, err := w.db.GetAccountKey()
 	require.NoError(t, err)
 
+	// start server that sends given blocks to wallet
 	blocks := []*alphabill.Block{
 		{
 			BlockNo:       1,
@@ -73,21 +73,26 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks})
 	defer server.GracefulStop()
 
+	// verify starting block height
 	height, err := w.db.GetBlockHeight()
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
+
+	// verify starting balance
 	balance, err := w.GetBalance()
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
+	// when wallet is synced with the node
 	err = w.Sync()
 	require.NoError(t, err)
 
-	waitForShutdown(w.alphaBillClient)
-
+	// then block height is increased
 	height, err = w.db.GetBlockHeight()
 	require.EqualValues(t, 1, height)
 	require.NoError(t, err)
+
+	// and balance is increased
 	balance, err = w.GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
@@ -167,14 +172,4 @@ func startServer(port int, alphaBillService *testAlphaBillServiceServer) *grpc.S
 		}
 	}()
 	return grpcServer
-}
-
-func waitForShutdown(abClient abclient.ABClient) {
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if abClient.IsShutdown() || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
 }

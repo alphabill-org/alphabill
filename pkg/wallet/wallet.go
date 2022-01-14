@@ -131,7 +131,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 
 // Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
 func (w *Wallet) Sync() error {
-	abClient, err := abclient.New(w.config.AlphaBillClientConfig)
+	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
 	if err != nil {
 		return err
 	}

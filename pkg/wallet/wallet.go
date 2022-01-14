@@ -443,6 +443,7 @@ func (w *Wallet) swapDcBills() error {
 }
 
 // TODO block processing should be done in a single transaction
+// TODO implement memory layer over wallet db so that disk is not touched unless necessary
 func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 	gtx, err := transaction.New(txPb)
 	if err != nil {
@@ -502,7 +503,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 		}
 		if w.isOwner(tx.TargetBearer()) {
 			err := w.db.SetBill(&bill{
-				Id:     uint256.NewInt(0).SetBytes(tx.Hash(crypto.SHA256)), // TODO generate Id properly
+				Id:     txsystem.SameShardId(tx.UnitId(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -520,7 +521,6 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 			if err != nil {
 				return err
 			}
-			// TODO is it possible that DustTransfer bearer and SwapTransfer bearer are different?
 			// TODO once DC bill gets deleted how is it reflected in the ledger?
 			for _, dustTransfer := range tx.DCTransfers() {
 				err := w.db.RemoveBill(dustTransfer.UnitId())

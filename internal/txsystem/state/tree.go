@@ -20,6 +20,7 @@ const (
 	chgBalanceAssignment
 	chgContentAssignment
 	chgMinKeyMinVal
+	chgRecompute
 )
 
 type (
@@ -81,17 +82,19 @@ type (
 	changeType byte
 
 	// TODO benchmark if large change struct takes more memory
+	// TODO Confirmed that it does more memory, even if fields are not used. Best would be to use smaller structs
 	change struct {
-		typ           changeType
-		targetPointer **Node
-		oldVal        *Node
-		targetNode    *Node
-		oldBalance    int
-		oldContent    *Unit
-		minKey        **uint256.Int
-		oldMinKey     *uint256.Int
-		minVal        **Unit
-		oldMinVal     *Unit
+		typ             changeType
+		targetPointer   **Node
+		oldVal          *Node
+		targetNode      *Node
+		oldBalance      int
+		oldContent      *Unit
+		minKey          **uint256.Int
+		oldMinKey       *uint256.Int
+		minVal          **Unit
+		oldMinVal       *Unit
+		recomputeOldVal bool
 	}
 )
 
@@ -187,6 +190,8 @@ func (tree *rmaTree) Revert() {
 		case chgMinKeyMinVal:
 			*chg.minKey = chg.oldMinKey
 			*chg.minVal = chg.oldMinVal
+		case chgRecompute:
+			chg.targetNode.recompute = chg.recomputeOldVal
 		default:
 			panic(fmt.Sprintf("invalid type %d", chg.typ))
 		}
@@ -280,7 +285,8 @@ func (tree *rmaTree) put(key *uint256.Int, content *Unit, p *Node, qp **Node) bo
 		return true
 	}
 
-	q.recompute = true
+	tree.setRecomputeTrue(q)
+	//q.recompute = true
 	c := compare(key, q.ID)
 	if c == 0 {
 		tree.assignContent(q, content)
@@ -330,19 +336,26 @@ func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
 	if c == 0 {
 		if q.Children[1] == nil {
 			if q.Children[0] != nil {
+				tree.setRecomputeTrue(q.Parent)
+				//q.Parent.recompute = true
 				tree.assignNode(&q.Children[0].Parent, q.Parent)
 				//q.Children[0].Parent = q.Parent
 			}
+
 			tree.assignNode(qp, q.Children[0])
 			//*qp = q.Children[0]
 			return true
 		}
+		tree.setRecomputeTrue(q)
+		//q.recompute = true
 		fix := tree.removeMin(&q.Children[1], &q.ID, &q.Content)
 		if fix {
 			return tree.removeFix(-1, qp)
 		}
 		return false
 	}
+	tree.setRecomputeTrue(q)
+	//q.recompute = true
 
 	if c < 0 {
 		c = -1
@@ -360,7 +373,6 @@ func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
 func (tree *rmaTree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) bool {
 	q := *qp
 	if q.Children[0] == nil {
-		// TODO add new assign type
 		tree.assignIdAndContent(minKey, q.ID, minVal, q.Content)
 		//*minKey = q.ID
 		//*minVal = q.Content
@@ -405,8 +417,12 @@ func (tree *rmaTree) removeFix(c int, t **Node) bool {
 
 	if s.Children[a].balance == c {
 		s = tree.singlerot(c, s)
+		tree.setRecomputeTrue(s)
+		//s.recompute = true
 	} else {
 		s = tree.doublerot(c, s)
+		tree.setRecomputeTrue(s)
+		//s.recompute = true
 	}
 	tree.assignNode(t, s)
 	//*t = s
@@ -449,6 +465,8 @@ func (tree *rmaTree) singlerot(c int, s *Node) *Node {
 func (tree *rmaTree) doublerot(c int, s *Node) *Node {
 	a := (c + 1) / 2
 	r := s.Children[a]
+	tree.setRecomputeTrue(s.Children[a])
+	//s.Children[a].recompute = true
 	tree.assignNode(&s.Children[a], tree.rotate(-c, s.Children[a]))
 	//s.Children[a] = rotate(-c, s.Children[a])
 	p := tree.rotate(c, s)
@@ -464,13 +482,15 @@ func (tree *rmaTree) doublerot(c int, s *Node) *Node {
 		tree.assignBalance(r, 0)
 		//s.balance = -c
 		//r.balance = 0
-		s.recompute = true
+		tree.setRecomputeTrue(s)
+		//s.recompute = true
 	case p.balance == -c:
 		tree.assignBalance(s, 0)
 		tree.assignBalance(r, c)
 		//s.balance = 0
 		//r.balance = c
-		s.recompute = true
+		tree.setRecomputeTrue(s)
+		//s.recompute = true
 	}
 
 	tree.assignBalance(p, 0)
@@ -494,25 +514,6 @@ func (tree *rmaTree) rotate(c int, s *Node) *Node {
 	tree.assignNode(&s.Parent, r)
 	//s.Parent = r
 	return r
-}
-
-// printlChanges is used for debugging
-func (tree *rmaTree) printChanges() {
-	println("changes")
-	for i := len(tree.changes) - 1; i >= 0; i-- {
-		chg := tree.changes[i]
-		switch chg.typ {
-		case chgNodeAssignment:
-			println(" ", i, "node assignment")
-			println("    target", chg.targetPointer, "value(", *chg.targetPointer, ") oldValue", chg.oldVal)
-		case chgBalanceAssignment:
-			println(" ", i, "balance assignment")
-			println("    target", chg.targetNode, "old balance", chg.oldBalance)
-		default:
-			panic(fmt.Sprintf("invalid type %d", chg.typ))
-		}
-	}
-	println("")
 }
 
 func (tree *rmaTree) assignNode(target **Node, source *Node) {
@@ -563,6 +564,17 @@ func (tree *rmaTree) assignIdAndContent(minKey **uint256.Int, id *uint256.Int, m
 	*minVal = content
 }
 
+func (tree *rmaTree) setRecomputeTrue(target *Node) {
+	if tree.recordingEnabled {
+		tree.changes = append(tree.changes, change{
+			typ:             chgRecompute,
+			targetNode:      target,
+			recomputeOldVal: target.recompute,
+		})
+	}
+	target.recompute = true
+}
+
 func compare(a, b *uint256.Int) int {
 	return a.Cmp(b)
 }
@@ -574,7 +586,7 @@ func (tree *rmaTree) print() string {
 	return out
 }
 
-// output is avlTree inner method for producing output
+// output is rmaTree inner method for producing debugging
 func (tree *rmaTree) output(node *Node, prefix string, isTail bool, str *string) {
 	if node.Children[1] != nil {
 		newPrefix := prefix
@@ -601,4 +613,23 @@ func (tree *rmaTree) output(node *Node, prefix string, isTail bool, str *string)
 		}
 		tree.output(node.Children[0], newPrefix, true, str)
 	}
+}
+
+// printChanges is used for debugging
+func (tree *rmaTree) printChanges() {
+	println("changes")
+	for i := len(tree.changes) - 1; i >= 0; i-- {
+		chg := tree.changes[i]
+		switch chg.typ {
+		case chgNodeAssignment:
+			println(" ", i, "node assignment")
+			println("    target", chg.targetPointer, "value(", *chg.targetPointer, ") oldValue", chg.oldVal)
+		case chgBalanceAssignment:
+			println(" ", i, "balance assignment")
+			println("    target", chg.targetNode, "old balance", chg.oldBalance)
+		default:
+			panic(fmt.Sprintf("invalid type %d", chg.typ))
+		}
+	}
+	println("")
 }

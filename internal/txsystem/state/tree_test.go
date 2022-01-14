@@ -273,11 +273,15 @@ func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
 
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
+	at.GetRootHash()
 	at.setNode(key3, newNodeContent(3))
 
 	requireNodeEquals(t, at.root, key2, 2)
 	requireNodeEquals(t, at.root.Children[0], key1, 1)
 	requireNodeEquals(t, at.root.Children[1], key3, 3)
+
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 func TestAddBill_AVLTreeRotateRight(t *testing.T) {
@@ -285,11 +289,15 @@ func TestAddBill_AVLTreeRotateRight(t *testing.T) {
 
 	at.setNode(key3, newNodeContent(3))
 	at.setNode(key2, newNodeContent(2))
+	at.GetRootHash()
 	at.setNode(key1, newNodeContent(1))
 
 	requireNodeEquals(t, at.root, key2, 2)
 	requireNodeEquals(t, at.root.Children[0], key1, 1)
 	requireNodeEquals(t, at.root.Children[1], key3, 3)
+
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
@@ -300,6 +308,7 @@ func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
 	at.setNode(key30, newNodeContent(30))
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key15, newNodeContent(15))
+	at.GetRootHash()
 	at.setNode(key12, newNodeContent(12))
 
 	requireNodeEquals(t, at.root, key15, 15)
@@ -308,18 +317,22 @@ func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
 	requireNodeEquals(t, at.root.Children[0].Children[1], key12, 12)
 	requireNodeEquals(t, at.root.Children[1], key20, 20)
 	requireNodeEquals(t, at.root.Children[1].Children[1], key30, 30)
+
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 
-	at.setNode(key10, nil)
-	at.setNode(key30, nil)
-	at.setNode(key20, nil)
+	at.setNode(key10, newNodeContent(10))
+	at.setNode(key30, newNodeContent(30))
+	at.setNode(key20, newNodeContent(20))
 
-	at.setNode(key25, nil)
-	at.setNode(key31, nil)
-	at.setNode(key24, nil)
+	at.setNode(key25, newNodeContent(25))
+	at.setNode(key31, newNodeContent(31))
+	at.GetRootHash()
+	at.setNode(key24, newNodeContent(24))
 
 	assert.Equal(t, at.root.ID, key25)
 	assert.Equal(t, at.root.Children[0].ID, key20)
@@ -327,6 +340,9 @@ func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
 	assert.Equal(t, at.root.Children[0].Children[1].ID, key24)
 	assert.Equal(t, at.root.Children[1].ID, key30)
 	assert.Equal(t, at.root.Children[1].Children[1].ID, key31)
+
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 func TestGetNode_LeftChild(t *testing.T) {
@@ -368,14 +384,14 @@ func TestGetNode_NotFound(t *testing.T) {
 	assert.Nil(t, node)
 }
 
-func TestDeleteNode_empty(t *testing.T) {
+func TestRemoveNode_empty(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 	at.setNode(key1, nil)
 	at.removeNode(key1)
 	require.Nil(t, at.root)
 }
 
-func TestDeleteNode_NonExisting(t *testing.T) {
+func TestRemoveNode_NonExisting(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 	at.setNode(key1, nil)
 	at.removeNode(key2)
@@ -386,32 +402,61 @@ func TestRemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
-	at.Commit()
-	treeBefore := at.print()
+	at.GetRootHash()
 
 	at.removeNode(key2)
 	require.True(t, at.exists(key1))
 	require.False(t, at.exists(key2))
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+func TestRevert_RemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.Commit()
+	hashBefore := at.GetRootHash()
+	treeBefore := at.print()
+
+	at.removeNode(key2)
 	at.Revert()
-	treeAfter := at.print()
-	requireTreesEquals(t, treeBefore, treeAfter)
+
+	requireTreesEquals(t, treeBefore, at.print())
+
+	hashAfter := at.GetRootHash()
+	require.Equal(t, hashBefore, hashAfter)
 }
 
 func TestRemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
-	at.Commit()
-	treeBefore := at.print()
+	at.GetRootHash()
 
 	at.removeNode(key1)
 	require.False(t, at.exists(key1))
 	require.True(t, at.exists(key2))
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+func TestRevert_RemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.GetRootHash()
+	treeBefore := at.print()
+
+	at.Commit()
+	at.removeNode(key1)
 	at.Revert()
-	treeAfter := at.print()
-	requireTreesEquals(t, treeBefore, treeAfter)
+
+	requireTreesEquals(t, treeBefore, at.print())
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 func TestRemoveNode_Leaf(t *testing.T) {
@@ -420,17 +465,33 @@ func TestRemoveNode_Leaf(t *testing.T) {
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
 	at.setNode(key3, newNodeContent(3))
-	at.Commit()
-	treeBefore := at.print()
+	at.GetRootHash()
 
 	at.removeNode(key3)
 	require.True(t, at.exists(key1))
 	require.True(t, at.exists(key2))
 	require.False(t, at.exists(key3))
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+func TestRevert_RemoveNode_Leaf(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.setNode(key3, newNodeContent(3))
+	at.GetRootHash()
+	treeBefore := at.print()
+
+	at.Commit()
+	at.removeNode(key3)
 	at.Revert()
-	treeAfter := at.print()
-	requireTreesEquals(t, treeBefore, treeAfter)
+
+	requireTreesEquals(t, treeBefore, at.print())
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 func TestRemoveNode_Top(t *testing.T) {
@@ -439,18 +500,33 @@ func TestRemoveNode_Top(t *testing.T) {
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
 	at.setNode(key3, newNodeContent(3))
-	at.Commit()
-	treeBefore := at.print()
+	at.GetRootHash()
 
 	at.removeNode(key2)
-
 	require.True(t, at.exists(key1))
 	require.False(t, at.exists(key2))
 	require.True(t, at.exists(key3))
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+func TestRevert_RemoveNode_Top(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
+	at.setNode(key3, newNodeContent(3))
+	at.GetRootHash()
+	treeBefore := at.print()
+
+	at.Commit()
+	at.removeNode(key2)
 	at.Revert()
-	treeAfter := at.print()
-	requireTreesEquals(t, treeBefore, treeAfter)
+
+	requireTreesEquals(t, treeBefore, at.print())
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
@@ -465,23 +541,44 @@ func TestRemoveNode_RightRight(t *testing.T) {
 	at.removeNode(key5)
 	at.removeNode(key7)
 
-	at.Commit()
-	treeBefore := at.print()
-	//printTree(root)
 	// Trigger rotation by deleting left sub node children.
 	at.removeNode(key3)
-	//printTree(root)
+	at.GetRootHash()
 	at.removeNode(key1)
-	//printTree(root)
 
-	// Node 4 became child and 6 was moved under it.
+	// Node 4 became child and 6 was moved under it. A left rotation on node4.
 	require.Equal(t, key8, at.root.ID)
 	require.Equal(t, key4, at.root.Children[0].ID)
 	require.Equal(t, key6, at.root.Children[0].Children[1].ID)
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRevert_RemoveNode_RightRight(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 11; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	// Make the right-right child node subtree is the highest.
+	at.removeNode(key5)
+	at.removeNode(key7)
+	at.removeNode(key3)
+
+	at.GetRootHash()
+	treeBefore := at.print()
+	// Trigger rotation by deleting left sub node children.
+	at.Commit()
+	at.removeNode(key1)
 	at.Revert()
+
 	treeAfter := at.print()
 	requireTreesEquals(t, treeBefore, treeAfter)
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
@@ -492,27 +589,50 @@ func TestRemoveNode_RightLeft(t *testing.T) {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
 	}
 
-	//printTree(root)
 	// Make right-left child node subtree the highest.
 	at.removeNode(key10)
-
-	at.Commit()
-	treeBefore := at.print()
-	//printTree(root)
-	// Trigger rotation by deleting left sub node children.
 	at.removeNode(key1)
-	//printTree(root)
+	at.GetRootHash()
+
+	// Trigger rotation by deleting left sub node children.
+	// Rotate right 8
+	// Rotate left 4
+	//println(at.print())
 	at.removeNode(key3)
-	//printTree(root)
+	//println(at.print())
 
 	// Node 6 becomes the root by two rotations.
 	require.Equal(t, key6, at.root.ID)
 	require.Equal(t, key8, at.root.Children[1].ID)
 	require.Equal(t, key4, at.root.Children[0].ID)
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRevert_RemoveNode_RightLeft(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 11; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	// Make right-left child node subtree the highest.
+	at.removeNode(key10)
+	at.removeNode(key1)
+	at.GetRootHash()
+	treeBefore := at.print()
+
+	// Trigger rotation by deleting left sub node children.
+	at.Commit()
+	at.removeNode(key3)
 	at.Revert()
+
 	treeAfter := at.print()
 	requireTreesEquals(t, treeBefore, treeAfter)
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
@@ -530,24 +650,50 @@ func TestRemoveNode_LeftLeft(t *testing.T) {
 	at.removeNode(key7)
 	at.removeNode(key5)
 
-	//printTree(root)
-
-	at.Commit()
-	treeBefore := at.print()
 	// Trigger balancing by deleting sub nodes from right child.
 	at.removeNode(key12)
-	//printTree(root)
+	at.GetRootHash()
 	at.removeNode(key9)
-	//printTree(root)
 
 	// Node 4 becomes the root by one rotation.
 	require.Equal(t, key4, at.root.ID)
 	require.Equal(t, key8, at.root.Children[1].ID)
 	require.Equal(t, key6, at.root.Children[1].Children[0].ID)
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRevert_RemoveNode_LeftLeft(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 14; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	//printTree(root)
+	// Make left-left child node subtree the highest.
+	at.removeNode(key11)
+	at.removeNode(key13)
+	at.removeNode(key7)
+	at.removeNode(key5)
+	at.removeNode(key12)
+	at.GetRootHash()
+
+	treeBefore := at.print()
+
+	// Trigger balancing by deleting sub nodes from right child.
+	//printTree(root)
+	at.Commit()
+	at.removeNode(key9)
 	at.Revert()
+	//printTree(root)
+
 	treeAfter := at.print()
 	requireTreesEquals(t, treeBefore, treeAfter)
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
@@ -564,25 +710,48 @@ func TestRemoveNode_LeftRight(t *testing.T) {
 	at.removeNode(key13)
 	at.removeNode(key3)
 	at.removeNode(key1)
-
-	//printTree(root)
-
-	at.Commit()
-	treeBefore := at.print()
-	// Trigger balancing by deleting sub nodes from right child.
 	at.removeNode(key12)
-	//printTree(root)
+
+	// Trigger balancing by deleting sub nodes from right child.
+	at.GetRootHash()
 	at.removeNode(key9)
-	//printTree(root)
 
 	// Node 6 was becomes the root by two rotations.
 	require.Equal(t, key6, at.root.ID)
 	require.Equal(t, key8, at.root.Children[1].ID)
 	require.Equal(t, key7, at.root.Children[1].Children[0].ID)
 
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+// Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
+func TestRevert_RemoveNode_LeftRight(t *testing.T) {
+	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+	for i := 1; i < 14; i++ {
+		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+	}
+
+	//printTree(root)
+	// Make left-left child node subtree the highest.
+	at.removeNode(key11)
+	at.removeNode(key13)
+	at.removeNode(key3)
+	at.removeNode(key1)
+	at.removeNode(key12)
+	at.GetRootHash()
+	treeBefore := at.print()
+
+	// Trigger balancing by deleting sub nodes from right child.
+	at.Commit()
+	at.removeNode(key9)
 	at.Revert()
+
 	treeAfter := at.print()
 	requireTreesEquals(t, treeBefore, treeAfter)
+	actualRootHash := at.GetRootHash()
+	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
 }
 
 func TestRevert_FirstNode(t *testing.T) {
@@ -591,17 +760,20 @@ func TestRevert_FirstNode(t *testing.T) {
 	at.setNode(key1, newNodeContent(1))
 	require.NotNil(t, at.root)
 	require.Equal(t, key1, at.root.ID)
+	require.NotNil(t, at.GetRootHash())
 
 	at.Revert()
 	require.Nil(t, at.root)
+	require.Nil(t, at.GetRootHash())
 }
 
 func TestRevert_SingleRotation(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
-	at.setNode(key1, nil)
-	at.setNode(key2, nil)
-	treeBefore := at.print()
+	at.setNode(key1, newNodeContent(1))
+	at.setNode(key2, newNodeContent(2))
 	at.Commit()
+	at.GetRootHash()
+	treeBefore := at.print()
 	require.Equal(t, key1, at.root.ID)
 	require.Equal(t, 1, at.root.balance)
 
@@ -621,12 +793,13 @@ func TestRevert_DoubleRotation(t *testing.T) {
 	at.setNode(key30, newNodeContent(30))
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key15, newNodeContent(15))
-	treeBefore := at.print()
 	at.Commit()
+	at.GetRootHash()
+	treeBefore := at.print()
 	at.setNode(key12, newNodeContent(12))
+
 	at.Revert()
 	treeAfter := at.print()
-
 	requireTreesEquals(t, treeBefore, treeAfter)
 }
 
@@ -681,5 +854,22 @@ func newNodeContent(val int) *Unit {
 		Bearer:    Predicate{byte(val)},
 		Data:      TestData(uint64(val)),
 		StateHash: []byte{byte(val)},
+	}
+}
+
+// forceRecomputeFullTree recomputes the full tree and returns the root hash
+func forceRecomputeFullTree(at *rmaTree) []byte {
+	setRecomputeTrue(at.root)
+	return at.GetRootHash()
+}
+
+// setRecomputeTrue Sets recompute true for all the nodes in the tree.
+func setRecomputeTrue(node *Node) {
+	node.recompute = true
+	if node.Children[0] != nil {
+		setRecomputeTrue(node.Children[0])
+	}
+	if node.Children[1] != nil {
+		setRecomputeTrue(node.Children[1])
 	}
 }

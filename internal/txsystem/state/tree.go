@@ -15,14 +15,6 @@ const (
 	errStrInvalidHashAlgorithm = "invalid hash algorithm"
 )
 
-const (
-	chgNodeAssignment = changeType(iota)
-	chgBalanceAssignment
-	chgContentAssignment
-	chgMinKeyMinVal
-	chgRecompute
-)
-
 type (
 	Predicate []byte
 
@@ -70,31 +62,40 @@ type (
 
 	// rmaTree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL tree manner and Merkle proofs can be generated.
 	rmaTree struct {
-		hashAlgorithm    crypto.Hash // Hash algorithm used for calculating the tree hash root and the proofs.
-		shardId          []byte      // ID of the shard.
-		roundNumber      uint64      // The current round number.
-		recordingEnabled bool        // recordingEnabled controls if changes are recorded or not.
-		root             *Node       // root is the top node of the tree.
-		changes          []change    // changes keep track of changes. Only used if recordingEnabled is true.
+		hashAlgorithm    crypto.Hash   // Hash algorithm used for calculating the tree hash root and the proofs.
+		shardId          []byte        // ID of the shard.
+		roundNumber      uint64        // The current round number.
+		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
+		root             *Node         // root is the top node of the tree.
+		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
 		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
 	}
 
-	changeType byte
+	changeNode struct {
+		targetPointer **Node
+		oldVal        *Node
+	}
 
-	// TODO benchmark if large change struct takes more memory
-	// TODO Confirmed that it does more memory, even if fields are not used. Best would be to use smaller structs
-	change struct {
-		typ             changeType
-		targetPointer   **Node
-		oldVal          *Node
-		targetNode      *Node
-		oldBalance      int
-		oldContent      *Unit
-		minKey          **uint256.Int
-		oldMinKey       *uint256.Int
-		minVal          **Unit
-		oldMinVal       *Unit
-		recomputeOldVal bool
+	changeBalance struct {
+		targetNode *Node
+		oldVal     int
+	}
+
+	changeContent struct {
+		targetNode *Node
+		oldVal     *Unit
+	}
+
+	changeMinKeyMinVal struct {
+		minKey    **uint256.Int
+		oldMinKey *uint256.Int
+		minVal    **Unit
+		oldMinVal *Unit
+	}
+
+	changeRecompute struct {
+		targetNode *Node
+		oldVal     bool
 	}
 )
 
@@ -171,29 +172,27 @@ func (tree *rmaTree) TotalValue() SummaryValue {
 // Changes done before the Commit cannot be reverted anymore.
 // Changes done after the last Commit can be reverted by Revert method.
 func (tree *rmaTree) Commit() {
-	tree.changes = []change{}
+	tree.changes = []interface{}{}
 }
 
 // Revert reverts all changes since the last Commit.
 func (tree *rmaTree) Revert() {
 	for i := len(tree.changes) - 1; i >= 0; i-- {
-		chg := tree.changes[i]
-		switch chg.typ {
-		case chgNodeAssignment:
-			//println("reverting", chg.targetPointer, "value to", chg.oldVal, "was(", *chg.targetPointer, ")")
+		change := tree.changes[i]
+		switch chg := change.(type) {
+		case *changeNode:
 			*chg.targetPointer = chg.oldVal
-		case chgBalanceAssignment:
-			//println("reverting", chg.targetNode, "balance to", chg.oldBalance)
-			chg.targetNode.balance = chg.oldBalance
-		case chgContentAssignment:
-			chg.targetNode.Content = chg.oldContent
-		case chgMinKeyMinVal:
+		case *changeBalance:
+			chg.targetNode.balance = chg.oldVal
+		case *changeContent:
+			chg.targetNode.Content = chg.oldVal
+		case *changeMinKeyMinVal:
 			*chg.minKey = chg.oldMinKey
 			*chg.minVal = chg.oldMinVal
-		case chgRecompute:
-			chg.targetNode.recompute = chg.recomputeOldVal
+		case *changeRecompute:
+			chg.targetNode.recompute = chg.oldVal
 		default:
-			panic(fmt.Sprintf("invalid type %d", chg.typ))
+			panic(fmt.Sprintf("invalid type %T", chg))
 		}
 	}
 	tree.Commit()
@@ -373,7 +372,7 @@ func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
 func (tree *rmaTree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) bool {
 	q := *qp
 	if q.Children[0] == nil {
-		tree.assignIdAndContent(minKey, q.ID, minVal, q.Content)
+		tree.assignMinKeyMinVal(minKey, q.ID, minVal, q.Content)
 		//*minKey = q.ID
 		//*minVal = q.Content
 		if q.Children[1] != nil {
@@ -518,8 +517,7 @@ func (tree *rmaTree) rotate(c int, s *Node) *Node {
 
 func (tree *rmaTree) assignNode(target **Node, source *Node) {
 	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, change{
-			typ:           chgNodeAssignment,
+		tree.changes = append(tree.changes, &changeNode{
 			targetPointer: target,
 			oldVal:        *target,
 		})
@@ -530,10 +528,9 @@ func (tree *rmaTree) assignNode(target **Node, source *Node) {
 
 func (tree *rmaTree) assignBalance(target *Node, balance int) {
 	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, change{
-			typ:        chgBalanceAssignment,
+		tree.changes = append(tree.changes, &changeBalance{
 			targetNode: target,
-			oldBalance: target.balance,
+			oldVal:     target.balance,
 		})
 	}
 	target.balance = balance
@@ -541,19 +538,17 @@ func (tree *rmaTree) assignBalance(target *Node, balance int) {
 
 func (tree *rmaTree) assignContent(target *Node, content *Unit) {
 	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, change{
-			typ:        chgContentAssignment,
+		tree.changes = append(tree.changes, &changeContent{
 			targetNode: target,
-			oldContent: target.Content,
+			oldVal:     target.Content,
 		})
 	}
 	target.Content = content
 }
 
-func (tree *rmaTree) assignIdAndContent(minKey **uint256.Int, id *uint256.Int, minVal **Unit, content *Unit) {
+func (tree *rmaTree) assignMinKeyMinVal(minKey **uint256.Int, id *uint256.Int, minVal **Unit, content *Unit) {
 	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, change{
-			typ:       chgMinKeyMinVal,
+		tree.changes = append(tree.changes, &changeMinKeyMinVal{
 			minKey:    minKey,
 			oldMinKey: *minKey,
 			minVal:    minVal,
@@ -566,10 +561,9 @@ func (tree *rmaTree) assignIdAndContent(minKey **uint256.Int, id *uint256.Int, m
 
 func (tree *rmaTree) setRecomputeTrue(target *Node) {
 	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, change{
-			typ:             chgRecompute,
-			targetNode:      target,
-			recomputeOldVal: target.recompute,
+		tree.changes = append(tree.changes, &changeRecompute{
+			targetNode: target,
+			oldVal:     target.recompute,
 		})
 	}
 	target.recompute = true
@@ -613,23 +607,4 @@ func (tree *rmaTree) output(node *Node, prefix string, isTail bool, str *string)
 		}
 		tree.output(node.Children[0], newPrefix, true, str)
 	}
-}
-
-// printChanges is used for debugging
-func (tree *rmaTree) printChanges() {
-	println("changes")
-	for i := len(tree.changes) - 1; i >= 0; i-- {
-		chg := tree.changes[i]
-		switch chg.typ {
-		case chgNodeAssignment:
-			println(" ", i, "node assignment")
-			println("    target", chg.targetPointer, "value(", *chg.targetPointer, ") oldValue", chg.oldVal)
-		case chgBalanceAssignment:
-			println(" ", i, "balance assignment")
-			println("    target", chg.targetNode, "old balance", chg.oldBalance)
-		default:
-			panic(fmt.Sprintf("invalid type %d", chg.typ))
-		}
-	}
-	println("")
 }

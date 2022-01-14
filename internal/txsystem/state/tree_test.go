@@ -643,7 +643,6 @@ func TestRemoveNode_LeftLeft(t *testing.T) {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
 	}
 
-	//printTree(root)
 	// Make left-left child node subtree the highest.
 	at.removeNode(key11)
 	at.removeNode(key13)
@@ -672,7 +671,6 @@ func TestRevert_RemoveNode_LeftLeft(t *testing.T) {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
 	}
 
-	//printTree(root)
 	// Make left-left child node subtree the highest.
 	at.removeNode(key11)
 	at.removeNode(key13)
@@ -684,11 +682,9 @@ func TestRevert_RemoveNode_LeftLeft(t *testing.T) {
 	treeBefore := at.print()
 
 	// Trigger balancing by deleting sub nodes from right child.
-	//printTree(root)
 	at.Commit()
 	at.removeNode(key9)
 	at.Revert()
-	//printTree(root)
 
 	treeAfter := at.print()
 	requireTreesEquals(t, treeBefore, treeAfter)
@@ -704,7 +700,6 @@ func TestRemoveNode_LeftRight(t *testing.T) {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
 	}
 
-	//printTree(root)
 	// Make left-left child node subtree the highest.
 	at.removeNode(key11)
 	at.removeNode(key13)
@@ -733,7 +728,6 @@ func TestRevert_RemoveNode_LeftRight(t *testing.T) {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
 	}
 
-	//printTree(root)
 	// Make left-left child node subtree the highest.
 	at.removeNode(key11)
 	at.removeNode(key13)

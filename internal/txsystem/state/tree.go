@@ -280,16 +280,13 @@ func (tree *rmaTree) put(key *uint256.Int, content *Unit, p *Node, qp **Node) bo
 	if q == nil {
 		n := &Node{ID: key, Content: content, Parent: p, recompute: true}
 		tree.assignNode(qp, n)
-		//*qp = &Node{ID: key, Content: content, Parent: p, recompute: true}
 		return true
 	}
 
 	tree.setRecomputeTrue(q)
-	//q.recompute = true
 	c := compare(key, q.ID)
 	if c == 0 {
 		tree.assignContent(q, content)
-		//q.Content = content
 		return false
 	}
 
@@ -336,17 +333,13 @@ func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
 		if q.Children[1] == nil {
 			if q.Children[0] != nil {
 				tree.setRecomputeTrue(q.Parent)
-				//q.Parent.recompute = true
 				tree.assignNode(&q.Children[0].Parent, q.Parent)
-				//q.Children[0].Parent = q.Parent
 			}
 
 			tree.assignNode(qp, q.Children[0])
-			//*qp = q.Children[0]
 			return true
 		}
 		tree.setRecomputeTrue(q)
-		//q.recompute = true
 		fix := tree.removeMin(&q.Children[1], &q.ID, &q.Content)
 		if fix {
 			return tree.removeFix(-1, qp)
@@ -354,7 +347,6 @@ func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
 		return false
 	}
 	tree.setRecomputeTrue(q)
-	//q.recompute = true
 
 	if c < 0 {
 		c = -1
@@ -373,14 +365,10 @@ func (tree *rmaTree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) b
 	q := *qp
 	if q.Children[0] == nil {
 		tree.assignMinKeyMinVal(minKey, q.ID, minVal, q.Content)
-		//*minKey = q.ID
-		//*minVal = q.Content
 		if q.Children[1] != nil {
 			tree.assignNode(&q.Children[1].Parent, q.Parent)
-			//q.Children[1].Parent = q.Parent
 		}
 		tree.assignNode(qp, q.Children[1])
-		//*qp = q.Children[1]
 		return true
 	}
 	fix := tree.removeMin(&q.Children[0], minKey, minVal)
@@ -394,13 +382,11 @@ func (tree *rmaTree) removeFix(c int, t **Node) bool {
 	s := *t
 	if s.balance == 0 {
 		tree.assignBalance(s, c)
-		//s.balance = c
 		return false
 	}
 
 	if s.balance == -c {
 		tree.assignBalance(s, 0)
-		//s.balance = 0
 		return true
 	}
 
@@ -408,7 +394,6 @@ func (tree *rmaTree) removeFix(c int, t **Node) bool {
 	if s.Children[a].balance == 0 {
 		s = tree.rotate(c, s)
 		tree.assignBalance(s, -c)
-		//s.balance = -c
 		tree.assignNode(t, s)
 		//*t = s
 		return false
@@ -417,14 +402,11 @@ func (tree *rmaTree) removeFix(c int, t **Node) bool {
 	if s.Children[a].balance == c {
 		s = tree.singlerot(c, s)
 		tree.setRecomputeTrue(s)
-		//s.recompute = true
 	} else {
 		s = tree.doublerot(c, s)
 		tree.setRecomputeTrue(s)
-		//s.recompute = true
 	}
 	tree.assignNode(t, s)
-	//*t = s
 	return true
 }
 
@@ -432,13 +414,11 @@ func (tree *rmaTree) putFix(c int, t **Node) bool {
 	s := *t
 	if s.balance == 0 {
 		tree.assignBalance(s, c)
-		//s.balance = c
 		return true
 	}
 
 	if s.balance == -c {
 		tree.assignBalance(s, 0)
-		//s.balance = 0
 		return false
 	}
 
@@ -448,16 +428,13 @@ func (tree *rmaTree) putFix(c int, t **Node) bool {
 		s = tree.doublerot(c, s)
 	}
 	tree.assignNode(t, s)
-	//*t = s
 	return false
 }
 
 func (tree *rmaTree) singlerot(c int, s *Node) *Node {
 	tree.assignBalance(s, 0)
-	//s.balance = 0
 	s = tree.rotate(c, s)
 	tree.assignBalance(s, 0)
-	//s.balance = 0
 	return s
 }
 
@@ -465,31 +442,21 @@ func (tree *rmaTree) doublerot(c int, s *Node) *Node {
 	a := (c + 1) / 2
 	r := s.Children[a]
 	tree.setRecomputeTrue(s.Children[a])
-	//s.Children[a].recompute = true
 	tree.assignNode(&s.Children[a], tree.rotate(-c, s.Children[a]))
-	//s.Children[a] = rotate(-c, s.Children[a])
 	p := tree.rotate(c, s)
 
 	switch {
 	default:
 		tree.assignBalance(s, 0)
 		tree.assignBalance(r, 0)
-		//s.balance = 0
-		//r.balance = 0
 	case p.balance == c:
 		tree.assignBalance(s, -c)
 		tree.assignBalance(r, 0)
-		//s.balance = -c
-		//r.balance = 0
 		tree.setRecomputeTrue(s)
-		//s.recompute = true
 	case p.balance == -c:
 		tree.assignBalance(s, 0)
 		tree.assignBalance(r, c)
-		//s.balance = 0
-		//r.balance = c
 		tree.setRecomputeTrue(s)
-		//s.recompute = true
 	}
 
 	tree.assignBalance(p, 0)
@@ -501,17 +468,12 @@ func (tree *rmaTree) rotate(c int, s *Node) *Node {
 	a := (c + 1) / 2
 	r := s.Children[a]
 	tree.assignNode(&s.Children[a], r.Children[a^1])
-	//s.Children[a] = r.Children[a^1] // 0>1 ; 1>0
 	if s.Children[a] != nil {
 		tree.assignNode(&s.Children[a].Parent, s)
-		//s.Children[a].Parent = s
 	}
 	tree.assignNode(&r.Children[a^1], s)
-	//r.Children[a^1] = s
 	tree.assignNode(&r.Parent, s.Parent)
-	//r.Parent = s.Parent
 	tree.assignNode(&s.Parent, r)
-	//s.Parent = r
 	return r
 }
 
@@ -522,7 +484,6 @@ func (tree *rmaTree) assignNode(target **Node, source *Node) {
 			oldVal:        *target,
 		})
 	}
-	//println("setting", target, "value to", source, "was(", *target, ")")
 	*target = source
 }
 

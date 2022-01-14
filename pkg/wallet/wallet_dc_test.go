@@ -79,17 +79,17 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// and swap tx contains the exact same individual dc txs
-	for i := 0; i < len(txSwap.DustTransferOrders); i++ {
+	for i := 0; i < len(txSwap.DcTransfers); i++ {
 		mockClientTx := mockClient.txs[i]
-		dustTransferTx := &transaction.DustTransfer{}
+		dustTransferTx := &transaction.TransferDC{}
 		err = mockClientTx.TransactionAttributes.UnmarshalTo(dustTransferTx)
 		require.NoError(t, err)
 
-		dustTransferSwapTx := txSwap.DustTransferOrders[i]
-		dustTransferTxInSwap := &transaction.DustTransfer{}
+		dustTransferSwapTx := txSwap.DcTransfers[i]
+		dustTransferTxInSwap := &transaction.TransferDC{}
 		err = dustTransferSwapTx.TransactionAttributes.UnmarshalTo(dustTransferTxInSwap)
 		require.NoError(t, err)
-		require.EqualValues(t, dustTransferTx.NewBearer, dustTransferTxInSwap.NewBearer)
+		require.EqualValues(t, dustTransferTx.TargetBearer, dustTransferTxInSwap.TargetBearer)
 		require.EqualValues(t, dustTransferTx.TargetValue, dustTransferTxInSwap.TargetValue)
 		require.EqualValues(t, dustTransferTx.Backlink, dustTransferTxInSwap.Backlink)
 		require.EqualValues(t, dustTransferTx.Nonce, dustTransferTxInSwap.Nonce)

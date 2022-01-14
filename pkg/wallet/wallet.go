@@ -2,15 +2,15 @@ package wallet
 
 import (
 	"alphabill-wallet-sdk/internal/abclient"
-	"alphabill-wallet-sdk/internal/alphabill/domain"
-	"alphabill-wallet-sdk/internal/alphabill/rpc"
 	"alphabill-wallet-sdk/internal/alphabill/script"
+	"alphabill-wallet-sdk/internal/alphabill/txsystem"
 	abcrypto "alphabill-wallet-sdk/internal/crypto"
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
 	"alphabill-wallet-sdk/pkg/log"
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -30,7 +30,6 @@ type Wallet struct {
 	config           *Config
 	db               Db
 	alphaBillClient  abclient.ABClient
-	txMapper         rpc.TransactionMapper
 	dustCollectorJob *cron.Cron
 }
 
@@ -75,7 +74,6 @@ func LoadExistingWallet(config *Config) (*Wallet, error) {
 	return &Wallet{
 		db:               db,
 		config:           config,
-		txMapper:         rpc.NewDefaultTxMapper(),
 		dustCollectorJob: cron.New(),
 	}, nil
 }
@@ -141,6 +139,24 @@ func (w *Wallet) Sync() error {
 	return nil
 }
 
+// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines
+func (w *Wallet) Shutdown() {
+	if w.alphaBillClient != nil {
+		w.alphaBillClient.Shutdown()
+	}
+	if w.db != nil {
+		w.db.Close()
+	}
+	if w.dustCollectorJob != nil {
+		w.dustCollectorJob.Stop()
+	}
+}
+
+// DeleteDb deletes the wallet database
+func (w *Wallet) DeleteDb() {
+	w.db.DeleteDb()
+}
+
 func (w *Wallet) syncWithAlphaBill() {
 	height, err := w.db.GetBlockHeight()
 	if err != nil {
@@ -170,24 +186,6 @@ func (w *Wallet) syncWithAlphaBill() {
 	}()
 	wg.Wait()
 	log.Info("alphabill sync finished")
-}
-
-// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines
-func (w *Wallet) Shutdown() {
-	if w.alphaBillClient != nil {
-		w.alphaBillClient.Shutdown()
-	}
-	if w.db != nil {
-		w.db.Close()
-	}
-	if w.dustCollectorJob != nil {
-		w.dustCollectorJob.Stop()
-	}
-}
-
-// DeleteDb deletes the wallet database
-func (w *Wallet) DeleteDb() {
-	w.db.DeleteDb()
 }
 
 func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
@@ -240,11 +238,11 @@ func (w *Wallet) createDustTx(bill *bill) (*transaction.Transaction, error) {
 		OwnerProof:            ownerProof,
 	}
 
-	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.DustTransfer{
-		TargetValue: bill.Value,
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
-		Backlink:    bill.TxHash,
-		Nonce:       nil, // TODO what is nonce?
+	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.TransferDC{
+		TargetValue:  bill.Value,
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		Backlink:     bill.TxHash,
+		Nonce:        nil, // TODO what is nonce?
 	}, proto.MarshalOptions{})
 
 	if err != nil {
@@ -306,11 +304,11 @@ func (w *Wallet) createSwapTx() (*transaction.Transaction, error) {
 	}
 
 	err = anypb.MarshalFrom(swapTx.TransactionAttributes, &transaction.Swap{
-		OwnerCondition:     script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
-		BillIdentifiers:    billIds,
-		DustTransferOrders: dustTransferOrders,
-		Proofs:             dustTransferProofs,
-		TargetValue:        billValueSum,
+		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		BillIdentifiers: billIds,
+		DcTransfers:     dustTransferOrders,
+		Proofs:          dustTransferProofs,
+		TargetValue:     billValueSum,
 	}, proto.MarshalOptions{})
 
 	if err != nil {
@@ -438,81 +436,100 @@ func (w *Wallet) swapDcBills() error {
 	return nil
 }
 
+// TODO block processing should be done in a single transaction
 func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
-	tx, err := w.txMapper.MapPbToDomain(txPb)
+	gtx, err := transaction.New(txPb)
 	if err != nil {
 		return err
 	}
+	stx := gtx.(txsystem.GenericTransaction)
 
-	// split tx contains two bills: existing bill and new bill
-	// if any of these bills belong to wallet then we have to
-	// 1) update the existing bill and
-	// 2) add the new bill
-	txSplit, isSplitTx := tx.TransactionAttributes.(*domain.BillSplit)
-	if isSplitTx {
-		containsBill, err := w.db.ContainsBill(tx.UnitId)
+	switch tx := stx.(type) {
+	case txsystem.Transfer:
+		if w.isOwner(tx.NewBearer()) {
+			err = w.db.SetBill(&bill{
+				Id:       tx.UnitId(),
+				Value:    tx.TargetValue(),
+				TxHash:   tx.Hash(crypto.SHA256),
+				IsDcBill: false,
+				DcTx:     nil,
+			})
+		} else {
+			err := w.db.RemoveBill(tx.UnitId())
+			if err != nil {
+				return err
+			}
+		}
+	case txsystem.TransferDC:
+		if w.isOwner(tx.TargetBearer()) {
+			err = w.db.SetBill(&bill{
+				Id:       tx.UnitId(),
+				Value:    tx.TargetValue(),
+				TxHash:   tx.Hash(crypto.SHA256),
+				IsDcBill: true,
+				DcTx:     txPb,
+			})
+		} else {
+			err := w.db.RemoveBill(tx.UnitId())
+			if err != nil {
+				return err
+			}
+		}
+	case txsystem.Split:
+		// split tx contains two bills: existing bill and new bill
+		// if any of these bills belong to wallet then we have to
+		// 1) update the existing bill and
+		// 2) add the new bill
+		containsBill, err := w.db.ContainsBill(tx.UnitId())
 		if err != nil {
 			return err
 		}
 		if containsBill {
 			err := w.db.SetBill(&bill{
-				Id:     tx.UnitId,
-				Value:  txSplit.RemainingValue,
-				TxHash: tx.Hash(),
+				Id:     tx.UnitId(),
+				Value:  tx.RemainingValue(),
+				TxHash: stx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
 			}
 		}
-		if w.isOwner(txSplit.TargetBearer) {
+		if w.isOwner(tx.TargetBearer()) {
 			err := w.db.SetBill(&bill{
-				Id:     uint256.NewInt(0).SetBytes(tx.Hash()), // TODO generate Id properly
-				Value:  txSplit.Amount,
-				TxHash: tx.Hash(),
+				Id:     uint256.NewInt(0).SetBytes(tx.Hash(crypto.SHA256)), // TODO generate Id properly
+				Value:  tx.Amount(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
 			}
 		}
-	} else {
-		// TODO is it possible that DustTransfer bearer and SwapTransfer bearer are different?
-		// TODO once DC bill gets deleted how is it reflected in the ledger?
-		if w.isOwner(tx.TransactionAttributes.OwnerCondition()) {
-			isDustTx, dcTx := isDustTransfer(txPb)
+	case txsystem.Swap:
+		if w.isOwner(tx.OwnerCondition()) {
 			err = w.db.SetBill(&bill{
-				Id:       tx.UnitId,
-				Value:    tx.TransactionAttributes.Value(),
-				TxHash:   tx.Hash(),
-				IsDcBill: isDustTx,
-				DcTx:     dcTx,
+				Id:     tx.UnitId(),
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
 			}
-
-			// remove dust bills in case of swap tx
-			_, isSwapTx := tx.TransactionAttributes.(*domain.Swap)
-			if isSwapTx {
-				pb := &transaction.Swap{}
-				err := txPb.TransactionAttributes.UnmarshalTo(pb)
+			// TODO is it possible that DustTransfer bearer and SwapTransfer bearer are different?
+			// TODO once DC bill gets deleted how is it reflected in the ledger?
+			for _, dustTransfer := range tx.DCTransfers() {
+				err := w.db.RemoveBill(dustTransfer.UnitId())
 				if err != nil {
 					return err
 				}
-				for _, dustTransfer := range pb.DustTransferOrders {
-					err := w.db.RemoveBill(uint256.NewInt(0).SetBytes(dustTransfer.UnitId))
-					if err != nil {
-						return err
-					}
-				}
 			}
 		} else {
-			// remove any bills that the wallet no longer owns
-			// TODO block processing should be done in a db transaction
-			err := w.db.RemoveBill(tx.UnitId)
+			err := w.db.RemoveBill(tx.UnitId())
 			if err != nil {
 				return err
 			}
 		}
+	default:
+		panic(fmt.Sprintf("received unknown transaction: %s", tx))
 	}
 	return nil
 }
@@ -625,7 +642,6 @@ func createWallet(mnemonic string, config *Config) (*Wallet, error) {
 	return &Wallet{
 		db:               db,
 		config:           config,
-		txMapper:         rpc.NewDefaultTxMapper(),
 		dustCollectorJob: cron.New(),
 	}, nil
 }
@@ -698,14 +714,6 @@ func getDb(config *Config, create bool) (Db, error) {
 		return nil, err
 	}
 	return db, nil
-}
-
-func isDustTransfer(txPb *transaction.Transaction) (bool, *transaction.Transaction) {
-	isDustTx := txPb.TransactionAttributes.TypeUrl == rpc.ProtobufTypeUrlPrefix+"DustTransfer"
-	if !isDustTx {
-		return false, nil
-	}
-	return true, txPb
 }
 
 // dustTx helper struct for building swap transaction

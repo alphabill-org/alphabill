@@ -1,4 +1,4 @@
-package domain
+package transaction
 
 import "encoding/binary"
 

@@ -5,7 +5,7 @@ import "google/protobuf/any.proto";
 
 option go_package = "alphabill-wallet-sdk/internal/rpc/transaction;transaction";
 
-// Transaction is a generic transaction, same for all transaction systems.
+// TransactionOrder is a generic transaction order, same for all transaction systems.
 message Transaction {
   bytes unit_id = 1;
   google.protobuf.Any transaction_attributes = 2;
@@ -27,15 +27,15 @@ service Transactions {
 // Alphabill specific transaction attributes.
 message BillTransfer {
   bytes new_bearer = 1;
-  bytes backlink = 2;
-  uint64 target_value = 3;
+  uint64 target_value = 2;
+  bytes backlink = 3;
 }
 
-message DustTransfer {
-  bytes new_bearer = 1;
-  bytes backlink = 2;
-  bytes nonce = 3;
-  uint64 target_value = 4;
+message TransferDC {
+  bytes nonce = 1;
+  bytes target_bearer = 2;
+  uint64 target_value = 3;
+  bytes backlink = 4;
 }
 
 message BillSplit {
@@ -48,7 +48,7 @@ message BillSplit {
 message Swap {
   bytes owner_condition = 1;
   repeated bytes bill_identifiers = 2;
-  repeated Transaction dust_transfer_orders = 3;
+  repeated Transaction dc_transfers = 3;
   repeated bytes proofs = 4;
   uint64 target_value = 5;
 }

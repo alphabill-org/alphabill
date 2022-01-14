@@ -133,22 +133,22 @@ func createBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) 
 }
 
 func createDustTransferTx() *anypb.Any {
-	tx, _ := anypb.New(&transaction.DustTransfer{
-		NewBearer:   script.PredicateAlwaysTrue(),
-		Backlink:    hash.Sum256([]byte{}),
-		Nonce:       hash.Sum256([]byte{}),
-		TargetValue: 100,
+	tx, _ := anypb.New(&transaction.TransferDC{
+		TargetBearer: script.PredicateAlwaysTrue(),
+		Backlink:     hash.Sum256([]byte{}),
+		Nonce:        hash.Sum256([]byte{}),
+		TargetValue:  100,
 	})
 	return tx
 }
 
 func createSwapTx(pubKeyHash []byte) *anypb.Any {
 	tx, _ := anypb.New(&transaction.Swap{
-		OwnerCondition:     script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		BillIdentifiers:    [][]byte{},
-		DustTransferOrders: []*transaction.Transaction{},
-		Proofs:             [][]byte{},
-		TargetValue:        100,
+		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		BillIdentifiers: [][]byte{},
+		DcTransfers:     []*transaction.Transaction{},
+		Proofs:          [][]byte{},
+		TargetValue:     100,
 	})
 	return tx
 }

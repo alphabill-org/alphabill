@@ -2,15 +2,17 @@ package state
 
 import (
 	"crypto"
+	"fmt"
 	"hash"
+	"math/rand"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 )
 
 type (
@@ -416,8 +418,8 @@ func TestRevert_RemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
-	at.Commit()
 	hashBefore := at.GetRootHash()
+	at.Commit()
 	treeBefore := at.print()
 
 	at.removeNode(key2)
@@ -427,6 +429,43 @@ func TestRevert_RemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
 
 	hashAfter := at.GetRootHash()
 	require.Equal(t, hashBefore, hashAfter)
+}
+
+func Test_RemoveNode_BiggerTree(t *testing.T) {
+	maxNrOfNodes := 25
+	createTree := func(nrOfNodes int) *rmaTree {
+		at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+		for i := 0; i < nrOfNodes; i++ {
+			at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+		}
+		at.Commit()
+		at.GetRootHash()
+		return at
+	}
+
+	// Try all tree sizes up the maxNrOfNodes
+	for nrOfNodes := 1; nrOfNodes <= maxNrOfNodes; nrOfNodes++ {
+		for i := 0; i < nrOfNodes; i++ {
+			idToRemove := uint256.NewInt(uint64(i))
+			tree := createTree(nrOfNodes)
+			treeBeforeRemoval := tree.print()
+
+			tree.removeNode(idToRemove)
+			treeBeforeRootHash := tree.print()
+
+			tree.GetRootHash()
+			treeAfterRootHash := tree.print()
+
+			forceRecomputeFullTree(tree)
+			treeAfterFullRecalc := tree.print()
+			require.Equal(t, treeAfterRootHash, treeAfterFullRecalc,
+				"trees are not equal after removing %d and full recalc\n  before removal:\n  %s\n  after removal:\n  %s",
+				i,
+				treeBeforeRemoval,
+				treeBeforeRootHash,
+			)
+		}
+	}
 }
 
 func TestRemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
@@ -765,8 +804,8 @@ func TestRevert_SingleRotation(t *testing.T) {
 	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
-	at.Commit()
 	at.GetRootHash()
+	at.Commit()
 	treeBefore := at.print()
 	require.Equal(t, key1, at.root.ID)
 	require.Equal(t, 1, at.root.balance)
@@ -787,14 +826,112 @@ func TestRevert_DoubleRotation(t *testing.T) {
 	at.setNode(key30, newNodeContent(30))
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key15, newNodeContent(15))
-	at.Commit()
 	at.GetRootHash()
+	at.Commit()
 	treeBefore := at.print()
 	at.setNode(key12, newNodeContent(12))
 
 	at.Revert()
 	treeAfter := at.print()
 	requireTreesEquals(t, treeBefore, treeAfter)
+}
+
+func TestRevert_Fuzzier(t *testing.T) {
+	// Run the randomized test 10 times
+	for k := 0; k < 10; k++ {
+		at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+		var ids []*uint256.Int
+
+		// Create a random initial tree
+		nrOfNodes := 25 + rand.Intn(50)
+		for i := 0; i < nrOfNodes; i++ {
+			id := uint256.NewInt(rand.Uint64())
+			ids = append(ids, id)
+			at.setNode(id, randomUnit())
+		}
+		at.GetRootHash()
+		at.Commit()
+		treeBefore := at.print()
+
+		for i := 0; i < 30; i++ {
+			switch rand.Intn(3) {
+			case 0:
+				fallthrough
+			case 1:
+				at.setNode(uint256.NewInt(rand.Uint64()), randomUnit())
+			case 2:
+				idToRemove := rand.Int63n(int64(len(ids)))
+				at.removeNode(ids[idToRemove])
+			}
+		}
+		calcRootBeforeRevert := k%2 == 0
+		if calcRootBeforeRevert {
+			// Commit must not affect revert. The tree computation will be reverted as well.
+			at.GetRootHash()
+		}
+
+		at.Revert()
+		treeAfter := at.print()
+
+		requireTreesEquals(t, treeBefore, treeAfter, fmt.Sprintf("Commit before revert: %v", calcRootBeforeRevert))
+		actualRootHash := at.GetRootHash()
+		require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+	}
+}
+
+func TestGetRootHash_Fuzzier(t *testing.T) {
+	// Run the randomized test 10 times
+	for k := 0; k < 10; k++ {
+		at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+
+		var ids []*uint256.Int
+
+		// Create a random initial tree
+		nrOfNodes := 25 + rand.Intn(50)
+		for i := 0; i < nrOfNodes; i++ {
+			id := uint256.NewInt(rand.Uint64())
+			ids = append(ids, id)
+			at.setNode(id, randomUnit())
+		}
+		at.Commit()
+		at.GetRootHash()
+
+		for i := 0; i < 30; i++ {
+			treeBeforeTx := at.print()
+			var transaction string
+			switch rand.Int31n(3) {
+			case 0:
+				fallthrough
+			case 1:
+				idToAdd := rand.Uint64()
+				transaction = fmt.Sprintf("add item %d", idToAdd)
+				at.setNode(uint256.NewInt(idToAdd), randomUnit())
+			case 2:
+				idToRemove := rand.Int63n(int64(len(ids)))
+				transaction = fmt.Sprintf("remove item %d (%d)", ids[idToRemove], idToRemove)
+				at.removeNode(ids[idToRemove])
+			}
+			// The root hash calculation must equal to a force recalculation.
+			beforeGetRootHash := at.print()
+
+			at.GetRootHash()
+			treeAfterGetRootHash := at.print()
+
+			forceRecomputeFullTree(at)
+			treeAfterRecalculation := at.print()
+
+			require.Equal(t, treeAfterGetRootHash, treeAfterRecalculation,
+				"trees not equal after full recalculation\n  transaction: %s\n  before transaction:\n  %s\n  before GetRootHash:\n  %s\n  after GetRootHash:\n  %s\n  after full recalculation:\n  %s",
+				transaction,
+				treeBeforeTx,
+				beforeGetRootHash,
+				treeAfterGetRootHash,
+				treeAfterRecalculation,
+			)
+			requireTreesEquals(t, treeAfterGetRootHash, treeAfterRecalculation)
+		}
+	}
 }
 
 func (u TestData) AddToHasher(hasher hash.Hash) {
@@ -839,8 +976,12 @@ func requireNodeEquals(t *testing.T, node *Node, key *uint256.Int, val int) {
 	require.Equal(t, []byte{byte(val)}, node.Content.StateHash)
 }
 
-func requireTreesEquals(t *testing.T, before, after string) {
-	require.Equal(t, before, after, "trees not equals after revert\n was: %s\n now: %s", before, after)
+func requireTreesEquals(t *testing.T, before, after string, msgAndArgs ...string) {
+	var m string
+	if msgAndArgs != nil {
+		m = fmt.Sprintf(msgAndArgs[0], msgAndArgs[1:])
+	}
+	require.Equal(t, before, after, "trees not equal\n  was: %s\n  now: %s\n  %s", before, after, m)
 }
 
 func newNodeContent(val int) *Unit {
@@ -853,7 +994,9 @@ func newNodeContent(val int) *Unit {
 
 // forceRecomputeFullTree recomputes the full tree and returns the root hash
 func forceRecomputeFullTree(at *rmaTree) []byte {
-	setRecomputeTrue(at.root)
+	if at.root != nil {
+		setRecomputeTrue(at.root)
+	}
 	return at.GetRootHash()
 }
 
@@ -865,5 +1008,13 @@ func setRecomputeTrue(node *Node) {
 	}
 	if node.Children[1] != nil {
 		setRecomputeTrue(node.Children[1])
+	}
+}
+
+func randomUnit() *Unit {
+	return &Unit{
+		Bearer:    test.RandomBytes(10),
+		Data:      TestData(rand.Int31n(1_000_000)),
+		StateHash: test.RandomBytes(10),
 	}
 }

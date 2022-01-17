@@ -97,6 +97,16 @@ type (
 		targetNode *Node
 		oldVal     bool
 	}
+
+	changeHash struct {
+		targetNode *Node
+		oldVal     []byte
+	}
+
+	changeSummaryValue struct {
+		targetNode *Node
+		oldVal     SummaryValue
+	}
 )
 
 // New creates new RMA Tree
@@ -191,6 +201,10 @@ func (tree *rmaTree) Revert() {
 			*chg.minVal = chg.oldMinVal
 		case *changeRecompute:
 			chg.targetNode.recompute = chg.oldVal
+		case *changeSummaryValue:
+			chg.targetNode.SummaryValue = chg.oldVal
+		case *changeHash:
+			chg.targetNode.Hash = chg.oldVal
 		default:
 			panic(fmt.Sprintf("invalid type %T", chg))
 		}
@@ -259,13 +273,13 @@ func (tree *rmaTree) recompute(n *Node, hasher hash.Hash) {
 			tree.recompute(right, hasher)
 			rightTotalValue = right.SummaryValue
 		}
-		n.SummaryValue = n.Content.Data.Value().Concatenate(leftTotalValue, rightTotalValue)
+		tree.assignSummaryValue(n, n.Content.Data.Value().Concatenate(leftTotalValue, rightTotalValue))
 
 		hasher.Reset()
 		n.addToHasher(hasher)
-		n.Hash = hasher.Sum(nil)
+		tree.assignHash(n, hasher.Sum(nil))
 		hasher.Reset()
-		n.recompute = false
+		tree.assignRecompute(n, false)
 	}
 }
 
@@ -283,7 +297,7 @@ func (tree *rmaTree) put(key *uint256.Int, content *Unit, p *Node, qp **Node) bo
 		return true
 	}
 
-	tree.setRecomputeTrue(q)
+	tree.assignRecompute(q, true)
 	c := compare(key, q.ID)
 	if c == 0 {
 		tree.assignContent(q, content)
@@ -332,21 +346,21 @@ func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
 	if c == 0 {
 		if q.Children[1] == nil {
 			if q.Children[0] != nil {
-				tree.setRecomputeTrue(q.Parent)
+				tree.assignRecompute(q.Parent, true)
 				tree.assignNode(&q.Children[0].Parent, q.Parent)
 			}
 
 			tree.assignNode(qp, q.Children[0])
 			return true
 		}
-		tree.setRecomputeTrue(q)
+		tree.assignRecompute(q, true)
 		fix := tree.removeMin(&q.Children[1], &q.ID, &q.Content)
 		if fix {
 			return tree.removeFix(-1, qp)
 		}
 		return false
 	}
-	tree.setRecomputeTrue(q)
+	tree.assignRecompute(q, true)
 
 	if c < 0 {
 		c = -1
@@ -371,6 +385,7 @@ func (tree *rmaTree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) b
 		tree.assignNode(qp, q.Children[1])
 		return true
 	}
+	tree.assignRecompute(q, true)
 	fix := tree.removeMin(&q.Children[0], minKey, minVal)
 	if fix {
 		return tree.removeFix(1, qp)
@@ -393,19 +408,18 @@ func (tree *rmaTree) removeFix(c int, t **Node) bool {
 	a := (c + 1) / 2
 	if s.Children[a].balance == 0 {
 		s = tree.rotate(c, s)
+		tree.assignRecompute(s, true)
 		tree.assignBalance(s, -c)
 		tree.assignNode(t, s)
-		//*t = s
 		return false
 	}
 
 	if s.Children[a].balance == c {
 		s = tree.singlerot(c, s)
-		tree.setRecomputeTrue(s)
 	} else {
 		s = tree.doublerot(c, s)
-		tree.setRecomputeTrue(s)
 	}
+	tree.assignRecompute(s, true)
 	tree.assignNode(t, s)
 	return true
 }
@@ -441,7 +455,7 @@ func (tree *rmaTree) singlerot(c int, s *Node) *Node {
 func (tree *rmaTree) doublerot(c int, s *Node) *Node {
 	a := (c + 1) / 2
 	r := s.Children[a]
-	tree.setRecomputeTrue(s.Children[a])
+	tree.assignRecompute(s.Children[a], true)
 	tree.assignNode(&s.Children[a], tree.rotate(-c, s.Children[a]))
 	p := tree.rotate(c, s)
 
@@ -452,11 +466,11 @@ func (tree *rmaTree) doublerot(c int, s *Node) *Node {
 	case p.balance == c:
 		tree.assignBalance(s, -c)
 		tree.assignBalance(r, 0)
-		tree.setRecomputeTrue(s)
+		tree.assignRecompute(s, true)
 	case p.balance == -c:
 		tree.assignBalance(s, 0)
 		tree.assignBalance(r, c)
-		tree.setRecomputeTrue(s)
+		tree.assignRecompute(s, true)
 	}
 
 	tree.assignBalance(p, 0)
@@ -520,14 +534,34 @@ func (tree *rmaTree) assignMinKeyMinVal(minKey **uint256.Int, id *uint256.Int, m
 	*minVal = content
 }
 
-func (tree *rmaTree) setRecomputeTrue(target *Node) {
+func (tree *rmaTree) assignRecompute(target *Node, recompute bool) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeRecompute{
 			targetNode: target,
 			oldVal:     target.recompute,
 		})
 	}
-	target.recompute = true
+	target.recompute = recompute
+}
+
+func (tree *rmaTree) assignSummaryValue(target *Node, summary SummaryValue) {
+	if tree.recordingEnabled {
+		tree.changes = append(tree.changes, &changeSummaryValue{
+			targetNode: target,
+			oldVal:     target.SummaryValue,
+		})
+	}
+	target.SummaryValue = summary
+}
+
+func (tree *rmaTree) assignHash(target *Node, hash []byte) {
+	if tree.recordingEnabled {
+		tree.changes = append(tree.changes, &changeHash{
+			targetNode: target,
+			oldVal:     target.Hash,
+		})
+	}
+	target.Hash = hash
 }
 
 func compare(a, b *uint256.Int) int {
@@ -536,6 +570,9 @@ func compare(a, b *uint256.Int) int {
 
 // print generates a human-readable presentation of the avlTree.
 func (tree *rmaTree) print() string {
+	if tree.root == nil {
+		return "tree is empty"
+	}
 	out := ""
 	tree.output(tree.root, "", false, &out)
 	return out

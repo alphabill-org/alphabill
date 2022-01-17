@@ -137,10 +137,7 @@ func (tree *rmaTree) DeleteItem(id *uint256.Int) error {
 	if exists {
 		return errors.Errorf("deleting item that does not exist. ID %d", id)
 	}
-	err := tree.delete(id)
-	if err != nil {
-		return errors.Wrapf(err, "deleting failed. ID %d", id)
-	}
+	tree.removeNode(id)
 	return nil
 }
 
@@ -213,11 +210,6 @@ func (tree *rmaTree) Revert() {
 }
 
 ///////// private methods \\\\\\\\\\\\\
-
-func (tree *rmaTree) delete(id *uint256.Int) error {
-	//TODO done in https://guardtime.atlassian.net/browse/AB-47
-	return errors.ErrNotImplemented
-}
 
 func (tree *rmaTree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := tree.getNode(id)

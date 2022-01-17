@@ -20,12 +20,13 @@ var (
 )
 
 var (
-	accountKeyName       = []byte("accountKey")
-	masterKeyName        = []byte("masterKey")
-	mnemonicKeyName      = []byte("mnemonicKey")
-	blockHeightKeyName   = []byte("blockHeightKey")
-	dcBlockHeightKeyName = []byte("dcBlockHeightKey")
-	dcValueSumKeyName    = []byte("dcValueSumKey")
+	accountKeyName     = []byte("accountKey")
+	masterKeyName      = []byte("masterKey")
+	mnemonicKeyName    = []byte("mnemonicKey")
+	blockHeightKeyName = []byte("blockHeightKey")
+	dcTimeoutKeyName   = []byte("dcTimeout")
+	swapTimeoutKeyName = []byte("swapTimeout")
+	dcValueSumKeyName  = []byte("dcValueSumKey")
 )
 
 var (
@@ -33,33 +34,44 @@ var (
 	errWalletDbDoesNotExists    = errors.New("cannot open wallet db, file does not exits")
 	errKeyNotFound              = errors.New("key not found in wallet")
 	errBillWithMinValueNotFound = errors.New("spendable bill with min value not found")
-	errBlockHeightNotFound      = errors.New("block height not found")
 )
 
 const walletFileName = "wallet.db"
 
 type Db interface {
-	SetAccountKey(key *accountKey) error
 	GetAccountKey() (*accountKey, error)
-	SetMasterKey(string) error
+	SetAccountKey(key *accountKey) error
+
 	GetMasterKey() (string, error)
-	SetMnemonic(string) error
+	SetMasterKey(string) error
+
 	GetMnemonic() (string, error)
-	SetBill(bill *bill) error
+	SetMnemonic(string) error
+
 	GetBill(id *uint256.Int) (*bill, error)
+	SetBill(bill *bill) error
 	ContainsBill(id *uint256.Int) (bool, error)
 	RemoveBill(id *uint256.Int) error
 	GetBills() ([]*bill, error)
 	GetBillWithMinValue(minVal uint64) (*bill, error)
 	GetBalance() (uint64, error)
+
 	GetBlockHeight() (uint64, error)
 	SetBlockHeight(blockHeight uint64) error
+
+	GetDcTimeout() (uint64, error)
+	SetDcTimeout(blockHeight uint64) error
+
+	GetSwapTimeout() (uint64, error)
+	SetSwapTimeout(blockHeight uint64) error
+
+	GetDcValueSum() (uint64, error)
+	SetDcValueSum(dcValueSum uint64) error
+
+	GetDcNonce() (*uint256.Int, error)
+
 	Close()
 	DeleteDb()
-	SetDcBlockHeight(blockHeight uint64) error
-	SetDcValueSum(dcValueSum uint64) error
-	GetDcBlockHeight() (uint64, error)
-	GetDcValueSum() (uint64, error)
 }
 
 type wdb struct {
@@ -314,12 +326,12 @@ func (d *wdb) GetBlockHeight() (uint64, error) {
 	err := d.db.View(func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKeyName)
 		if blockHeightBytes == nil {
-			return errBlockHeightNotFound
+			return nil
 		}
 		blockHeight = binary.BigEndian.Uint64(blockHeightBytes)
 		return nil
 	})
-	if err != nil && err != errBlockHeightNotFound {
+	if err != nil {
 		return 0, err
 	}
 	return blockHeight, nil
@@ -347,36 +359,56 @@ func (d *wdb) Close() {
 	}
 }
 
-func (d *wdb) GetDcBlockHeight() (uint64, error) {
-	dcBlockHeight := uint64(0)
+func (d *wdb) GetDcTimeout() (uint64, error) {
+	res := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
-		dcBlockHeightBytes := tx.Bucket(metaBucket).Get(dcBlockHeightKeyName)
-		if dcBlockHeightBytes != nil {
-			dcBlockHeight = binary.BigEndian.Uint64(dcBlockHeightBytes)
+		b := tx.Bucket(metaBucket).Get(dcTimeoutKeyName)
+		if b != nil {
+			res = binary.BigEndian.Uint64(b)
 		}
 		return nil
 	})
-	return dcBlockHeight, err
+	return res, err
 }
 
-func (d *wdb) SetDcBlockHeight(dcBlockHeight uint64) error {
+func (d *wdb) SetDcTimeout(dcBlockHeight uint64) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, dcBlockHeight)
-		return tx.Bucket(metaBucket).Put(dcBlockHeightKeyName, b)
+		return tx.Bucket(metaBucket).Put(dcTimeoutKeyName, b)
+	})
+}
+
+func (d *wdb) GetSwapTimeout() (uint64, error) {
+	res := uint64(0)
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(metaBucket).Get(swapTimeoutKeyName)
+		if b != nil {
+			res = binary.BigEndian.Uint64(b)
+		}
+		return nil
+	})
+	return res, err
+}
+
+func (d *wdb) SetSwapTimeout(timeout uint64) error {
+	return d.db.Update(func(tx *bolt.Tx) error {
+		b := make([]byte, 8)
+		binary.BigEndian.PutUint64(b, timeout)
+		return tx.Bucket(metaBucket).Put(swapTimeoutKeyName, b)
 	})
 }
 
 func (d *wdb) GetDcValueSum() (uint64, error) {
-	dcValueSum := uint64(0)
+	res := uint64(0)
 	err := d.db.View(func(tx *bolt.Tx) error {
-		dcValueSumBytes := tx.Bucket(metaBucket).Get(dcValueSumKeyName)
-		if dcValueSumBytes != nil {
-			dcValueSum = binary.BigEndian.Uint64(dcValueSumBytes)
+		b := tx.Bucket(metaBucket).Get(dcValueSumKeyName)
+		if b != nil {
+			res = binary.BigEndian.Uint64(b)
 		}
 		return nil
 	})
-	return dcValueSum, err
+	return res, err
 }
 
 func (d *wdb) SetDcValueSum(dcValueSum uint64) error {
@@ -385,6 +417,32 @@ func (d *wdb) SetDcValueSum(dcValueSum uint64) error {
 		binary.BigEndian.PutUint64(b, dcValueSum)
 		return tx.Bucket(metaBucket).Put(dcValueSumKeyName, b)
 	})
+}
+
+func (d *wdb) GetDcNonce() (*uint256.Int, error) {
+	var res []byte
+	err := d.db.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket(billsBucket).Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var b *bill
+			err := json.Unmarshal(v, &b)
+			if err != nil {
+				return err
+			}
+			if b.IsDcBill {
+				res = b.DcNonce
+				return nil
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if res != nil {
+		return uint256.NewInt(0).SetBytes(res), nil
+	}
+	return nil, nil
 }
 
 func (d *wdb) DeleteDb() {

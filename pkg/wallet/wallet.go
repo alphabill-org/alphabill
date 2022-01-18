@@ -345,28 +345,29 @@ func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 	return nil
 }
 
-// TODO block processing should be done in a single transaction
 // TODO implement memory layer over wallet db so that disk is not touched unless necessary
 func (w *Wallet) processBlock(b *alphabill.Block) error {
-	err := w.verifyBlockHeight(b)
-	if err != nil {
-		return err
-	}
-	for _, txPb := range b.Transactions {
-		err = w.collectBills(txPb)
+	return w.db.WithTransaction(func() error {
+		err := w.verifyBlockHeight(b)
 		if err != nil {
 			return err
 		}
-	}
-	err = w.db.SetBlockHeight(b.BlockNo)
-	if err != nil {
-		return err
-	}
-	err = w.trySwap()
-	if err != nil {
-		return err
-	}
-	return nil
+		for _, txPb := range b.Transactions {
+			err = w.collectBills(txPb)
+			if err != nil {
+				return err
+			}
+		}
+		err = w.db.SetBlockHeight(b.BlockNo)
+		if err != nil {
+			return err
+		}
+		err = w.trySwap()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (w *Wallet) trySwap() error {
@@ -461,13 +462,15 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 
 	switch tx := stx.(type) {
 	case txsystem.Transfer:
-		if w.isOwner(tx.NewBearer()) {
+		isOwner, err := w.isOwner(tx.NewBearer())
+		if err != nil {
+			return err
+		}
+		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:       tx.UnitId(),
-				Value:    tx.TargetValue(),
-				TxHash:   tx.Hash(crypto.SHA256),
-				IsDcBill: false,
-				DcTx:     nil,
+				Id:     tx.UnitId(),
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 		} else {
 			err := w.db.RemoveBill(tx.UnitId())
@@ -476,7 +479,11 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 			}
 		}
 	case txsystem.TransferDC:
-		if w.isOwner(tx.TargetBearer()) {
+		isOwner, err := w.isOwner(tx.TargetBearer())
+		if err != nil {
+			return err
+		}
+		if isOwner {
 			err = w.db.SetBill(&bill{
 				Id:       tx.UnitId(),
 				Value:    tx.TargetValue(),
@@ -510,7 +517,11 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 				return err
 			}
 		}
-		if w.isOwner(tx.TargetBearer()) {
+		isOwner, err := w.isOwner(tx.TargetBearer())
+		if err != nil {
+			return err
+		}
+		if isOwner {
 			err := w.db.SetBill(&bill{
 				Id:     txsystem.SameShardId(tx.UnitId(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
@@ -521,7 +532,11 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 			}
 		}
 	case txsystem.Swap:
-		if w.isOwner(tx.OwnerCondition()) {
+		isOwner, err := w.isOwner(tx.OwnerCondition())
+		if err != nil {
+			return err
+		}
+		if isOwner {
 			err = w.db.SetBill(&bill{
 				Id:     tx.UnitId(),
 				Value:  tx.TargetValue(),
@@ -550,34 +565,34 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 }
 
 // isOwner checks if given p2pkh bearer predicate contains Wallet's pubKey hash
-func (w *Wallet) isOwner(bp []byte) bool {
+func (w *Wallet) isOwner(bp []byte) (bool, error) {
 	// p2pkh predicate: [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 0xac, 0x01]
 	// p2pkh predicate: [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]
 
 	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
 	if len(bp) != 42 && len(bp) != 74 {
-		return false
+		return false, nil
 	}
 	// 5th byte is PushHash 0x4f
 	if bp[4] != 0x4f {
-		return false
+		return false, nil
 	}
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
 	hashAlgo := bp[5]
 	if hashAlgo == 0x01 {
 		k, err := w.db.GetAccountKey()
 		if err != nil {
-			return false // ignore error
+			return false, err
 		}
-		return bytes.Equal(bp[6:38], k.PubKeyHashSha256)
+		return bytes.Equal(bp[6:38], k.PubKeyHashSha256), nil
 	} else if hashAlgo == 0x02 {
 		k, err := w.db.GetAccountKey()
 		if err != nil {
-			return false // ignore error
+			return false, err
 		}
-		return bytes.Equal(bp[6:70], k.PubKeyHashSha512)
+		return bytes.Equal(bp[6:70], k.PubKeyHashSha512), nil
 	}
-	return false
+	return false, nil
 }
 
 func (w *Wallet) signBytes(b []byte) ([]byte, error) {
@@ -595,69 +610,71 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 // collectDust sends dust transfer for every bill in wallet and records metadata
 // once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
 func (w *Wallet) collectDust() error {
-	blockHeight, err := w.db.GetBlockHeight()
-	if err != nil {
-		return err
-	}
-	dcTimeout, err := w.db.GetDcTimeout()
-	if err != nil {
-		return err
-	}
-	swapTimeout, err := w.db.GetSwapTimeout()
-	if err != nil {
-		return err
-	}
-	if blockHeight < dcTimeout || blockHeight < swapTimeout {
-		log.Info("cannot start dust collection while previous collection round is still in progress")
-		return nil
-	}
-
-	bills, err := w.db.GetBills()
-	if err != nil {
-		return err
-	}
-	if len(bills) < 2 {
-		return nil
-	}
-
-	dcNonce, err := w.db.GetDcNonce()
-	if err != nil {
-		return err
-	}
-	if dcNonce == nil {
-		dcNonce, err = util.RandomUint256()
+	return w.db.WithTransaction(func() error {
+		blockHeight, err := w.db.GetBlockHeight()
 		if err != nil {
 			return err
 		}
-	}
-
-	err = w.db.SetDcTimeout(blockHeight + dcTimeoutBlockCount)
-	if err != nil {
-		return err
-	}
-
-	var dcValueSum uint64
-	for _, b := range bills {
-		dcValueSum += b.Value
-		if b.IsDcBill {
-			continue // no need to send already confirmed dust transactions again
+		dcTimeout, err := w.db.GetDcTimeout()
+		if err != nil {
+			return err
+		}
+		swapTimeout, err := w.db.GetSwapTimeout()
+		if err != nil {
+			return err
+		}
+		if blockHeight < dcTimeout || blockHeight < swapTimeout {
+			log.Info("cannot start dust collection while previous collection round is still in progress")
+			return nil
 		}
 
-		tx, err := w.createDustTx(b, dcNonce, dcTimeout)
+		bills, err := w.db.GetBills()
+		if err != nil {
+			return err
+		}
+		if len(bills) < 2 {
+			return nil
+		}
+
+		dcNonce, err := w.db.GetDcNonce()
+		if err != nil {
+			return err
+		}
+		if dcNonce == nil {
+			dcNonce, err = util.RandomUint256()
+			if err != nil {
+				return err
+			}
+		}
+
+		err = w.db.SetDcTimeout(blockHeight + dcTimeoutBlockCount)
 		if err != nil {
 			return err
 		}
 
-		log.Info("sending dust transfer tx for bill ", b.Id)
-		res, err := w.alphaBillClient.SendTransaction(tx)
-		if err != nil {
-			return err
+		var dcValueSum uint64
+		for _, b := range bills {
+			dcValueSum += b.Value
+			if b.IsDcBill {
+				continue // no need to send already confirmed dust transactions again
+			}
+
+			tx, err := w.createDustTx(b, dcNonce, dcTimeout)
+			if err != nil {
+				return err
+			}
+
+			log.Info("sending dust transfer tx for bill ", b.Id)
+			res, err := w.alphaBillClient.SendTransaction(tx)
+			if err != nil {
+				return err
+			}
+			if !res.Ok {
+				return errors.New("dust transfer returned error code: " + res.Message)
+			}
 		}
-		if !res.Ok {
-			return errors.New("dust transfer returned error code: " + res.Message)
-		}
-	}
-	return w.db.SetDcValueSum(dcValueSum)
+		return w.db.SetDcValueSum(dcValueSum)
+	})
 }
 
 func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {

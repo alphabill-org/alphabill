@@ -20,7 +20,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 0, 3, 10, 0)
+	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
 
 	// and two dc txs are broadcast
 	require.Len(t, mockClient.txs, 2)
@@ -36,7 +36,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 1, 0, 0, 61)
+	verifyMetadata(t, w, expected{blockHeight: 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
 
 	// and swap tx is broadcast
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
@@ -78,7 +78,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
 
 	// and metadata is updated
-	verifyMetadata(t, w, 10, 0, 0, 61)
+	verifyMetadata(t, w, expected{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
 
 	// when swap tx block is received
 	err = w.db.SetBlockHeight(60)
@@ -93,7 +93,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 61, 0, 0, 0)
+	verifyMetadata(t, w, expected{blockHeight: 61, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
 	verifyDcNonce(t, w, nil)
 	verifyBalance(t, w, 3)
 }
@@ -107,7 +107,7 @@ func TestDcTimeoutIsReachedWithPartialConfirmedDcTxs(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 0, 3, 10, 0)
+	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
 
 	// and two dc txs are broadcast
 	require.Len(t, mockClient.txs, 2)
@@ -154,7 +154,7 @@ func TestDcTimeoutIsReachedWithPartialConfirmedDcTxs(t *testing.T) {
 	require.Len(t, mockClient.txs, 2) // 2 dc (1 lost)
 
 	// and metadata is updated
-	verifyMetadata(t, w, 10, 0, 0, 0)
+	verifyMetadata(t, w, expected{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
 	verifyBalance(t, w, 3)
 	verifyDcNonceExists(t, w)
 }
@@ -171,7 +171,7 @@ func TestDcTimeoutIsReachedWithoutAnyDcTxs(t *testing.T) {
 	require.Len(t, mockClient.txs, 2) // 2 dc txs
 
 	// and metadata is updated
-	verifyMetadata(t, w, 0, 3, 10, 0)
+	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
 	verifyBalance(t, w, 3)
 
 	// when dcTimeout is reached without any confirmed dust transfers
@@ -192,7 +192,7 @@ func TestDcTimeoutIsReachedWithoutAnyDcTxs(t *testing.T) {
 	require.Len(t, mockClient.txs, 2) // 2 dc txs
 
 	// and metadata is updated
-	verifyMetadata(t, w, 10, 0, 0, 0)
+	verifyMetadata(t, w, expected{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
 	verifyBalance(t, w, 3)
 	verifyDcNonce(t, w, nil) // no dc blocks were processed
 }
@@ -206,7 +206,7 @@ func TestSwapTimeoutIsReachedWithConfirmedDcTxs(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 0, 3, 10, 0)
+	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
 
 	// when the block with dc txs is received
 	block := &alphabill.Block{
@@ -219,7 +219,7 @@ func TestSwapTimeoutIsReachedWithConfirmedDcTxs(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 1, 0, 0, 61)
+	verifyMetadata(t, w, expected{blockHeight: 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
 	verifyDcNonceExists(t, w)
 
 	// when swap timeout is reached
@@ -235,7 +235,7 @@ func TestSwapTimeoutIsReachedWithConfirmedDcTxs(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 61, 0, 0, 0)
+	verifyMetadata(t, w, expected{blockHeight: 61, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
 
 	// and dc bills remain in the wallet
 	bills, err := w.db.GetBills()
@@ -258,7 +258,7 @@ func TestConfirmedDcBillsAreUsedInNewDcProcess(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, 60, 3, 70, 0)
+	verifyMetadata(t, w, expected{blockHeight: 60, dcValueSum: 3, dcTimeout: 70, swapTimeout: 0})
 	verifyDcNonce(t, w, uint256.NewInt(0))
 
 }
@@ -328,22 +328,29 @@ func addDcBills(t *testing.T, w *Wallet) {
 	require.NoError(t, err)
 }
 
-func verifyMetadata(t *testing.T, w *Wallet, blockHeight uint64, dcValueSum uint64, dcTimeout uint64, swapTimeout uint64) {
+type expected struct {
+	blockHeight uint64
+	dcValueSum  uint64
+	dcTimeout   uint64
+	swapTimeout uint64
+}
+
+func verifyMetadata(t *testing.T, w *Wallet, ex expected) {
 	actualBlockHeight, err := w.db.GetBlockHeight()
 	require.NoError(t, err)
-	require.EqualValues(t, blockHeight, actualBlockHeight)
+	require.EqualValues(t, ex.blockHeight, actualBlockHeight)
 
 	actualDcValueSum, err := w.db.GetDcValueSum()
 	require.NoError(t, err)
-	require.EqualValues(t, dcValueSum, actualDcValueSum)
+	require.EqualValues(t, ex.dcValueSum, actualDcValueSum)
 
 	actualDcTimeout, err := w.db.GetDcTimeout()
 	require.NoError(t, err)
-	require.EqualValues(t, dcTimeout, actualDcTimeout)
+	require.EqualValues(t, ex.dcTimeout, actualDcTimeout)
 
 	actualSwapTimeout, err := w.db.GetSwapTimeout()
 	require.NoError(t, err)
-	require.EqualValues(t, swapTimeout, actualSwapTimeout)
+	require.EqualValues(t, ex.swapTimeout, actualSwapTimeout)
 }
 
 func setMetadata(t *testing.T, w *Wallet, blockHeight uint64, dcValueSum uint64, dcTimeout uint64, swapTimeout uint64) {

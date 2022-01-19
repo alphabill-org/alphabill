@@ -109,6 +109,34 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 				sc.Server.Address = "srv:666"
 				return sc
 			}(),
+		}, {
+			args: "shard --home=/custom-home-1",
+			envVars: []envVar{
+				{"AB_HOME", "/custom-home-2"},
+				{"AB_CONFIG", "custom-config.props"},
+			},
+			expectedConfig: func() *shardConfiguration {
+				sc := defaultShardConfiguration()
+				sc.Root = &rootConfiguration{
+					HomeDir: "/custom-home-1",
+					CfgFile: "/custom-home-1/custom-config.props",
+				}
+				return sc
+			}(),
+		}, {
+			args: "shard",
+			envVars: []envVar{
+				{"AB_HOME", "/custom-home"},
+				{"AB_CONFIG", "custom-config.props"},
+			},
+			expectedConfig: func() *shardConfiguration {
+				sc := defaultShardConfiguration()
+				sc.Root = &rootConfiguration{
+					HomeDir: "/custom-home",
+					CfgFile: "/custom-home/custom-config.props",
+				}
+				return sc
+			}(),
 		},
 	}
 	for _, tt := range tests {

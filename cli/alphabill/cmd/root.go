@@ -77,7 +77,7 @@ func initializeConfig(cmd *cobra.Command, rootConfig *rootConfiguration) error {
 
 	// When we bind flags to environment variables expect that the
 	// environment variables are prefixed, e.g. a flag like --number
-	// binds to an environment variable STING_NUMBER. This helps
+	// binds to an environment variable AB_NUMBER. This helps
 	// avoid conflicts.
 	v.SetEnvPrefix(envPrefix)
 
@@ -98,8 +98,13 @@ func initializeConfig(cmd *cobra.Command, rootConfig *rootConfiguration) error {
 func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 	var bindFlagErr error
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == keyHome || f.Name == keyConfig {
+			// "home" and "config" are special configuration values, handled separately.
+			return
+		}
+
 		// Environment variables can't have dashes in them, so bind them to their equivalent
-		// keys with underscores, e.g. --favorite-color to STING_FAVORITE_COLOR
+		// keys with underscores, e.g. --favorite-color to AB_FAVORITE_COLOR
 		if strings.Contains(f.Name, "-") {
 			envVarSuffix := strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
 			if err := v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix)); err != nil {

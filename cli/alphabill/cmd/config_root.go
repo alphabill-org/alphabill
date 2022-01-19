@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -23,19 +24,42 @@ const (
 	defaultConfigFile = "config.props"
 	// The default home directory.
 	defaultHomeDir = "$HOME/.alphabill"
+	// The configuration key for home directory.
+	keyHome = "home"
+	// The configuration key for config file name.
+	keyConfig = "config"
 )
 
 func (r *rootConfiguration) addConfigurationFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVar(&r.HomeDir, "home", defaultHomeDir, "set the AB_HOME for this invocation (default is $HOME/.alphabill")
-	cmd.PersistentFlags().StringVar(&r.CfgFile, "config", "", "config file location (default is $AB_HOME/config.yaml)")
+	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", defaultHomeDir))
+	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file location (default is $AB_HOME/%s)", defaultConfigFile))
 }
 
 func (r *rootConfiguration) initConfigFileLocation() {
+	// Home directory and config file are special configuration values as these are used for loading in rest of the configuration.
+	// Handle these manually, before other configuration loaded with Viper.
+
+	// Home dir is loaded from command line argument. If it's not set, then from env. If that's not set, then default is used.
+	if r.HomeDir == "" {
+		homeFromEnv := os.Getenv(envKey(keyHome))
+		if homeFromEnv == "" {
+			r.HomeDir = defaultHomeDir
+		} else {
+			r.HomeDir = homeFromEnv
+		}
+	}
+
+	// Config file name is loaded from command line argument. If it's not set, then from env. If that's not set, then default is used.
 	if r.CfgFile == "" {
-		r.CfgFile = defaultConfigFile
+		cfgFileFromEnv := os.Getenv(envKey(keyConfig))
+		if cfgFileFromEnv == "" {
+			r.CfgFile = defaultConfigFile
+		} else {
+			r.CfgFile = cfgFileFromEnv
+		}
 	}
 	if !strings.HasPrefix(r.CfgFile, string(os.PathSeparator)) {
-		// Relative path
+		// Config file name is using relative path
 		r.CfgFile = r.HomeDir + string(os.PathSeparator) + r.CfgFile
 	}
 }
@@ -43,4 +67,8 @@ func (r *rootConfiguration) initConfigFileLocation() {
 func (r *rootConfiguration) configFileExists() bool {
 	_, err := os.Stat(r.CfgFile)
 	return err == nil
+}
+
+func envKey(key string) string {
+	return strings.ToUpper(envPrefix + "_" + key)
 }

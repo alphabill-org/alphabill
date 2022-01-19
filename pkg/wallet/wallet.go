@@ -99,6 +99,13 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if w.alphaBillClient.IsShutdown() {
 		return errors.New("alphabill client connection is shut down, resync with alphabill node before attempting to send transactions")
 	}
+	swapInProgress, err := w.isSwapInProgress()
+	if err != nil {
+		return err
+	}
+	if swapInProgress {
+		return errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+	}
 
 	balance, err := w.GetBalance()
 	if err != nil {
@@ -611,19 +618,11 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 // once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
 func (w *Wallet) collectDust() error {
 	return w.db.WithTransaction(func() error {
-		blockHeight, err := w.db.GetBlockHeight()
+		dcInProgress, err := w.isSwapInProgress()
 		if err != nil {
 			return err
 		}
-		dcTimeout, err := w.db.GetDcTimeout()
-		if err != nil {
-			return err
-		}
-		swapTimeout, err := w.db.GetSwapTimeout()
-		if err != nil {
-			return err
-		}
-		if blockHeight < dcTimeout || blockHeight < swapTimeout {
+		if dcInProgress {
 			log.Info("cannot start dust collection while previous collection round is still in progress")
 			return nil
 		}
@@ -645,6 +644,15 @@ func (w *Wallet) collectDust() error {
 			if err != nil {
 				return err
 			}
+		}
+
+		blockHeight, err := w.db.GetBlockHeight()
+		if err != nil {
+			return err
+		}
+		dcTimeout, err := w.db.GetDcTimeout()
+		if err != nil {
+			return err
 		}
 
 		err = w.db.SetDcTimeout(blockHeight + dcTimeoutBlockCount)
@@ -675,6 +683,22 @@ func (w *Wallet) collectDust() error {
 		}
 		return w.db.SetDcValueSum(dcValueSum)
 	})
+}
+
+func (w *Wallet) isSwapInProgress() (bool, error) {
+	blockHeight, err := w.db.GetBlockHeight()
+	if err != nil {
+		return false, err
+	}
+	dcTimeout, err := w.db.GetDcTimeout()
+	if err != nil {
+		return false, err
+	}
+	swapTimeout, err := w.db.GetSwapTimeout()
+	if err != nil {
+		return false, err
+	}
+	return blockHeight < dcTimeout || blockHeight < swapTimeout, nil
 }
 
 func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {

@@ -27,14 +27,17 @@ type (
 		Server *grpcServerConfiguration
 		// The value of initial bill in AlphaBills.
 		InitialBillValue uint64 `validate:"gte=0"`
+		// The initial value of Dust Collector Money supply.
+		DCMoneySupplyValue uint64 `validate:"gte=0"`
 	}
 	// shardRunnable is the function that is run after configuration is loaded.
 	shardRunnable func(ctx context.Context, shardConfig *shardConfiguration) error
 )
 
 const (
-	defaultInitialBillValue = 1000000
-	defaultInitialBillId    = 1
+	defaultInitialBillValue   = 1000000
+	defaultDCMoneySupplyValue = 1000000
+	defaultInitialBillId      = 1
 )
 
 var log = logger.CreateForPackage()
@@ -60,7 +63,8 @@ func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFun
 		},
 	}
 
-	shardCmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value for new shard")
+	shardCmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value for new shard.")
+	shardCmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
 	config.Server.addConfigurationFlags(shardCmd)
 
 	return shardCmd
@@ -71,7 +75,7 @@ func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
 		ID:    uint256.NewInt(defaultInitialBillId),
 		Value: cfg.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
-	}, 10) // TODO take DB money value from configuration
+	}, cfg.DCMoneySupplyValue)
 	if err != nil {
 		return err
 	}

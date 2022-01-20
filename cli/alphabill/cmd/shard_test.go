@@ -189,7 +189,8 @@ func defaultShardConfiguration() *shardConfiguration {
 			Address:        defaultServerAddr,
 			MaxRecvMsgSize: defaultMaxRecvMsgSize,
 		},
-		InitialBillValue: defaultInitialBillValue,
+		InitialBillValue:   defaultInitialBillValue,
+		DCMoneySupplyValue: defaultDCMoneySupplyValue,
 	}
 }
 

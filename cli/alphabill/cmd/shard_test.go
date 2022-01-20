@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"google.golang.org/grpc"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -212,7 +212,7 @@ func TestRunShard_Ok(t *testing.T) {
 	test.MustRunInTime(t, 5*time.Second, func() {
 		port := "9543"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
-		//dialAddr := "localhost:" + port
+		dialAddr := "localhost:" + port
 
 		conf := defaultShardConfiguration()
 		conf.Server.Address = listenAddr
@@ -225,22 +225,20 @@ func TestRunShard_Ok(t *testing.T) {
 		appStoppedWg.Add(1)
 		go func() {
 			err := defaultShardRunFunc(ctx, conf)
-			require.Errorf(t, err, errors.ErrNotImplemented.Error())
-			//require.NoError(t, err)
+			require.NoError(t, err)
 			appStoppedWg.Done()
 		}()
 
-		// TODO put back, after tree is completed
-		//log.Info("Started shard and dialing...")
-		//// Create the gRPC client
-		//conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
-		//require.NoError(t, err)
-		//defer conn.Close()
-		//transactionsClient := transaction.NewTransactionsClient(conn)
-		//
-		//// Test cases
-		//makeSuccessfulPayment(t, ctx, transactionsClient)
-		//makeFailingPayment(t, ctx, transactionsClient)
+		log.Info("Started shard and dialing...")
+		// Create the gRPC client
+		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
+		require.NoError(t, err)
+		defer conn.Close()
+		transactionsClient := transaction.NewTransactionsClient(conn)
+
+		// Test cases
+		makeSuccessfulPayment(t, ctx, transactionsClient)
+		makeFailingPayment(t, ctx, transactionsClient)
 
 		// Close the app
 		ctxCancel()

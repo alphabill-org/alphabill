@@ -64,17 +64,8 @@ func (_m *RevertibleState) GetRootHash() []byte {
 }
 
 // Revert provides a mock function with given fields:
-func (_m *RevertibleState) Revert() error {
-	ret := _m.Called()
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func() error); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+func (_m *RevertibleState) Revert() {
+	_m.Called()
 }
 
 // SetOwner provides a mock function with given fields: id, owner, stateHash

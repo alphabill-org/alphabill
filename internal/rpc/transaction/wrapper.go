@@ -5,13 +5,11 @@ import (
 	"encoding/base64"
 	"hash"
 
-	hasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
-
-	"github.com/holiman/uint256"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"github.com/holiman/uint256"
 )
 
 const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
@@ -122,7 +120,7 @@ func (w *wrapper) UnitId() *uint256.Int {
 }
 
 func (w *wrapper) IDHash() string {
-	idHash := hasher.Sum256(w.UnitId().Bytes())
+	idHash := hasherUtil.Sum256(w.UnitId().Bytes())
 	return base64.StdEncoding.EncodeToString(idHash)
 }
 
@@ -174,15 +172,18 @@ func (w *billSplitWrapper) Hash(hashFunc crypto.Hash) []byte {
 	}
 	hasher := hashFunc.New()
 	w.wrapper.addTransactionFieldsToHasher(hasher)
-
-	hasher.Write(Uint64ToBytes(w.billSplit.Amount))
-	hasher.Write(w.billSplit.TargetBearer)
-	hasher.Write(Uint64ToBytes(w.billSplit.RemainingValue))
-	hasher.Write(w.billSplit.Backlink)
+	w.addAttributesToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *billSplitWrapper) addAttributesToHasher(hasher hash.Hash) {
+	hasher.Write(Uint64ToBytes(w.billSplit.Amount))
+	hasher.Write(w.billSplit.TargetBearer)
+	hasher.Write(Uint64ToBytes(w.billSplit.RemainingValue))
+	hasher.Write(w.billSplit.Backlink)
 }
 
 func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -244,12 +245,20 @@ func (w *billSplitWrapper) Amount() uint64         { return w.billSplit.Amount }
 func (w *billSplitWrapper) TargetBearer() []byte   { return w.billSplit.TargetBearer }
 func (w *billSplitWrapper) RemainingValue() uint64 { return w.billSplit.RemainingValue }
 func (w *billSplitWrapper) Backlink() []byte       { return w.billSplit.Backlink }
+func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
+	hasher := hashFunc.New()
+	idBytes := w.UnitId().Bytes32()
+	hasher.Write(idBytes[:])
+	w.addAttributesToHasher(hasher)
+	hasher.Write(Uint64ToBytes(w.Timeout()))
+	return hasher.Sum(nil)
+}
 
 func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }
 func (w *swapWrapper) TargetValue() uint64    { return w.swap.TargetValue }
-func (w *swapWrapper) DCTransfers() []state.TransferDC {
-	var sdt []state.TransferDC
+func (w *swapWrapper) DCTransfers() []txsystem.TransferDC {
+	var sdt []txsystem.TransferDC
 	for _, dt := range w.dcTransfers {
 		sdt = append(sdt, dt)
 	}

@@ -4,7 +4,6 @@ package script
 import (
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
@@ -94,15 +93,15 @@ type tx struct {
 }
 
 func newP2pkhTx(t *testing.T, hashAlg byte) tx {
-	po := createDummyPaymentOrder()
-	sig, pubKey := testsig.SignBytes(t, po)
+	txBytes := []byte{1, 2, 3, 4, 5}
+	sig, pubKey := testsig.SignBytes(t, txBytes)
 	pubKeyHash := hashBytes(pubKey, hashAlg)
 
 	predicateArgument := PredicateArgumentPayToPublicKeyHash(sig, SigSchemeSecp256k1, pubKey)
 	bearerPredicate := PredicatePayToPublicKeyHash(hashAlg, pubKeyHash, SigSchemeSecp256k1)
 
 	return tx{
-		sigData:           po,
+		sigData:           txBytes,
 		predicateArgument: predicateArgument,
 		bearerPredicate:   bearerPredicate,
 	}
@@ -116,16 +115,4 @@ func hashBytes(data []byte, hashAlg byte) []byte {
 		return hash.Sum512(data)
 	}
 	return data
-}
-
-func createDummyPaymentOrder() []byte {
-	po := domain.PaymentOrder{
-		BillID:            1,
-		Type:              domain.PaymentTypeTransfer,
-		Amount:            0,
-		Backlink:          []byte{},
-		PayeePredicate:    []byte{},
-		PredicateArgument: []byte{},
-	}
-	return po.Bytes()
 }

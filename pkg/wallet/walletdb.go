@@ -67,8 +67,6 @@ type Db interface {
 	GetDcValueSum() (uint64, error)
 	SetDcValueSum(dcValueSum uint64) error
 
-	GetDcNonce() (*uint256.Int, error)
-
 	WithTransaction(func() error) error
 
 	Close()

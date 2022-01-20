@@ -20,7 +20,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
+	verifyMetadata(t, w, metadata{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
 
 	// and two dc txs are broadcast
 	require.Len(t, mockClient.txs, 2)
@@ -36,7 +36,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
+	verifyMetadata(t, w, metadata{blockHeight: 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
 
 	// and swap tx is broadcast
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
@@ -78,7 +78,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
 
 	// and metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
+	verifyMetadata(t, w, metadata{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
 
 	// when swap tx block is received
 	err = w.db.SetBlockHeight(60)
@@ -93,89 +93,21 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 61, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
-	verifyDcNonce(t, w, nil)
+	verifyMetadata(t, w, metadata{blockHeight: 61, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
 	verifyBalance(t, w, 3)
 }
 
-func TestDcTimeoutIsReachedWithPartialConfirmedDcTxs(t *testing.T) {
+func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
+	// create wallet with dc bill and non dc bill
 	w, mockClient := createTestWallet(t)
-	addBills(t, w)
-
-	// when dc runs
-	err := w.collectDust()
-	require.NoError(t, err)
-
-	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
-
-	// and two dc txs are broadcast
-	require.Len(t, mockClient.txs, 2)
-
-	// when block with 1 of the 2 dc txs is received
-	block := &alphabill.Block{
-		BlockNo:            1,
-		PrevBlockHash:      hash.Sum256([]byte{}),
-		Transactions:       mockClient.txs[0:1],
-		UnicityCertificate: []byte{},
-	}
-	err = w.processBlock(block)
-	require.NoError(t, err)
-
-	// then corresponding bill gets marked as dc bill
-	b1, err := w.db.GetBill(uint256.NewInt(1))
-	require.NoError(t, err)
-	require.True(t, b1.IsDcBill)
-
-	// and bill 2 remains non dc bill
-	b2, err := w.db.GetBill(uint256.NewInt(2))
-	require.NoError(t, err)
-	require.False(t, b2.IsDcBill)
-
-	// and dc nonce exists
-	verifyDcNonceExists(t, w)
+	nonce := uint256.NewInt(0)
+	nonce32 := nonce.Bytes32()
+	addBill(t, w, 1)
+	addDcBill(t, w, nonce, 2)
+	setMetadata(t, w, metadata{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
 
 	// when dcTimeout is reached
-	err = w.db.SetBlockHeight(9)
-	require.NoError(t, err)
-	block = &alphabill.Block{
-		BlockNo:            uint64(10),
-		PrevBlockHash:      hash.Sum256([]byte{}),
-		Transactions:       []*transaction.Transaction{},
-		UnicityCertificate: []byte{},
-	}
-	err = w.processBlock(block)
-	require.NoError(t, err)
-
-	// then swap should not be triggered
-	height, err := w.db.GetBlockHeight()
-	require.EqualValues(t, 10, height)
-	require.NoError(t, err)
-	require.Len(t, mockClient.txs, 2) // 2 dc (1 lost)
-
-	// and metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
-	verifyBalance(t, w, 3)
-	verifyDcNonceExists(t, w)
-}
-
-func TestDcTimeoutIsReachedWithoutAnyDcTxs(t *testing.T) {
-	w, mockClient := createTestWallet(t)
-	addBills(t, w)
-
-	// when collect dust is called
-	err := w.collectDust()
-	require.NoError(t, err)
-
-	// then dust txs are broadcast
-	require.Len(t, mockClient.txs, 2) // 2 dc txs
-
-	// and metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
-	verifyBalance(t, w, 3)
-
-	// when dcTimeout is reached without any confirmed dust transfers
-	err = w.db.SetBlockHeight(9)
+	err := w.db.SetBlockHeight(9)
 	require.NoError(t, err)
 	block := &alphabill.Block{
 		BlockNo:            uint64(10),
@@ -184,83 +116,135 @@ func TestDcTimeoutIsReachedWithoutAnyDcTxs(t *testing.T) {
 		UnicityCertificate: []byte{},
 	}
 	err = w.processBlock(block)
-
-	// then no error must be thrown
 	require.NoError(t, err)
 
-	// and no swap tx must be broadcast
-	require.Len(t, mockClient.txs, 2) // 2 dc txs
+	// then swap should be broadcast
+	require.Len(t, mockClient.txs, 1)
+
+	// verify swap tx
+	tx, swapTx := parseSwapTx(t, mockClient)
+	require.EqualValues(t, nonce32[:], tx.UnitId)
+	require.Len(t, swapTx.DcTransfers, 1)
+	dcTx := parseDcTx(t, swapTx.DcTransfers[0])
+	require.EqualValues(t, nonce32[:], dcTx.Nonce)
+	require.EqualValues(t, 2, dcTx.TargetValue)
 
 	// and metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
+	verifyMetadata(t, w, metadata{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 70})
 	verifyBalance(t, w, 3)
-	verifyDcNonce(t, w, nil) // no dc blocks were processed
 }
 
-func TestSwapTimeoutIsReachedWithConfirmedDcTxs(t *testing.T) {
+func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	w, mockClient := createTestWallet(t)
-	addBills(t, w)
-
-	// when dc runs
-	err := w.collectDust()
-	require.NoError(t, err)
-
-	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
-
-	// when the block with dc txs is received
-	block := &alphabill.Block{
-		BlockNo:            1,
-		PrevBlockHash:      hash.Sum256([]byte{}),
-		Transactions:       mockClient.txs,
-		UnicityCertificate: []byte{},
-	}
-	err = w.processBlock(block)
-	require.NoError(t, err)
-
-	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
-	verifyDcNonceExists(t, w)
+	addBill(t, w, 1)
+	nonce := uint256.NewInt(0)
+	nonce32 := nonce.Bytes32()
+	addDcBill(t, w, nonce, 2)
+	setMetadata(t, w, metadata{blockHeight: 59, dcValueSum: 0, dcTimeout: 0, swapTimeout: 60})
 
 	// when swap timeout is reached
-	err = w.db.SetBlockHeight(60)
-	require.NoError(t, err)
-	block = &alphabill.Block{
-		BlockNo:            uint64(61),
+	block := &alphabill.Block{
+		BlockNo:            uint64(60),
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: []byte{},
 	}
-	err = w.processBlock(block)
+	err := w.processBlock(block)
 	require.NoError(t, err)
 
-	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 61, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
+	// then swap tx is broadcast
+	require.Len(t, mockClient.txs, 1)
+	tx, swapTx := parseSwapTx(t, mockClient)
+	require.EqualValues(t, nonce32[:], tx.UnitId)
+	require.NotNil(t, swapTx)
+	require.Len(t, swapTx.DcTransfers, 1)
+	dcTx := parseDcTx(t, swapTx.DcTransfers[0])
+	require.EqualValues(t, nonce32[:], dcTx.Nonce)
 
-	// and dc bills remain in the wallet
-	bills, err := w.db.GetBills()
-	require.NoError(t, err)
-	require.Len(t, bills, 2)
-	for _, b := range bills {
-		require.True(t, b.IsDcBill)
-		require.NotNil(t, b.DcTx)
-		require.NotNil(t, b.DcNonce)
-	}
+	// and metadata is updated
+	verifyMetadata(t, w, metadata{blockHeight: 60, dcValueSum: 0, dcTimeout: 0, swapTimeout: 120})
+	verifyBalance(t, w, 3)
 }
 
-func TestConfirmedDcBillsAreUsedInNewDcProcess(t *testing.T) {
-	w, _ := createTestWallet(t)
-	addDcBills(t, w)
-	setMetadata(t, w, 60, 0, 0, 0)
+func TestDcProcessWithExistingDcBills(t *testing.T) {
+	w, mockClient := createTestWallet(t)
+	nonce := uint256.NewInt(0)
+	nonce32 := nonce.Bytes32()
+	addDcBills(t, w, nonce)
+	setMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
 
 	// when dust collector runs and only confirmed dc bills exist
 	err := w.collectDust()
 	require.NoError(t, err)
 
-	// then metadata is updated
-	verifyMetadata(t, w, expected{blockHeight: 60, dcValueSum: 3, dcTimeout: 70, swapTimeout: 0})
-	verifyDcNonce(t, w, uint256.NewInt(0))
+	// then swap tx is broadcast
+	require.Len(t, mockClient.txs, 1)
+	txSwapPb, txSwap := parseSwapTx(t, mockClient)
 
+	// and verify each dc tx id = nonce = swap.id
+	require.Len(t, txSwap.DcTransfers, 2)
+	for i := 0; i < len(txSwap.DcTransfers); i++ {
+		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
+		require.EqualValues(t, nonce32[:], dcTx.Nonce)
+		require.EqualValues(t, nonce32[:], txSwapPb.UnitId)
+	}
+
+	// and metadata is updated
+	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 160})
+}
+
+func TestDcProcessWithExistingDcAndNonDcBills(t *testing.T) {
+	w, mockClient := createTestWallet(t)
+	nonce := uint256.NewInt(0)
+	nonce32 := nonce.Bytes32()
+	addBill(t, w, 1)
+	addDcBill(t, w, nonce, 2)
+	setMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
+
+	// when dust collector runs and both dc and non-dc bills exists
+	err := w.collectDust()
+	require.NoError(t, err)
+
+	// then swap tx is sent with the existing dc bill
+	require.Len(t, mockClient.txs, 1)
+	txSwapPb, txSwap := parseSwapTx(t, mockClient)
+
+	// and verify nonce = swap.id = dc tx id
+	require.Len(t, txSwap.DcTransfers, 1)
+	for i := 0; i < len(txSwap.DcTransfers); i++ {
+		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
+		require.EqualValues(t, nonce32[:], dcTx.Nonce)
+		require.EqualValues(t, nonce32[:], txSwapPb.UnitId)
+	}
+
+	// and metadata is updated
+	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 160})
+}
+
+func TestDcProcessWithExistingNonDcBills(t *testing.T) {
+	w, mockClient := createTestWallet(t)
+	addBills(t, w)
+	setMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 3, dcTimeout: 0, swapTimeout: 0})
+
+	// when dust collector runs
+	err := w.collectDust()
+	require.NoError(t, err)
+
+	// then dust txs are broadcast
+	require.Len(t, mockClient.txs, 2)
+
+	// and nonces are equal
+	nonce := []byte{
+		214, 186, 147, 41, 248, 147, 44, 18, 25, 43, 55, 132, 159, 119, 33, 4,
+		210, 0, 72, 247, 100, 52, 163, 41, 5, 18, 217, 216, 20, 228, 17, 111,
+	}
+	for i := 0; i < len(mockClient.txs); i++ {
+		dcTx := parseDcTx(t, mockClient.txs[i])
+		require.EqualValues(t, nonce, dcTx.Nonce)
+	}
+
+	// and metadata is updated
+	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 3, dcTimeout: 110, swapTimeout: 0})
 }
 
 func createTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
@@ -278,109 +262,101 @@ func createTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
 }
 
 func addBills(t *testing.T, w *Wallet) {
-	// add two bills to wallet
+	addBill(t, w, 1)
+	addBill(t, w, 2)
+}
+
+func addBill(t *testing.T, w *Wallet, value uint64) *bill {
 	b1 := bill{
-		Id:     uint256.NewInt(1),
-		Value:  1,
-		TxHash: hash.Sum256([]byte{0x01}),
+		Id:     uint256.NewInt(value),
+		Value:  value,
+		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
 	err := w.db.SetBill(&b1)
 	require.NoError(t, err)
-
-	b2 := bill{
-		Id:     uint256.NewInt(2),
-		Value:  2,
-		TxHash: hash.Sum256([]byte{0x02}),
-	}
-	err = w.db.SetBill(&b2)
-	require.NoError(t, err)
+	return &b1
 }
 
-func addDcBills(t *testing.T, w *Wallet) {
-	// add two confirmed dc bills to wallet
-	nonce := uint256.NewInt(0)
+func addDcBills(t *testing.T, w *Wallet, nonce *uint256.Int) {
+	addDcBill(t, w, nonce, 1)
+	addDcBill(t, w, nonce, 2)
+}
+
+func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64) *bill {
 	nonceB32 := nonce.Bytes32()
 	timeout := uint64(10)
-	b1 := bill{
-		Id:     uint256.NewInt(1),
-		Value:  1,
-		TxHash: hash.Sum256([]byte{0x01}),
+	b := bill{
+		Id:     uint256.NewInt(value),
+		Value:  value,
+		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
-	tx, err := w.createDustTx(&b1, nonce, timeout)
-	require.NoError(t, err)
-	b1.IsDcBill = true
-	b1.DcTx = tx
-	b1.DcNonce = nonceB32[:]
-	err = w.db.SetBill(&b1)
+	tx, err := w.createDustTx(&b, nonceB32[:], timeout)
 	require.NoError(t, err)
 
-	b2 := bill{
-		Id:     uint256.NewInt(2),
-		Value:  2,
-		TxHash: hash.Sum256([]byte{0x02}),
-	}
-	tx, err = w.createDustTx(&b2, nonce, timeout)
+	b.IsDcBill = true
+	b.DcTx = tx
+	b.DcNonce = nonceB32[:]
+	err = w.db.SetBill(&b)
 	require.NoError(t, err)
-	b2.IsDcBill = true
-	b2.DcTx = tx
-	b2.DcNonce = nonceB32[:]
-	err = w.db.SetBill(&b2)
-	require.NoError(t, err)
+	return &b
 }
 
-type expected struct {
+type metadata struct {
 	blockHeight uint64
 	dcValueSum  uint64
 	dcTimeout   uint64
 	swapTimeout uint64
 }
 
-func verifyMetadata(t *testing.T, w *Wallet, ex expected) {
+func verifyMetadata(t *testing.T, w *Wallet, m metadata) {
 	actualBlockHeight, err := w.db.GetBlockHeight()
 	require.NoError(t, err)
-	require.EqualValues(t, ex.blockHeight, actualBlockHeight)
+	require.EqualValues(t, m.blockHeight, actualBlockHeight)
 
 	actualDcValueSum, err := w.db.GetDcValueSum()
 	require.NoError(t, err)
-	require.EqualValues(t, ex.dcValueSum, actualDcValueSum)
+	require.EqualValues(t, m.dcValueSum, actualDcValueSum)
 
 	actualDcTimeout, err := w.db.GetDcTimeout()
 	require.NoError(t, err)
-	require.EqualValues(t, ex.dcTimeout, actualDcTimeout)
+	require.EqualValues(t, m.dcTimeout, actualDcTimeout)
 
 	actualSwapTimeout, err := w.db.GetSwapTimeout()
 	require.NoError(t, err)
-	require.EqualValues(t, ex.swapTimeout, actualSwapTimeout)
+	require.EqualValues(t, m.swapTimeout, actualSwapTimeout)
 }
 
-func setMetadata(t *testing.T, w *Wallet, blockHeight uint64, dcValueSum uint64, dcTimeout uint64, swapTimeout uint64) {
-	err := w.db.SetBlockHeight(blockHeight)
+func setMetadata(t *testing.T, w *Wallet, m metadata) {
+	err := w.db.SetBlockHeight(m.blockHeight)
 	require.NoError(t, err)
 
-	err = w.db.SetDcValueSum(dcValueSum)
+	err = w.db.SetDcValueSum(m.dcValueSum)
 	require.NoError(t, err)
 
-	err = w.db.SetDcTimeout(dcTimeout)
+	err = w.db.SetDcTimeout(m.dcTimeout)
 	require.NoError(t, err)
 
-	err = w.db.SetSwapTimeout(swapTimeout)
+	err = w.db.SetSwapTimeout(m.swapTimeout)
 	require.NoError(t, err)
-}
-
-func verifyDcNonce(t *testing.T, w *Wallet, dcNonce *uint256.Int) {
-	actualDcNonce, err := w.db.GetDcNonce()
-	require.NoError(t, err)
-	require.EqualValues(t, dcNonce, actualDcNonce)
-}
-
-func verifyDcNonceExists(t *testing.T, w *Wallet) {
-	dcNonce, err := w.db.GetDcNonce()
-	require.NoError(t, err)
-	require.NotNil(t, dcNonce)
 }
 
 func verifyBalance(t *testing.T, w *Wallet, balance uint64) {
 	actualDcNonce, err := w.db.GetBalance()
 	require.NoError(t, err)
 	require.EqualValues(t, balance, actualDcNonce)
+}
+
+func parseDcTx(t *testing.T, tx *transaction.Transaction) *transaction.TransferDC {
+	dcTx := &transaction.TransferDC{}
+	err := tx.TransactionAttributes.UnmarshalTo(dcTx)
+	require.NoError(t, err)
+	return dcTx
+}
+
+func parseSwapTx(t *testing.T, mockClient *mockAlphaBillClient) (*transaction.Transaction, *transaction.Swap) {
+	txSwapPb := mockClient.txs[0]
+	txSwap := &transaction.Swap{}
+	err := txSwapPb.TransactionAttributes.UnmarshalTo(txSwap)
+	require.NoError(t, err)
+	return txSwapPb, txSwap
 }

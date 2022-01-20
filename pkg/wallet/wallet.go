@@ -8,7 +8,6 @@ import (
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/internal/util"
 	"alphabill-wallet-sdk/pkg/log"
 	"bytes"
 	"crypto"
@@ -235,7 +234,7 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	return tx, nil
 }
 
-func (w *Wallet) createDustTx(bill *bill, nonce *uint256.Int, timeout uint64) (*transaction.Transaction, error) {
+func (w *Wallet) createDustTx(bill *bill, nonce []byte, timeout uint64) (*transaction.Transaction, error) {
 	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
 	if err != nil {
 		return nil, err
@@ -253,12 +252,11 @@ func (w *Wallet) createDustTx(bill *bill, nonce *uint256.Int, timeout uint64) (*
 		OwnerProof:            ownerProof,
 	}
 
-	nonceBytes := nonce.Bytes()
 	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.TransferDC{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
 		Backlink:     bill.TxHash,
-		Nonce:        nonceBytes[:],
+		Nonce:        nonce,
 	}, proto.MarshalOptions{})
 
 	if err != nil {
@@ -267,19 +265,9 @@ func (w *Wallet) createDustTx(bill *bill, nonce *uint256.Int, timeout uint64) (*
 	return tx, nil
 }
 
-func (w *Wallet) createSwapTx(dcBills []*bill, timeout uint64) (*transaction.Transaction, error) {
+func (w *Wallet) createSwapTx(dcBills []*bill, dcNonce []byte, timeout uint64) (*transaction.Transaction, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
-	}
-
-	var dustTxs []*dustTx
-	for _, b := range dcBills {
-		dustTxs = append(dustTxs, &dustTx{
-			billId:    b.getId(),
-			billValue: b.Value,
-			tx:        b.DcTx,
-			proof:     nil, // TODO get DC proof somewhere
-		})
 	}
 
 	txSig, err := w.signBytes([]byte{}) // TODO sign correct data
@@ -296,18 +284,15 @@ func (w *Wallet) createSwapTx(dcBills []*bill, timeout uint64) (*transaction.Tra
 	var dustTransferProofs [][]byte
 	var dustTransferOrders []*transaction.Transaction
 	var billValueSum uint64
-	hasher := crypto.SHA256.New()
-	for _, dcTx := range dustTxs {
-		billIds = append(billIds, dcTx.billId)
-		dustTransferOrders = append(dustTransferOrders, dcTx.tx)
-		dustTransferProofs = append(dustTransferProofs, dcTx.proof)
-		billValueSum += dcTx.billValue
-		hasher.Write(dcTx.billId)
+	for _, b := range dcBills {
+		billIds = append(billIds, b.getId())
+		dustTransferOrders = append(dustTransferOrders, b.DcTx)
+		dustTransferProofs = append(dustTransferProofs, nil) // TODO get DC proof somewhere
+		billValueSum += b.Value
 	}
-	dcBillsHash := hasher.Sum(nil)
 
 	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
-	unitId := uint256.NewInt(0).SetBytes(dcBillsHash).Bytes32()
+	unitId := uint256.NewInt(0).SetBytes(dcNonce).Bytes32()
 	swapTx := &transaction.Transaction{
 		UnitId:                unitId[:],
 		TransactionAttributes: new(anypb.Any),
@@ -394,26 +379,26 @@ func (w *Wallet) trySwap() error {
 	if err != nil {
 		return err
 	}
-	if requiredDcSum > 0 {
-		bills, err := w.db.GetBills()
-		if err != nil {
-			return err
-		}
-		var dcSum uint64
-		var dcBills []*bill
-		for _, b := range bills {
-			if b.IsDcBill {
-				dcSum += b.Value
-				dcBills = append(dcBills, b)
-			}
-		}
-		if dcSum >= requiredDcSum {
-			err := w.swapDcBills(dcBills, blockHeight+swapTimeoutBlockCount)
+
+	bills, err := w.db.GetBills()
+	if err != nil {
+		return err
+	}
+	dcBills := filterDcBills(bills)
+	// trigger swap when dust bills exist AND
+	// 1. dc process has been triggered (requiredDcSum > 0) and dc sum has been reached (valueSum >= requiredDcSum) OR
+	// 2. timeout has been reached (blockHeight == dcTimeout || blockHeight == swapTimeout)
+	if len(dcBills.dcBills) > 0 {
+		if requiredDcSum > 0 && dcBills.valueSum >= requiredDcSum || (blockHeight == dcTimeout || blockHeight == swapTimeout) {
+			err := w.swapDcBills(dcBills.dcBills, dcBills.dcNonce, blockHeight+swapTimeoutBlockCount)
 			if err != nil {
 				return err
 			}
+			return nil
 		}
 	}
+
+	// clear dc metadata when timeout is reached without sending swap
 	if blockHeight == dcTimeout || blockHeight == swapTimeout {
 		err = w.db.SetDcTimeout(0)
 		if err != nil {
@@ -431,8 +416,8 @@ func (w *Wallet) trySwap() error {
 	return nil
 }
 
-func (w *Wallet) swapDcBills(dcBills []*bill, timeout uint64) error {
-	tx, err := w.createSwapTx(dcBills, timeout)
+func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) error {
+	tx, err := w.createSwapTx(dcBills, dcNonce, timeout)
 	if err != nil {
 		return err
 	}
@@ -618,12 +603,13 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 // once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
 func (w *Wallet) collectDust() error {
 	return w.db.WithTransaction(func() error {
-		dcInProgress, err := w.isSwapInProgress()
+		// TODO check if wallet is fully synced (DC process does not make much sense in unsynced wallet)
+		swapInProgress, err := w.isSwapInProgress()
 		if err != nil {
 			return err
 		}
-		if dcInProgress {
-			log.Info("cannot start dust collection while previous collection round is still in progress")
+		if swapInProgress {
+			log.Warning("cannot start dust collection while previous collection round is still in progress")
 			return nil
 		}
 
@@ -635,38 +621,24 @@ func (w *Wallet) collectDust() error {
 			return nil
 		}
 
-		dcNonce, err := w.db.GetDcNonce()
-		if err != nil {
-			return err
-		}
-		if dcNonce == nil {
-			dcNonce, err = util.RandomUint256()
-			if err != nil {
-				return err
-			}
-		}
-
 		blockHeight, err := w.db.GetBlockHeight()
 		if err != nil {
 			return err
 		}
-		dcTimeout, err := w.db.GetDcTimeout()
-		if err != nil {
-			return err
+		dcBills := filterDcBills(bills)
+		if len(dcBills.dcBills) > 0 {
+			err := w.swapDcBills(dcBills.dcBills, dcBills.dcNonce, blockHeight+swapTimeoutBlockCount)
+			if err != nil {
+				return err
+			}
+			return nil
 		}
 
-		err = w.db.SetDcTimeout(blockHeight + dcTimeoutBlockCount)
-		if err != nil {
-			return err
-		}
-
+		dcNonce := calculateDcNonce(bills)
+		dcTimeout := blockHeight + dcTimeoutBlockCount
 		var dcValueSum uint64
 		for _, b := range bills {
 			dcValueSum += b.Value
-			if b.IsDcBill {
-				continue // no need to send already confirmed dust transactions again
-			}
-
 			tx, err := w.createDustTx(b, dcNonce, dcTimeout)
 			if err != nil {
 				return err
@@ -681,7 +653,15 @@ func (w *Wallet) collectDust() error {
 				return errors.New("dust transfer returned error code: " + res.Message)
 			}
 		}
-		return w.db.SetDcValueSum(dcValueSum)
+		err = w.db.SetDcTimeout(dcTimeout)
+		if err != nil {
+			return err
+		}
+		err = w.db.SetDcValueSum(dcValueSum)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
@@ -800,10 +780,31 @@ func getDb(config *Config, create bool) (Db, error) {
 	return db, nil
 }
 
-// dustTx helper struct for building swap transaction
-type dustTx struct {
-	billId    []byte
-	billValue uint64
-	tx        *transaction.Transaction // dustTx
-	proof     []byte
+// dcBillContainer helper struct for dcBills and their aggregate data
+type dcBillContainer struct {
+	dcBills  []*bill
+	valueSum uint64
+	dcNonce  []byte
+}
+
+func filterDcBills(bills []*bill) *dcBillContainer {
+	var res dcBillContainer
+	for _, b := range bills {
+		if b.IsDcBill {
+			res.valueSum += b.Value
+			res.dcBills = append(res.dcBills, b)
+			res.dcNonce = b.DcNonce
+			// TODO can wallet somehow end up with multiple DC bills with different nonces?
+			// if it can we have to create multiple swap txs grouped by nonce
+		}
+	}
+	return &res
+}
+
+func calculateDcNonce(bills []*bill) []byte {
+	hasher := crypto.Hash.New(crypto.SHA256)
+	for _, b := range bills {
+		hasher.Write(b.getId())
+	}
+	return hasher.Sum(nil)
 }

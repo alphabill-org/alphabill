@@ -1,3 +1,8 @@
+// AVL part of this tree is originally created by Benjamin Scher Purcell.
+// Copyright (c) 2017, Benjamin Scher Purcell. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package state
 
 import (
@@ -560,7 +565,7 @@ func compare(a, b *uint256.Int) int {
 	return a.Cmp(b)
 }
 
-// print generates a human-readable presentation of the avlTree.
+// print generates a human-readable presentation of the rmaTree.
 func (tree *rmaTree) print() string {
 	if tree.root == nil {
 		return "tree is empty"

@@ -168,7 +168,7 @@ func (s *GlobalLoggerTestSuite) TestContextClearKey() {
 	log.Debug("Message 2")
 	s.assertLastLogLine("Message 2", "", round)
 
-	// Delete twice works too
+	// delete twice works too
 	ClearContext(ContextComponentName)
 	log.Debug("Message 2")
 	s.assertLastLogLine("Message 2", "", round)

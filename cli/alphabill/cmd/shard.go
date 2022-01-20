@@ -5,15 +5,17 @@ import (
 	"crypto"
 	"net"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/payment"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/state"
-
+	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -24,14 +26,18 @@ type (
 		Root   *rootConfiguration
 		Server *grpcServerConfiguration
 		// The value of initial bill in AlphaBills.
-		InitialBillValue uint32 `validate:"gte=0"`
+		InitialBillValue uint64 `validate:"gte=0"`
+		// The initial value of Dust Collector Money supply.
+		DCMoneySupplyValue uint64 `validate:"gte=0"`
 	}
 	// shardRunnable is the function that is run after configuration is loaded.
 	shardRunnable func(ctx context.Context, shardConfig *shardConfiguration) error
 )
 
 const (
-	defaultInitialBillValue = 1000000
+	defaultInitialBillValue   = 1000000
+	defaultDCMoneySupplyValue = 1000000
+	defaultInitialBillId      = 1
 )
 
 var log = logger.CreateForPackage()
@@ -57,14 +63,19 @@ func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFun
 		},
 	}
 
-	shardCmd.Flags().Uint32Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value for new shard")
+	shardCmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value for new shard.")
+	shardCmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
 	config.Server.addConfigurationFlags(shardCmd)
 
 	return shardCmd
 }
 
 func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
-	billsState, err := state.New(crypto.SHA256, []*state.BillContent{state.NewInitialBill(cfg.InitialBillValue, script.PredicateAlwaysTrue())})
+	billsState, err := txsystem.NewMoneySchemeState(crypto.SHA256, &txsystem.InitialBill{
+		ID:    uint256.NewInt(defaultInitialBillId),
+		Value: cfg.InitialBillValue,
+		Owner: script.PredicateAlwaysTrue(),
+	}, cfg.DCMoneySupplyValue)
 	if err != nil {
 		return err
 	}
@@ -85,12 +96,12 @@ func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
 		return err
 	}
 
-	paymentServer, err := rpc.New(shardComponent)
+	transactionsServer, err := rpc.NewTransactionsServer(shardComponent)
 	if err != nil {
 		return err
 	}
 
-	payment.RegisterPaymentsServer(grpcServer, paymentServer)
+	transaction.RegisterTransactionsServer(grpcServer, transactionsServer)
 
 	starterFunc := func(ctx context.Context) {
 		go func() {

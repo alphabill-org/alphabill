@@ -104,7 +104,7 @@ func (w *Wallet) GetBalance() (uint64, error) {
 }
 
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
-// to the given public key (compressed secp256k1
+// to the given public key, the public key must be in compressed secp256k1 format
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return errInvalidPubKey

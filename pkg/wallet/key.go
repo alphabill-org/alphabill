@@ -67,18 +67,3 @@ func derivePrivateKey(path accounts.DerivationPath, masterKey *hdkeychain.Extend
 	}
 	return privateKey.ToECDSA(), nil
 }
-
-//func derivePublicKey(path accounts.DerivationPath, masterKeyName *hdkeychain.ExtendedKey) (*ecdsa.PublicKey, error) {
-//	privateKeyECDSA, err := derivePrivateKey(path, masterKeyName)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	publicKey := privateKeyECDSA.Public()
-//	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-//	if !ok {
-//		return nil, errors.New("failed to get public key")
-//	}
-//
-//	return publicKeyECDSA, nil
-//}

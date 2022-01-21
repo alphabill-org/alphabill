@@ -4,15 +4,13 @@ import (
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/internal/testutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"os"
 	"testing"
 )
 
 func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
-	w, mockClient := createTestWallet(t)
+	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 
 	// when dc runs
@@ -99,7 +97,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 
 func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	// create wallet with dc bill and non dc bill
-	w, mockClient := createTestWallet(t)
+	w, mockClient := CreateTestWallet(t)
 	nonce := uint256.NewInt(0)
 	nonce32 := nonce.Bytes32()
 	addBill(t, w, 1)
@@ -135,7 +133,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 }
 
 func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
-	w, mockClient := createTestWallet(t)
+	w, mockClient := CreateTestWallet(t)
 	addBill(t, w, 1)
 	nonce := uint256.NewInt(0)
 	nonce32 := nonce.Bytes32()
@@ -167,7 +165,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 }
 
 func TestDcProcessWithExistingDcBills(t *testing.T) {
-	w, mockClient := createTestWallet(t)
+	w, mockClient := CreateTestWallet(t)
 	nonce := uint256.NewInt(0)
 	nonce32 := nonce.Bytes32()
 	addDcBills(t, w, nonce)
@@ -194,7 +192,7 @@ func TestDcProcessWithExistingDcBills(t *testing.T) {
 }
 
 func TestDcProcessWithExistingDcAndNonDcBills(t *testing.T) {
-	w, mockClient := createTestWallet(t)
+	w, mockClient := CreateTestWallet(t)
 	nonce := uint256.NewInt(0)
 	nonce32 := nonce.Bytes32()
 	addBill(t, w, 1)
@@ -222,7 +220,7 @@ func TestDcProcessWithExistingDcAndNonDcBills(t *testing.T) {
 }
 
 func TestDcProcessWithExistingNonDcBills(t *testing.T) {
-	w, mockClient := createTestWallet(t)
+	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 	setMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 3, dcTimeout: 0, swapTimeout: 0})
 
@@ -245,20 +243,6 @@ func TestDcProcessWithExistingNonDcBills(t *testing.T) {
 
 	// and metadata is updated
 	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 3, dcTimeout: 110, swapTimeout: 0})
-}
-
-func createTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
-	_ = testutil.DeleteWalletDb(os.TempDir())
-	c := &Config{DbPath: os.TempDir()}
-	w, err := CreateNewWallet(c)
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
-	require.NoError(t, err)
-
-	mockClient := &mockAlphaBillClient{}
-	w.alphaBillClient = mockClient
-	return w, mockClient
 }
 
 func addBills(t *testing.T, w *Wallet) {

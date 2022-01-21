@@ -27,11 +27,7 @@ const (
 )
 
 func TestWalletCanBeCreated(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
-
-	w, err := CreateNewWallet(&Config{DbPath: os.TempDir()})
-	defer DeleteWallet(w)
-	require.NoError(t, err)
+	w, _ := CreateTestWallet(t)
 
 	balance, err := w.GetBalance()
 	require.EqualValues(t, 0, balance)
@@ -77,15 +73,42 @@ func TestWalletCanBeCreatedFromSeed(t *testing.T) {
 	verifyTestWallet(t, err, w)
 }
 
-func TestWalletCanSendTx(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
-	c := &Config{DbPath: os.TempDir()}
-	w, err := CreateNewWallet(c)
-	defer DeleteWallet(w)
+func TestWalletSendFunction(t *testing.T) {
+	w, mockClient := CreateTestWallet(t)
+	invalidPubKey := make([]byte, 32)
+	validPubKey := make([]byte, 33)
+	amount := uint64(50)
+
+	// test errInvalidPubKey
+	err := w.Send(invalidPubKey, amount)
+	require.ErrorIs(t, err, errInvalidPubKey)
+
+	// test errABClientNotInitialized
+	w.alphaBillClient = nil
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errABClientNotInitialized)
+	w.alphaBillClient = mockClient
+
+	// test errABClientNotConnected
+	mockClient.isShutdown = true
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errABClientNotConnected)
+	mockClient.isShutdown = false
+
+	// test errSwapInProgress
+	err = w.db.SetSwapTimeout(1)
+	require.NoError(t, err)
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errSwapInProgress)
+	err = w.db.SetSwapTimeout(0)
 	require.NoError(t, err)
 
-	w.alphaBillClient = &mockAlphaBillClient{}
-	w.syncWithAlphaBill()
+	// test errInvalidBalance
+	require.NoError(t, err)
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errInvalidBalance)
+
+	// test abclient returns error
 	b := bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,
@@ -93,9 +116,13 @@ func TestWalletCanSendTx(t *testing.T) {
 	}
 	err = w.db.SetBill(&b)
 	require.NoError(t, err)
+	mockClient.txResponse = &transaction.TransactionResponse{Ok: false, Message: "some error"}
+	err = w.Send(validPubKey, amount)
+	require.Error(t, err, "payment returned error code: some error")
+	mockClient.txResponse = nil
 
-	receiverPubKey := make([]byte, 33)
-	err = w.Send(receiverPubKey, 50)
+	// test ok response
+	err = w.Send(validPubKey, amount)
 	require.NoError(t, err)
 }
 

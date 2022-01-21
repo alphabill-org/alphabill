@@ -28,6 +28,14 @@ const dcTimeoutBlockCount = 10
 const swapTimeoutBlockCount = 60
 const mnemonicEntropyBitSize = 128
 
+var (
+	errInvalidPubKey          = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	errABClientNotInitialized = errors.New("alphabill client not initialized, need to sync with alphabill node before attempting to send transactions")
+	errABClientNotConnected   = errors.New("alphabill client connection is shut down, resync with alphabill node before attempting to send transactions")
+	errSwapInProgress         = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+	errInvalidBalance         = errors.New("cannot send more than existing balance")
+)
+
 type Wallet struct {
 	config           *Config
 	db               Db
@@ -87,23 +95,23 @@ func (w *Wallet) GetBalance() (uint64, error) {
 }
 
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
-// to the given public key
+// to the given public key (compressed secp256k1
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
-	if len(pubKey) != 33 {
-		return errors.New("invalid public key, must be 33 bytes in length")
+	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+		return errInvalidPubKey
 	}
 	if w.alphaBillClient == nil {
-		return errors.New("alphabill client not initialized, need to sync with alphabill node before attempting to send transactions")
+		return errABClientNotInitialized
 	}
 	if w.alphaBillClient.IsShutdown() {
-		return errors.New("alphabill client connection is shut down, resync with alphabill node before attempting to send transactions")
+		return errABClientNotConnected
 	}
 	swapInProgress, err := w.isSwapInProgress()
 	if err != nil {
 		return err
 	}
 	if swapInProgress {
-		return errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+		return errSwapInProgress
 	}
 
 	balance, err := w.GetBalance()
@@ -111,7 +119,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 	if amount > balance {
-		return errors.New("cannot send more than existing balance")
+		return errInvalidBalance
 	}
 
 	b, err := w.db.GetBillWithMinValue(amount)

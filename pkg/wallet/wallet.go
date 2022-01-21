@@ -20,13 +20,16 @@ import (
 	"github.com/tyler-smith/go-bip39"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"sort"
 	"sync"
 )
 
-const prefetchBlockCount = 10
-const dcTimeoutBlockCount = 10
-const swapTimeoutBlockCount = 60
-const mnemonicEntropyBitSize = 128
+const (
+	prefetchBlockCount     = 10
+	dcTimeoutBlockCount    = 10
+	swapTimeoutBlockCount  = 60
+	mnemonicEntropyBitSize = 128
+)
 
 var (
 	errInvalidPubKey          = errors.New("invalid public key, public key must be in compressed secp256k1 format")
@@ -89,7 +92,7 @@ func LoadExistingWallet(config *Config) (*Wallet, error) {
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet
-// the value returned is the smallest denomination of alphabills (10^15)
+// the value returned is the smallest denomination of alphabills
 func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.GetBalance()
 }
@@ -145,7 +148,8 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
-// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
+// Sync synchronises wallet with given alphabill node and starts dust collector process,
+// it blocks forever or until alphabill connection is terminated
 func (w *Wallet) Sync() error {
 	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
 	if err != nil {
@@ -810,9 +814,19 @@ func filterDcBills(bills []*bill) *dcBillContainer {
 }
 
 func calculateDcNonce(bills []*bill) []byte {
-	hasher := crypto.Hash.New(crypto.SHA256)
+	var billIds [][]byte
 	for _, b := range bills {
-		hasher.Write(b.getId())
+		billIds = append(billIds, b.getId())
+	}
+
+	// sort billIds in ascending order§§
+	sort.Slice(billIds, func(i, j int) bool {
+		return bytes.Compare(billIds[i], billIds[j]) < 0
+	})
+
+	hasher := crypto.Hash.New(crypto.SHA256)
+	for _, billId := range billIds {
+		hasher.Write(billId)
 	}
 	return hasher.Sum(nil)
 }

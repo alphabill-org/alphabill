@@ -358,28 +358,6 @@ func (w *wdb) SetDcValueSum(dcValueSum uint64) error {
 	}, true)
 }
 
-func (w *wdb) GetDcNonce() (*uint256.Int, error) {
-	var res *uint256.Int
-	err := w.withTx(func(tx *bolt.Tx) error {
-		c := tx.Bucket(billsBucket).Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var b *bill
-			err := json.Unmarshal(v, &b)
-			if err != nil {
-				return err
-			}
-			if b.IsDcBill {
-				res = uint256.NewInt(0).SetBytes(b.DcNonce)
-			}
-		}
-		return nil
-	}, false)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
-}
-
 func (w *wdb) DeleteDb() {
 	if w.db == nil {
 		return

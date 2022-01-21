@@ -9,19 +9,36 @@ import (
 
 type (
 	ContextLogger struct {
-		zeroLogger zerolog.Logger
+		zeroLogger      *zerolog.Logger
+		level           LogLevel
+		context         Context
+		showGoroutineID bool
 	}
 
 	Context map[string]interface{}
 )
 
+// newContextLogger creates the logger, but doesn't initialize it yet.
+// This is needed, so loggers could be created in var phase. But the global log configuration added later.
 func newContextLogger(level LogLevel, context Context, showGoroutineID bool) *ContextLogger {
-	cl := &ContextLogger{}
-	cl.update(level, context, showGoroutineID)
-	return cl
+	return &ContextLogger{
+		zeroLogger:      nil,
+		level:           level,
+		context:         context,
+		showGoroutineID: showGoroutineID,
+	}
+}
+
+// init creates the zerologger instance with attributes set in the constructor.
+func (c *ContextLogger) init() {
+	c.update(c.level, c.context, c.showGoroutineID)
+	InitializeGlobalLogger()
 }
 
 func (c *ContextLogger) update(level LogLevel, context Context, showGoroutineID bool) {
+	c.level = level
+	c.showGoroutineID = showGoroutineID
+
 	zeroLogger := log.Level(toZeroLevel(level))
 	for key, value := range context {
 		zeroLogger = zeroLogger.With().Interface(key, value).Logger()
@@ -29,26 +46,41 @@ func (c *ContextLogger) update(level LogLevel, context Context, showGoroutineID 
 	if showGoroutineID {
 		zeroLogger = zeroLogger.Hook(goRoutineIDHook{})
 	}
-	c.zeroLogger = zeroLogger
+	c.zeroLogger = &zeroLogger
 }
 
 func (c *ContextLogger) Trace(format string, args ...interface{}) {
+	if c.zeroLogger == nil {
+		c.init()
+	}
 	c.logMessage(c.zeroLogger.Trace(), format, args)
 }
 
 func (c *ContextLogger) Debug(format string, args ...interface{}) {
+	if c.zeroLogger == nil {
+		c.init()
+	}
 	c.logMessage(c.zeroLogger.Debug(), format, args)
 }
 
 func (c *ContextLogger) Info(format string, args ...interface{}) {
+	if c.zeroLogger == nil {
+		c.init()
+	}
 	c.logMessage(c.zeroLogger.Info(), format, args)
 }
 
 func (c *ContextLogger) Warning(format string, args ...interface{}) {
+	if c.zeroLogger == nil {
+		c.init()
+	}
 	c.logMessage(c.zeroLogger.Warn(), format, args)
 }
 
 func (c *ContextLogger) Error(format string, args ...interface{}) {
+	if c.zeroLogger == nil {
+		c.init()
+	}
 	c.logMessage(c.zeroLogger.Error(), format, args)
 }
 
@@ -60,8 +92,12 @@ func (c *ContextLogger) logMessage(event *zerolog.Event, format string, args []i
 	}
 }
 
+// ChangeLevel changes the level of the context logger.
 func (c *ContextLogger) ChangeLevel(newLevel LogLevel) {
-	c.zeroLogger = c.zeroLogger.Level(toZeroLevel(newLevel))
+	if c.zeroLogger == nil {
+		c.init()
+	}
+	*c.zeroLogger = c.zeroLogger.Level(toZeroLevel(newLevel))
 }
 
 // A hook that adds goroutine ID to the log event

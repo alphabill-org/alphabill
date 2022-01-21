@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"regexp"
 	"sync"
 	"time"
@@ -24,38 +25,65 @@ type globalFactory struct {
 // Singleton for managing application wide logging.
 var globalFactoryImpl *globalFactory
 
-// Sets context for all loggers
+// SetContext sets context for all loggers
 func SetContext(key string, value interface{}) {
 	globalFactoryImpl.setContext(key, value)
 }
 
-// Will clear a context key from all loggers
+// ClearContext will clear a context key from all loggers
 func ClearContext(key string) {
 	globalFactoryImpl.clearContext(key)
 }
 
-// Will clear all context keys
+// ClearAllContext will clear all context keys
 func ClearAllContext() {
 	globalFactoryImpl.clearAllContext()
 }
 
-// Creates logger named after the caller package.
+// CreateForPackage creates logger named after the caller package.
 func CreateForPackage() Logger {
 	return Create(globalFactoryImpl.packageNameResolver.PackageName())
 }
 
-// Creates custom named logger
+// Create creates custom named logger
 func Create(name string) Logger {
 	return globalFactoryImpl.create(name)
 }
 
-// Updates global config and updates all loggers accordingly
+// UpdateGlobalConfig Updates global config and updates all loggers accordingly
 // Sets only fields that are non-nil
 func UpdateGlobalConfig(config GlobalConfig) {
 	globalFactoryImpl.Lock()
 	defer globalFactoryImpl.Unlock()
 
 	globalFactoryImpl.updateFromConfig(config)
+}
+
+// UpdateGlobalConfigFromFile reads the file and parses it as YAML. Global logger configuration is updated accordingly.
+// In case of an error, logger won't be updated.
+func UpdateGlobalConfigFromFile(fileURL string) error {
+	conf, err := loadGlobalConfigFromFile(fileURL)
+	if err != nil {
+		return err
+	}
+	UpdateGlobalConfig(conf)
+	return nil
+}
+
+// InitializeGlobalLogger initializes global logger with default configuration if it hasn't been initialized already.
+// If it has been initialized, does nothing.
+func InitializeGlobalLogger() {
+	if !globalFactoryImpl.globalLoggerInitialized {
+		globalFactoryImpl.updateFromConfig(developerConfiguration())
+	}
+}
+
+// PrintDebug prints debug information about loggers to stdout.
+func PrintDebug() {
+	println("List of all loggers")
+	for name, logger := range globalFactoryImpl.loggers {
+		fmt.Printf("  %p %s - %d - showGoroutineID: %v\n", logger, name, logger.level, logger.showGoroutineID)
+	}
 }
 
 // Sets context for all loggers
@@ -155,10 +183,6 @@ func (gf *globalFactory) updateAllLoggers() {
 func (gf *globalFactory) create(name string) Logger {
 	gf.Lock()
 	defer gf.Unlock()
-
-	if !gf.globalLoggerInitialized {
-		globalFactoryImpl.updateFromConfig(LoadGlobalConfig())
-	}
 
 	normName := gf.normalizeName(name)
 	if logger, ok := gf.loggers[normName]; ok {

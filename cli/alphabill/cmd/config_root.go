@@ -14,6 +14,8 @@ type (
 		HomeDir string
 		// Configuration file URL. If it's relative, then it's relative from the HomeDir.
 		CfgFile string
+		// Logger configuration file URL.
+		LogCfgFile string
 	}
 )
 
@@ -24,6 +26,8 @@ const (
 	defaultConfigFile = "config.props"
 	// The default home directory.
 	defaultHomeDir = "$HOME/.alphabill"
+	// The default logger configuration file name.
+	defaultLoggerConfigFile = "logger-config.yaml"
 	// The configuration key for home directory.
 	keyHome = "home"
 	// The configuration key for config file name.
@@ -32,7 +36,8 @@ const (
 
 func (r *rootConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", defaultHomeDir))
-	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file location (default is $AB_HOME/%s)", defaultConfigFile))
+	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
+	cmd.PersistentFlags().StringVar(&r.LogCfgFile, "logger-config", defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
 }
 
 func (r *rootConfiguration) initConfigFileLocation() {

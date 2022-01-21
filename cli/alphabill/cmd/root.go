@@ -3,9 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -47,7 +49,12 @@ func newRootCmd() (*cobra.Command, *rootConfiguration) {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the root command works well
 			// If subcommand does not define PersistentPreRunE, the one from root cmd is used.
-			return initializeConfig(cmd, config)
+			err := initializeConfig(cmd, config)
+			if err != nil {
+				return err
+			}
+			initializeLogger(config)
+			return nil
 		},
 	}
 	config.addConfigurationFlags(rootCmd)
@@ -92,6 +99,26 @@ func initializeConfig(cmd *cobra.Command, rootConfig *rootConfiguration) error {
 	}
 
 	return nil
+}
+
+func initializeLogger(config *rootConfiguration) {
+	loggerConfigFile := config.LogCfgFile
+	if !strings.HasPrefix(config.LogCfgFile, string(os.PathSeparator)) {
+		// Logger config file URL is using relative path
+		loggerConfigFile = config.HomeDir + string(os.PathSeparator) + config.LogCfgFile
+	}
+
+	err := logger.UpdateGlobalConfigFromFile(loggerConfigFile)
+	if err != nil {
+		if errors.ErrorCausedBy(err, errors.ErrFileNotFound) {
+			// In a common case when the config file is not found, the error message is made shorter. Not to spam the log.
+			log.Debug("The logger configuration file (%s) not found", loggerConfigFile)
+		} else {
+			log.Warning("Updating logger configuration failed. Error: %s", err.Error())
+		}
+	} else {
+		log.Trace("Updating logger configuration succeeded.")
+	}
 }
 
 // Bind each cobra flag to its associated viper configuration (config file and environment variable)

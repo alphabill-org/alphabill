@@ -48,9 +48,9 @@ func (s *GlobalLoggerTestSuite) SetupTest() {
 func (s *GlobalLoggerTestSuite) TestDefaultsWontPanic() {
 	assert.NotPanics(s.T(), func() {
 		log := CreateForPackage()
-		log.Debug("my message")
 		log2 := Create("logger2")
-		log2.Debug("my message")
+		log.Debug("my message 1")
+		log2.Debug("my message 2")
 	})
 }
 

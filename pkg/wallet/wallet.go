@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
 	"github.com/tyler-smith/go-bip39"
 	"google.golang.org/protobuf/proto"
@@ -44,6 +43,13 @@ type Wallet struct {
 	db               Db
 	alphaBillClient  abclient.ABClient
 	dustCollectorJob *cron.Cron
+}
+
+// dcBillContainer helper struct for dcBills and their aggregate data
+type dcBillContainer struct {
+	dcBills  []*bill
+	valueSum uint64
+	dcNonce  []byte
 }
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -304,9 +310,8 @@ func (w *Wallet) createSwapTx(dcBills []*bill, dcNonce []byte, timeout uint64) (
 	}
 
 	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
-	unitId := uint256.NewInt(0).SetBytes(dcNonce).Bytes32()
 	swapTx := &transaction.Transaction{
-		UnitId:                unitId[:],
+		UnitId:                dcNonce,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,
 		OwnerProof:            ownerProof,
@@ -397,21 +402,14 @@ func (w *Wallet) trySwap() error {
 		return err
 	}
 	dcBills := filterDcBills(bills)
-	// trigger swap when dust bills exist AND
-	// 1. dc process has been triggered (requiredDcSum > 0) and dc sum has been reached (valueSum >= requiredDcSum) OR
-	// 2. timeout has been reached (blockHeight == dcTimeout || blockHeight == swapTimeout)
 	if len(dcBills.dcBills) > 0 {
-		if requiredDcSum > 0 && dcBills.valueSum >= requiredDcSum || (blockHeight == dcTimeout || blockHeight == swapTimeout) {
-			err := w.swapDcBills(dcBills.dcBills, dcBills.dcNonce, blockHeight+swapTimeoutBlockCount)
-			if err != nil {
-				return err
-			}
-			return nil
+		if dcSumReached(requiredDcSum, dcBills.valueSum) || swapOrDcTimeoutReached(blockHeight, dcTimeout, swapTimeout) {
+			return w.swapDcBills(dcBills.dcBills, dcBills.dcNonce, blockHeight+swapTimeoutBlockCount)
 		}
 	}
 
 	// clear dc metadata when timeout is reached without sending swap
-	if blockHeight == dcTimeout || blockHeight == swapTimeout {
+	if swapOrDcTimeoutReached(blockHeight, dcTimeout, swapTimeout) {
 		err = w.db.SetDcTimeout(0)
 		if err != nil {
 			return err
@@ -426,6 +424,14 @@ func (w *Wallet) trySwap() error {
 		}
 	}
 	return nil
+}
+
+func dcSumReached(requiredDcSum uint64, dcSum uint64) bool {
+	return requiredDcSum > 0 && dcSum >= requiredDcSum
+}
+
+func swapOrDcTimeoutReached(blockHeight uint64, dcTimeout uint64, swapTimeout uint64) bool {
+	return blockHeight == dcTimeout || blockHeight == swapTimeout
 }
 
 func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) error {
@@ -790,13 +796,6 @@ func getDb(config *Config, create bool) (Db, error) {
 		db = config.Db
 	}
 	return db, nil
-}
-
-// dcBillContainer helper struct for dcBills and their aggregate data
-type dcBillContainer struct {
-	dcBills  []*bill
-	valueSum uint64
-	dcNonce  []byte
 }
 
 func filterDcBills(bills []*bill) *dcBillContainer {

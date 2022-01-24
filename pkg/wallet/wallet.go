@@ -305,7 +305,8 @@ func (w *Wallet) createSwapTx(dcBills []*bill, dcNonce []byte, timeout uint64) (
 	for _, b := range dcBills {
 		billIds = append(billIds, b.getId())
 		dustTransferOrders = append(dustTransferOrders, b.DcTx)
-		dustTransferProofs = append(dustTransferProofs, nil) // TODO get DC proof somewhere
+		// TODO add DC proofs: https://guardtime.atlassian.net/browse/AB-99
+		dustTransferProofs = append(dustTransferProofs, nil)
 		billValueSum += b.Value
 	}
 
@@ -354,7 +355,7 @@ func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 	return nil
 }
 
-// TODO implement memory layer over wallet db so that disk is not touched unless necessary
+// TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
 func (w *Wallet) processBlock(b *alphabill.Block) error {
 	return w.db.WithTransaction(func() error {
 		err := w.verifyBlockHeight(b)
@@ -818,7 +819,7 @@ func calculateDcNonce(bills []*bill) []byte {
 		billIds = append(billIds, b.getId())
 	}
 
-	// sort billIds in ascending order§§
+	// sort billIds in ascending order
 	sort.Slice(billIds, func(i, j int) bool {
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})

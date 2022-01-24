@@ -18,7 +18,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
+	verifyMetadata(t, w, metadata{blockHeight: 0, dcValueSum: 3, dcTimeout: dcTimeoutBlockCount, swapTimeout: 0})
 
 	// and two dc txs are broadcast
 	require.Len(t, mockClient.txs, 2)
@@ -34,7 +34,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
+	verifyMetadata(t, w, metadata{blockHeight: 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: 1 + swapTimeoutBlockCount})
 
 	// and swap tx is broadcast
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
@@ -61,9 +61,9 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	}
 
 	// when further blocks are received
-	for i := 0; i < 9; i++ {
-		block := &alphabill.Block{
-			BlockNo:            uint64(2 + i),
+	for blockHeight := uint64(2); blockHeight <= dcTimeoutBlockCount; blockHeight++ {
+		block = &alphabill.Block{
+			BlockNo:            blockHeight,
 			PrevBlockHash:      hash.Sum256([]byte{}),
 			Transactions:       []*transaction.Transaction{},
 			UnicityCertificate: []byte{},
@@ -75,14 +75,14 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	// then no more swap txs should be triggered
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
 
-	// and metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 61})
+	// and only blockHeight is updated
+	verifyMetadata(t, w, metadata{blockHeight: dcTimeoutBlockCount, dcValueSum: 0, dcTimeout: 0, swapTimeout: 1 + swapTimeoutBlockCount})
 
 	// when swap tx block is received
-	err = w.db.SetBlockHeight(60)
+	err = w.db.SetBlockHeight(swapTimeoutBlockCount)
 	require.NoError(t, err)
 	block = &alphabill.Block{
-		BlockNo:            uint64(61),
+		BlockNo:            swapTimeoutBlockCount + 1,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs[2:3], // swap tx
 		UnicityCertificate: []byte{},
@@ -90,8 +90,8 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	err = w.processBlock(block)
 	require.NoError(t, err)
 
-	// then metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 61, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
+	// then swap timeout is cleared
+	verifyMetadata(t, w, metadata{blockHeight: 1 + swapTimeoutBlockCount, dcValueSum: 0, dcTimeout: 0, swapTimeout: 0})
 	verifyBalance(t, w, 3)
 }
 
@@ -102,13 +102,13 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addBill(t, w, 1)
 	addDcBill(t, w, nonce, 2)
-	setMetadata(t, w, metadata{blockHeight: 0, dcValueSum: 3, dcTimeout: 10, swapTimeout: 0})
+	setMetadata(t, w, metadata{blockHeight: 0, dcValueSum: 3, dcTimeout: dcTimeoutBlockCount, swapTimeout: 0})
 
 	// when dcTimeout is reached
-	err := w.db.SetBlockHeight(9)
+	err := w.db.SetBlockHeight(dcTimeoutBlockCount - 1)
 	require.NoError(t, err)
 	block := &alphabill.Block{
-		BlockNo:            uint64(10),
+		BlockNo:            dcTimeoutBlockCount,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: []byte{},
@@ -128,7 +128,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	require.EqualValues(t, 2, dcTx.TargetValue)
 
 	// and metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 10, dcValueSum: 0, dcTimeout: 0, swapTimeout: 70})
+	verifyMetadata(t, w, metadata{blockHeight: dcTimeoutBlockCount, dcValueSum: 0, dcTimeout: 0, swapTimeout: dcTimeoutBlockCount + swapTimeoutBlockCount})
 	verifyBalance(t, w, 3)
 }
 
@@ -138,11 +138,11 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	nonce := uint256.NewInt(0)
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2)
-	setMetadata(t, w, metadata{blockHeight: 59, dcValueSum: 0, dcTimeout: 0, swapTimeout: 60})
+	setMetadata(t, w, metadata{blockHeight: swapTimeoutBlockCount - 1, dcValueSum: 0, dcTimeout: 0, swapTimeout: swapTimeoutBlockCount})
 
 	// when swap timeout is reached
 	block := &alphabill.Block{
-		BlockNo:            uint64(60),
+		BlockNo:            swapTimeoutBlockCount,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: []byte{},
@@ -160,7 +160,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	require.EqualValues(t, nonce32[:], dcTx.Nonce)
 
 	// and metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 60, dcValueSum: 0, dcTimeout: 0, swapTimeout: 120})
+	verifyMetadata(t, w, metadata{blockHeight: swapTimeoutBlockCount, dcValueSum: 0, dcTimeout: 0, swapTimeout: swapTimeoutBlockCount * 2})
 	verifyBalance(t, w, 3)
 }
 
@@ -188,7 +188,7 @@ func TestDcProcessWithExistingDcBills(t *testing.T) {
 	}
 
 	// and metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 160})
+	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 100 + swapTimeoutBlockCount})
 }
 
 func TestDcProcessWithExistingDcAndNonDcBills(t *testing.T) {
@@ -216,7 +216,7 @@ func TestDcProcessWithExistingDcAndNonDcBills(t *testing.T) {
 	}
 
 	// and metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 160})
+	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 0, dcTimeout: 0, swapTimeout: 100 + swapTimeoutBlockCount})
 }
 
 func TestDcProcessWithExistingNonDcBills(t *testing.T) {
@@ -242,7 +242,7 @@ func TestDcProcessWithExistingNonDcBills(t *testing.T) {
 	}
 
 	// and metadata is updated
-	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 3, dcTimeout: 110, swapTimeout: 0})
+	verifyMetadata(t, w, metadata{blockHeight: 100, dcValueSum: 3, dcTimeout: 100 + dcTimeoutBlockCount, swapTimeout: 0})
 }
 
 func addBills(t *testing.T, w *Wallet) {

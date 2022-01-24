@@ -38,22 +38,13 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 
 	// and swap tx is broadcast
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
-	txSwapPb := mockClient.txs[2]
-	txSwap := &transaction.Swap{}
-	err = txSwapPb.TransactionAttributes.UnmarshalTo(txSwap)
-	require.NoError(t, err)
+	tx := mockClient.txs[2]
+	txSwap := parseSwapTx(t, tx)
 
 	// and swap tx contains the exact same individual dc txs
 	for i := 0; i < len(txSwap.DcTransfers); i++ {
-		mockClientTx := mockClient.txs[i]
-		dustTransferTx := &transaction.TransferDC{}
-		err = mockClientTx.TransactionAttributes.UnmarshalTo(dustTransferTx)
-		require.NoError(t, err)
-
-		dustTransferSwapTx := txSwap.DcTransfers[i]
-		dustTransferTxInSwap := &transaction.TransferDC{}
-		err = dustTransferSwapTx.TransactionAttributes.UnmarshalTo(dustTransferTxInSwap)
-		require.NoError(t, err)
+		dustTransferTx := parseDcTx(t, mockClient.txs[i])
+		dustTransferTxInSwap := parseDcTx(t, txSwap.DcTransfers[i])
 		require.EqualValues(t, dustTransferTx.TargetBearer, dustTransferTxInSwap.TargetBearer)
 		require.EqualValues(t, dustTransferTx.TargetValue, dustTransferTxInSwap.TargetValue)
 		require.EqualValues(t, dustTransferTx.Backlink, dustTransferTxInSwap.Backlink)
@@ -120,7 +111,8 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	require.Len(t, mockClient.txs, 1)
 
 	// verify swap tx
-	tx, swapTx := parseSwapTx(t, mockClient)
+	tx := mockClient.txs[0]
+	swapTx := parseSwapTx(t, tx)
 	require.EqualValues(t, nonce32[:], tx.UnitId)
 	require.Len(t, swapTx.DcTransfers, 1)
 	dcTx := parseDcTx(t, swapTx.DcTransfers[0])
@@ -152,7 +144,8 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 
 	// then swap tx is broadcast
 	require.Len(t, mockClient.txs, 1)
-	tx, swapTx := parseSwapTx(t, mockClient)
+	tx := mockClient.txs[0]
+	swapTx := parseSwapTx(t, tx)
 	require.EqualValues(t, nonce32[:], tx.UnitId)
 	require.NotNil(t, swapTx)
 	require.Len(t, swapTx.DcTransfers, 1)
@@ -177,14 +170,15 @@ func TestDcProcessWithExistingDcBills(t *testing.T) {
 
 	// then swap tx is broadcast
 	require.Len(t, mockClient.txs, 1)
-	txSwapPb, txSwap := parseSwapTx(t, mockClient)
+	tx := mockClient.txs[0]
+	txSwap := parseSwapTx(t, tx)
 
 	// and verify each dc tx id = nonce = swap.id
 	require.Len(t, txSwap.DcTransfers, 2)
 	for i := 0; i < len(txSwap.DcTransfers); i++ {
 		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
 		require.EqualValues(t, nonce32[:], dcTx.Nonce)
-		require.EqualValues(t, nonce32[:], txSwapPb.UnitId)
+		require.EqualValues(t, nonce32[:], tx.UnitId)
 	}
 
 	// and metadata is updated
@@ -205,14 +199,15 @@ func TestDcProcessWithExistingDcAndNonDcBills(t *testing.T) {
 
 	// then swap tx is sent with the existing dc bill
 	require.Len(t, mockClient.txs, 1)
-	txSwapPb, txSwap := parseSwapTx(t, mockClient)
+	tx := mockClient.txs[0]
+	txSwap := parseSwapTx(t, tx)
 
 	// and verify nonce = swap.id = dc tx id
 	require.Len(t, txSwap.DcTransfers, 1)
 	for i := 0; i < len(txSwap.DcTransfers); i++ {
 		dcTx := parseDcTx(t, txSwap.DcTransfers[i])
 		require.EqualValues(t, nonce32[:], dcTx.Nonce)
-		require.EqualValues(t, nonce32[:], txSwapPb.UnitId)
+		require.EqualValues(t, nonce32[:], tx.UnitId)
 	}
 
 	// and metadata is updated
@@ -337,10 +332,9 @@ func parseDcTx(t *testing.T, tx *transaction.Transaction) *transaction.TransferD
 	return dcTx
 }
 
-func parseSwapTx(t *testing.T, mockClient *mockAlphaBillClient) (*transaction.Transaction, *transaction.Swap) {
-	txSwapPb := mockClient.txs[0]
+func parseSwapTx(t *testing.T, tx *transaction.Transaction) *transaction.Swap {
 	txSwap := &transaction.Swap{}
-	err := txSwapPb.TransactionAttributes.UnmarshalTo(txSwap)
+	err := tx.TransactionAttributes.UnmarshalTo(txSwap)
 	require.NoError(t, err)
-	return txSwapPb, txSwap
+	return txSwap
 }

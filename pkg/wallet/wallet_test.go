@@ -6,6 +6,7 @@ import (
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
 	"alphabill-wallet-sdk/internal/testutil"
+	"crypto"
 	"encoding/hex"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
@@ -199,10 +200,12 @@ func TestDcNonceHashIsCalculatedInCorrectOrder(t *testing.T) {
 		{Id: uint256.NewInt(1)},
 		{Id: uint256.NewInt(0)},
 	}
-	expectedNonce := []byte{
-		252, 188, 160, 206, 241, 224, 180, 205, 98, 51, 158, 124, 214, 87, 95, 49,
-		145, 218, 40, 153, 58, 24, 218, 173, 141, 29, 180, 237, 90, 231, 48, 255,
+	hasher := crypto.SHA256.New()
+	for i := len(bills) - 1; i >= 0; i-- {
+		hasher.Write(bills[i].getId())
 	}
+	expectedNonce := hasher.Sum(nil)
+
 	nonce := calculateDcNonce(bills)
 	require.EqualValues(t, expectedNonce, nonce)
 }

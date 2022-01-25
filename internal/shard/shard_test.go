@@ -1,18 +1,25 @@
 package shard
 
 import (
+	"crypto"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/mock"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/domain"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard/mocks"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-
 	"github.com/stretchr/testify/require"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard/mocks"
 )
+
+// A type to satisfy transaction.GenericTransaction interface
+type genericTx struct{}
+
+func (g *genericTx) UnitId() *uint256.Int             { return nil }
+func (g *genericTx) IDHash() string                   { return "" }
+func (g *genericTx) Timeout() uint64                  { return 0 }
+func (g *genericTx) OwnerProof() []byte               { return nil }
+func (g *genericTx) Hash(hashFunc crypto.Hash) []byte { return nil }
 
 func TestProcessNew_Nil(t *testing.T) {
 	s, err := New(nil)
@@ -25,11 +32,10 @@ func TestProcess_Ok(t *testing.T) {
 	s, err := New(sp)
 	require.Nil(t, err)
 
-	sp.On("ProcessPayment", mock.Anything).Return(nil)
+	sp.On("Process", mock.Anything).Return(nil)
 
-	status, err := s.Process(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
+	err = s.Process(&genericTx{})
 	require.Nil(t, err)
-	require.Equal(t, "1", status)
 }
 
 func TestProcess_Nok(t *testing.T) {
@@ -37,19 +43,8 @@ func TestProcess_Nok(t *testing.T) {
 	s, err := New(sp)
 	require.Nil(t, err)
 
-	sp.On("ProcessPayment", mock.Anything).Return(errors.New("expecting error"))
+	sp.On("Process", mock.Anything).Return(errors.New("expecting error"))
 
-	status, err := s.Process(test.RandomPaymentOrder(domain.PaymentTypeTransfer))
-	require.Error(t, err)
-	require.Empty(t, status)
-}
-
-func TestStatus_NotImplemented(t *testing.T) {
-	sp := new(mocks.StateProcessor)
-	s, err := New(sp)
-	require.Nil(t, err)
-
-	status, err := s.Status("1")
-	require.Nil(t, status)
+	err = s.Process(&genericTx{})
 	require.Error(t, err)
 }

@@ -181,6 +181,7 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 
 	err = leader.Close()
 	require.NoError(t, err)
+	require.Eventually(t, func() bool { return len(leader.Network().ListenAddresses()) == 0 }, test.WaitDuration, test.WaitTick)
 	leaderConf.Address = leaderAddress
 
 	// init leader again
@@ -227,6 +228,7 @@ func TestTxHandler_LeaderDown(t *testing.T) {
 	// shut down leader
 	err := leader.Close()
 	require.NoError(t, err)
+	require.Eventually(t, func() bool { return len(leader.Network().ListenAddresses()) == 0 }, test.WaitDuration, test.WaitTick)
 	// send requests
 	err = txHandler.Handle(context.Background(), transfer)
 	require.Error(t, err)

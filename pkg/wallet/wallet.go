@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
 	"github.com/tyler-smith/go-bip39"
 	"google.golang.org/protobuf/proto"
@@ -47,9 +48,10 @@ type Wallet struct {
 
 // dcBillContainer helper struct for dcBills and their aggregate data
 type dcBillContainer struct {
-	dcBills  []*bill
-	valueSum uint64
-	dcNonce  []byte
+	dcBills   []*bill
+	valueSum  uint64
+	dcNonce   []byte
+	dcTimeout uint64
 }
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -154,7 +156,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
-// Sync synchronises wallet with given alphabill node and starts dust collector process,
+// Sync synchronises wallet with given alphabill node and starts dust collector background job,
 // it blocks forever or until alphabill connection is terminated
 func (w *Wallet) Sync() error {
 	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
@@ -397,20 +399,41 @@ func (w *Wallet) trySwap() error {
 	if err != nil {
 		return err
 	}
+	dcNonce, err := w.db.GetDcNonce()
+	if err != nil {
+		return err
+	}
 
 	bills, err := w.db.GetBills()
 	if err != nil {
 		return err
 	}
-	dcBills := filterDcBills(bills)
-	if len(dcBills.dcBills) > 0 {
-		if dcSumReached(requiredDcSum, dcBills.valueSum) || swapOrDcTimeoutReached(blockHeight, dcTimeout, swapTimeout) {
-			return w.swapDcBills(dcBills.dcBills, dcBills.dcNonce, blockHeight+swapTimeoutBlockCount)
+
+	dcBillGroups := filterDcBills(bills)
+	for _, v := range dcBillGroups {
+		isManagedNonce := bytes.Equal(dcNonce, v.dcNonce)
+		if (isManagedNonce && dcSumReached(requiredDcSum, v.valueSum)) || swapOrDcTimeoutReached(blockHeight, dcTimeout, swapTimeout) {
+			err := w.swapDcBills(v.dcBills, v.dcNonce, blockHeight+swapTimeoutBlockCount, isManagedNonce)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	// clear dc metadata when timeout is reached without sending swap
+	dcTimeout, err = w.db.GetDcTimeout()
+	if err != nil {
+		return err
+	}
+	swapTimeout, err = w.db.GetSwapTimeout()
+	if err != nil {
+		return err
+	}
+	// clear dc metadata if any timeout is reached
 	if swapOrDcTimeoutReached(blockHeight, dcTimeout, swapTimeout) {
+		err = w.db.SetDcNonce(nil)
+		if err != nil {
+			return err
+		}
 		err = w.db.SetDcTimeout(0)
 		if err != nil {
 			return err
@@ -435,7 +458,7 @@ func swapOrDcTimeoutReached(blockHeight uint64, dcTimeout uint64, swapTimeout ui
 	return blockHeight == dcTimeout || blockHeight == swapTimeout
 }
 
-func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) error {
+func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64, clearMetaData bool) error {
 	tx, err := w.createSwapTx(dcBills, dcNonce, timeout)
 	if err != nil {
 		return err
@@ -449,17 +472,19 @@ func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) er
 		return errors.New("swap tx returned error code: " + res.Message)
 	}
 
-	err = w.db.SetDcTimeout(0)
-	if err != nil {
-		return err
-	}
-	err = w.db.SetDcValueSum(0)
-	if err != nil {
-		return err
-	}
-	err = w.db.SetSwapTimeout(timeout)
-	if err != nil {
-		return err
+	if clearMetaData {
+		err = w.db.SetDcTimeout(0)
+		if err != nil {
+			return err
+		}
+		err = w.db.SetDcValueSum(0)
+		if err != nil {
+			return err
+		}
+		err = w.db.SetSwapTimeout(timeout)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -496,12 +521,13 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:       tx.UnitId(),
-				Value:    tx.TargetValue(),
-				TxHash:   tx.Hash(crypto.SHA256),
-				IsDcBill: true,
-				DcTx:     txPb,
-				DcNonce:  tx.Nonce(),
+				Id:        tx.UnitId(),
+				Value:     tx.TargetValue(),
+				TxHash:    tx.Hash(crypto.SHA256),
+				IsDcBill:  true,
+				DcTx:      txPb,
+				DcTimeout: tx.Timeout(),
+				DcNonce:   tx.Nonce(),
 			})
 		} else {
 			err := w.db.RemoveBill(tx.UnitId())
@@ -557,6 +583,8 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 				return err
 			}
 			// TODO once DC bill gets deleted how is it reflected in the ledger?
+			// => it's not, wallet must follow blockchain rules, and one of the rules is that after X amount of time
+			// any pending dc bill gets removed
 			for _, dustTransfer := range tx.DCTransfers() {
 				err := w.db.RemoveBill(dustTransfer.UnitId())
 				if err != nil {
@@ -644,43 +672,56 @@ func (w *Wallet) collectDust() error {
 		if err != nil {
 			return err
 		}
-		dcBills := filterDcBills(bills)
-		if len(dcBills.dcBills) > 0 {
-			err := w.swapDcBills(dcBills.dcBills, dcBills.dcNonce, blockHeight+swapTimeoutBlockCount)
+		managedDcNonce, err := w.db.GetDcNonce()
+		if err != nil {
+			return err
+		}
+		dcBillGroups := filterDcBills(bills)
+		if len(dcBillGroups) > 0 {
+			for _, v := range dcBillGroups {
+				if blockHeight >= v.dcTimeout {
+					isManagedNonce := bytes.Equal(managedDcNonce, v.dcNonce)
+					err := w.swapDcBills(v.dcBills, v.dcNonce, blockHeight+swapTimeoutBlockCount, isManagedNonce)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		} else {
+			dcNonce := calculateDcNonce(bills)
+			dcTimeout := blockHeight + dcTimeoutBlockCount
+			var dcValueSum uint64
+			for _, b := range bills {
+				dcValueSum += b.Value
+				tx, err := w.createDustTx(b, dcNonce, dcTimeout)
+				if err != nil {
+					return err
+				}
+
+				log.Info("sending dust transfer tx for bill ", b.Id)
+				res, err := w.alphaBillClient.SendTransaction(tx)
+				if err != nil {
+					return err
+				}
+				if !res.Ok {
+					return errors.New("dust transfer returned error code: " + res.Message)
+				}
+			}
+			err = w.db.SetDcNonce(dcNonce)
+			if err != nil {
+				return err
+			}
+			err = w.db.SetDcTimeout(dcTimeout)
+			if err != nil {
+				return err
+			}
+			err = w.db.SetDcValueSum(dcValueSum)
 			if err != nil {
 				return err
 			}
 			return nil
 		}
-
-		dcNonce := calculateDcNonce(bills)
-		dcTimeout := blockHeight + dcTimeoutBlockCount
-		var dcValueSum uint64
-		for _, b := range bills {
-			dcValueSum += b.Value
-			tx, err := w.createDustTx(b, dcNonce, dcTimeout)
-			if err != nil {
-				return err
-			}
-
-			log.Info("sending dust transfer tx for bill ", b.Id)
-			res, err := w.alphaBillClient.SendTransaction(tx)
-			if err != nil {
-				return err
-			}
-			if !res.Ok {
-				return errors.New("dust transfer returned error code: " + res.Message)
-			}
-		}
-		err = w.db.SetDcTimeout(dcTimeout)
-		if err != nil {
-			return err
-		}
-		err = w.db.SetDcValueSum(dcValueSum)
-		if err != nil {
-			return err
-		}
-		return nil
 	})
 }
 
@@ -799,18 +840,23 @@ func getDb(config *Config, create bool) (Db, error) {
 	return db, nil
 }
 
-func filterDcBills(bills []*bill) *dcBillContainer {
-	var res dcBillContainer
+func filterDcBills(bills []*bill) map[uint256.Int]*dcBillContainer {
+	m := map[uint256.Int]*dcBillContainer{}
 	for _, b := range bills {
 		if b.IsDcBill {
-			res.valueSum += b.Value
-			res.dcBills = append(res.dcBills, b)
-			res.dcNonce = b.DcNonce
-			// TODO can wallet somehow end up with multiple DC bills with different nonces?
-			// if it can we have to create multiple swap txs grouped by nonce
+			k := *uint256.NewInt(0).SetBytes(b.DcNonce)
+			billContainer, exists := m[k]
+			if !exists {
+				billContainer = &dcBillContainer{}
+				m[k] = billContainer
+			}
+			billContainer.valueSum += b.Value
+			billContainer.dcBills = append(billContainer.dcBills, b)
+			billContainer.dcNonce = b.DcNonce
+			billContainer.dcTimeout = b.DcTimeout
 		}
 	}
-	return &res
+	return m
 }
 
 func calculateDcNonce(bills []*bill) []byte {

@@ -23,6 +23,7 @@ var (
 	masterKeyName      = []byte("masterKey")
 	mnemonicKeyName    = []byte("mnemonicKey")
 	blockHeightKeyName = []byte("blockHeightKey")
+	dcNonceKeyName     = []byte("dcNonce")
 	dcTimeoutKeyName   = []byte("dcTimeout")
 	swapTimeoutKeyName = []byte("swapTimeout")
 	dcValueSumKeyName  = []byte("dcValueSumKey")
@@ -58,12 +59,12 @@ type Db interface {
 	GetBlockHeight() (uint64, error)
 	SetBlockHeight(blockHeight uint64) error
 
+	GetDcNonce() ([]byte, error)
+	SetDcNonce(nonce []byte) error
 	GetDcTimeout() (uint64, error)
 	SetDcTimeout(blockHeight uint64) error
-
 	GetSwapTimeout() (uint64, error)
 	SetSwapTimeout(blockHeight uint64) error
-
 	GetDcValueSum() (uint64, error)
 	SetDcValueSum(dcValueSum uint64) error
 
@@ -286,6 +287,27 @@ func (w *wdb) SetBlockHeight(blockHeight uint64) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
 		return tx.Bucket(metaBucket).Put(blockHeightKeyName, b)
+	}, true)
+}
+
+func (w *wdb) GetDcNonce() ([]byte, error) {
+	var res []byte
+	err := w.withTx(func(tx *bolt.Tx) error {
+		res = tx.Bucket(metaBucket).Get(dcNonceKeyName)
+		return nil
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (w *wdb) SetDcNonce(dcNonce []byte) error {
+	return w.withTx(func(tx *bolt.Tx) error {
+		if dcNonce != nil {
+			return tx.Bucket(metaBucket).Put(dcNonceKeyName, dcNonce)
+		}
+		return tx.Bucket(metaBucket).Delete(dcNonceKeyName)
 	}, true)
 }
 

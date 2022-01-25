@@ -8,7 +8,7 @@ import (
 // Config configuration options for creating and loading a wallet
 type Config struct {
 	// directory where default boltdb wallet database is created, only used when Db is not set
-	// if empty then home/.alphabill directory is used,
+	// if empty then home/.alphabill directory is used
 	DbPath string
 
 	// custom database implementation, if set then DbPath is not used

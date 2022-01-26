@@ -229,6 +229,22 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	require.EqualValues(t, dcNonce, actualDcNonce)
 }
 
+func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
+	// create wallet with single bill
+	w, mockClient := CreateTestWallet(t)
+	addBill(t, w, 100)
+	receiverPubKey := make([]byte, 33)
+
+	// when whole balance is spent
+	err := w.Send(receiverPubKey, 100)
+	require.NoError(t, err)
+
+	// then bill transfer order should be sent
+	require.Len(t, mockClient.txs, 1)
+	btTx := parseBillTransferTx(t, mockClient.txs[0])
+	require.EqualValues(t, 100, btTx.TargetValue)
+}
+
 func verifyTestWallet(t *testing.T, err error, w *Wallet) {
 	mnemonic, err := w.db.GetMnemonic()
 	require.NoError(t, err)

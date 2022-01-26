@@ -146,22 +146,32 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	// todo if bill equals exactly the amount to send then do transfer order instead of split?
-	// what would node do if it received split with exact same amount as bill?
-
-	txRpc, err := w.createSplitTx(amount, pubKey, b)
+	tx, err := w.createTransaction(pubKey, amount, b)
 	if err != nil {
 		return err
 	}
-	res, err := w.alphaBillClient.SendTransaction(txRpc)
+	res, err := w.alphaBillClient.SendTransaction(tx)
 	if err != nil {
 		return err
 	}
-
 	if !res.Ok {
 		return errors.New("payment returned error code: " + res.Message)
 	}
 	return nil
+}
+
+func (w *Wallet) createTransaction(pubKey []byte, amount uint64, b *bill) (*transaction.Transaction, error) {
+	var tx *transaction.Transaction
+	var err error
+	if b.Value == amount {
+		tx, err = w.createTransferTx(pubKey, b)
+	} else {
+		tx, err = w.createSplitTx(amount, pubKey, b)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 // Sync synchronises wallet with given alphabill node and starts dust collector background job,
@@ -230,6 +240,36 @@ func (w *Wallet) syncWithAlphaBill() {
 	log.Info("alphabill sync finished")
 }
 
+func (w *Wallet) createTransferTx(pubKey []byte, bill *bill) (*transaction.Transaction, error) {
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
+	if err != nil {
+		return nil, err
+	}
+	k, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
+
+	tx := &transaction.Transaction{
+		UnitId:                bill.getId(),
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               1000,
+		OwnerProof:            ownerProof,
+	}
+
+	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillTransfer{
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+		TargetValue: bill.Value,
+		Backlink:    bill.TxHash,
+	}, proto.MarshalOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
 func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
 	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
 	if err != nil {
@@ -241,9 +281,8 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	}
 	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
 
-	billId := bill.Id.Bytes32()
 	tx := &transaction.Transaction{
-		UnitId:                billId[:],
+		UnitId:                bill.getId(),
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               1000,
 		OwnerProof:            ownerProof,
@@ -678,7 +717,7 @@ func (w *Wallet) collectDust() error {
 	})
 }
 
-// isSwapInProgress returns true if there is a pending dc job managed by the wallet
+// isSwapInProgress returns true if there's a running dc process managed by the wallet
 func (w *Wallet) isSwapInProgress() (bool, error) {
 	blockHeight, err := w.db.GetBlockHeight()
 	if err != nil {

@@ -416,6 +416,13 @@ func verifyBalance(t *testing.T, w *Wallet, balance uint64) {
 	require.EqualValues(t, balance, actualDcNonce)
 }
 
+func parseBillTransferTx(t *testing.T, tx *transaction.Transaction) *transaction.BillTransfer {
+	btTx := &transaction.BillTransfer{}
+	err := tx.TransactionAttributes.UnmarshalTo(btTx)
+	require.NoError(t, err)
+	return btTx
+}
+
 func parseDcTx(t *testing.T, tx *transaction.Transaction) *transaction.TransferDC {
 	dcTx := &transaction.TransferDC{}
 	err := tx.TransactionAttributes.UnmarshalTo(dcTx)

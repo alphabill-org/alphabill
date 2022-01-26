@@ -96,16 +96,7 @@ func TestWalletSendFunction(t *testing.T) {
 	require.ErrorIs(t, err, errABClientNotConnected)
 	mockClient.isShutdown = false
 
-	// test errSwapInProgress
-	err = w.db.SetSwapTimeout(1)
-	require.NoError(t, err)
-	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errSwapInProgress)
-	err = w.db.SetSwapTimeout(0)
-	require.NoError(t, err)
-
 	// test errInvalidBalance
-	require.NoError(t, err)
 	err = w.Send(validPubKey, amount)
 	require.ErrorIs(t, err, errInvalidBalance)
 
@@ -121,6 +112,13 @@ func TestWalletSendFunction(t *testing.T) {
 	err = w.Send(validPubKey, amount)
 	require.Error(t, err, "payment returned error code: some error")
 	mockClient.txResponse = nil
+
+	// test errSwapInProgress
+	nonce := calculateExpectedDcNonce(t, w)
+	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errSwapInProgress)
+	setDcMetadata(t, w, nonce, nil)
 
 	// test ok response
 	err = w.Send(validPubKey, amount)

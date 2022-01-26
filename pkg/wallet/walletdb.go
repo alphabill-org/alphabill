@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	keysBucket  = []byte("keys")
-	billsBucket = []byte("bills")
-	metaBucket  = []byte("meta")
+	keysBucket   = []byte("keys")
+	billsBucket  = []byte("bills")
+	metaBucket   = []byte("meta")
+	dcMetaBucket = []byte("dcMetadata")
 )
 
 var (
@@ -48,7 +49,6 @@ type Db interface {
 	GetMnemonic() (string, error)
 	SetMnemonic(string) error
 
-	GetBill(id *uint256.Int) (*bill, error)
 	SetBill(bill *bill) error
 	ContainsBill(id *uint256.Int) (bool, error)
 	RemoveBill(id *uint256.Int) error
@@ -59,14 +59,9 @@ type Db interface {
 	GetBlockHeight() (uint64, error)
 	SetBlockHeight(blockHeight uint64) error
 
-	GetDcNonce() ([]byte, error)
-	SetDcNonce(nonce []byte) error
-	GetDcTimeout() (uint64, error)
-	SetDcTimeout(blockHeight uint64) error
-	GetSwapTimeout() (uint64, error)
-	SetSwapTimeout(blockHeight uint64) error
-	GetDcValueSum() (uint64, error)
-	SetDcValueSum(dcValueSum uint64) error
+	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
+	GetDcMetadata(nonce []byte) (*dcMetadata, error)
+	SetDcMetadata(nonce []byte, dcMetadata *dcMetadata) error
 
 	WithTransaction(func() error) error
 
@@ -166,22 +161,6 @@ func (w *wdb) SetBill(bill *bill) error {
 		}
 		return tx.Bucket(billsBucket).Put(bill.getId(), val)
 	}, true)
-}
-
-func (w *wdb) GetBill(id *uint256.Int) (*bill, error) {
-	var b *bill
-	err := w.withTx(func(tx *bolt.Tx) error {
-		billId := id.Bytes32()
-		billBytes := tx.Bucket(billsBucket).Get(billId[:])
-		if billBytes != nil {
-			return json.Unmarshal(billBytes, &b)
-		}
-		return nil
-	}, false)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
 }
 
 func (w *wdb) ContainsBill(id *uint256.Int) (bool, error) {
@@ -290,10 +269,32 @@ func (w *wdb) SetBlockHeight(blockHeight uint64) error {
 	}, true)
 }
 
-func (w *wdb) GetDcNonce() ([]byte, error) {
-	var res []byte
+func (w *wdb) GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error) {
+	res := map[uint256.Int]*dcMetadata{}
 	err := w.withTx(func(tx *bolt.Tx) error {
-		res = tx.Bucket(metaBucket).Get(dcNonceKeyName)
+		return tx.Bucket(dcMetaBucket).ForEach(func(k, v []byte) error {
+			var m *dcMetadata
+			err := json.Unmarshal(v, &m)
+			if err != nil {
+				return err
+			}
+			res[*uint256.NewInt(0).SetBytes(k)] = m
+			return nil
+		})
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (w *wdb) GetDcMetadata(nonce []byte) (*dcMetadata, error) {
+	var res *dcMetadata
+	err := w.withTx(func(tx *bolt.Tx) error {
+		m := tx.Bucket(dcMetaBucket).Get(nonce)
+		if m != nil {
+			return json.Unmarshal(m, &res)
+		}
 		return nil
 	}, false)
 	if err != nil {
@@ -302,81 +303,16 @@ func (w *wdb) GetDcNonce() ([]byte, error) {
 	return res, nil
 }
 
-func (w *wdb) SetDcNonce(dcNonce []byte) error {
+func (w *wdb) SetDcMetadata(dcNonce []byte, dcMetadata *dcMetadata) error {
 	return w.withTx(func(tx *bolt.Tx) error {
-		if dcNonce != nil {
-			return tx.Bucket(metaBucket).Put(dcNonceKeyName, dcNonce)
+		if dcMetadata != nil {
+			val, err := json.Marshal(dcMetadata)
+			if err != nil {
+				return err
+			}
+			return tx.Bucket(dcMetaBucket).Put(dcNonce, val)
 		}
-		return tx.Bucket(metaBucket).Delete(dcNonceKeyName)
-	}, true)
-}
-
-func (w *wdb) GetDcTimeout() (uint64, error) {
-	var res uint64
-	err := w.withTx(func(tx *bolt.Tx) error {
-		b := tx.Bucket(metaBucket).Get(dcTimeoutKeyName)
-		if b != nil {
-			res = binary.BigEndian.Uint64(b)
-		}
-		return nil
-	}, false)
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
-}
-
-func (w *wdb) SetDcTimeout(dcBlockHeight uint64) error {
-	return w.withTx(func(tx *bolt.Tx) error {
-		b := make([]byte, 8)
-		binary.BigEndian.PutUint64(b, dcBlockHeight)
-		return tx.Bucket(metaBucket).Put(dcTimeoutKeyName, b)
-	}, true)
-}
-
-func (w *wdb) GetSwapTimeout() (uint64, error) {
-	var res uint64
-	err := w.withTx(func(tx *bolt.Tx) error {
-		b := tx.Bucket(metaBucket).Get(swapTimeoutKeyName)
-		if b != nil {
-			res = binary.BigEndian.Uint64(b)
-		}
-		return nil
-	}, false)
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
-}
-
-func (w *wdb) SetSwapTimeout(timeout uint64) error {
-	return w.withTx(func(tx *bolt.Tx) error {
-		b := make([]byte, 8)
-		binary.BigEndian.PutUint64(b, timeout)
-		return tx.Bucket(metaBucket).Put(swapTimeoutKeyName, b)
-	}, true)
-}
-
-func (w *wdb) GetDcValueSum() (uint64, error) {
-	var res uint64
-	err := w.withTx(func(tx *bolt.Tx) error {
-		b := tx.Bucket(metaBucket).Get(dcValueSumKeyName)
-		if b != nil {
-			res = binary.BigEndian.Uint64(b)
-		}
-		return nil
-	}, false)
-	if err != nil {
-		return 0, err
-	}
-	return res, nil
-}
-
-func (w *wdb) SetDcValueSum(dcValueSum uint64) error {
-	return w.withTx(func(tx *bolt.Tx) error {
-		b := make([]byte, 8)
-		binary.BigEndian.PutUint64(b, dcValueSum)
-		return tx.Bucket(metaBucket).Put(dcValueSumKeyName, b)
+		return tx.Bucket(dcMetaBucket).Delete(dcNonce)
 	}, true)
 }
 
@@ -441,6 +377,10 @@ func (w *wdb) createBuckets() error {
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists(metaBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(dcMetaBucket)
 		if err != nil {
 			return err
 		}

@@ -40,8 +40,9 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			expectedConfig: func() *shardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
-					HomeDir: "/custom-home",
-					CfgFile: "/custom-home" + string(os.PathSeparator) + defaultConfigFile,
+					HomeDir:    "/custom-home",
+					CfgFile:    "/custom-home" + string(os.PathSeparator) + defaultConfigFile,
+					LogCfgFile: defaultLoggerConfigFile,
 				}
 				return sc
 			}(),
@@ -50,8 +51,9 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			expectedConfig: func() *shardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
-					HomeDir: "/custom-home",
-					CfgFile: "/custom-home/custom-config.props",
+					HomeDir:    "/custom-home",
+					CfgFile:    "/custom-home/custom-config.props",
+					LogCfgFile: defaultLoggerConfigFile,
 				}
 				return sc
 			}(),
@@ -60,8 +62,9 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			expectedConfig: func() *shardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
-					HomeDir: defaultHomeDir,
-					CfgFile: defaultHomeDir + "/custom-config.props",
+					HomeDir:    defaultHomeDir,
+					CfgFile:    defaultHomeDir + "/custom-config.props",
+					LogCfgFile: defaultLoggerConfigFile,
 				}
 				return sc
 			}(),
@@ -112,6 +115,37 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 				sc.Server.Address = "srv:666"
 				return sc
 			}(),
+		}, {
+			args: "shard --home=/custom-home-1",
+			envVars: []envVar{
+				{"AB_HOME", "/custom-home-2"},
+				{"AB_CONFIG", "custom-config.props"},
+				{"AB_LOGGER_CONFIG", "custom-log-conf.yaml"},
+			},
+			expectedConfig: func() *shardConfiguration {
+				sc := defaultShardConfiguration()
+				sc.Root = &rootConfiguration{
+					HomeDir:    "/custom-home-1",
+					CfgFile:    "/custom-home-1/custom-config.props",
+					LogCfgFile: "custom-log-conf.yaml",
+				}
+				return sc
+			}(),
+		}, {
+			args: "shard",
+			envVars: []envVar{
+				{"AB_HOME", "/custom-home"},
+				{"AB_CONFIG", "custom-config.props"},
+			},
+			expectedConfig: func() *shardConfiguration {
+				sc := defaultShardConfiguration()
+				sc.Root = &rootConfiguration{
+					HomeDir:    "/custom-home",
+					CfgFile:    "/custom-home/custom-config.props",
+					LogCfgFile: defaultLoggerConfigFile,
+				}
+				return sc
+			}(),
 		},
 	}
 	for _, tt := range tests {
@@ -143,6 +177,7 @@ func TestShardConfig_ConfigFile(t *testing.T) {
 initial-bill-value=666
 server-address=srv:1234
 server-max-recv-msg-size=9999
+logger-config=custom-log-conf.yaml
 `
 
 	// Write temporary file and clean up afterwards
@@ -151,15 +186,16 @@ server-max-recv-msg-size=9999
 		t.Fatal(err)
 	}
 	defer os.Remove(f.Name())
-	if _, err := f.Write([]byte(configFileContents)); err != nil {
+	if _, err = f.Write([]byte(configFileContents)); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.Close(); err != nil {
+	if err = f.Close(); err != nil {
 		t.Fatal(err)
 	}
 
 	expectedConfig := defaultShardConfiguration()
 	expectedConfig.Root.CfgFile = f.Name()
+	expectedConfig.Root.LogCfgFile = "custom-log-conf.yaml"
 	expectedConfig.InitialBillValue = 666
 	expectedConfig.Server.Address = "srv:1234"
 	expectedConfig.Server.MaxRecvMsgSize = 9999
@@ -182,8 +218,9 @@ server-max-recv-msg-size=9999
 func defaultShardConfiguration() *shardConfiguration {
 	return &shardConfiguration{
 		Root: &rootConfiguration{
-			HomeDir: defaultHomeDir,
-			CfgFile: defaultHomeDir + string(os.PathSeparator) + defaultConfigFile,
+			HomeDir:    defaultHomeDir,
+			CfgFile:    defaultHomeDir + string(os.PathSeparator) + defaultConfigFile,
+			LogCfgFile: defaultLoggerConfigFile,
 		},
 		Server: &grpcServerConfiguration{
 			Address:        defaultServerAddr,

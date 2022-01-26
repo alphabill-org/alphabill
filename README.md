@@ -22,6 +22,18 @@ It's possible to define the configuration values from (in the order of precedenc
 * Configuration file (properties file) (E.g. `initial-bill-value=1000`)
 * Default values
 
+The default location of configuration file is `$AB_HOME/config.props`
+
+The default $AB_HOME is `$HOME/.alphabill`
+
+### Logging configuration
+
+Logging can be configured through a yaml configuration file. See `cli/alphabill/config/logger-config.yaml` for example.
+
+Default location of the logger configuration file is `$AB_HOME/logger-config.yaml`
+
+The location can be changed through `--logger-config` configuration key. If it's relative URL, then it's relative to `$AB_HOME`. 
+
 ## Set up autocompletion
 
 To use autocompletion (supported with `bash`, `fish`, `powershell` and `zsh`), run the following commands after building (this is `bash` example):

@@ -21,14 +21,6 @@ const (
 	defaultTimeLocation = TimeLocationLocal
 )
 
-// Returns global logger configuration
-// If logger configuration is not provided, then developer specific configuration is returned.
-// Otherwise the provided configuration is used to overload default values.
-func LoadGlobalConfig() GlobalConfig {
-	// This will change, when logger configuration loading from file or env is implemented.
-	return developerConfiguration()
-}
-
 // Will be used when config loading from env of files is supported
 func defaultConfiguration() GlobalConfig {
 	conf := GlobalConfig{
@@ -40,7 +32,6 @@ func defaultConfiguration() GlobalConfig {
 		TimeLocation:    defaultTimeLocation,
 		ShowGoroutineID: false,
 	}
-	conf.PackageLevels["internal_cli_config_dump"] = NONE
 	return conf
 }
 
@@ -55,16 +46,10 @@ func developerConfiguration() GlobalConfig {
 		TimeLocation:    TimeLocationLocal,
 		ShowGoroutineID: true,
 	}
-	conf.PackageLevels["internal_domain"] = WARNING
-	conf.PackageLevels["internal_domain_remapper"] = WARNING
-	conf.PackageLevels["internal_domain_refserdes"] = WARNING
-	conf.PackageLevels["internal_domain_canonicalizer"] = WARNING
-	conf.PackageLevels["internal_auth"] = WARNING
-	conf.PackageLevels["internal_input_po_consumer"] = WARNING
 	return conf
 }
 
-// Developer tuned configuration.
+// BenchmarkConfiguration is a quiet configuration meant for benchmarks.
 func BenchmarkConfiguration() GlobalConfig {
 	conf := GlobalConfig{
 		DefaultLevel:    ERROR,
@@ -75,6 +60,5 @@ func BenchmarkConfiguration() GlobalConfig {
 		TimeLocation:    defaultTimeLocation,
 		ShowGoroutineID: true,
 	}
-	conf.PackageLevels["gw_bench"] = INFO
 	return conf
 }

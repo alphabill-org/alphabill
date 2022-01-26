@@ -25,6 +25,7 @@ var (
 	ErrOutOfSequence  = newErrorType("out of sequence")
 	ErrBufferOverflow = newErrorType("buffer overflow")
 	ErrEOS            = newErrorType("end of stream")
+	ErrFileNotFound   = newErrorType("file not found")
 
 	ErrNotImplemented = newErrorType("not implemented")
 )

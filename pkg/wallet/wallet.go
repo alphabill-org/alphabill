@@ -308,6 +308,11 @@ func (w *Wallet) createSwapTx(dcBills []*bill, dcNonce []byte, timeout uint64) (
 		return nil, err
 	}
 
+	// sort bills by ids in ascending order
+	sort.Slice(dcBills, func(i, j int) bool {
+		return bytes.Compare(dcBills[i].getId(), dcBills[j].getId()) < 0
+	})
+
 	var billIds [][]byte
 	var dustTransferProofs [][]byte
 	var dustTransferOrders []*transaction.Transaction

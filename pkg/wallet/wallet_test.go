@@ -192,7 +192,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDcNonceHashIsCalculatedInCorrectOrder(t *testing.T) {
+func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
 	bills := []*bill{
 		{Id: uint256.NewInt(2)},
 		{Id: uint256.NewInt(1)},
@@ -206,6 +206,27 @@ func TestDcNonceHashIsCalculatedInCorrectOrder(t *testing.T) {
 
 	nonce := calculateDcNonce(bills)
 	require.EqualValues(t, expectedNonce, nonce)
+}
+
+func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	bills := []*bill{
+		{Id: uint256.NewInt(2)},
+		{Id: uint256.NewInt(1)},
+		{Id: uint256.NewInt(0)},
+	}
+	dcNonce := calculateDcNonce(bills)
+	tx, err := w.createSwapTx(bills, dcNonce, 10)
+	require.NoError(t, err)
+	swapTx := parseSwapTx(t, tx)
+
+	// verify bill ids in swap tx are in correct order (equal hash values)
+	hasher := crypto.SHA256.New()
+	for _, billId := range swapTx.BillIdentifiers {
+		hasher.Write(billId)
+	}
+	actualDcNonce := hasher.Sum(nil)
+	require.EqualValues(t, dcNonce, actualDcNonce)
 }
 
 func verifyTestWallet(t *testing.T, err error, w *Wallet) {

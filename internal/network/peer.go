@@ -110,6 +110,11 @@ func (p *Peer) MultiAddresses() []ma.Multiaddr {
 	return p.host.Addrs()
 }
 
+// Network returns the Network of the Peer.
+func (p *Peer) Network() network.Network {
+	return p.host.Network()
+}
+
 // RegisterProtocolHandler sets the protocol stream handler for given protocol.
 func (p *Peer) RegisterProtocolHandler(protocolID string, handler network.StreamHandler) {
 	p.host.SetStreamHandler(protocol.ID(protocolID), handler)

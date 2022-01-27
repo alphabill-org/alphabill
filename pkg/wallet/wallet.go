@@ -241,7 +241,7 @@ func (w *Wallet) syncWithAlphaBill() {
 }
 
 func (w *Wallet) createTransferTx(pubKey []byte, bill *bill) (*transaction.Transaction, error) {
-	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (w *Wallet) createTransferTx(pubKey []byte, bill *bill) (*transaction.Trans
 }
 
 func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
-	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 }
 
 func (w *Wallet) createDustTx(bill *bill, nonce []byte, timeout uint64) (*transaction.Transaction, error) {
-	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +337,7 @@ func (w *Wallet) createSwapTx(dcBills []*bill, dcNonce []byte, timeout uint64) (
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
 
-	txSig, err := w.signBytes([]byte{}) // TODO sign correct data
+	txSig, err := w.signBytes([]byte{}) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 	if err != nil {
 		return err
 	}
-	// TODO will genesis block be height 0 or 1?
+	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
 	if b.BlockNo-height != 1 {
 		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNo, height))
 	}
@@ -588,7 +588,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 				return err
 			}
 
-			// TODO once DC bill gets deleted how is it reflected in the ledger?
+			// TODO once DC bill gets deleted how is it reflected in the ledger? https://guardtime.atlassian.net/browse/AB-101
 			// => it's not, wallet must follow blockchain rules, and one of the rules is that after X amount of time
 			// any pending dc bill gets removed
 			for _, dustTransfer := range tx.DCTransfers() {
@@ -656,7 +656,7 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 // once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
 func (w *Wallet) collectDust() error {
 	return w.db.WithTransaction(func() error {
-		// TODO check if wallet is fully synced (DC process does not make much sense in unsynced wallet)
+		// TODO check if wallet is fully synced: https://guardtime.atlassian.net/browse/AB-103
 		blockHeight, err := w.db.GetBlockHeight()
 		if err != nil {
 			return err
@@ -804,7 +804,8 @@ func generateKeys(mnemonic string, db Db) error {
 	// so we use wallet's "HD" part only for generating single key from seed
 	derivationPath := "m/44'/634'/0'/0/0"
 
-	// TODO what is HDPrivateKeyID in MainNetParams that is used for key generation
+	// only HDPrivateKeyID is used from chaincfg.MainNetParams,
+	// it is used as version flag in extended key, which in turn is used to identify the extended key's type.
 	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
 	if err != nil {
 		return err

@@ -47,7 +47,7 @@ func (c *alphaBillServiceClient) GetBlocks(ctx context.Context, in *GetBlocksReq
 }
 
 type AlphaBillService_GetBlocksClient interface {
-	Recv() (*Block, error)
+	Recv() (*GetBlocksResponse, error)
 	grpc.ClientStream
 }
 
@@ -55,8 +55,8 @@ type alphaBillServiceGetBlocksClient struct {
 	grpc.ClientStream
 }
 
-func (x *alphaBillServiceGetBlocksClient) Recv() (*Block, error) {
-	m := new(Block)
+func (x *alphaBillServiceGetBlocksClient) Recv() (*GetBlocksResponse, error) {
+	m := new(GetBlocksResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func _AlphaBillService_GetBlocks_Handler(srv interface{}, stream grpc.ServerStre
 }
 
 type AlphaBillService_GetBlocksServer interface {
-	Send(*Block) error
+	Send(*GetBlocksResponse) error
 	grpc.ServerStream
 }
 
@@ -121,7 +121,7 @@ type alphaBillServiceGetBlocksServer struct {
 	grpc.ServerStream
 }
 
-func (x *alphaBillServiceGetBlocksServer) Send(m *Block) error {
+func (x *alphaBillServiceGetBlocksServer) Send(m *GetBlocksResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 

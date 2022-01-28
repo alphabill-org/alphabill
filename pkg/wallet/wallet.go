@@ -25,10 +25,11 @@ import (
 )
 
 const (
-	prefetchBlockCount     = 10
-	dcTimeoutBlockCount    = 10
-	swapTimeoutBlockCount  = 60
-	mnemonicEntropyBitSize = 128
+	prefetchBlockCount       = 10
+	dcTimeoutBlockCount      = 10
+	swapTimeoutBlockCount    = 60
+	isSyncedCutoffBlockCount = 10
+	mnemonicEntropyBitSize   = 128
 )
 
 var (
@@ -52,13 +53,6 @@ type dcBillGroup struct {
 	valueSum  uint64
 	dcNonce   []byte
 	dcTimeout uint64
-}
-
-// dcMetadata container grouping dcMetadata by nonce
-type dcMetadata struct {
-	DcValueSum  uint64 `json:"dcValueSum"` // only set by wallet managed dc job
-	DcTimeout   uint64 `json:"dcTimeout"`
-	SwapTimeout uint64 `json:"swapTimeout"`
 }
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -216,7 +210,7 @@ func (w *Wallet) syncWithAlphaBill() {
 
 	var wg sync.WaitGroup // used to wait for goroutines to close
 	wg.Add(2)
-	ch := make(chan *alphabill.Block, prefetchBlockCount)
+	ch := make(chan *alphabill.GetBlocksResponse, prefetchBlockCount)
 	go func() {
 		err = w.alphaBillClient.InitBlockReceiver(height, ch)
 		if err != nil {
@@ -386,7 +380,7 @@ func (w *Wallet) createSwapTx(dcBills []*bill, dcNonce []byte, timeout uint64) (
 	return swapTx, nil
 }
 
-func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {
+func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.GetBlocksResponse) error {
 	for b := range ch {
 		err := w.processBlock(b)
 		if err != nil {
@@ -410,8 +404,9 @@ func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 }
 
 // TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
-func (w *Wallet) processBlock(b *alphabill.Block) error {
+func (w *Wallet) processBlock(blockResponse *alphabill.GetBlocksResponse) error {
 	return w.db.WithTransaction(func() error {
+		b := blockResponse.Block
 		err := w.verifyBlockHeight(b)
 		if err != nil {
 			return err
@@ -423,6 +418,10 @@ func (w *Wallet) processBlock(b *alphabill.Block) error {
 			}
 		}
 		err = w.db.SetBlockHeight(b.BlockNo)
+		if err != nil {
+			return err
+		}
+		err = w.db.SetMaxBlockHeight(blockResponse.MaxBlockHeight)
 		if err != nil {
 			return err
 		}
@@ -656,7 +655,14 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 // once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
 func (w *Wallet) collectDust() error {
 	return w.db.WithTransaction(func() error {
-		// TODO check if wallet is fully synced: https://guardtime.atlassian.net/browse/AB-103
+		isSynced, err := w.isSynced()
+		if err != nil {
+			return err
+		}
+		if !isSynced {
+			log.Info("cannot start dust collector in an unsynced wallet")
+			return nil
+		}
 		blockHeight, err := w.db.GetBlockHeight()
 		if err != nil {
 			return err
@@ -744,16 +750,16 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	})
 }
 
-func (m *dcMetadata) isSwapRequired(blockHeight uint64, dcSum uint64) bool {
-	return m.dcSumReached(dcSum) || m.timeoutReached(blockHeight)
-}
-
-func (m *dcMetadata) dcSumReached(dcSum uint64) bool {
-	return m.DcValueSum > 0 && dcSum >= m.DcValueSum
-}
-
-func (m *dcMetadata) timeoutReached(blockHeight uint64) bool {
-	return blockHeight == m.DcTimeout || blockHeight == m.SwapTimeout
+func (w *Wallet) isSynced() (bool, error) {
+	blockHeight, err := w.db.GetBlockHeight()
+	if err != nil {
+		return false, err
+	}
+	maxBlockHeight, err := w.db.GetMaxBlockHeight()
+	if err != nil {
+		return false, err
+	}
+	return maxBlockHeight-blockHeight < isSyncedCutoffBlockCount, nil
 }
 
 func createWallet(mnemonic string, config *Config) (*Wallet, error) {

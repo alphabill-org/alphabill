@@ -36,7 +36,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs,
 		UnicityCertificate: []byte{},
 	}
-	err = w.processBlock(block)
+	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
 
 	// then metadata is updated
@@ -66,7 +66,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 			Transactions:       []*transaction.Transaction{},
 			UnicityCertificate: []byte{},
 		}
-		err = w.processBlock(block)
+		err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 		require.NoError(t, err)
 	}
 
@@ -86,7 +86,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs[2:3], // swap tx
 		UnicityCertificate: []byte{},
 	}
-	err = w.processBlock(block)
+	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
 
 	// then dc metadata is cleared
@@ -113,7 +113,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: []byte{},
 	}
-	err = w.processBlock(block)
+	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
 
 	// then swap should be broadcast
@@ -151,7 +151,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: []byte{},
 	}
-	err := w.processBlock(block)
+	err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -185,7 +185,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: []byte{},
 	}
-	err := w.processBlock(block)
+	err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
 
 	// then no tx is broadcast
@@ -336,6 +336,20 @@ func TestConcurrentDcJobCannotBeStarted(t *testing.T) {
 	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount})
 }
 
+func TestDcJobCannotBeStartedInUnsyncedWallet(t *testing.T) {
+	// wallet contains 2 normal bills but is in unsynced state
+	w, mockClient := CreateTestWallet(t)
+	addBills(t, w)
+	setBlockHeightAndMaxBlockHeight(t, w, 100, 120)
+
+	// when dust collector runs
+	err := w.collectDust()
+	require.NoError(t, err)
+
+	// then no tx must not be broadcast
+	require.Len(t, mockClient.txs, 0)
+}
+
 func addBills(t *testing.T, w *Wallet) {
 	addBill(t, w, 1)
 	addBill(t, w, 2)
@@ -407,6 +421,15 @@ func setDcMetadata(t *testing.T, w *Wallet, dcNonce []byte, m *dcMetadata) {
 
 func setBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 	err := w.db.SetBlockHeight(blockHeight)
+	require.NoError(t, err)
+	err = w.db.SetMaxBlockHeight(blockHeight)
+	require.NoError(t, err)
+}
+
+func setBlockHeightAndMaxBlockHeight(t *testing.T, w *Wallet, blockHeight uint64, maxBlockHeight uint64) {
+	err := w.db.SetBlockHeight(blockHeight)
+	require.NoError(t, err)
+	err = w.db.SetMaxBlockHeight(maxBlockHeight)
 	require.NoError(t, err)
 }
 

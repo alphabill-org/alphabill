@@ -6,12 +6,17 @@ import "transaction.proto";
 option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill;alphabill";
 
 service AlphaBillService {
-  rpc GetBlocks(GetBlocksRequest) returns (stream Block) {};
+  rpc GetBlocks(GetBlocksRequest) returns (stream GetBlocksResponse) {};
   rpc ProcessTransaction(Transaction) returns (TransactionResponse) {};
 }
 
 message GetBlocksRequest {
   uint64 block_height = 1;
+}
+
+message GetBlocksResponse {
+  uint64 max_block_height = 1;
+  repeated Block block = 2;
 }
 
 message Block {

@@ -20,14 +20,11 @@ var (
 )
 
 var (
-	accountKeyName     = []byte("accountKey")
-	masterKeyName      = []byte("masterKey")
-	mnemonicKeyName    = []byte("mnemonicKey")
-	blockHeightKeyName = []byte("blockHeightKey")
-	dcNonceKeyName     = []byte("dcNonce")
-	dcTimeoutKeyName   = []byte("dcTimeout")
-	swapTimeoutKeyName = []byte("swapTimeout")
-	dcValueSumKeyName  = []byte("dcValueSumKey")
+	accountKeyName        = []byte("accountKey")
+	masterKeyName         = []byte("masterKey")
+	mnemonicKeyName       = []byte("mnemonicKey")
+	blockHeightKeyName    = []byte("blockHeightKey")
+	maxBlockHeightKeyName = []byte("maxBlockHeightKey")
 )
 
 var (
@@ -58,6 +55,8 @@ type Db interface {
 
 	GetBlockHeight() (uint64, error)
 	SetBlockHeight(blockHeight uint64) error
+	GetMaxBlockHeight() (uint64, error)
+	SetMaxBlockHeight(blockHeight uint64) error
 
 	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
 	GetDcMetadata(nonce []byte) (*dcMetadata, error)
@@ -266,6 +265,30 @@ func (w *wdb) SetBlockHeight(blockHeight uint64) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
 		return tx.Bucket(metaBucket).Put(blockHeightKeyName, b)
+	}, true)
+}
+
+func (w *wdb) GetMaxBlockHeight() (uint64, error) {
+	var res uint64
+	err := w.withTx(func(tx *bolt.Tx) error {
+		b := tx.Bucket(metaBucket).Get(maxBlockHeightKeyName)
+		if b == nil {
+			return nil
+		}
+		res = binary.BigEndian.Uint64(b)
+		return nil
+	}, false)
+	if err != nil {
+		return 0, err
+	}
+	return res, nil
+}
+
+func (w *wdb) SetMaxBlockHeight(maxBlockHeight uint64) error {
+	return w.withTx(func(tx *bolt.Tx) error {
+		b := make([]byte, 8)
+		binary.BigEndian.PutUint64(b, maxBlockHeight)
+		return tx.Bucket(metaBucket).Put(maxBlockHeightKeyName, b)
 	}, true)
 }
 

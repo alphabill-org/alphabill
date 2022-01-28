@@ -15,7 +15,7 @@ type mockAlphaBillClient struct {
 	txResponse *transaction.TransactionResponse
 }
 
-func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.Block) error {
+func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.GetBlocksResponse) error {
 	return nil
 }
 

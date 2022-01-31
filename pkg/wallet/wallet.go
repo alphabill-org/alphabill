@@ -2,34 +2,63 @@ package wallet
 
 import (
 	"alphabill-wallet-sdk/internal/abclient"
-	"alphabill-wallet-sdk/internal/alphabill/domain"
-	"alphabill-wallet-sdk/internal/alphabill/rpc"
 	"alphabill-wallet-sdk/internal/alphabill/script"
+	"alphabill-wallet-sdk/internal/alphabill/txsystem"
 	abcrypto "alphabill-wallet-sdk/internal/crypto"
 	"alphabill-wallet-sdk/internal/crypto/hash"
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
 	"alphabill-wallet-sdk/pkg/log"
 	"bytes"
+	"crypto"
 	"errors"
 	"fmt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
+	"github.com/robfig/cron/v3"
 	"github.com/tyler-smith/go-bip39"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"sort"
 	"sync"
 )
 
-const prefetchBlockCount = 10
-const mnemonicEntropyBitSize = 128
+const (
+	prefetchBlockCount     = 10
+	dcTimeoutBlockCount    = 10
+	swapTimeoutBlockCount  = 60
+	mnemonicEntropyBitSize = 128
+)
+
+var (
+	errInvalidPubKey          = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	errABClientNotInitialized = errors.New("alphabill client not initialized, need to sync with alphabill node before attempting to send transactions")
+	errABClientNotConnected   = errors.New("alphabill client connection is shut down, resync with alphabill node before attempting to send transactions")
+	errSwapInProgress         = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+	errInvalidBalance         = errors.New("cannot send more than existing balance")
+)
 
 type Wallet struct {
-	config          *Config
-	db              Db
-	alphaBillClient abclient.ABClient
-	txMapper        rpc.TransactionMapper
+	config           *Config
+	db               Db
+	alphaBillClient  abclient.ABClient
+	dustCollectorJob *cron.Cron
+}
+
+// dcBillGroup helper struct for grouped dc bills and their aggregate data
+type dcBillGroup struct {
+	dcBills   []*bill
+	valueSum  uint64
+	dcNonce   []byte
+	dcTimeout uint64
+}
+
+// dcMetadata container grouping dcMetadata by nonce
+type dcMetadata struct {
+	DcValueSum  uint64 `json:"dcValueSum"` // only set by wallet managed dc job
+	DcTimeout   uint64 `json:"dcTimeout"`
+	SwapTimeout uint64 `json:"swapTimeout"`
 }
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -71,28 +100,37 @@ func LoadExistingWallet(config *Config) (*Wallet, error) {
 	}
 
 	return &Wallet{
-		db:       db,
-		txMapper: rpc.NewDefaultTxMapper(),
+		db:               db,
+		config:           config,
+		dustCollectorJob: cron.New(),
 	}, nil
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet
-// the value returned is the smallest denomination of alphabills (10^15)
+// the value returned is the smallest denomination of alphabills
 func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.GetBalance()
 }
 
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
-// to the given public key
+// to the given public key, the public key must be in compressed secp256k1 format
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
-	if len(pubKey) != 33 {
-		return errors.New("invalid public key, must be 33 bytes in length")
+	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+		return errInvalidPubKey
 	}
 	if w.alphaBillClient == nil {
-		return errors.New("alphabill client not initialized, need to sync with alphabill node before attempting to send transactions")
+		return errABClientNotInitialized
 	}
 	if w.alphaBillClient.IsShutdown() {
-		return errors.New("alphabill client connection is shut down, resync with alphabill node before attempting to send transactions")
+		return errABClientNotConnected
+	}
+
+	swapInProgress, err := w.isSwapInProgress()
+	if err != nil {
+		return err
+	}
+	if swapInProgress {
+		return errSwapInProgress
 	}
 
 	balance, err := w.GetBalance()
@@ -100,7 +138,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 	if amount > balance {
-		return errors.New("cannot send more than existing balance")
+		return errInvalidBalance
 	}
 
 	b, err := w.db.GetBillWithMinValue(amount)
@@ -108,27 +146,42 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	// todo if bill equals exactly the amount to send then do transfer order instead of split?
-	// what would node do if it received split with exact same amount as bill?
-
-	txRpc, err := w.createSplitTx(amount, pubKey, b)
+	tx, err := w.createTransaction(pubKey, amount, b)
 	if err != nil {
 		return err
 	}
-	res, err := w.alphaBillClient.SendTransaction(txRpc)
+	res, err := w.alphaBillClient.SendTransaction(tx)
 	if err != nil {
 		return err
 	}
-
 	if !res.Ok {
 		return errors.New("payment returned error code: " + res.Message)
 	}
 	return nil
 }
 
-// Sync synchronises wallet with given alphabill node, blocks forever or until alphabill connection is terminated
+func (w *Wallet) createTransaction(pubKey []byte, amount uint64, b *bill) (*transaction.Transaction, error) {
+	var tx *transaction.Transaction
+	var err error
+	if b.Value == amount {
+		tx, err = w.createTransferTx(pubKey, b)
+	} else {
+		tx, err = w.createSplitTx(amount, pubKey, b)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+// Sync synchronises wallet with given alphabill node and starts dust collector background job,
+// it blocks forever or until alphabill connection is terminated
 func (w *Wallet) Sync() error {
 	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+	if err != nil {
+		return err
+	}
+	_, err = w.startDustCollectorJob()
 	if err != nil {
 		return err
 	}
@@ -137,7 +190,7 @@ func (w *Wallet) Sync() error {
 	return nil
 }
 
-// Shutdown terminates connection to alphabill node and closes wallet db
+// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines
 func (w *Wallet) Shutdown() {
 	if w.alphaBillClient != nil {
 		w.alphaBillClient.Shutdown()
@@ -145,43 +198,14 @@ func (w *Wallet) Shutdown() {
 	if w.db != nil {
 		w.db.Close()
 	}
+	if w.dustCollectorJob != nil {
+		w.dustCollectorJob.Stop()
+	}
 }
 
 // DeleteDb deletes the wallet database
 func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
-}
-
-func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
-	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data
-	if err != nil {
-		return nil, err
-	}
-	k, err := w.db.GetAccountKey()
-	if err != nil {
-		return nil, err
-	}
-	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
-
-	billId := bill.Id.Bytes32()
-	tx := &transaction.Transaction{
-		UnitId:                billId[:],
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               1000,
-		OwnerProof:            ownerProof,
-	}
-
-	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillSplit{
-		Amount:         bill.Value,
-		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
-		RemainingValue: bill.Value - amount,
-		Backlink:       bill.TxHash,
-	}, proto.MarshalOptions{})
-
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
 }
 
 func (w *Wallet) syncWithAlphaBill() {
@@ -216,6 +240,152 @@ func (w *Wallet) syncWithAlphaBill() {
 	log.Info("alphabill sync finished")
 }
 
+func (w *Wallet) createTransferTx(pubKey []byte, bill *bill) (*transaction.Transaction, error) {
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
+	if err != nil {
+		return nil, err
+	}
+	k, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
+
+	tx := &transaction.Transaction{
+		UnitId:                bill.getId(),
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               1000,
+		OwnerProof:            ownerProof,
+	}
+
+	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillTransfer{
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+		TargetValue: bill.Value,
+		Backlink:    bill.TxHash,
+	}, proto.MarshalOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
+	if err != nil {
+		return nil, err
+	}
+	k, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
+
+	tx := &transaction.Transaction{
+		UnitId:                bill.getId(),
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               1000,
+		OwnerProof:            ownerProof,
+	}
+
+	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillSplit{
+		Amount:         bill.Value,
+		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
+		RemainingValue: bill.Value - amount,
+		Backlink:       bill.TxHash,
+	}, proto.MarshalOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (w *Wallet) createDustTx(bill *bill, nonce []byte, timeout uint64) (*transaction.Transaction, error) {
+	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
+	if err != nil {
+		return nil, err
+	}
+	k, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
+
+	tx := &transaction.Transaction{
+		UnitId:                bill.getId(),
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               timeout,
+		OwnerProof:            ownerProof,
+	}
+
+	err = anypb.MarshalFrom(tx.TransactionAttributes, &transaction.TransferDC{
+		TargetValue:  bill.Value,
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		Backlink:     bill.TxHash,
+		Nonce:        nonce,
+	}, proto.MarshalOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (w *Wallet) createSwapTx(dcBills []*bill, dcNonce []byte, timeout uint64) (*transaction.Transaction, error) {
+	if len(dcBills) == 0 {
+		return nil, errors.New("cannot create swap transaction as no dust bills exist")
+	}
+
+	txSig, err := w.signBytes([]byte{}) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
+	if err != nil {
+		return nil, err
+	}
+
+	k, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+
+	// sort bills by ids in ascending order
+	sort.Slice(dcBills, func(i, j int) bool {
+		return bytes.Compare(dcBills[i].getId(), dcBills[j].getId()) < 0
+	})
+
+	var billIds [][]byte
+	var dustTransferProofs [][]byte
+	var dustTransferOrders []*transaction.Transaction
+	var billValueSum uint64
+	for _, b := range dcBills {
+		billIds = append(billIds, b.getId())
+		dustTransferOrders = append(dustTransferOrders, b.DcTx)
+		// TODO add DC proofs: https://guardtime.atlassian.net/browse/AB-99
+		dustTransferProofs = append(dustTransferProofs, nil)
+		billValueSum += b.Value
+	}
+
+	ownerProof := script.PredicateArgumentPayToPublicKeyHashDefault(txSig, k.PubKeyHashSha256)
+	swapTx := &transaction.Transaction{
+		UnitId:                dcNonce,
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               timeout,
+		OwnerProof:            ownerProof,
+	}
+
+	err = anypb.MarshalFrom(swapTx.TransactionAttributes, &transaction.Swap{
+		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		BillIdentifiers: billIds,
+		DcTransfers:     dustTransferOrders,
+		Proofs:          dustTransferProofs,
+		TargetValue:     billValueSum,
+	}, proto.MarshalOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+	return swapTx, nil
+}
+
 func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {
 	for b := range ch {
 		err := w.processBlock(b)
@@ -228,75 +398,72 @@ func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.Block) error {
 
 func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 	// verify that we are processing blocks sequentially
-	// it may be possible to improve block processing speed by parallel processing
 	height, err := w.db.GetBlockHeight()
 	if err != nil {
 		return err
 	}
-	// TODO will genesis block be height 0 or 1?
+	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
 	if b.BlockNo-height != 1 {
 		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNo, height))
 	}
 	return nil
 }
 
+// TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
 func (w *Wallet) processBlock(b *alphabill.Block) error {
-	err := w.verifyBlockHeight(b)
+	return w.db.WithTransaction(func() error {
+		err := w.verifyBlockHeight(b)
+		if err != nil {
+			return err
+		}
+		for _, txPb := range b.Transactions {
+			err = w.collectBills(txPb)
+			if err != nil {
+				return err
+			}
+		}
+		err = w.db.SetBlockHeight(b.BlockNo)
+		if err != nil {
+			return err
+		}
+		err = w.trySwap()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (w *Wallet) trySwap() error {
+	blockHeight, err := w.db.GetBlockHeight()
+	bills, err := w.db.GetBills()
 	if err != nil {
 		return err
 	}
-	for _, txPb := range b.Transactions {
-		tx, err := w.txMapper.MapPbToDomain(txPb)
+	dcBillGroups := groupDcBills(bills)
+	for nonce, billGroup := range dcBillGroups {
+		nonce32 := nonce.Bytes32()
+		dcMeta, err := w.db.GetDcMetadata(nonce32[:])
 		if err != nil {
 			return err
 		}
-		err = w.collectBills(tx)
-		if err != nil {
-			return err
+		if dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
+			err := w.swapDcBills(billGroup.dcBills, billGroup.dcNonce, blockHeight+swapTimeoutBlockCount)
+			if err != nil {
+				return err
+			}
 		}
 	}
-	return w.db.SetBlockHeight(b.BlockNo)
-}
 
-func (w *Wallet) collectBills(tx *domain.Transaction) error {
-	txSplit, isSplitTx := tx.TransactionAttributes.(*domain.BillSplit)
-	if isSplitTx {
-		containsBill, err := w.db.ContainsBill(tx.UnitId)
-		if err != nil {
-			return err
-		}
-		if containsBill {
-			err := w.db.SetBill(&bill{
-				Id:     tx.UnitId,
-				Value:  txSplit.RemainingValue,
-				TxHash: tx.Hash(),
-			})
-			if err != nil {
-				return err
-			}
-		}
-		if w.isOwner(txSplit.TargetBearer) {
-			err := w.db.SetBill(&bill{
-				Id:     uint256.NewInt(0).SetBytes(tx.Hash()), // TODO generate Id properly
-				Value:  txSplit.Amount,
-				TxHash: tx.Hash(),
-			})
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		if w.isOwner(tx.TransactionAttributes.OwnerCondition()) {
-			err := w.db.SetBill(&bill{
-				Id:     tx.UnitId,
-				Value:  tx.TransactionAttributes.Value(),
-				TxHash: tx.Hash(),
-			})
-			if err != nil {
-				return err
-			}
-		} else {
-			err := w.db.RemoveBill(tx.UnitId) // TODO remove in batch or do whole operation collectBills in batch
+	// delete expired metadata
+	nonceMetadataMap, err := w.db.GetDcMetadataMap()
+	if err != nil {
+		return err
+	}
+	for nonce, m := range nonceMetadataMap {
+		if m.timeoutReached(blockHeight) {
+			nonce32 := nonce.Bytes32()
+			err := w.db.SetDcMetadata(nonce32[:], nil)
 			if err != nil {
 				return err
 			}
@@ -305,35 +472,172 @@ func (w *Wallet) collectBills(tx *domain.Transaction) error {
 	return nil
 }
 
+func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) error {
+	tx, err := w.createSwapTx(dcBills, dcNonce, timeout)
+	if err != nil {
+		return err
+	}
+	log.Info("sending swap tx")
+	res, err := w.alphaBillClient.SendTransaction(tx)
+	if err != nil {
+		return err
+	}
+	if !res.Ok {
+		return errors.New("swap tx returned error code: " + res.Message)
+	}
+	return w.db.SetDcMetadata(dcNonce, &dcMetadata{SwapTimeout: timeout})
+}
+
+func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
+	gtx, err := transaction.New(txPb)
+	if err != nil {
+		return err
+	}
+	stx := gtx.(txsystem.GenericTransaction)
+
+	switch tx := stx.(type) {
+	case txsystem.Transfer:
+		isOwner, err := w.isOwner(tx.NewBearer())
+		if err != nil {
+			return err
+		}
+		if isOwner {
+			err = w.db.SetBill(&bill{
+				Id:     tx.UnitId(),
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
+			})
+		} else {
+			err := w.db.RemoveBill(tx.UnitId())
+			if err != nil {
+				return err
+			}
+		}
+	case txsystem.TransferDC:
+		isOwner, err := w.isOwner(tx.TargetBearer())
+		if err != nil {
+			return err
+		}
+		if isOwner {
+			err = w.db.SetBill(&bill{
+				Id:        tx.UnitId(),
+				Value:     tx.TargetValue(),
+				TxHash:    tx.Hash(crypto.SHA256),
+				IsDcBill:  true,
+				DcTx:      txPb,
+				DcTimeout: tx.Timeout(),
+				DcNonce:   tx.Nonce(),
+			})
+		} else {
+			err := w.db.RemoveBill(tx.UnitId())
+			if err != nil {
+				return err
+			}
+		}
+	case txsystem.Split:
+		// split tx contains two bills: existing bill and new bill
+		// if any of these bills belong to wallet then we have to
+		// 1) update the existing bill and
+		// 2) add the new bill
+		containsBill, err := w.db.ContainsBill(tx.UnitId())
+		if err != nil {
+			return err
+		}
+		if containsBill {
+			err := w.db.SetBill(&bill{
+				Id:     tx.UnitId(),
+				Value:  tx.RemainingValue(),
+				TxHash: tx.Hash(crypto.SHA256),
+			})
+			if err != nil {
+				return err
+			}
+		}
+		isOwner, err := w.isOwner(tx.TargetBearer())
+		if err != nil {
+			return err
+		}
+		if isOwner {
+			err := w.db.SetBill(&bill{
+				Id:     txsystem.SameShardId(tx.UnitId(), tx.HashForIdCalculation(crypto.SHA256)),
+				Value:  tx.Amount(),
+				TxHash: tx.Hash(crypto.SHA256),
+			})
+			if err != nil {
+				return err
+			}
+		}
+	case txsystem.Swap:
+		isOwner, err := w.isOwner(tx.OwnerCondition())
+		if err != nil {
+			return err
+		}
+		if isOwner {
+			err = w.db.SetBill(&bill{
+				Id:     tx.UnitId(),
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
+			})
+			if err != nil {
+				return err
+			}
+
+			// clear dc metadata
+			err = w.db.SetDcMetadata(txPb.UnitId, nil)
+			if err != nil {
+				return err
+			}
+
+			// TODO once DC bill gets deleted how is it reflected in the ledger? https://guardtime.atlassian.net/browse/AB-101
+			// => it's not, wallet must follow blockchain rules, and one of the rules is that after X amount of time
+			// any pending dc bill gets removed
+			for _, dustTransfer := range tx.DCTransfers() {
+				err := w.db.RemoveBill(dustTransfer.UnitId())
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			err := w.db.RemoveBill(tx.UnitId())
+			if err != nil {
+				return err
+			}
+		}
+	default:
+		panic(fmt.Sprintf("received unknown transaction: %s", tx))
+	}
+	return nil
+}
+
 // isOwner checks if given p2pkh bearer predicate contains Wallet's pubKey hash
-func (w *Wallet) isOwner(bp []byte) bool {
+func (w *Wallet) isOwner(bp []byte) (bool, error) {
 	// p2pkh predicate: [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 0xac, 0x01]
 	// p2pkh predicate: [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]
 
 	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
 	if len(bp) != 42 && len(bp) != 74 {
-		return false
+		return false, nil
 	}
 	// 5th byte is PushHash 0x4f
 	if bp[4] != 0x4f {
-		return false
+		return false, nil
 	}
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
 	hashAlgo := bp[5]
 	if hashAlgo == 0x01 {
 		k, err := w.db.GetAccountKey()
 		if err != nil {
-			return false // ignore error
+			return false, err
 		}
-		return bytes.Equal(bp[6:38], k.PubKeyHashSha256)
+		return bytes.Equal(bp[6:38], k.PubKeyHashSha256), nil
 	} else if hashAlgo == 0x02 {
 		k, err := w.db.GetAccountKey()
 		if err != nil {
-			return false // ignore error
+			return false, err
 		}
-		return bytes.Equal(bp[6:70], k.PubKeyHashSha512)
+		return bytes.Equal(bp[6:70], k.PubKeyHashSha512), nil
 	}
-	return false
+	return false, nil
 }
 
 func (w *Wallet) signBytes(b []byte) ([]byte, error) {
@@ -346,6 +650,110 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	return signer.SignBytes(b)
+}
+
+// collectDust sends dust transfer for every bill in wallet and records metadata
+// once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
+func (w *Wallet) collectDust() error {
+	return w.db.WithTransaction(func() error {
+		// TODO check if wallet is fully synced: https://guardtime.atlassian.net/browse/AB-103
+		blockHeight, err := w.db.GetBlockHeight()
+		if err != nil {
+			return err
+		}
+		bills, err := w.db.GetBills()
+		if err != nil {
+			return err
+		}
+		if len(bills) < 2 {
+			return nil
+		}
+		dcBillGroups := groupDcBills(bills)
+		if len(dcBillGroups) > 0 {
+			for _, v := range dcBillGroups {
+				if blockHeight >= v.dcTimeout {
+					err := w.swapDcBills(v.dcBills, v.dcNonce, blockHeight+swapTimeoutBlockCount)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		} else {
+			swapInProgress, err := w.isSwapInProgress()
+			if err != nil {
+				return err
+			}
+			if swapInProgress {
+				log.Warning("cannot start dust collection while previous collection round is still in progress")
+				return nil
+			}
+
+			dcNonce := calculateDcNonce(bills)
+			dcTimeout := blockHeight + dcTimeoutBlockCount
+			var dcValueSum uint64
+			for _, b := range bills {
+				dcValueSum += b.Value
+				tx, err := w.createDustTx(b, dcNonce, dcTimeout)
+				if err != nil {
+					return err
+				}
+
+				log.Info("sending dust transfer tx for bill ", b.Id)
+				res, err := w.alphaBillClient.SendTransaction(tx)
+				if err != nil {
+					return err
+				}
+				if !res.Ok {
+					return errors.New("dust transfer returned error code: " + res.Message)
+				}
+			}
+			err = w.db.SetDcMetadata(dcNonce, &dcMetadata{
+				DcValueSum: dcValueSum,
+				DcTimeout:  dcTimeout,
+			})
+			return nil
+		}
+	})
+}
+
+// isSwapInProgress returns true if there's a running dc process managed by the wallet
+func (w *Wallet) isSwapInProgress() (bool, error) {
+	blockHeight, err := w.db.GetBlockHeight()
+	if err != nil {
+		return false, err
+	}
+	dcMetadataMap, err := w.db.GetDcMetadataMap()
+	if err != nil {
+		return false, err
+	}
+	for _, m := range dcMetadataMap {
+		if m.DcValueSum > 0 { // value sum is set only for dc process that was started by wallet
+			return blockHeight < m.DcTimeout || blockHeight < m.SwapTimeout, nil
+		}
+	}
+	return false, nil
+}
+
+func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
+	return w.dustCollectorJob.AddFunc("@hourly", func() {
+		err := w.collectDust()
+		if err != nil {
+			log.Error("error in dust collector job: ", err)
+		}
+	})
+}
+
+func (m *dcMetadata) isSwapRequired(blockHeight uint64, dcSum uint64) bool {
+	return m.dcSumReached(dcSum) || m.timeoutReached(blockHeight)
+}
+
+func (m *dcMetadata) dcSumReached(dcSum uint64) bool {
+	return m.DcValueSum > 0 && dcSum >= m.DcValueSum
+}
+
+func (m *dcMetadata) timeoutReached(blockHeight uint64) bool {
+	return blockHeight == m.DcTimeout || blockHeight == m.SwapTimeout
 }
 
 func createWallet(mnemonic string, config *Config) (*Wallet, error) {
@@ -361,9 +769,9 @@ func createWallet(mnemonic string, config *Config) (*Wallet, error) {
 	}
 
 	return &Wallet{
-		db:       db,
-		config:   config,
-		txMapper: rpc.NewDefaultTxMapper(),
+		db:               db,
+		config:           config,
+		dustCollectorJob: cron.New(),
 	}, nil
 }
 
@@ -396,7 +804,8 @@ func generateKeys(mnemonic string, db Db) error {
 	// so we use wallet's "HD" part only for generating single key from seed
 	derivationPath := "m/44'/634'/0'/0/0"
 
-	// TODO what is HDPrivateKeyID in MainNetParams that is used for key generation
+	// only HDPrivateKeyID is used from chaincfg.MainNetParams,
+	// it is used as version flag in extended key, which in turn is used to identify the extended key's type.
 	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
 	if err != nil {
 		return err
@@ -436,4 +845,42 @@ func getDb(config *Config, create bool) (Db, error) {
 		db = config.Db
 	}
 	return db, nil
+}
+
+// groupDcBills groups bills together by dc nonce
+func groupDcBills(bills []*bill) map[uint256.Int]*dcBillGroup {
+	m := map[uint256.Int]*dcBillGroup{}
+	for _, b := range bills {
+		if b.IsDcBill {
+			k := *uint256.NewInt(0).SetBytes(b.DcNonce)
+			billContainer, exists := m[k]
+			if !exists {
+				billContainer = &dcBillGroup{}
+				m[k] = billContainer
+			}
+			billContainer.valueSum += b.Value
+			billContainer.dcBills = append(billContainer.dcBills, b)
+			billContainer.dcNonce = b.DcNonce
+			billContainer.dcTimeout = b.DcTimeout
+		}
+	}
+	return m
+}
+
+func calculateDcNonce(bills []*bill) []byte {
+	var billIds [][]byte
+	for _, b := range bills {
+		billIds = append(billIds, b.getId())
+	}
+
+	// sort billIds in ascending order
+	sort.Slice(billIds, func(i, j int) bool {
+		return bytes.Compare(billIds[i], billIds[j]) < 0
+	})
+
+	hasher := crypto.Hash.New(crypto.SHA256)
+	for _, billId := range billIds {
+		hasher.Write(billId)
+	}
+	return hasher.Sum(nil)
 }

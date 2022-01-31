@@ -1,4 +1,4 @@
-package domain
+package txsystem
 
 type (
 	Predicate []byte

@@ -6,6 +6,7 @@ import (
 	"alphabill-wallet-sdk/internal/rpc/alphabill"
 	"alphabill-wallet-sdk/internal/rpc/transaction"
 	"alphabill-wallet-sdk/internal/testutil"
+	"crypto"
 	"encoding/hex"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
@@ -27,11 +28,7 @@ const (
 )
 
 func TestWalletCanBeCreated(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
-
-	w, err := CreateNewWallet(&Config{DbPath: os.TempDir()})
-	defer DeleteWallet(w)
-	require.NoError(t, err)
+	w, _ := CreateTestWallet(t)
 
 	balance, err := w.GetBalance()
 	require.EqualValues(t, 0, balance)
@@ -77,15 +74,33 @@ func TestWalletCanBeCreatedFromSeed(t *testing.T) {
 	verifyTestWallet(t, err, w)
 }
 
-func TestWalletCanSendTx(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
-	c := &Config{DbPath: os.TempDir()}
-	w, err := CreateNewWallet(c)
-	defer DeleteWallet(w)
-	require.NoError(t, err)
+func TestWalletSendFunction(t *testing.T) {
+	w, mockClient := CreateTestWallet(t)
+	invalidPubKey := make([]byte, 32)
+	validPubKey := make([]byte, 33)
+	amount := uint64(50)
 
-	w.alphaBillClient = &mockAlphaBillClient{}
-	w.syncWithAlphaBill()
+	// test errInvalidPubKey
+	err := w.Send(invalidPubKey, amount)
+	require.ErrorIs(t, err, errInvalidPubKey)
+
+	// test errABClientNotInitialized
+	w.alphaBillClient = nil
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errABClientNotInitialized)
+	w.alphaBillClient = mockClient
+
+	// test errABClientNotConnected
+	mockClient.isShutdown = true
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errABClientNotConnected)
+	mockClient.isShutdown = false
+
+	// test errInvalidBalance
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errInvalidBalance)
+
+	// test abclient returns error
 	b := bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,
@@ -93,9 +108,20 @@ func TestWalletCanSendTx(t *testing.T) {
 	}
 	err = w.db.SetBill(&b)
 	require.NoError(t, err)
+	mockClient.txResponse = &transaction.TransactionResponse{Ok: false, Message: "some error"}
+	err = w.Send(validPubKey, amount)
+	require.Error(t, err, "payment returned error code: some error")
+	mockClient.txResponse = nil
 
-	receiverPubKey := make([]byte, 33)
-	err = w.Send(receiverPubKey, 50)
+	// test errSwapInProgress
+	nonce := calculateExpectedDcNonce(t, w)
+	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
+	err = w.Send(validPubKey, amount)
+	require.ErrorIs(t, err, errSwapInProgress)
+	setDcMetadata(t, w, nonce, nil)
+
+	// test ok response
+	err = w.Send(validPubKey, amount)
 	require.NoError(t, err)
 }
 
@@ -164,6 +190,59 @@ func TestBlockProcessing(t *testing.T) {
 	balance, err = w.db.GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
+}
+
+func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
+	bills := []*bill{
+		{Id: uint256.NewInt(2)},
+		{Id: uint256.NewInt(1)},
+		{Id: uint256.NewInt(0)},
+	}
+	hasher := crypto.SHA256.New()
+	for i := len(bills) - 1; i >= 0; i-- {
+		hasher.Write(bills[i].getId())
+	}
+	expectedNonce := hasher.Sum(nil)
+
+	nonce := calculateDcNonce(bills)
+	require.EqualValues(t, expectedNonce, nonce)
+}
+
+func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	bills := []*bill{
+		{Id: uint256.NewInt(2)},
+		{Id: uint256.NewInt(1)},
+		{Id: uint256.NewInt(0)},
+	}
+	dcNonce := calculateDcNonce(bills)
+	tx, err := w.createSwapTx(bills, dcNonce, 10)
+	require.NoError(t, err)
+	swapTx := parseSwapTx(t, tx)
+
+	// verify bill ids in swap tx are in correct order (equal hash values)
+	hasher := crypto.SHA256.New()
+	for _, billId := range swapTx.BillIdentifiers {
+		hasher.Write(billId)
+	}
+	actualDcNonce := hasher.Sum(nil)
+	require.EqualValues(t, dcNonce, actualDcNonce)
+}
+
+func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
+	// create wallet with single bill
+	w, mockClient := CreateTestWallet(t)
+	addBill(t, w, 100)
+	receiverPubKey := make([]byte, 33)
+
+	// when whole balance is spent
+	err := w.Send(receiverPubKey, 100)
+	require.NoError(t, err)
+
+	// then bill transfer order should be sent
+	require.Len(t, mockClient.txs, 1)
+	btTx := parseBillTransferTx(t, mockClient.txs[0])
+	require.EqualValues(t, 100, btTx.TargetValue)
 }
 
 func verifyTestWallet(t *testing.T, err error, w *Wallet) {

@@ -3,9 +3,10 @@ package state
 import (
 	"crypto"
 	"fmt"
+	"testing"
+
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/holiman/uint256"
-	"testing"
 )
 
 func BenchmarkSetNode(b *testing.B) {

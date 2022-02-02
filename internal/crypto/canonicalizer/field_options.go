@@ -89,7 +89,7 @@ func fieldOptionsOf(o interface{}) ([]fieldOptions, error) {
 	return structOpts, nil
 }
 
-// Get's the value type. In case of pointers returns the value type.
+// Gets the value type. In case of pointers returns the value type.
 func getObjType(o interface{}) reflect.Type {
 	t := reflect.TypeOf(o)
 	switch t.Kind() {

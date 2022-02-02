@@ -20,13 +20,15 @@ import (
 
 func TestWalletCanProcessBlocks(t *testing.T) {
 	// setup wallet
-	testutil.DeleteWalletDb(os.TempDir())
+	_ = testutil.DeleteWalletDb(os.TempDir())
 	port := 9543
 	w, err := CreateNewWallet(&Config{
 		DbPath:                os.TempDir(),
 		AlphaBillClientConfig: &AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
-	defer DeleteWallet(w)
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
 	require.NoError(t, err)
 
 	k, err := w.db.GetAccountKey()
@@ -72,6 +74,9 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	}
 	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks})
 	defer server.GracefulStop()
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
 
 	// verify starting block height
 	height, err := w.db.GetBlockHeight()
@@ -168,8 +173,12 @@ func startServer(port int, alphaBillService *testAlphaBillServiceServer) *grpc.S
 	alphabill.RegisterAlphaBillServiceServer(grpcServer, alphaBillService)
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
-			defer lis.Close()
+			defer closeListener(lis)
 		}
 	}()
 	return grpcServer
+}
+
+func closeListener(lis net.Listener) {
+	_ = lis.Close()
 }

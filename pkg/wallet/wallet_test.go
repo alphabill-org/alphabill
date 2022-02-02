@@ -58,17 +58,21 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	walletDbPath := path.Join(wd, "testdata")
 
 	w, err := LoadExistingWallet(&Config{DbPath: walletDbPath})
-	defer w.Shutdown()
+	t.Cleanup(func() {
+		w.Shutdown()
+	})
 	require.NoError(t, err)
 
 	verifyTestWallet(t, err, w)
 }
 
 func TestWalletCanBeCreatedFromSeed(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
+	_ = testutil.DeleteWalletDb(os.TempDir())
 
 	w, err := CreateWalletFromSeed(testMnemonic, &Config{DbPath: os.TempDir()})
-	defer DeleteWallet(w)
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
 	require.NoError(t, err)
 
 	verifyTestWallet(t, err, w)
@@ -126,9 +130,11 @@ func TestWalletSendFunction(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
+	_ = testutil.DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(&Config{DbPath: os.TempDir()})
-	defer DeleteWallet(w)
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
 	require.NoError(t, err)
 
 	k, err := w.db.GetAccountKey()

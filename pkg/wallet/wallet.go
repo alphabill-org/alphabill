@@ -154,20 +154,6 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
-func (w *Wallet) createTransaction(pubKey []byte, amount uint64, b *bill) (*transaction.Transaction, error) {
-	var tx *transaction.Transaction
-	var err error
-	if b.Value == amount {
-		tx, err = w.createTransferTx(pubKey, b)
-	} else {
-		tx, err = w.createSplitTx(amount, pubKey, b)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
-}
-
 // Sync synchronises wallet with given alphabill node and starts dust collector background job,
 // it blocks forever or until alphabill connection is terminated
 func (w *Wallet) Sync() error {
@@ -202,7 +188,21 @@ func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
 }
 
-func (w *Wallet) syncWithAlphaBill() {
+func (w *Wallet) createTransaction(pubKey []byte, amount uint64, b *bill) (*transaction.Transaction, error) {
+	var tx *transaction.Transaction
+	var err error
+	if b.Value == amount {
+		tx, err = w.createTransferTx(pubKey, b)
+	} else {
+		tx, err = w.createSplitTx(amount, pubKey, b)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (w *Wallet) syncWithAlphaBill(terminateAtMaxHeight bool) {
 	height, err := w.db.GetBlockHeight()
 	if err != nil {
 		return

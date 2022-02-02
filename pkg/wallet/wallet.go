@@ -166,7 +166,19 @@ func (w *Wallet) Sync() error {
 		return err
 	}
 	w.alphaBillClient = abClient
-	w.syncWithAlphaBill()
+	w.syncWithAlphaBill(false)
+	return nil
+}
+
+// SyncToMaxBlockHeight synchronises wallet with given alphabill node, it blocks until maximum block height is reached,
+// and does not start dust collector background process
+func (w *Wallet) SyncToMaxBlockHeight() error {
+	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+	if err != nil {
+		return err
+	}
+	w.alphaBillClient = abClient
+	w.syncWithAlphaBill(true)
 	return nil
 }
 
@@ -212,7 +224,7 @@ func (w *Wallet) syncWithAlphaBill(terminateAtMaxHeight bool) {
 	wg.Add(2)
 	ch := make(chan *alphabill.GetBlocksResponse, prefetchBlockCount)
 	go func() {
-		err = w.alphaBillClient.InitBlockReceiver(height, ch)
+		err = w.alphaBillClient.InitBlockReceiver(height, terminateAtMaxHeight, ch)
 		if err != nil {
 			log.Error("error receiving block: ", err)
 		}

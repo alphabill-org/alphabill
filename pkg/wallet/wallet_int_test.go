@@ -18,7 +18,7 @@ import (
 	"testing"
 )
 
-func TestWalletCanProcessBlocks(t *testing.T) {
+func TestSync(t *testing.T) {
 	// setup wallet
 	_ = testutil.DeleteWalletDb(os.TempDir())
 	port := 9543
@@ -73,10 +73,7 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 		},
 	}
 	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks})
-	defer server.GracefulStop()
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
+	t.Cleanup(server.GracefulStop)
 
 	// verify starting block height
 	height, err := w.db.GetBlockHeight()
@@ -103,15 +100,58 @@ func TestWalletCanProcessBlocks(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSyncToMaxBlockHeight(t *testing.T) {
+	// setup wallet
+	_ = testutil.DeleteWalletDb(os.TempDir())
+	port := 9543
+	w, err := CreateNewWallet(&Config{
+		DbPath:                os.TempDir(),
+		AlphaBillClientConfig: &AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+	)
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
+	require.NoError(t, err)
+
+	// start server that sends given blocks to wallet
+	maxBlockHeight := uint64(3)
+	var blocks []*alphabill.Block
+	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
+		blocks = append(blocks, &alphabill.Block{
+			BlockNo:            blockNo,
+			PrevBlockHash:      hash.Sum256([]byte{}),
+			Transactions:       []*transaction.Transaction{},
+			UnicityCertificate: []byte{},
+		})
+	}
+	server := startServer(port, &testAlphaBillServiceServer{blocks: blocks, maxBlockHeight: maxBlockHeight})
+	t.Cleanup(server.GracefulStop)
+
+	// verify starting block height
+	height, err := w.db.GetBlockHeight()
+	require.EqualValues(t, 0, height)
+	require.NoError(t, err)
+
+	// when wallet is synced to max block height
+	err = w.SyncToMaxBlockHeight()
+	require.NoError(t, err)
+
+	// then block height is exactly equal to max block height, and further blocks are not processed
+	height, err = w.db.GetBlockHeight()
+	require.EqualValues(t, maxBlockHeight, height)
+	require.NoError(t, err)
+}
+
 type testAlphaBillServiceServer struct {
-	pubKey []byte
-	blocks []*alphabill.Block
+	pubKey         []byte
+	blocks         []*alphabill.Block
+	maxBlockHeight uint64
 	alphabill.UnimplementedAlphaBillServiceServer
 }
 
 func (s *testAlphaBillServiceServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphaBillService_GetBlocksServer) error {
 	for _, block := range s.blocks {
-		err := stream.Send(&alphabill.GetBlocksResponse{Block: block})
+		err := stream.Send(&alphabill.GetBlocksResponse{Block: block, MaxBlockHeight: s.maxBlockHeight})
 		if err != nil {
 			log.Printf("error sending block %s", err)
 		}

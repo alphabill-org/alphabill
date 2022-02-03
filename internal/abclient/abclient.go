@@ -49,7 +49,7 @@ func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, terminateAtMaxHe
 	}
 
 	for {
-		block, err := stream.Recv()
+		getBlocksResponse, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
 				log.Info("block receiver EOF")
@@ -57,9 +57,9 @@ func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, terminateAtMaxHe
 			}
 			return err
 		}
-		ch <- block
+		ch <- getBlocksResponse
 
-		if terminateAtMaxHeight && block.Block.BlockNo == block.MaxBlockHeight {
+		if terminateAtMaxHeight && getBlocksResponse.Block.BlockNo == getBlocksResponse.MaxBlockHeight {
 			log.Info("block receiver maxBlockHeight reached")
 			return nil
 		}

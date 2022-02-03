@@ -97,5 +97,5 @@ var Transactions_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "transaction.proto",
+	Metadata: "alphabill.transaction.proto",
 }

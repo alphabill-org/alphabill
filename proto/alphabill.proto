@@ -1,7 +1,7 @@
 syntax = "proto3";
 package rpc;
 
-import "transaction.proto";
+import "alphabill.transaction.proto";
 
 option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill;alphabill";
 
@@ -16,7 +16,7 @@ message GetBlocksRequest {
 
 message GetBlocksResponse {
   uint64 max_block_height = 1;
-  repeated Block block = 2;
+  Block block = 2;
 }
 
 message Block {

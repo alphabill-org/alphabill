@@ -1,4 +1,4 @@
-module alphabill-wallet-sdk
+module gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk
 
 go 1.17
 

@@ -16,7 +16,7 @@ message GetBlocksRequest {
 
 message GetBlocksResponse {
   uint64 max_block_height = 1;
-  repeated Block block = 2;
+  Block block = 2;
 }
 
 message Block {

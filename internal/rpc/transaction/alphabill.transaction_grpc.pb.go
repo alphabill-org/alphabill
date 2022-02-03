@@ -31,7 +31,7 @@ func NewTransactionsClient(cc grpc.ClientConnInterface) TransactionsClient {
 
 func (c *transactionsClient) ProcessTransaction(ctx context.Context, in *Transaction, opts ...grpc.CallOption) (*TransactionResponse, error) {
 	out := new(TransactionResponse)
-	err := c.cc.Invoke(ctx, "/rpc.Transactions/ProcessTransaction", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/abrpc.Transactions/ProcessTransaction", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func _Transactions_ProcessTransaction_Handler(srv interface{}, ctx context.Conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpc.Transactions/ProcessTransaction",
+		FullMethod: "/abrpc.Transactions/ProcessTransaction",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TransactionsServer).ProcessTransaction(ctx, req.(*Transaction))
@@ -88,7 +88,7 @@ func _Transactions_ProcessTransaction_Handler(srv interface{}, ctx context.Conte
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Transactions_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "rpc.Transactions",
+	ServiceName: "abrpc.Transactions",
 	HandlerType: (*TransactionsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

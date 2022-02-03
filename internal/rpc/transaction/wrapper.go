@@ -10,7 +10,7 @@ import (
 	"hash"
 )
 
-const ProtobufTypeUrlPrefix = "type.googleapis.com/rpc."
+const ProtobufTypeUrlPrefix = "type.googleapis.com/abrpc."
 
 type (
 	GenericTransaction interface {

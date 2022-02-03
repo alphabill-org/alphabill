@@ -1,9 +1,9 @@
 package log
 
 import (
-	"alphabill-wallet-sdk/internal/errors"
 	"bytes"
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
 	"io"
 	stdlog "log"
 	"os"

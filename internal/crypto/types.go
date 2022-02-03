@@ -1,7 +1,7 @@
 package crypto
 
 import (
-	"alphabill-wallet-sdk/internal/crypto/canonicalizer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/canonicalizer"
 )
 
 type (

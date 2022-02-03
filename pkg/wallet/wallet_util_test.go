@@ -1,9 +1,9 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/rpc/alphabill"
-	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/internal/testutil"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"

@@ -1,13 +1,13 @@
 package crypto
 
 import (
-	"alphabill-wallet-sdk/internal/crypto/canonicalizer"
-	"alphabill-wallet-sdk/internal/crypto/hash"
-	"alphabill-wallet-sdk/internal/errors"
-	"alphabill-wallet-sdk/internal/errors/errstr"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/canonicalizer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors/errstr"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"io"

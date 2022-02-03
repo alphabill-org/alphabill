@@ -1,9 +1,9 @@
 package canonicalizer
 
 import (
-	"alphabill-wallet-sdk/internal/errors"
-	"alphabill-wallet-sdk/internal/errors/errstr"
 	"encoding/binary"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors/errstr"
 	"github.com/ethereum/go-ethereum/log"
 	"reflect"
 )

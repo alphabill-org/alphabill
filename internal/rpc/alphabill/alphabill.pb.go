@@ -7,7 +7,7 @@
 package alphabill
 
 import (
-	transaction "alphabill-wallet-sdk/internal/rpc/transaction"
+	transaction "gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

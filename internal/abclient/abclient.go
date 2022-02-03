@@ -1,10 +1,10 @@
 package abclient
 
 import (
-	"alphabill-wallet-sdk/internal/rpc/alphabill"
-	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/pkg/log"
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/pkg/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"io"

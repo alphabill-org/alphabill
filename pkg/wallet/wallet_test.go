@@ -1,13 +1,13 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/alphabill/script"
-	"alphabill-wallet-sdk/internal/crypto/hash"
-	"alphabill-wallet-sdk/internal/rpc/alphabill"
-	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/internal/testutil"
 	"crypto"
 	"encoding/hex"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/alphabill/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/testutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"

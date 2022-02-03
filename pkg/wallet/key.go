@@ -1,9 +1,9 @@
 package wallet
 
 import (
-	abcrypto "alphabill-wallet-sdk/internal/crypto"
-	"alphabill-wallet-sdk/internal/crypto/hash"
 	"crypto/ecdsa"
+	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/crypto"

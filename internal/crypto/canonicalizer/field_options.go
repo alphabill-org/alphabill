@@ -1,7 +1,7 @@
 package canonicalizer
 
 import (
-	"alphabill-wallet-sdk/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
 	"reflect"
 	"strconv"
 	"strings"

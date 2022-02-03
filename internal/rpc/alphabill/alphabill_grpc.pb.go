@@ -3,8 +3,8 @@
 package alphabill
 
 import (
-	transaction "alphabill-wallet-sdk/internal/rpc/transaction"
 	context "context"
+	transaction "gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"

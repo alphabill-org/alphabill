@@ -1,9 +1,9 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/crypto/hash"
-	"alphabill-wallet-sdk/internal/rpc/alphabill"
-	"alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"testing"

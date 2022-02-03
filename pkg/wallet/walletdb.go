@@ -1,11 +1,11 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/errors"
-	"alphabill-wallet-sdk/internal/util"
-	"alphabill-wallet-sdk/pkg/log"
 	"encoding/binary"
 	"encoding/json"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/util"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/pkg/log"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
 	"os"

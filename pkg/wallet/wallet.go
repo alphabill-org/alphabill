@@ -100,14 +100,14 @@ func LoadExistingWallet(config *Config) (*Wallet, error) {
 	}, nil
 }
 
-// GetBalance returns sum value of all bills currently owned by the wallet
-// the value returned is the smallest denomination of alphabills
+// GetBalance returns sum value of all bills currently owned by the wallet,
+// the value returned is the smallest denomination of alphabills.
 func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.GetBalance()
 }
 
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
-// to the given public key, the public key must be in compressed secp256k1 format
+// to the given public key, the public key must be in compressed secp256k1 format.
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return errInvalidPubKey
@@ -155,7 +155,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 }
 
 // Sync synchronises wallet with given alphabill node and starts dust collector background job,
-// it blocks forever or until alphabill connection is terminated
+// it blocks forever or until alphabill connection is terminated.
 func (w *Wallet) Sync() error {
 	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
 	if err != nil {
@@ -171,7 +171,7 @@ func (w *Wallet) Sync() error {
 }
 
 // SyncToMaxBlockHeight synchronises wallet with given alphabill node, it blocks until maximum block height is reached,
-// and does not start dust collector background process
+// and does not start dust collector background process.
 func (w *Wallet) SyncToMaxBlockHeight() error {
 	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
 	if err != nil {
@@ -182,7 +182,7 @@ func (w *Wallet) SyncToMaxBlockHeight() error {
 	return nil
 }
 
-// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines
+// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines.
 func (w *Wallet) Shutdown() {
 	if w.alphaBillClient != nil {
 		w.alphaBillClient.Shutdown()
@@ -195,7 +195,7 @@ func (w *Wallet) Shutdown() {
 	}
 }
 
-// DeleteDb deletes the wallet database
+// DeleteDb deletes the wallet database.
 func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
 }

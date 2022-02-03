@@ -7,15 +7,15 @@ import (
 
 // Config configuration options for creating and loading a wallet
 type Config struct {
-	// directory where default boltdb wallet database is created, only used when Db is not set
-	// if empty then home/.alphabill directory is used
+	// Directory where default boltdb wallet database is created, only used when Db is not set,
+	// if empty then 'home/.alphabill' directory is used.
 	DbPath string
 
-	// custom database implementation, if set then DbPath is not used
-	// if not set then boltdb is created at DbPath
+	// Custom database implementation, if set then DbPath is not used,
+	// if not set then boltdb is created at DbPath.
 	Db Db
 
-	// configuration options for connecting to alphabill nodes
+	// Configuration options for connecting to alphabill nodes.
 	AlphaBillClientConfig *AlphaBillClientConfig
 }
 

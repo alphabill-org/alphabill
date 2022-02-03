@@ -41,7 +41,7 @@ var (
 )
 
 type Wallet struct {
-	config           *Config
+	config           Config
 	db               Db
 	alphaBillClient  abclient.ABClient
 	dustCollectorJob *cron.Cron
@@ -57,7 +57,7 @@ type dcBillGroup struct {
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func CreateNewWallet(config *Config) (*Wallet, error) {
+func CreateNewWallet(config Config) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func CreateNewWallet(config *Config) (*Wallet, error) {
 
 // CreateWalletFromSeed creates a new wallet from given seed mnemonic. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func CreateWalletFromSeed(mnemonic string, config *Config) (*Wallet, error) {
+func CreateWalletFromSeed(mnemonic string, config Config) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func CreateWalletFromSeed(mnemonic string, config *Config) (*Wallet, error) {
 
 // LoadExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func LoadExistingWallet(config *Config) (*Wallet, error) {
+func LoadExistingWallet(config Config) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
@@ -774,7 +774,7 @@ func (w *Wallet) isSynced() (bool, error) {
 	return maxBlockHeight-blockHeight < isSyncedCutoffBlockCount, nil
 }
 
-func createWallet(mnemonic string, config *Config) (*Wallet, error) {
+func createWallet(mnemonic string, config Config) (*Wallet, error) {
 	db, err := getDb(config, true)
 	if err != nil {
 		return nil, err
@@ -847,7 +847,7 @@ func generateKeys(mnemonic string, db Db) error {
 	return nil
 }
 
-func getDb(config *Config, create bool) (Db, error) {
+func getDb(config Config, create bool) (Db, error) {
 	var db Db
 	var err error
 	if config.Db == nil {

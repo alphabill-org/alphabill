@@ -37,7 +37,7 @@ func (c *mockAlphaBillClient) IsShutdown() bool {
 
 func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
 	_ = testutil.DeleteWalletDb(os.TempDir())
-	c := &Config{DbPath: os.TempDir()}
+	c := Config{DbPath: os.TempDir()}
 	w, err := CreateNewWallet(c)
 	t.Cleanup(func() {
 		DeleteWallet(w)

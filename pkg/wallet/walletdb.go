@@ -74,7 +74,7 @@ type wdb struct {
 	tx         *bolt.Tx
 }
 
-func OpenDb(config *Config) (*wdb, error) {
+func OpenDb(config Config) (*wdb, error) {
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
 		return nil, err
@@ -440,7 +440,7 @@ func openDb(dbFilePath string, create bool) (*wdb, error) {
 	return w, nil
 }
 
-func createNewDb(config *Config) (*wdb, error) {
+func createNewDb(config Config) (*wdb, error) {
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
 		return nil, err

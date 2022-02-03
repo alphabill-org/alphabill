@@ -58,10 +58,10 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	walletDbPath := path.Join(wd, "testdata")
 
 	w, err := LoadExistingWallet(&Config{DbPath: walletDbPath})
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()
 	})
-	require.NoError(t, err)
 
 	verifyTestWallet(t, err, w)
 }

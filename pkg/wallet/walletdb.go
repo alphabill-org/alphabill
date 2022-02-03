@@ -75,7 +75,11 @@ type wdb struct {
 }
 
 func OpenDb(config *Config) (*wdb, error) {
-	dbFilePath := path.Join(config.DbPath, walletFileName)
+	walletDir, err := config.GetWalletDir()
+	if err != nil {
+		return nil, err
+	}
+	dbFilePath := path.Join(walletDir, walletFileName)
 	return openDb(dbFilePath, false)
 }
 

@@ -18,10 +18,11 @@ import (
 	"testing"
 )
 
+const port = 9111
+
 func TestSync(t *testing.T) {
 	// setup wallet
 	_ = testutil.DeleteWalletDb(os.TempDir())
-	port := 9543
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
@@ -104,7 +105,6 @@ func TestSync(t *testing.T) {
 func TestSyncToMaxBlockHeight(t *testing.T) {
 	// setup wallet
 	_ = testutil.DeleteWalletDb(os.TempDir())
-	port := 9543
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
@@ -146,7 +146,6 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 func TestSendInUnsyncedWallet(t *testing.T) {
 	// setup wallet
 	_ = testutil.DeleteWalletDb(os.TempDir())
-	port := 9543
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},

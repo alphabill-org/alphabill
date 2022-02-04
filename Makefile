@@ -1,7 +1,7 @@
 all: clean tools generate test gosec
 
 clean:
-	rm -rf internal/rpc/*.pb.go
+	rm -rf internal/rpc/*/*.pb.go
 
 generate:
 	go generate proto/generate.go

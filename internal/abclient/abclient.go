@@ -22,12 +22,12 @@ type AlphaBillClientConfig struct {
 }
 
 type AlphaBillClient struct {
-	config     *AlphaBillClientConfig
+	config     AlphaBillClientConfig
 	connection *grpc.ClientConn
 	client     alphabill.AlphaBillServiceClient
 }
 
-func New(config *AlphaBillClientConfig) (*AlphaBillClient, error) {
+func New(config AlphaBillClientConfig) (*AlphaBillClient, error) {
 	conn, err := grpc.Dial(config.Uri, grpc.WithInsecure())
 	if err != nil {
 		return nil, err

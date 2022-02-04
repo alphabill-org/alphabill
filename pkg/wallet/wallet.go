@@ -157,7 +157,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 // Sync synchronises wallet with given alphabill node and starts dust collector background job,
 // it blocks forever or until alphabill connection is terminated.
 func (w *Wallet) Sync() error {
-	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+	abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (w *Wallet) Sync() error {
 // SyncToMaxBlockHeight synchronises wallet with given alphabill node, it blocks until maximum block height is reached,
 // and does not start dust collector background process.
 func (w *Wallet) SyncToMaxBlockHeight() error {
-	abClient, err := abclient.New(&abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+	abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
 	if err != nil {
 		return err
 	}

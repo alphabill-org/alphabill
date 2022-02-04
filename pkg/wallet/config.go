@@ -16,7 +16,7 @@ type Config struct {
 	Db Db
 
 	// Configuration options for connecting to alphabill nodes.
-	AlphaBillClientConfig *AlphaBillClientConfig
+	AlphaBillClientConfig AlphaBillClientConfig
 }
 
 // AlphaBillClientConfig configuration options for connecting to alphabill nodes.

@@ -25,7 +25,7 @@ func TestSync(t *testing.T) {
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
-		AlphaBillClientConfig: &AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -107,7 +107,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	port := 9543
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
-		AlphaBillClientConfig: &AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)

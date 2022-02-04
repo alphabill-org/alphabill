@@ -88,18 +88,6 @@ func TestWalletSendFunction(t *testing.T) {
 	err := w.Send(invalidPubKey, amount)
 	require.ErrorIs(t, err, errInvalidPubKey)
 
-	// test errABClientNotInitialized
-	w.alphaBillClient = nil
-	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errABClientNotInitialized)
-	w.alphaBillClient = mockClient
-
-	// test errABClientNotConnected
-	mockClient.isShutdown = true
-	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errABClientNotConnected)
-	mockClient.isShutdown = false
-
 	// test errInvalidBalance
 	err = w.Send(validPubKey, amount)
 	require.ErrorIs(t, err, errInvalidBalance)

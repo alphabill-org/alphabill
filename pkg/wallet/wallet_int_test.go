@@ -143,6 +143,37 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSendInUnsyncedWallet(t *testing.T) {
+	// setup wallet
+	_ = testutil.DeleteWalletDb(os.TempDir())
+	port := 9543
+	w, err := CreateNewWallet(Config{
+		DbPath:                os.TempDir(),
+		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+	)
+	addBill(t, w, 100)
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
+	require.NoError(t, err)
+
+	// start server
+	server := startServer(port, &testAlphaBillServiceServer{})
+	t.Cleanup(server.GracefulStop)
+
+	// verify wallet has not been synced
+	require.Nil(t, w.alphaBillClient)
+
+	// when Send is called in unsynced wallet
+	err = w.Send(make([]byte, 33), 50)
+
+	// then transaction is sent
+	require.NoError(t, err)
+
+	// and alphabill client has been set
+	require.NotNil(t, w.alphaBillClient)
+}
+
 type testAlphaBillServiceServer struct {
 	pubKey         []byte
 	blocks         []*alphabill.Block

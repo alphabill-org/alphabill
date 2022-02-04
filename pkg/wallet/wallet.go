@@ -33,11 +33,9 @@ const (
 )
 
 var (
-	errInvalidPubKey          = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	errABClientNotInitialized = errors.New("alphabill client not initialized, need to sync with alphabill node before attempting to send transactions")
-	errABClientNotConnected   = errors.New("alphabill client connection is shut down, resync with alphabill node before attempting to send transactions")
-	errSwapInProgress         = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
-	errInvalidBalance         = errors.New("cannot send more than existing balance")
+	errInvalidPubKey  = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	errSwapInProgress = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+	errInvalidBalance = errors.New("cannot send more than existing balance")
 )
 
 type Wallet struct {
@@ -112,11 +110,17 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return errInvalidPubKey
 	}
-	if w.alphaBillClient == nil {
-		return errABClientNotInitialized
-	}
-	if w.alphaBillClient.IsShutdown() {
-		return errABClientNotConnected
+
+	// create a new connection if
+	// Sync has not been called before (abClient is nil) or
+	// Sync was called and finished (shutdown is true)
+	if w.alphaBillClient == nil || w.alphaBillClient.IsShutdown() {
+		abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+		if err != nil {
+			return err
+		}
+		// TODO race condition: we modify state without synchronization
+		w.alphaBillClient = abClient
 	}
 
 	swapInProgress, err := w.isSwapInProgress()

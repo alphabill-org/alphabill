@@ -14,7 +14,7 @@ type ABClient interface {
 	SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error)
 	Shutdown()
 	IsShutdown() bool
-	InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.Block) error
+	InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.GetBlocksResponse) error
 }
 
 type AlphaBillClientConfig struct {
@@ -39,7 +39,7 @@ func New(config *AlphaBillClientConfig) (*AlphaBillClient, error) {
 	}, nil
 }
 
-func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.Block) error {
+func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.GetBlocksResponse) error {
 	stream, err := c.client.GetBlocks(context.Background(),
 		&alphabill.GetBlocksRequest{
 			BlockHeight: blockHeight,

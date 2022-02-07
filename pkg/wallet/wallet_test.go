@@ -180,7 +180,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, block := range blocks {
-		err := w.processBlock(block)
+		err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 		require.NoError(t, err)
 	}
 

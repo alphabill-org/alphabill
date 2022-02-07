@@ -106,7 +106,7 @@ type testAlphaBillServiceServer struct {
 
 func (s *testAlphaBillServiceServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphaBillService_GetBlocksServer) error {
 	for _, block := range s.blocks {
-		err := stream.Send(block)
+		err := stream.Send(&alphabill.GetBlocksResponse{Block: block})
 		if err != nil {
 			log.Printf("error sending block %s", err)
 		}

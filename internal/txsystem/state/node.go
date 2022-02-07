@@ -33,12 +33,11 @@ func (n *Node) addToHasher(hasher hash.Hash) {
 	hasher.Write(n.Content.StateHash)
 	hasher.Write(hashSub1)
 	hashSub2 := hasher.Sum(nil)
-
 	// Main hash
 	hasher.Reset()
 	hasher.Write(idBytes[:])
 	hasher.Write(hashSub2)
-	n.SummaryValue.AddToHasher(hasher)
+	n.Content.Data.Value().AddToHasher(hasher)
 
 	hasher.Write(leftHash)
 	if left != nil {
@@ -48,6 +47,34 @@ func (n *Node) addToHasher(hasher hash.Hash) {
 	if right != nil {
 		right.SummaryValue.AddToHasher(hasher)
 	}
+}
+
+func (n *Node) LeftChildSummary() SummaryValue {
+	if n.Children[0] != nil {
+		return n.Children[0].SummaryValue
+	}
+	return nil
+}
+
+func (n *Node) LeftChildHash() []byte {
+	if n.Children[0] != nil {
+		return n.Children[0].Hash
+	}
+	return make([]byte, 32)
+}
+
+func (n *Node) RightChildSummary() SummaryValue {
+	if n.Children[1] != nil {
+		return n.Children[1].SummaryValue
+	}
+	return nil
+}
+
+func (n *Node) RightChildHash() []byte {
+	if n.Children[1] != nil {
+		return n.Children[1].Hash
+	}
+	return make([]byte, 32)
 }
 
 // String returns a string representation of the node

@@ -22,6 +22,14 @@ type (
 		backlink    []byte
 	}
 
+	transferDC struct {
+		genericTx
+		nonce        []byte
+		targetBearer []byte
+		targetValue  uint64
+		backlink     []byte
+	}
+
 	split struct {
 		genericTx
 		amount         uint64
@@ -39,6 +47,12 @@ func (t *transfer) NewBearer() []byte                { return t.newBearer }
 func (t *transfer) TargetValue() uint64              { return t.targetValue }
 func (t *transfer) Backlink() []byte                 { return t.backlink }
 func (t *transfer) Hash(hashFunc crypto.Hash) []byte { return []byte("transfer hash") }
+
+func (t *transferDC) Nonce() []byte                    { return t.nonce }
+func (t *transferDC) TargetBearer() []byte             { return t.targetBearer }
+func (t *transferDC) TargetValue() uint64              { return t.targetValue }
+func (t *transferDC) Backlink() []byte                 { return t.backlink }
+func (t *transferDC) Hash(hashFunc crypto.Hash) []byte { return []byte("transferDC hash") }
 
 func (s split) Amount() uint64                   { return s.amount }
 func (s split) TargetBearer() []byte             { return s.targetBearer }

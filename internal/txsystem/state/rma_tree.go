@@ -28,7 +28,7 @@ type (
 
 	// UnitData is generic datatype for the tree. Is connected to SummaryValue through the Value function.
 	UnitData interface {
-		// AddToHasher adds the value of summary value to the hasher
+		// AddToHasher adds the unit data to the hasher.
 		AddToHasher(hasher hash.Hash)
 		// Value returns the SummaryValue of this single UnitData.
 		Value() SummaryValue
@@ -36,7 +36,7 @@ type (
 
 	// SummaryValue is different from UnitData. It is derived from UnitData with UnitData.Value function.
 	SummaryValue interface {
-		// AddToHasher adds the value of summary value to the hasher
+		// AddToHasher adds the value of summary value to the hasher.
 		AddToHasher(hasher hash.Hash)
 		// Concatenate calculates new SummaryValue by concatenating this, left and right.
 		Concatenate(left, right SummaryValue) SummaryValue
@@ -214,6 +214,11 @@ func (tree *rmaTree) Revert() {
 	tree.Commit()
 }
 
+// GetBlockNumber returns the current round number of the RMA tree.
+func (tree *rmaTree) GetBlockNumber() uint64 {
+	return tree.roundNumber
+}
+
 ///////// private methods \\\\\\\\\\\\\
 
 func (tree *rmaTree) get(id *uint256.Int) (unit *Unit, err error) {
@@ -274,7 +279,8 @@ func (tree *rmaTree) recompute(n *Node, hasher hash.Hash) {
 
 		hasher.Reset()
 		n.addToHasher(hasher)
-		tree.assignHash(n, hasher.Sum(nil))
+		sum := hasher.Sum(nil)
+		tree.assignHash(n, sum)
 		hasher.Reset()
 		tree.assignRecompute(n, false)
 	}

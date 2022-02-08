@@ -37,7 +37,7 @@ func TestNewMoneyScheme(t *testing.T) {
 	).Return(nil)
 
 	// The dust collector money gets set
-	mockRevertibleState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate{},
+	mockRevertibleState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate(dustCollectorPredicate),
 		&BillData{V: dcMoneyAmount, T: 0, Backlink: nil},
 		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
@@ -46,9 +46,21 @@ func TestNewMoneyScheme(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestProcessTransfer(t *testing.T) {
+func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {
+	_, err := NewMoneySchemeState(crypto.SHA256, nil, 10)
+	require.ErrorIs(t, err, ErrInitialBillIsNil)
+}
+
+func TestNewMoneyScheme_InvalidInitialBillID(t *testing.T) {
+	initialBill := &InitialBill{ID: uint256.NewInt(0), Value: 100, Owner: nil}
+	_, err := NewMoneySchemeState(crypto.SHA256, initialBill, 10)
+	require.ErrorIs(t, err, ErrInvalidInitialBillID)
+}
+
+func TestProcessTransaction(t *testing.T) {
 	transferOk := newRandomTransfer()
 	splitOk := newRandomSplit()
+	transferDCOk := newRandomTransferDC()
 	testData := []struct {
 		name        string
 		transaction GenericTransaction
@@ -104,13 +116,28 @@ func TestProcessTransfer(t *testing.T) {
 			},
 			expectErr: nil,
 		},
+		{
+			name:        "transferDC ok",
+			transaction: transferDCOk,
+			expect: func(rs *mocks.RevertibleState) {
+				rs.On("SetOwner",
+					transferDCOk.unitId,
+					state.Predicate(dustCollectorPredicate),
+					transferDCOk.Hash(crypto.SHA256),
+				).Return(nil)
+
+				rs.On("GetBlockNumber").Return(uint64(10))
+
+			},
+			expectErr: nil,
+		},
 	}
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRState := new(mocks.RevertibleState)
 			initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state.Predicate{44}}
 			mockRState.On("AddItem", initialBill.ID, initialBill.Owner, mock.Anything, mock.Anything).Return(nil)
-			mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate{}, mock.Anything, mock.Anything).Return(nil)
+			mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate(dustCollectorPredicate), mock.Anything, mock.Anything).Return(nil)
 			mss, err := NewMoneySchemeState(
 				crypto.SHA256,
 				initialBill,
@@ -200,6 +227,21 @@ func newRandomTransfer() *transfer {
 		newBearer:   []byte{4},
 		targetValue: 5,
 		backlink:    []byte{6},
+	}
+	return trns
+}
+
+func newRandomTransferDC() *transferDC {
+	trns := &transferDC{
+		genericTx: genericTx{
+			unitId:     uint256.NewInt(1),
+			timeout:    2,
+			ownerProof: []byte{3},
+		},
+		targetBearer: []byte{4},
+		targetValue:  5,
+		backlink:     []byte{6},
+		nonce:        []byte{7},
 	}
 	return trns
 }

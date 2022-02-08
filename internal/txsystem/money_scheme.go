@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"hash"
 
+	abHasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
@@ -79,21 +82,39 @@ type (
 		Commit()
 		GetRootHash() []byte
 		TotalValue() state.SummaryValue
+		GetBlockNumber() uint64
 	}
 
 	moneySchemeState struct {
 		revertibleState RevertibleState
 		hashAlgorithm   crypto.Hash // hash function algorithm
+
+		// Contains the bill identifiers transferred to the dust collector. The key of the map is the block number when the
+		// bill is deleted and its value is transferred to the dust collector.
+		dustCollectorBills map[uint64]*uint256.Int
 	}
 )
 
-var log = logger.CreateForPackage()
+var (
+	log = logger.CreateForPackage()
 
-// The ID of the dust collector money supply
-var dustCollectorMoneySupplyID = uint256.NewInt(0)
+	// The ID of the dust collector money supply
+	dustCollectorMoneySupplyID = uint256.NewInt(0)
+
+	// Dust collector predicate
+	dustCollectorPredicate = script.PredicatePayToPublicKeyHash(script.HashAlgSha256, abHasher.Sum256([]byte("dust collector")), script.SigSchemeSecp256k1)
+
+	ErrInitialBillIsNil     = errors.New("initial bill may not be nil")
+	ErrInvalidInitialBillID = errors.New("initial bill ID may not be equal to the DC money supply ID")
+)
 
 func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
-	// TODO validate that initialBillID doesn't match with DC money ID. https://guardtime.atlassian.net/browse/AB-93
+	if initialBill == nil {
+		return nil, ErrInitialBillIsNil
+	}
+	if dustCollectorMoneySupplyID.Eq(initialBill.ID) {
+		return nil, ErrInvalidInitialBillID
+	}
 	defaultTree, err := state.New(&state.Config{HashAlgorithm: hashAlgorithm})
 	if err != nil {
 		return nil, err
@@ -106,8 +127,9 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 	}
 
 	msState := &moneySchemeState{
-		hashAlgorithm:   hashAlgorithm,
-		revertibleState: options.revertibleState,
+		hashAlgorithm:      hashAlgorithm,
+		revertibleState:    options.revertibleState,
+		dustCollectorBills: make(map[uint64]*uint256.Int),
 	}
 
 	err = msState.revertibleState.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -119,8 +141,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 		return nil, errors.Wrap(err, "could not set initial bill")
 	}
 
-	// TODO Not sure what the DC money owner predicate should be: https://guardtime.atlassian.net/browse/AB-93
-	err = msState.revertibleState.AddItem(dustCollectorMoneySupplyID, state.Predicate{}, &BillData{
+	err = msState.revertibleState.AddItem(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{
 		V:        dcMoneyAmount,
 		T:        0,
 		Backlink: nil,
@@ -132,10 +153,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 }
 
 func (m *moneySchemeState) Process(gtx GenericTransaction) error {
-	// TODO transaction specific validity functions: https://guardtime.atlassian.net/browse/AB-92
-	// TODO timeouts and backlinks: https://guardtime.atlassian.net/browse/AB-92
-	// TODO add swap: https://guardtime.atlassian.net/browse/AB-46
-	// TODO add transferDC: https://guardtime.atlassian.net/browse/AB-93
+	// TODO transaction specific validity functions (including timeouts and backlinks): https://guardtime.atlassian.net/browse/AB-92
 	switch tx := gtx.(type) {
 	case Transfer:
 		log.Debug("Processing transfer %v", tx)
@@ -167,7 +185,17 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		if err != nil {
 			return errors.Wrapf(err, "could not add item")
 		}
-
+	case TransferDC:
+		log.Debug("Processing transferDC %v", tx)
+		err := m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
+		if err != nil {
+			return err
+		}
+		m.dustCollectorBills[m.revertibleState.GetBlockNumber()+tx.Timeout()] = tx.UnitId()
+		return nil
+	case Swap:
+		// TODO add swap: https://guardtime.atlassian.net/browse/AB-46
+		return errors.ErrNotImplemented
 	default:
 		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
 	}

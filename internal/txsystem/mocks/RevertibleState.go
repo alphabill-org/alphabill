@@ -47,6 +47,20 @@ func (_m *RevertibleState) DeleteItem(id *uint256.Int) error {
 	return r0
 }
 
+// GetBlockNumber provides a mock function with given fields:
+func (_m *RevertibleState) GetBlockNumber() uint64 {
+	ret := _m.Called()
+
+	var r0 uint64
+	if rf, ok := ret.Get(0).(func() uint64); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(uint64)
+	}
+
+	return r0
+}
+
 // GetRootHash provides a mock function with given fields:
 func (_m *RevertibleState) GetRootHash() []byte {
 	ret := _m.Called()

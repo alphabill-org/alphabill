@@ -214,6 +214,11 @@ func (tree *rmaTree) Revert() {
 	tree.Commit()
 }
 
+// GetBlockNumber returns the current round number of the RMA tree.
+func (tree *rmaTree) GetBlockNumber() uint64 {
+	return tree.roundNumber
+}
+
 ///////// private methods \\\\\\\\\\\\\
 
 func (tree *rmaTree) get(id *uint256.Int) (unit *Unit, err error) {

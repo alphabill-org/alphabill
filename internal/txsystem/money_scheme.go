@@ -224,10 +224,13 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 			continue
 		}
 		valueToTransfer += bd.V
-		m.revertibleState.DeleteItem(billID)
+		err = m.revertibleState.DeleteItem(billID)
+		if err != nil {
+			return err
+		}
 	}
 	if valueToTransfer > 0 {
-		m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data state.UnitData) (newData state.UnitData) {
+		err := m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data state.UnitData) (newData state.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				return bd
@@ -235,6 +238,9 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 			bd.V += valueToTransfer
 			return bd
 		}, []byte{})
+		if err != nil {
+			return err
+		}
 	}
 	delete(m.dustCollectorBills, blockNr)
 	return nil

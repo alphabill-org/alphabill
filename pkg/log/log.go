@@ -1,4 +1,4 @@
-// Package log implements a logger interface that is used for logging KSI functionality.
+// Package log implements a logger interface that is used for logging inside Alphabill Wallet SDK.
 //
 // In order to enable logging a logger must be registered fist by invoking SetLogger() with an Interface implementation.
 // Logging can be disabled by calling SetLogger(nil).

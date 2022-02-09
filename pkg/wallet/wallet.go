@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"sort"
+	"strconv"
 	"sync"
 )
 
@@ -33,9 +34,9 @@ const (
 )
 
 var (
-	errInvalidPubKey  = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	errSwapInProgress = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
-	errInvalidBalance = errors.New("cannot send more than existing balance")
+	errInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	errSwapInProgress      = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+	errInsufficientBalance = errors.New("insufficient balance for transaction")
 )
 
 type Wallet struct {
@@ -43,14 +44,9 @@ type Wallet struct {
 	db               Db
 	alphaBillClient  abclient.ABClient
 	dustCollectorJob *cron.Cron
-}
 
-// dcBillGroup helper struct for grouped dc bills and their aggregate data
-type dcBillGroup struct {
-	dcBills   []*bill
-	valueSum  uint64
-	dcNonce   []byte
-	dcTimeout uint64
+	// dcWg synchronized on db write lock, so it should only be used while having db write lock
+	dcWg dcWaitGroup
 }
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -95,6 +91,7 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 		db:               db,
 		config:           config,
 		dustCollectorJob: cron.New(),
+		dcWg:             newDcWaitGroup(),
 	}, nil
 }
 
@@ -111,18 +108,6 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return errInvalidPubKey
 	}
 
-	// create a new connection if
-	// Sync has not been called before (abClient is nil) or
-	// Sync was called and finished (shutdown is true)
-	if w.alphaBillClient == nil || w.alphaBillClient.IsShutdown() {
-		abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
-		if err != nil {
-			return err
-		}
-		// TODO race condition: we modify state without synchronization
-		w.alphaBillClient = abClient
-	}
-
 	swapInProgress, err := w.isSwapInProgress()
 	if err != nil {
 		return err
@@ -136,7 +121,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 	if amount > balance {
-		return errInvalidBalance
+		return errInsufficientBalance
 	}
 
 	b, err := w.db.GetBillWithMinValue(amount)
@@ -145,6 +130,10 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	}
 
 	tx, err := w.createTransaction(pubKey, amount, b)
+	if err != nil {
+		return err
+	}
+	_, err = w.createAlphabillClient()
 	if err != nil {
 		return err
 	}
@@ -158,10 +147,28 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
+// createAlphabillClient creates a connection to alphabill node if it does not already exist.
+// Does nothing if connection already exists and is not terminated.
+func (w *Wallet) createAlphabillClient() (bool, error) {
+	// create a new connection if
+	// Sync has not been called before (abClient is nil) or
+	// Sync was called and finished (shutdown is true)
+	// TODO race condition: we read and modify state without synchronization
+	if w.alphaBillClient == nil || w.alphaBillClient.IsShutdown() {
+		abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+		if err != nil {
+			return false, err
+		}
+		w.alphaBillClient = abClient
+		return true, nil
+	}
+	return false, nil
+}
+
 // Sync synchronises wallet with given alphabill node and starts dust collector background job,
 // it blocks forever or until alphabill connection is terminated.
 func (w *Wallet) Sync() error {
-	abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+	_, err := w.createAlphabillClient()
 	if err != nil {
 		return err
 	}
@@ -169,7 +176,6 @@ func (w *Wallet) Sync() error {
 	if err != nil {
 		return err
 	}
-	w.alphaBillClient = abClient
 	w.syncWithAlphaBill(false)
 	return nil
 }
@@ -177,11 +183,10 @@ func (w *Wallet) Sync() error {
 // SyncToMaxBlockHeight synchronises wallet with given alphabill node, it blocks until maximum block height is reached,
 // and does not start dust collector background process.
 func (w *Wallet) SyncToMaxBlockHeight() error {
-	abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+	_, err := w.createAlphabillClient()
 	if err != nil {
 		return err
 	}
-	w.alphaBillClient = abClient
 	w.syncWithAlphaBill(true)
 	return nil
 }
@@ -191,11 +196,11 @@ func (w *Wallet) Shutdown() {
 	if w.alphaBillClient != nil {
 		w.alphaBillClient.Shutdown()
 	}
-	if w.db != nil {
-		w.db.Close()
-	}
 	if w.dustCollectorJob != nil {
 		w.dustCollectorJob.Stop()
+	}
+	if w.db != nil {
+		w.db.Close()
 	}
 }
 
@@ -402,12 +407,18 @@ func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.GetBlocksResponse) erro
 		if err != nil {
 			return err
 		}
+		log.Info("Processed block no: " + strconv.FormatUint(b.Block.BlockNo, 10))
+		err = w.postProcessBlock(b)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
 	// verify that we are processing blocks sequentially
+	// TODO verify last prev block hash?
 	height, err := w.db.GetBlockHeight()
 	if err != nil {
 		return err
@@ -449,8 +460,32 @@ func (w *Wallet) processBlock(blockResponse *alphabill.GetBlocksResponse) error 
 	})
 }
 
+// postProcessBlock called after successful commit on block processing
+func (w *Wallet) postProcessBlock(b *alphabill.GetBlocksResponse) error {
+	return w.db.WithTransaction(func() error {
+		return w.decrementSwaps(b.Block.BlockNo)
+	})
+}
+
+// decrementSwaps decrement waitgroup after receiving expected swap bills, or timing out on dc/swap
+func (w *Wallet) decrementSwaps(blockHeight uint64) error {
+	for dcNonce, timeout := range w.dcWg.swaps {
+		exists, err := w.db.ContainsBill(&dcNonce)
+		if err != nil {
+			return err
+		}
+		if exists || blockHeight >= timeout {
+			w.dcWg.removeSwap(dcNonce)
+		}
+	}
+	return nil
+}
+
 func (w *Wallet) trySwap() error {
 	blockHeight, err := w.db.GetBlockHeight()
+	if err != nil {
+		return err
+	}
 	bills, err := w.db.GetBills()
 	if err != nil {
 		return err
@@ -463,10 +498,12 @@ func (w *Wallet) trySwap() error {
 			return err
 		}
 		if dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
-			err := w.swapDcBills(billGroup.dcBills, billGroup.dcNonce, blockHeight+swapTimeoutBlockCount)
+			timeout := blockHeight + swapTimeoutBlockCount
+			err := w.swapDcBills(billGroup.dcBills, billGroup.dcNonce, timeout)
 			if err != nil {
 				return err
 			}
+			w.dcWg.updateTimeout(billGroup.dcNonce, timeout)
 		}
 	}
 
@@ -667,17 +704,39 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 	return signer.SignBytes(b)
 }
 
-// collectDust sends dust transfer for every bill in wallet and records metadata
-// once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared
-func (w *Wallet) collectDust() error {
-	return w.db.WithTransaction(func() error {
-		isSynced, err := w.isSynced()
-		if err != nil {
-			return err
-		}
-		if !isSynced {
-			log.Info("cannot start dust collector in an unsynced wallet")
-			return nil
+// CollectDust starts the dust collector process,
+// it blocks until dust collector process is finished or times out.
+func (w *Wallet) CollectDust() error {
+	created, err := w.createAlphabillClient()
+	if err != nil {
+		return err
+	}
+	if created {
+		defer w.Shutdown()
+		go func() {
+			w.syncWithAlphaBill(false)
+		}()
+	}
+	return w.collectDust(true)
+}
+
+// collectDust sends dust transfer for every bill in wallet and records metadata.
+// Once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared.
+// If blocking is true then the function blocks until swap has been completed or timed out,
+// if blocking is false then the function returns after sending the dc transfers.
+func (w *Wallet) collectDust(blocking bool) error {
+	err := w.db.WithTransaction(func() error {
+		if !blocking {
+			// in case of blocking dust collection the wallet's user probably only cares about consolidating bills and not about the latest state of wallet,
+			// so it doesn't make sense to prohibit dust collection in unsynced wallet.
+			isSynced, err := w.isSynced()
+			if err != nil {
+				return err
+			}
+			if !isSynced {
+				log.Info("cannot start dust collector in an unsynced wallet")
+				return nil
+			}
 		}
 		blockHeight, err := w.db.GetBlockHeight()
 		if err != nil {
@@ -690,17 +749,19 @@ func (w *Wallet) collectDust() error {
 		if len(bills) < 2 {
 			return nil
 		}
+		var expectedSwaps []expectedSwap
 		dcBillGroups := groupDcBills(bills)
 		if len(dcBillGroups) > 0 {
 			for _, v := range dcBillGroups {
 				if blockHeight >= v.dcTimeout {
-					err := w.swapDcBills(v.dcBills, v.dcNonce, blockHeight+swapTimeoutBlockCount)
+					timeout := blockHeight + swapTimeoutBlockCount
+					err := w.swapDcBills(v.dcBills, v.dcNonce, timeout)
 					if err != nil {
 						return err
 					}
+					expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: timeout})
 				}
 			}
-			return nil
 		} else {
 			swapInProgress, err := w.isSwapInProgress()
 			if err != nil {
@@ -730,13 +791,30 @@ func (w *Wallet) collectDust() error {
 					return errors.New("dust transfer returned error code: " + res.Message)
 				}
 			}
+			expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
 			err = w.db.SetDcMetadata(dcNonce, &dcMetadata{
 				DcValueSum: dcValueSum,
 				DcTimeout:  dcTimeout,
 			})
-			return nil
+			if err != nil {
+				return err
+			}
 		}
+		if blocking {
+			w.dcWg.addExpectedSwaps(expectedSwaps)
+		}
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if blocking {
+		w.dcWg.wg.Wait()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // isSwapInProgress returns true if there's a running dc process managed by the wallet
@@ -759,7 +837,7 @@ func (w *Wallet) isSwapInProgress() (bool, error) {
 
 func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	return w.dustCollectorJob.AddFunc("@hourly", func() {
-		err := w.collectDust()
+		err := w.collectDust(false)
 		if err != nil {
 			log.Error("error in dust collector job: ", err)
 		}
@@ -794,6 +872,7 @@ func createWallet(mnemonic string, config Config) (*Wallet, error) {
 		db:               db,
 		config:           config,
 		dustCollectorJob: cron.New(),
+		dcWg:             newDcWaitGroup(),
 	}, nil
 }
 

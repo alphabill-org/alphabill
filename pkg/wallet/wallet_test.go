@@ -1,7 +1,6 @@
 package wallet
 
 import (
-	"crypto"
 	"encoding/hex"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/alphabill/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
@@ -88,9 +87,9 @@ func TestWalletSendFunction(t *testing.T) {
 	err := w.Send(invalidPubKey, amount)
 	require.ErrorIs(t, err, errInvalidPubKey)
 
-	// test errInvalidBalance
+	// test errInsufficientBalance
 	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errInvalidBalance)
+	require.ErrorIs(t, err, errInsufficientBalance)
 
 	// test abclient returns error
 	b := bill{
@@ -184,43 +183,6 @@ func TestBlockProcessing(t *testing.T) {
 	balance, err = w.db.GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
-}
-
-func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
-	bills := []*bill{
-		{Id: uint256.NewInt(2)},
-		{Id: uint256.NewInt(1)},
-		{Id: uint256.NewInt(0)},
-	}
-	hasher := crypto.SHA256.New()
-	for i := len(bills) - 1; i >= 0; i-- {
-		hasher.Write(bills[i].getId())
-	}
-	expectedNonce := hasher.Sum(nil)
-
-	nonce := calculateDcNonce(bills)
-	require.EqualValues(t, expectedNonce, nonce)
-}
-
-func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
-	w, _ := CreateTestWallet(t)
-	bills := []*bill{
-		{Id: uint256.NewInt(2)},
-		{Id: uint256.NewInt(1)},
-		{Id: uint256.NewInt(0)},
-	}
-	dcNonce := calculateDcNonce(bills)
-	tx, err := w.createSwapTx(bills, dcNonce, 10)
-	require.NoError(t, err)
-	swapTx := parseSwapTx(t, tx)
-
-	// verify bill ids in swap tx are in correct order (equal hash values)
-	hasher := crypto.SHA256.New()
-	for _, billId := range swapTx.BillIdentifiers {
-		hasher.Write(billId)
-	}
-	actualDcNonce := hasher.Sum(nil)
-	require.EqualValues(t, dcNonce, actualDcNonce)
 }
 
 func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {

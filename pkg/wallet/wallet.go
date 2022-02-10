@@ -497,7 +497,7 @@ func (w *Wallet) trySwap() error {
 		if err != nil {
 			return err
 		}
-		if dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
+		if dcMeta != nil && dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
 			timeout := blockHeight + swapTimeoutBlockCount
 			err := w.swapDcBills(billGroup.dcBills, billGroup.dcNonce, timeout)
 			if err != nil {
@@ -753,14 +753,14 @@ func (w *Wallet) collectDust(blocking bool) error {
 		dcBillGroups := groupDcBills(bills)
 		if len(dcBillGroups) > 0 {
 			for _, v := range dcBillGroups {
+				newTimeout := blockHeight + swapTimeoutBlockCount
 				if blockHeight >= v.dcTimeout {
-					timeout := blockHeight + swapTimeoutBlockCount
-					err := w.swapDcBills(v.dcBills, v.dcNonce, timeout)
+					err := w.swapDcBills(v.dcBills, v.dcNonce, newTimeout)
 					if err != nil {
 						return err
 					}
-					expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: timeout})
 				}
+				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: newTimeout})
 			}
 		} else {
 			swapInProgress, err := w.isSwapInProgress()
@@ -810,9 +810,6 @@ func (w *Wallet) collectDust(blocking bool) error {
 	}
 	if blocking {
 		w.dcWg.wg.Wait()
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }

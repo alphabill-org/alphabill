@@ -21,7 +21,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"sort"
-	"strconv"
 	"sync"
 )
 
@@ -147,24 +146,6 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
-// createAlphabillClient creates a connection to alphabill node if it does not already exist.
-// Does nothing if connection already exists and is not terminated.
-func (w *Wallet) createAlphabillClient() (bool, error) {
-	// create a new connection if
-	// Sync has not been called before (abClient is nil) or
-	// Sync was called and finished (shutdown is true)
-	// TODO race condition: we read and modify state without synchronization
-	if w.alphaBillClient == nil || w.alphaBillClient.IsShutdown() {
-		abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
-		if err != nil {
-			return false, err
-		}
-		w.alphaBillClient = abClient
-		return true, nil
-	}
-	return false, nil
-}
-
 // Sync synchronises wallet with given alphabill node and starts dust collector background job,
 // it blocks forever or until alphabill connection is terminated.
 func (w *Wallet) Sync() error {
@@ -191,6 +172,21 @@ func (w *Wallet) SyncToMaxBlockHeight() error {
 	return nil
 }
 
+// CollectDust starts the dust collector process,
+// it blocks until dust collector process is finished or times out.
+func (w *Wallet) CollectDust() error {
+	created, err := w.createAlphabillClient()
+	if err != nil {
+		return err
+	}
+	if created {
+		go func() {
+			w.syncWithAlphaBill(false)
+		}()
+	}
+	return w.collectDust(true)
+}
+
 // Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines.
 func (w *Wallet) Shutdown() {
 	log.Info("Shutting down wallet")
@@ -208,6 +204,24 @@ func (w *Wallet) Shutdown() {
 // DeleteDb deletes the wallet database.
 func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
+}
+
+// createAlphabillClient creates a connection to alphabill node if it does not already exist.
+// Does nothing if connection already exists and is not terminated.
+func (w *Wallet) createAlphabillClient() (bool, error) {
+	// create a new connection if
+	// Sync has not been called before (abClient is nil) or
+	// Sync was called and finished (shutdown is true)
+	// TODO race condition: we read and modify state without synchronization
+	if w.alphaBillClient == nil || w.alphaBillClient.IsShutdown() {
+		abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
+		if err != nil {
+			return false, err
+		}
+		w.alphaBillClient = abClient
+		return true, nil
+	}
+	return false, nil
 }
 
 func (w *Wallet) createTransaction(pubKey []byte, amount uint64, b *bill) (*transaction.Transaction, error) {
@@ -408,9 +422,6 @@ func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.GetBlocksResponse) erro
 		if err != nil {
 			return err
 		}
-		log.Info("Processed block no: " + strconv.FormatUint(b.Block.BlockNo, 10))
-		height, _ := w.db.GetBlockHeight()
-		log.Info("wallet block height: " + strconv.FormatUint(height, 10))
 		err = w.postProcessBlock(b)
 		if err != nil {
 			return err
@@ -447,7 +458,6 @@ func (w *Wallet) processBlock(blockResponse *alphabill.GetBlocksResponse) error 
 				return err
 			}
 		}
-		fmt.Println("setting block height: " + strconv.FormatUint(b.BlockNo, 10))
 		err = w.db.SetBlockHeight(b.BlockNo)
 		if err != nil {
 			return err
@@ -706,22 +716,6 @@ func (w *Wallet) signBytes(b []byte) ([]byte, error) {
 		return nil, err
 	}
 	return signer.SignBytes(b)
-}
-
-// CollectDust starts the dust collector process,
-// it blocks until dust collector process is finished or times out.
-func (w *Wallet) CollectDust() error {
-	created, err := w.createAlphabillClient()
-	if err != nil {
-		return err
-	}
-	if created {
-		defer w.Shutdown()
-		go func() {
-			w.syncWithAlphaBill(false)
-		}()
-	}
-	return w.collectDust(true)
 }
 
 // collectDust sends dust transfer for every bill in wallet and records metadata.

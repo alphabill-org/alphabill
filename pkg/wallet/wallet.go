@@ -196,6 +196,13 @@ func (w *Wallet) Shutdown() {
 	if w.dustCollectorJob != nil {
 		w.dustCollectorJob.Stop()
 	}
+	err := w.db.WithTransaction(func() error {
+		w.dcWg.resetWaitGroup()
+		return nil
+	})
+	if err != nil {
+		log.Warning("Error resetting dc waitgroup")
+	}
 	if w.db != nil {
 		w.db.Close()
 	}

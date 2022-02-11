@@ -81,7 +81,7 @@ func New(priority Priority, output io.Writer) (*WriterLogger, error) {
 	return &WriterLogger{
 		log:       stdlog.New(writer, "", logTimeFormat|logFileFormat),
 		priority:  priority,
-		calldepth: 4, // Default calldepth for ksi package level.
+		calldepth: 4, // Default calldepth for sdk package level.
 	}, nil
 }
 

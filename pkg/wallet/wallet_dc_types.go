@@ -80,3 +80,10 @@ func (wg *dcWaitGroup) updateTimeout(dcNonce []byte, timeout uint64) {
 		wg.swaps[key] = timeout
 	}
 }
+
+func (wg *dcWaitGroup) resetWaitGroup() {
+	for k := range wg.swaps {
+		wg.wg.Done()
+		delete(wg.swaps, k)
+	}
+}

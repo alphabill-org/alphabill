@@ -25,8 +25,6 @@ const (
 	envPrefix = "AB"
 	// The default name for config file.
 	defaultConfigFile = "config.props"
-	// The default home directory.
-	defaultHomeDir = "$HOME/" + defaultAlphabillDir
 	// the default alphabill directory.
 	defaultAlphabillDir = ".alphabill"
 	// The default logger configuration file name.
@@ -38,7 +36,7 @@ const (
 )
 
 func (r *rootConfiguration) addConfigurationFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", defaultHomeDir))
+	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", alphabillHomeDir()))
 	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
 	cmd.PersistentFlags().StringVar(&r.LogCfgFile, "logger-config", defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
 }
@@ -51,11 +49,7 @@ func (r *rootConfiguration) initConfigFileLocation() {
 	if r.HomeDir == "" {
 		homeFromEnv := os.Getenv(envKey(keyHome))
 		if homeFromEnv == "" {
-			dir, err := os.UserHomeDir()
-			if err != nil {
-				panic("user home dir not defined")
-			}
-			r.HomeDir = path.Join(dir, defaultAlphabillDir)
+			r.HomeDir = alphabillHomeDir()
 		} else {
 			r.HomeDir = homeFromEnv
 		}
@@ -83,4 +77,12 @@ func (r *rootConfiguration) configFileExists() bool {
 
 func envKey(key string) string {
 	return strings.ToUpper(envPrefix + "_" + key)
+}
+
+func alphabillHomeDir() string {
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		panic("default user home dir not defined")
+	}
+	return path.Join(dir, defaultAlphabillDir)
 }

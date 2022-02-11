@@ -193,6 +193,7 @@ func (w *Wallet) SyncToMaxBlockHeight() error {
 
 // Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines.
 func (w *Wallet) Shutdown() {
+	log.Info("Shutting down wallet")
 	if w.alphaBillClient != nil {
 		w.alphaBillClient.Shutdown()
 	}
@@ -229,7 +230,7 @@ func (w *Wallet) syncWithAlphaBill(terminateAtMaxHeight bool) {
 		return
 	}
 
-	var wg sync.WaitGroup // used to wait for goroutines to close
+	var wg sync.WaitGroup
 	wg.Add(2)
 	ch := make(chan *alphabill.GetBlocksResponse, prefetchBlockCount)
 	go func() {
@@ -408,6 +409,8 @@ func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.GetBlocksResponse) erro
 			return err
 		}
 		log.Info("Processed block no: " + strconv.FormatUint(b.Block.BlockNo, 10))
+		height, _ := w.db.GetBlockHeight()
+		log.Info("wallet block height: " + strconv.FormatUint(height, 10))
 		err = w.postProcessBlock(b)
 		if err != nil {
 			return err
@@ -444,6 +447,7 @@ func (w *Wallet) processBlock(blockResponse *alphabill.GetBlocksResponse) error 
 				return err
 			}
 		}
+		fmt.Println("setting block height: " + strconv.FormatUint(b.BlockNo, 10))
 		err = w.db.SetBlockHeight(b.BlockNo)
 		if err != nil {
 			return err

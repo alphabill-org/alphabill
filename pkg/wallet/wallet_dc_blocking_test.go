@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"fmt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/alphabill/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
@@ -24,7 +25,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	wg := runBlockingDc(t, w)
 
 	// then expected swap data should be saved
-	waitForBlockingDcToSaveMetadata(w)
+	waitForExpectedSwap(w)
 
 	// and dc txs should be sent
 	dcNonce := calculateExpectedDcNonce(t, w)
@@ -69,7 +70,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	wg := runBlockingDc(t, w)
 
 	// then expected swap data should be saved
-	waitForBlockingDcToSaveMetadata(w)
+	waitForExpectedSwap(w)
 	require.Len(t, w.dcWg.swaps, 1)
 
 	// when the swap tx with dc bills is received
@@ -117,7 +118,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	wg := runBlockingDc(t, w)
 
 	// then expected swap data should be saved
-	waitForBlockingDcToSaveMetadata(w)
+	waitForExpectedSwap(w)
 	require.Len(t, w.dcWg.swaps, 2)
 
 	// when group 1 swap is received
@@ -216,7 +217,7 @@ func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.T
 	}
 }
 
-func waitForBlockingDcToSaveMetadata(w *Wallet) {
+func waitForExpectedSwap(w *Wallet) {
 	waitForCondition(func() bool {
 		ok := false
 		_ = w.db.WithTransaction(func() error {
@@ -244,11 +245,13 @@ func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*transaction.Transaction) 
 func waitForCondition(waitCondition func() bool) {
 	t1 := time.Now()
 	for {
-		if waitCondition() {
-			return
+		ok := waitCondition()
+		if ok {
+			break
 		}
 		if time.Since(t1).Seconds() > 5 {
-			return
+			fmt.Println("breaking on 5s timeout")
+			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

@@ -373,6 +373,7 @@ func (w *wdb) Close() {
 	if w.db == nil {
 		return
 	}
+	log.Info("Closing wallet db")
 	err := w.db.Close()
 	if err != nil {
 		log.Warning("error closing db: ", err)

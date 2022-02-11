@@ -6,7 +6,9 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/pkg/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/status"
 	"io"
 )
 
@@ -53,6 +55,11 @@ func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, terminateAtMaxHe
 		if err != nil {
 			if err == io.EOF {
 				log.Info("block receiver EOF")
+				return nil
+			}
+			code, ok := status.FromError(err)
+			if ok && code.Code() == codes.Canceled {
+				log.Info("block receiver cancelled")
 				return nil
 			}
 			return err

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -25,7 +26,9 @@ const (
 	// The default name for config file.
 	defaultConfigFile = "config.props"
 	// The default home directory.
-	defaultHomeDir = "$HOME/.alphabill"
+	defaultHomeDir = "$HOME/" + defaultAlphabillDir
+	// the default alphabill directory.
+	defaultAlphabillDir = ".alphabill"
 	// The default logger configuration file name.
 	defaultLoggerConfigFile = "logger-config.yaml"
 	// The configuration key for home directory.
@@ -48,7 +51,11 @@ func (r *rootConfiguration) initConfigFileLocation() {
 	if r.HomeDir == "" {
 		homeFromEnv := os.Getenv(envKey(keyHome))
 		if homeFromEnv == "" {
-			r.HomeDir = defaultHomeDir
+			dir, err := os.UserHomeDir()
+			if err != nil {
+				panic("user home dir not defined")
+			}
+			r.HomeDir = path.Join(dir, defaultAlphabillDir)
 		} else {
 			r.HomeDir = homeFromEnv
 		}

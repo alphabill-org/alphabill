@@ -13,7 +13,7 @@ replace github.com/buger/jsonparser => github.com/buger/jsonparser v1.1.1
 replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday v1.0.16
 
 require (
-	gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk v0.0.0-20220211101723-0977b6d7c33f
+	gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk v0.0.0-20220211120313-948a08ce5e04
 	github.com/ethereum/go-ethereum v1.10.12
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/holiman/uint256 v1.2.0

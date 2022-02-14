@@ -15,6 +15,7 @@ import (
 // A type to satisfy transaction.GenericTransaction interface
 type genericTx struct{}
 
+func (g *genericTx) SystemID() []byte                 { return nil }
 func (g *genericTx) UnitId() *uint256.Int             { return nil }
 func (g *genericTx) IDHash() string                   { return "" }
 func (g *genericTx) Timeout() uint64                  { return 0 }

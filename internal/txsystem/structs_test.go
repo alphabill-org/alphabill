@@ -10,6 +10,7 @@ import (
 
 type (
 	genericTx struct {
+		systemID   []byte
 		unitId     *uint256.Int
 		timeout    uint64
 		ownerProof []byte
@@ -39,14 +40,15 @@ type (
 	}
 )
 
+func (t *genericTx) SystemID() []byte     { return t.systemID }
 func (t *genericTx) UnitId() *uint256.Int { return t.unitId }
 func (t *genericTx) Timeout() uint64      { return t.timeout }
 func (t *genericTx) OwnerProof() []byte   { return t.ownerProof }
 
-func (t *transfer) NewBearer() []byte                { return t.newBearer }
-func (t *transfer) TargetValue() uint64              { return t.targetValue }
-func (t *transfer) Backlink() []byte                 { return t.backlink }
-func (t *transfer) Hash(hashFunc crypto.Hash) []byte { return []byte("transfer hash") }
+func (t *transfer) NewBearer() []byte         { return t.newBearer }
+func (t *transfer) TargetValue() uint64       { return t.targetValue }
+func (t *transfer) Backlink() []byte          { return t.backlink }
+func (t *transfer) Hash(_ crypto.Hash) []byte { return []byte("transfer hash") }
 
 func (t *transferDC) Nonce() []byte                    { return t.nonce }
 func (t *transferDC) TargetBearer() []byte             { return t.targetBearer }

@@ -58,6 +58,7 @@ func TestWrapper_Transfer(t *testing.T) {
 	assert.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
 	assert.Equal(t, pbTransaction.Timeout, transfer.Timeout())
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
+	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
 
 	assert.Equal(t, pbBillTransfer.NewBearer, transfer.NewBearer())
 	assert.Equal(t, pbBillTransfer.Backlink, transfer.Backlink())
@@ -89,6 +90,7 @@ func TestWrapper_Split(t *testing.T) {
 	require.True(t, ok)
 
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
+	assert.Equal(t, pbTransaction.SystemId, split.SystemID())
 
 	assert.Equal(t, toUint256(pbTransaction.UnitId), split.UnitId())
 	assert.Equal(t, pbTransaction.OwnerProof, split.OwnerProof())
@@ -133,7 +135,7 @@ func TestWrapper_Swap(t *testing.T) {
 	require.True(t, ok)
 
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
-
+	assert.Equal(t, pbTransaction.SystemId, swap.SystemID())
 	assert.Equal(t, toUint256(pbTransaction.UnitId), swap.UnitId())
 	assert.Equal(t, pbTransaction.OwnerProof, swap.OwnerProof())
 	assert.Equal(t, pbTransaction.Timeout, swap.Timeout())
@@ -168,6 +170,7 @@ func TestUint256Hashing(t *testing.T) {
 
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
 func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransaction *Transaction, transfer txsystem.TransferDC) {
+	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
 	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitId())
 	require.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
 	require.Equal(t, pbTransaction.Timeout, transfer.Timeout())
@@ -180,6 +183,7 @@ func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransacti
 
 func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *Transaction {
 	to := &Transaction{
+		SystemId:              test.RandomBytes(4),
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,

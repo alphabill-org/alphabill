@@ -303,7 +303,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient transacti
 	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
 	require.NoError(t, err)
 
-	response, err := txClient.ProcessTransaction(ctx, tx)
+	response, err := txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 	require.NoError(t, err)
 	require.True(t, response.Ok, "Successful response ok should be true")
 }
@@ -325,7 +325,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient transaction.
 	err := anypb.MarshalFrom(tx.TransactionAttributes, bt, proto.MarshalOptions{})
 	require.NoError(t, err)
 
-	response, err := txClient.ProcessTransaction(ctx, tx)
+	response, err := txClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 	require.Error(t, err)
 	require.Nil(t, response, "Failing payment should not return response")
 }

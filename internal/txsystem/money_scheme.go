@@ -78,6 +78,7 @@ type (
 		DeleteItem(id *uint256.Int) error
 		SetOwner(id *uint256.Int, owner state.Predicate, stateHash []byte) error
 		UpdateData(id *uint256.Int, f state.UpdateFunction, stateHash []byte) error
+		ValidateData(id *uint256.Int, f state.ValidateFunction) error
 		Revert()
 		Commit()
 		GetRootHash() []byte
@@ -153,14 +154,25 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 }
 
 func (m *moneySchemeState) Process(gtx GenericTransaction) error {
-	// TODO transaction specific validity functions (including timeouts and backlinks): https://guardtime.atlassian.net/browse/AB-92
+	err := validateGenericTransaction(gtx, m.revertibleState.GetBlockNumber())
+	if err != nil {
+		return err
+	}
 	switch tx := gtx.(type) {
 	case Transfer:
 		log.Debug("Processing transfer %v", tx)
+		err := m.validateTransfer(tx)
+		if err != nil {
+			return err
+		}
 		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
 	case Split:
 		log.Debug("Processing split %v", tx)
-		err := m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
+		err := m.validateSplit(tx)
+		if err != nil {
+			return err
+		}
+		err = m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				// No change in case of incorrect data type.
@@ -187,7 +199,11 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		}
 	case TransferDC:
 		log.Debug("Processing transferDC %v", tx)
-		err := m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
+		err := m.validateTransferDC(tx)
+		if err != nil {
+			return err
+		}
+		err = m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
 		if err != nil {
 			return err
 		}
@@ -200,6 +216,24 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
 	}
 	return nil
+}
+
+func (m *moneySchemeState) validateTransfer(tx Transfer) error {
+	return m.revertibleState.ValidateData(tx.UnitId(), func(data state.UnitData) error {
+		return validateTransfer(data, tx)
+	})
+}
+
+func (m *moneySchemeState) validateTransferDC(tx TransferDC) error {
+	return m.revertibleState.ValidateData(tx.UnitId(), func(data state.UnitData) error {
+		return validateTransferDC(data, tx)
+	})
+}
+
+func (m *moneySchemeState) validateSplit(tx Split) error {
+	return m.revertibleState.ValidateData(tx.UnitId(), func(data state.UnitData) error {
+		return validateSplit(data, tx)
+	})
 }
 
 // GetRootHash starts root hash value computation and returns it.

@@ -291,7 +291,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient transacti
 	tx := &transaction.Transaction{
 		UnitId:                initialBillID[:],
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               0,
+		Timeout:               1,
 		OwnerProof:            []byte{script.StartByte},
 	}
 	bt := &transaction.BillTransfer{

@@ -71,6 +71,8 @@ func TestProcessTransaction(t *testing.T) {
 			name:        "transfer ok",
 			transaction: transferOk,
 			expect: func(rs *mocks.RevertibleState) {
+				rs.On("GetBlockNumber").Return(uint64(0))
+				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
 				rs.On("SetOwner",
 					transferOk.unitId,
 					state.Predicate(transferOk.newBearer),
@@ -89,6 +91,8 @@ func TestProcessTransaction(t *testing.T) {
 					T:        0,
 					Backlink: nil,
 				}
+				rs.On("GetBlockNumber").Return(uint64(0))
+				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
 					newGenericData = upFunc(oldBillData)
@@ -126,7 +130,8 @@ func TestProcessTransaction(t *testing.T) {
 					transferDCOk.Hash(crypto.SHA256),
 				).Return(nil)
 
-				rs.On("GetBlockNumber").Return(uint64(10))
+				rs.On("GetBlockNumber").Return(uint64(0))
+				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
 
 			},
 			expectErr: nil,

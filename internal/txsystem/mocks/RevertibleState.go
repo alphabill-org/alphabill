@@ -125,3 +125,17 @@ func (_m *RevertibleState) UpdateData(id *uint256.Int, f state.UpdateFunction, s
 
 	return r0
 }
+
+// ValidateData provides a mock function with given fields: id, f
+func (_m *RevertibleState) ValidateData(id *uint256.Int, f state.ValidateFunction) error {
+	ret := _m.Called(id, f)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*uint256.Int, state.ValidateFunction) error); ok {
+		r0 = rf(id, f)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}

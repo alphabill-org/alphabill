@@ -61,6 +61,7 @@ func TestProcessTransaction(t *testing.T) {
 	transferOk := newRandomTransfer()
 	splitOk := newRandomSplit()
 	transferDCOk := newRandomTransferDC()
+	blockNumber := uint64(0)
 	testData := []struct {
 		name        string
 		transaction GenericTransaction
@@ -71,8 +72,21 @@ func TestProcessTransaction(t *testing.T) {
 			name:        "transfer ok",
 			transaction: transferOk,
 			expect: func(rs *mocks.RevertibleState) {
-				rs.On("GetBlockNumber").Return(uint64(0))
+				rs.On("GetBlockNumber").Return(blockNumber)
 				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
+				rs.On("UpdateData", transferOk.unitId, mock.Anything, transferOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
+					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
+					oldBillData := &BillData{
+						V:        5,
+						T:        0,
+						Backlink: nil,
+					}
+					newUnitData := upFunc(oldBillData)
+					newBD, ok := newUnitData.(*BillData)
+					require.True(t, ok, "returned data is not BillData")
+					require.EqualValues(t, transferOk.Hash(crypto.SHA256), newBD.Backlink)
+					require.Equal(t, blockNumber, newBD.T)
+				}).Return(nil)
 				rs.On("SetOwner",
 					transferOk.unitId,
 					state.Predicate(transferOk.newBearer),
@@ -91,7 +105,7 @@ func TestProcessTransaction(t *testing.T) {
 					T:        0,
 					Backlink: nil,
 				}
-				rs.On("GetBlockNumber").Return(uint64(0))
+				rs.On("GetBlockNumber").Return(blockNumber)
 				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
@@ -112,7 +126,7 @@ func TestProcessTransaction(t *testing.T) {
 					expectedNewItemData := &BillData{
 						V:        splitOk.Amount(),
 						T:        0,
-						Backlink: nil,
+						Backlink: splitOk.Hash(crypto.SHA256),
 					}
 					actualData := args.Get(addItemData).(state.UnitData)
 					require.Equal(t, expectedNewItemData, actualData)
@@ -130,8 +144,21 @@ func TestProcessTransaction(t *testing.T) {
 					transferDCOk.Hash(crypto.SHA256),
 				).Return(nil)
 
-				rs.On("GetBlockNumber").Return(uint64(0))
-				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
+				rs.On("GetBlockNumber").Return(blockNumber)
+				rs.On("ValidateData", transferDCOk.unitId, mock.Anything).Return(nil)
+				rs.On("UpdateData", transferDCOk.unitId, mock.Anything, transferDCOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
+					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
+					oldBillData := &BillData{
+						V:        5,
+						T:        0,
+						Backlink: nil,
+					}
+					newUnitData := upFunc(oldBillData)
+					newBD, ok := newUnitData.(*BillData)
+					require.True(t, ok, "returned data is not BillData")
+					require.EqualValues(t, transferDCOk.Hash(crypto.SHA256), newBD.Backlink)
+					require.Equal(t, blockNumber, newBD.T)
+				}).Return(nil)
 
 			},
 			expectErr: nil,

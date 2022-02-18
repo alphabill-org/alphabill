@@ -107,7 +107,7 @@ func TestProcessTransaction(t *testing.T) {
 					Backlink: nil,
 				}
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
+				rs.On("ValidateData", splitOk.unitId, mock.Anything).Return(nil)
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
 					newGenericData = upFunc(oldBillData)
@@ -267,6 +267,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		mockRState.On("SetOwner", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		mockRState.On("GetBlockNumber").Return(currentBlock)
 		mockRState.On("ValidateData", transferDC.unitId, mock.Anything).Return(nil)
+		mockRState.On("UpdateData", transferDC.unitId, mock.Anything, mock.Anything).Return(nil)
 		err = mss.Process(transferDC)
 		require.NoError(t, err)
 		transactions = append(transactions, transferDC)

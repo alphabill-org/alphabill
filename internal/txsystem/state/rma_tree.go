@@ -174,6 +174,10 @@ func (tree *rmaTree) ValidateData(id *uint256.Int, f ValidateFunction) error {
 	return f(node.Content.Data)
 }
 
+func (tree *rmaTree) GetUnit(id *uint256.Int) (*Unit, error) {
+	return tree.get(id)
+}
+
 // GetRootHash starts computation of the tree and returns the root node hash value.
 func (tree *rmaTree) GetRootHash() []byte {
 	if tree.root == nil {

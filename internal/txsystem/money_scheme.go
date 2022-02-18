@@ -16,6 +16,9 @@ import (
 	"github.com/holiman/uint256"
 )
 
+// TODO move to the genesis file?
+const dustBillDeletionTimeout uint64 = 300
+
 type (
 	GenericTransaction interface {
 		UnitId() *uint256.Int
@@ -79,6 +82,7 @@ type (
 		SetOwner(id *uint256.Int, owner state.Predicate, stateHash []byte) error
 		UpdateData(id *uint256.Int, f state.UpdateFunction, stateHash []byte) error
 		ValidateData(id *uint256.Int, f state.ValidateFunction) error
+		GetUnit(id *uint256.Int) (*state.Unit, error)
 		Revert()
 		Commit()
 		GetRootHash() []byte
@@ -92,7 +96,7 @@ type (
 
 		// Contains the bill identifiers transferred to the dust collector. The key of the map is the block number when the
 		// bill is deleted and its value is transferred to the dust collector.
-		dustCollectorBills map[uint64]*uint256.Int
+		dustCollectorBills map[uint64][]*uint256.Int
 	}
 )
 
@@ -130,7 +134,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 	msState := &moneySchemeState{
 		hashAlgorithm:      hashAlgorithm,
 		revertibleState:    options.revertibleState,
-		dustCollectorBills: make(map[uint64]*uint256.Int),
+		dustCollectorBills: make(map[uint64][]*uint256.Int),
 	}
 
 	err = msState.revertibleState.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -207,7 +211,9 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		m.dustCollectorBills[m.revertibleState.GetBlockNumber()+tx.Timeout()] = tx.UnitId()
+		delBlockNr := m.revertibleState.GetBlockNumber() + dustBillDeletionTimeout
+		dustBillsArray := m.dustCollectorBills[delBlockNr]
+		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitId())
 		return nil
 	case Swap:
 		// TODO add swap: https://guardtime.atlassian.net/browse/AB-46
@@ -215,6 +221,44 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 	default:
 		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
 	}
+	return nil
+}
+
+// EndBlock deletes dust bills from the state tree.
+// TODO this function must be called by the "blockchain" component: AB-62 (block finalization)
+func (m *moneySchemeState) EndBlock(blockNr uint64) error {
+	dustBills := m.dustCollectorBills[blockNr]
+	var valueToTransfer uint64
+	for _, billID := range dustBills {
+		u, err := m.revertibleState.GetUnit(billID)
+		if err != nil {
+			return err
+		}
+		bd, ok := u.Data.(*BillData)
+		if !ok {
+			// it is safe to ignore the data because it is not a bill
+			continue
+		}
+		valueToTransfer += bd.V
+		err = m.revertibleState.DeleteItem(billID)
+		if err != nil {
+			return err
+		}
+	}
+	if valueToTransfer > 0 {
+		err := m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data state.UnitData) (newData state.UnitData) {
+			bd, ok := data.(*BillData)
+			if !ok {
+				return bd
+			}
+			bd.V += valueToTransfer
+			return bd
+		}, []byte{})
+		if err != nil {
+			return err
+		}
+	}
+	delete(m.dustCollectorBills, blockNr)
 	return nil
 }
 

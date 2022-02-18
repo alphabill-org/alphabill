@@ -2,6 +2,7 @@ package txsystem
 
 import (
 	"crypto"
+	"math/rand"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/mocks"
@@ -222,6 +223,79 @@ func TestBillSummary_AddToHasher(t *testing.T) {
 	require.Equal(t, expectedHash, actualHash)
 }
 
+func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
+	mockRState := new(mocks.RevertibleState)
+	mss, err := NewMoneyScheme(mockRState)
+	require.NoError(t, err)
+
+	var currentBlock uint64 = 10
+	transferDCTxCount := 5
+
+	var transactions []*transferDC
+	// process transactions
+
+	for i := 0; i < transferDCTxCount; i++ {
+		transferDC := newRandomTransferDC()
+		mockRState.On("SetOwner", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRState.On("GetBlockNumber").Return(currentBlock)
+		err = mss.Process(transferDC)
+		require.NoError(t, err)
+		transactions = append(transactions, transferDC)
+	}
+	require.Equal(t, 0, len(mss.dustCollectorBills[currentBlock]))
+	delBlockNr := currentBlock + dustBillDeletionTimeout
+	require.Equal(t, transferDCTxCount, len(mss.dustCollectorBills[delBlockNr]))
+
+	// EndBlock mocks
+	var totalDustAmount uint64 = 0
+	for i, tx := range transactions {
+		dustAmount := uint64(10 + i)
+		mockRState.On("GetUnit", tx.unitId).Return(&state.Unit{
+			Bearer: nil,
+			Data: &BillData{
+				V:        dustAmount,
+				T:        0,
+				Backlink: []byte{1},
+			},
+			StateHash: nil,
+		}, nil)
+		totalDustAmount += dustAmount
+		mockRState.On("DeleteItem", tx.unitId).Return(nil)
+	}
+
+	// DustCollector money supply update mock
+	mockRState.On("UpdateData", dustCollectorMoneySupplyID, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
+		var oldValue uint64 = 100
+		dustCollectorBillData := &BillData{
+			V:        oldValue,
+			T:        0,
+			Backlink: nil,
+		}
+		newGenericData := upFunc(dustCollectorBillData)
+		newBD, ok := newGenericData.(*BillData)
+		require.True(t, ok, "returned data is not BillData")
+		require.Equal(t, oldValue+totalDustAmount, newBD.V)
+	}).Return(nil)
+
+	err = mss.EndBlock(delBlockNr)
+	require.NoError(t, err)
+	mock.AssertExpectationsForObjects(t, mockRState)
+}
+
+func NewMoneyScheme(mockRState *mocks.RevertibleState) (*moneySchemeState, error) {
+	initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state.Predicate{44}}
+	mockRState.On("AddItem", initialBill.ID, initialBill.Owner, mock.Anything, mock.Anything).Return(nil)
+	mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate(dustCollectorPredicate), mock.Anything, mock.Anything).Return(nil)
+	mss, err := NewMoneySchemeState(
+		crypto.SHA256,
+		initialBill,
+		100,
+		MoneySchemeOpts.RevertibleState(mockRState),
+	)
+	return mss, err
+}
+
 func newRandomTransfer() *transfer {
 	trns := &transfer{
 		genericTx: genericTx{
@@ -239,7 +313,7 @@ func newRandomTransfer() *transfer {
 func newRandomTransferDC() *transferDC {
 	trns := &transferDC{
 		genericTx: genericTx{
-			unitId:     uint256.NewInt(1),
+			unitId:     uint256.NewInt(rand.Uint64()),
 			timeout:    2,
 			ownerProof: []byte{3},
 		},

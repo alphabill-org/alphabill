@@ -77,6 +77,29 @@ func (_m *RevertibleState) GetRootHash() []byte {
 	return r0
 }
 
+// GetUnit provides a mock function with given fields: id
+func (_m *RevertibleState) GetUnit(id *uint256.Int) (*state.Unit, error) {
+	ret := _m.Called(id)
+
+	var r0 *state.Unit
+	if rf, ok := ret.Get(0).(func(*uint256.Int) *state.Unit); ok {
+		r0 = rf(id)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*state.Unit)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(*uint256.Int) error); ok {
+		r1 = rf(id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Revert provides a mock function with given fields:
 func (_m *RevertibleState) Revert() {
 	_m.Called()

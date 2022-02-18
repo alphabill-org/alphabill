@@ -169,6 +169,10 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		if err != nil {
 			return err
 		}
+		err = m.updateBillData(tx)
+		if err != nil {
+			return err
+		}
 		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
 	case Split:
 		log.Debug("Processing split %v", tx)
@@ -184,8 +188,8 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			}
 			return &BillData{
 				V:        bd.V - tx.Amount(),
-				T:        0,
-				Backlink: nil,
+				T:        m.revertibleState.GetBlockNumber(),
+				Backlink: tx.Hash(m.hashAlgorithm),
 			}
 		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
@@ -195,15 +199,19 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		newItemId := sameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
 		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
 			V:        tx.Amount(),
-			T:        0,
-			Backlink: nil,
-		}, nil)
+			T:        m.revertibleState.GetBlockNumber(),
+			Backlink: tx.Hash(m.hashAlgorithm),
+		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
 			return errors.Wrapf(err, "could not add item")
 		}
 	case TransferDC:
 		log.Debug("Processing transferDC %v", tx)
 		err := m.validateTransferDC(tx)
+		if err != nil {
+			return err
+		}
+		err = m.updateBillData(tx)
 		if err != nil {
 			return err
 		}
@@ -260,6 +268,19 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 	}
 	delete(m.dustCollectorBills, blockNr)
 	return nil
+}
+
+func (m *moneySchemeState) updateBillData(tx GenericTransaction) error {
+	return m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
+		bd, ok := data.(*BillData)
+		if !ok {
+			// No change in case of incorrect data type.
+			return data
+		}
+		bd.T = m.revertibleState.GetBlockNumber()
+		bd.Backlink = tx.Hash(m.hashAlgorithm)
+		return bd
+	}, tx.Hash(m.hashAlgorithm))
 }
 
 func (m *moneySchemeState) validateTransfer(tx Transfer) error {

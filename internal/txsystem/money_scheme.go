@@ -197,7 +197,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			V:        tx.Amount(),
 			T:        m.revertibleState.GetBlockNumber(),
 			Backlink: tx.Hash(m.hashAlgorithm),
-		}, nil)
+		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
 			return errors.Wrapf(err, "could not add item")
 		}

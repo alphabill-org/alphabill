@@ -115,7 +115,7 @@ func TestProcessTransaction(t *testing.T) {
 					require.Equal(t, oldBillData.V-splitOk.amount, newBD.V)
 				}).Return(nil)
 
-				rs.On("AddItem", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+				rs.On("AddItem", mock.Anything, mock.Anything, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					expectedNewId := sameShardId(splitOk.unitId, splitOk.HashForIdCalculation(crypto.SHA256))
 					actualId := args.Get(addItemId).(*uint256.Int)
 					require.Equal(t, expectedNewId, actualId)

@@ -74,7 +74,7 @@ func TestProcessTransaction(t *testing.T) {
 			transaction: transferOk,
 			expect: func(rs *mocks.RevertibleState) {
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
+				rs.On("GetUnit", transferOk.UnitId()).Return(&state.Unit{Data: &BillData{V: transferOk.targetValue, Backlink: transferOk.backlink}}, nil)
 				rs.On("UpdateData", transferOk.unitId, mock.Anything, transferOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
@@ -102,12 +102,12 @@ func TestProcessTransaction(t *testing.T) {
 			expect: func(rs *mocks.RevertibleState) {
 				var newGenericData state.UnitData
 				oldBillData := &BillData{
-					V:        100,
+					V:        10,
 					T:        0,
-					Backlink: nil,
+					Backlink: splitOk.Backlink(),
 				}
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("ValidateData", splitOk.unitId, mock.Anything).Return(nil)
+				rs.On("GetUnit", splitOk.UnitId()).Return(&state.Unit{Data: oldBillData}, nil)
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
 					newGenericData = upFunc(oldBillData)
@@ -146,7 +146,7 @@ func TestProcessTransaction(t *testing.T) {
 				).Return(nil)
 
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("ValidateData", transferDCOk.unitId, mock.Anything).Return(nil)
+				rs.On("GetUnit", transferDCOk.UnitId()).Return(&state.Unit{Data: &BillData{V: transferDCOk.targetValue, Backlink: transferDCOk.backlink}}, nil)
 				rs.On("UpdateData", transferDCOk.unitId, mock.Anything, transferDCOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
@@ -266,7 +266,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		transferDC.timeout = 100
 		mockRState.On("SetOwner", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		mockRState.On("GetBlockNumber").Return(currentBlock)
-		mockRState.On("ValidateData", transferDC.unitId, mock.Anything).Return(nil)
+		mockRState.On("GetUnit", mock.Anything).Return(&state.Unit{Data: &BillData{V: transferDC.targetValue, Backlink: transferDC.backlink}}, nil)
 		mockRState.On("UpdateData", transferDC.unitId, mock.Anything, mock.Anything).Return(nil)
 		err = mss.Process(transferDC)
 		require.NoError(t, err)
@@ -275,6 +275,10 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	require.Equal(t, 0, len(mss.dustCollectorBills[currentBlock]))
 	delBlockNr := currentBlock + dustBillDeletionTimeout
 	require.Equal(t, transferDCTxCount, len(mss.dustCollectorBills[delBlockNr]))
+
+	// reset mocks
+	mockRState = new(mocks.RevertibleState)
+	mss.revertibleState = mockRState
 
 	// EndBlock mocks
 	var totalDustAmount uint64 = 0

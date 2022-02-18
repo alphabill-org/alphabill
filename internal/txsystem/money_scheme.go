@@ -81,7 +81,6 @@ type (
 		DeleteItem(id *uint256.Int) error
 		SetOwner(id *uint256.Int, owner state.Predicate, stateHash []byte) error
 		UpdateData(id *uint256.Int, f state.UpdateFunction, stateHash []byte) error
-		ValidateData(id *uint256.Int, f state.ValidateFunction) error
 		GetUnit(id *uint256.Int) (*state.Unit, error)
 		Revert()
 		Commit()
@@ -284,21 +283,27 @@ func (m *moneySchemeState) updateBillData(tx GenericTransaction) error {
 }
 
 func (m *moneySchemeState) validateTransfer(tx Transfer) error {
-	return m.revertibleState.ValidateData(tx.UnitId(), func(data state.UnitData) error {
-		return validateTransfer(data, tx)
-	})
+	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	if err != nil {
+		return err
+	}
+	return validateTransfer(data.Data, tx)
 }
 
 func (m *moneySchemeState) validateTransferDC(tx TransferDC) error {
-	return m.revertibleState.ValidateData(tx.UnitId(), func(data state.UnitData) error {
-		return validateTransferDC(data, tx)
-	})
+	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	if err != nil {
+		return err
+	}
+	return validateTransferDC(data.Data, tx)
 }
 
 func (m *moneySchemeState) validateSplit(tx Split) error {
-	return m.revertibleState.ValidateData(tx.UnitId(), func(data state.UnitData) error {
-		return validateSplit(data, tx)
-	})
+	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	if err != nil {
+		return err
+	}
+	return validateSplit(data.Data, tx)
 }
 
 // GetRootHash starts root hash value computation and returns it.

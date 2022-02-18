@@ -132,7 +132,7 @@ func TestProcessTransaction(t *testing.T) {
 				).Return(nil)
 
 				rs.On("GetBlockNumber").Return(uint64(0))
-				rs.On("ValidateData", transferOk.unitId, mock.Anything).Return(nil)
+				rs.On("ValidateData", transferDCOk.unitId, mock.Anything).Return(nil)
 
 			},
 			expectErr: nil,
@@ -239,6 +239,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		transferDC.timeout = 100
 		mockRState.On("SetOwner", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		mockRState.On("GetBlockNumber").Return(currentBlock)
+		mockRState.On("ValidateData", transferDC.unitId, mock.Anything).Return(nil)
 		err = mss.Process(transferDC)
 		require.NoError(t, err)
 		transactions = append(transactions, transferDC)

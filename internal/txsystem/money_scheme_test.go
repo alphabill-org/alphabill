@@ -236,6 +236,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 
 	for i := 0; i < transferDCTxCount; i++ {
 		transferDC := newRandomTransferDC()
+		transferDC.timeout = 100
 		mockRState.On("SetOwner", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		mockRState.On("GetBlockNumber").Return(currentBlock)
 		err = mss.Process(transferDC)

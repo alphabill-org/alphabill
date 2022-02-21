@@ -26,9 +26,6 @@ type (
 	// UpdateFunction is a function for updating the data of an item. Taken in previous UnitData and returns new UnitData.
 	UpdateFunction func(data UnitData) (newData UnitData)
 
-	// ValidateFunction is a function for validation the data of an item. Taken in previous UnitData and returns error if validation fails.
-	ValidateFunction func(data UnitData) error
-
 	// UnitData is generic datatype for the tree. Is connected to SummaryValue through the Value function.
 	UnitData interface {
 		// AddToHasher adds the unit data to the hasher.
@@ -163,15 +160,6 @@ func (tree *rmaTree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []b
 	data := f(node.Content.Data)
 	tree.set(id, node.Content.Bearer, data, stateHash)
 	return nil
-}
-
-// ValidateData executes given function on data, does not modify the tree
-func (tree *rmaTree) ValidateData(id *uint256.Int, f ValidateFunction) error {
-	node, exists := tree.getNode(id)
-	if !exists {
-		return errors.Errorf(errStrItemDoesntExist, id)
-	}
-	return f(node.Content.Data)
 }
 
 func (tree *rmaTree) GetUnit(id *uint256.Int) (*Unit, error) {

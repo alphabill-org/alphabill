@@ -219,15 +219,13 @@ func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.T
 
 func waitForExpectedSwap(w *Wallet) {
 	waitForCondition(func() bool {
-		ok := false
-		_ = w.db.WithTransaction(func() error {
-			// do in transaction because dcWg is synchronized on walletdb write lock
-			if len(w.dcWg.swaps) > 0 {
-				ok = true
-			}
-			return nil
-		})
-		return ok
+		w.dcWg.mu.Lock()
+		defer w.dcWg.mu.Unlock()
+
+		if len(w.dcWg.swaps) > 0 {
+			return true
+		}
+		return false
 	})
 }
 

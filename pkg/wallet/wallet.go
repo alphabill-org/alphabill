@@ -43,9 +43,7 @@ type Wallet struct {
 	db               Db
 	alphaBillClient  abclient.ABClient
 	dustCollectorJob *cron.Cron
-
-	// dcWg synchronized on db write lock, so it should only be used while having db write lock
-	dcWg dcWaitGroup
+	dcWg             dcWaitGroup
 }
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -196,13 +194,7 @@ func (w *Wallet) Shutdown() {
 	if w.dustCollectorJob != nil {
 		w.dustCollectorJob.Stop()
 	}
-	err := w.db.WithTransaction(func() error {
-		w.dcWg.resetWaitGroup()
-		return nil
-	})
-	if err != nil {
-		log.Warning("Error resetting dc waitgroup")
-	}
+	w.dcWg.ResetWaitGroup()
 	if w.db != nil {
 		w.db.Close()
 	}
@@ -483,23 +475,7 @@ func (w *Wallet) processBlock(blockResponse *alphabill.GetBlocksResponse) error 
 
 // postProcessBlock called after successful commit on block processing
 func (w *Wallet) postProcessBlock(b *alphabill.GetBlocksResponse) error {
-	return w.db.WithTransaction(func() error {
-		return w.decrementSwaps(b.Block.BlockNo)
-	})
-}
-
-// decrementSwaps decrement waitgroup after receiving expected swap bills, or timing out on dc/swap
-func (w *Wallet) decrementSwaps(blockHeight uint64) error {
-	for dcNonce, timeout := range w.dcWg.swaps {
-		exists, err := w.db.ContainsBill(&dcNonce)
-		if err != nil {
-			return err
-		}
-		if exists || blockHeight >= timeout {
-			w.dcWg.removeSwap(dcNonce)
-		}
-	}
-	return nil
+	return w.dcWg.DecrementSwaps(b.Block.BlockNo, w.db)
 }
 
 func (w *Wallet) trySwap() error {
@@ -524,7 +500,7 @@ func (w *Wallet) trySwap() error {
 			if err != nil {
 				return err
 			}
-			w.dcWg.updateTimeout(billGroup.dcNonce, timeout)
+			w.dcWg.UpdateTimeout(billGroup.dcNonce, timeout)
 		}
 	}
 
@@ -806,7 +782,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 			}
 		}
 		if blocking {
-			w.dcWg.addExpectedSwaps(expectedSwaps)
+			w.dcWg.AddExpectedSwaps(expectedSwaps)
 		}
 		return nil
 	})

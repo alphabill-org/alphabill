@@ -211,7 +211,6 @@ func (w *Wallet) createAlphabillClient() (bool, error) {
 	// create a new connection if
 	// Sync has not been called before (abClient is nil) or
 	// Sync was called and finished (shutdown is true)
-	// TODO race condition: we read and modify state without synchronization
 	if w.alphaBillClient == nil || w.alphaBillClient.IsShutdown() {
 		abClient, err := abclient.New(abclient.AlphaBillClientConfig{Uri: w.config.AlphaBillClientConfig.Uri})
 		if err != nil {

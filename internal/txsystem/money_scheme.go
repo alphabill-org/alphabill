@@ -158,14 +158,29 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dc
 }
 
 func (m *moneySchemeState) Process(gtx GenericTransaction) error {
-	// TODO transaction specific validity functions (including timeouts and backlinks): https://guardtime.atlassian.net/browse/AB-92
+	err := validateGenericTransaction(gtx, m.revertibleState.GetBlockNumber())
+	if err != nil {
+		return err
+	}
 	switch tx := gtx.(type) {
 	case Transfer:
 		log.Debug("Processing transfer %v", tx)
+		err := m.validateTransfer(tx)
+		if err != nil {
+			return err
+		}
+		err = m.updateBillData(tx)
+		if err != nil {
+			return err
+		}
 		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
 	case Split:
 		log.Debug("Processing split %v", tx)
-		err := m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
+		err := m.validateSplit(tx)
+		if err != nil {
+			return err
+		}
+		err = m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				// No change in case of incorrect data type.
@@ -173,8 +188,8 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			}
 			return &BillData{
 				V:        bd.V - tx.Amount(),
-				T:        0,
-				Backlink: nil,
+				T:        m.revertibleState.GetBlockNumber(),
+				Backlink: tx.Hash(m.hashAlgorithm),
 			}
 		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
@@ -184,15 +199,23 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		newItemId := sameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
 		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
 			V:        tx.Amount(),
-			T:        0,
-			Backlink: nil,
-		}, nil)
+			T:        m.revertibleState.GetBlockNumber(),
+			Backlink: tx.Hash(m.hashAlgorithm),
+		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
 			return errors.Wrapf(err, "could not add item")
 		}
 	case TransferDC:
 		log.Debug("Processing transferDC %v", tx)
-		err := m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
+		err := m.validateTransferDC(tx)
+		if err != nil {
+			return err
+		}
+		err = m.updateBillData(tx)
+		if err != nil {
+			return err
+		}
+		err = m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
 		if err != nil {
 			return err
 		}
@@ -245,6 +268,43 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 	}
 	delete(m.dustCollectorBills, blockNr)
 	return nil
+}
+
+func (m *moneySchemeState) updateBillData(tx GenericTransaction) error {
+	return m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
+		bd, ok := data.(*BillData)
+		if !ok {
+			// No change in case of incorrect data type.
+			return data
+		}
+		bd.T = m.revertibleState.GetBlockNumber()
+		bd.Backlink = tx.Hash(m.hashAlgorithm)
+		return bd
+	}, tx.Hash(m.hashAlgorithm))
+}
+
+func (m *moneySchemeState) validateTransfer(tx Transfer) error {
+	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	if err != nil {
+		return err
+	}
+	return validateTransfer(data.Data, tx)
+}
+
+func (m *moneySchemeState) validateTransferDC(tx TransferDC) error {
+	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	if err != nil {
+		return err
+	}
+	return validateTransferDC(data.Data, tx)
+}
+
+func (m *moneySchemeState) validateSplit(tx Split) error {
+	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	if err != nil {
+		return err
+	}
+	return validateSplit(data.Data, tx)
 }
 
 // GetRootHash starts root hash value computation and returns it.

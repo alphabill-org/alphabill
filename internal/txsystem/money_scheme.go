@@ -21,6 +21,7 @@ const dustBillDeletionTimeout uint64 = 300
 
 type (
 	GenericTransaction interface {
+		SystemID() []byte
 		UnitId() *uint256.Int
 		Timeout() uint64
 		OwnerProof() []byte

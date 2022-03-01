@@ -16,6 +16,7 @@ const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
 
 type (
 	GenericTransaction interface {
+		SystemID() []byte
 		UnitId() *uint256.Int
 		IDHash() string
 		Timeout() uint64
@@ -128,6 +129,10 @@ func (w *wrapper) Timeout() uint64 {
 	return w.transaction.Timeout
 }
 
+func (w *wrapper) SystemID() []byte {
+	return w.transaction.SystemId
+}
+
 func (w *wrapper) OwnerProof() []byte {
 	return w.transaction.OwnerProof
 }
@@ -214,6 +219,7 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 }
 
 func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
+	hasher.Write(w.transaction.SystemId)
 	hasher.Write(w.transaction.UnitId)
 	hasher.Write(w.transaction.OwnerProof)
 	hasher.Write(Uint64ToBytes(w.transaction.Timeout))

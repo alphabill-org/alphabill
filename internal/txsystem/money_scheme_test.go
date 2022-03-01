@@ -294,6 +294,7 @@ func NewMoneyScheme(mockRState *mocks.RevertibleState) (*moneySchemeState, error
 func newRandomTransfer() *transfer {
 	trns := &transfer{
 		genericTx: genericTx{
+			systemID:   []byte{0},
 			unitId:     uint256.NewInt(1),
 			timeout:    2,
 			ownerProof: []byte{3},
@@ -308,6 +309,7 @@ func newRandomTransfer() *transfer {
 func newRandomTransferDC() *transferDC {
 	trns := &transferDC{
 		genericTx: genericTx{
+			systemID:   []byte{0},
 			unitId:     uint256.NewInt(rand.Uint64()),
 			timeout:    2,
 			ownerProof: []byte{3},
@@ -323,6 +325,7 @@ func newRandomTransferDC() *transferDC {
 func newRandomSplit() *split {
 	return &split{
 		genericTx: genericTx{
+			systemID:   []byte{0},
 			unitId:     uint256.NewInt(1),
 			timeout:    2,
 			ownerProof: []byte{3},

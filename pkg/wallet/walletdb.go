@@ -435,7 +435,6 @@ func openDb(dbFilePath string, create bool) (*wdb, error) {
 	w := &wdb{db, dbFilePath, nil}
 	err = w.createBuckets()
 	if err != nil {
-		w.DeleteDb()
 		return nil, err
 	}
 	return w, nil

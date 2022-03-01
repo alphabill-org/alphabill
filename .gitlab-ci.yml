@@ -4,12 +4,13 @@ stages:
   - build
   - analyze
 
-image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20211112
+image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20220214
 
 # Debugging info and initialization goes here
 init:
   stage: init
-  script: go env
+  script:
+    - go env
 
 test:
   stage: test

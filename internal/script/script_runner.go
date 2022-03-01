@@ -18,7 +18,7 @@ var (
 
 /*
 RunScript executes the given script. If the script contains OpCheckSig opCode then correct sigData must be supplied.
-It's possible for the script to return FALSE with no error.
+The script is considered valid if after execution there's only one TRUE value on the stack, otherwise error is returned.
 
 An example P2PKH script format:
 BearerPredicate:   [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]

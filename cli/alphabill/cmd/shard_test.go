@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"testing"
@@ -62,8 +63,8 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			expectedConfig: func() *shardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
-					HomeDir:    defaultHomeDir,
-					CfgFile:    defaultHomeDir + "/custom-config.props",
+					HomeDir:    alphabillHomeDir(),
+					CfgFile:    alphabillHomeDir() + "/custom-config.props",
 					LogCfgFile: defaultLoggerConfigFile,
 				}
 				return sc
@@ -218,8 +219,8 @@ logger-config=custom-log-conf.yaml
 func defaultShardConfiguration() *shardConfiguration {
 	return &shardConfiguration{
 		Root: &rootConfiguration{
-			HomeDir:    defaultHomeDir,
-			CfgFile:    defaultHomeDir + string(os.PathSeparator) + defaultConfigFile,
+			HomeDir:    alphabillHomeDir(),
+			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		Server: &grpcServerConfiguration{

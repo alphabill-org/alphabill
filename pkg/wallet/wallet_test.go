@@ -54,7 +54,7 @@ func TestWalletCanBeCreated(t *testing.T) {
 func TestExistingWalletCanBeLoaded(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	walletDbPath := path.Join(wd, "testdata")
+	walletDbPath := path.Join(wd, "testdata", "wallet")
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
 	require.NoError(t, err)

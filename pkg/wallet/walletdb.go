@@ -3,6 +3,7 @@ package wallet
 import (
 	"encoding/binary"
 	"encoding/json"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/pkg/log"
@@ -71,6 +72,7 @@ type Db interface {
 type wdb struct {
 	db         *bolt.DB
 	dbFilePath string
+	walletPass string
 	tx         *bolt.Tx
 }
 
@@ -80,12 +82,16 @@ func OpenDb(config Config) (*wdb, error) {
 		return nil, err
 	}
 	dbFilePath := path.Join(walletDir, walletFileName)
-	return openDb(dbFilePath, false)
+	return openDb(dbFilePath, config.WalletPass, false)
 }
 
 func (w *wdb) SetAccountKey(key *accountKey) error {
 	return w.withTx(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
+		if err != nil {
+			return err
+		}
+		val, err = w.encryptValue(val)
 		if err != nil {
 			return err
 		}
@@ -100,7 +106,11 @@ func (w *wdb) GetAccountKey() (*accountKey, error) {
 		if k == nil {
 			return errKeyNotFound
 		}
-		err := json.Unmarshal(k, &key)
+		val, err := w.decryptValue(k)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(val, &key)
 		if err != nil {
 			return err
 		}
@@ -114,7 +124,11 @@ func (w *wdb) GetAccountKey() (*accountKey, error) {
 
 func (w *wdb) SetMasterKey(masterKey string) error {
 	return w.withTx(func(tx *bolt.Tx) error {
-		return tx.Bucket(keysBucket).Put(masterKeyName, []byte(masterKey))
+		val, err := w.encryptValue([]byte(masterKey))
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(keysBucket).Put(masterKeyName, val)
 	}, true)
 }
 
@@ -125,7 +139,11 @@ func (w *wdb) GetMasterKey() (string, error) {
 		if masterKey == nil {
 			return errKeyNotFound
 		}
-		res = string(masterKey)
+		val, err := w.decryptValue(masterKey)
+		if err != nil {
+			return err
+		}
+		res = string(val)
 		return nil
 	}, false)
 	if err != nil {
@@ -136,7 +154,11 @@ func (w *wdb) GetMasterKey() (string, error) {
 
 func (w *wdb) SetMnemonic(mnemonic string) error {
 	return w.withTx(func(tx *bolt.Tx) error {
-		return tx.Bucket(keysBucket).Put(mnemonicKeyName, []byte(mnemonic))
+		val, err := w.encryptValue([]byte(mnemonic))
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(keysBucket).Put(mnemonicKeyName, val)
 	}, true)
 }
 
@@ -147,7 +169,11 @@ func (w *wdb) GetMnemonic() (string, error) {
 		if mnemonic == nil {
 			return errKeyNotFound
 		}
-		res = string(mnemonic)
+		val, err := w.decryptValue(mnemonic)
+		if err != nil {
+			return err
+		}
+		res = string(val)
 		return nil
 	}, false)
 	if err != nil {
@@ -416,7 +442,7 @@ func (w *wdb) createBuckets() error {
 	})
 }
 
-func openDb(dbFilePath string, create bool) (*wdb, error) {
+func openDb(dbFilePath string, walletPass string, create bool) (*wdb, error) {
 	if create {
 		if util.FileExists(dbFilePath) {
 			return nil, errWalletDbAlreadyExists
@@ -432,7 +458,7 @@ func openDb(dbFilePath string, create bool) (*wdb, error) {
 		return nil, err
 	}
 
-	w := &wdb{db, dbFilePath, nil}
+	w := &wdb{db, dbFilePath, walletPass, nil}
 	err = w.createBuckets()
 	if err != nil {
 		return nil, err
@@ -451,11 +477,33 @@ func createNewDb(config Config) (*wdb, error) {
 	}
 
 	dbFilePath := path.Join(walletDir, walletFileName)
-	return openDb(dbFilePath, true)
+	return openDb(dbFilePath, config.WalletPass, true)
 }
 
 func parseBill(v []byte) (*bill, error) {
 	var b *bill
 	err := json.Unmarshal(v, &b)
 	return b, err
+}
+
+func (w *wdb) encryptValue(val []byte) ([]byte, error) {
+	if w.walletPass == "" {
+		return val, nil
+	}
+	encryptedValue, err := crypto.Encrypt(w.walletPass, val)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(encryptedValue), nil
+}
+
+func (w *wdb) decryptValue(val []byte) ([]byte, error) {
+	if w.walletPass == "" {
+		return val, nil
+	}
+	encryptedValue, err := crypto.Decrypt(w.walletPass, string(val))
+	if err != nil {
+		return nil, err
+	}
+	return encryptedValue, nil
 }

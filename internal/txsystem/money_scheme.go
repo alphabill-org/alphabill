@@ -88,6 +88,7 @@ type (
 		GetRootHash() []byte
 		TotalValue() state.SummaryValue
 		GetBlockNumber() uint64
+		GetTrustBase() state.UnicityTrustBase
 	}
 
 	moneySchemeState struct {
@@ -113,14 +114,14 @@ var (
 	ErrInvalidInitialBillID = errors.New("initial bill ID may not be equal to the DC money supply ID")
 )
 
-func NewMoneySchemeState(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
+func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
 	if initialBill == nil {
 		return nil, ErrInitialBillIsNil
 	}
 	if dustCollectorMoneySupplyID.Eq(initialBill.ID) {
 		return nil, ErrInvalidInitialBillID
 	}
-	defaultTree, err := state.New(&state.Config{HashAlgorithm: hashAlgorithm})
+	defaultTree, err := state.New(&state.Config{HashAlgorithm: hashAlgorithm, TrustBase: trustBase})
 	if err != nil {
 		return nil, err
 	}

@@ -229,6 +229,7 @@ func defaultShardConfiguration() *shardConfiguration {
 		},
 		InitialBillValue:   defaultInitialBillValue,
 		DCMoneySupplyValue: defaultDCMoneySupplyValue,
+		UnicityTrustBase:   []string{defaultUnicityTrustBase},
 	}
 }
 

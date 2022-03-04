@@ -77,6 +77,22 @@ func (_m *RevertibleState) GetRootHash() []byte {
 	return r0
 }
 
+// GetTrustBase provides a mock function with given fields:
+func (_m *RevertibleState) GetTrustBase() state.UnicityTrustBase {
+	ret := _m.Called()
+
+	var r0 state.UnicityTrustBase
+	if rf, ok := ret.Get(0).(func() state.UnicityTrustBase); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(state.UnicityTrustBase)
+		}
+	}
+
+	return r0
+}
+
 // GetUnit provides a mock function with given fields: id
 func (_m *RevertibleState) GetUnit(id *uint256.Int) (*state.Unit, error) {
 	ret := _m.Called(id)

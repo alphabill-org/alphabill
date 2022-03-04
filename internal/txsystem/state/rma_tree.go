@@ -7,6 +7,7 @@ package state
 
 import (
 	"crypto"
+	"encoding/hex"
 	"fmt"
 	"hash"
 
@@ -42,6 +43,10 @@ type (
 		Concatenate(left, right SummaryValue) SummaryValue
 	}
 
+	UnicityTrustBase interface {
+		Keys() [][]byte
+	}
+
 	Unit struct {
 		Bearer    Predicate // The owner predicate of the Item/Node
 		Data      UnitData  // The Data part of the Item/Node
@@ -61,6 +66,7 @@ type (
 
 	Config struct {
 		HashAlgorithm     crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
+		TrustBase         []string    // Mandatory, list of compressed secp256k1 public keys (33 bytes each) in hex format.
 		RecordingDisabled bool        // Optional, set to true, to disable keeping track of changes.
 		ShardId           []byte      // Optional, the ID of the shard. By default, 0.
 	}
@@ -73,7 +79,7 @@ type (
 		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
 		root             *Node         // root is the top node of the tree.
 		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
-		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
+		trustBase        *trustBase
 	}
 
 	changeNode struct {
@@ -112,6 +118,10 @@ type (
 		targetNode *Node
 		oldVal     SummaryValue
 	}
+
+	trustBase struct {
+		keys [][]byte
+	}
 )
 
 // New creates new RMA Tree
@@ -119,10 +129,15 @@ func New(config *Config) (*rmaTree, error) {
 	if config.HashAlgorithm != crypto.SHA256 && config.HashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
+	tb, err := newTrustBase(config.TrustBase)
+	if err != nil {
+		return nil, err
+	}
 	return &rmaTree{
 		hashAlgorithm:    config.HashAlgorithm,
 		recordingEnabled: !config.RecordingDisabled,
 		shardId:          config.ShardId,
+		trustBase:        tb,
 	}, nil
 }
 
@@ -221,6 +236,11 @@ func (tree *rmaTree) Revert() {
 // GetBlockNumber returns the current round number of the RMA tree.
 func (tree *rmaTree) GetBlockNumber() uint64 {
 	return tree.roundNumber
+}
+
+// GetTrustBase returns the current trust base public keys
+func (tree *rmaTree) GetTrustBase() UnicityTrustBase {
+	return tree.trustBase
 }
 
 ///////// private methods \\\\\\\\\\\\\
@@ -612,4 +632,31 @@ func (tree *rmaTree) output(node *Node, prefix string, isTail bool, str *string)
 		}
 		tree.output(node.Children[0], newPrefix, true, str)
 	}
+}
+
+func newTrustBase(keys []string) (*trustBase, error) {
+	if len(keys) == 0 {
+		return nil, errors.New("unicity trust base must be defined")
+	}
+	decodedKeys, err := decodeHex(keys)
+	if err != nil {
+		return nil, err
+	}
+	return &trustBase{keys: decodedKeys}, nil
+}
+
+func decodeHex(keys []string) ([][]byte, error) {
+	var decodedKeys [][]byte
+	for _, key := range keys {
+		decodedKey, err := hex.DecodeString(key)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding trust base hex key: %w", err)
+		}
+		decodedKeys = append(decodedKeys, decodedKey)
+	}
+	return decodedKeys, nil
+}
+
+func (tb *trustBase) Keys() [][]byte {
+	return tb.keys
 }

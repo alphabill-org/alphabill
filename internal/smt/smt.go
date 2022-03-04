@@ -31,6 +31,7 @@ type (
 		left  *node
 		right *node
 		hash  []byte
+		data  Data // Data is present in leaf nodes.
 	}
 )
 
@@ -47,6 +48,45 @@ func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
 	}, nil
 }
 
+// GetAuthPath returns authentication path for given key.
+func (s *SMT) GetAuthPath(key []byte) ([][]byte, error) {
+	if len(key) != s.keyLength {
+		return nil, ErrInvalidKeyLength
+	}
+	treeHeight := s.keyLength * bitsInByte
+	result := make([][]byte, treeHeight)
+	node := s.root
+	for i := 0; i < treeHeight-1; i++ {
+		if node == nil {
+			result[treeHeight-i-1] = make([]byte, s.hasher.BlockSize())
+			continue
+		}
+		var pathItem []byte
+		if isBitSet(key, i) {
+			if node.left == nil {
+				pathItem = make([]byte, s.hasher.BlockSize())
+			} else {
+				pathItem = node.left.hash
+			}
+			node = node.right
+		} else {
+			if node.right == nil {
+				pathItem = make([]byte, s.hasher.BlockSize())
+			} else {
+				pathItem = node.right.hash
+			}
+			node = node.left
+		}
+		result[treeHeight-i-1] = pathItem
+	}
+	if node == nil {
+		result[0] = make([]byte, s.hasher.BlockSize())
+		return result, nil
+	}
+	result[0] = node.hash
+	return result, nil
+}
+
 func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher hash.Hash) (*node, error) {
 	if len(data) == 0 {
 		// Zero hash
@@ -55,8 +95,10 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 	}
 	if position == maxPositionSize-1 {
 		// leaf
-		hasher.Write(data[0].Value())
+		d := data[0]
+		hasher.Write(d.Value())
 		p.hash = hasher.Sum(nil)
+		p.data = d
 		hasher.Reset()
 		return p, nil
 	}
@@ -95,6 +137,5 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 func isBitSet(bytes []byte, bitPosition int) bool {
 	byteIndex := bitPosition / bitsInByte
 	bitIndexInByte := bitPosition % bitsInByte
-
 	return bytes[byteIndex]&byte(one<<(seven-bitIndexInByte)) != byte(zero)
 }

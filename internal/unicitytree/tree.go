@@ -3,14 +3,18 @@ package unicitytree
 import (
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
 )
 
 const systemIdentifierLength = 4
 
+var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")
+
 type (
 	InputRecord struct {
-		// TODO AB-114 System Input
+		// TODO AB-114 System Input Record
 		value []byte
 	}
 
@@ -22,6 +26,12 @@ type (
 
 	UnicityTree struct {
 		smt *smt.SMT
+	}
+
+	Certificate struct {
+		systemIdentifier []byte
+		siblingHashes    [][]byte
+		// TODO AB-112 add System Description Record hash
 	}
 )
 
@@ -37,6 +47,21 @@ func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
 	}
 	return &UnicityTree{
 		smt: smt,
+	}, nil
+}
+
+// GetCertificate returns an unicity tree certificate for given system identifier.
+func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*Certificate, error) {
+	if len(systemIdentifier) != systemIdentifierLength {
+		return nil, ErrInvalidSystemIdentifierLength
+	}
+	path, err := u.smt.GetAuthPath(systemIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return &Certificate{
+		systemIdentifier: systemIdentifier,
+		siblingHashes:    path,
 	}, nil
 }
 

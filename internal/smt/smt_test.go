@@ -96,3 +96,44 @@ func Test_isBitSet(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAuthPath(t *testing.T) {
+	key := []byte{0x00, 0xFF}
+	values := []Data{&TestData{value: key}}
+	smt, err := New(sha256.New(), 2, values)
+	require.NoError(t, err)
+	path, err := smt.GetAuthPath(key)
+	require.NoError(t, err)
+	require.NotNil(t, path)
+	require.Equal(t, 16, len(path))
+	hasher := sha256.New()
+	hasher.Write(key)
+	hash := hasher.Sum(nil)
+	hasher.Reset()
+	for i, pathItem := range path {
+		if i == 0 {
+			require.Equal(t, hash, pathItem)
+			continue
+		}
+		if isBitSet(key, i) {
+			hasher.Write(hash)
+			hasher.Write(pathItem)
+		} else {
+			hasher.Write(pathItem)
+			hasher.Write(hash)
+		}
+		hash = hasher.Sum(nil)
+		hasher.Reset()
+	}
+	require.Equal(t, smt.root.hash, hash)
+}
+
+func TestGetAuthPath_DataNotPresent(t *testing.T) {
+	key := []byte{0x11, 0x12}
+	var values []Data
+	smt, err := New(sha256.New(), 2, values)
+	require.NoError(t, err)
+	path, err := smt.GetAuthPath(key)
+	require.NoError(t, err)
+	require.NotNil(t, path)
+}

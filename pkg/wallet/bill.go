@@ -1,7 +1,7 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
 	"github.com/holiman/uint256"
 )
 

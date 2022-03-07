@@ -3,8 +3,8 @@
 package alphabill
 
 import (
-	transaction "alphabill-wallet-sdk/internal/rpc/transaction"
 	context "context"
+	transaction "gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -32,7 +32,7 @@ func NewAlphaBillServiceClient(cc grpc.ClientConnInterface) AlphaBillServiceClie
 }
 
 func (c *alphaBillServiceClient) GetBlocks(ctx context.Context, in *GetBlocksRequest, opts ...grpc.CallOption) (AlphaBillService_GetBlocksClient, error) {
-	stream, err := c.cc.NewStream(ctx, &AlphaBillService_ServiceDesc.Streams[0], "/rpc.AlphaBillService/GetBlocks", opts...)
+	stream, err := c.cc.NewStream(ctx, &AlphaBillService_ServiceDesc.Streams[0], "/abrpc.AlphaBillService/GetBlocks", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (x *alphaBillServiceGetBlocksClient) Recv() (*GetBlocksResponse, error) {
 
 func (c *alphaBillServiceClient) ProcessTransaction(ctx context.Context, in *transaction.Transaction, opts ...grpc.CallOption) (*transaction.TransactionResponse, error) {
 	out := new(transaction.TransactionResponse)
-	err := c.cc.Invoke(ctx, "/rpc.AlphaBillService/ProcessTransaction", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/abrpc.AlphaBillService/ProcessTransaction", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func _AlphaBillService_ProcessTransaction_Handler(srv interface{}, ctx context.C
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/rpc.AlphaBillService/ProcessTransaction",
+		FullMethod: "/abrpc.AlphaBillService/ProcessTransaction",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AlphaBillServiceServer).ProcessTransaction(ctx, req.(*transaction.Transaction))
@@ -147,7 +147,7 @@ func _AlphaBillService_ProcessTransaction_Handler(srv interface{}, ctx context.C
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var AlphaBillService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "rpc.AlphaBillService",
+	ServiceName: "abrpc.AlphaBillService",
 	HandlerType: (*AlphaBillServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

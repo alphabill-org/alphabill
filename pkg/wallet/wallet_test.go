@@ -1,13 +1,12 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/alphabill/script"
-	"alphabill-wallet-sdk/internal/crypto/hash"
-	"alphabill-wallet-sdk/internal/rpc/alphabill"
-	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/internal/testutil"
-	"crypto"
 	"encoding/hex"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/alphabill/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/testutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -55,20 +54,24 @@ func TestWalletCanBeCreated(t *testing.T) {
 func TestExistingWalletCanBeLoaded(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	walletDbPath := path.Join(wd, "testdata")
+	walletDbPath := path.Join(wd, "testdata", "wallet")
 
-	w, err := LoadExistingWallet(&Config{DbPath: walletDbPath})
-	defer w.Shutdown()
+	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		w.Shutdown()
+	})
 
 	verifyTestWallet(t, err, w)
 }
 
 func TestWalletCanBeCreatedFromSeed(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
+	_ = testutil.DeleteWalletDb(os.TempDir())
 
-	w, err := CreateWalletFromSeed(testMnemonic, &Config{DbPath: os.TempDir()})
-	defer DeleteWallet(w)
+	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir()})
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
 	require.NoError(t, err)
 
 	verifyTestWallet(t, err, w)
@@ -84,21 +87,9 @@ func TestWalletSendFunction(t *testing.T) {
 	err := w.Send(invalidPubKey, amount)
 	require.ErrorIs(t, err, errInvalidPubKey)
 
-	// test errABClientNotInitialized
-	w.alphaBillClient = nil
+	// test errInsufficientBalance
 	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errABClientNotInitialized)
-	w.alphaBillClient = mockClient
-
-	// test errABClientNotConnected
-	mockClient.isShutdown = true
-	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errABClientNotConnected)
-	mockClient.isShutdown = false
-
-	// test errInvalidBalance
-	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errInvalidBalance)
+	require.ErrorIs(t, err, errInsufficientBalance)
 
 	// test abclient returns error
 	b := bill{
@@ -126,9 +117,11 @@ func TestWalletSendFunction(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
-	testutil.DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(&Config{DbPath: os.TempDir()})
-	defer DeleteWallet(w)
+	_ = testutil.DeleteWalletDb(os.TempDir())
+	w, err := CreateNewWallet(Config{DbPath: os.TempDir()})
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
 	require.NoError(t, err)
 
 	k, err := w.db.GetAccountKey()
@@ -190,43 +183,6 @@ func TestBlockProcessing(t *testing.T) {
 	balance, err = w.db.GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
-}
-
-func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
-	bills := []*bill{
-		{Id: uint256.NewInt(2)},
-		{Id: uint256.NewInt(1)},
-		{Id: uint256.NewInt(0)},
-	}
-	hasher := crypto.SHA256.New()
-	for i := len(bills) - 1; i >= 0; i-- {
-		hasher.Write(bills[i].getId())
-	}
-	expectedNonce := hasher.Sum(nil)
-
-	nonce := calculateDcNonce(bills)
-	require.EqualValues(t, expectedNonce, nonce)
-}
-
-func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
-	w, _ := CreateTestWallet(t)
-	bills := []*bill{
-		{Id: uint256.NewInt(2)},
-		{Id: uint256.NewInt(1)},
-		{Id: uint256.NewInt(0)},
-	}
-	dcNonce := calculateDcNonce(bills)
-	tx, err := w.createSwapTx(bills, dcNonce, 10)
-	require.NoError(t, err)
-	swapTx := parseSwapTx(t, tx)
-
-	// verify bill ids in swap tx are in correct order (equal hash values)
-	hasher := crypto.SHA256.New()
-	for _, billId := range swapTx.BillIdentifiers {
-		hasher.Write(billId)
-	}
-	actualDcNonce := hasher.Sum(nil)
-	require.EqualValues(t, dcNonce, actualDcNonce)
 }
 
 func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {

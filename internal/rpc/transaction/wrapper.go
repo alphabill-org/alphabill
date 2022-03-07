@@ -1,16 +1,16 @@
 package transaction
 
 import (
-	"alphabill-wallet-sdk/internal/alphabill/txsystem"
-	hasherUtil "alphabill-wallet-sdk/internal/crypto/hash"
-	"alphabill-wallet-sdk/internal/errors"
 	"crypto"
 	"encoding/base64"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/alphabill/txsystem"
+	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
 	"github.com/holiman/uint256"
 	"hash"
 )
 
-const ProtobufTypeUrlPrefix = "type.googleapis.com/rpc."
+const ProtobufTypeUrlPrefix = "type.googleapis.com/abrpc."
 
 type (
 	GenericTransaction interface {

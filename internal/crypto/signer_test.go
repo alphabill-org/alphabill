@@ -1,8 +1,8 @@
 package crypto
 
 import (
-	"alphabill-wallet-sdk/internal/crypto/canonicalizer"
-	"alphabill-wallet-sdk/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/crypto/canonicalizer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"

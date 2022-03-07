@@ -1,12 +1,14 @@
 package abclient
 
 import (
-	"alphabill-wallet-sdk/internal/rpc/alphabill"
-	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/pkg/log"
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/pkg/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/status"
 	"io"
 )
 
@@ -14,7 +16,7 @@ type ABClient interface {
 	SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error)
 	Shutdown()
 	IsShutdown() bool
-	InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.GetBlocksResponse) error
+	InitBlockReceiver(blockHeight uint64, terminateAtMaxHeight bool, ch chan<- *alphabill.GetBlocksResponse) error
 }
 
 type AlphaBillClientConfig struct {
@@ -22,12 +24,12 @@ type AlphaBillClientConfig struct {
 }
 
 type AlphaBillClient struct {
-	config     *AlphaBillClientConfig
+	config     AlphaBillClientConfig
 	connection *grpc.ClientConn
 	client     alphabill.AlphaBillServiceClient
 }
 
-func New(config *AlphaBillClientConfig) (*AlphaBillClient, error) {
+func New(config AlphaBillClientConfig) (*AlphaBillClient, error) {
 	conn, err := grpc.Dial(config.Uri, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
@@ -39,7 +41,7 @@ func New(config *AlphaBillClientConfig) (*AlphaBillClient, error) {
 	}, nil
 }
 
-func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.GetBlocksResponse) error {
+func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, terminateAtMaxHeight bool, ch chan<- *alphabill.GetBlocksResponse) error {
 	stream, err := c.client.GetBlocks(context.Background(),
 		&alphabill.GetBlocksRequest{
 			BlockHeight: blockHeight,
@@ -49,15 +51,25 @@ func (c *AlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alpha
 	}
 
 	for {
-		block, err := stream.Recv()
+		getBlocksResponse, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
 				log.Info("block receiver EOF")
 				return nil
 			}
+			code, ok := status.FromError(err)
+			if ok && code.Code() == codes.Canceled {
+				log.Info("block receiver cancelled")
+				return nil
+			}
 			return err
 		}
-		ch <- block
+		ch <- getBlocksResponse
+
+		if terminateAtMaxHeight && getBlocksResponse.Block.BlockNo == getBlocksResponse.MaxBlockHeight {
+			log.Info("block receiver maxBlockHeight reached")
+			return nil
+		}
 	}
 }
 

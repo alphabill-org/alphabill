@@ -1,9 +1,9 @@
 package canonicalizer
 
 import (
-	"alphabill-wallet-sdk/internal/errors"
-	"alphabill-wallet-sdk/internal/errors/errstr"
 	"encoding/binary"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/errors/errstr"
 	"github.com/ethereum/go-ethereum/log"
 	"reflect"
 )
@@ -37,7 +37,7 @@ type (
 //  - 'idx'  [mandatory]: binary serialization sequence for given field.
 //  - 'size' [optional] : integer value size expressed in bytes. Supported values 1, 4, 8.
 //                        If not set 1 is used as default.
-// eg.
+// e.g.
 //  type Object struct {
 //	    Number uint64 `hsh:"idx=1,size=8"`
 //	    Slice  []byte `hsh:"idx=2"`
@@ -108,7 +108,7 @@ func extractDataBytes(obj interface{}, opts serializeOptions) ([]byte, error) {
 	return data, nil
 }
 
-// extractFieldDataBytes returns data bytes for a given field. The functions is used recursively.
+// extractFieldDataBytes returns data bytes for a given field. The functions are used recursively.
 func extractFieldDataBytes(fieldValue reflect.Value, opts fieldOptions) ([]byte, error) {
 	var (
 		bin []byte

@@ -1,9 +1,9 @@
 package wallet
 
 import (
-	"alphabill-wallet-sdk/internal/rpc/alphabill"
-	"alphabill-wallet-sdk/internal/rpc/transaction"
-	"alphabill-wallet-sdk/internal/testutil"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
@@ -15,7 +15,7 @@ type mockAlphaBillClient struct {
 	txResponse *transaction.TransactionResponse
 }
 
-func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, ch chan<- *alphabill.GetBlocksResponse) error {
+func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, terminateAtMaxHeight bool, ch chan<- *alphabill.GetBlocksResponse) error {
 	return nil
 }
 
@@ -37,7 +37,7 @@ func (c *mockAlphaBillClient) IsShutdown() bool {
 
 func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
 	_ = testutil.DeleteWalletDb(os.TempDir())
-	c := &Config{DbPath: os.TempDir()}
+	c := Config{DbPath: os.TempDir()}
 	w, err := CreateNewWallet(c)
 	t.Cleanup(func() {
 		DeleteWallet(w)

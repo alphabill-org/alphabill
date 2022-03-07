@@ -3,3 +3,6 @@ CVE-2020-26160
 
 # We are not using gogo/protobuf, it's transitive from go-ethereum
 CVE-2021-3121
+
+# We are not using github.com/docker/docker, it's transitive from go-ethereum
+CVE-2015-3627

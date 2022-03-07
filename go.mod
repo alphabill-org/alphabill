@@ -13,7 +13,11 @@ replace github.com/buger/jsonparser => github.com/buger/jsonparser v1.1.1
 replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday v1.0.16
 
 require (
-	gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk v0.0.0-20220211120313-948a08ce5e04
+	github.com/btcsuite/btcd v0.22.0-beta
+	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
+	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
+	go.etcd.io/bbolt v1.3.6
+	github.com/robfig/cron/v3 v3.0.0
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/holiman/uint256 v1.2.0
@@ -35,7 +39,6 @@ require (
 )
 
 require (
-	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -56,7 +59,6 @@ require (
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect

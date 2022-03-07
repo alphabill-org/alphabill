@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 	"io"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -52,6 +53,18 @@ func (s *InMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, "cannot sign nil data")
 	}
 	return secp256k1.Sign(hash.Sum256(data), s.privKey)
+}
+
+// SignObject transforms the object to canonical form and then signs the data using SignBytes method.
+func (s *InMemorySecp256K1Signer) SignObject(obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) ([]byte, error) {
+	if s == nil {
+		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+	}
+	data, err := canonicalizer.Canonicalize(obj, opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to canonicalize the object")
+	}
+	return s.SignBytes(data)
 }
 
 func (s *InMemorySecp256K1Signer) Verifier() (Verifier, error) {

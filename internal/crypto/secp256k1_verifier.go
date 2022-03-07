@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"crypto/elliptic"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
@@ -46,6 +47,15 @@ func (v *verifierSecp256k1) VerifyBytes(sig []byte, data []byte) error {
 		return nil
 	}
 	return errors.Wrap(errors.ErrVerificationFailed, "signature verify failed")
+}
+
+// VerifyObject verifies the signature of canonicalizable object with public key.
+func (v *verifierSecp256k1) VerifyObject(sig []byte, obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) error {
+	data, err := canonicalizer.Canonicalize(obj, opts...)
+	if err != nil {
+		return errors.Wrap(err, "could not canonicalize the object")
+	}
+	return v.VerifyBytes(sig, data)
 }
 
 // MarshalPublicKey returns compressed public key, 33 bytes

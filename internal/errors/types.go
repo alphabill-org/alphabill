@@ -38,7 +38,7 @@ func FindErrorType(err error) *AlphabillErrorType {
 	return nil
 }
 
-// If necessary we can add error codes and etc to this type later on
+// AlphabillErrorType If necessary we can add error codes etc. to this type later on
 type AlphabillErrorType struct {
 	s string
 }

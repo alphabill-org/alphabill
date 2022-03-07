@@ -40,7 +40,6 @@ const (
 	defaultInitialBillValue   = 1000000
 	defaultDCMoneySupplyValue = 1000000
 	defaultInitialBillId      = 1
-	defaultUnicityTrustBase   = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
 )
 
 var log = logger.CreateForPackage()
@@ -68,7 +67,7 @@ func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFun
 
 	shardCmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value for new shard.")
 	shardCmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
-	shardCmd.Flags().StringSliceVar(&config.UnicityTrustBase, "unicity-trust-base", []string{defaultUnicityTrustBase}, "public key used as trust base, in compressed secp256k1 (33 bytes) hex format, testnet only.")
+	shardCmd.Flags().StringSliceVar(&config.UnicityTrustBase, "trust-base", []string{}, "public key used as trust base, in compressed (33 bytes) hex format.")
 	config.Server.addConfigurationFlags(shardCmd)
 
 	return shardCmd

@@ -20,6 +20,7 @@ type (
 		keyLength int
 		hasher    hash.Hash
 		root      *node
+		zeroHash  []byte
 	}
 
 	Data interface {
@@ -45,6 +46,7 @@ func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
 		keyLength: keyLength,
 		hasher:    hasher,
 		root:      root,
+		zeroHash:  make([]byte, hasher.BlockSize()),
 	}, nil
 }
 
@@ -58,20 +60,20 @@ func (s *SMT) GetAuthPath(key []byte) ([][]byte, error) {
 	node := s.root
 	for i := 0; i < treeHeight-1; i++ {
 		if node == nil {
-			result[treeHeight-i-1] = make([]byte, s.hasher.BlockSize())
+			result[treeHeight-i-1] = s.zeroHash
 			continue
 		}
 		var pathItem []byte
 		if isBitSet(key, i) {
 			if node.left == nil {
-				pathItem = make([]byte, s.hasher.BlockSize())
+				pathItem = s.zeroHash
 			} else {
 				pathItem = node.left.hash
 			}
 			node = node.right
 		} else {
 			if node.right == nil {
-				pathItem = make([]byte, s.hasher.BlockSize())
+				pathItem = s.zeroHash
 			} else {
 				pathItem = node.right.hash
 			}
@@ -80,7 +82,7 @@ func (s *SMT) GetAuthPath(key []byte) ([][]byte, error) {
 		result[treeHeight-i-1] = pathItem
 	}
 	if node == nil {
-		result[0] = make([]byte, s.hasher.BlockSize())
+		result[0] = s.zeroHash
 		return result, nil
 	}
 	result[0] = node.hash

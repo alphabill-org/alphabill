@@ -39,7 +39,7 @@ func TestNewSMTWithData(t *testing.T) {
 	hasher := sha256.New()
 	hasher.Write(values[0].Value())
 	valueHash := hasher.Sum(nil)
-	zeroHash := make([]byte, hasher.BlockSize())
+	zeroHash := make([]byte, hasher.Size())
 	hasher.Reset()
 	for i := 0; i < 7; i++ {
 		hasher.Write(zeroHash)

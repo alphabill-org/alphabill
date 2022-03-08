@@ -3,8 +3,6 @@
 package mocks
 
 import (
-	crypto "crypto"
-
 	state "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	mock "github.com/stretchr/testify/mock"
 
@@ -73,22 +71,6 @@ func (_m *RevertibleState) GetRootHash() []byte {
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	return r0
-}
-
-// GetTrustBase provides a mock function with given fields:
-func (_m *RevertibleState) GetTrustBase() []crypto.PublicKey {
-	ret := _m.Called()
-
-	var r0 []crypto.PublicKey
-	if rf, ok := ret.Get(0).(func() []crypto.PublicKey); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]crypto.PublicKey)
 		}
 	}
 

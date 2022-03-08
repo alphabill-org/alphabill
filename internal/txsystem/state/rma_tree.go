@@ -230,11 +230,6 @@ func (tree *rmaTree) GetBlockNumber() uint64 {
 	return tree.roundNumber
 }
 
-// GetTrustBase returns the current trust base public keys
-func (tree *rmaTree) GetTrustBase() []crypto.PublicKey {
-	return tree.trustBase
-}
-
 ///////// private methods \\\\\\\\\\\\\
 
 func (tree *rmaTree) get(id *uint256.Int) (unit *Unit, err error) {

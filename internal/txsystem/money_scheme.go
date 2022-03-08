@@ -88,7 +88,6 @@ type (
 		GetRootHash() []byte
 		TotalValue() state.SummaryValue
 		GetBlockNumber() uint64
-		GetTrustBase() []crypto.PublicKey
 	}
 
 	moneySchemeState struct {

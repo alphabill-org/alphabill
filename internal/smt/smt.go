@@ -38,7 +38,8 @@ type (
 
 // New creates a new sparse merkle tree.
 func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
-	root, err := createSMT(&node{}, zero, keyLength*bitsInByte, data, hasher)
+	zeroHash := make([]byte, hasher.Size())
+	root, err := createSMT(&node{}, zero, keyLength*bitsInByte, data, hasher, zeroHash)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +47,7 @@ func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
 		keyLength: keyLength,
 		hasher:    hasher,
 		root:      root,
-		zeroHash:  make([]byte, hasher.BlockSize()),
+		zeroHash:  zeroHash,
 	}, nil
 }
 
@@ -89,10 +90,10 @@ func (s *SMT) GetAuthPath(key []byte) ([][]byte, error) {
 	return result, nil
 }
 
-func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher hash.Hash) (*node, error) {
+func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher hash.Hash, zeroHash []byte) (*node, error) {
 	if len(data) == 0 {
 		// Zero hash
-		p.hash = make([]byte, hasher.BlockSize())
+		p.hash = zeroHash
 		return p, nil
 	}
 	if position == maxPositionSize-1 {
@@ -121,11 +122,11 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 	}
 	position++
 	var err error
-	p.left, err = createSMT(&node{}, position, maxPositionSize, leftData, hasher)
+	p.left, err = createSMT(&node{}, position, maxPositionSize, leftData, hasher, zeroHash)
 	if err != nil {
 		return nil, err
 	}
-	p.right, err = createSMT(&node{}, position, maxPositionSize, rightData, hasher)
+	p.right, err = createSMT(&node{}, position, maxPositionSize, rightData, hasher, zeroHash)
 	if err != nil {
 		return nil, err
 	}

@@ -9,10 +9,10 @@ import (
 	"crypto"
 	"encoding/hex"
 	"fmt"
+	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
 	"github.com/holiman/uint256"
 )
 
@@ -41,10 +41,6 @@ type (
 		AddToHasher(hasher hash.Hash)
 		// Concatenate calculates new SummaryValue by concatenating this, left and right.
 		Concatenate(left, right SummaryValue) SummaryValue
-	}
-
-	UnicityTrustBase interface {
-		Keys() [][]byte
 	}
 
 	Unit struct {
@@ -79,7 +75,7 @@ type (
 		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
 		root             *Node         // root is the top node of the tree.
 		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
-		trustBase        *trustBase
+		trustBase        []crypto.PublicKey
 	}
 
 	changeNode struct {
@@ -118,10 +114,6 @@ type (
 		targetNode *Node
 		oldVal     SummaryValue
 	}
-
-	trustBase struct {
-		keys [][]byte
-	}
 )
 
 // New creates new RMA Tree
@@ -129,7 +121,7 @@ func New(config *Config) (*rmaTree, error) {
 	if config.HashAlgorithm != crypto.SHA256 && config.HashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
-	tb, err := newTrustBase(config.TrustBase)
+	tb, err := parseTrustBase(config.TrustBase)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +231,7 @@ func (tree *rmaTree) GetBlockNumber() uint64 {
 }
 
 // GetTrustBase returns the current trust base public keys
-func (tree *rmaTree) GetTrustBase() UnicityTrustBase {
+func (tree *rmaTree) GetTrustBase() []crypto.PublicKey {
 	return tree.trustBase
 }
 
@@ -634,29 +626,25 @@ func (tree *rmaTree) output(node *Node, prefix string, isTail bool, str *string)
 	}
 }
 
-func newTrustBase(keys []string) (*trustBase, error) {
+func parseTrustBase(keys []string) ([]crypto.PublicKey, error) {
 	if len(keys) == 0 {
 		return nil, errors.New("unicity trust base must be defined")
 	}
-	decodedKeys, err := decodeHex(keys)
-	if err != nil {
-		return nil, err
-	}
-	return &trustBase{keys: decodedKeys}, nil
-}
-
-func decodeHex(keys []string) ([][]byte, error) {
-	var decodedKeys [][]byte
-	for _, key := range keys {
-		decodedKey, err := hex.DecodeString(key)
+	var publicKeys []crypto.PublicKey
+	for _, hexKey := range keys {
+		keyBytes, err := hex.DecodeString(hexKey)
 		if err != nil {
-			return nil, fmt.Errorf("error decoding trust base hex key: %w", err)
+			return nil, fmt.Errorf("error decoding trust base hex hexKey: %w", err)
 		}
-		decodedKeys = append(decodedKeys, decodedKey)
+		verifier, err := abcrypto.NewVerifierSecp256k1(keyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing public key: %w", err)
+		}
+		pubkey, err := verifier.UnmarshalPubKey()
+		if err != nil {
+			return nil, err
+		}
+		publicKeys = append(publicKeys, pubkey)
 	}
-	return decodedKeys, nil
-}
-
-func (tb *trustBase) Keys() [][]byte {
-	return tb.keys
+	return publicKeys, nil
 }

@@ -3,6 +3,8 @@ package unicitytree
 import (
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
@@ -14,8 +16,10 @@ var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier len
 
 type (
 	InputRecord struct {
-		// TODO AB-114 System Input Record
-		value []byte
+		PreviousHash []byte             // previously certified root hash of type
+		Hash         []byte             // root hash to be certified of type
+		BlockHash    []byte             // hash of the block
+		SummaryValue state.SummaryValue // summary value to be certified
 	}
 
 	Data struct {
@@ -69,10 +73,10 @@ func (d *Data) Key(_ int) []byte {
 	return d.systemIdentifier
 }
 
-func (d *Data) Value() []byte {
-	return d.inputRecord.Bytes()
-}
-
-func (ir *InputRecord) Bytes() []byte {
-	return ir.value
+func (d *Data) AddToHasher(hasher hash.Hash) {
+	hasher.Write(d.inputRecord.PreviousHash)
+	hasher.Write(d.inputRecord.Hash)
+	hasher.Write(d.inputRecord.BlockHash)
+	d.inputRecord.SummaryValue.AddToHasher(hasher)
+	// TODO AB-112 add system description record hash
 }

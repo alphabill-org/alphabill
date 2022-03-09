@@ -73,7 +73,7 @@ type (
 		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
 		root             *Node         // root is the top node of the tree.
 		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
-		trustBase        []crypto.PublicKey
+		trustBase        *trustBase
 	}
 
 	changeNode struct {
@@ -119,7 +119,7 @@ func New(config *Config) (*rmaTree, error) {
 	if config.HashAlgorithm != crypto.SHA256 && config.HashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
-	tb, err := parseTrustBase(config.TrustBase)
+	tb, err := newTrustBase(config.TrustBase)
 	if err != nil {
 		return nil, err
 	}

@@ -8,15 +8,19 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
 
-func parseTrustBase(keys []string) ([]crypto.PublicKey, error) {
-	if len(keys) == 0 {
+type trustBase struct {
+	keys []crypto.PublicKey
+}
+
+func newTrustBase(hexKeys []string) (*trustBase, error) {
+	if len(hexKeys) == 0 {
 		return nil, errors.New("unicity trust base must be defined")
 	}
-	var publicKeys []crypto.PublicKey
-	for _, hexKey := range keys {
+	var keys []crypto.PublicKey
+	for _, hexKey := range hexKeys {
 		keyBytes, err := hex.DecodeString(hexKey)
 		if err != nil {
-			return nil, fmt.Errorf("error decoding trust base hex hexKey: %w", err)
+			return nil, fmt.Errorf("error decoding trust base hex key: %w", err)
 		}
 		verifier, err := abcrypto.NewVerifierSecp256k1(keyBytes)
 		if err != nil {
@@ -26,7 +30,7 @@ func parseTrustBase(keys []string) ([]crypto.PublicKey, error) {
 		if err != nil {
 			return nil, err
 		}
-		publicKeys = append(publicKeys, pubkey)
+		keys = append(keys, pubkey)
 	}
-	return publicKeys, nil
+	return &trustBase{keys: keys}, nil
 }

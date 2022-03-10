@@ -174,6 +174,24 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			return err
 		}
 		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
+	case TransferDC:
+		log.Debug("Processing transferDC %v", tx)
+		err := m.validateTransferDC(tx)
+		if err != nil {
+			return err
+		}
+		err = m.updateBillData(tx)
+		if err != nil {
+			return err
+		}
+		err = m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
+		if err != nil {
+			return err
+		}
+		delBlockNr := m.revertibleState.GetBlockNumber() + dustBillDeletionTimeout
+		dustBillsArray := m.dustCollectorBills[delBlockNr]
+		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitId())
+		return nil
 	case Split:
 		log.Debug("Processing split %v", tx)
 		err := m.validateSplit(tx)
@@ -205,27 +223,39 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		if err != nil {
 			return errors.Wrapf(err, "could not add item")
 		}
-	case TransferDC:
-		log.Debug("Processing transferDC %v", tx)
-		err := m.validateTransferDC(tx)
-		if err != nil {
-			return err
-		}
-		err = m.updateBillData(tx)
-		if err != nil {
-			return err
-		}
-		err = m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
-		if err != nil {
-			return err
-		}
-		delBlockNr := m.revertibleState.GetBlockNumber() + dustBillDeletionTimeout
-		dustBillsArray := m.dustCollectorBills[delBlockNr]
-		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitId())
-		return nil
 	case Swap:
-		// TODO add swap: https://guardtime.atlassian.net/browse/AB-46
-		return errors.ErrNotImplemented
+		log.Debug("Processing swap %v", tx)
+		err := m.validateSwap(tx)
+		if err != nil {
+			return err
+		}
+
+		// set n as the target value
+		n := tx.TargetValue()
+
+		// reduce dc-money supply by n
+		err = m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data state.UnitData) (newData state.UnitData) {
+			bd, ok := data.(*BillData)
+			if !ok {
+				return bd
+			}
+			bd.V -= n
+			return bd
+		}, []byte{})
+		if err != nil {
+			return err
+		}
+
+		// create a new bill with value n and owner condition a
+		err = m.revertibleState.AddItem(tx.UnitId(), tx.OwnerCondition(), &BillData{
+			V:        n,
+			T:        m.revertibleState.GetBlockNumber(),
+			Backlink: tx.Hash(m.hashAlgorithm),
+		}, tx.Hash(m.hashAlgorithm))
+		if err != nil {
+			return errors.Wrapf(err, "could not add item")
+		}
+		return nil
 	default:
 		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
 	}
@@ -305,6 +335,27 @@ func (m *moneySchemeState) validateSplit(tx Split) error {
 		return err
 	}
 	return validateSplit(data.Data, tx)
+}
+
+func (m *moneySchemeState) validateSwap(tx Swap) error {
+	// 2. there is suffiecient DC-money supply
+	dcMoneySupply, err := m.revertibleState.GetUnit(dustCollectorMoneySupplyID)
+	if err != nil {
+		return err
+	}
+	dcMoneySupplyBill, ok := dcMoneySupply.Data.(*BillData)
+	if !ok {
+		return ErrInvalidDataType
+	}
+	if dcMoneySupplyBill.V < tx.TargetValue() {
+		return ErrSwapInsufficientDCMoneySupply
+	}
+	// 3.there exists no bill with identifier
+	_, err = m.revertibleState.GetUnit(tx.UnitId())
+	if err == nil {
+		return ErrSwapBillAlreadyExists
+	}
+	return validateSwap(tx, m.hashAlgorithm)
 }
 
 // GetRootHash starts root hash value computation and returns it.

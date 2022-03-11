@@ -16,8 +16,8 @@ var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier len
 
 type (
 	InputRecord struct {
-		PreviousHash []byte             // previously certified root hash of type
-		Hash         []byte             // root hash to be certified of type
+		PreviousHash []byte             // previously certified root hash
+		Hash         []byte             // root hash to be certified
 		BlockHash    []byte             // hash of the block
 		SummaryValue state.SummaryValue // summary value to be certified
 	}
@@ -74,9 +74,13 @@ func (d *Data) Key(_ int) []byte {
 }
 
 func (d *Data) AddToHasher(hasher hash.Hash) {
-	hasher.Write(d.inputRecord.PreviousHash)
-	hasher.Write(d.inputRecord.Hash)
-	hasher.Write(d.inputRecord.BlockHash)
-	d.inputRecord.SummaryValue.AddToHasher(hasher)
+	d.inputRecord.AddToHasher(hasher)
 	// TODO AB-112 add system description record hash
+}
+
+func (ir *InputRecord) AddToHasher(hasher hash.Hash) {
+	hasher.Write(ir.PreviousHash)
+	hasher.Write(ir.Hash)
+	hasher.Write(ir.BlockHash)
+	ir.SummaryValue.AddToHasher(hasher)
 }

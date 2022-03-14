@@ -25,7 +25,7 @@ type (
 
 	Data interface {
 		Key(keyLength int) []byte
-		Value() []byte
+		AddToHasher(hasher hash.Hash)
 	}
 
 	node struct {
@@ -99,7 +99,7 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 	if position == maxPositionSize-1 {
 		// leaf
 		d := data[0]
-		hasher.Write(d.Value())
+		d.AddToHasher(hasher)
 		p.hash = hasher.Sum(nil)
 		p.data = d
 		hasher.Reset()

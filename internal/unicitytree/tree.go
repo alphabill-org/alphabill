@@ -13,6 +13,7 @@ import (
 const systemIdentifierLength = 4
 
 var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")
+var ErrSystemDescriptionRecordNil = errors.New("system description record nil")
 
 type (
 	InputRecord struct {
@@ -23,19 +24,20 @@ type (
 	}
 
 	Data struct {
-		systemIdentifier []byte
-		inputRecord      InputRecord
-		// TODO AB-112 add System Description Record
+		systemIdentifier        []byte
+		inputRecord             InputRecord
+		systemDescriptionRecord *state.SystemDescriptionRecord
 	}
 
 	UnicityTree struct {
-		smt *smt.SMT
+		smt    *smt.SMT
+		hasher hash.Hash
 	}
 
 	Certificate struct {
-		systemIdentifier []byte
-		siblingHashes    [][]byte
-		// TODO AB-112 add System Description Record hash
+		systemIdentifier      []byte
+		siblingHashes         [][]byte
+		systemDescriptionHash []byte
 	}
 )
 
@@ -50,22 +52,32 @@ func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
 		return nil, err
 	}
 	return &UnicityTree{
-		smt: smt,
+		smt:    smt,
+		hasher: hasher,
 	}, nil
 }
 
 // GetCertificate returns an unicity tree certificate for given system identifier.
-func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*Certificate, error) {
+func (u *UnicityTree) GetCertificate(systemIdentifier []byte, sdr *state.SystemDescriptionRecord) (*Certificate, error) {
 	if len(systemIdentifier) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
+	}
+	if sdr == nil {
+		return nil, ErrSystemDescriptionRecordNil
 	}
 	path, err := u.smt.GetAuthPath(systemIdentifier)
 	if err != nil {
 		return nil, err
 	}
+
+	u.hasher.Reset()
+	sdr.AddToHasher(u.hasher)
+	dhash := u.hasher.Sum(nil)
+
 	return &Certificate{
-		systemIdentifier: systemIdentifier,
-		siblingHashes:    path,
+		systemIdentifier:      systemIdentifier,
+		systemDescriptionHash: dhash,
+		siblingHashes:         path,
 	}, nil
 }
 
@@ -75,7 +87,7 @@ func (d *Data) Key(_ int) []byte {
 
 func (d *Data) AddToHasher(hasher hash.Hash) {
 	d.inputRecord.AddToHasher(hasher)
-	// TODO AB-112 add system description record hash
+	d.systemDescriptionRecord.AddToHasher(hasher)
 }
 
 func (ir *InputRecord) AddToHasher(hasher hash.Hash) {

@@ -10,7 +10,8 @@ import (
 )
 
 func TestExtractCertificate_Ok(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, err := New(defaultConfig())
+	require.NoError(t, err)
 	keys := []*uint256.Int{key10, key30, key20, key25, key31}
 
 	// add nodes
@@ -35,26 +36,26 @@ func TestExtractCertificate_Ok(t *testing.T) {
 }
 
 func TestExtractCertificate_RootIsNil(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	_, err := at.ExtractCertificate(key10)
 	require.ErrorIs(t, ErrRootNodeIsNil, err)
 }
 
 func TestExtractCertificate_IdIsNil(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	_, err := at.ExtractCertificate(nil)
 	require.ErrorIs(t, ErrIdIsNil, err)
 }
 
 func TestExtractCertificate_RootNotComputed(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key10, newNodeContent(int(key10.Uint64())))
 	_, err := at.ExtractCertificate(key10)
 	require.ErrorIs(t, ErrRootNotCalculated, err)
 }
 
 func TestExtractCertificate_ItemNotFound(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key10, newNodeContent(int(key10.Uint64())))
 	at.GetRootHash()
 	_, err := at.ExtractCertificate(key11)
@@ -93,4 +94,8 @@ func calculateZ(key *uint256.Int, at *rmaTree) []byte {
 	z := hasher.Sum(nil)
 	hasher.Reset()
 	return z
+}
+
+func defaultConfig() *Config {
+	return &Config{HashAlgorithm: crypto.SHA256, TrustBase: []string{"0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"}}
 }

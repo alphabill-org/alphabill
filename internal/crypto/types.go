@@ -1,5 +1,9 @@
 package crypto
 
+import (
+	"crypto"
+)
+
 type (
 	// Signer component for digitally signing data.
 	Signer interface {
@@ -18,5 +22,7 @@ type (
 		VerifyBytes(sig []byte, data []byte) error
 		// MarshalPublicKey marshal verifier public key to bytes.
 		MarshalPublicKey() ([]byte, error)
+		// UnmarshalPubKey unmarshal verifier public key to crypto.PublicKey
+		UnmarshalPubKey() (crypto.PublicKey, error)
 	}
 )

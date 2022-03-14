@@ -229,6 +229,7 @@ func defaultShardConfiguration() *shardConfiguration {
 		},
 		InitialBillValue:   defaultInitialBillValue,
 		DCMoneySupplyValue: defaultDCMoneySupplyValue,
+		UnicityTrustBase:   []string{},
 	}
 }
 
@@ -254,6 +255,7 @@ func TestRunShard_Ok(t *testing.T) {
 		dialAddr := "localhost:" + port
 
 		conf := defaultShardConfiguration()
+		conf.UnicityTrustBase = []string{"0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"}
 		conf.Server.Address = listenAddr
 
 		appStoppedWg := sync.WaitGroup{}

@@ -1,4 +1,4 @@
-package state
+package unicitytree
 
 import (
 	"crypto"
@@ -15,8 +15,7 @@ func TestSystemDescriptionRecord_CanBeHashed(t *testing.T) {
 	sdr := NewSystemDescriptionRecord("ab")
 
 	hasher := crypto.SHA256.New()
-	sdr.AddToHasher(hasher)
-	actualHash := hasher.Sum(nil)
+	actualHash := sdr.hash(crypto.SHA256.New())
 
 	hasher.Reset()
 	hasher.Write([]byte("ab"))

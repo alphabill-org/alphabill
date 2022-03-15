@@ -51,10 +51,10 @@ func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
 	}, nil
 }
 
-// GetAuthPath returns authentication path for given key.
-func (s *SMT) GetAuthPath(key []byte) ([][]byte, error) {
+// GetAuthPath returns authentication path and leaf node data for given key.
+func (s *SMT) GetAuthPath(key []byte) ([][]byte, Data, error) {
 	if len(key) != s.keyLength {
-		return nil, ErrInvalidKeyLength
+		return nil, nil, ErrInvalidKeyLength
 	}
 	treeHeight := s.keyLength * bitsInByte
 	result := make([][]byte, treeHeight)
@@ -84,10 +84,10 @@ func (s *SMT) GetAuthPath(key []byte) ([][]byte, error) {
 	}
 	if node == nil {
 		result[0] = s.zeroHash
-		return result, nil
+		return result, nil, nil
 	}
 	result[0] = node.hash
-	return result, nil
+	return result, node.data, nil
 }
 
 func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher hash.Hash, zeroHash []byte) (*node, error) {

@@ -13,7 +13,6 @@ import (
 const systemIdentifierLength = 4
 
 var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")
-var ErrSystemDescriptionRecordNil = errors.New("system description record nil")
 
 type (
 	InputRecord struct {
@@ -26,7 +25,7 @@ type (
 	Data struct {
 		systemIdentifier        []byte
 		inputRecord             InputRecord
-		systemDescriptionRecord *state.SystemDescriptionRecord
+		systemDescriptionRecord *SystemDescriptionRecord
 	}
 
 	UnicityTree struct {
@@ -58,21 +57,20 @@ func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
 }
 
 // GetCertificate returns an unicity tree certificate for given system identifier.
-func (u *UnicityTree) GetCertificate(systemIdentifier []byte, sdr *state.SystemDescriptionRecord) (*Certificate, error) {
+func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*Certificate, error) {
 	if len(systemIdentifier) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}
-	if sdr == nil {
-		return nil, ErrSystemDescriptionRecordNil
-	}
-	path, err := u.smt.GetAuthPath(systemIdentifier)
+	path, data, err := u.smt.GetAuthPath(systemIdentifier)
 	if err != nil {
 		return nil, err
 	}
 
-	u.hasher.Reset()
-	sdr.AddToHasher(u.hasher)
-	dhash := u.hasher.Sum(nil)
+	leafData, ok := data.(*Data)
+	if !ok {
+		return nil, errors.New("invalid data type, unicity tree leaf not is not of type *Data")
+	}
+	dhash := leafData.systemDescriptionRecord.hash(u.hasher)
 
 	return &Certificate{
 		systemIdentifier:      systemIdentifier,
@@ -87,7 +85,7 @@ func (d *Data) Key(_ int) []byte {
 
 func (d *Data) AddToHasher(hasher hash.Hash) {
 	d.inputRecord.AddToHasher(hasher)
-	d.systemDescriptionRecord.AddToHasher(hasher)
+	d.systemDescriptionRecord.addToHasher(hasher)
 }
 
 func (ir *InputRecord) AddToHasher(hasher hash.Hash) {

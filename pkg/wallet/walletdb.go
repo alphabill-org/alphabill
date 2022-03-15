@@ -443,14 +443,11 @@ func (w *wdb) createBuckets() error {
 }
 
 func openDb(dbFilePath string, walletPass string, create bool) (*wdb, error) {
-	if create {
-		if util.FileExists(dbFilePath) {
-			return nil, errWalletDbAlreadyExists
-		}
-	} else {
-		if !util.FileExists(dbFilePath) {
-			return nil, errWalletDbDoesNotExists
-		}
+	exists := util.FileExists(dbFilePath)
+	if create && exists {
+		return nil, errWalletDbAlreadyExists
+	} else if !create && !exists {
+		return nil, errWalletDbDoesNotExists
 	}
 
 	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
@@ -501,9 +498,9 @@ func (w *wdb) decryptValue(val []byte) ([]byte, error) {
 	if w.walletPass == "" {
 		return val, nil
 	}
-	encryptedValue, err := crypto.Decrypt(w.walletPass, string(val))
+	decryptedValue, err := crypto.Decrypt(w.walletPass, string(val))
 	if err != nil {
 		return nil, err
 	}
-	return encryptedValue, nil
+	return decryptedValue, nil
 }

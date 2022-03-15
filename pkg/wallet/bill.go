@@ -17,7 +17,7 @@ type bill struct {
 	DcNonce   []byte                   `json:"dcNonce"`
 }
 
-// getId returns 32-byte big endian array of bill ids
+// getId returns bill id in 32-byte big endian array
 func (b *bill) getId() []byte {
 	bytes32 := b.Id.Bytes32()
 	return bytes32[:]

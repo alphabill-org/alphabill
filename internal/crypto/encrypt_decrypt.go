@@ -12,16 +12,22 @@ import (
 	"strings"
 )
 
+type saltedCypherKey struct {
+	key  []byte
+	salt []byte
+}
+
 func Encrypt(passphrase string, plaintext []byte) (string, error) {
 	if passphrase == "" {
 		return "", errors.New("passphrase cannot be empty")
 	}
-	cipherKey, salt, err := deriveCipherKey(passphrase, nil)
+
+	saltedKey, err := deriveCipherKey(passphrase, nil)
 	if err != nil {
 		return "", fmt.Errorf("error generating cipher key: %w", err)
 	}
 
-	cipherBlock, err := aes.NewCipher(cipherKey)
+	cipherBlock, err := aes.NewCipher(saltedKey.key)
 	if err != nil {
 		return "", fmt.Errorf("error creating AES cipher: %w", err)
 	}
@@ -38,10 +44,14 @@ func Encrypt(passphrase string, plaintext []byte) (string, error) {
 	}
 
 	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
-	return strings.Join([]string{hex.EncodeToString(salt), hex.EncodeToString(nonce), hex.EncodeToString(ciphertext)}, "-"), nil
+	return strings.Join([]string{hex.EncodeToString(saltedKey.salt), hex.EncodeToString(nonce), hex.EncodeToString(ciphertext)}, "-"), nil
 }
 
 func Decrypt(passphrase string, data string) ([]byte, error) {
+	if passphrase == "" {
+		return nil, errors.New("passphrase cannot be empty")
+	}
+
 	arr := strings.Split(data, "-")
 	salt, err := hex.DecodeString(arr[0])
 	if err != nil {
@@ -58,12 +68,12 @@ func Decrypt(passphrase string, data string) ([]byte, error) {
 		return nil, fmt.Errorf("error decoding hex data: %w", err)
 	}
 
-	key, _, err := deriveCipherKey(passphrase, salt)
+	saltedKey, err := deriveCipherKey(passphrase, salt)
 	if err != nil {
 		return nil, fmt.Errorf("error deriving cipher key: %w", err)
 	}
 
-	blockCipher, err := aes.NewCipher(key)
+	blockCipher, err := aes.NewCipher(saltedKey.key)
 	if err != nil {
 		return nil, fmt.Errorf("error creating AES cipher: %w", err)
 	}
@@ -80,13 +90,16 @@ func Decrypt(passphrase string, data string) ([]byte, error) {
 	return plaintext, nil
 }
 
-func deriveCipherKey(passphrase string, salt []byte) ([]byte, []byte, error) {
+func deriveCipherKey(passphrase string, salt []byte) (*saltedCypherKey, error) {
 	if salt == nil {
 		salt = make([]byte, 8)
 		_, err := rand.Read(salt)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return pbkdf2.Key([]byte(passphrase), salt, 1000, 32, sha256.New), salt, nil
+	return &saltedCypherKey{
+		key:  pbkdf2.Key([]byte(passphrase), salt, 1000, 32, sha256.New),
+		salt: salt,
+	}, nil
 }

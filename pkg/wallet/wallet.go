@@ -28,6 +28,7 @@ const (
 	prefetchBlockCount       = 10
 	dcTimeoutBlockCount      = 10
 	swapTimeoutBlockCount    = 60
+	txTimeoutBlockCount      = 100
 	isSyncedCutoffBlockCount = 10
 	mnemonicEntropyBitSize   = 128
 )
@@ -126,7 +127,18 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	tx, err := w.createTransaction(pubKey, amount, b)
+	blockHeight, err := w.db.GetBlockHeight()
+	if err != nil {
+		return err
+	}
+	// TODO in case of sending tx from unsynced wallet the timeout could be in the past
+	// we have to get current max block height from node or ensure the wallet is synced beforehand
+	timeout := blockHeight + txTimeoutBlockCount
+	if err != nil {
+		return err
+	}
+
+	tx, err := w.createTransaction(pubKey, amount, b, timeout)
 	if err != nil {
 		return err
 	}
@@ -222,13 +234,13 @@ func (w *Wallet) createAlphabillClient() (bool, error) {
 	return false, nil
 }
 
-func (w *Wallet) createTransaction(pubKey []byte, amount uint64, b *bill) (*transaction.Transaction, error) {
+func (w *Wallet) createTransaction(pubKey []byte, amount uint64, b *bill, timeout uint64) (*transaction.Transaction, error) {
 	var tx *transaction.Transaction
 	var err error
 	if b.Value == amount {
-		tx, err = w.createTransferTx(pubKey, b)
+		tx, err = w.createTransferTx(pubKey, b, timeout)
 	} else {
-		tx, err = w.createSplitTx(amount, pubKey, b)
+		tx, err = w.createSplitTx(amount, pubKey, b, timeout)
 	}
 	if err != nil {
 		return nil, err
@@ -268,7 +280,7 @@ func (w *Wallet) syncWithAlphaBill(terminateAtMaxHeight bool) {
 	log.Info("alphabill sync finished")
 }
 
-func (w *Wallet) createTransferTx(pubKey []byte, bill *bill) (*transaction.Transaction, error) {
+func (w *Wallet) createTransferTx(pubKey []byte, bill *bill, timeout uint64) (*transaction.Transaction, error) {
 	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
 	if err != nil {
 		return nil, err
@@ -282,7 +294,7 @@ func (w *Wallet) createTransferTx(pubKey []byte, bill *bill) (*transaction.Trans
 	tx := &transaction.Transaction{
 		UnitId:                bill.getId(),
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               1000,
+		Timeout:               timeout,
 		OwnerProof:            ownerProof,
 	}
 
@@ -298,7 +310,7 @@ func (w *Wallet) createTransferTx(pubKey []byte, bill *bill) (*transaction.Trans
 	return tx, nil
 }
 
-func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*transaction.Transaction, error) {
+func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill, timeout uint64) (*transaction.Transaction, error) {
 	txSig, err := w.signBytes(bill.TxHash) // TODO sign correct data: https://guardtime.atlassian.net/browse/AB-102
 	if err != nil {
 		return nil, err
@@ -312,7 +324,7 @@ func (w *Wallet) createSplitTx(amount uint64, pubKey []byte, bill *bill) (*trans
 	tx := &transaction.Transaction{
 		UnitId:                bill.getId(),
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               1000,
+		Timeout:               timeout,
 		OwnerProof:            ownerProof,
 	}
 

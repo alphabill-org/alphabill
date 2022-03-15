@@ -10,3 +10,14 @@ CVE-2021-3121
 
 # We are not using github.com/docker/docker, it's transitive from go-ethereum
 CVE-2015-3627
+
+# We are not using github.com/nats-io/nats-server
+CVE-2022-24450
+
+# We are not using github.com/nats-io/nats-server/v2
+CVE-2020-26892
+CVE-2020-26521
+
+# We are not using github.com/nats-io/jwt
+CVE-2020-26892
+CVE-2020-26521

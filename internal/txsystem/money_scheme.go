@@ -214,7 +214,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			return errors.Wrap(err, "could not update data")
 		}
 
-		newItemId := sameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
+		newItemId := SameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
 		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
 			V:        tx.Amount(),
 			T:        m.revertibleState.GetBlockNumber(),

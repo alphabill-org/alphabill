@@ -11,7 +11,7 @@ var (
 	createStackTraces = true
 )
 
-// Set whether to generate stack traces for errors or not
+// SetGenerateStackTraces Set whether to generate stack traces for errors or not
 func SetGenerateStackTraces(generate bool) {
 	createStackTraces = generate
 }
@@ -82,6 +82,7 @@ func Wrap(cause error, message string) error {
 		cause:   cause,
 		stack:   createStack(),
 	}
+
 }
 
 // Wrapf Creates an error from a format and arguments, along with another error as its cause

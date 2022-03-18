@@ -2,6 +2,7 @@ package smt
 
 import (
 	"crypto/sha256"
+	"hash"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,10 @@ func (t *TestData) Key(_ int) []byte {
 
 func (t *TestData) Value() []byte {
 	return t.value
+}
+
+func (t *TestData) AddToHasher(hasher hash.Hash) {
+	hasher.Write(t.value)
 }
 
 func TestNewSMTWithoutData(t *testing.T) {
@@ -37,7 +42,7 @@ func TestNewSMTWithData(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, smt)
 	hasher := sha256.New()
-	hasher.Write(values[0].Value())
+	values[0].AddToHasher(hasher)
 	valueHash := hasher.Sum(nil)
 	zeroHash := make([]byte, hasher.Size())
 	hasher.Reset()

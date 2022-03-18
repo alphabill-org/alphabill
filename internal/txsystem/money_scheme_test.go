@@ -359,6 +359,27 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	mock.AssertExpectationsForObjects(t, mockRState)
 }
 
+func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
+	mss := newMoneySchemeDefault()
+	swapTx := newRandomSwap()
+
+	swapTx.targetValue = 101
+	err := mss.validateSwap(swapTx)
+	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
+}
+
+func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
+	mss := newMoneySchemeDefault()
+	swapTx := newRandomSwap()
+
+	// add bill with same id as swap id
+	err := mss.revertibleState.AddItem(swapTx.unitId, []byte{}, &BillData{}, []byte{})
+	require.NoError(t, err)
+
+	err = mss.validateSwap(swapTx)
+	require.ErrorIs(t, err, ErrSwapBillAlreadyExists)
+}
+
 func NewMoneyScheme(mockRState *mocks.RevertibleState) (*moneySchemeState, error) {
 	initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state.Predicate{44}}
 	mockRState.On("AddItem", initialBill.ID, initialBill.Owner, mock.Anything, mock.Anything).Return(nil)
@@ -371,6 +392,17 @@ func NewMoneyScheme(mockRState *mocks.RevertibleState) (*moneySchemeState, error
 		MoneySchemeOpts.RevertibleState(mockRState),
 	)
 	return mss, err
+}
+
+func newMoneySchemeDefault() *moneySchemeState {
+	initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state.Predicate{44}}
+	mss, _ := NewMoneySchemeState(
+		crypto.SHA256,
+		[]string{defaultUnicityTrustBase},
+		initialBill,
+		100,
+	)
+	return mss
 }
 
 func newRandomTransfer() *transfer {

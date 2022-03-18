@@ -22,7 +22,8 @@ const (
 	addItemId                = 0
 	addItemOwner             = 1
 	addItemData              = 2
-	UpdateDataUpdateFunction = 1
+	updateDataUpdateFunction = 1
+	defaultUnicityTrustBase  = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
 )
 
 func TestNewMoneyScheme(t *testing.T) {
@@ -43,18 +44,18 @@ func TestNewMoneyScheme(t *testing.T) {
 		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
 
-	_, err := NewMoneySchemeState(crypto.SHA256, initialBill, dcMoneyAmount, MoneySchemeOpts.RevertibleState(mockRevertibleState))
+	_, err := NewMoneySchemeState(crypto.SHA256, []string{defaultUnicityTrustBase}, initialBill, dcMoneyAmount, MoneySchemeOpts.RevertibleState(mockRevertibleState))
 	require.NoError(t, err)
 }
 
 func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {
-	_, err := NewMoneySchemeState(crypto.SHA256, nil, 10)
+	_, err := NewMoneySchemeState(crypto.SHA256, []string{defaultUnicityTrustBase}, nil, 10)
 	require.ErrorIs(t, err, ErrInitialBillIsNil)
 }
 
 func TestNewMoneyScheme_InvalidInitialBillID(t *testing.T) {
 	initialBill := &InitialBill{ID: uint256.NewInt(0), Value: 100, Owner: nil}
-	_, err := NewMoneySchemeState(crypto.SHA256, initialBill, 10)
+	_, err := NewMoneySchemeState(crypto.SHA256, []string{defaultUnicityTrustBase}, initialBill, 10)
 	require.ErrorIs(t, err, ErrInvalidInitialBillID)
 }
 
@@ -76,7 +77,7 @@ func TestProcessTransaction(t *testing.T) {
 				rs.On("GetBlockNumber").Return(blockNumber)
 				rs.On("GetUnit", transferOk.UnitId()).Return(&state.Unit{Data: &BillData{V: transferOk.targetValue, Backlink: transferOk.backlink}}, nil)
 				rs.On("UpdateData", transferOk.unitId, mock.Anything, transferOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
-					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
+					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
 						V:        5,
 						T:        0,
@@ -109,7 +110,7 @@ func TestProcessTransaction(t *testing.T) {
 				rs.On("GetBlockNumber").Return(blockNumber)
 				rs.On("GetUnit", splitOk.UnitId()).Return(&state.Unit{Data: oldBillData}, nil)
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
-					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
+					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					newGenericData = upFunc(oldBillData)
 					newBD, ok := newGenericData.(*BillData)
 					require.True(t, ok, "returned data is not BillData")
@@ -148,7 +149,7 @@ func TestProcessTransaction(t *testing.T) {
 				rs.On("GetBlockNumber").Return(blockNumber)
 				rs.On("GetUnit", transferDCOk.UnitId()).Return(&state.Unit{Data: &BillData{V: transferDCOk.targetValue, Backlink: transferDCOk.backlink}}, nil)
 				rs.On("UpdateData", transferDCOk.unitId, mock.Anything, transferDCOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
-					upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
+					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
 						V:        5,
 						T:        0,
@@ -173,6 +174,7 @@ func TestProcessTransaction(t *testing.T) {
 			mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate(dustCollectorPredicate), mock.Anything, mock.Anything).Return(nil)
 			mss, err := NewMoneySchemeState(
 				crypto.SHA256,
+				[]string{defaultUnicityTrustBase},
 				initialBill,
 				0,
 				MoneySchemeOpts.RevertibleState(mockRState),
@@ -299,7 +301,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 
 	// DustCollector money supply update mock
 	mockRState.On("UpdateData", dustCollectorMoneySupplyID, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-		upFunc := args.Get(UpdateDataUpdateFunction).(state.UpdateFunction)
+		upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 		var oldValue uint64 = 100
 		dustCollectorBillData := &BillData{
 			V:        oldValue,
@@ -323,6 +325,7 @@ func NewMoneyScheme(mockRState *mocks.RevertibleState) (*moneySchemeState, error
 	mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate(dustCollectorPredicate), mock.Anything, mock.Anything).Return(nil)
 	mss, err := NewMoneySchemeState(
 		crypto.SHA256,
+		[]string{defaultUnicityTrustBase},
 		initialBill,
 		100,
 		MoneySchemeOpts.RevertibleState(mockRState),

@@ -11,7 +11,6 @@ import (
 	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
 	"github.com/holiman/uint256"
 )
 
@@ -61,6 +60,7 @@ type (
 
 	Config struct {
 		HashAlgorithm     crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
+		TrustBase         []string    // Mandatory, list of compressed secp256k1 public keys (33 bytes each) in hex format.
 		RecordingDisabled bool        // Optional, set to true, to disable keeping track of changes.
 		ShardId           []byte      // Optional, the ID of the shard. By default, 0.
 	}
@@ -73,7 +73,7 @@ type (
 		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
 		root             *Node         // root is the top node of the tree.
 		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
-		// TODO add trust base: https://guardtime.atlassian.net/browse/AB-91
+		trustBase        *trustBase
 	}
 
 	changeNode struct {
@@ -119,10 +119,15 @@ func New(config *Config) (*rmaTree, error) {
 	if config.HashAlgorithm != crypto.SHA256 && config.HashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
+	tb, err := newTrustBase(config.TrustBase)
+	if err != nil {
+		return nil, err
+	}
 	return &rmaTree{
 		hashAlgorithm:    config.HashAlgorithm,
 		recordingEnabled: !config.RecordingDisabled,
 		shardId:          config.ShardId,
+		trustBase:        tb,
 	}, nil
 }
 

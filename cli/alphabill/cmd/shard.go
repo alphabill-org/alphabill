@@ -29,6 +29,8 @@ type (
 		InitialBillValue uint64 `validate:"gte=0"`
 		// The initial value of Dust Collector Money supply.
 		DCMoneySupplyValue uint64 `validate:"gte=0"`
+		// trust base public keys, in compressed secp256k1 (33 bytes each) hex format
+		UnicityTrustBase []string
 	}
 	// shardRunnable is the function that is run after configuration is loaded.
 	shardRunnable func(ctx context.Context, shardConfig *shardConfiguration) error
@@ -65,13 +67,14 @@ func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFun
 
 	shardCmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value for new shard.")
 	shardCmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
+	shardCmd.Flags().StringSliceVar(&config.UnicityTrustBase, "trust-base", []string{}, "public key used as trust base, in compressed (33 bytes) hex format.")
 	config.Server.addConfigurationFlags(shardCmd)
 
 	return shardCmd
 }
 
 func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
-	billsState, err := txsystem.NewMoneySchemeState(crypto.SHA256, &txsystem.InitialBill{
+	billsState, err := txsystem.NewMoneySchemeState(crypto.SHA256, cfg.UnicityTrustBase, &txsystem.InitialBill{
 		ID:    uint256.NewInt(defaultInitialBillId),
 		Value: cfg.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),

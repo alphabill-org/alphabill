@@ -1,6 +1,9 @@
 package crypto
 
-import "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
+import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
+	"crypto"
+)
 
 type (
 	// Signer component for digitally signing data.
@@ -24,5 +27,7 @@ type (
 		VerifyObject(sig []byte, obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) error
 		// MarshalPublicKey marshal verifier public key to bytes.
 		MarshalPublicKey() ([]byte, error)
+		// UnmarshalPubKey unmarshal verifier public key to crypto.PublicKey
+		UnmarshalPubKey() (crypto.PublicKey, error)
 	}
 )

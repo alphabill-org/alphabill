@@ -43,7 +43,7 @@ var (
 )
 
 func TestEmpty(t *testing.T) {
-	tr, err := New(&Config{HashAlgorithm: crypto.SHA256})
+	tr, err := New(defaultConfig())
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	require.Nil(t, tr.GetRootHash())
@@ -61,21 +61,24 @@ func TestEmpty(t *testing.T) {
 }
 
 func TestHashAlgorithms(t *testing.T) {
-	tr, err := New(&Config{HashAlgorithm: crypto.SHA256})
+	config := defaultConfig()
+	tr, err := New(config)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 
-	tr, err = New(&Config{HashAlgorithm: crypto.SHA512})
+	config.HashAlgorithm = crypto.SHA512
+	tr, err = New(config)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 
-	tr, err = New(&Config{HashAlgorithm: crypto.MD5})
+	config.HashAlgorithm = crypto.MD5
+	tr, err = New(config)
 	require.Errorf(t, err, errStrInvalidHashAlgorithm)
 	require.Nil(t, tr)
 }
 
 func TestOneItem(t *testing.T) {
-	tr, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	tr, _ := New(defaultConfig())
 
 	tr.set(uint256.NewInt(0), Predicate{1, 2, 3}, TestData(100), nil)
 
@@ -88,7 +91,7 @@ func TestOneItem(t *testing.T) {
 }
 
 func TestTwoItems(t *testing.T) {
-	tr, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	tr, _ := New(defaultConfig())
 
 	id := uint256.NewInt(0)
 	owner := Predicate{1, 2, 3}
@@ -122,7 +125,7 @@ func TestTwoItems(t *testing.T) {
 }
 
 func TestSetOwner(t *testing.T) {
-	tr, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	tr, _ := New(defaultConfig())
 
 	id := uint256.NewInt(0)
 	owner1 := Predicate{1, 2, 3}
@@ -143,7 +146,7 @@ func TestSetOwner(t *testing.T) {
 }
 
 func TestSetData(t *testing.T) {
-	tr, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	tr, _ := New(defaultConfig())
 
 	id := uint256.NewInt(0)
 	data1 := TestData(1)
@@ -168,8 +171,9 @@ func TestSetData(t *testing.T) {
 }
 
 func TestHashing(t *testing.T) {
-	hashAlgorithm := crypto.SHA256
-	tr, _ := New(&Config{HashAlgorithm: hashAlgorithm})
+	config := defaultConfig()
+	hashAlgorithm := config.HashAlgorithm
+	tr, _ := New(config)
 
 	id := uint256.NewInt(4)
 	data := TestData(5)
@@ -210,7 +214,7 @@ func TestHashing(t *testing.T) {
 }
 
 func TestAddItem(t *testing.T) {
-	tr, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	tr, _ := New(defaultConfig())
 	id := uint256.NewInt(4)
 	data := TestData(5)
 	owner := Predicate{1, 2, 3}
@@ -226,7 +230,7 @@ func TestAddItem(t *testing.T) {
 }
 
 func TestUpdateData(t *testing.T) {
-	tr, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	tr, _ := New(defaultConfig())
 	id := uint256.NewInt(4)
 	data := TestData(5)
 	newData := TestData(6)
@@ -251,7 +255,7 @@ func TestUpdateData(t *testing.T) {
 }
 
 func TestSetNode_Overwrite(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
 	requireNodeEquals(t, at.root, key1, 1)
 	at.setNode(key1, newNodeContent(2))
@@ -259,7 +263,7 @@ func TestSetNode_Overwrite(t *testing.T) {
 }
 
 func TestRevert_Overwrite(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
 	at.Commit()
 	treeBefore := at.print()
@@ -271,7 +275,7 @@ func TestRevert_Overwrite(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
@@ -287,7 +291,7 @@ func TestAddBill_AVLTreeRotateLeft(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateRight(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key3, newNodeContent(3))
 	at.setNode(key2, newNodeContent(2))
@@ -303,7 +307,7 @@ func TestAddBill_AVLTreeRotateRight(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key10, newNodeContent(10))
 	at.setNode(key20, newNodeContent(20))
@@ -325,7 +329,7 @@ func TestAddBill_AVLTreeRotateLeftRight(t *testing.T) {
 }
 
 func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key10, newNodeContent(10))
 	at.setNode(key30, newNodeContent(30))
@@ -348,7 +352,7 @@ func TestAddBill_AVLTreeRotateRightLeft(t *testing.T) {
 }
 
 func TestGetNode_LeftChild(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
@@ -363,7 +367,7 @@ func TestGetNode_LeftChild(t *testing.T) {
 }
 
 func TestGetNode_RightChild(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, nil)
 	at.setNode(key2, nil)
@@ -375,7 +379,7 @@ func TestGetNode_RightChild(t *testing.T) {
 }
 
 func TestGetNode_NotFound(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, nil)
 	at.setNode(key2, nil)
@@ -387,21 +391,21 @@ func TestGetNode_NotFound(t *testing.T) {
 }
 
 func TestRemoveNode_empty(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, nil)
 	at.removeNode(key1)
 	require.Nil(t, at.root)
 }
 
 func TestRemoveNode_NonExisting(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, nil)
 	at.removeNode(key2)
 	require.Equal(t, key1, at.root.ID)
 }
 
 func TestRemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
 	at.GetRootHash()
@@ -415,7 +419,7 @@ func TestRemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
 }
 
 func TestRevert_RemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
 	hashBefore := at.GetRootHash()
@@ -434,7 +438,7 @@ func TestRevert_RemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
 func Test_RemoveNode_BiggerTree(t *testing.T) {
 	maxNrOfNodes := 25
 	createTree := func(nrOfNodes int) *rmaTree {
-		at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+		at, _ := New(defaultConfig())
 		for i := 0; i < nrOfNodes; i++ {
 			at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
 		}
@@ -469,7 +473,7 @@ func Test_RemoveNode_BiggerTree(t *testing.T) {
 }
 
 func TestRemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
 	at.GetRootHash()
@@ -483,7 +487,7 @@ func TestRemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
 }
 
 func TestRevert_RemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
 	at.GetRootHash()
@@ -499,7 +503,7 @@ func TestRevert_RemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
 }
 
 func TestRemoveNode_Leaf(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
@@ -516,7 +520,7 @@ func TestRemoveNode_Leaf(t *testing.T) {
 }
 
 func TestRevert_RemoveNode_Leaf(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
@@ -534,7 +538,7 @@ func TestRevert_RemoveNode_Leaf(t *testing.T) {
 }
 
 func TestRemoveNode_Top(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
@@ -551,7 +555,7 @@ func TestRemoveNode_Top(t *testing.T) {
 }
 
 func TestRevert_RemoveNode_Top(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
@@ -570,7 +574,7 @@ func TestRevert_RemoveNode_Top(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRemoveNode_RightRight(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 11; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -596,7 +600,7 @@ func TestRemoveNode_RightRight(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRevert_RemoveNode_RightRight(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 11; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -622,7 +626,7 @@ func TestRevert_RemoveNode_RightRight(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRemoveNode_RightLeft(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 11; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -651,7 +655,7 @@ func TestRemoveNode_RightLeft(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRevert_RemoveNode_RightLeft(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 11; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -676,7 +680,7 @@ func TestRevert_RemoveNode_RightLeft(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRemoveNode_LeftLeft(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 14; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -704,7 +708,7 @@ func TestRemoveNode_LeftLeft(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRevert_RemoveNode_LeftLeft(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 14; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -733,7 +737,7 @@ func TestRevert_RemoveNode_LeftLeft(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRemoveNode_LeftRight(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 14; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -761,7 +765,7 @@ func TestRemoveNode_LeftRight(t *testing.T) {
 
 // Test cases based on: https://www.geeksforgeeks.org/avl-tree-set-2-deletion/
 func TestRevert_RemoveNode_LeftRight(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	for i := 1; i < 14; i++ {
 		at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -788,7 +792,7 @@ func TestRevert_RemoveNode_LeftRight(t *testing.T) {
 }
 
 func TestRevert_FirstNode(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key1, newNodeContent(1))
 	require.NotNil(t, at.root)
@@ -801,7 +805,7 @@ func TestRevert_FirstNode(t *testing.T) {
 }
 
 func TestRevert_SingleRotation(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
 	at.setNode(key2, newNodeContent(2))
 	at.GetRootHash()
@@ -819,7 +823,7 @@ func TestRevert_SingleRotation(t *testing.T) {
 }
 
 func TestRevert_DoubleRotation(t *testing.T) {
-	at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+	at, _ := New(defaultConfig())
 
 	at.setNode(key10, newNodeContent(10))
 	at.setNode(key20, newNodeContent(20))
@@ -839,7 +843,7 @@ func TestRevert_DoubleRotation(t *testing.T) {
 func TestRevert_Fuzzier(t *testing.T) {
 	// Run the randomized test 10 times
 	for k := 0; k < 10; k++ {
-		at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+		at, _ := New(defaultConfig())
 
 		var ids []*uint256.Int
 
@@ -883,7 +887,7 @@ func TestRevert_Fuzzier(t *testing.T) {
 func TestGetRootHash_Fuzzier(t *testing.T) {
 	// Run the randomized test 10 times
 	for k := 0; k < 10; k++ {
-		at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
+		at, _ := New(defaultConfig())
 
 		var ids []*uint256.Int
 

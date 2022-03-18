@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/elliptic"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 
@@ -8,7 +10,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
@@ -36,12 +38,12 @@ func (v *verifierSecp256k1) VerifyBytes(sig []byte, data []byte) error {
 	if v == nil || v.pubKey == nil || sig == nil || data == nil {
 		return errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
-	if len(sig) == crypto.SignatureLength {
+	if len(sig) == ethcrypto.SignatureLength {
 		// If signature contains recovery ID, then remove it.
 		sig = sig[:len(sig)-1]
 	}
-	if len(sig) != crypto.RecoveryIDOffset {
-		return errors.Wrapf(errors.ErrInvalidState, "signature length is %d b (expected %d b)", len(sig), crypto.RecoveryIDOffset)
+	if len(sig) != ethcrypto.RecoveryIDOffset {
+		return errors.Wrapf(errors.ErrInvalidState, "signature length is %d b (expected %d b)", len(sig), ethcrypto.RecoveryIDOffset)
 	}
 	if secp256k1.VerifySignature(v.pubKey, hash.Sum256(data), sig) {
 		return nil
@@ -60,13 +62,24 @@ func (v *verifierSecp256k1) VerifyObject(sig []byte, obj canonicalizer.Canonical
 
 // MarshalPublicKey returns compressed public key, 33 bytes
 func (v *verifierSecp256k1) MarshalPublicKey() ([]byte, error) {
+	pubkey, err := v.unmarshalPubKey()
+	if err != nil {
+		return nil, err
+	}
+	return secp256k1.CompressPubkey(pubkey.X, pubkey.Y), nil
+}
+
+func (v *verifierSecp256k1) UnmarshalPubKey() (crypto.PublicKey, error) {
+	return v.unmarshalPubKey()
+}
+
+func (v *verifierSecp256k1) unmarshalPubKey() (*ecdsa.PublicKey, error) {
 	if v == nil || v.pubKey == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
-	pubkey, err := crypto.UnmarshalPubkey(v.pubKey)
+	pubkey, err := ethcrypto.UnmarshalPubkey(v.pubKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not convert public key bytes to ECDSA public key")
 	}
-	compressed := secp256k1.CompressPubkey(pubkey.X, pubkey.Y)
-	return compressed, nil
+	return pubkey, nil
 }

@@ -165,7 +165,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 	switch tx := gtx.(type) {
 	case Transfer:
 		log.Debug("Processing transfer %v", tx)
-		err := m.validateTransfer(tx)
+		err := m.validateTransferTx(tx)
 		if err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
 	case TransferDC:
 		log.Debug("Processing transferDC %v", tx)
-		err := m.validateTransferDC(tx)
+		err := m.validateTransferDCTx(tx)
 		if err != nil {
 			return err
 		}
@@ -194,7 +194,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		return nil
 	case Split:
 		log.Debug("Processing split %v", tx)
-		err := m.validateSplit(tx)
+		err := m.validateSplitTx(tx)
 		if err != nil {
 			return err
 		}
@@ -225,7 +225,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		}
 	case Swap:
 		log.Debug("Processing swap %v", tx)
-		err := m.validateSwap(tx)
+		err := m.validateSwapTx(tx)
 		if err != nil {
 			return err
 		}
@@ -313,7 +313,7 @@ func (m *moneySchemeState) updateBillData(tx GenericTransaction) error {
 	}, tx.Hash(m.hashAlgorithm))
 }
 
-func (m *moneySchemeState) validateTransfer(tx Transfer) error {
+func (m *moneySchemeState) validateTransferTx(tx Transfer) error {
 	data, err := m.revertibleState.GetUnit(tx.UnitId())
 	if err != nil {
 		return err
@@ -321,7 +321,7 @@ func (m *moneySchemeState) validateTransfer(tx Transfer) error {
 	return validateTransfer(data.Data, tx)
 }
 
-func (m *moneySchemeState) validateTransferDC(tx TransferDC) error {
+func (m *moneySchemeState) validateTransferDCTx(tx TransferDC) error {
 	data, err := m.revertibleState.GetUnit(tx.UnitId())
 	if err != nil {
 		return err
@@ -329,7 +329,7 @@ func (m *moneySchemeState) validateTransferDC(tx TransferDC) error {
 	return validateTransferDC(data.Data, tx)
 }
 
-func (m *moneySchemeState) validateSplit(tx Split) error {
+func (m *moneySchemeState) validateSplitTx(tx Split) error {
 	data, err := m.revertibleState.GetUnit(tx.UnitId())
 	if err != nil {
 		return err
@@ -337,7 +337,7 @@ func (m *moneySchemeState) validateSplit(tx Split) error {
 	return validateSplit(data.Data, tx)
 }
 
-func (m *moneySchemeState) validateSwap(tx Swap) error {
+func (m *moneySchemeState) validateSwapTx(tx Swap) error {
 	// 2. there is suffiecient DC-money supply
 	dcMoneySupply, err := m.revertibleState.GetUnit(dustCollectorMoneySupplyID)
 	if err != nil {

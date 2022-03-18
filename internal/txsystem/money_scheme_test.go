@@ -364,7 +364,7 @@ func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
 	swapTx := newRandomSwap()
 
 	swapTx.targetValue = 101
-	err := mss.validateSwap(swapTx)
+	err := mss.validateSwapTx(swapTx)
 	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
 }
 
@@ -376,7 +376,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	err := mss.revertibleState.AddItem(swapTx.unitId, []byte{}, &BillData{}, []byte{})
 	require.NoError(t, err)
 
-	err = mss.validateSwap(swapTx)
+	err = mss.validateSwapTx(swapTx)
 	require.ErrorIs(t, err, ErrSwapBillAlreadyExists)
 }
 

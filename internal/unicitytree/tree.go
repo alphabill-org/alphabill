@@ -23,19 +23,20 @@ type (
 	}
 
 	Data struct {
-		systemIdentifier []byte
-		inputRecord      InputRecord
-		// TODO AB-112 add System Description Record
+		systemIdentifier        []byte
+		inputRecord             InputRecord
+		systemDescriptionRecord *SystemDescriptionRecord
 	}
 
 	UnicityTree struct {
-		smt *smt.SMT
+		smt    *smt.SMT
+		hasher hash.Hash
 	}
 
 	Certificate struct {
-		systemIdentifier []byte
-		siblingHashes    [][]byte
-		// TODO AB-112 add System Description Record hash
+		systemIdentifier      []byte
+		siblingHashes         [][]byte
+		systemDescriptionHash []byte
 	}
 )
 
@@ -50,7 +51,8 @@ func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
 		return nil, err
 	}
 	return &UnicityTree{
-		smt: smt,
+		smt:    smt,
+		hasher: hasher,
 	}, nil
 }
 
@@ -59,13 +61,21 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*Certificate, err
 	if len(systemIdentifier) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}
-	path, err := u.smt.GetAuthPath(systemIdentifier)
+	path, data, err := u.smt.GetAuthPath(systemIdentifier)
 	if err != nil {
 		return nil, err
 	}
+
+	leafData, ok := data.(*Data)
+	if !ok {
+		return nil, errors.New("invalid data type, unicity tree leaf not is not of type *Data")
+	}
+	dhash := leafData.systemDescriptionRecord.hash(u.hasher)
+
 	return &Certificate{
-		systemIdentifier: systemIdentifier,
-		siblingHashes:    path,
+		systemIdentifier:      systemIdentifier,
+		systemDescriptionHash: dhash,
+		siblingHashes:         path,
 	}, nil
 }
 
@@ -75,7 +85,7 @@ func (d *Data) Key(_ int) []byte {
 
 func (d *Data) AddToHasher(hasher hash.Hash) {
 	d.inputRecord.AddToHasher(hasher)
-	// TODO AB-112 add system description record hash
+	d.systemDescriptionRecord.addToHasher(hasher)
 }
 
 func (ir *InputRecord) AddToHasher(hasher hash.Hash) {

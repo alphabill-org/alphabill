@@ -107,8 +107,9 @@ func TestGetAuthPath(t *testing.T) {
 	values := []Data{&TestData{value: key}}
 	smt, err := New(sha256.New(), 2, values)
 	require.NoError(t, err)
-	path, err := smt.GetAuthPath(key)
+	path, data, err := smt.GetAuthPath(key)
 	require.NoError(t, err)
+	require.Equal(t, values[0], data)
 	require.NotNil(t, path)
 	require.Equal(t, 16, len(path))
 	hasher := sha256.New()
@@ -138,7 +139,8 @@ func TestGetAuthPath_DataNotPresent(t *testing.T) {
 	var values []Data
 	smt, err := New(sha256.New(), 2, values)
 	require.NoError(t, err)
-	path, err := smt.GetAuthPath(key)
+	path, data, err := smt.GetAuthPath(key)
 	require.NoError(t, err)
+	require.Nil(t, data)
 	require.NotNil(t, path)
 }

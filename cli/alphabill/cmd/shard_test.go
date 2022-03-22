@@ -295,7 +295,8 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient transacti
 		UnitId:                initialBillID[:],
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               1,
-		OwnerProof:            []byte{script.StartByte},
+		OwnerProof:            script.PredicateArgumentEmpty(),
+		SystemId:              []byte{0},
 	}
 	bt := &transaction.BillTransfer{
 		NewBearer:   script.PredicateAlwaysTrue(),
@@ -317,7 +318,8 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient transaction.
 		UnitId:                wrongBillID[:],
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               0,
-		OwnerProof:            []byte{script.StartByte},
+		OwnerProof:            script.PredicateArgumentEmpty(),
+		SystemId:              []byte{0},
 	}
 	bt := &transaction.BillTransfer{
 		NewBearer:   script.PredicateAlwaysTrue(),

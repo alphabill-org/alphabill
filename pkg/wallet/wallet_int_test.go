@@ -49,7 +49,7 @@ func TestSync(t *testing.T) {
 					// random dust transfer can be processed
 					{
 						UnitId:                hash.Sum256([]byte{0x00}),
-						TransactionAttributes: createDustTransferTx(),
+						TransactionAttributes: createRandomDustTransferTx(),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentEmpty(),
 					},
@@ -70,7 +70,7 @@ func TestSync(t *testing.T) {
 					// receive swap of 100 bills
 					{
 						UnitId:                hash.Sum256([]byte{0x03}),
-						TransactionAttributes: createSwapTx(k.PubKeyHashSha256),
+						TransactionAttributes: createRandomSwapTransferTx(k.PubKeyHashSha256),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
@@ -297,7 +297,16 @@ func createBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) 
 	return tx
 }
 
-func createDustTransferTx() *anypb.Any {
+func createRandomDcTx() *transaction.Transaction {
+	return &transaction.Transaction{
+		UnitId:                hash.Sum256([]byte{0x00}),
+		TransactionAttributes: createRandomDustTransferTx(),
+		Timeout:               1000,
+		OwnerProof:            script.PredicateArgumentEmpty(),
+	}
+}
+
+func createRandomDustTransferTx() *anypb.Any {
 	tx, _ := anypb.New(&transaction.TransferDC{
 		TargetBearer: script.PredicateAlwaysTrue(),
 		Backlink:     hash.Sum256([]byte{}),
@@ -307,7 +316,7 @@ func createDustTransferTx() *anypb.Any {
 	return tx
 }
 
-func createSwapTx(pubKeyHash []byte) *anypb.Any {
+func createRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
 	tx, _ := anypb.New(&transaction.Swap{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},

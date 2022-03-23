@@ -215,13 +215,16 @@ func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
 
 func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	w, _ := CreateTestWallet(t)
-	bills := []*bill{
-		{Id: uint256.NewInt(2)},
-		{Id: uint256.NewInt(1)},
-		{Id: uint256.NewInt(0)},
+	k, _ := w.db.GetAccountKey()
+
+	dcBills := []*bill{
+		{Id: uint256.NewInt(2), DcTx: createRandomDcTx()},
+		{Id: uint256.NewInt(1), DcTx: createRandomDcTx()},
+		{Id: uint256.NewInt(0), DcTx: createRandomDcTx()},
 	}
-	dcNonce := calculateDcNonce(bills)
-	tx, err := w.createSwapTx(bills, dcNonce, 10)
+	dcNonce := calculateDcNonce(dcBills)
+
+	tx, err := createSwapTx(k, dcBills, dcNonce, 10)
 	require.NoError(t, err)
 	swapTx := parseSwapTx(t, tx)
 
@@ -262,7 +265,9 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 		Value:  value,
 		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
-	tx, err := w.createDustTx(&b, nonceB32[:], timeout)
+	k, _ := w.db.GetAccountKey()
+
+	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
 	require.NoError(t, err)
 
 	b.IsDcBill = true

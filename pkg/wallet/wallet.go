@@ -99,6 +99,15 @@ func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.GetBalance()
 }
 
+// GetPublicKey returns public key of the wallet (compressed secp256k1 key 33 bytes)
+func (w *Wallet) GetPublicKey() ([]byte, error) {
+	key, err := w.db.GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+	return key.PubKey, err
+}
+
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
 // to the given public key, the public key must be in compressed secp256k1 format.
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {

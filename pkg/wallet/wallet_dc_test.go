@@ -234,6 +234,24 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	require.EqualValues(t, dcNonce, actualDcNonce)
 }
 
+func TestExpiredDcBillsGetDeleted(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	_ = w.db.SetBill(&bill{Id: uint256.NewInt(0), IsDcBill: false})
+	_ = w.db.SetBill(&bill{Id: uint256.NewInt(1), IsDcBill: true, DcExpirationTimeout: 10})
+	_ = w.db.SetBill(&bill{Id: uint256.NewInt(2), IsDcBill: true, DcExpirationTimeout: 20})
+	blockHeight := uint64(15)
+	_ = w.db.SetBlockHeight(blockHeight)
+
+	err := w.deleteExpiredDcBills(blockHeight)
+	require.NoError(t, err)
+
+	bills, _ := w.db.GetBills()
+	require.Len(t, bills, 2)
+	for _, b := range bills {
+		require.False(t, b.isExpired(blockHeight))
+	}
+}
+
 func addBills(t *testing.T, w *Wallet) {
 	addBill(t, w, 1)
 	addBill(t, w, 2)
@@ -269,6 +287,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 	b.DcTx = tx
 	b.DcNonce = nonceB32[:]
 	b.DcTimeout = timeout
+	b.DcExpirationTimeout = dustBillDeletionTimeout
 
 	err = w.db.SetBill(&b)
 	require.NoError(t, err)
@@ -276,8 +295,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 }
 
 func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
-	actualBlockHeight, err := w.db.GetBlockHeight()
-	require.NoError(t, err)
+	actualBlockHeight, _ := w.db.GetBlockHeight()
 	require.Equal(t, blockHeight, actualBlockHeight)
 }
 

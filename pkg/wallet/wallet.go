@@ -30,6 +30,7 @@ const (
 	swapTimeoutBlockCount    = 60
 	txTimeoutBlockCount      = 100
 	isSyncedCutoffBlockCount = 10
+	dustBillDeletionTimeout  = 300
 	mnemonicEntropyBitSize   = 128
 )
 
@@ -440,33 +441,27 @@ func (w *Wallet) initBlockProcessor(ch <-chan *alphabill.GetBlocksResponse) erro
 	return nil
 }
 
-func (w *Wallet) verifyBlockHeight(b *alphabill.Block) error {
-	// verify that we are processing blocks sequentially
-	// TODO verify last prev block hash?
-	height, err := w.db.GetBlockHeight()
-	if err != nil {
-		return err
-	}
-	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
-	if b.BlockNo-height != 1 {
-		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNo, height))
-	}
-	return nil
-}
-
 // TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
 func (w *Wallet) processBlock(blockResponse *alphabill.GetBlocksResponse) error {
 	return w.db.WithTransaction(func() error {
 		b := blockResponse.Block
-		err := w.verifyBlockHeight(b)
+		blockHeight, err := w.db.GetBlockHeight()
+		if err != nil {
+			return err
+		}
+		err = validateBlockHeight(b, blockHeight)
 		if err != nil {
 			return err
 		}
 		for _, txPb := range b.Transactions {
-			err = w.collectBills(txPb)
+			err = w.collectBills(txPb, blockHeight)
 			if err != nil {
 				return err
 			}
+		}
+		err = w.deleteExpiredDcBills(b.BlockNo)
+		if err != nil {
+			return err
 		}
 		err = w.db.SetBlockHeight(b.BlockNo)
 		if err != nil {
@@ -548,7 +543,7 @@ func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) er
 	return w.db.SetDcMetadata(dcNonce, &dcMetadata{SwapTimeout: timeout})
 }
 
-func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
+func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64) error {
 	gtx, err := transaction.New(txPb)
 	if err != nil {
 		return err
@@ -580,13 +575,14 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:        tx.UnitId(),
-				Value:     tx.TargetValue(),
-				TxHash:    tx.Hash(crypto.SHA256),
-				IsDcBill:  true,
-				DcTx:      txPb,
-				DcTimeout: tx.Timeout(),
-				DcNonce:   tx.Nonce(),
+				Id:                  tx.UnitId(),
+				Value:               tx.TargetValue(),
+				TxHash:              tx.Hash(crypto.SHA256),
+				IsDcBill:            true,
+				DcTx:                txPb,
+				DcTimeout:           tx.Timeout(),
+				DcNonce:             tx.Nonce(),
+				DcExpirationTimeout: blockHeight + dustBillDeletionTimeout,
 			})
 		} else {
 			err := w.db.RemoveBill(tx.UnitId())
@@ -648,9 +644,6 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 				return err
 			}
 
-			// TODO once DC bill gets deleted how is it reflected in the ledger? https://guardtime.atlassian.net/browse/AB-101
-			// => it's not, wallet must follow blockchain rules, and one of the rules is that after X amount of time
-			// any pending dc bill gets removed
 			for _, dustTransfer := range tx.DCTransfers() {
 				err := w.db.RemoveBill(dustTransfer.UnitId())
 				if err != nil {
@@ -845,6 +838,22 @@ func (w *Wallet) isSynced() (bool, error) {
 	return maxBlockHeight-blockHeight < isSyncedCutoffBlockCount, nil
 }
 
+func (w *Wallet) deleteExpiredDcBills(blockHeight uint64) error {
+	bills, err := w.db.GetBills()
+	if err != nil {
+		return err
+	}
+	for _, b := range bills {
+		if b.isExpired(blockHeight) {
+			err = w.db.RemoveBill(b.Id)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func createWallet(mnemonic string, config Config) (*Wallet, error) {
 	db, err := getDb(config, true)
 	if err != nil {
@@ -973,4 +982,14 @@ func calculateDcNonce(bills []*bill) []byte {
 		hasher.Write(billId)
 	}
 	return hasher.Sum(nil)
+}
+
+func validateBlockHeight(b *alphabill.Block, blockHeight uint64) error {
+	// verify that we are processing blocks sequentially
+	// TODO verify last prev block hash?
+	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
+	if b.BlockNo-blockHeight != 1 {
+		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNo, blockHeight))
+	}
+	return nil
 }

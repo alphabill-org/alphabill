@@ -2,13 +2,11 @@ package cmd
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
-	"strings"
 )
 
 const defaultAlphabillUri = "localhost:9543"
@@ -232,10 +230,7 @@ func pubKeyHexToBytes(s string) ([]byte, bool) {
 	if len(s) != 68 {
 		return nil, false
 	}
-	if !strings.HasPrefix(s, "0x") {
-		return nil, false
-	}
-	pubKeyBytes, err := hex.DecodeString(s[2:])
+	pubKeyBytes, err := hexutil.Decode(s)
 	if err != nil {
 		return nil, false
 	}

@@ -236,15 +236,28 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 
 func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	w, _ := CreateTestWallet(t)
-	_ = w.db.SetBill(&bill{Id: uint256.NewInt(0), IsDcBill: false})
-	_ = w.db.SetBill(&bill{Id: uint256.NewInt(1), IsDcBill: true, DcExpirationTimeout: 10})
-	_ = w.db.SetBill(&bill{Id: uint256.NewInt(2), IsDcBill: true, DcExpirationTimeout: 20})
+	b1 := &bill{Id: uint256.NewInt(0), IsDcBill: false}
+	b2 := &bill{Id: uint256.NewInt(1), IsDcBill: true, DcExpirationTimeout: 10}
+	b3 := &bill{Id: uint256.NewInt(2), IsDcBill: true, DcExpirationTimeout: 20}
+	_ = w.db.SetBill(b1)
+	_ = w.db.SetBill(b2)
+	_ = w.db.SetBill(b3)
 	blockHeight := uint64(15)
 	_ = w.db.SetBlockHeight(blockHeight)
 
-	err := w.deleteExpiredDcBills(blockHeight)
+	// verify initial bills
+	require.False(t, b1.isExpired(blockHeight))
+	require.True(t, b2.isExpired(blockHeight))
+	require.False(t, b3.isExpired(blockHeight))
+
+	// receing a block should delete expired bills
+	err := w.processBlock(&alphabill.GetBlocksResponse{Block: &alphabill.Block{
+		BlockNo:      blockHeight + 1,
+		Transactions: []*transaction.Transaction{},
+	}})
 	require.NoError(t, err)
 
+	// verify that one expired bill gets removed and remaining bills are not expired
 	bills, _ := w.db.GetBills()
 	require.Len(t, bills, 2)
 	for _, b := range bills {

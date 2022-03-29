@@ -12,6 +12,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
@@ -556,7 +558,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 	stx := gtx.(txsystem.GenericTransaction)
 
 	switch tx := stx.(type) {
-	case txsystem.Transfer:
+	case money.Transfer:
 		isOwner, err := w.isOwner(tx.NewBearer())
 		if err != nil {
 			return err
@@ -573,7 +575,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 				return err
 			}
 		}
-	case txsystem.TransferDC:
+	case money.TransferDC:
 		isOwner, err := w.isOwner(tx.TargetBearer())
 		if err != nil {
 			return err
@@ -594,7 +596,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 				return err
 			}
 		}
-	case txsystem.Split:
+	case money.Split:
 		// split tx contains two bills: existing bill and new bill
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
@@ -619,7 +621,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 		}
 		if isOwner {
 			err := w.db.SetBill(&bill{
-				Id:     txsystem.SameShardId(tx.UnitId(), tx.HashForIdCalculation(crypto.SHA256)),
+				Id:     util.SameShardId(tx.UnitId(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -627,7 +629,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 				return err
 			}
 		}
-	case txsystem.Swap:
+	case money.Swap:
 		isOwner, err := w.isOwner(tx.OwnerCondition())
 		if err != nil {
 			return err

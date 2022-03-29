@@ -1,8 +1,10 @@
-package txsystem
+package money
 
 import (
 	"crypto"
 	"fmt"
+	txs "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"hash"
 
 	abHasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
@@ -20,23 +22,15 @@ import (
 const dustBillDeletionTimeout uint64 = 300
 
 type (
-	GenericTransaction interface {
-		SystemID() []byte
-		UnitId() *uint256.Int
-		Timeout() uint64
-		OwnerProof() []byte
-		Hash(hashFunc crypto.Hash) []byte
-	}
-
 	Transfer interface {
-		GenericTransaction
+		txs.GenericTransaction
 		NewBearer() []byte
 		TargetValue() uint64
 		Backlink() []byte
 	}
 
 	TransferDC interface {
-		GenericTransaction
+		txs.GenericTransaction
 		Nonce() []byte
 		TargetBearer() []byte
 		TargetValue() uint64
@@ -44,7 +38,7 @@ type (
 	}
 
 	Split interface {
-		GenericTransaction
+		txs.GenericTransaction
 		Amount() uint64
 		TargetBearer() []byte
 		RemainingValue() uint64
@@ -53,7 +47,7 @@ type (
 	}
 
 	Swap interface {
-		GenericTransaction
+		txs.GenericTransaction
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
 		DCTransfers() []TransferDC
@@ -157,8 +151,8 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 	return msState, nil
 }
 
-func (m *moneySchemeState) Process(gtx GenericTransaction) error {
-	err := validateGenericTransaction(gtx, m.revertibleState.GetBlockNumber())
+func (m *moneySchemeState) Process(gtx txs.GenericTransaction) error {
+	err := txs.ValidateGenericTransaction(gtx, m.revertibleState.GetBlockNumber())
 	if err != nil {
 		return err
 	}
@@ -214,7 +208,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			return errors.Wrap(err, "could not update data")
 		}
 
-		newItemId := SameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
+		newItemId := txutil.SameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
 		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
 			V:        tx.Amount(),
 			T:        m.revertibleState.GetBlockNumber(),
@@ -300,7 +294,7 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 	return nil
 }
 
-func (m *moneySchemeState) updateBillData(tx GenericTransaction) error {
+func (m *moneySchemeState) updateBillData(tx txs.GenericTransaction) error {
 	return m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
 		bd, ok := data.(*BillData)
 		if !ok {

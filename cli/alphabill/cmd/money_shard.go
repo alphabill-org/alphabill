@@ -11,7 +11,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
@@ -44,10 +44,10 @@ const (
 
 var log = logger.CreateForPackage()
 
-// newShardCmd creates a new cobra command for the shard component.
+// newMoneyShardCmd creates a new cobra command for the shard component.
 //
 // shardRunFunc - set the function to override the default behaviour. Meant for tests.
-func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFunc shardRunnable) *cobra.Command {
+func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFunc shardRunnable) *cobra.Command {
 	config := &shardConfiguration{
 		Root:   rootConfig,
 		Server: &grpcServerConfiguration{},
@@ -74,7 +74,7 @@ func newShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFun
 }
 
 func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
-	billsState, err := txsystem.NewMoneySchemeState(crypto.SHA256, cfg.UnicityTrustBase, &txsystem.InitialBill{
+	billsState, err := money.NewMoneySchemeState(crypto.SHA256, cfg.UnicityTrustBase, &money.InitialBill{
 		ID:    uint256.NewInt(defaultInitialBillId),
 		Value: cfg.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),

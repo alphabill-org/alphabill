@@ -1,8 +1,7 @@
-package txsystem
+package money
 
 import (
 	"crypto"
-
 	"github.com/holiman/uint256"
 )
 

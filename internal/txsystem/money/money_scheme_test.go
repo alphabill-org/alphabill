@@ -1,12 +1,13 @@
-package txsystem
+package money
 
 import (
 	"crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	tx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money/mocks"
+	util2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"math/rand"
 	"testing"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/mocks"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 
@@ -68,7 +69,7 @@ func TestProcessTransaction(t *testing.T) {
 	blockNumber := uint64(0)
 	testData := []struct {
 		name        string
-		transaction GenericTransaction
+		transaction tx.GenericTransaction
 		expect      func(rs *mocks.RevertibleState)
 		expectErr   error
 	}{
@@ -149,7 +150,7 @@ func TestProcessTransaction(t *testing.T) {
 				}).Return(nil)
 
 				rs.On("AddItem", mock.Anything, mock.Anything, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
-					expectedNewId := SameShardId(splitOk.unitId, splitOk.HashForIdCalculation(crypto.SHA256))
+					expectedNewId := util2.SameShardId(splitOk.unitId, splitOk.HashForIdCalculation(crypto.SHA256))
 					actualId := args.Get(addItemId).(*uint256.Int)
 					require.Equal(t, expectedNewId, actualId)
 

@@ -1,7 +1,9 @@
-package txsystem
+package money
 
 import (
 	"crypto"
+	tx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -185,7 +187,7 @@ func TestSwap(t *testing.T) {
 func TestGenericTxValidation(t *testing.T) {
 	tests := []struct {
 		name    string
-		gtx     GenericTransaction
+		gtx     tx.GenericTransaction
 		blockNo uint64
 		res     error
 	}{

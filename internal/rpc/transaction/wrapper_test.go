@@ -2,9 +2,8 @@ package transaction
 
 import (
 	"crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"testing"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
@@ -30,14 +29,14 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 	// If a transfer with exactly same fields would be added, then the switch will find the first one.
 	// Not a problem at the moment.
 	switch w := genericTx.(type) {
-	case txsystem.Transfer:
+	case money.Transfer:
 		assert.Equal(t, pbTransaction.Timeout, w.Timeout())
 		assert.Equal(t, pbBillTransfer.NewBearer, w.NewBearer())
 		assert.Equal(t, pbBillTransfer.Backlink, w.Backlink())
 		assert.Equal(t, pbBillTransfer.TargetValue, w.TargetValue())
 		hashValue2 := w.Hash(crypto.SHA256)
 		assert.Equal(t, hashValue1, hashValue2)
-	case txsystem.TransferDC:
+	case money.TransferDC:
 		require.Fail(t, "Should not be transferDC")
 	default:
 		require.Fail(t, "Should find the correct type")
@@ -51,7 +50,7 @@ func TestWrapper_Transfer(t *testing.T) {
 	)
 	genericTx, err := New(pbTransaction)
 	require.NoError(t, err)
-	transfer, ok := genericTx.(txsystem.Transfer)
+	transfer, ok := genericTx.(money.Transfer)
 	require.True(t, ok)
 
 	assert.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitId())
@@ -72,7 +71,7 @@ func TestWrapper_TransferDC(t *testing.T) {
 	)
 	genericTx, err := New(pbTransaction)
 	require.NoError(t, err)
-	transfer, ok := genericTx.(txsystem.TransferDC)
+	transfer, ok := genericTx.(money.TransferDC)
 	require.True(t, ok)
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 
@@ -86,7 +85,7 @@ func TestWrapper_Split(t *testing.T) {
 	)
 	genericTx, err := New(pbTransaction)
 	require.NoError(t, err)
-	split, ok := genericTx.(txsystem.Split)
+	split, ok := genericTx.(money.Split)
 	require.True(t, ok)
 
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
@@ -131,7 +130,7 @@ func TestWrapper_Swap(t *testing.T) {
 	)
 	genericTx, err := New(pbTransaction)
 	require.NoError(t, err)
-	swap, ok := genericTx.(txsystem.Swap)
+	swap, ok := genericTx.(money.Swap)
 	require.True(t, ok)
 
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
@@ -169,7 +168,7 @@ func TestUint256Hashing(t *testing.T) {
 }
 
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
-func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransaction *Transaction, transfer txsystem.TransferDC) {
+func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransaction *Transaction, transfer money.TransferDC) {
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
 	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitId())
 	require.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())

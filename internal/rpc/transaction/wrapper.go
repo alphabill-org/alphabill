@@ -3,9 +3,8 @@ package transaction
 import (
 	"crypto"
 	"encoding/base64"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"hash"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
@@ -263,8 +262,8 @@ func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }
 func (w *swapWrapper) TargetValue() uint64    { return w.swap.TargetValue }
-func (w *swapWrapper) DCTransfers() []txsystem.TransferDC {
-	var sdt []txsystem.TransferDC
+func (w *swapWrapper) DCTransfers() []money.TransferDC {
+	var sdt []money.TransferDC
 	for _, dt := range w.dcTransfers {
 		sdt = append(sdt, dt)
 	}

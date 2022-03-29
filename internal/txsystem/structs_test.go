@@ -38,6 +38,15 @@ type (
 		remainingValue uint64
 		backlink       []byte
 	}
+
+	swap struct {
+		genericTx
+		ownerCondition  []byte
+		billIdentifiers []*uint256.Int
+		dcTransfers     []TransferDC
+		proofs          [][]byte
+		targetValue     uint64
+	}
 )
 
 func (t *genericTx) SystemID() []byte     { return t.systemID }
@@ -64,3 +73,10 @@ func (s split) Hash(hashFunc crypto.Hash) []byte { return []byte("split hash") }
 func (s split) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	return []byte("hash value for usage in sameShardId function")
 }
+
+func (s *swap) OwnerCondition() []byte          { return s.ownerCondition }
+func (s *swap) BillIdentifiers() []*uint256.Int { return s.billIdentifiers }
+func (s *swap) DCTransfers() []TransferDC       { return s.dcTransfers }
+func (s *swap) Proofs() [][]byte                { return s.proofs }
+func (s *swap) TargetValue() uint64             { return s.targetValue }
+func (s *swap) Hash(_ crypto.Hash) []byte       { return []byte("swap hash") }

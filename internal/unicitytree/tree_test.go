@@ -1,6 +1,7 @@
 package unicitytree
 
 import (
+	"crypto"
 	"crypto/sha256"
 	"hash"
 	"testing"
@@ -18,25 +19,50 @@ var inputRecord = InputRecord{
 	SummaryValue: Uint64SummaryValue(1),
 }
 
+var systemDescriptionRecord = NewSystemDescriptionRecord("ab")
+
 func TestNewUnicityTree(t *testing.T) {
-	unicityTree, err := New(sha256.New(), []*Data{{systemIdentifier: []byte{0x00, 0x00, 0x00, 0x01}, inputRecord: inputRecord}})
+	unicityTree, err := New(sha256.New(), []*Data{
+		{
+			SystemIdentifier:        []byte{0x00, 0x00, 0x00, 0x01},
+			InputRecord:             inputRecord,
+			SystemDescriptionRecord: systemDescriptionRecord,
+		},
+	})
 	require.NoError(t, err)
 	require.NotNil(t, unicityTree)
 }
 
 func TestGetCertificate_Ok(t *testing.T) {
 	key := []byte{0x00, 0x00, 0x00, 0x01}
-	unicityTree, err := New(sha256.New(), []*Data{{systemIdentifier: key, inputRecord: inputRecord}})
+	unicityTree, err := New(sha256.New(), []*Data{
+		{
+			SystemIdentifier:        key,
+			InputRecord:             inputRecord,
+			SystemDescriptionRecord: systemDescriptionRecord,
+		},
+	})
 	require.NoError(t, err)
 	cert, err := unicityTree.GetCertificate(key)
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, key, cert.SystemIdentifier)
 	require.Equal(t, systemIdentifierLength*8, len(cert.siblingHashes))
+
+	hasher := crypto.SHA256.New()
+	hasher.Write([]byte(systemDescriptionRecord.Name))
+	systemDescriptionRecordHash := hasher.Sum(nil)
+	require.Equal(t, systemDescriptionRecordHash, cert.systemDescriptionHash)
 }
 
 func TestGetCertificate_InvalidKey(t *testing.T) {
-	unicityTree, err := New(sha256.New(), []*Data{{systemIdentifier: []byte{0x00, 0x00, 0x00, 0x01}, inputRecord: inputRecord}})
+	unicityTree, err := New(sha256.New(), []*Data{
+		{
+			SystemIdentifier:        []byte{0x00, 0x00, 0x00, 0x01},
+			InputRecord:             inputRecord,
+			SystemDescriptionRecord: systemDescriptionRecord,
+		},
+	})
 	require.NoError(t, err)
 	cert, err := unicityTree.GetCertificate([]byte{0x00, 0x00})
 

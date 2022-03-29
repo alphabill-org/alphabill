@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill-wallet-sdk/pkg/wallet"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/spf13/cobra"
 	"strings"
 )

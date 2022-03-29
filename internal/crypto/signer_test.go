@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -121,7 +122,9 @@ func TestVerifierIllegalInput(t *testing.T) {
 
 func (s *SigningTestSuite) assertSignAndVerify(signer Signer, verifier Verifier) {
 	signAndVerifyBytes(s.T(), signer, verifier)
+	signAndVerifyObject(s.T(), signer, verifier)
 	signAndVerifyNoRecoveryID(s.T(), signer, verifier)
+	signAndVerifyObjectNoRecoveryID(s.T(), signer, verifier)
 }
 
 func signAndVerifyNoRecoveryID(t *testing.T, signer Signer, verifier Verifier) {
@@ -141,5 +144,35 @@ func signAndVerifyBytes(t *testing.T, signer Signer, verifier Verifier) {
 	require.NoError(t, err)
 
 	err = verifier.VerifyBytes(sig, data)
+	require.NoError(t, err)
+}
+
+type TestObjType struct {
+	Number uint64 `hsh:"idx=1,size=8"`
+}
+
+func (o *TestObjType) Canonicalize() ([]byte, error) {
+	return canonicalizer.Canonicalize(o)
+}
+
+func signAndVerifyObject(t *testing.T, signer Signer, verifier Verifier) {
+	obj := &TestObjType{Number: 0x0102030405060708}
+	canonicalizer.RegisterTemplate(obj)
+	sig, err := signer.SignObject(obj)
+	require.NoError(t, err)
+
+	err = verifier.VerifyObject(sig, obj)
+	require.NoError(t, err)
+}
+
+func signAndVerifyObjectNoRecoveryID(t *testing.T, signer Signer, verifier Verifier) {
+	obj := &TestObjType{Number: 0x0102030405060708}
+	canonicalizer.RegisterTemplate(obj)
+	sig, err := signer.SignObject(obj)
+	require.NoError(t, err)
+
+	sigWithoutRecoveryID := sig[:len(sig)-1]
+
+	err = verifier.VerifyObject(sigWithoutRecoveryID, obj)
 	require.NoError(t, err)
 }

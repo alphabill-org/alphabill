@@ -162,7 +162,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 
 func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 	bd, _ := m.revertibleState.GetUnit(gtx.UnitId())
-	err := validateGenericTransaction(gtx, bd, m.systemIdentifier, m.revertibleState.GetBlockNumber())
+	err := validateGenericTransaction(&txValidationContext{tx: gtx, bd: bd, systemIdentifier: m.systemIdentifier, blockNumber: m.revertibleState.GetBlockNumber()})
 	if err != nil {
 		return err
 	}

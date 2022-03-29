@@ -186,47 +186,51 @@ func TestSwap(t *testing.T) {
 
 func TestGenericTxValidation(t *testing.T) {
 	tests := []struct {
-		name     string
-		gtx      GenericTransaction
-		bd       *state.Unit
-		systemId []byte
-		blockNo  uint64
-		res      error
+		name string
+		ctx  *txValidationContext
+		res  error
 	}{
 		{
-			name:     "Ok",
-			gtx:      newTransferWithTimeout(11),
-			systemId: []byte{0},
-			blockNo:  10,
-			res:      nil,
+			name: "Ok",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(11),
+				systemIdentifier: []byte{0},
+				blockNumber:      10,
+			},
+			res: nil,
 		},
 		{
-			name:     "InvalidSystemIdentifier",
-			gtx:      newTransferWithTimeout(11),
-			systemId: []byte{1},
-			blockNo:  10,
-			res:      ErrInvalidSystemIdentifier,
+			name: "InvalidSystemIdentifier",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(11),
+				systemIdentifier: []byte{1},
+				blockNumber:      10,
+			},
+			res: ErrInvalidSystemIdentifier,
 		},
 		{
-			name:     "TransactionExpired",
-			gtx:      newTransferWithTimeout(10),
-			bd:       nil,
-			systemId: []byte{0},
-			blockNo:  10,
-			res:      ErrTransactionExpired,
+			name: "TransactionExpired",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(10),
+				systemIdentifier: []byte{0},
+				blockNumber:      10,
+			},
+			res: ErrTransactionExpired,
 		},
 		{
-			name:     "InvalidPredicate",
-			gtx:      newTransferWithTimeout(11),
-			bd:       &state.Unit{Bearer: []byte{script.StartByte, script.OpPushBool, 0x00}},
-			systemId: []byte{0},
-			blockNo:  10,
-			res:      script.ErrScriptResultFalse,
+			name: "InvalidPredicate",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(11),
+				bd:               &state.Unit{Bearer: []byte{script.StartByte, script.OpPushBool, 0x00}},
+				systemIdentifier: []byte{0},
+				blockNumber:      10,
+			},
+			res: script.ErrScriptResultFalse,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateGenericTransaction(tt.gtx, tt.bd, tt.systemId, tt.blockNo)
+			err := validateGenericTransaction(tt.ctx)
 			if tt.res == nil {
 				require.NoError(t, err)
 			} else {
@@ -358,8 +362,4 @@ func newValidSwap() *swap {
 
 func newBillData(v uint64, backlink []byte) *BillData {
 	return &BillData{V: v, Backlink: backlink}
-}
-
-func predicateAlwaysFalse() []byte {
-	return []byte{script.StartByte, script.OpPushBool, script.BoolFalse}
 }

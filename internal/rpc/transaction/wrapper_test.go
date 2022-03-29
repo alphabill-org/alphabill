@@ -155,7 +155,7 @@ func TestWrapper_Swap(t *testing.T) {
 	assert.Equal(t, pbSwap.Proofs, swap.Proofs())
 	assert.Equal(t, pbSwap.TargetValue, swap.TargetValue())
 
-	require.NotNil(t, swap.SigBytes())
+	require.NotEmpty(t, swap.SigBytes())
 }
 
 func TestUint256Hashing(t *testing.T) {

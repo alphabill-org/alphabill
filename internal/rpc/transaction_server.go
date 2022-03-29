@@ -30,7 +30,7 @@ func NewTransactionsServer(processor TransactionsProcessor) (*transactionServer,
 }
 
 func (t *transactionServer) ProcessTransaction(ctx context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
-	genTx, err := transaction.New(tx)
+	genTx, err := transaction.NewMoneyTx(tx)
 	if err != nil {
 		return &transaction.TransactionResponse{
 			Ok:      false,

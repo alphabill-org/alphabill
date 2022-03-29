@@ -551,7 +551,7 @@ func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) er
 }
 
 func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
-	gtx, err := transaction.New(txPb)
+	gtx, err := transaction.NewMoneyTx(txPb)
 	if err != nil {
 		return err
 	}

@@ -20,7 +20,7 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), 100, test.RandomBytes(32))
 		pbTransaction  = newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, pbBillTransfer)
 	)
-	genericTx, err := New(pbTransaction)
+	genericTx, err := NewMoneyTx(pbTransaction)
 	require.NoError(t, err)
 
 	hashValue1 := genericTx.Hash(crypto.SHA256)
@@ -48,7 +48,7 @@ func TestWrapper_Transfer(t *testing.T) {
 		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), 100, test.RandomBytes(32))
 		pbTransaction  = newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, pbBillTransfer)
 	)
-	genericTx, err := New(pbTransaction)
+	genericTx, err := NewMoneyTx(pbTransaction)
 	require.NoError(t, err)
 	transfer, ok := genericTx.(money.Transfer)
 	require.True(t, ok)
@@ -69,7 +69,7 @@ func TestWrapper_TransferDC(t *testing.T) {
 		pbTransferDC  = newPBTransferDC(test.RandomBytes(32), test.RandomBytes(32), 777, test.RandomBytes(32))
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbTransferDC)
 	)
-	genericTx, err := New(pbTransaction)
+	genericTx, err := NewMoneyTx(pbTransaction)
 	require.NoError(t, err)
 	transfer, ok := genericTx.(money.TransferDC)
 	require.True(t, ok)
@@ -83,7 +83,7 @@ func TestWrapper_Split(t *testing.T) {
 		pbSplit       = newPBBillSplit(777, test.RandomBytes(32), 888, test.RandomBytes(32))
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbSplit)
 	)
-	genericTx, err := New(pbTransaction)
+	genericTx, err := NewMoneyTx(pbTransaction)
 	require.NoError(t, err)
 	split, ok := genericTx.(money.Split)
 	require.True(t, ok)
@@ -128,7 +128,7 @@ func TestWrapper_Swap(t *testing.T) {
 			777)
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbSwap)
 	)
-	genericTx, err := New(pbTransaction)
+	genericTx, err := NewMoneyTx(pbTransaction)
 	require.NoError(t, err)
 	swap, ok := genericTx.(money.Swap)
 	require.True(t, ok)
@@ -147,24 +147,6 @@ func TestWrapper_Swap(t *testing.T) {
 	}
 	assert.Equal(t, pbSwap.Proofs, swap.Proofs())
 	assert.Equal(t, pbSwap.TargetValue, swap.TargetValue())
-}
-
-func TestUint256Hashing(t *testing.T) {
-	// Verifies that the uint256 bytes are equals to the byte array it was made from.
-	// So it doesn't matter if hash is calculated from the byte array from the uint256 byte array.
-	b32 := test.RandomBytes(32)
-	b32Int := uint256.NewInt(0).SetBytes(b32)
-	assert.Equal(t, b32, b32Int.Bytes())
-
-	b33 := test.RandomBytes(33)
-	b33Int := uint256.NewInt(0).SetBytes(b33)
-	assert.Equal(t, b33[1:], b33Int.Bytes())
-
-	b1 := test.RandomBytes(1)
-	b1Int := uint256.NewInt(0).SetBytes(b1)
-	expected := [32]byte{}
-	expected[31] = b1[0]
-	assert.Equal(t, expected, b1Int.Bytes32())
 }
 
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.

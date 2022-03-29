@@ -2,33 +2,16 @@ package transaction
 
 import (
 	"crypto"
-	"encoding/base64"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"github.com/holiman/uint256"
 )
 
 const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
 
 type (
-	GenericTransaction interface {
-		SystemID() []byte
-		UnitId() *uint256.Int
-		IDHash() string
-		Timeout() uint64
-		OwnerProof() []byte
-		Hash(hashFunc crypto.Hash) []byte
-	}
-
-	wrapper struct {
-		transaction *Transaction
-		hashFunc    crypto.Hash
-		hashValue   []byte
-	}
-
 	transferWrapper struct {
 		wrapper
 		transfer *BillTransfer
@@ -52,8 +35,8 @@ type (
 	}
 )
 
-// New creates a new wrapper, returns an error if unknown transaction type is given as argument.
-func New(tx *Transaction) (GenericTransaction, error) {
+// NewMoneyTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
+func NewMoneyTx(tx *Transaction) (GenericTransaction, error) {
 	switch tx.TransactionAttributes.TypeUrl {
 	case protobufTypeUrlPrefix + "BillTransfer":
 		pb := &BillTransfer{}
@@ -97,7 +80,7 @@ func New(tx *Transaction) (GenericTransaction, error) {
 			swap:    pb,
 		}
 		for _, dtTx := range pb.DcTransfers {
-			dt, err := New(dtTx)
+			dt, err := NewMoneyTx(dtTx)
 			if err != nil {
 				return nil, errors.Wrap(err, "transfer DC wrapping failed")
 			}
@@ -111,29 +94,6 @@ func New(tx *Transaction) (GenericTransaction, error) {
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)
 	}
-}
-
-// GeneralTransaction interface
-
-func (w *wrapper) UnitId() *uint256.Int {
-	return uint256.NewInt(0).SetBytes(w.transaction.UnitId)
-}
-
-func (w *wrapper) IDHash() string {
-	idHash := hasherUtil.Sum256(w.UnitId().Bytes())
-	return base64.StdEncoding.EncodeToString(idHash)
-}
-
-func (w *wrapper) Timeout() uint64 {
-	return w.transaction.Timeout
-}
-
-func (w *wrapper) SystemID() []byte {
-	return w.transaction.SystemId
-}
-
-func (w *wrapper) OwnerProof() []byte {
-	return w.transaction.OwnerProof
 }
 
 func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -229,10 +189,6 @@ func (x *TransferDC) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.TargetBearer)
 	hasher.Write(Uint64ToBytes(x.TargetValue))
 	hasher.Write(x.Backlink)
-}
-
-func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {
-	return w.hashFunc == hashFunc && w.hashValue != nil
 }
 
 // State interfaces compatibility

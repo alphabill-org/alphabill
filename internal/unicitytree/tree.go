@@ -23,8 +23,8 @@ type (
 	}
 
 	Data struct {
-		systemIdentifier []byte
-		inputRecord      InputRecord
+		SystemIdentifier []byte
+		InputRecord      *InputRecord
 		// TODO AB-112 add System Description Record
 	}
 
@@ -33,7 +33,7 @@ type (
 	}
 
 	Certificate struct {
-		systemIdentifier []byte
+		SystemIdentifier []byte
 		siblingHashes    [][]byte
 		// TODO AB-112 add System Description Record hash
 	}
@@ -64,17 +64,17 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*Certificate, err
 		return nil, err
 	}
 	return &Certificate{
-		systemIdentifier: systemIdentifier,
+		SystemIdentifier: systemIdentifier,
 		siblingHashes:    path,
 	}, nil
 }
 
 func (d *Data) Key(_ int) []byte {
-	return d.systemIdentifier
+	return d.SystemIdentifier
 }
 
 func (d *Data) AddToHasher(hasher hash.Hash) {
-	d.inputRecord.AddToHasher(hasher)
+	d.InputRecord.AddToHasher(hasher)
 	// TODO AB-112 add system description record hash
 }
 

@@ -31,7 +31,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 	cert, err := unicityTree.GetCertificate(key)
 	require.NoError(t, err)
 	require.NotNil(t, cert)
-	require.Equal(t, key, cert.systemIdentifier)
+	require.Equal(t, key, cert.SystemIdentifier)
 	require.Equal(t, systemIdentifierLength*8, len(cert.siblingHashes))
 }
 

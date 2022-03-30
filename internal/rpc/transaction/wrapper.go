@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"bytes"
 	"crypto"
 	"encoding/base64"
 	"hash"
@@ -22,6 +23,7 @@ type (
 		Timeout() uint64
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte
+		SigBytes() []byte
 	}
 
 	wrapper struct {
@@ -137,6 +139,12 @@ func (w *wrapper) OwnerProof() []byte {
 	return w.transaction.OwnerProof
 }
 
+func (w *wrapper) sigBytes(b bytes.Buffer) {
+	b.Write(w.transaction.SystemId)
+	b.Write(w.transaction.UnitId)
+	b.Write(Uint64ToBytes(w.transaction.Timeout))
+}
+
 func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.wrapper.hashComputed(hashFunc) {
 		return w.wrapper.hashValue
@@ -151,6 +159,15 @@ func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *transferWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(w.NewBearer())
+	b.Write(Uint64ToBytes(w.TargetValue()))
+	b.Write(w.Backlink())
+	return b.Bytes()
 }
 
 func (w *transferDCWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -171,6 +188,16 @@ func (w *transferDCWrapper) addToHasher(hasher hash.Hash) {
 	w.transferDC.addFieldsToHasher(hasher)
 }
 
+func (w *transferDCWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(w.Nonce())
+	b.Write(w.TargetBearer())
+	b.Write(Uint64ToBytes(w.TargetValue()))
+	b.Write(w.Backlink())
+	return b.Bytes()
+}
+
 func (w *billSplitWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.wrapper.hashComputed(hashFunc) {
 		return w.wrapper.hashValue
@@ -189,6 +216,16 @@ func (w *billSplitWrapper) addAttributesToHasher(hasher hash.Hash) {
 	hasher.Write(w.billSplit.TargetBearer)
 	hasher.Write(Uint64ToBytes(w.billSplit.RemainingValue))
 	hasher.Write(w.billSplit.Backlink)
+}
+
+func (w *billSplitWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(Uint64ToBytes(w.Amount()))
+	b.Write(w.TargetBearer())
+	b.Write(Uint64ToBytes(w.RemainingValue()))
+	b.Write(w.Backlink())
+	return b.Bytes()
 }
 
 func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -216,6 +253,23 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *swapWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(w.OwnerCondition())
+	for _, billId := range w.BillIdentifiers() {
+		b.Write(billId.Bytes())
+	}
+	for _, dcTx := range w.DCTransfers() {
+		b.Write(dcTx.SigBytes())
+	}
+	for _, proof := range w.Proofs() {
+		b.Write(proof)
+	}
+	b.Write(Uint64ToBytes(w.TargetValue()))
+	return b.Bytes()
 }
 
 func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {

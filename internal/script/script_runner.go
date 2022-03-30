@@ -11,9 +11,9 @@ type scriptContext struct {
 }
 
 var (
-	errUnknownOpCode       = errors.New("unknown opcode")
-	errInvalidScriptFormat = errors.New("invalid script format")
-	errScriptResultFalse   = errors.New("script execution result yielded false or non-clean stack")
+	ErrUnknownOpCode       = errors.New("unknown opcode")
+	ErrInvalidScriptFormat = errors.New("invalid script format")
+	ErrScriptResultFalse   = errors.New("script execution result yielded false or non-clean stack")
 )
 
 /*
@@ -30,7 +30,7 @@ PredicateArgument: [0x53, 0x54, 0x01, <65 bytes>, 0x55, 0x01, <33 bytes>]
 */
 func RunScript(predicateArgument []byte, bearerPredicate []byte, sigData []byte) error {
 	if !validateInput(predicateArgument, bearerPredicate) {
-		return errInvalidScriptFormat
+		return ErrInvalidScriptFormat
 	}
 
 	sc := scriptContext{
@@ -54,14 +54,14 @@ func RunScript(predicateArgument []byte, bearerPredicate []byte, sigData []byte)
 	if top && sc.stack.isEmpty() {
 		return nil
 	}
-	return errScriptResultFalse
+	return ErrScriptResultFalse
 }
 
 func executeScript(script []byte, sc *scriptContext) error {
 	for i := 1; i < len(script); i++ { // i is always incremented at least once per opcode
 		op, exists := opCodes[script[i]]
 		if !exists {
-			return errUnknownOpCode
+			return ErrUnknownOpCode
 		}
 
 		dataLength, err := op.getDataLength(script[i+1:])

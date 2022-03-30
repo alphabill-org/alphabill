@@ -136,7 +136,7 @@ func TestBlockProcessing(t *testing.T) {
 				// random dust transfer can be processed
 				{
 					UnitId:                hash.Sum256([]byte{0x00}),
-					TransactionAttributes: createDustTransferTx(),
+					TransactionAttributes: createRandomDustTransferTx(),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
 				},
@@ -157,7 +157,7 @@ func TestBlockProcessing(t *testing.T) {
 				// receive swap of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: createSwapTx(k.PubKeyHashSha256),
+					TransactionAttributes: createRandomSwapTransferTx(k.PubKeyHashSha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},

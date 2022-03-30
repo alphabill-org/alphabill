@@ -2,6 +2,8 @@ package txsystem
 
 import (
 	"crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -184,27 +186,51 @@ func TestSwap(t *testing.T) {
 
 func TestGenericTxValidation(t *testing.T) {
 	tests := []struct {
-		name    string
-		gtx     GenericTransaction
-		blockNo uint64
-		res     error
+		name string
+		ctx  *txValidationContext
+		res  error
 	}{
 		{
-			name:    "Ok",
-			gtx:     newTransferWithTimeout(11),
-			blockNo: 10,
-			res:     nil,
+			name: "Ok",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(11),
+				systemIdentifier: []byte{0},
+				blockNumber:      10,
+			},
+			res: nil,
 		},
 		{
-			name:    "TransactionExpired",
-			gtx:     newTransferWithTimeout(10),
-			blockNo: 10,
-			res:     ErrTransactionExpired,
+			name: "InvalidSystemIdentifier",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(11),
+				systemIdentifier: []byte{1},
+				blockNumber:      10,
+			},
+			res: ErrInvalidSystemIdentifier,
+		},
+		{
+			name: "TransactionExpired",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(10),
+				systemIdentifier: []byte{0},
+				blockNumber:      10,
+			},
+			res: ErrTransactionExpired,
+		},
+		{
+			name: "InvalidPredicate",
+			ctx: &txValidationContext{
+				tx:               newTransferWithTimeout(11),
+				bd:               &state.Unit{Bearer: []byte{script.StartByte, script.OpPushBool, 0x00}},
+				systemIdentifier: []byte{0},
+				blockNumber:      10,
+			},
+			res: script.ErrScriptResultFalse,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateGenericTransaction(tt.gtx, tt.blockNo)
+			err := validateGenericTransaction(tt.ctx)
 			if tt.res == nil {
 				require.NoError(t, err)
 			} else {
@@ -230,9 +256,10 @@ func newTransfer(v uint64, backlink []byte) *transfer {
 func newTransferWithTimeout(timeout uint64) *transfer {
 	return &transfer{
 		genericTx: genericTx{
+			systemID:   []byte{0},
 			unitId:     uint256.NewInt(1),
 			timeout:    timeout,
-			ownerProof: []byte{3},
+			ownerProof: script.PredicateArgumentEmpty(),
 		},
 		newBearer:   []byte{4},
 		targetValue: 5,

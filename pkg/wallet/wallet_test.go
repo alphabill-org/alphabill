@@ -8,6 +8,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/tyler-smith/go-bip39"
@@ -62,19 +63,12 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 		w.Shutdown()
 	})
 
-	verifyTestWallet(t, err, w)
+	verifyTestWallet(t, w)
 }
 
 func TestWalletCanBeCreatedFromSeed(t *testing.T) {
-	_ = testutil.DeleteWalletDb(os.TempDir())
-
-	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir()})
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
-	require.NoError(t, err)
-
-	verifyTestWallet(t, err, w)
+	w, _ := CreateTestWalletFromSeed(t)
+	verifyTestWallet(t, w)
 }
 
 func TestWalletSendFunction(t *testing.T) {
@@ -114,6 +108,13 @@ func TestWalletSendFunction(t *testing.T) {
 	// test ok response
 	err = w.Send(validPubKey, amount)
 	require.NoError(t, err)
+}
+
+func TestWallet_GetPublicKey(t *testing.T) {
+	w, _ := CreateTestWalletFromSeed(t)
+	pubKey, err := w.GetPublicKey()
+	require.NoError(t, err)
+	require.EqualValues(t, "0x"+testPubKeyHex, hexutil.Encode(pubKey))
 }
 
 func TestBlockProcessing(t *testing.T) {
@@ -201,7 +202,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.EqualValues(t, 100, btTx.TargetValue)
 }
 
-func verifyTestWallet(t *testing.T, err error, w *Wallet) {
+func verifyTestWallet(t *testing.T, w *Wallet) {
 	mnemonic, err := w.db.GetMnemonic()
 	require.NoError(t, err)
 	require.Equal(t, testMnemonic, mnemonic)

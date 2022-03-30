@@ -2,12 +2,11 @@ package cmd
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
-	"strings"
 )
 
 const defaultAlphabillUri = "localhost:9543"
@@ -31,12 +30,13 @@ func newWalletCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Com
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Error: must specify a subcommand create, sync, send, get-balance or collect-dust")
+			fmt.Println("Error: must specify a subcommand create, sync, send, get-balance, get-pubkey or collect-dust")
 		},
 	}
 	walletCmd.AddCommand(createCmd(rootConfig))
 	walletCmd.AddCommand(syncCmd(rootConfig))
 	walletCmd.AddCommand(getBalanceCmd(rootConfig))
+	walletCmd.AddCommand(getPubKeyCmd(rootConfig))
 	walletCmd.AddCommand(sendCmd(rootConfig))
 	walletCmd.AddCommand(collectDustCmd(rootConfig))
 	return walletCmd
@@ -169,6 +169,30 @@ func execGetBalanceCmd(walletDir string) error {
 	return nil
 }
 
+func getPubKeyCmd(rootConfig *rootConfiguration) *cobra.Command {
+	return &cobra.Command{
+		Use: "get-pubkey",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execGetPubKeyCmd(rootConfig.HomeDir)
+		},
+	}
+}
+
+func execGetPubKeyCmd(walletDir string) error {
+	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir})
+	if err != nil {
+		return err
+	}
+	defer w.Shutdown()
+
+	pubKey, err := w.GetPublicKey()
+	if err != nil {
+		return err
+	}
+	fmt.Println(hexutil.Encode(pubKey))
+	return nil
+}
+
 func collectDustCmd(rootConfig *rootConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "collect-dust",
@@ -206,10 +230,7 @@ func pubKeyHexToBytes(s string) ([]byte, bool) {
 	if len(s) != 68 {
 		return nil, false
 	}
-	if !strings.HasPrefix(s, "0x") {
-		return nil, false
-	}
-	pubKeyBytes, err := hex.DecodeString(s[2:])
+	pubKeyBytes, err := hexutil.Decode(s)
 	if err != nil {
 		return nil, false
 	}

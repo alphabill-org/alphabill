@@ -248,7 +248,7 @@ func (w *billSplitWrapper) RemainingValue() uint64 { return w.billSplit.Remainin
 func (w *billSplitWrapper) Backlink() []byte       { return w.billSplit.Backlink }
 func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	hasher := hashFunc.New()
-	idBytes := w.UnitId().Bytes32()
+	idBytes := w.UnitID().Bytes32()
 	hasher.Write(idBytes[:])
 	w.addAttributesToHasher(hasher)
 	hasher.Write(Uint64ToBytes(w.Timeout()))

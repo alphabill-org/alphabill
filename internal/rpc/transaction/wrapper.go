@@ -12,7 +12,7 @@ import (
 type (
 	GenericTransaction interface {
 		SystemID() []byte
-		UnitId() *uint256.Int
+		UnitID() *uint256.Int
 		IDHash() string
 		Timeout() uint64
 		OwnerProof() []byte
@@ -29,12 +29,12 @@ type (
 
 // GeneralTransaction interface
 
-func (w *wrapper) UnitId() *uint256.Int {
+func (w *wrapper) UnitID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(w.transaction.UnitId)
 }
 
 func (w *wrapper) IDHash() string {
-	idHash := hasherUtil.Sum256(w.UnitId().Bytes())
+	idHash := hasherUtil.Sum256(w.UnitID().Bytes())
 	return base64.StdEncoding.EncodeToString(idHash)
 }
 

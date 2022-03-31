@@ -50,7 +50,7 @@ type (
 )
 
 func (t *genericTx) SystemID() []byte     { return t.systemID }
-func (t *genericTx) UnitId() *uint256.Int { return t.unitId }
+func (t *genericTx) UnitID() *uint256.Int { return t.unitId }
 func (t *genericTx) Timeout() uint64      { return t.timeout }
 func (t *genericTx) OwnerProof() []byte   { return t.ownerProof }
 func (t *genericTx) SigBytes() []byte     { return t.sigBytes }

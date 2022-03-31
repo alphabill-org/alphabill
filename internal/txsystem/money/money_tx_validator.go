@@ -77,7 +77,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 
 	// 4. all bill ids in dust transfer orders are elements of bill ids in swap tx
 	for _, dcTx := range tx.DCTransfers() {
-		exists := billIdInList(dcTx.UnitId(), tx.BillIdentifiers())
+		exists := billIdInList(dcTx.UnitID(), tx.BillIdentifiers())
 		if !exists {
 			return ErrSwapInvalidBillIdentifiers
 		}
@@ -85,7 +85,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 
 	// 5. new bill id is properly computed ι=h(ι1,...,ιm)
 	expectedBillId := hashBillIds(tx, hashAlgorithm)
-	if !bytes.Equal(tx.UnitId().Bytes(), expectedBillId) {
+	if !bytes.Equal(tx.UnitID().Bytes(), expectedBillId) {
 		return ErrSwapInvalidBillId
 	}
 
@@ -95,7 +95,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 	// 7. bill transfer orders contain proper nonce
 	// 8. bill transfer orders contain proper target bearer
 	for _, dcTx := range tx.DCTransfers() {
-		if !bytes.Equal(dcTx.Nonce(), tx.UnitId().Bytes()) {
+		if !bytes.Equal(dcTx.Nonce(), tx.UnitID().Bytes()) {
 			return ErrSwapInvalidNonce
 		}
 		if !bytes.Equal(dcTx.TargetBearer(), tx.OwnerCondition()) {

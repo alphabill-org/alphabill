@@ -53,7 +53,7 @@ func TestWrapper_Transfer(t *testing.T) {
 	transfer, ok := genericTx.(money.Transfer)
 	require.True(t, ok)
 
-	assert.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitId())
+	assert.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitID())
 	assert.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
 	assert.Equal(t, pbTransaction.Timeout, transfer.Timeout())
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
@@ -95,7 +95,7 @@ func TestWrapper_Split(t *testing.T) {
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 	assert.Equal(t, pbTransaction.SystemId, split.SystemID())
 
-	assert.Equal(t, toUint256(pbTransaction.UnitId), split.UnitId())
+	assert.Equal(t, toUint256(pbTransaction.UnitId), split.UnitID())
 	assert.Equal(t, pbTransaction.OwnerProof, split.OwnerProof())
 	assert.Equal(t, pbTransaction.Timeout, split.Timeout())
 
@@ -110,7 +110,7 @@ func TestWrapper_Split(t *testing.T) {
 	actualPrndSh := split.HashForIdCalculation(crypto.SHA256)
 
 	hasher := crypto.SHA256.New()
-	idBytes := split.UnitId().Bytes32()
+	idBytes := split.UnitID().Bytes32()
 	hasher.Write(idBytes[:])
 	hasher.Write(Uint64ToBytes(split.Amount()))
 	hasher.Write(split.TargetBearer())
@@ -141,7 +141,7 @@ func TestWrapper_Swap(t *testing.T) {
 
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 	assert.Equal(t, pbTransaction.SystemId, swap.SystemID())
-	assert.Equal(t, toUint256(pbTransaction.UnitId), swap.UnitId())
+	assert.Equal(t, toUint256(pbTransaction.UnitId), swap.UnitID())
 	assert.Equal(t, pbTransaction.OwnerProof, swap.OwnerProof())
 	assert.Equal(t, pbTransaction.Timeout, swap.Timeout())
 
@@ -160,7 +160,7 @@ func TestWrapper_Swap(t *testing.T) {
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
 func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransaction *Transaction, transfer money.TransferDC) {
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
-	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitId())
+	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitID())
 	require.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
 	require.Equal(t, pbTransaction.Timeout, transfer.Timeout())
 

@@ -413,12 +413,12 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:     tx.UnitId(),
+				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
 		} else {
-			err := w.db.RemoveBill(tx.UnitId())
+			err := w.db.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -430,7 +430,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:                  tx.UnitId(),
+				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
 				TxHash:              tx.Hash(crypto.SHA256),
 				IsDcBill:            true,
@@ -440,7 +440,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 				DcExpirationTimeout: blockHeight + dustBillDeletionTimeout,
 			})
 		} else {
-			err := w.db.RemoveBill(tx.UnitId())
+			err := w.db.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -450,13 +450,13 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill, err := w.db.ContainsBill(tx.UnitId())
+		containsBill, err := w.db.ContainsBill(tx.UnitID())
 		if err != nil {
 			return err
 		}
 		if containsBill {
 			err := w.db.SetBill(&bill{
-				Id:     tx.UnitId(),
+				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -470,7 +470,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 		}
 		if isOwner {
 			err := w.db.SetBill(&bill{
-				Id:     util.SameShardId(tx.UnitId(), tx.HashForIdCalculation(crypto.SHA256)),
+				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -485,7 +485,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:     tx.UnitId(),
+				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -500,13 +500,13 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 			}
 
 			for _, dustTransfer := range tx.DCTransfers() {
-				err := w.db.RemoveBill(dustTransfer.UnitId())
+				err := w.db.RemoveBill(dustTransfer.UnitID())
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := w.db.RemoveBill(tx.UnitId())
+			err := w.db.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}

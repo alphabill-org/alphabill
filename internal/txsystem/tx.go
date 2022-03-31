@@ -8,7 +8,7 @@ import (
 type (
 	GenericTransaction interface {
 		SystemID() []byte
-		UnitId() *uint256.Int
+		UnitID() *uint256.Int
 		Timeout() uint64
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte

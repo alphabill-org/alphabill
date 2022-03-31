@@ -62,6 +62,8 @@ func TestWrapper_Transfer(t *testing.T) {
 	assert.Equal(t, pbBillTransfer.NewBearer, transfer.NewBearer())
 	assert.Equal(t, pbBillTransfer.Backlink, transfer.Backlink())
 	assert.Equal(t, pbBillTransfer.TargetValue, transfer.TargetValue())
+
+	assert.NotEmpty(t, transfer.SigBytes())
 }
 
 func TestWrapper_TransferDC(t *testing.T) {
@@ -76,6 +78,8 @@ func TestWrapper_TransferDC(t *testing.T) {
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 
 	requireTransferDCEquals(t, pbTransferDC, pbTransaction, transfer)
+
+	assert.NotEmpty(t, transfer.SigBytes())
 }
 
 func TestWrapper_Split(t *testing.T) {
@@ -99,6 +103,8 @@ func TestWrapper_Split(t *testing.T) {
 	assert.Equal(t, pbSplit.TargetBearer, split.TargetBearer())
 	assert.Equal(t, pbSplit.RemainingValue, split.RemainingValue())
 	assert.Equal(t, pbSplit.Backlink, split.Backlink())
+
+	assert.NotEmpty(t, split.SigBytes())
 
 	// sameShardId input calculation
 	actualPrndSh := split.HashForIdCalculation(crypto.SHA256)
@@ -147,6 +153,8 @@ func TestWrapper_Swap(t *testing.T) {
 	}
 	assert.Equal(t, pbSwap.Proofs, swap.Proofs())
 	assert.Equal(t, pbSwap.TargetValue, swap.TargetValue())
+
+	require.NotEmpty(t, swap.SigBytes())
 }
 
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
@@ -160,6 +168,8 @@ func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransacti
 	require.Equal(t, pbTransferDC.Backlink, transfer.Backlink())
 	require.Equal(t, pbTransferDC.Nonce, transfer.Nonce())
 	require.Equal(t, pbTransferDC.TargetValue, transfer.TargetValue())
+
+	assert.NotEmpty(t, transfer.SigBytes())
 }
 
 func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *Transaction {

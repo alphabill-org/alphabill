@@ -12,5 +12,6 @@ type (
 		Timeout() uint64
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte
+		SigBytes() []byte
 	}
 )

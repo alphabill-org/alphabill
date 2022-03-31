@@ -2,8 +2,10 @@ package money
 
 import (
 	"crypto"
-	tx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	txs "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -32,7 +34,7 @@ func TestTransfer(t *testing.T) {
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(100, []byte{5}),
-			res:  ErrInvalidBacklink,
+			res:  txs.ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
@@ -70,7 +72,7 @@ func TestTransferDC(t *testing.T) {
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(100, []byte{5}),
-			res:  ErrInvalidBacklink,
+			res:  txs.ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
@@ -120,7 +122,7 @@ func TestSplit(t *testing.T) {
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(50, 50, []byte{5}),
-			res:  ErrInvalidBacklink,
+			res:  txs.ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
@@ -186,27 +188,51 @@ func TestSwap(t *testing.T) {
 
 func TestGenericTxValidation(t *testing.T) {
 	tests := []struct {
-		name    string
-		gtx     tx.GenericTransaction
-		blockNo uint64
-		res     error
+		name string
+		ctx  *txs.TxValidationContext
+		res  error
 	}{
 		{
-			name:    "Ok",
-			gtx:     newTransferWithTimeout(11),
-			blockNo: 10,
-			res:     nil,
+			name: "Ok",
+			ctx: &txs.TxValidationContext{
+				Tx:               newTransferWithTimeout(11),
+				SystemIdentifier: []byte{0},
+				BlockNumber:      10,
+			},
+			res: nil,
 		},
 		{
-			name:    "TransactionExpired",
-			gtx:     newTransferWithTimeout(10),
-			blockNo: 10,
-			res:     ErrTransactionExpired,
+			name: "InvalidSystemIdentifier",
+			ctx: &txs.TxValidationContext{
+				Tx:               newTransferWithTimeout(11),
+				SystemIdentifier: []byte{1},
+				BlockNumber:      10,
+			},
+			res: txs.ErrInvalidSystemIdentifier,
+		},
+		{
+			name: "TransactionExpired",
+			ctx: &txs.TxValidationContext{
+				Tx:               newTransferWithTimeout(10),
+				SystemIdentifier: []byte{0},
+				BlockNumber:      10,
+			},
+			res: txs.ErrTransactionExpired,
+		},
+		{
+			name: "InvalidPredicate",
+			ctx: &txs.TxValidationContext{
+				Tx:               newTransferWithTimeout(11),
+				Bd:               &state.Unit{Bearer: []byte{script.StartByte, script.OpPushBool, 0x00}},
+				SystemIdentifier: []byte{0},
+				BlockNumber:      10,
+			},
+			res: script.ErrScriptResultFalse,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateGenericTransaction(tt.gtx, tt.blockNo)
+			err := txs.ValidateGenericTransaction(tt.ctx)
 			if tt.res == nil {
 				require.NoError(t, err)
 			} else {
@@ -232,9 +258,10 @@ func newTransfer(v uint64, backlink []byte) *transfer {
 func newTransferWithTimeout(timeout uint64) *transfer {
 	return &transfer{
 		genericTx: genericTx{
+			systemID:   []byte{0},
 			unitId:     uint256.NewInt(1),
 			timeout:    timeout,
-			ownerProof: []byte{3},
+			ownerProof: script.PredicateArgumentEmpty(),
 		},
 		newBearer:   []byte{4},
 		targetValue: 5,

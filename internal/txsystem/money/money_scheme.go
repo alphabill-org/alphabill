@@ -85,8 +85,9 @@ type (
 	}
 
 	moneySchemeState struct {
-		revertibleState RevertibleState
-		hashAlgorithm   crypto.Hash // hash function algorithm
+		systemIdentifier []byte
+		revertibleState  RevertibleState
+		hashAlgorithm    crypto.Hash // hash function algorithm
 
 		// Contains the bill identifiers transferred to the dust collector. The key of the map is the block number when the
 		// bill is deleted and its value is transferred to the dust collector.
@@ -126,6 +127,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 	}
 
 	msState := &moneySchemeState{
+		systemIdentifier:   []byte{0}, // TODO get system identifier somewhere
 		hashAlgorithm:      hashAlgorithm,
 		revertibleState:    options.revertibleState,
 		dustCollectorBills: make(map[uint64][]*uint256.Int),
@@ -152,7 +154,8 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 }
 
 func (m *moneySchemeState) Process(gtx txs.GenericTransaction) error {
-	err := txs.ValidateGenericTransaction(gtx, m.revertibleState.GetBlockNumber())
+	bd, _ := m.revertibleState.GetUnit(gtx.UnitId())
+	err := txs.ValidateGenericTransaction(&txs.TxValidationContext{Tx: gtx, Bd: bd, SystemIdentifier: m.systemIdentifier, BlockNumber: m.revertibleState.GetBlockNumber()})
 	if err != nil {
 		return err
 	}
@@ -339,7 +342,7 @@ func (m *moneySchemeState) validateSwapTx(tx Swap) error {
 	}
 	dcMoneySupplyBill, ok := dcMoneySupply.Data.(*BillData)
 	if !ok {
-		return ErrInvalidDataType
+		return txs.ErrInvalidDataType
 	}
 	if dcMoneySupplyBill.V < tx.TargetValue() {
 		return ErrSwapInsufficientDCMoneySupply

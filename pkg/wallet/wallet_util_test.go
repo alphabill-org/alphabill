@@ -49,6 +49,19 @@ func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
 	return w, mockClient
 }
 
+func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphaBillClient) {
+	_ = testutil.DeleteWalletDb(os.TempDir())
+	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir()})
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
+	require.NoError(t, err)
+
+	mockClient := &mockAlphaBillClient{}
+	w.alphaBillClient = mockClient
+	return w, mockClient
+}
+
 func DeleteWallet(w *Wallet) {
 	if w != nil {
 		w.Shutdown()

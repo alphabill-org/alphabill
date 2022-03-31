@@ -13,6 +13,7 @@ type (
 		unitId     *uint256.Int
 		timeout    uint64
 		ownerProof []byte
+		sigBytes   []byte
 	}
 
 	transfer struct {
@@ -52,6 +53,7 @@ func (t *genericTx) SystemID() []byte     { return t.systemID }
 func (t *genericTx) UnitId() *uint256.Int { return t.unitId }
 func (t *genericTx) Timeout() uint64      { return t.timeout }
 func (t *genericTx) OwnerProof() []byte   { return t.ownerProof }
+func (t *genericTx) SigBytes() []byte     { return t.sigBytes }
 
 func (t *transfer) NewBearer() []byte         { return t.newBearer }
 func (t *transfer) TargetValue() uint64       { return t.targetValue }

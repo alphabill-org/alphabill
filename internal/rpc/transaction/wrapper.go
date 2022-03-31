@@ -1,10 +1,12 @@
 package transaction
 
 import (
+	"bytes"
 	"crypto"
 	"encoding/base64"
 	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"github.com/holiman/uint256"
+	"hash"
 )
 
 type (
@@ -15,6 +17,7 @@ type (
 		Timeout() uint64
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte
+		SigBytes() []byte
 	}
 
 	wrapper struct {
@@ -45,6 +48,19 @@ func (w *wrapper) SystemID() []byte {
 
 func (w *wrapper) OwnerProof() []byte {
 	return w.transaction.OwnerProof
+}
+
+func (w *wrapper) sigBytes(b bytes.Buffer) {
+	b.Write(w.transaction.SystemId)
+	b.Write(w.transaction.UnitId)
+	b.Write(Uint64ToBytes(w.transaction.Timeout))
+}
+
+func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
+	hasher.Write(w.transaction.SystemId)
+	hasher.Write(w.transaction.UnitId)
+	hasher.Write(w.transaction.OwnerProof)
+	hasher.Write(Uint64ToBytes(w.transaction.Timeout))
 }
 
 func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {

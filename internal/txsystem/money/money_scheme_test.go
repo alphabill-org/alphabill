@@ -6,6 +6,7 @@ import (
 	tx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money/mocks"
 	util2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"math/rand"
 	"testing"
 
@@ -78,7 +79,7 @@ func TestProcessTransaction(t *testing.T) {
 			transaction: transferOk,
 			expect: func(rs *mocks.RevertibleState) {
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("GetUnit", transferOk.UnitId()).Return(&state.Unit{Data: &BillData{V: transferOk.targetValue, Backlink: transferOk.backlink}}, nil)
+				rs.On("GetUnit", transferOk.UnitId()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: &BillData{V: transferOk.targetValue, Backlink: transferOk.backlink}}, nil)
 				rs.On("UpdateData", transferOk.unitId, mock.Anything, transferOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
@@ -111,7 +112,7 @@ func TestProcessTransaction(t *testing.T) {
 				).Return(nil)
 
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("GetUnit", transferDCOk.UnitId()).Return(&state.Unit{Data: &BillData{V: transferDCOk.targetValue, Backlink: transferDCOk.backlink}}, nil)
+				rs.On("GetUnit", transferDCOk.UnitId()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: &BillData{V: transferDCOk.targetValue, Backlink: transferDCOk.backlink}}, nil)
 				rs.On("UpdateData", transferDCOk.unitId, mock.Anything, transferDCOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
@@ -140,7 +141,7 @@ func TestProcessTransaction(t *testing.T) {
 					Backlink: splitOk.Backlink(),
 				}
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("GetUnit", splitOk.UnitId()).Return(&state.Unit{Data: oldBillData}, nil)
+				rs.On("GetUnit", splitOk.UnitId()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: oldBillData}, nil)
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					newGenericData = upFunc(oldBillData)
@@ -210,7 +211,7 @@ func TestProcessTransaction(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRState := new(mocks.RevertibleState)
-			initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: state.Predicate{44}}
+			initialBill := &InitialBill{ID: uint256.NewInt(77), Value: 10, Owner: script.PredicateAlwaysTrue()}
 			mockRState.On("AddItem", initialBill.ID, initialBill.Owner, mock.Anything, mock.Anything).Return(nil)
 			mockRState.On("AddItem", dustCollectorMoneySupplyID, state.Predicate(dustCollectorPredicate), mock.Anything, mock.Anything).Return(nil)
 			mss, err := NewMoneySchemeState(
@@ -309,7 +310,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		transferDC.timeout = 100
 		mockRState.On("SetOwner", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		mockRState.On("GetBlockNumber").Return(currentBlock)
-		mockRState.On("GetUnit", mock.Anything).Return(&state.Unit{Data: &BillData{V: transferDC.targetValue, Backlink: transferDC.backlink}}, nil)
+		mockRState.On("GetUnit", mock.Anything).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: &BillData{V: transferDC.targetValue, Backlink: transferDC.backlink}}, nil)
 		mockRState.On("UpdateData", transferDC.unitId, mock.Anything, mock.Anything).Return(nil)
 		err = mss.Process(transferDC)
 		require.NoError(t, err)
@@ -412,7 +413,7 @@ func newRandomTransfer() *transfer {
 			systemID:   []byte{0},
 			unitId:     uint256.NewInt(1),
 			timeout:    2,
-			ownerProof: []byte{3},
+			ownerProof: script.PredicateArgumentEmpty(),
 		},
 		newBearer:   []byte{4},
 		targetValue: 5,
@@ -427,7 +428,7 @@ func newRandomTransferDC() *transferDC {
 			systemID:   []byte{0},
 			unitId:     uint256.NewInt(rand.Uint64()),
 			timeout:    2,
-			ownerProof: []byte{3},
+			ownerProof: script.PredicateArgumentEmpty(),
 		},
 		targetBearer: []byte{4},
 		targetValue:  5,
@@ -443,7 +444,7 @@ func newRandomSplit() *split {
 			systemID:   []byte{0},
 			unitId:     uint256.NewInt(1),
 			timeout:    2,
-			ownerProof: []byte{3},
+			ownerProof: script.PredicateArgumentEmpty(),
 		},
 		amount:         4,
 		targetBearer:   []byte{5},
@@ -468,7 +469,7 @@ func newRandomSwap() *swap {
 			systemID:   []byte{0},
 			unitId:     uint256.NewInt(0).SetBytes(billId),
 			timeout:    2,
-			ownerProof: []byte{3},
+			ownerProof: script.PredicateArgumentEmpty(),
 		},
 		ownerCondition:  dcTransfer.targetBearer,
 		billIdentifiers: []*uint256.Int{dcTransfer.unitId},

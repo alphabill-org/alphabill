@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"bytes"
 	"crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"hash"
@@ -177,11 +178,50 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 	return w.wrapper.hashValue
 }
 
-func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
-	hasher.Write(w.transaction.SystemId)
-	hasher.Write(w.transaction.UnitId)
-	hasher.Write(w.transaction.OwnerProof)
-	hasher.Write(Uint64ToBytes(w.transaction.Timeout))
+func (w *transferWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(w.NewBearer())
+	b.Write(Uint64ToBytes(w.TargetValue()))
+	b.Write(w.Backlink())
+	return b.Bytes()
+}
+
+func (w *transferDCWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(w.Nonce())
+	b.Write(w.TargetBearer())
+	b.Write(Uint64ToBytes(w.TargetValue()))
+	b.Write(w.Backlink())
+	return b.Bytes()
+}
+
+func (w *billSplitWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(Uint64ToBytes(w.Amount()))
+	b.Write(w.TargetBearer())
+	b.Write(Uint64ToBytes(w.RemainingValue()))
+	b.Write(w.Backlink())
+	return b.Bytes()
+}
+
+func (w *swapWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(b)
+	b.Write(w.OwnerCondition())
+	for _, billId := range w.BillIdentifiers() {
+		b.Write(billId.Bytes())
+	}
+	for _, dcTx := range w.DCTransfers() {
+		b.Write(dcTx.SigBytes())
+	}
+	for _, proof := range w.Proofs() {
+		b.Write(proof)
+	}
+	b.Write(Uint64ToBytes(w.TargetValue()))
+	return b.Bytes()
 }
 
 func (x *TransferDC) addFieldsToHasher(hasher hash.Hash) {

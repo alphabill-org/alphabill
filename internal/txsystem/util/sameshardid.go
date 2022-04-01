@@ -1,4 +1,4 @@
-package txsystem
+package util
 
 import "github.com/holiman/uint256"
 

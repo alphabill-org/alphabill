@@ -10,6 +10,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
@@ -397,38 +399,38 @@ func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) er
 }
 
 func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64) error {
-	gtx, err := transaction.New(txPb)
+	gtx, err := transaction.NewMoneyTx(txPb)
 	if err != nil {
 		return err
 	}
 	stx := gtx.(txsystem.GenericTransaction)
 
 	switch tx := stx.(type) {
-	case txsystem.Transfer:
+	case money.Transfer:
 		isOwner, err := w.isOwner(tx.NewBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:     tx.UnitId(),
+				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
 		} else {
-			err := w.db.RemoveBill(tx.UnitId())
+			err := w.db.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}
 		}
-	case txsystem.TransferDC:
+	case money.TransferDC:
 		isOwner, err := w.isOwner(tx.TargetBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:                  tx.UnitId(),
+				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
 				TxHash:              tx.Hash(crypto.SHA256),
 				IsDcBill:            true,
@@ -438,23 +440,23 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 				DcExpirationTimeout: blockHeight + dustBillDeletionTimeout,
 			})
 		} else {
-			err := w.db.RemoveBill(tx.UnitId())
+			err := w.db.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}
 		}
-	case txsystem.Split:
+	case money.Split:
 		// split tx contains two bills: existing bill and new bill
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill, err := w.db.ContainsBill(tx.UnitId())
+		containsBill, err := w.db.ContainsBill(tx.UnitID())
 		if err != nil {
 			return err
 		}
 		if containsBill {
 			err := w.db.SetBill(&bill{
-				Id:     tx.UnitId(),
+				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -468,7 +470,7 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 		}
 		if isOwner {
 			err := w.db.SetBill(&bill{
-				Id:     txsystem.SameShardId(tx.UnitId(), tx.HashForIdCalculation(crypto.SHA256)),
+				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -476,14 +478,14 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 				return err
 			}
 		}
-	case txsystem.Swap:
+	case money.Swap:
 		isOwner, err := w.isOwner(tx.OwnerCondition())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			err = w.db.SetBill(&bill{
-				Id:     tx.UnitId(),
+				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
@@ -498,13 +500,13 @@ func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64)
 			}
 
 			for _, dustTransfer := range tx.DCTransfers() {
-				err := w.db.RemoveBill(dustTransfer.UnitId())
+				err := w.db.RemoveBill(dustTransfer.UnitID())
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := w.db.RemoveBill(tx.UnitId())
+			err := w.db.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}

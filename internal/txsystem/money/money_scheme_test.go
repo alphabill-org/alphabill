@@ -1,13 +1,14 @@
-package txsystem
+package money
 
 import (
 	"crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money/mocks"
+	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"math/rand"
 	"testing"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/mocks"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 
@@ -69,7 +70,7 @@ func TestProcessTransaction(t *testing.T) {
 	blockNumber := uint64(0)
 	testData := []struct {
 		name        string
-		transaction GenericTransaction
+		transaction txsystem.GenericTransaction
 		expect      func(rs *mocks.RevertibleState)
 		expectErr   error
 	}{
@@ -78,7 +79,7 @@ func TestProcessTransaction(t *testing.T) {
 			transaction: transferOk,
 			expect: func(rs *mocks.RevertibleState) {
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("GetUnit", transferOk.UnitId()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: &BillData{V: transferOk.targetValue, Backlink: transferOk.backlink}}, nil)
+				rs.On("GetUnit", transferOk.UnitID()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: &BillData{V: transferOk.targetValue, Backlink: transferOk.backlink}}, nil)
 				rs.On("UpdateData", transferOk.unitId, mock.Anything, transferOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
@@ -111,7 +112,7 @@ func TestProcessTransaction(t *testing.T) {
 				).Return(nil)
 
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("GetUnit", transferDCOk.UnitId()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: &BillData{V: transferDCOk.targetValue, Backlink: transferDCOk.backlink}}, nil)
+				rs.On("GetUnit", transferDCOk.UnitID()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: &BillData{V: transferDCOk.targetValue, Backlink: transferDCOk.backlink}}, nil)
 				rs.On("UpdateData", transferDCOk.unitId, mock.Anything, transferDCOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					oldBillData := &BillData{
@@ -140,7 +141,7 @@ func TestProcessTransaction(t *testing.T) {
 					Backlink: splitOk.Backlink(),
 				}
 				rs.On("GetBlockNumber").Return(blockNumber)
-				rs.On("GetUnit", splitOk.UnitId()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: oldBillData}, nil)
+				rs.On("GetUnit", splitOk.UnitID()).Return(&state.Unit{Bearer: script.PredicateAlwaysTrue(), Data: oldBillData}, nil)
 				rs.On("UpdateData", splitOk.unitId, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
 					upFunc := args.Get(updateDataUpdateFunction).(state.UpdateFunction)
 					newGenericData = upFunc(oldBillData)
@@ -150,7 +151,7 @@ func TestProcessTransaction(t *testing.T) {
 				}).Return(nil)
 
 				rs.On("AddItem", mock.Anything, mock.Anything, mock.Anything, splitOk.Hash(crypto.SHA256)).Run(func(args mock.Arguments) {
-					expectedNewId := SameShardId(splitOk.unitId, splitOk.HashForIdCalculation(crypto.SHA256))
+					expectedNewId := txutil.SameShardId(splitOk.unitId, splitOk.HashForIdCalculation(crypto.SHA256))
 					actualId := args.Get(addItemId).(*uint256.Int)
 					require.Equal(t, expectedNewId, actualId)
 

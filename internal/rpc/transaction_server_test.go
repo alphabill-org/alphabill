@@ -26,7 +26,7 @@ type MockTransactionProcessor struct {
 }
 
 func (mpp *MockTransactionProcessor) Process(gtx transaction.GenericTransaction) error {
-	if gtx.UnitId().Eq(failingTransactionID) {
+	if gtx.UnitID().Eq(failingTransactionID) {
 		return errors.New("failed")
 	}
 	return nil

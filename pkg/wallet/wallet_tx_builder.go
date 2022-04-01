@@ -139,7 +139,7 @@ func signTx(tx *transaction.Transaction, ac *accountKey) error {
 	if err != nil {
 		return err
 	}
-	gtx, err := transaction.New(tx)
+	gtx, err := transaction.NewMoneyTx(tx)
 	if err != nil {
 		return err
 	}

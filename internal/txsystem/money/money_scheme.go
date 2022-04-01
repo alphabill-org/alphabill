@@ -1,8 +1,10 @@
-package txsystem
+package money
 
 import (
 	"crypto"
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"hash"
 
 	abHasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
@@ -20,24 +22,15 @@ import (
 const dustBillDeletionTimeout uint64 = 300
 
 type (
-	GenericTransaction interface {
-		SystemID() []byte
-		UnitId() *uint256.Int
-		Timeout() uint64
-		OwnerProof() []byte
-		Hash(hashFunc crypto.Hash) []byte
-		SigBytes() []byte
-	}
-
 	Transfer interface {
-		GenericTransaction
+		txsystem.GenericTransaction
 		NewBearer() []byte
 		TargetValue() uint64
 		Backlink() []byte
 	}
 
 	TransferDC interface {
-		GenericTransaction
+		txsystem.GenericTransaction
 		Nonce() []byte
 		TargetBearer() []byte
 		TargetValue() uint64
@@ -45,7 +38,7 @@ type (
 	}
 
 	Split interface {
-		GenericTransaction
+		txsystem.GenericTransaction
 		Amount() uint64
 		TargetBearer() []byte
 		RemainingValue() uint64
@@ -54,7 +47,7 @@ type (
 	}
 
 	Swap interface {
-		GenericTransaction
+		txsystem.GenericTransaction
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
 		DCTransfers() []TransferDC
@@ -160,9 +153,9 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 	return msState, nil
 }
 
-func (m *moneySchemeState) Process(gtx GenericTransaction) error {
-	bd, _ := m.revertibleState.GetUnit(gtx.UnitId())
-	err := validateGenericTransaction(&txValidationContext{tx: gtx, bd: bd, systemIdentifier: m.systemIdentifier, blockNumber: m.revertibleState.GetBlockNumber()})
+func (m *moneySchemeState) Process(gtx txsystem.GenericTransaction) error {
+	bd, _ := m.revertibleState.GetUnit(gtx.UnitID())
+	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: bd, SystemIdentifier: m.systemIdentifier, BlockNumber: m.revertibleState.GetBlockNumber()})
 	if err != nil {
 		return err
 	}
@@ -177,7 +170,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		return m.revertibleState.SetOwner(tx.UnitId(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
+		return m.revertibleState.SetOwner(tx.UnitID(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
 	case TransferDC:
 		log.Debug("Processing transferDC %v", tx)
 		err := m.validateTransferDCTx(tx)
@@ -188,13 +181,13 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		err = m.revertibleState.SetOwner(tx.UnitId(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.SetOwner(tx.UnitID(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
 		if err != nil {
 			return err
 		}
 		delBlockNr := m.revertibleState.GetBlockNumber() + dustBillDeletionTimeout
 		dustBillsArray := m.dustCollectorBills[delBlockNr]
-		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitId())
+		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitID())
 		return nil
 	case Split:
 		log.Debug("Processing split %v", tx)
@@ -202,7 +195,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		err = m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
+		err = m.revertibleState.UpdateData(tx.UnitID(), func(data state.UnitData) (newData state.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				// No change in case of incorrect data type.
@@ -218,7 +211,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 			return errors.Wrap(err, "could not update data")
 		}
 
-		newItemId := SameShardId(tx.UnitId(), tx.HashForIdCalculation(m.hashAlgorithm))
+		newItemId := txutil.SameShardId(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
 		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
 			V:        tx.Amount(),
 			T:        m.revertibleState.GetBlockNumber(),
@@ -251,7 +244,7 @@ func (m *moneySchemeState) Process(gtx GenericTransaction) error {
 		}
 
 		// create a new bill with value n and owner condition a
-		err = m.revertibleState.AddItem(tx.UnitId(), tx.OwnerCondition(), &BillData{
+		err = m.revertibleState.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
 			V:        n,
 			T:        m.revertibleState.GetBlockNumber(),
 			Backlink: tx.Hash(m.hashAlgorithm),
@@ -304,8 +297,8 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 	return nil
 }
 
-func (m *moneySchemeState) updateBillData(tx GenericTransaction) error {
-	return m.revertibleState.UpdateData(tx.UnitId(), func(data state.UnitData) (newData state.UnitData) {
+func (m *moneySchemeState) updateBillData(tx txsystem.GenericTransaction) error {
+	return m.revertibleState.UpdateData(tx.UnitID(), func(data state.UnitData) (newData state.UnitData) {
 		bd, ok := data.(*BillData)
 		if !ok {
 			// No change in case of incorrect data type.
@@ -318,7 +311,7 @@ func (m *moneySchemeState) updateBillData(tx GenericTransaction) error {
 }
 
 func (m *moneySchemeState) validateTransferTx(tx Transfer) error {
-	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	data, err := m.revertibleState.GetUnit(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -326,7 +319,7 @@ func (m *moneySchemeState) validateTransferTx(tx Transfer) error {
 }
 
 func (m *moneySchemeState) validateTransferDCTx(tx TransferDC) error {
-	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	data, err := m.revertibleState.GetUnit(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -334,7 +327,7 @@ func (m *moneySchemeState) validateTransferDCTx(tx TransferDC) error {
 }
 
 func (m *moneySchemeState) validateSplitTx(tx Split) error {
-	data, err := m.revertibleState.GetUnit(tx.UnitId())
+	data, err := m.revertibleState.GetUnit(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -349,13 +342,13 @@ func (m *moneySchemeState) validateSwapTx(tx Swap) error {
 	}
 	dcMoneySupplyBill, ok := dcMoneySupply.Data.(*BillData)
 	if !ok {
-		return ErrInvalidDataType
+		return txsystem.ErrInvalidDataType
 	}
 	if dcMoneySupplyBill.V < tx.TargetValue() {
 		return ErrSwapInsufficientDCMoneySupply
 	}
 	// 3.there exists no bill with identifier
-	_, err = m.revertibleState.GetUnit(tx.UnitId())
+	_, err = m.revertibleState.GetUnit(tx.UnitID())
 	if err == nil {
 		return ErrSwapBillAlreadyExists
 	}

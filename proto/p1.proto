@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1;p1";
+
+message P1Request {
+  bytes system_identifier = 1;
+  string node_identifier = 2;
+  uint64 root_round_number = 3;
+  InputRecord input_record = 4;
+  bytes signature = 5;
+}
+
+message P1Response {
+  enum Status {
+    OK = 0;
+    INVALID = 1;
+    DUPLICATE = 2;
+    SUPERSEDED = 3;
+    REPLACED = 4;
+  }
+  // True if request passed initial validation.
+  Status status = 1;
+  // Contains error message if ok is false.
+  UnicityCertificate message = 2;
+}
+
+message InputRecord {
+  // previously certified root hash
+  bytes previous_hash = 1;
+  //  hash to be certified
+  bytes hash = 2;
+  // hash of the block
+  bytes block_hash = 3;
+  // summary value to certified
+  bytes summary_value = 4;
+}
+
+message UnicityCertificate {
+  InputRecord input_record = 1;
+  UnicityTreeCertificate unicity_tree_certificate = 2;
+  UnicitySeal unicity_seal = 3;
+}
+
+message UnicityTreeCertificate {
+  bytes system_identifier = 1;
+  repeated bytes sibling_hashes = 2;
+  bytes system_description_hash = 3;
+}
+
+message UnicitySeal {
+  uint64 root_chain_block_number = 1;
+  bytes previous_hash = 2;
+  bytes hash = 3;
+  bytes signature = 4;
+}
+
+

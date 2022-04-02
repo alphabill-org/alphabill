@@ -6,27 +6,36 @@ import (
 	"hash"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"github.com/stretchr/testify/require"
 )
 
-var inputRecord = InputRecord{
+var inputRecord = &certificates.InputRecord{
 	PreviousHash: []byte{0x00},
 	Hash:         []byte{0x01},
 	BlockHash:    []byte{0x02},
-	SummaryValue: Uint64SummaryValue(1),
+	SummaryValue: []byte{0x03},
 }
 
-var systemDescriptionRecord = NewSystemDescriptionRecord("ab")
+var systemDescriptionRecord = &genesis.SystemDescriptionRecord{
+	SystemIdentifier: []byte{0, 0, 0, 1},
+	T2Timeout:        2500,
+}
 
 func TestNewUnicityTree(t *testing.T) {
 	unicityTree, err := New(sha256.New(), []*Data{
 		{
-			SystemIdentifier:        []byte{0x00, 0x00, 0x00, 0x01},
-			InputRecord:             inputRecord,
-			SystemDescriptionRecord: systemDescriptionRecord,
+			SystemIdentifier:            []byte{0, 0, 0, 1},
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
@@ -35,32 +44,36 @@ func TestNewUnicityTree(t *testing.T) {
 
 func TestGetCertificate_Ok(t *testing.T) {
 	key := []byte{0x00, 0x00, 0x00, 0x01}
-	unicityTree, err := New(sha256.New(), []*Data{
+	data := []*Data{
 		{
-			SystemIdentifier:        key,
-			InputRecord:             inputRecord,
-			SystemDescriptionRecord: systemDescriptionRecord,
+			SystemIdentifier:            key,
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
-	})
+	}
+	unicityTree, err := New(sha256.New(), data)
 	require.NoError(t, err)
 	cert, err := unicityTree.GetCertificate(key)
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, key, cert.SystemIdentifier)
-	require.Equal(t, systemIdentifierLength*8, len(cert.siblingHashes))
+	require.Equal(t, systemIdentifierLength*8-1, len(cert.SiblingHashes))
 
 	hasher := crypto.SHA256.New()
-	hasher.Write([]byte(systemDescriptionRecord.Name))
-	systemDescriptionRecordHash := hasher.Sum(nil)
-	require.Equal(t, systemDescriptionRecordHash, cert.systemDescriptionHash)
+	data[0].AddToHasher(hasher)
+	hash := hasher.Sum(nil)
+	hasher.Reset()
+
+	root, err := smt.CalculatePathRoot(cert.SiblingHashes, hash, key, crypto.SHA256)
+	require.Equal(t, unicityTree.GetRootHash(), root)
 }
 
 func TestGetCertificate_InvalidKey(t *testing.T) {
 	unicityTree, err := New(sha256.New(), []*Data{
 		{
-			SystemIdentifier:        []byte{0x00, 0x00, 0x00, 0x01},
-			InputRecord:             inputRecord,
-			SystemDescriptionRecord: systemDescriptionRecord,
+			SystemIdentifier:            []byte{1, 2, 3, 1},
+			InputRecord:                 inputRecord,
+			SystemDescriptionRecordHash: []byte{1, 2, 3, 4},
 		},
 	})
 	require.NoError(t, err)
@@ -88,4 +101,8 @@ func (t Uint64SummaryValue) Concatenate(left, right state.SummaryValue) state.Su
 		r = uint64(rSum)
 	}
 	return Uint64SummaryValue(s + l + r)
+}
+
+func (t Uint64SummaryValue) Bytes() []byte {
+	return util.Uint64ToBytes(uint64(t))
 }

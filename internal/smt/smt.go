@@ -1,16 +1,13 @@
 package smt
 
 import (
+	"crypto"
+	"fmt"
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-)
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
-const (
-	zero       int = 0
-	one        int = 1
-	seven      int = 7
-	bitsInByte int = 8
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
 
 var ErrInvalidKeyLength = errors.New("invalid key length")
@@ -24,7 +21,7 @@ type (
 	}
 
 	Data interface {
-		Key(keyLength int) []byte
+		Key() []byte
 		AddToHasher(hasher hash.Hash)
 	}
 
@@ -39,7 +36,7 @@ type (
 // New creates a new sparse merkle tree.
 func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
 	zeroHash := make([]byte, hasher.Size())
-	root, err := createSMT(&node{}, zero, keyLength*bitsInByte, data, hasher, zeroHash)
+	root, err := createSMT(&node{}, 0, keyLength*8, data, hasher, zeroHash)
 	if err != nil {
 		return nil, err
 	}
@@ -51,21 +48,28 @@ func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
 	}, nil
 }
 
+// GetRootHash returns the root hash of the SMT.
+func (s *SMT) GetRootHash() []byte {
+	return s.root.hash
+}
+
 // GetAuthPath returns authentication path and leaf node data for given key.
 func (s *SMT) GetAuthPath(key []byte) ([][]byte, Data, error) {
 	if len(key) != s.keyLength {
 		return nil, nil, ErrInvalidKeyLength
 	}
-	treeHeight := s.keyLength * bitsInByte
-	result := make([][]byte, treeHeight)
+	treeHeight := s.keyLength * 8
+	proofLength := treeHeight - 1
+	result := make([][]byte, proofLength)
 	node := s.root
+	// skips leaf
 	for i := 0; i < treeHeight-1; i++ {
 		if node == nil {
-			result[treeHeight-i-1] = s.zeroHash
+			result[proofLength-i-1] = s.zeroHash
 			continue
 		}
 		var pathItem []byte
-		if isBitSet(key, i) {
+		if util.IsBitSet(key, i) {
 			if node.left == nil {
 				pathItem = s.zeroHash
 			} else {
@@ -80,14 +84,78 @@ func (s *SMT) GetAuthPath(key []byte) ([][]byte, Data, error) {
 			}
 			node = node.left
 		}
-		result[treeHeight-i-1] = pathItem
+		result[proofLength-i-1] = pathItem
 	}
 	if node == nil {
-		result[0] = s.zeroHash
 		return result, nil, nil
 	}
-	result[0] = node.hash
 	return result, node.data, nil
+}
+
+func CalculatePathRoot(path [][]byte, leafHash []byte, key []byte, hashAlgorithm crypto.Hash) ([]byte, error) {
+	if key == nil {
+		return nil, ErrInvalidKeyLength
+	}
+	if len(path) != len(key)*8-1 {
+		return nil, errors.Errorf("invalid path/key combination: path length=%v, key length=%v", len(path), len(key))
+	}
+	if len(leafHash) != hashAlgorithm.Size() {
+		return nil, errors.Errorf("invalid leaf hash length: leaf length=%v, hash length=%v", len(leafHash), hashAlgorithm.Size())
+	}
+	hasher := hashAlgorithm.New()
+	hash := leafHash
+	pathLength := len(path)
+	for i := 0; i < pathLength; i++ {
+		pathItem := path[i]
+		if util.IsBitSet(key, pathLength-1-i) {
+			hasher.Write(pathItem)
+			hasher.Write(hash)
+		} else {
+			hasher.Write(hash)
+			hasher.Write(pathItem)
+		}
+		hash = hasher.Sum(nil)
+		hasher.Reset()
+	}
+	return hash, nil
+}
+
+func (s *SMT) PrettyPrint() string {
+	if s.root == nil {
+		return "tree is empty"
+	}
+	out := ""
+	s.output(s.root, "", false, &out)
+	return out
+}
+
+// output is rmaTree inner method for producing debugging
+func (s *SMT) output(node *node, prefix string, isTail bool, str *string) {
+	if node.right != nil {
+		newPrefix := prefix
+		if isTail {
+			newPrefix += "│   "
+		} else {
+			newPrefix += "    "
+		}
+		s.output(node.right, newPrefix, false, str)
+	}
+	*str += prefix
+	if isTail {
+		*str += "└── "
+	} else {
+		*str += "┌── "
+	}
+	*str += fmt.Sprintf("%X\n", node.hash)
+	if node.left != nil {
+		newPrefix := prefix
+		if isTail {
+			newPrefix += "    "
+		} else {
+			newPrefix += "│   "
+		}
+		s.output(node.left, newPrefix, true, str)
+	}
 }
 
 func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher hash.Hash, zeroHash []byte) (*node, error) {
@@ -105,16 +173,16 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 		hasher.Reset()
 		return p, nil
 	}
-	keySize := maxPositionSize / bitsInByte
+	keySize := maxPositionSize / 8
 	// inner node
 	var leftData []Data
 	var rightData []Data
 	for _, id := range data {
-		key := id.Key(keySize)
+		key := id.Key()
 		if len(key) != keySize {
 			return nil, ErrInvalidKeyLength
 		}
-		if !isBitSet(key, position) {
+		if !util.IsBitSet(key, position) {
 			leftData = append(leftData, id)
 		} else {
 			rightData = append(rightData, id)
@@ -135,10 +203,4 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 	p.hash = hasher.Sum(nil)
 	hasher.Reset()
 	return p, nil
-}
-
-func isBitSet(bytes []byte, bitPosition int) bool {
-	byteIndex := bitPosition / bitsInByte
-	bitIndexInByte := bitPosition % bitsInByte
-	return bytes[byteIndex]&byte(one<<(seven-bitIndexInByte)) != byte(zero)
 }

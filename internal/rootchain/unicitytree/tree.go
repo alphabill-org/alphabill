@@ -3,7 +3,7 @@ package unicitytree
 import (
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 
@@ -15,28 +15,15 @@ const systemIdentifierLength = 4
 var ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")
 
 type (
-	InputRecord struct {
-		PreviousHash []byte             // previously certified root hash
-		Hash         []byte             // root hash to be certified
-		BlockHash    []byte             // hash of the block
-		SummaryValue state.SummaryValue // summary value to be certified
-	}
-
 	Data struct {
-		SystemIdentifier        []byte
-		InputRecord             InputRecord
-		SystemDescriptionRecord *SystemDescriptionRecord
+		SystemIdentifier            []byte
+		InputRecord                 *certificates.InputRecord
+		SystemDescriptionRecordHash []byte
 	}
 
 	UnicityTree struct {
 		smt    *smt.SMT
 		hasher hash.Hash
-	}
-
-	Certificate struct {
-		SystemIdentifier      []byte
-		siblingHashes         [][]byte
-		systemDescriptionHash []byte
 	}
 )
 
@@ -56,8 +43,12 @@ func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
 	}, nil
 }
 
+func (u *UnicityTree) GetRootHash() []byte {
+	return u.smt.GetRootHash()
+}
+
 // GetCertificate returns an unicity tree certificate for given system identifier.
-func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*Certificate, error) {
+func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*certificates.UnicityTreeCertificate, error) {
 	if len(systemIdentifier) != systemIdentifierLength {
 		return nil, ErrInvalidSystemIdentifierLength
 	}
@@ -68,29 +59,22 @@ func (u *UnicityTree) GetCertificate(systemIdentifier []byte) (*Certificate, err
 
 	leafData, ok := data.(*Data)
 	if !ok {
-		return nil, errors.New("invalid data type, unicity tree leaf not is not of type *Data")
+		return nil, errors.New("invalid data type, unicity tree leaf node is not of type *Data")
 	}
-	dhash := leafData.SystemDescriptionRecord.hash(u.hasher)
+	dhash := leafData.SystemDescriptionRecordHash
 
-	return &Certificate{
+	return &certificates.UnicityTreeCertificate{
 		SystemIdentifier:      systemIdentifier,
-		systemDescriptionHash: dhash,
-		siblingHashes:         path,
+		SystemDescriptionHash: dhash,
+		SiblingHashes:         path,
 	}, nil
 }
 
-func (d *Data) Key(_ int) []byte {
+func (d *Data) Key() []byte {
 	return d.SystemIdentifier
 }
 
 func (d *Data) AddToHasher(hasher hash.Hash) {
 	d.InputRecord.AddToHasher(hasher)
-	d.SystemDescriptionRecord.addToHasher(hasher)
-}
-
-func (ir *InputRecord) AddToHasher(hasher hash.Hash) {
-	hasher.Write(ir.PreviousHash)
-	hasher.Write(ir.Hash)
-	hasher.Write(ir.BlockHash)
-	ir.SummaryValue.AddToHasher(hasher)
+	hasher.Write(d.SystemDescriptionRecordHash)
 }

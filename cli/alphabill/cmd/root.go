@@ -18,23 +18,24 @@ type (
 	alphabillApp struct {
 		rootCmd    *cobra.Command
 		rootConfig *rootConfiguration
+		opts       interface{}
 	}
 )
 
 // New creates a new Alphabill application
 func New() *alphabillApp {
 	rootCmd, rootConfig := newRootCmd()
-	return &alphabillApp{rootCmd, rootConfig}
+	return &alphabillApp{rootCmd, rootConfig, nil}
+}
+
+func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
+	a.opts = opts
+	return a
 }
 
 // Execute adds all child commands and runs the application
-func (a *alphabillApp) Execute(ctx context.Context, opts ...Option) {
-	executeOpts := Options{}
-	for _, o := range opts {
-		o(&executeOpts)
-	}
-
-	a.rootCmd.AddCommand(newMoneyShardCmd(ctx, a.rootConfig, executeOpts.shardRunFunc))
+func (a *alphabillApp) Execute(ctx context.Context) {
+	a.rootCmd.AddCommand(newMoneyShardCmd(ctx, a.rootConfig, convertOptsToRunnable(a.opts)))
 	a.rootCmd.AddCommand(newWalletCmd(ctx, a.rootConfig))
 
 	cobra.CheckErr(a.rootCmd.Execute())

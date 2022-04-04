@@ -19,3 +19,16 @@ func (o *allOptions) ShardRunFunc(shardRunFunc moneyShardRunnable) Option {
 		options.shardRunFunc = shardRunFunc
 	}
 }
+
+func convertOptsToRunnable(opts interface{}) moneyShardRunnable {
+	switch v := opts.(type) {
+	case moneyShardRunnable:
+		return v
+	case Option:
+		executeOpts := Options{}
+		v(&executeOpts)
+		return executeOpts.shardRunFunc
+	default:
+		return nil
+	}
+}

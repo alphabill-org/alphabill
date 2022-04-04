@@ -166,7 +166,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 
 			abApp := New()
 			abApp.rootCmd.SetArgs(strings.Split(tt.args, " "))
-			abApp.Execute(context.Background(), Opts.ShardRunFunc(shardRunFunc))
+			abApp.WithOpts(Opts.ShardRunFunc(shardRunFunc)).Execute(context.Background())
 
 			assert.Equal(t, tt.expectedConfig, actualConfig)
 		})
@@ -211,7 +211,7 @@ logger-config=custom-log-conf.yaml
 	abApp := New()
 	args := "shard --config=" + f.Name()
 	abApp.rootCmd.SetArgs(strings.Split(args, " "))
-	abApp.Execute(context.Background(), Opts.ShardRunFunc(shardRunFunc))
+	abApp.WithOpts(Opts.ShardRunFunc(shardRunFunc)).Execute(context.Background())
 
 	assert.Equal(t, expectedConfig, actualConfig)
 }

@@ -27,5 +27,5 @@ func (bs *InMemoryBlockStore) LatestBlock() (*Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	return bs.blocks[height-1], nil
+	return bs.blocks[height], nil
 }

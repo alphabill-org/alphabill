@@ -3,6 +3,7 @@ package partition
 import (
 	"encoding/binary"
 	"encoding/json"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -14,6 +15,8 @@ var (
 )
 
 var latestBlockNoKey = []byte("latestBlockNo")
+
+var errInvalidBlockNo = errors.New("invalid block number")
 
 // PersistentBlockStore is a persistent implementation of BlockStore interface.
 type PersistentBlockStore struct {
@@ -42,6 +45,10 @@ func NewPersistentBlockStore(dbFile string) (*PersistentBlockStore, error) {
 
 func (bs *PersistentBlockStore) Add(b *Block) error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
+		err := bs.verifyBlock(tx, b)
+		if err != nil {
+			return err
+		}
 		val, err := json.Marshal(b)
 		if err != nil {
 			return err
@@ -92,6 +99,18 @@ func (bs *PersistentBlockStore) LatestBlock() (*Block, error) {
 		return nil, err
 	}
 	return bs.Get(height)
+}
+
+func (bs *PersistentBlockStore) verifyBlock(tx *bolt.Tx, b *Block) error {
+	latestBlockNo := bs.getLatestBlockNo(tx)
+	if latestBlockNo+1 != b.TxSystemBlockNumber {
+		return errInvalidBlockNo
+	}
+	return nil
+}
+
+func (bs *PersistentBlockStore) getLatestBlockNo(tx *bolt.Tx) uint64 {
+	return deserializeUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
 }
 
 func (bs *PersistentBlockStore) createBuckets() error {

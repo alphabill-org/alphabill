@@ -66,6 +66,22 @@ func TestPersistentBlockStore_EmptyStore(t *testing.T) {
 	require.Nil(t, b)
 }
 
+func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
+	bs, _ := createTestBlockStore(t)
+
+	// try adding invalid block
+	invalidBlock := newDummyBlock(2)
+	err := bs.Add(invalidBlock)
+	require.ErrorIs(t, err, errInvalidBlockNo)
+
+	// try adding valid block twice
+	validBlock := newDummyBlock(1)
+	err = bs.Add(validBlock)
+	require.NoError(t, err)
+	err = bs.Add(validBlock)
+	require.ErrorIs(t, err, errInvalidBlockNo)
+}
+
 func newDummyBlock(blockNo uint64) *Block {
 	return &Block{
 		SystemIdentifier:         []byte{0},

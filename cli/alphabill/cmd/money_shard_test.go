@@ -30,7 +30,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 	tests := []struct {
 		args           string   // arguments as a space separated string
 		envVars        []envVar // Environment variables that will be set before creating command
-		expectedConfig *shardConfiguration
+		expectedConfig *moneyShardConfiguration
 	}{
 		// Root configuration permutations
 		{
@@ -38,7 +38,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			expectedConfig: defaultShardConfiguration(),
 		}, {
 			args: "shard --home=/custom-home",
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
 					HomeDir:    "/custom-home",
@@ -49,7 +49,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			}(),
 		}, {
 			args: "shard --home=/custom-home --config=custom-config.props",
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
 					HomeDir:    "/custom-home",
@@ -60,7 +60,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			}(),
 		}, {
 			args: "shard --config=custom-config.props",
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
 					HomeDir:    alphabillHomeDir(),
@@ -73,14 +73,14 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 		// Shard configuration from flags
 		{
 			args: "shard --initial-bill-value=555",
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.InitialBillValue = 555
 				return sc
 			}(),
 		}, {
 			args: "shard --server-address=srv:1234 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Server = &grpcServerConfiguration{
 					Address:                 "srv:1234",
@@ -98,7 +98,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 				{"AB_INITIAL_BILL_VALUE", "555"},
 				{"AB_SERVER_ADDRESS", "srv:1234"},
 			},
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.InitialBillValue = 555
 				sc.Server.Address = "srv:1234"
@@ -110,7 +110,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 				{"AB_INITIAL_BILL_VALUE", "555"},
 				{"AB_SERVER_ADDRESS", "srv:1234"},
 			},
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.InitialBillValue = 666
 				sc.Server.Address = "srv:666"
@@ -123,7 +123,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 				{"AB_CONFIG", "custom-config.props"},
 				{"AB_LOGGER_CONFIG", "custom-log-conf.yaml"},
 			},
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
 					HomeDir:    "/custom-home-1",
@@ -138,7 +138,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 				{"AB_HOME", "/custom-home"},
 				{"AB_CONFIG", "custom-config.props"},
 			},
-			expectedConfig: func() *shardConfiguration {
+			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
 				sc.Root = &rootConfiguration{
 					HomeDir:    "/custom-home",
@@ -151,8 +151,8 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("shard_conf|"+tt.args+"|"+envVarsStr(tt.envVars), func(t *testing.T) {
-			var actualConfig *shardConfiguration
-			shardRunFunc := func(ctx context.Context, sc *shardConfiguration) error {
+			var actualConfig *moneyShardConfiguration
+			shardRunFunc := func(ctx context.Context, sc *moneyShardConfiguration) error {
 				actualConfig = sc
 				return nil
 			}
@@ -202,8 +202,8 @@ logger-config=custom-log-conf.yaml
 	expectedConfig.Server.MaxRecvMsgSize = 9999
 
 	// Set up shard runner mock
-	var actualConfig *shardConfiguration
-	shardRunFunc := func(ctx context.Context, sc *shardConfiguration) error {
+	var actualConfig *moneyShardConfiguration
+	shardRunFunc := func(ctx context.Context, sc *moneyShardConfiguration) error {
 		actualConfig = sc
 		return nil
 	}
@@ -216,16 +216,18 @@ logger-config=custom-log-conf.yaml
 	assert.Equal(t, expectedConfig, actualConfig)
 }
 
-func defaultShardConfiguration() *shardConfiguration {
-	return &shardConfiguration{
-		Root: &rootConfiguration{
-			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
-			LogCfgFile: defaultLoggerConfigFile,
-		},
-		Server: &grpcServerConfiguration{
-			Address:        defaultServerAddr,
-			MaxRecvMsgSize: defaultMaxRecvMsgSize,
+func defaultShardConfiguration() *moneyShardConfiguration {
+	return &moneyShardConfiguration{
+		baseShardConfiguration: baseShardConfiguration{
+			Root: &rootConfiguration{
+				HomeDir:    alphabillHomeDir(),
+				CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+				LogCfgFile: defaultLoggerConfigFile,
+			},
+			Server: &grpcServerConfiguration{
+				Address:        defaultServerAddr,
+				MaxRecvMsgSize: defaultMaxRecvMsgSize,
+			},
 		},
 		InitialBillValue:   defaultInitialBillValue,
 		DCMoneySupplyValue: defaultDCMoneySupplyValue,
@@ -265,7 +267,7 @@ func TestRunShard_Ok(t *testing.T) {
 		// Starting the shard in background
 		appStoppedWg.Add(1)
 		go func() {
-			err := defaultShardRunFunc(ctx, conf)
+			err := defaultMoneyShardRunFunc(ctx, conf)
 			require.NoError(t, err)
 			appStoppedWg.Done()
 		}()

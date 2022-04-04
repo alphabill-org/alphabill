@@ -3,28 +3,16 @@ package cmd
 import (
 	"context"
 	"crypto"
-	"net"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type (
-	shardConfiguration struct {
-		Root   *rootConfiguration
-		Server *grpcServerConfiguration
+	moneyShardConfiguration struct {
+		baseShardConfiguration
 		// The value of initial bill in AlphaBills.
 		InitialBillValue uint64 `validate:"gte=0"`
 		// The initial value of Dust Collector Money supply.
@@ -32,8 +20,8 @@ type (
 		// trust base public keys, in compressed secp256k1 (33 bytes each) hex format
 		UnicityTrustBase []string
 	}
-	// shardRunnable is the function that is run after configuration is loaded.
-	shardRunnable func(ctx context.Context, shardConfig *shardConfiguration) error
+	// moneyShardRunnable is the function that is run after configuration is loaded.
+	moneyShardRunnable func(ctx context.Context, shardConfig *moneyShardConfiguration) error
 )
 
 const (
@@ -47,10 +35,12 @@ var log = logger.CreateForPackage()
 // newMoneyShardCmd creates a new cobra command for the shard component.
 //
 // shardRunFunc - set the function to override the default behaviour. Meant for tests.
-func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFunc shardRunnable) *cobra.Command {
-	config := &shardConfiguration{
-		Root:   rootConfig,
-		Server: &grpcServerConfiguration{},
+func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFunc moneyShardRunnable) *cobra.Command {
+	config := &moneyShardConfiguration{
+		baseShardConfiguration: baseShardConfiguration{
+			Root:   rootConfig,
+			Server: &grpcServerConfiguration{},
+		},
 	}
 	// shardCmd represents the shard command
 	var shardCmd = &cobra.Command{
@@ -61,7 +51,7 @@ func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardR
 			if shardRunFunc != nil {
 				return shardRunFunc(ctx, config)
 			}
-			return defaultShardRunFunc(ctx, config)
+			return defaultMoneyShardRunFunc(ctx, config)
 		},
 	}
 
@@ -73,52 +63,15 @@ func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardR
 	return shardCmd
 }
 
-func defaultShardRunFunc(ctx context.Context, cfg *shardConfiguration) error {
-	billsState, err := money.NewMoneySchemeState(crypto.SHA256, cfg.UnicityTrustBase, &money.InitialBill{
+func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfiguration) error {
+	billsState, err := money.NewMoneySchemeState(crypto.SHA256, config.UnicityTrustBase, &money.InitialBill{
 		ID:    uint256.NewInt(defaultInitialBillId),
-		Value: cfg.InitialBillValue,
+		Value: config.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
-	}, cfg.DCMoneySupplyValue)
+	}, config.DCMoneySupplyValue)
 	if err != nil {
 		return err
 	}
 
-	shardComponent, err := shard.New(billsState)
-	if err != nil {
-		return err
-	}
-
-	grpcServer := grpc.NewServer(
-		grpc.MaxSendMsgSize(cfg.Server.MaxRecvMsgSize),
-		grpc.KeepaliveParams(cfg.Server.GrpcKeepAliveServerParameters()),
-	)
-	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
-
-	listener, err := net.Listen("tcp", cfg.Server.Address)
-	if err != nil {
-		return err
-	}
-
-	transactionsServer, err := rpc.NewTransactionsServer(shardComponent)
-	if err != nil {
-		return err
-	}
-
-	transaction.RegisterTransactionsServer(grpcServer, transactionsServer)
-
-	starterFunc := func(ctx context.Context) {
-		go func() {
-			log.Info("Starting gRPC server on %s", cfg.Server.Address)
-			err = grpcServer.Serve(listener)
-			if err != nil {
-				log.Error("Server exited with erroneous situation: %s", err)
-				return
-			}
-			log.Info("Server exited successfully")
-		}()
-		<-ctx.Done()
-		grpcServer.GracefulStop()
-	}
-
-	return starter.StartAndWait(ctx, "shard", starterFunc)
+	return defaultShardRunFunc(ctx, &config.baseShardConfiguration, billsState)
 }

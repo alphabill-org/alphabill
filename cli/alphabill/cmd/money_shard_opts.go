@@ -2,7 +2,7 @@ package cmd
 
 type (
 	Options struct {
-		shardRunFunc shardRunnable
+		shardRunFunc moneyShardRunnable
 	}
 
 	Option     func(*Options)
@@ -14,7 +14,7 @@ var (
 )
 
 // ShardRunFunc sets the shard runnable function. Otherwise, default function will be used.
-func (o *allOptions) ShardRunFunc(shardRunFunc shardRunnable) Option {
+func (o *allOptions) ShardRunFunc(shardRunFunc moneyShardRunnable) Option {
 	return func(options *Options) {
 		options.shardRunFunc = shardRunFunc
 	}

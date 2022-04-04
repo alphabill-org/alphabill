@@ -37,16 +37,6 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 			err:  ErrUnicityTreeCertificateIsNil,
 		},
 		{
-			name: "invalid system identifier length",
-			uct: &UnicityTreeCertificate{
-				SystemIdentifier:      []byte{1},
-				SiblingHashes:         [][]byte{},
-				SystemDescriptionHash: zeroHash,
-			},
-			args:   args{},
-			errStr: "invalid system identifier length",
-		},
-		{
 			name: "invalid system identifier",
 			uct: &UnicityTreeCertificate{
 				SystemIdentifier:      []byte{1, 1, 1, 1},
@@ -72,7 +62,7 @@ func TestUnicityTreeCertificate_IsValid(t *testing.T) {
 			errStr: "invalid system description hash",
 		},
 		{
-			name: "invalid count of sibling hashe",
+			name: "invalid count of sibling hashes",
 			uct: &UnicityTreeCertificate{
 				SystemIdentifier:      []byte{1, 1, 1, 1},
 				SiblingHashes:         [][]byte{},

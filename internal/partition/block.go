@@ -15,7 +15,7 @@ type Block struct {
 	txSystemBlockNumber      uint64
 	previousBlockHash        []byte
 	transactions             []*transaction.Transaction // TODO use transaction struct/interface from AB-129
-	UnicityCertificateRecord *UnicityCertificateRecord
+	UnicityCertificateRecord *UnicityCertificate
 }
 
 //Hash returns the hash of the block.

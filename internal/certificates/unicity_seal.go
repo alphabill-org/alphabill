@@ -32,7 +32,7 @@ func (x *UnicitySeal) IsValid(verifier crypto.Verifier) error {
 	if x.PreviousHash == nil {
 		return ErrUnicitySealPreviousHashIsNil
 	}
-	if x.RootChainBlockNumber < 1 {
+	if x.RootChainRoundNumber < 1 {
 		return ErrInvalidBlockNumber
 	}
 	if x.Signature == nil {
@@ -55,7 +55,7 @@ func (x *UnicitySeal) Sign(signer crypto.Signer) error {
 
 func (x *UnicitySeal) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(util.Uint64ToBytes(x.RootChainBlockNumber))
+	b.Write(util.Uint64ToBytes(x.RootChainRoundNumber))
 	b.Write(x.PreviousHash)
 	b.Write(x.Hash)
 	return b.Bytes()

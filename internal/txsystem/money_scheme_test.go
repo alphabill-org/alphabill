@@ -2,9 +2,10 @@ package txsystem
 
 import (
 	"crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"math/rand"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/mocks"
 

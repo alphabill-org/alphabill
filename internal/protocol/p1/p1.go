@@ -53,7 +53,6 @@ func (p *P1) handleStream(s libp2pNetwork.Stream) {
 		logger.Warning("Failed to read request: %v", err)
 		return
 	}
-	logger.Debug("Got a new P1 request %v", req)
 	responseChannel := make(chan *P1Response, 1)
 	defer close(responseChannel)
 
@@ -76,11 +75,13 @@ func (p *P1) handleStream(s libp2pNetwork.Stream) {
 		s.Reset()
 		return
 	}
-	logger.Debug("Got a P1 response %v", response)
 	// write response message
 	writer := protocol.NewProtoBufWriter(s)
 	defer writer.Close()
-	writer.Write(response)
+	err = writer.Write(response)
+	if err != nil {
+		logger.Warning("Failed to write response: %v", err)
+	}
 }
 
 func (p *P1) Close() {

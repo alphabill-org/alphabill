@@ -5,15 +5,17 @@ import (
 	"strings"
 	"testing"
 
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+
 	"github.com/stretchr/testify/require"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 )
 
 func TestUnicityCertificate_IsValid(t *testing.T) {
-	signer, verifier := generateSigner(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
-		RootChainBlockNumber: 1,
+		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}

@@ -5,11 +5,12 @@ import (
 	"context"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/unicitytree"
 )
 
 const (
@@ -31,13 +32,13 @@ var (
 )
 
 type (
-	UnicityCertificateRecord struct {
-		InputRecord            *unicitytree.InputRecord
-		UnicityTreeCertificate *unicitytree.Certificate
-		UnicityCertificate     *UnicityCertificate
+	UnicityCertificate struct {
+		InputRecord            *certificates.InputRecord
+		UnicityTreeCertificate *certificates.UnicityTreeCertificate
+		UnicityCertificate     *UnicitySeal
 	}
 
-	UnicityCertificate struct {
+	UnicitySeal struct {
 		RootChainBlockNumber uint64
 		PreviousHash         []byte // Previous Block hash
 		Hash                 []byte // Block hash
@@ -57,7 +58,7 @@ type (
 	Partition struct {
 		transactionSystem                 TransactionSystem
 		configuration                     *Configuration
-		luc                               *UnicityCertificateRecord
+		luc                               *UnicityCertificate
 		proposal                          []*transaction.Transaction
 		pr                                *pendingBlockProposal
 		t1                                *time.Timer
@@ -149,7 +150,7 @@ func New(
 		//return nil, errors.Errorf("tx system root hash does not equal to genesis file hash")
 	}
 
-	if configuration.Genesis.InputRecord.SummaryValue != genesisSummaryValue {
+	if !bytes.Equal(configuration.Genesis.InputRecord.SummaryValue, genesisSummaryValue.Bytes()) {
 		logger.Warning("tx system summary value does not equal to genesis file summary value")
 		//TODO AB-111
 		//return nil, errors.Errorf("tx system summary value does not equal to genesis file summary value")
@@ -205,7 +206,7 @@ func (p *Partition) loop() {
 	}
 }
 
-func (p *Partition) startNewRound(ucr *UnicityCertificateRecord) error {
+func (p *Partition) startNewRound(ucr *UnicityCertificate) error {
 	p.transactionSystem.RInit()
 	p.proposal = nil
 	p.pr = nil
@@ -252,7 +253,7 @@ func (p *Partition) handleUnicityCertificateRecordEvent(event interface{}) {
 	}
 }
 
-func (p *Partition) handleUnicityCertificateRecord(ucr *UnicityCertificateRecord) {
+func (p *Partition) handleUnicityCertificateRecord(ucr *UnicityCertificate) {
 	// TODO refactor and write tests after task AB-130 is done
 	if ucr == nil {
 		logger.Warning("Invalid UnicityCertificateRecordEvent. UC is nil")
@@ -260,13 +261,13 @@ func (p *Partition) handleUnicityCertificateRecord(ucr *UnicityCertificateRecord
 	}
 
 	if err := p.unicityCertificateRecordValidator.Validate(ucr); err != nil {
-		logger.Warning("Invalid UnicityCertificateRecord. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, ucr.UnicityTreeCertificate.SystemIdentifier)
+		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, ucr.UnicityTreeCertificate.SystemIdentifier)
 		return
 	}
 
 	// ensure(uc.Cuni.α = α)
 	if !bytes.Equal(ucr.UnicityTreeCertificate.SystemIdentifier, p.configuration.SystemIdentifier) {
-		logger.Warning("Invalid UnicityCertificateRecord. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, ucr.UnicityTreeCertificate.SystemIdentifier)
+		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, ucr.UnicityTreeCertificate.SystemIdentifier)
 		return
 	}
 	// ensure(¬(uc.UC.nr = luc.UC.nr ∧ uc.IR.h , luc.IR.h))
@@ -310,7 +311,7 @@ func (p *Partition) handleUnicityCertificateRecord(ucr *UnicityCertificateRecord
 	p.startNewRound(ucr)
 }
 
-func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, ucr *UnicityCertificateRecord) {
+func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, ucr *UnicityCertificate) {
 	b := &Block{
 		systemIdentifier:         p.configuration.SystemIdentifier,
 		txSystemBlockNumber:      p.blockStore.Height() + 1,
@@ -370,11 +371,11 @@ func (p *Partition) sendProposal() {
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeId,
 		lucRoundNumber:   p.pr.lucRoundNumber,
-		inputRecord: &unicitytree.InputRecord{
+		inputRecord: &certificates.InputRecord{
 			PreviousHash: prevHash,
 			Hash:         stateRoot,
 			BlockHash:    blockHash,
-			SummaryValue: summary,
+			SummaryValue: summary.Bytes(),
 		},
 	})
 }

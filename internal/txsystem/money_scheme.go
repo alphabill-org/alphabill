@@ -394,6 +394,10 @@ func (b *BillSummary) Concatenate(left, right state.SummaryValue) state.SummaryV
 	return &BillSummary{v: out}
 }
 
+func (b *BillSummary) Bytes() []byte {
+	return util.Uint64ToBytes(b.v)
+}
+
 func (b *BillData) AddToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(b.V))
 	hasher.Write(util.Uint64ToBytes(b.T))

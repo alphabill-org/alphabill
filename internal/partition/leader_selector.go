@@ -48,7 +48,7 @@ func (l *LeaderSelector) IsCurrentNodeLeader() bool {
 }
 
 // UpdateLeader updates the next block proposer. If input is nil then leader is set to UnknownLeader.
-func (l *LeaderSelector) UpdateLeader(uc *UnicityCertificate) error {
+func (l *LeaderSelector) UpdateLeader(uc *UnicitySeal) error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 

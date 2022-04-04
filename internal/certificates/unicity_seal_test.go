@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+
 	"github.com/stretchr/testify/require"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
@@ -12,7 +14,7 @@ import (
 var zeroHash = make([]byte, 32)
 
 func TestUnicitySeal_IsValid(t *testing.T) {
-	_, verifier := generateSigner(t)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
 
 	tests := []struct {
 		name     string
@@ -35,7 +37,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 		{
 			name: "PreviousHash is nil",
 			seal: &UnicitySeal{
-				RootChainBlockNumber: 1,
+				RootChainRoundNumber: 1,
 				PreviousHash:         nil,
 				Hash:                 zeroHash,
 				Signature:            zeroHash,
@@ -46,7 +48,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 		{
 			name: "Hash is nil",
 			seal: &UnicitySeal{
-				RootChainBlockNumber: 1,
+				RootChainRoundNumber: 1,
 				PreviousHash:         zeroHash,
 				Hash:                 nil,
 				Signature:            zeroHash,
@@ -57,7 +59,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 		{
 			name: "Signature is nil",
 			seal: &UnicitySeal{
-				RootChainBlockNumber: 1,
+				RootChainRoundNumber: 1,
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
 				Signature:            nil,
@@ -68,7 +70,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 		{
 			name: "block number is invalid is nil",
 			seal: &UnicitySeal{
-				RootChainBlockNumber: 0,
+				RootChainRoundNumber: 0,
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
 				Signature:            nil,
@@ -84,20 +86,10 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 	}
 }
 
-func generateSigner(t *testing.T) (crypto.Signer, crypto.Verifier) {
-	t.Helper()
-	signer, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-
-	verifier, err := signer.Verifier()
-	require.NoError(t, err)
-	return signer, verifier
-}
-
 func TestIsValid_InvalidSignature(t *testing.T) {
-	_, verifier := generateSigner(t)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
-		RootChainBlockNumber: 1,
+		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 		Signature:            zeroHash,
@@ -107,9 +99,9 @@ func TestIsValid_InvalidSignature(t *testing.T) {
 }
 
 func TestSignAndVerify_Ok(t *testing.T) {
-	signer, verifier := generateSigner(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
-		RootChainBlockNumber: 1,
+		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
@@ -119,9 +111,9 @@ func TestSignAndVerify_Ok(t *testing.T) {
 	require.NoError(t, err)
 }
 func TestVerify_SignatureIsNil(t *testing.T) {
-	_, verifier := generateSigner(t)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
 	seal := &UnicitySeal{
-		RootChainBlockNumber: 1,
+		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
@@ -131,7 +123,7 @@ func TestVerify_SignatureIsNil(t *testing.T) {
 
 func TestSign_SignerIsNil(t *testing.T) {
 	seal := &UnicitySeal{
-		RootChainBlockNumber: 1,
+		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
@@ -141,7 +133,7 @@ func TestSign_SignerIsNil(t *testing.T) {
 
 func TestVerify_VerifierIsNil(t *testing.T) {
 	seal := &UnicitySeal{
-		RootChainBlockNumber: 1,
+		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 		Signature:            zeroHash,

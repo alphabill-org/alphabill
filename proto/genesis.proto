@@ -5,15 +5,16 @@ import "certificates.proto";
 option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis/;genesis";
 
 message RootGenesis {
-  repeated SealedPartitionRecord partitions = 1;
+  repeated GenesisPartitionRecord partitions = 1;
   // root chain public key
   bytes trust_base = 2;
   uint32 hash_algorithm = 3;
 }
 
-message SealedPartitionRecord {
-  PartitionRecord partition_record = 1;
+message GenesisPartitionRecord {
+  repeated PartitionNode nodes = 1;
   UnicityCertificate certificate = 2;
+  SystemDescriptionRecord system_description_record = 3;
 }
 
 message PartitionGenesis {
@@ -28,7 +29,7 @@ message SystemDescriptionRecord {
 }
 
 message PartitionRecord {
-  SystemDescriptionRecord   system_description_record = 1;
+  SystemDescriptionRecord system_description_record = 1;
   repeated PartitionNode validators = 2;
 }
 

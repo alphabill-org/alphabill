@@ -52,6 +52,20 @@ func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 	verifyBlock(t, tb3, b)
 }
 
+func TestPersistentBlockStore_EmptyStore(t *testing.T) {
+	bs, _ := createTestBlockStore(t)
+
+	// verify height returns 0
+	height, err := bs.Height()
+	require.NoError(t, err)
+	require.EqualValues(t, 0, height)
+
+	// verify latest block returns nil
+	b, err := bs.LatestBlock()
+	require.NoError(t, err)
+	require.Nil(t, b)
+}
+
 func newDummyBlock(blockNo uint64) *Block {
 	return &Block{
 		SystemIdentifier:         []byte{0},

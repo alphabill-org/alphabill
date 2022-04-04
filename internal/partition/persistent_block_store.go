@@ -13,7 +13,7 @@ var (
 	metaBucket   = []byte("metaBucket")
 )
 
-var lastBlockNoKey = []byte("lastBlockNo")
+var latestBlockNoKey = []byte("latestBlockNo")
 
 // PersistentBlockStore is a persistent implementation of BlockStore interface.
 type PersistentBlockStore struct {
@@ -33,6 +33,10 @@ func NewPersistentBlockStore(dbFile string) (*PersistentBlockStore, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = bs.initMetaData()
+	if err != nil {
+		return nil, err
+	}
 	return bs, nil
 }
 
@@ -47,7 +51,7 @@ func (bs *PersistentBlockStore) Add(b *Block) error {
 		if err != nil {
 			return err
 		}
-		err = tx.Bucket(metaBucket).Put(lastBlockNoKey, blockNoInBytes)
+		err = tx.Bucket(metaBucket).Put(latestBlockNoKey, blockNoInBytes)
 		if err != nil {
 			return err
 		}
@@ -73,7 +77,7 @@ func (bs *PersistentBlockStore) Get(blockNumber uint64) (*Block, error) {
 func (bs *PersistentBlockStore) Height() (uint64, error) {
 	var height uint64
 	err := bs.db.View(func(tx *bolt.Tx) error {
-		height = deserializeUint64(tx.Bucket(metaBucket).Get(lastBlockNoKey))
+		height = deserializeUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
 		return nil
 	})
 	if err != nil {
@@ -99,6 +103,19 @@ func (bs *PersistentBlockStore) createBuckets() error {
 		_, err = tx.CreateBucketIfNotExists(metaBucket)
 		if err != nil {
 			return err
+		}
+		return nil
+	})
+}
+
+func (bs *PersistentBlockStore) initMetaData() error {
+	return bs.db.Update(func(tx *bolt.Tx) error {
+		val := tx.Bucket(metaBucket).Get(latestBlockNoKey)
+		if val == nil {
+			err := tx.Bucket(metaBucket).Put(latestBlockNoKey, serializeUint64(0))
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})

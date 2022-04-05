@@ -18,20 +18,20 @@ var latestBlockNoKey = []byte("latestBlockNo")
 
 var errInvalidBlockNo = errors.New("invalid block number")
 
-// PersistentBlockStore is a persistent implementation of BlockStore interface.
-type PersistentBlockStore struct {
+// BoltBlockStore is a persistent implementation of BlockStore interface.
+type BoltBlockStore struct {
 	db *bolt.DB
 }
 
-// NewPersistentBlockStore creates new on-disk persistent block store.
+// NewBoltBlockStore creates new on-disk persistent block store using bolt db.
 // If the file does not exist then it will be created, however, parent directories must exist beforehand.
-func NewPersistentBlockStore(dbFile string) (*PersistentBlockStore, error) {
+func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 	db, err := bolt.Open(dbFile, 0600, nil) // -rw-------
 	if err != nil {
 		return nil, err
 	}
 
-	bs := &PersistentBlockStore{db}
+	bs := &BoltBlockStore{db}
 	err = bs.createBuckets()
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func NewPersistentBlockStore(dbFile string) (*PersistentBlockStore, error) {
 	return bs, nil
 }
 
-func (bs *PersistentBlockStore) Add(b *Block) error {
+func (bs *BoltBlockStore) Add(b *Block) error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
 		err := bs.verifyBlock(tx, b)
 		if err != nil {
@@ -66,7 +66,7 @@ func (bs *PersistentBlockStore) Add(b *Block) error {
 	})
 }
 
-func (bs *PersistentBlockStore) Get(blockNumber uint64) (*Block, error) {
+func (bs *BoltBlockStore) Get(blockNumber uint64) (*Block, error) {
 	var block *Block
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		blockJson := tx.Bucket(blocksBucket).Get(serializeUint64(blockNumber))
@@ -81,7 +81,7 @@ func (bs *PersistentBlockStore) Get(blockNumber uint64) (*Block, error) {
 	return block, nil
 }
 
-func (bs *PersistentBlockStore) Height() (uint64, error) {
+func (bs *BoltBlockStore) Height() (uint64, error) {
 	var height uint64
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		height = deserializeUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
@@ -93,7 +93,7 @@ func (bs *PersistentBlockStore) Height() (uint64, error) {
 	return height, nil
 }
 
-func (bs *PersistentBlockStore) LatestBlock() (*Block, error) {
+func (bs *BoltBlockStore) LatestBlock() (*Block, error) {
 	height, err := bs.Height()
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (bs *PersistentBlockStore) LatestBlock() (*Block, error) {
 	return bs.Get(height)
 }
 
-func (bs *PersistentBlockStore) verifyBlock(tx *bolt.Tx, b *Block) error {
+func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *Block) error {
 	latestBlockNo := bs.getLatestBlockNo(tx)
 	if latestBlockNo+1 != b.TxSystemBlockNumber {
 		return errInvalidBlockNo
@@ -109,11 +109,11 @@ func (bs *PersistentBlockStore) verifyBlock(tx *bolt.Tx, b *Block) error {
 	return nil
 }
 
-func (bs *PersistentBlockStore) getLatestBlockNo(tx *bolt.Tx) uint64 {
+func (bs *BoltBlockStore) getLatestBlockNo(tx *bolt.Tx) uint64 {
 	return deserializeUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
 }
 
-func (bs *PersistentBlockStore) createBuckets() error {
+func (bs *BoltBlockStore) createBuckets() error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(blocksBucket)
 		if err != nil {
@@ -127,7 +127,7 @@ func (bs *PersistentBlockStore) createBuckets() error {
 	})
 }
 
-func (bs *PersistentBlockStore) initMetaData() error {
+func (bs *BoltBlockStore) initMetaData() error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
 		val := tx.Bucket(metaBucket).Get(latestBlockNoKey)
 		if val == nil {

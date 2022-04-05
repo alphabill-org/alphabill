@@ -92,7 +92,7 @@ func newDummyBlock(blockNo uint64) *Block {
 	}
 }
 
-func createTestBlockStore(t *testing.T) (*PersistentBlockStore, error) {
+func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
 	dbFile := path.Join(os.TempDir(), blocksDbFileName)
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
@@ -100,7 +100,7 @@ func createTestBlockStore(t *testing.T) (*PersistentBlockStore, error) {
 			fmt.Println("error deleting blocks.db %w", err)
 		}
 	})
-	return NewPersistentBlockStore(dbFile)
+	return NewBoltBlockStore(dbFile)
 }
 
 func verifyBlock(t *testing.T, expected *Block, actual *Block) {

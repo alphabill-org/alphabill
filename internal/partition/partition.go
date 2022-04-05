@@ -123,7 +123,7 @@ func New(
 		return nil, err
 	}
 
-	blockStorage := &InMemoryBlockStore{}
+	blockStorage := newInMemoryBlockStore()
 
 	context, cancelFunc := context.WithCancel(ctx)
 
@@ -160,13 +160,16 @@ func New(
 		return nil, err
 	}
 	genesisBlock := &Block{
-		systemIdentifier:         p.configuration.SystemIdentifier,
-		txSystemBlockNumber:      1,
-		previousBlockHash:        nil,
-		transactions:             []*transaction.Transaction{},
+		SystemIdentifier:         p.configuration.SystemIdentifier,
+		TxSystemBlockNumber:      1,
+		PreviousBlockHash:        nil,
+		Transactions:             []*transaction.Transaction{},
 		UnicityCertificateRecord: configuration.Genesis.UnicityCertificateRecord,
 	}
-	p.blockStore.Add(genesisBlock)
+	err = p.blockStore.Add(genesisBlock)
+	if err != nil {
+		return nil, err
+	}
 	p.status = idle
 	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
 	err = p.startNewRound(configuration.Genesis.UnicityCertificateRecord)
@@ -311,15 +314,17 @@ func (p *Partition) handleUnicityCertificateRecord(ucr *UnicityCertificateRecord
 }
 
 func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, ucr *UnicityCertificateRecord) {
+	height, _ := p.blockStore.Height()           // TODO handle error
+	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
 	b := &Block{
-		systemIdentifier:         p.configuration.SystemIdentifier,
-		txSystemBlockNumber:      p.blockStore.Height() + 1,
-		previousBlockHash:        p.blockStore.LatestBlock().Hash(p.configuration.HashAlgorithm),
-		transactions:             transactions,
+		SystemIdentifier:         p.configuration.SystemIdentifier,
+		TxSystemBlockNumber:      height + 1,
+		PreviousBlockHash:        latestBlock.Hash(p.configuration.HashAlgorithm),
+		Transactions:             transactions,
 		UnicityCertificateRecord: ucr,
 	}
 	// TODO ensure block hash equals to IR hash
-	p.blockStore.Add(b)
+	_ = p.blockStore.Add(b) // TODO handle error
 }
 
 func (p *Partition) handleT1TimeoutEvent() {
@@ -350,15 +355,18 @@ func (p *Partition) sendProposal() {
 
 	// TODO store pending block proposal (AB-132)
 
-	blockNr := p.blockStore.Height() + 1
-	prevBlockHash := p.blockStore.LatestBlock().Hash(p.configuration.HashAlgorithm)
+	height, _ := p.blockStore.Height() // TODO handle error
+	blockNr := height + 1
+
+	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
+	prevBlockHash := latestBlock.Hash(p.configuration.HashAlgorithm)
 
 	hasher := p.configuration.HashAlgorithm.New()
 	hasher.Write(p.configuration.SystemIdentifier)
 	hasher.Write(transaction.Uint64ToBytes(blockNr))
 	hasher.Write(prevBlockHash)
 	// TODO continue implementing after task AB-129
-	/*for _, tx := range b.transactions {
+	/*for _, tx := range b.Transactions {
 		tx.AddToHasher(hasher)
 	}*/
 	blockHash := hasher.Sum(nil)

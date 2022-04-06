@@ -10,6 +10,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
+	"os"
 	"path"
 )
 
@@ -83,6 +84,10 @@ func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfigurati
 		return err
 	}
 
+	err = os.MkdirAll(config.Root.HomeDir, 0700) // -rwx------
+	if err != nil {
+		return err
+	}
 	blockStoreFile := path.Join(config.Root.HomeDir, partition.BoltBlockStoreFileName)
 	blockStore, err := partition.NewBoltBlockStore(blockStoreFile)
 	if err != nil {

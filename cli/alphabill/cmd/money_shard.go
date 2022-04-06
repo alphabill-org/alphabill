@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
@@ -20,6 +21,9 @@ type (
 		// trust base public keys, in compressed secp256k1 (33 bytes each) hex format
 		UnicityTrustBase []string
 	}
+
+	moneyShardTxConverter struct{}
+
 	// moneyShardRunnable is the function that is run after configuration is loaded.
 	moneyShardRunnable func(ctx context.Context, shardConfig *moneyShardConfiguration) error
 )
@@ -63,6 +67,10 @@ func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardR
 	return shardCmd
 }
 
+func (r *moneyShardTxConverter) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
+	return transaction.NewMoneyTx(tx)
+}
+
 func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfiguration) error {
 	billsState, err := money.NewMoneySchemeState(crypto.SHA256, config.UnicityTrustBase, &money.InitialBill{
 		ID:    uint256.NewInt(defaultInitialBillId),
@@ -73,5 +81,5 @@ func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfigurati
 		return err
 	}
 
-	return defaultShardRunFunc(ctx, &config.baseShardConfiguration, billsState)
+	return defaultShardRunFunc(ctx, &config.baseShardConfiguration, &moneyShardTxConverter{}, billsState)
 }

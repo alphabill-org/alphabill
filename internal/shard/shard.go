@@ -60,7 +60,7 @@ func (n *shardNode) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.Get
 		return nil, errors.Errorf("block with number %v not found", request.BlockNo)
 	}
 	uc := b.UnicityCertificate
-	us := uc.UnicityCertificate
+	us := uc.UnicitySeal
 	return &alphabill.GetBlockResponse{Block: &alphabill.Block{
 		BlockNo:       b.TxSystemBlockNumber,
 		PrevBlockHash: b.PreviousBlockHash,
@@ -69,7 +69,7 @@ func (n *shardNode) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.Get
 			InputRecord:            uc.InputRecord,
 			UnicityTreeCertificate: uc.UnicityTreeCertificate,
 			UnicitySeal: &certificates.UnicitySeal{
-				RootChainRoundNumber: us.RootChainBlockNumber,
+				RootChainRoundNumber: us.RootChainRoundNumber,
 				PreviousHash:         us.PreviousHash,
 				Hash:                 us.Hash,
 				Signature:            nil, // TODO signatures (AB-131)

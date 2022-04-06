@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
 	"google.golang.org/grpc"
@@ -17,8 +18,8 @@ type baseShardConfiguration struct {
 	Server *grpcServerConfiguration
 }
 
-func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor) error {
-	shardComponent, err := shard.New(converter, stateProcessor)
+func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor, blockStore partition.BlockStore) error {
+	shardComponent, err := shard.New(converter, stateProcessor, blockStore)
 	if err != nil {
 		return err
 	}
@@ -34,12 +35,12 @@ func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, conve
 		return err
 	}
 
-	transactionsServer, err := rpc.NewTransactionsServer(shardComponent)
+	rpcServer, err := rpc.NewRpcServer(shardComponent, shardComponent) // TODO how to avoid this?
 	if err != nil {
 		return err
 	}
 
-	transaction.RegisterTransactionsServer(grpcServer, transactionsServer)
+	alphabill.RegisterAlphaBillServiceServer(grpcServer, rpcServer)
 
 	starterFunc := func(ctx context.Context) {
 		go func() {

@@ -5,7 +5,6 @@ import "transaction.proto";
 
 option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction;transaction";
 
-// Alphabill specific transaction attributes.
 message BillTransfer {
   bytes new_bearer = 1;
   uint64 target_value = 2;

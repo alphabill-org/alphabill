@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"os"
 	"path"
 	"strings"
@@ -277,11 +278,11 @@ func TestRunShard_Ok(t *testing.T) {
 		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
 		require.NoError(t, err)
 		defer conn.Close()
-		transactionsClient := transaction.NewTransactionsClient(conn)
+		rpcClient := alphabill.NewAlphaBillServiceClient(conn)
 
 		// Test cases
-		makeSuccessfulPayment(t, ctx, transactionsClient)
-		makeFailingPayment(t, ctx, transactionsClient)
+		makeSuccessfulPayment(t, ctx, rpcClient)
+		makeFailingPayment(t, ctx, rpcClient)
 
 		// Close the app
 		ctxCancel()
@@ -290,7 +291,7 @@ func TestRunShard_Ok(t *testing.T) {
 	})
 }
 
-func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient transaction.TransactionsClient) {
+func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphaBillServiceClient) {
 	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
 
 	tx := &transaction.Transaction{
@@ -313,7 +314,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient transacti
 	require.True(t, response.Ok, "Successful response ok should be true")
 }
 
-func makeFailingPayment(t *testing.T, ctx context.Context, txClient transaction.TransactionsClient) {
+func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphaBillServiceClient) {
 	wrongBillID := uint256.NewInt(6).Bytes32()
 
 	tx := &transaction.Transaction{

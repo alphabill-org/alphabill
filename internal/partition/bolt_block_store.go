@@ -7,7 +7,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-const blocksDbFileName = "blocks.db"
+const BoltBlockStoreFileName = "blocks.db"
 
 var (
 	blocksBucket = []byte("blocksBucket")

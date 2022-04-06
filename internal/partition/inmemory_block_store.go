@@ -5,7 +5,7 @@ type InMemoryBlockStore struct {
 	blocks map[uint64]*Block
 }
 
-func newInMemoryBlockStore() *InMemoryBlockStore {
+func NewInMemoryBlockStore() *InMemoryBlockStore {
 	return &InMemoryBlockStore{blocks: map[uint64]*Block{}}
 }
 

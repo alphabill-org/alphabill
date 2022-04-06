@@ -16,6 +16,7 @@ type (
 	}
 
 	TransactionsProcessor interface {
+		Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error)
 		Process(gtx transaction.GenericTransaction) error
 	}
 )
@@ -30,7 +31,7 @@ func NewTransactionsServer(processor TransactionsProcessor) (*transactionServer,
 }
 
 func (t *transactionServer) ProcessTransaction(ctx context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
-	genTx, err := transaction.NewMoneyTx(tx)
+	genTx, err := t.processor.Convert(tx)
 	if err != nil {
 		return &transaction.TransactionResponse{
 			Ok:      false,

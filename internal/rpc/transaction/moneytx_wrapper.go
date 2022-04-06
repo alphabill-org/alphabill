@@ -10,8 +10,6 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
-
 type (
 	transferWrapper struct {
 		wrapper

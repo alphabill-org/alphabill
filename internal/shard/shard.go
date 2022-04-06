@@ -10,21 +10,29 @@ import (
 type (
 	shardNode struct {
 		stateProcessor StateProcessor
+		txConverter    TxConverter
 	}
 	StateProcessor interface {
 		// Process validates and processes a transaction order.
 		Process(tx txsystem.GenericTransaction) error
+	}
+	TxConverter interface {
+		Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error)
 	}
 )
 
 // New create a new Shard Component.
 // At the moment it only updates the state. In the future it should synchronize with other shards
 // communicate with Core and Blockchain.
-func New(stateProcessor StateProcessor) (*shardNode, error) {
+func New(converter TxConverter, stateProcessor StateProcessor) (*shardNode, error) {
 	if stateProcessor == nil {
 		return nil, errors.Wrapf(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
-	return &shardNode{stateProcessor}, nil
+	return &shardNode{stateProcessor, converter}, nil
+}
+
+func (b *shardNode) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
+	return b.txConverter.Convert(tx)
 }
 
 func (b *shardNode) Process(gtx transaction.GenericTransaction) (err error) {

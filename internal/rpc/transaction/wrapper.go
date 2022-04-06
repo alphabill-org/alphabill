@@ -9,6 +9,8 @@ import (
 	"hash"
 )
 
+const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
+
 type (
 	GenericTransaction interface {
 		SystemID() []byte

@@ -17,8 +17,8 @@ type baseShardConfiguration struct {
 	Server *grpcServerConfiguration
 }
 
-func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, stateProcessor shard.StateProcessor) error {
-	shardComponent, err := shard.New(stateProcessor)
+func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor) error {
+	shardComponent, err := shard.New(converter, stateProcessor)
 	if err != nil {
 		return err
 	}

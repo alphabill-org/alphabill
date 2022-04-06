@@ -32,6 +32,10 @@ func (mpp *MockTransactionProcessor) Process(gtx transaction.GenericTransaction)
 	return nil
 }
 
+func (mpp *MockTransactionProcessor) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
+	return transaction.NewMoneyTx(tx)
+}
+
 func TestNewTransactionServer_ProcessorMissing(t *testing.T) {
 	p, err := NewTransactionsServer(nil)
 	assert.Nil(t, p)

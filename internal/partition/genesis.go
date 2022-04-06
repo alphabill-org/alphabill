@@ -1,9 +1,11 @@
 package partition
 
-import "gitdc.ee.guardtime.com/alphabill/alphabill/internal/unicitytree"
+import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+)
 
 // TODO AB-111
 type Genesis struct {
-	InputRecord              *unicitytree.InputRecord
-	UnicityCertificateRecord *UnicityCertificateRecord
+	InputRecord              *certificates.InputRecord
+	UnicityCertificateRecord *UnicityCertificate
 }

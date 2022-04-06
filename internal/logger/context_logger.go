@@ -100,6 +100,13 @@ func (c *ContextLogger) ChangeLevel(newLevel LogLevel) {
 	*c.zeroLogger = c.zeroLogger.Level(toZeroLevel(newLevel))
 }
 
+func (c *ContextLogger) GetLevel() LogLevel {
+	if c.zeroLogger == nil {
+		c.init()
+	}
+	return fromZeroLevel(c.zeroLogger.GetLevel())
+}
+
 // A hook that adds goroutine ID to the log event
 type goRoutineIDHook struct{}
 
@@ -123,5 +130,24 @@ func toZeroLevel(lvl LogLevel) zerolog.Level {
 		return zerolog.ErrorLevel
 	default:
 		panic(fmt.Sprintf("unknown level: %d", lvl))
+	}
+}
+
+func fromZeroLevel(l zerolog.Level) LogLevel {
+	switch l {
+	case zerolog.Disabled:
+		return NONE
+	case zerolog.TraceLevel:
+		return TRACE
+	case zerolog.DebugLevel:
+		return DEBUG
+	case zerolog.InfoLevel:
+		return INFO
+	case zerolog.WarnLevel:
+		return WARNING
+	case zerolog.ErrorLevel:
+		return ERROR
+	default:
+		panic(fmt.Sprintf("unknown level: %v", l))
 	}
 }

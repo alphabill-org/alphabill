@@ -97,7 +97,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration) (*Peer, error) {
 		return nil, err
 	}
 	p := &Peer{host: h, conf: conf}
-	logger.Info("Host ID=%v, addresses=%v", h.ID(), h.Addrs())
+	logger.Debug("Host ID=%v, addresses=%v", h.ID(), h.Addrs())
 
 	return p, nil
 }

@@ -1,8 +1,7 @@
 package partition
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/unicitytree"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -16,7 +15,7 @@ const (
 
 type (
 	UnicityCertificateRecordEvent struct {
-		Certificate *UnicityCertificateRecord
+		Certificate *UnicityCertificate
 	}
 
 	TransactionEvent struct {
@@ -26,7 +25,7 @@ type (
 	PC1OEvent struct {
 		SystemIdentifier         []byte
 		NodeIdentifier           peer.ID
-		UnicityCertificateRecord *UnicityCertificateRecord
+		UnicityCertificateRecord *UnicityCertificate
 		Transactions             []*transaction.Transaction
 	}
 
@@ -34,6 +33,6 @@ type (
 		SystemIdentifier []byte
 		NodeIdentifier   peer.ID
 		lucRoundNumber   uint64
-		inputRecord      *unicitytree.InputRecord
+		inputRecord      *certificates.InputRecord
 	}
 )

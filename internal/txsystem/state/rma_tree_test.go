@@ -964,6 +964,10 @@ func (t TestSummaryValue) Concatenate(left, right SummaryValue) SummaryValue {
 	return TestSummaryValue(s + l + r)
 }
 
+func (t TestSummaryValue) Bytes() []byte {
+	return util.Uint64ToBytes(uint64(t))
+}
+
 func requireEqual(t *testing.T, expectedOwner Predicate, expectedData TestData, expectedStateHash []byte, actualUnit *Unit) {
 	require.Equal(t, expectedOwner, actualUnit.Bearer)
 	require.Equal(t, expectedData, actualUnit.Data)

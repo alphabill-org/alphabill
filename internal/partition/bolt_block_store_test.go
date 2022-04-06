@@ -2,10 +2,11 @@ package partition
 
 import (
 	"fmt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"os"
 	"path"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 
 	"github.com/stretchr/testify/require"
 )
@@ -84,11 +85,11 @@ func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
 
 func newDummyBlock(blockNo uint64) *Block {
 	return &Block{
-		SystemIdentifier:         []byte{0},
-		TxSystemBlockNumber:      blockNo,
-		PreviousBlockHash:        []byte{2},
-		Transactions:             []*transaction.Transaction{},
-		UnicityCertificateRecord: &UnicityCertificateRecord{},
+		SystemIdentifier:    []byte{0},
+		TxSystemBlockNumber: blockNo,
+		PreviousBlockHash:   []byte{2},
+		Transactions:        []*transaction.Transaction{},
+		UnicityCertificate:  &UnicityCertificate{},
 	}
 }
 
@@ -108,5 +109,5 @@ func verifyBlock(t *testing.T, expected *Block, actual *Block) {
 	require.EqualValues(t, expected.TxSystemBlockNumber, actual.TxSystemBlockNumber)
 	require.EqualValues(t, expected.PreviousBlockHash, actual.PreviousBlockHash)
 	require.EqualValues(t, expected.Transactions, actual.Transactions)
-	require.EqualValues(t, expected.UnicityCertificateRecord, actual.UnicityCertificateRecord)
+	require.EqualValues(t, expected.UnicityCertificate, actual.UnicityCertificate)
 }

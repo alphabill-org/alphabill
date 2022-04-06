@@ -6,8 +6,9 @@ type Logger interface {
 	Info(format string, args ...interface{})
 	Warning(format string, args ...interface{})
 	Error(format string, args ...interface{})
-	// Changes logger level to the newLevel
+	// ChangeLevel changes logger level to the newLevel
 	ChangeLevel(newLevel LogLevel)
+	GetLevel() LogLevel
 }
 
 type LogLevel uint

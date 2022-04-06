@@ -39,6 +39,8 @@ type (
 		AddToHasher(hasher hash.Hash)
 		// Concatenate calculates new SummaryValue by concatenating this, left and right.
 		Concatenate(left, right SummaryValue) SummaryValue
+		// Bytes returns bytes of the SummaryValue
+		Bytes() []byte
 	}
 
 	Unit struct {

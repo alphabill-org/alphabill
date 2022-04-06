@@ -1,8 +1,10 @@
 package smt
 
 import (
+	"crypto"
 	"crypto/sha256"
 	"hash"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,7 +14,7 @@ type TestData struct {
 	value []byte
 }
 
-func (t *TestData) Key(_ int) []byte {
+func (t *TestData) Key() []byte {
 	return t.value
 }
 
@@ -61,77 +63,50 @@ func TestNewSMTWithData(t *testing.T) {
 	require.Equal(t, valueHash, smt.root.hash)
 }
 
-func Test_isBitSet(t *testing.T) {
-	tests := []struct {
-		name  string
-		bytes []byte
-		want  []bool
-	}{
-		{
-			name:  "0x00",
-			bytes: []byte{0x00}, //00000000
-			want:  []bool{false, false, false, false, false, false, false, false},
-		},
-		{
-			name:  "0xFF",
-			bytes: []byte{0xFF}, // 11111111
-			want:  []bool{true, true, true, true, true, true, true, true},
-		},
-		{
-			name:  "0x00, 0xFF", // 00000000 11111111
-			bytes: []byte{0x00, 0xFF},
-			want: []bool{false, false, false, false, false, false, false, false,
-				true, true, true, true, true, true, true, true},
-		},
-		{
-			name:  "0x11, 0x12", // 00010001 00010010
-			bytes: []byte{0x11, 0x12},
-			want: []bool{false, false, false, true, false, false, false, true,
-				false, false, false, true, false, false, true, false},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			length := len(tt.bytes) * 8
-			for i := 0; i < length; i++ {
-				if got := isBitSet(tt.bytes, i); got != tt.want[i] {
-					t.Errorf("isBitSet() = %v, want %v", got, tt.want[i])
-				}
-			}
-		})
-	}
-}
-
 func TestGetAuthPath(t *testing.T) {
-	key := []byte{0x00, 0xFF}
-	values := []Data{&TestData{value: key}}
-	smt, err := New(sha256.New(), 2, values)
+	key := []byte{0x45, 0x32, 0x45, 0x32}
+	key2 := []byte{0x00, 0xA2, 0x45, 0x32}
+	values := []Data{&TestData{value: key}, &TestData{value: key2}}
+	smt, err := New(sha256.New(), 4, values)
 	require.NoError(t, err)
 	path, data, err := smt.GetAuthPath(key)
 	require.NoError(t, err)
-	require.Equal(t, values[0], data)
+	require.NotNil(t, data)
 	require.NotNil(t, path)
-	require.Equal(t, 16, len(path))
+	require.Equal(t, len(key)*8-1, len(path))
 	hasher := sha256.New()
-	hasher.Write(key)
-	hash := hasher.Sum(nil)
-	hasher.Reset()
-	for i, pathItem := range path {
-		if i == 0 {
-			require.Equal(t, hash, pathItem)
-			continue
-		}
-		if isBitSet(key, i) {
-			hasher.Write(hash)
-			hasher.Write(pathItem)
-		} else {
-			hasher.Write(pathItem)
-			hasher.Write(hash)
-		}
-		hash = hasher.Sum(nil)
-		hasher.Reset()
-	}
-	require.Equal(t, smt.root.hash, hash)
+	data.AddToHasher(hasher)
+	leaf := hasher.Sum(nil)
+	smt.GetAuthPath([]byte{0, 0, 0, 1})
+	root, err := CalculatePathRoot(path, leaf, key, crypto.SHA256)
+	require.NoError(t, err)
+	require.Equal(t, smt.root.hash, root)
+}
+
+func TestPrettyPrint(t *testing.T) {
+	key := []byte{0x45, 0x32, 0x45, 0x32}
+	key2 := []byte{0x00, 0xA2, 0x45, 0x32}
+	values := []Data{&TestData{value: key}, &TestData{value: key2}}
+	smt, _ := New(sha256.New(), 4, values)
+	require.NotZero(t, len(smt.PrettyPrint()))
+}
+
+func TestCalculateRoot_InvalidPathKeyCombination(t *testing.T) {
+	_, err := CalculatePathRoot(nil, nil, []byte{}, crypto.SHA256)
+	require.NotNil(t, err)
+	require.True(t, strings.Contains(err.Error(), "invalid path/key combination"))
+}
+
+func TestCalculateRoot_InvalidLeafHash(t *testing.T) {
+	_, err := CalculatePathRoot([][]byte{
+		{0}, {0}, {0}, {0}, {0}, {0}, {0},
+	}, []byte{}, []byte{0}, crypto.SHA256)
+	require.True(t, strings.Contains(err.Error(), "invalid leaf hash length"))
+}
+
+func TestCalculateRoot_KeyIsNil(t *testing.T) {
+	_, err := CalculatePathRoot([][]byte{}, nil, nil, crypto.SHA256)
+	require.Error(t, ErrInvalidKeyLength, err)
 }
 
 func TestGetAuthPath_DataNotPresent(t *testing.T) {

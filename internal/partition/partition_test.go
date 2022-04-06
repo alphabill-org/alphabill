@@ -293,10 +293,12 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { <-p1; return true }, test.WaitDuration, test.WaitTick)
-	require.Equal(t, uint64(2), p.blockStore.Height())
-	latestBlock := p.blockStore.LatestBlock()
-	require.Equal(t, uint64(2), latestBlock.txSystemBlockNumber)
-	require.Equal(t, 1, len(latestBlock.transactions))
+	height, _ := p.blockStore.Height()
+	require.Equal(t, uint64(2), height)
+
+	latestBlock, _ := p.blockStore.LatestBlock()
+	require.Equal(t, uint64(2), latestBlock.TxSystemBlockNumber)
+	require.Equal(t, 1, len(latestBlock.Transactions))
 }
 
 func createPeer(t *testing.T) *network.Peer {

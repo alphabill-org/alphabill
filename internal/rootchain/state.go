@@ -56,7 +56,7 @@ func newStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*state, 
 		store.reset()
 	}
 	s.roundNumber = g.GetRoundNumber() + 1
-	s.previousRoundRootHash = g.GetBlockHash()
+	s.previousRoundRootHash = g.GetRoundHash()
 	return s, nil
 }
 

@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	ErrPartitionNodeIsNil  = errors.New("partition node is nil")
-	ErrNodeIdentifierIsNil = errors.New("node identifier is empty")
-	ErrPublicKeyIsNil      = errors.New("public key is nil")
+	ErrPartitionNodeIsNil    = errors.New("partition node is nil")
+	ErrNodeIdentifierIsEmpty = errors.New("node identifier is empty")
+	ErrPublicKeyIsInvalid    = errors.New("public key is invalid")
 )
 
 func (x *PartitionNode) IsValid() error {
@@ -16,10 +16,10 @@ func (x *PartitionNode) IsValid() error {
 		return ErrPartitionNodeIsNil
 	}
 	if x.NodeIdentifier == "" {
-		return ErrNodeIdentifierIsNil
+		return ErrNodeIdentifierIsEmpty
 	}
-	if x.PublicKey == nil {
-		return ErrPublicKeyIsNil
+	if len(x.PublicKey) == 0 {
+		return ErrPublicKeyIsInvalid
 	}
 	pubKey, err := crypto.NewVerifierSecp256k1(x.PublicKey)
 	if err != nil {
@@ -46,7 +46,7 @@ func nodesUnique(x []*PartitionNode) error {
 
 		pubKey := string(node.PublicKey)
 		if _, f := keys[pubKey]; f {
-			return errors.Errorf("duplicated node  public key: %X", node.PublicKey)
+			return errors.Errorf("duplicated node public key: %X", node.PublicKey)
 		}
 		keys[pubKey] = node.PublicKey
 	}

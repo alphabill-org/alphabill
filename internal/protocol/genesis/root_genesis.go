@@ -44,10 +44,7 @@ func (x *RootGenesis) GetRoundNumber() uint64 {
 	return x.Partitions[0].Certificate.UnicitySeal.RootChainRoundNumber
 }
 
-func (x *RootGenesis) GetPreviousBlockHash() []byte {
-	return x.Partitions[0].Certificate.UnicitySeal.PreviousHash
-}
-func (x *RootGenesis) GetBlockHash() []byte {
+func (x *RootGenesis) GetRoundHash() []byte {
 	return x.Partitions[0].Certificate.UnicitySeal.Hash
 }
 

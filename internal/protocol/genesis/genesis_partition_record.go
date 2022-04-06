@@ -9,13 +9,16 @@ import (
 )
 
 var (
-	ErrPartitionIsNil  = errors.New("partition is nil")
-	ErrNodesAreMissing = errors.New("nodes are missing")
+	ErrGenesisPartitionRecordIsNil = errors.New("genesis partition record is nil")
+	ErrNodesAreMissing             = errors.New("nodes are missing")
 )
 
 func (x *GenesisPartitionRecord) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
-		return ErrPartitionIsNil
+		return ErrGenesisPartitionRecordIsNil
+	}
+	if verifier == nil {
+		return ErrVerifierIsNil
 	}
 	if len(x.Nodes) == 0 {
 		return ErrNodesAreMissing

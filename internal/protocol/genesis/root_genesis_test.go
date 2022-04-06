@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	gocrypto "crypto"
 	"strings"
 	"testing"
 
@@ -24,8 +23,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		HashAlgorithm uint32
 	}
 	type args struct {
-		verifier      crypto.Verifier
-		hashAlgorithm gocrypto.Hash
+		verifier crypto.Verifier
 	}
 	tests := []struct {
 		name       string
@@ -35,18 +33,14 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name: "verifier is nil",
-			args: args{
-				verifier:      nil,
-				hashAlgorithm: gocrypto.SHA256,
-			},
+			name:    "verifier is nil",
+			args:    args{verifier: nil},
 			wantErr: ErrVerifierIsNil,
 		},
 		{
 			name: "invalid trust base",
 			args: args{
-				verifier:      verifier,
-				hashAlgorithm: gocrypto.SHA256,
+				verifier: verifier,
 			},
 			fields:     fields{TrustBase: nil},
 			wantErrStr: "invalid trust base",
@@ -54,8 +48,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		{
 			name: "partitions not found",
 			args: args{
-				verifier:      verifier,
-				hashAlgorithm: gocrypto.SHA256,
+				verifier: verifier,
 			},
 			fields:  fields{TrustBase: pubKey},
 			wantErr: ErrPartitionsNotFound,
@@ -63,8 +56,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		{
 			name: "genesis partition record is nil",
 			args: args{
-				verifier:      verifier,
-				hashAlgorithm: gocrypto.SHA256,
+				verifier: verifier,
 			},
 			fields:  fields{TrustBase: pubKey, Partitions: []*GenesisPartitionRecord{nil}},
 			wantErr: ErrGenesisPartitionRecordIsNil,
@@ -77,7 +69,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 				TrustBase:     tt.fields.TrustBase,
 				HashAlgorithm: tt.fields.HashAlgorithm,
 			}
-			err := x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
+			err := x.IsValid(tt.args.verifier)
 			if tt.wantErr != nil {
 				require.Equal(t, tt.wantErr, err)
 			} else {
@@ -90,7 +82,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 
 func TestRootGenesis_IsValid_Nil(t *testing.T) {
 	var rg *RootGenesis = nil
-	err := rg.IsValid(nil, gocrypto.SHA256)
+	err := rg.IsValid(nil)
 	require.ErrorIs(t, err, ErrRootGenesisIsNil)
 }
 

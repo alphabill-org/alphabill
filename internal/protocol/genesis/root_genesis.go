@@ -14,7 +14,7 @@ var (
 	ErrPartitionsNotFound = errors.New("partitions not found")
 )
 
-func (x *RootGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
+func (x *RootGenesis) IsValid(verifier crypto.Verifier) error {
 	if x == nil {
 		return ErrRootGenesisIsNil
 	}
@@ -33,7 +33,7 @@ func (x *RootGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.H
 		return ErrPartitionsNotFound
 	}
 	for _, p := range x.Partitions {
-		if err = p.IsValid(verifier, hashAlgorithm); err != nil {
+		if err = p.IsValid(verifier, gocrypto.Hash(x.HashAlgorithm)); err != nil {
 			return err
 		}
 	}

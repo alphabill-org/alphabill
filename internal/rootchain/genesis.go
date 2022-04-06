@@ -55,7 +55,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 		TrustBase:     rootPublicKey,
 		HashAlgorithm: uint32(state.hashAlgorithm),
 	}
-	if err := rootGenesis.IsValid(verifier, gocrypto.SHA256); err != nil {
+	if err := rootGenesis.IsValid(verifier); err != nil {
 		return nil, nil, err
 	}
 	return rootGenesis, partitionGenesis, nil

@@ -1,7 +1,6 @@
 package rootchain
 
 import (
-	gocrypto "crypto"
 	"strings"
 	"testing"
 
@@ -32,7 +31,7 @@ func TestNewGenesis_Ok(t *testing.T) {
 	require.NotNil(t, rg)
 	require.NotNil(t, ps)
 	require.Equal(t, 1, len(ps))
-	require.NoError(t, rg.IsValid(rootChainVerifier, gocrypto.SHA256))
+	require.NoError(t, rg.IsValid(rootChainVerifier))
 }
 
 func TestNewGenesis_ConsensusNotPossible(t *testing.T) {

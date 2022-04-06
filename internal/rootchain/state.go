@@ -37,10 +37,7 @@ func newStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*state, 
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")
 	}
-	if g == nil {
-		return nil, genesis.ErrRootGenesisIsNil
-	}
-	if err = g.IsValid(verifier, gocrypto.Hash(g.HashAlgorithm)); err != nil {
+	if err = g.IsValid(verifier); err != nil {
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 

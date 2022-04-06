@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
 	"github.com/libp2p/go-libp2p-core/crypto"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/unicitytree"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
@@ -51,21 +51,21 @@ var (
 		T1Timeout:        1 * time.Second,
 		HashAlgorithm:    gocrypto.SHA256,
 		Genesis: &Genesis{
-			InputRecord: &unicitytree.InputRecord{
+			InputRecord: &certificates.InputRecord{
 				PreviousHash: nil,
 				Hash:         nil,
 				BlockHash:    nil,
 				SummaryValue: nil,
 			},
-			UnicityCertificateRecord: &UnicityCertificateRecord{
-				InputRecord: &unicitytree.InputRecord{
+			UnicityCertificateRecord: &UnicityCertificate{
+				InputRecord: &certificates.InputRecord{
 					PreviousHash: []byte{0x1},
 					Hash:         []byte{0x2},
 					BlockHash:    []byte{0x3},
-					SummaryValue: Uint64SummaryValue(12),
+					SummaryValue: Uint64SummaryValue(12).Bytes(),
 				},
 				UnicityTreeCertificate: nil,
-				UnicityCertificate: &UnicityCertificate{
+				UnicityCertificate: &UnicitySeal{
 					RootChainBlockNumber: 1,
 					PreviousHash:         nil,
 					Hash:                 nil,
@@ -79,8 +79,8 @@ func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
 	s := &mockTxSystem{}
 	p := newTestPartition(t, s)
 	defer p.Close()
-	ucr := &UnicityCertificateRecord{
-		UnicityCertificate: &UnicityCertificate{
+	ucr := &UnicityCertificate{
+		UnicityCertificate: &UnicitySeal{
 			RootChainBlockNumber: 0,
 			PreviousHash:         nil,
 			Hash:                 nil,
@@ -280,10 +280,10 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 	var p1Event P1Event
 	require.Eventually(t, func() bool { e := <-p1; p1Event = e.(P1Event); return true }, test.WaitDuration, test.WaitTick)
 	err = eventBus.Submit(TopicPartitionUnicityCertificate, UnicityCertificateRecordEvent{
-		Certificate: &UnicityCertificateRecord{
+		Certificate: &UnicityCertificate{
 			InputRecord:            p1Event.inputRecord,
-			UnicityTreeCertificate: &unicitytree.Certificate{},
-			UnicityCertificate: &UnicityCertificate{
+			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
+			UnicityCertificate: &UnicitySeal{
 				RootChainBlockNumber: 2,
 				PreviousHash:         nil,
 				Hash:                 nil,
@@ -351,7 +351,7 @@ func (t Uint64SummaryValue) AddToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(uint64(t)))
 }
 
-func (c *CertificateValidator) Validate(_ *UnicityCertificateRecord) error {
+func (c *CertificateValidator) Validate(_ *UnicityCertificate) error {
 	return nil
 }
 
@@ -371,4 +371,8 @@ func (t Uint64SummaryValue) Concatenate(left, right state.SummaryValue) state.Su
 		r = uint64(rSum)
 	}
 	return Uint64SummaryValue(s + l + r)
+}
+
+func (t Uint64SummaryValue) Bytes() []byte {
+	return util.Uint64ToBytes(uint64(t))
 }

@@ -9,8 +9,8 @@ type (
 		Validate(tx *transaction.Transaction) error
 	}
 
-	// UnicityCertificateRecordValidator is used to validate received UnicityCertificateRecord.
+	// UnicityCertificateRecordValidator is used to validate received UnicityCertificate.
 	UnicityCertificateRecordValidator interface {
-		Validate(ucr *UnicityCertificateRecord) error
+		Validate(ucr *UnicityCertificate) error
 	}
 )

@@ -1,6 +1,7 @@
 package certificates
 
 import (
+	"bytes"
 	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -35,8 +36,14 @@ func (x *InputRecord) IsValid() error {
 }
 
 func (x *InputRecord) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.PreviousHash)
-	hasher.Write(x.Hash)
-	hasher.Write(x.BlockHash)
-	hasher.Write(x.SummaryValue)
+	hasher.Write(x.Bytes())
+}
+
+func (x *InputRecord) Bytes() []byte {
+	var b bytes.Buffer
+	b.Write(x.PreviousHash)
+	b.Write(x.Hash)
+	b.Write(x.BlockHash)
+	b.Write(x.SummaryValue)
+	return b.Bytes()
 }

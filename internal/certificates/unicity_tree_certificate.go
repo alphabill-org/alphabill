@@ -9,10 +9,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
 
-var (
-	ErrUnicityTreeCertificateIsNil = errors.New("unicity tree certificate is nil")
-	ErrSystemDescriptionHashIsNil  = errors.New("system description hash is nil")
-)
+var ErrUnicityTreeCertificateIsNil = errors.New("unicity tree certificate is nil")
 
 func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash []byte) error {
 	if x == nil {

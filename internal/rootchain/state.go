@@ -33,9 +33,12 @@ type state struct {
 }
 
 func newStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*state, error) {
-	_, verifier, err := GetVerifierAndPublicKey(signer)
+	_, verifier, err := GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")
+	}
+	if g == nil {
+		return nil, genesis.ErrRootGenesisIsNil
 	}
 	if err = g.IsValid(verifier, gocrypto.Hash(g.HashAlgorithm)); err != nil {
 		return nil, errors.Wrap(err, "invalid genesis")
@@ -158,8 +161,8 @@ func (s *state) handleInputRequestEvent(e *p1.RequestEvent) {
 }
 
 func (s *state) checkConsensus(identifier string) bool {
-	requestStore := s.incomingRequests[identifier]
-	hash, consensusPossible := requestStore.isConsensusReceived(s.partitionStore.nodeCount(identifier))
+	rs := s.incomingRequests[identifier]
+	hash, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(identifier))
 	if hash != nil {
 		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(identifier), hash.Hash)
 		s.inputRecords[identifier] = hash

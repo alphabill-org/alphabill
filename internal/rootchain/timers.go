@@ -81,7 +81,7 @@ func (t *timers) WaitClose() {
 	for _, timer := range t.timers {
 		timer.cancelCh <- true
 	}
-	// ensure wa have closed all timers
+	// ensure we have closed all timers
 	t.wg.Wait()
 	close(t.C)
 }

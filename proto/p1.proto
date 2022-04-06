@@ -21,6 +21,6 @@ message P1Response {
   }
   // True if request passed initial validation.
   Status status = 1;
-  // Contains error message if ok is false.
+  // Contains unicity certificate if status is OK
   UnicityCertificate message = 2;
 }

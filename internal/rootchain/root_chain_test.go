@@ -35,47 +35,17 @@ func TestNewRootChain_Ok(t *testing.T) {
 }
 
 func TestNewRootChain_LoadUsingOptions(t *testing.T) {
-	rc, peer, signer := initRootChain(t, WithRequestChCapacity(10), WithT3Timeout(2000*time.Second))
+	duration := 2000 * time.Second
+	rc, peer, signer := initRootChain(t, WithRequestChCapacity(10), WithT3Timeout(duration))
 	defer rc.Close()
 	require.NotNil(t, signer)
 	require.NotNil(t, rc)
 	require.NotNil(t, peer)
+	require.EqualValues(t, duration, rc.timers.timers[t3TimerID].duration)
 }
 
 func TestRootChain_SendMultipleRequests(t *testing.T) {
-	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-
-	rootVerifier, err := rootSigner.Verifier()
-	require.NoError(t, err)
-
-	rootPeer := testnetwork.CreatePeer(t)
-	partitionsSigners, _, partition := createPartitionRecord(t, partitionInputRecord, partitionID, 1)
-	rootGenesis, pgs, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner)
-	require.NoError(t, err)
-	rc, err := NewRootChain(rootPeer, rootGenesis, rootSigner)
-	defer rc.Close()
-	require.NoError(t, err)
-	clientPeer := testnetwork.CreatePeer(t)
-
-	clientConf := p1.ClientConfiguration{
-		Signer:                      partitionsSigners[0],
-		NodeIdentifier:              "0",
-		SystemIdentifier:            pgs[0].SystemDescriptionRecord.SystemIdentifier,
-		SystemDescriptionRecordHash: pgs[0].SystemDescriptionRecord.Hash(gocrypto.SHA256),
-		HashAlgorithm:               gocrypto.SHA256,
-		RootChainRoundNumber:        pgs[0].Certificate.UnicitySeal.RootChainRoundNumber,
-		PreviousHash:                pgs[0].Certificate.InputRecord.Hash,
-	}
-
-	serverConf := p1.ServerConfiguration{
-		RootChainID:     rootPeer.ID(),
-		ServerAddresses: rootPeer.MultiAddresses(),
-		RootVerifier:    rootVerifier,
-	}
-
-	client, err := p1.NewClient(clientPeer, clientConf, serverConf)
-	require.NoError(t, err)
+	client, partition, rootVerifier := initRootChainForSendMultipleRequestsTest(t)
 
 	response, err := client.SendSync(context.Background(), []byte{0, 0, 0, 2}, []byte{0, 0, 1, 1}, []byte{0, 0, 1, 3})
 	require.NoError(t, err)
@@ -101,4 +71,42 @@ func initRootChain(t *testing.T, opts ...Option) (*RootChain, *network.Peer, cry
 	rc, err := NewRootChain(peer, rootGenesis, rootSigner, opts...)
 	require.NoError(t, err)
 	return rc, peer, rootSigner
+}
+
+func initRootChainForSendMultipleRequestsTest(t *testing.T) (*p1.Client, *genesis.PartitionRecord, crypto.Verifier) {
+	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+
+	rootVerifier, err := rootSigner.Verifier()
+	require.NoError(t, err)
+
+	rootPeer := testnetwork.CreatePeer(t)
+	partitionsSigners, _, partition := createPartitionRecord(t, partitionInputRecord, partitionID, 1)
+	rootGenesis, pgs, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner)
+	require.NoError(t, err)
+	rc, err := NewRootChain(rootPeer, rootGenesis, rootSigner)
+	t.Cleanup(func() {
+		rc.Close()
+	})
+	require.NoError(t, err)
+	clientPeer := testnetwork.CreatePeer(t)
+
+	clientConf := p1.ClientConfiguration{
+		Signer:                      partitionsSigners[0],
+		NodeIdentifier:              "0",
+		SystemIdentifier:            pgs[0].SystemDescriptionRecord.SystemIdentifier,
+		SystemDescriptionRecordHash: pgs[0].SystemDescriptionRecord.Hash(gocrypto.SHA256),
+		HashAlgorithm:               gocrypto.SHA256,
+		RootChainRoundNumber:        pgs[0].Certificate.UnicitySeal.RootChainRoundNumber,
+		PreviousHash:                pgs[0].Certificate.InputRecord.Hash,
+	}
+
+	serverConf := p1.ServerConfiguration{
+		RootChainID:     rootPeer.ID(),
+		ServerAddresses: rootPeer.MultiAddresses(),
+		RootVerifier:    rootVerifier,
+	}
+
+	client, err := p1.NewClient(clientPeer, clientConf, serverConf)
+	return client, partition, rootVerifier
 }

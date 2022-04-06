@@ -35,7 +35,7 @@ var partition2IR = &certificates.InputRecord{
 	SummaryValue: []byte{0, 0, 2, 3},
 }
 
-func Test_newStateFromGenesis(t *testing.T) {
+func Test_newStateFromGenesis_NotOk(t *testing.T) {
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	type args struct {
@@ -71,6 +71,23 @@ func Test_newStateFromGenesis(t *testing.T) {
 			require.True(t, strings.Contains(err.Error(), tt.errStg))
 		})
 	}
+}
+
+func TestNewStateFromGenesis_Ok(t *testing.T) {
+	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	_, _, partition1 := createPartitionRecord(t, partition1IR, partition1ID, 5)
+	_, _, partition2 := createPartitionRecord(t, partition2IR, partition2ID, 4)
+	partitions := []*genesis.PartitionRecord{partition1, partition2}
+	rootGenesis, _, err := NewGenesis(partitions, rootSigner)
+	require.NoError(t, err)
+
+	s1, err := newStateFromGenesis(rootGenesis, rootSigner)
+	require.NoError(t, err)
+
+	s2 := createStateAndExecuteRound(t, partitions, rootSigner)
+	require.NoError(t, err)
+	require.Equal(t, s1, s2)
 }
 
 func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
@@ -131,23 +148,6 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, 0, len(s.incomingRequests[string(partition2ID)].requests))
 	require.Equal(t, 0, len(s.incomingRequests[string(partition1ID)].hashCounts))
 	require.Equal(t, 0, len(s.incomingRequests[string(partition2ID)].hashCounts))
-}
-
-func TestNewStateFromGenesis_Ok(t *testing.T) {
-	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-	_, _, partition1 := createPartitionRecord(t, partition1IR, partition1ID, 5)
-	_, _, partition2 := createPartitionRecord(t, partition2IR, partition2ID, 4)
-	partitions := []*genesis.PartitionRecord{partition1, partition2}
-	rootGenesis, _, err := NewGenesis(partitions, rootSigner)
-	require.NoError(t, err)
-
-	s1, err := newStateFromGenesis(rootGenesis, rootSigner)
-	require.NoError(t, err)
-
-	s2 := createStateAndExecuteRound(t, partitions, rootSigner)
-	require.NoError(t, err)
-	require.Equal(t, s1, s2)
 }
 
 func TestHandleInputRequestEvent_OlderUnicityCertificate(t *testing.T) {

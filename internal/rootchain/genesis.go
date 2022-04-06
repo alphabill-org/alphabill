@@ -31,7 +31,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 
 	genesisPartitions := make([]*genesis.GenesisPartitionRecord, len(partitions))
 	partitionGenesis := make([]*genesis.PartitionGenesis, len(partitions))
-	rootPublicKey, verifier, err := GetVerifierAndPublicKey(signer)
+	rootPublicKey, verifier, err := GetPublicKeyAndVerifier(signer)
 
 	// generate genesis structs
 	for i, p := range partitions {

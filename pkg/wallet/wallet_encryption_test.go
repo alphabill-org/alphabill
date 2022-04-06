@@ -1,7 +1,6 @@
 package wallet
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"os"
 	"path"
@@ -11,16 +10,8 @@ import (
 const walletPass = "default-wallet-pass"
 
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
-	tempDir := os.TempDir()
-	_ = testutil.DeleteWalletDb(tempDir)
-
-	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: tempDir, WalletPass: walletPass})
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
-	require.NoError(t, err)
-
-	verifyTestWallet(t, err, w)
+	w, _ := CreateTestWalletFromSeed(t)
+	verifyTestWallet(t, w)
 }
 
 func TestEncryptedWalletCanBeLoaded(t *testing.T) {
@@ -34,7 +25,7 @@ func TestEncryptedWalletCanBeLoaded(t *testing.T) {
 		w.Shutdown()
 	})
 
-	verifyTestWallet(t, err, w)
+	verifyTestWallet(t, w)
 }
 
 func TestLoadingEncryptedWalletWrongPassphrase(t *testing.T) {

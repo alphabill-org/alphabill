@@ -189,7 +189,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &transaction.Transaction{
 			UnitId:                b.getId(),
-			TransactionAttributes: createDustTransferTx(),
+			TransactionAttributes: createRandomDustTransferTx(),
 			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),
 		})

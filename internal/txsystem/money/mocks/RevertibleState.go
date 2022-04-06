@@ -3,8 +3,9 @@
 package mocks
 
 import (
-	state "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	mock "github.com/stretchr/testify/mock"
+
+	state "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 
 	uint256 "github.com/holiman/uint256"
 )

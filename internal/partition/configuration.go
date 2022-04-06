@@ -1,8 +1,10 @@
 package partition
 
 import (
-	"crypto"
+	gocrypto "crypto"
 	"time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 )
 
 type Configuration struct {
@@ -12,6 +14,9 @@ type Configuration struct {
 	// transaction orders and creating a block proposal.
 	T1Timeout time.Duration
 
-	Genesis       *Genesis // TODO AB-111
-	HashAlgorithm crypto.Hash
+	Signer crypto.Signer
+
+	HashAlgorithm gocrypto.Hash
+
+	Genesis *Genesis // TODO AB-111
 }

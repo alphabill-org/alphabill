@@ -1,6 +1,10 @@
 package genesis
 
-import "gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+import (
+	"bytes"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+)
 
 var ErrPartitionRecordIsNil = errors.New("partition record is nil")
 var ErrValidatorsMissing = errors.New("validators are missing")
@@ -15,9 +19,13 @@ func (x *PartitionRecord) IsValid() error {
 	if len(x.Validators) == 0 {
 		return ErrValidatorsMissing
 	}
+	id := x.GetSystemIdentifier()
 	for _, node := range x.Validators {
 		if err := node.IsValid(); err != nil {
 			return err
+		}
+		if !bytes.Equal(id, node.P1Request.SystemIdentifier) {
+			return errors.Errorf("invalid system id: expected %X, got %X", id, node.P1Request.SystemIdentifier)
 		}
 	}
 	if err := nodesUnique(x.Validators); err != nil {

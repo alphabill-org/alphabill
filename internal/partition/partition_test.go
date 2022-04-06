@@ -4,9 +4,10 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"hash"
 	"testing"
 	"time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/partition"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
@@ -15,11 +16,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 
@@ -29,21 +26,13 @@ import (
 )
 
 type (
-	mockTxSystem struct {
-		rinitCount   uint64
-		rComplCount  uint64
-		executeCount uint64
-	}
-
-	Uint64SummaryValue uint64
-
 	CertificateValidator struct{}
 
 	TransactionValidator struct{}
 )
 
 var (
-	txSystem             = &mockTxSystem{}
+	txSystem             = &partition.MockTxSystem{}
 	certificateValidator = &CertificateValidator{}
 	txValidator          = &TransactionValidator{}
 	testConf             = &Configuration{
@@ -62,7 +51,7 @@ var (
 					PreviousHash: []byte{0x1},
 					Hash:         []byte{0x2},
 					BlockHash:    []byte{0x3},
-					SummaryValue: Uint64SummaryValue(12).Bytes(),
+					SummaryValue: partition.Uint64SummaryValue(12).Bytes(),
 				},
 				UnicityTreeCertificate: nil,
 				UnicityCertificate: &UnicitySeal{
@@ -76,7 +65,7 @@ var (
 )
 
 func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
-	s := &mockTxSystem{}
+	s := &partition.MockTxSystem{}
 	p := newTestPartition(t, s)
 	defer p.Close()
 	ucr := &UnicityCertificate{
@@ -87,7 +76,7 @@ func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
 		},
 	}
 	p.startNewRound(ucr)
-	require.Equal(t, uint64(2), s.rinitCount)
+	require.Equal(t, uint64(2), s.RoundInitCount)
 }
 
 func TestNewPartition_NilInputParameters(t *testing.T) {
@@ -328,49 +317,10 @@ func newTestPartition(t *testing.T, txSystem TransactionSystem) *Partition {
 	return p
 }
 
-func (m *mockTxSystem) RInit() {
-	m.rinitCount++
-}
-func (m *mockTxSystem) Revert() {
-}
-
-func (m *mockTxSystem) RCompl() ([]byte, state.SummaryValue) {
-	m.rComplCount++
-
-	return make([]byte, 32), Uint64SummaryValue(m.rComplCount)
-}
-
-func (m *mockTxSystem) Execute(tx *transaction.Transaction) error {
-	m.executeCount++
-	return nil
-}
-
-func (t Uint64SummaryValue) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(uint64(t)))
-}
-
 func (c *CertificateValidator) Validate(_ *UnicityCertificate) error {
 	return nil
 }
 
 func (tv *TransactionValidator) Validate(_ *transaction.Transaction) error {
 	return nil
-}
-
-func (t Uint64SummaryValue) Concatenate(left, right state.SummaryValue) state.SummaryValue {
-	var s, l, r uint64
-	s = uint64(t)
-	lSum, ok := left.(Uint64SummaryValue)
-	if ok {
-		l = uint64(lSum)
-	}
-	rSum, ok := right.(Uint64SummaryValue)
-	if ok {
-		r = uint64(rSum)
-	}
-	return Uint64SummaryValue(s + l + r)
-}
-
-func (t Uint64SummaryValue) Bytes() []byte {
-	return util.Uint64ToBytes(uint64(t))
 }

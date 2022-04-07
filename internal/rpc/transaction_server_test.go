@@ -26,10 +26,14 @@ type MockTransactionProcessor struct {
 }
 
 func (mpp *MockTransactionProcessor) Process(gtx transaction.GenericTransaction) error {
-	if gtx.UnitId().Eq(failingTransactionID) {
+	if gtx.UnitID().Eq(failingTransactionID) {
 		return errors.New("failed")
 	}
 	return nil
+}
+
+func (mpp *MockTransactionProcessor) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
+	return transaction.NewMoneyTx(tx)
 }
 
 func TestNewTransactionServer_ProcessorMissing(t *testing.T) {

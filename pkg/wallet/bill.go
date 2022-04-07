@@ -15,10 +15,17 @@ type bill struct {
 	DcTx      *transaction.Transaction `json:"dcTx"`
 	DcTimeout uint64                   `json:"dcTimeout"`
 	DcNonce   []byte                   `json:"dcNonce"`
+	// DcExpirationTimeout blockHeight when dc bill gets removed from state
+	DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
 }
 
 // getId returns bill id in 32-byte big endian array
 func (b *bill) getId() []byte {
 	bytes32 := b.Id.Bytes32()
 	return bytes32[:]
+}
+
+// isExpired returns true if dcBill, that was left unswapped, should be deleted
+func (b *bill) isExpired(blockHeight uint64) bool {
+	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
 }

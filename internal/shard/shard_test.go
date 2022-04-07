@@ -16,21 +16,24 @@ import (
 type genericTx struct{}
 
 func (g *genericTx) SystemID() []byte                 { return nil }
-func (g *genericTx) UnitId() *uint256.Int             { return nil }
+func (g *genericTx) UnitID() *uint256.Int             { return nil }
 func (g *genericTx) IDHash() string                   { return "" }
 func (g *genericTx) Timeout() uint64                  { return 0 }
 func (g *genericTx) OwnerProof() []byte               { return nil }
 func (g *genericTx) Hash(hashFunc crypto.Hash) []byte { return nil }
+func (g *genericTx) SigBytes() []byte                 { return nil }
 
 func TestProcessNew_Nil(t *testing.T) {
-	s, err := New(nil)
+	s, err := New(nil, nil)
 	require.Nil(t, s)
 	require.Error(t, err)
 }
 
 func TestProcess_Ok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
-	s, err := New(sp)
+
+	tc := new(mocks.TxConverter)
+	s, err := New(tc, sp)
 	require.NoError(t, err)
 
 	sp.On("Process", mock.Anything).Return(nil)
@@ -41,7 +44,9 @@ func TestProcess_Ok(t *testing.T) {
 
 func TestProcess_Nok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
-	s, err := New(sp)
+
+	tc := new(mocks.TxConverter)
+	s, err := New(tc, sp)
 	require.NoError(t, err)
 
 	sp.On("Process", mock.Anything).Return(errors.New("expecting error"))

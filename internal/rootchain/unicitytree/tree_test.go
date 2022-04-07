@@ -10,8 +10,6 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
@@ -23,11 +21,6 @@ var inputRecord = &certificates.InputRecord{
 	Hash:         []byte{0x01},
 	BlockHash:    []byte{0x02},
 	SummaryValue: []byte{0x03},
-}
-
-var systemDescriptionRecord = &genesis.SystemDescriptionRecord{
-	SystemIdentifier: []byte{0, 0, 0, 1},
-	T2Timeout:        2500,
 }
 
 func TestNewUnicityTree(t *testing.T) {
@@ -61,10 +54,10 @@ func TestGetCertificate_Ok(t *testing.T) {
 
 	hasher := crypto.SHA256.New()
 	data[0].AddToHasher(hasher)
-	hash := hasher.Sum(nil)
+	dataHash := hasher.Sum(nil)
 	hasher.Reset()
 
-	root, err := smt.CalculatePathRoot(cert.SiblingHashes, hash, key, crypto.SHA256)
+	root, err := smt.CalculatePathRoot(cert.SiblingHashes, dataHash, key, crypto.SHA256)
 	require.Equal(t, unicityTree.GetRootHash(), root)
 }
 

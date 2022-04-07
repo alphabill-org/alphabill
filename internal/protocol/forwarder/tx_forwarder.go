@@ -129,7 +129,7 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 }
 
 func (tf *TxForwarder) handleTx(req *transaction.Transaction) error {
-	genericTx, err := transaction.New(req)
+	genericTx, err := transaction.NewMoneyTx(req)
 	if err != nil {
 		return err
 	}

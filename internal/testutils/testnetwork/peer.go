@@ -1,7 +1,6 @@
 package testnetwork
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -11,10 +10,8 @@ import (
 )
 
 func CreatePeer(t *testing.T) *network.Peer {
-	ctx := context.Background()
 	conf := &network.PeerConfiguration{}
-
-	peer, err := network.NewPeer(ctx, conf)
+	peer, err := network.NewPeer(conf)
 	require.NoError(t, err)
 
 	pubKey, err := peer.PublicKey()

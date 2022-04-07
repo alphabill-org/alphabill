@@ -21,29 +21,17 @@ const (
 const topicCapacity = 100
 
 var (
-	ErrTxSystemIsNil               = errors.New("transaction system is nil")
-	ErrEventBusIsNil               = errors.New("event bus is nil")
-	ErrPartitionConfigurationIsNil = errors.New("configuration is nil")
-	ErrLeaderSelectorIsNil         = errors.New("leader selector is nil")
-	ErrCtxIsNil                    = errors.New("ctx is nil")
-	ErrUcrValidatorIsNil           = errors.New("unicity certificate record validator is nil")
-	ErrTxValidatorIsNil            = errors.New("tx validator is nil")
-	ErrGenesisIsNil                = errors.New("genesis is nil")
+	ErrTxSystemIsNil                    = errors.New("transaction system is nil")
+	ErrEventBusIsNil                    = errors.New("event bus is nil")
+	ErrPartitionConfigurationIsNil      = errors.New("configuration is nil")
+	ErrLeaderSelectorIsNil              = errors.New("leader selector is nil")
+	ErrCtxIsNil                         = errors.New("ctx is nil")
+	ErrUnicityCertificateValidatorIsNil = errors.New("unicity certificate validator is nil")
+	ErrTxValidatorIsNil                 = errors.New("tx validator is nil")
+	ErrGenesisIsNil                     = errors.New("genesis is nil")
 )
 
 type (
-	UnicityCertificate struct {
-		InputRecord            *certificates.InputRecord
-		UnicityTreeCertificate *certificates.UnicityTreeCertificate
-		UnicityCertificate     *UnicitySeal
-	}
-
-	UnicitySeal struct {
-		RootChainBlockNumber uint64
-		PreviousHash         []byte // Previous Block hash
-		Hash                 []byte // Block hash
-		// TODO signatures (AB-131)
-	}
 
 	//TODO idea: maybe we can use a block struct instead (needs a spec change)? (AB-119)
 	pendingBlockProposal struct {
@@ -58,13 +46,13 @@ type (
 	Partition struct {
 		transactionSystem                 TransactionSystem
 		configuration                     *Configuration
-		luc                               *UnicityCertificate
+		luc                               *certificates.UnicityCertificate
 		proposal                          []*transaction.Transaction
 		pr                                *pendingBlockProposal
 		t1                                *time.Timer
 		leaderSelector                    *LeaderSelector
 		txValidator                       TxValidator
-		unicityCertificateRecordValidator UnicityCertificateRecordValidator
+		unicityCertificateRecordValidator UnicityCertificateValidator
 		blockStore                        BlockStore
 		status                            status
 		unicityCertificatesCh             <-chan interface{}
@@ -83,7 +71,7 @@ func New(
 	txSystem TransactionSystem,
 	eb *eventbus.EventBus,
 	leaderSelector *LeaderSelector,
-	ucrValidator UnicityCertificateRecordValidator,
+	ucValidator UnicityCertificateValidator,
 	txValidator TxValidator,
 	configuration *Configuration,
 ) (*Partition, error) {
@@ -102,8 +90,8 @@ func New(
 	if eb == nil {
 		return nil, ErrEventBusIsNil
 	}
-	if ucrValidator == nil {
-		return nil, ErrUcrValidatorIsNil
+	if ucValidator == nil {
+		return nil, ErrUnicityCertificateValidatorIsNil
 	}
 	if txValidator == nil {
 		return nil, ErrTxValidatorIsNil
@@ -124,13 +112,9 @@ func New(
 		return nil, err
 	}
 
-	blockStorage := &InMemoryBlockStore{}
-
-	context, cancelFunc := context.WithCancel(ctx)
+	blockStorage := newInMemoryBlockStore()
 
 	p := &Partition{
-		ctx:                               context,
-		ctxCancel:                         cancelFunc,
 		transactionSystem:                 txSystem,
 		configuration:                     configuration,
 		t1:                                t1,
@@ -138,10 +122,11 @@ func New(
 		eventbus:                          eb,
 		unicityCertificatesCh:             unicityCertificatesCh,
 		transactionsCh:                    transactionsCh,
-		unicityCertificateRecordValidator: ucrValidator,
+		unicityCertificateRecordValidator: ucValidator,
 		txValidator:                       txValidator,
 		blockStore:                        blockStorage,
 	}
+	p.ctx, p.ctxCancel = context.WithCancel(ctx)
 
 	txGenesisRoot, genesisSummaryValue := p.transactionSystem.RCompl()
 	if !bytes.Equal(configuration.Genesis.InputRecord.Hash, txGenesisRoot) {
@@ -156,24 +141,24 @@ func New(
 		//return nil, errors.Errorf("tx system summary value does not equal to genesis file summary value")
 	}
 
-	if err = ucrValidator.Validate(configuration.Genesis.UnicityCertificateRecord); err != nil {
+	if err = ucValidator.Validate(configuration.Genesis.UnicityCertificateRecord); err != nil {
 		logger.Warning("invalid genesis unicity certificate record. %v", err)
 		return nil, err
 	}
 	genesisBlock := &Block{
-		systemIdentifier:         p.configuration.SystemIdentifier,
-		txSystemBlockNumber:      1,
-		previousBlockHash:        nil,
-		transactions:             []*transaction.Transaction{},
-		UnicityCertificateRecord: configuration.Genesis.UnicityCertificateRecord,
+		SystemIdentifier:    p.configuration.SystemIdentifier,
+		TxSystemBlockNumber: 1,
+		PreviousBlockHash:   nil,
+		Transactions:        []*transaction.Transaction{},
+		UnicityCertificate:  configuration.Genesis.UnicityCertificateRecord,
 	}
-	p.blockStore.Add(genesisBlock)
-	p.status = idle
-	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
-	err = p.startNewRound(configuration.Genesis.UnicityCertificateRecord)
+	err = p.blockStore.Add(genesisBlock)
 	if err != nil {
 		return nil, err
 	}
+	p.status = idle
+	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
+	p.startNewRound(configuration.Genesis.UnicityCertificateRecord)
 	go p.loop()
 
 	return p, nil
@@ -206,17 +191,13 @@ func (p *Partition) loop() {
 	}
 }
 
-func (p *Partition) startNewRound(ucr *UnicityCertificate) error {
+func (p *Partition) startNewRound(uc *certificates.UnicityCertificate) {
 	p.transactionSystem.RInit()
 	p.proposal = nil
 	p.pr = nil
-	err := p.leaderSelector.UpdateLeader(ucr.UnicityCertificate)
-	if err != nil {
-		return err
-	}
-	p.luc = ucr
+	p.leaderSelector.UpdateLeader(uc.UnicitySeal)
+	p.luc = uc
 	p.resetTimer()
-	return nil
 }
 
 func (p *Partition) handleTxEvent(event interface{}) {
@@ -246,81 +227,83 @@ func (p *Partition) process(tx *transaction.Transaction) {
 
 func (p *Partition) handleUnicityCertificateRecordEvent(event interface{}) {
 	switch event.(type) {
-	case UnicityCertificateRecordEvent:
-		p.handleUnicityCertificateRecord(event.(UnicityCertificateRecordEvent).Certificate)
+	case UnicityCertificateEvent:
+		p.handleUnicityCertificateRecord(event.(UnicityCertificateEvent).Certificate)
 	default:
 		logger.Warning("Invalid event: %v", event)
 	}
 }
 
-func (p *Partition) handleUnicityCertificateRecord(ucr *UnicityCertificate) {
+func (p *Partition) handleUnicityCertificateRecord(uc *certificates.UnicityCertificate) {
 	// TODO refactor and write tests after task AB-130 is done
-	if ucr == nil {
-		logger.Warning("Invalid UnicityCertificateRecordEvent. UC is nil")
+	if uc == nil {
+		logger.Warning("Invalid UnicityCertificateEvent. UC is nil")
 		return
 	}
 
-	if err := p.unicityCertificateRecordValidator.Validate(ucr); err != nil {
-		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, ucr.UnicityTreeCertificate.SystemIdentifier)
+	if err := p.unicityCertificateRecordValidator.Validate(uc); err != nil {
+		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, uc.UnicityTreeCertificate.SystemIdentifier)
 		return
 	}
 
 	// ensure(uc.Cuni.α = α)
-	if !bytes.Equal(ucr.UnicityTreeCertificate.SystemIdentifier, p.configuration.SystemIdentifier) {
-		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, ucr.UnicityTreeCertificate.SystemIdentifier)
+	if !bytes.Equal(uc.UnicityTreeCertificate.SystemIdentifier, p.configuration.SystemIdentifier) {
+		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, uc.UnicityTreeCertificate.SystemIdentifier)
 		return
 	}
 	// ensure(¬(uc.UC.nr = luc.UC.nr ∧ uc.IR.h , luc.IR.h))
-	if ucr.UnicityCertificate.RootChainBlockNumber == p.luc.UnicityCertificate.RootChainBlockNumber &&
-		!bytes.Equal(ucr.InputRecord.Hash, p.luc.InputRecord.Hash) {
-		logger.Warning("Equivocating certificates. UC: %v,LUC: %v", ucr, p.luc)
+	if uc.UnicitySeal.RootChainRoundNumber == p.luc.UnicitySeal.RootChainRoundNumber &&
+		!bytes.Equal(uc.InputRecord.Hash, p.luc.InputRecord.Hash) {
+		logger.Warning("Equivocating certificates. UC: %v,LUC: %v", uc, p.luc)
 		return
 	}
 	// ensure(¬(uc.IR.h′ = luc.IR.h′ ∧ uc.IR.h , luc.IR.h))
-	if bytes.Equal(ucr.InputRecord.PreviousHash, p.luc.InputRecord.PreviousHash) &&
-		!bytes.Equal(ucr.InputRecord.Hash, p.luc.InputRecord.Hash) {
-		logger.Warning("Equivocating certificates. UC: %v,LUC: %v", ucr, p.luc)
+	if bytes.Equal(uc.InputRecord.PreviousHash, p.luc.InputRecord.PreviousHash) &&
+		!bytes.Equal(uc.InputRecord.Hash, p.luc.InputRecord.Hash) {
+		logger.Warning("Equivocating certificates. UC: %v,LUC: %v", uc, p.luc)
 		return
 	}
 	//ensure(uc.UC.nr > luc.UC.nr)
-	if ucr.UnicityCertificate.RootChainBlockNumber < p.luc.UnicityCertificate.RootChainBlockNumber {
-		logger.Warning("Received UC is older than LUC. UC:  %v,LUC: %v", ucr, p.luc)
+	if uc.UnicitySeal.RootChainRoundNumber < p.luc.UnicitySeal.RootChainRoundNumber {
+		logger.Warning("Received UC is older than LUC. UC:  %v,LUC: %v", uc, p.luc)
 		return
 	}
 	if p.pr == nil {
 		hash, _ := p.transactionSystem.RCompl()
-		if !bytes.Equal(ucr.InputRecord.Hash, hash) {
-			logger.Warning("Starting recovery. UC: %v,LUC: %v", ucr, p.luc)
+		if !bytes.Equal(uc.InputRecord.Hash, hash) {
+			logger.Warning("Starting recovery. UC: %v,LUC: %v", uc, p.luc)
 			p.status = recovering
 			// TODO start recovery (AB-41)
 			return
 		}
-	} else if bytes.Equal(ucr.InputRecord.Hash, p.pr.stateHash) {
+	} else if bytes.Equal(uc.InputRecord.Hash, p.pr.stateHash) {
 		logger.Info("Finalizing block")
-		p.finalizeBlock(p.pr.Transactions, ucr)
-	} else if bytes.Equal(ucr.InputRecord.Hash, p.pr.lucIRHash) {
-		logger.Warning("Reverting state tree. UC: %v,LUC: %v", ucr, p.luc)
+		p.finalizeBlock(p.pr.Transactions, uc)
+	} else if bytes.Equal(uc.InputRecord.Hash, p.pr.lucIRHash) {
+		logger.Warning("Reverting state tree. UC: %v,LUC: %v", uc, p.luc)
 		p.transactionSystem.Revert()
 	} else {
-		logger.Warning("Reverting state tree. UC: %v,LUC: %v", ucr, p.luc)
+		logger.Warning("Reverting state tree. UC: %v,LUC: %v", uc, p.luc)
 		p.transactionSystem.Revert()
-		logger.Warning("Starting recovery. UC: %v,LUC: %v", ucr, p.luc)
+		logger.Warning("Starting recovery. UC: %v,LUC: %v", uc, p.luc)
 		p.status = recovering
 		// TODO start recovery (AB-41)
 	}
-	p.startNewRound(ucr)
+	p.startNewRound(uc)
 }
 
-func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, ucr *UnicityCertificate) {
+func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, uc *certificates.UnicityCertificate) {
+	height, _ := p.blockStore.Height()           // TODO handle error
+	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
 	b := &Block{
-		systemIdentifier:         p.configuration.SystemIdentifier,
-		txSystemBlockNumber:      p.blockStore.Height() + 1,
-		previousBlockHash:        p.blockStore.LatestBlock().Hash(p.configuration.HashAlgorithm),
-		transactions:             transactions,
-		UnicityCertificateRecord: ucr,
+		SystemIdentifier:    p.configuration.SystemIdentifier,
+		TxSystemBlockNumber: height + 1,
+		PreviousBlockHash:   latestBlock.Hash(p.configuration.HashAlgorithm),
+		Transactions:        transactions,
+		UnicityCertificate:  uc,
 	}
 	// TODO ensure block hash equals to IR hash
-	p.blockStore.Add(b)
+	_ = p.blockStore.Add(b) // TODO handle error
 }
 
 func (p *Partition) handleT1TimeoutEvent() {
@@ -334,16 +317,20 @@ func (p *Partition) sendProposal() {
 	logger.Info("Sending PC1-O event")
 	systemIdentifier := p.configuration.SystemIdentifier
 	nodeId := p.leaderSelector.SelfID()
-	p.eventbus.Submit(TopicPC10, &PC1OEvent{
+	err := p.eventbus.Submit(TopicPC1O, &PC1OEvent{
 		SystemIdentifier:         systemIdentifier,
 		NodeIdentifier:           nodeId,
 		UnicityCertificateRecord: p.luc,
 		Transactions:             p.proposal,
 	})
+	if err != nil {
+		logger.Warning("Failed to send PC1-0 event: %v", err)
+		return
+	}
 	prevHash := p.luc.InputRecord.Hash
 	stateRoot, summary := p.transactionSystem.RCompl()
 	p.pr = &pendingBlockProposal{
-		lucRoundNumber: p.luc.UnicityCertificate.RootChainBlockNumber,
+		lucRoundNumber: p.luc.UnicitySeal.RootChainRoundNumber,
 		lucIRHash:      prevHash,
 		stateHash:      stateRoot,
 		Transactions:   p.proposal,
@@ -351,15 +338,18 @@ func (p *Partition) sendProposal() {
 
 	// TODO store pending block proposal (AB-132)
 
-	blockNr := p.blockStore.Height() + 1
-	prevBlockHash := p.blockStore.LatestBlock().Hash(p.configuration.HashAlgorithm)
+	height, _ := p.blockStore.Height() // TODO handle error
+	blockNr := height + 1
+
+	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
+	prevBlockHash := latestBlock.Hash(p.configuration.HashAlgorithm)
 
 	hasher := p.configuration.HashAlgorithm.New()
 	hasher.Write(p.configuration.SystemIdentifier)
 	hasher.Write(transaction.Uint64ToBytes(blockNr))
 	hasher.Write(prevBlockHash)
 	// TODO continue implementing after task AB-129
-	/*for _, tx := range b.transactions {
+	/*for _, tx := range b.Transactions {
 		tx.AddToHasher(hasher)
 	}*/
 	blockHash := hasher.Sum(nil)
@@ -367,7 +357,7 @@ func (p *Partition) sendProposal() {
 	p.proposal = []*transaction.Transaction{}
 
 	logger.Info("Sending P1 event")
-	p.eventbus.Submit(TopicP1, P1Event{
+	err = p.eventbus.Submit(TopicP1, P1Event{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeId,
 		lucRoundNumber:   p.pr.lucRoundNumber,
@@ -378,6 +368,9 @@ func (p *Partition) sendProposal() {
 			SummaryValue: summary.Bytes(),
 		},
 	})
+	if err != nil {
+		logger.Warning("Failed to send P1 event: %v", err)
+	}
 }
 
 func (p *Partition) resetTimer() {

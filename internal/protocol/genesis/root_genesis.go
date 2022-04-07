@@ -14,7 +14,7 @@ var (
 	ErrPartitionsNotFound = errors.New("partitions not found")
 )
 
-func (x *RootGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
+func (x *RootGenesis) IsValid(verifier crypto.Verifier) error {
 	if x == nil {
 		return ErrRootGenesisIsNil
 	}
@@ -33,7 +33,7 @@ func (x *RootGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.H
 		return ErrPartitionsNotFound
 	}
 	for _, p := range x.Partitions {
-		if err = p.IsValid(verifier, hashAlgorithm); err != nil {
+		if err = p.IsValid(verifier, gocrypto.Hash(x.HashAlgorithm)); err != nil {
 			return err
 		}
 	}
@@ -44,10 +44,7 @@ func (x *RootGenesis) GetRoundNumber() uint64 {
 	return x.Partitions[0].Certificate.UnicitySeal.RootChainRoundNumber
 }
 
-func (x *RootGenesis) GetPreviousBlockHash() []byte {
-	return x.Partitions[0].Certificate.UnicitySeal.PreviousHash
-}
-func (x *RootGenesis) GetBlockHash() []byte {
+func (x *RootGenesis) GetRoundHash() []byte {
 	return x.Partitions[0].Certificate.UnicitySeal.Hash
 }
 

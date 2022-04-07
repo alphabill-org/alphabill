@@ -22,28 +22,25 @@ func newRequestStore() *requestStore {
 }
 
 // Add stores a new input record received from the node.
-func (pr *requestStore) add(nodeId string, e *p1.RequestEvent) {
-	if _, f := pr.requests[nodeId]; f {
-		pr.remove(nodeId)
+func (rs *requestStore) add(nodeId string, e *p1.RequestEvent) {
+	if _, f := rs.requests[nodeId]; f {
+		rs.remove(nodeId)
 	}
 	hashString := string(e.Req.InputRecord.Hash)
-	pr.requests[nodeId] = e
-	if count, found := pr.hashCounts[hashString]; found {
-		pr.hashCounts[hashString] = count + 1
-	} else {
-		pr.hashCounts[hashString] = 1
-	}
+	rs.requests[nodeId] = e
+	count := rs.hashCounts[hashString]
+	rs.hashCounts[hashString] = count + 1
 }
 
-func (pr *requestStore) reset() {
-	pr.requests = make(map[string]*p1.RequestEvent)
-	pr.hashCounts = make(map[string]uint)
+func (rs *requestStore) reset() {
+	rs.requests = make(map[string]*p1.RequestEvent)
+	rs.hashCounts = make(map[string]uint)
 }
 
-func (pr *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputRecord, bool) {
+func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputRecord, bool) {
 	var h []byte
 	var c uint = 0
-	for hash, count := range pr.hashCounts {
+	for hash, count := range rs.hashCounts {
 		if c < count {
 			c = count
 			h = []byte(hash)
@@ -57,12 +54,12 @@ func (pr *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputR
 	needed := float64(nrOfNodes) / float64(2)
 	if float64(c) > needed {
 		// consensus received
-		for _, event := range pr.requests {
+		for _, event := range rs.requests {
 			if bytes.Equal(h, event.Req.InputRecord.Hash) {
 				return event.Req.InputRecord, true
 			}
 		}
-	} else if float64(uint(nrOfNodes)-uint(len(pr.requests))+c) <= needed {
+	} else if float64(uint(nrOfNodes)-uint(len(rs.requests))+c) <= needed {
 		// consensus not possible
 		return nil, false
 	}
@@ -70,12 +67,12 @@ func (pr *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputR
 	return nil, true
 }
 
-func (pr *requestStore) remove(nodeId string) {
-	oldReq, f := pr.requests[nodeId]
+func (rs *requestStore) remove(nodeId string) {
+	oldReq, f := rs.requests[nodeId]
 	if !f {
 		return
 	}
 	hashString := string(oldReq.Req.InputRecord.Hash)
-	pr.hashCounts[hashString] = pr.hashCounts[hashString] - 1
-	delete(pr.requests, nodeId)
+	rs.hashCounts[hashString] = rs.hashCounts[hashString] - 1
+	delete(rs.requests, nodeId)
 }

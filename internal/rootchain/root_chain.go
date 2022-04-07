@@ -27,14 +27,14 @@ type (
 		ctx        context.Context
 		ctxCancel  context.CancelFunc
 		peer       *network.Peer         // p2p network
-		p1         *p1.P1                // P1 protocol handler
+		p1Protocol *p1.P1                // P1 protocol handler
 		state      *state                // state of the root chain. keeps everything needed for consensus.
 		timers     *timers               // keeps track of T2 and T3 timers
 		requestsCh chan *p1.RequestEvent // incoming P1 requests channel
 	}
 
 	rootChainConf struct {
-		t2Timeout         time.Duration
+		t3Timeout         time.Duration
 		requestChCapacity uint
 	}
 
@@ -43,7 +43,7 @@ type (
 
 func WithT3Timeout(timeout time.Duration) Option {
 	return func(c *rootChainConf) {
-		c.t2Timeout = timeout
+		c.t3Timeout = timeout
 	}
 }
 
@@ -73,7 +73,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	}
 
 	timers := NewTimers()
-	timers.Start(t3TimerID, conf.t2Timeout)
+	timers.Start(t3TimerID, conf.t3Timeout)
 	for _, p := range genesis.Partitions {
 		for _, validator := range p.Nodes {
 			duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
@@ -85,7 +85,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	rc := &RootChain{
 		peer:       peer,
 		state:      s,
-		p1:         p1,
+		p1Protocol: p1,
 		timers:     timers,
 		requestsCh: requestsCh,
 	}
@@ -99,8 +99,8 @@ func (rc *RootChain) Close() {
 	if rc.requestsCh != nil {
 		close(rc.requestsCh)
 	}
-	if rc.p1 != nil {
-		rc.p1.Close()
+	if rc.p1Protocol != nil {
+		rc.p1Protocol.Close()
 	}
 	rc.ctxCancel()
 }
@@ -145,7 +145,7 @@ func (rc *RootChain) loop() {
 
 func loadConf(opts []Option) *rootChainConf {
 	conf := &rootChainConf{
-		t2Timeout:         defaultT3Timeout,
+		t3Timeout:         defaultT3Timeout,
 		requestChCapacity: defaultRequestChCapacity,
 	}
 	for _, opt := range opts {

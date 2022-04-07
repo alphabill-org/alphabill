@@ -103,21 +103,21 @@ func CalculatePathRoot(path [][]byte, leafHash []byte, key []byte, hashAlgorithm
 		return nil, errors.Errorf("invalid leaf hash length: leaf length=%v, hash length=%v", len(leafHash), hashAlgorithm.Size())
 	}
 	hasher := hashAlgorithm.New()
-	hash := leafHash
+	h := leafHash
 	pathLength := len(path)
 	for i := 0; i < pathLength; i++ {
 		pathItem := path[i]
 		if util.IsBitSet(key, pathLength-1-i) {
 			hasher.Write(pathItem)
-			hasher.Write(hash)
+			hasher.Write(h)
 		} else {
-			hasher.Write(hash)
+			hasher.Write(h)
 			hasher.Write(pathItem)
 		}
-		hash = hasher.Sum(nil)
+		h = hasher.Sum(nil)
 		hasher.Reset()
 	}
-	return hash, nil
+	return h, nil
 }
 
 func (s *SMT) PrettyPrint() string {

@@ -12,8 +12,10 @@ var ErrPartitionGenesisIsNil = errors.New("partition genesis is nil")
 
 func (x *PartitionGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
-
 		return ErrPartitionGenesisIsNil
+	}
+	if verifier == nil {
+		return ErrVerifierIsNil
 	}
 	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
 		return err

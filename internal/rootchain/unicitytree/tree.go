@@ -33,12 +33,12 @@ func New(hasher hash.Hash, d []*Data) (*UnicityTree, error) {
 	for i, id := range d {
 		data[i] = id
 	}
-	smt, err := smt.New(hasher, systemIdentifierLength, data)
+	s, err := smt.New(hasher, systemIdentifierLength, data)
 	if err != nil {
 		return nil, err
 	}
 	return &UnicityTree{
-		smt:    smt,
+		smt:    s,
 		hasher: hasher,
 	}, nil
 }

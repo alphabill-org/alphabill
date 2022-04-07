@@ -123,7 +123,7 @@ func TestRemove_Ok(t *testing.T) {
 
 func NewRandomTx(t *testing.T) transaction.GenericTransaction {
 	t.Helper()
-	tx, err := transaction.New(testtransaction.RandomBillTransfer())
+	tx, err := transaction.NewMoneyTx(testtransaction.RandomBillTransfer())
 	require.NoError(t, err)
 	return tx
 }

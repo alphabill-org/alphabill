@@ -1,9 +1,10 @@
 package script
 
 import (
+	"testing"
+
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 var hashData = []byte{0x01}
@@ -33,7 +34,7 @@ func TestOpDup(t *testing.T) {
 	// test OP_DUP on non empty stack
 	s.push([]byte{0x01})
 	err = op.exec(c, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.EqualValues(t, s.size(), 2)
 	p1, err := s.pop()
 	p2, err := s.pop()
@@ -74,7 +75,7 @@ func TestOpHash(t *testing.T) {
 		// verify correct hash
 		if tc.expectedHash != nil {
 			actualHash, err := s.pop()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.True(t, s.isEmpty())
 			require.Equal(t, tc.expectedHash, actualHash)
 		}
@@ -88,11 +89,11 @@ func TestOpPushHash(t *testing.T) {
 	data = append(data, expectedSha256Hash...)
 
 	err := op.exec(c, data)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.EqualValues(t, 1, s.size())
 
 	hash, err := s.pop()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, s.isEmpty())
 	require.Equal(t, expectedSha256Hash, hash)
 }
@@ -105,11 +106,11 @@ func TestOpPushPubKey(t *testing.T) {
 	opData := []byte{SigSchemeSecp256k1}
 	opData = append(opData, pubKey...)
 	err := op.exec(c, opData)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.EqualValues(t, 1, s.size())
 
 	actualPubKey, err := s.pop()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, s.isEmpty())
 	require.Equal(t, pubKey, actualPubKey)
 }
@@ -122,11 +123,11 @@ func TestOpPushSig(t *testing.T) {
 	data := []byte{SigSchemeSecp256k1}
 	data = append(data, sig...)
 	err := op.exec(c, data)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.EqualValues(t, 1, s.size())
 
 	actualSig, err := s.pop()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, s.isEmpty())
 	require.Equal(t, sig, actualSig)
 }
@@ -144,10 +145,10 @@ func TestOpCheckSig(t *testing.T) {
 
 	// verify signature on stack
 	err := op.exec(c, []byte{SigSchemeSecp256k1})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.EqualValues(t, 1, s.size())
 	sigVerifyResult, err := s.popBool()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, s.isEmpty())
 	require.True(t, sigVerifyResult)
 }
@@ -170,10 +171,10 @@ func TestOpEqual(t *testing.T) {
 	s.push([]byte{0x01})
 	s.push([]byte{0x01})
 	err = op.exec(c, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.EqualValues(t, 1, s.size())
 	result, err := s.popBool()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, result)
 	require.True(t, s.isEmpty())
 
@@ -181,10 +182,10 @@ func TestOpEqual(t *testing.T) {
 	s.push([]byte{0x01})
 	s.push([]byte{0x02})
 	err = op.exec(c, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.EqualValues(t, 1, s.size())
 	result, err = s.popBool()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.False(t, result)
 	require.True(t, s.isEmpty())
 }
@@ -195,17 +196,17 @@ func TestOpVerify(t *testing.T) {
 	// test OP_VERIFY removes TRUE value from stack
 	s.push([]byte{0x01})
 	err := op.exec(c, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, s.isEmpty())
 }
 
 func TestOpPushBool(t *testing.T) {
 	op, c, s := createContext(OpPushBool)
 	err := op.exec(c, []byte{BoolTrue})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	val, err := s.popBool()
 	require.True(t, val)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.True(t, s.isEmpty())
 }
 

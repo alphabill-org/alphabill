@@ -3,6 +3,8 @@ package partition
 import (
 	"crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 )
 
@@ -11,21 +13,21 @@ import (
 // unicity proofs.
 // TODO idea: use protobuf instead?
 type Block struct {
-	systemIdentifier         []byte
-	txSystemBlockNumber      uint64
-	previousBlockHash        []byte
-	transactions             []*transaction.Transaction // TODO use transaction struct/interface from AB-129
-	UnicityCertificateRecord *UnicityCertificate
+	SystemIdentifier    []byte                           `json:"systemIdentifier"`
+	TxSystemBlockNumber uint64                           `json:"txSystemBlockNumber"`
+	PreviousBlockHash   []byte                           `json:"previousBlockHash"`
+	Transactions        []*transaction.Transaction       `json:"transactions"` // TODO use transaction struct/interface from AB-129
+	UnicityCertificate  *certificates.UnicityCertificate `json:"unicityCertificate"`
 }
 
 //Hash returns the hash of the block.
 func (b Block) Hash(hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
-	hasher.Write(b.systemIdentifier)
-	hasher.Write(transaction.Uint64ToBytes(b.txSystemBlockNumber))
-	hasher.Write(b.previousBlockHash)
+	hasher.Write(b.SystemIdentifier)
+	hasher.Write(transaction.Uint64ToBytes(b.TxSystemBlockNumber))
+	hasher.Write(b.PreviousBlockHash)
 	// TODO continue implementing after task AB-129
-	/*for _, tx := range b.transactions {
+	/*for _, tx := range b.Transactions {
 		tx.AddToHasher(hasher)
 	}*/
 	return hasher.Sum(nil)

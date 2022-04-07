@@ -19,11 +19,9 @@ import (
 )
 
 var (
-	ErrClientPeerIsNil            = errors.New("peer client is nil")
-	ErrSignerIsNil                = errors.New("client signer is nil")
-	ErrRootChainVerifierIsNil     = errors.New("root chain verifier is nil")
-	ErrorClientConfigurationIsNil = errors.New("client configuration is nil")
-	ErrInvalidSystemIdentifier    = errors.New("invalid system identifier")
+	ErrClientPeerIsNil         = errors.New("peer client is nil")
+	ErrSignerIsNil             = errors.New("client signer is nil")
+	ErrInvalidSystemIdentifier = errors.New("invalid system identifier")
 )
 
 type (
@@ -106,7 +104,12 @@ func (c *Client) SendSync(ctx context.Context, hash, blockHash, summaryValue []b
 	if err != nil {
 		return nil, err
 	}
-	defer s.Close()
+	defer func() {
+		err := s.Close()
+		if err != nil {
+			logger.Warning("Failed to close libp2p stream: %v", err)
+		}
+	}()
 	w := protocol.NewProtoBufWriter(s)
 	err = w.Write(req)
 	if err != nil {

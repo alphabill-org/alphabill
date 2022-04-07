@@ -1,7 +1,6 @@
 package rootchain
 
 import (
-	gocrypto "crypto"
 	"strings"
 	"testing"
 
@@ -32,7 +31,7 @@ func TestNewGenesis_Ok(t *testing.T) {
 	require.NotNil(t, rg)
 	require.NotNil(t, ps)
 	require.Equal(t, 1, len(ps))
-	require.NoError(t, rg.IsValid(rootChainVerifier, gocrypto.SHA256))
+	require.NoError(t, rg.IsValid(rootChainVerifier))
 }
 
 func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
@@ -47,7 +46,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	req := createInputRequest(t, id, "2", partitionSigner2)
 	req.InputRecord.Hash = []byte{1, 1, 1, 1}
 	require.NoError(t, req.Sign(partitionSigner2))
-	pubKey, _, err := GetVerifierAndPublicKey(partitionSigner2)
+	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
 	pr := &genesis.PartitionNode{
 		NodeIdentifier: "2",
@@ -67,7 +66,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 
 func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *genesis.PartitionRecord {
 	p1Req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
-	pubKey, _, err := GetVerifierAndPublicKey(partitionSigner)
+	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{

@@ -11,7 +11,7 @@ import (
 
 var ErrSignerIsNil = errors.New("signer is nil")
 
-func GetVerifierAndPublicKey(signer crypto.Signer) ([]byte, crypto.Verifier, error) {
+func GetPublicKeyAndVerifier(signer crypto.Signer) ([]byte, crypto.Verifier, error) {
 	if signer == nil {
 		return nil, nil, ErrSignerIsNil
 	}

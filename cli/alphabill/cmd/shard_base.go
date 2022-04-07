@@ -35,7 +35,7 @@ func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, conve
 		return err
 	}
 
-	rpcServer, err := rpc.NewRpcServer(shardComponent, shardComponent) // TODO how to avoid this?
+	rpcServer, err := rpc.NewRpcServer(shardComponent, shardComponent)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,8 @@ package partition
 import (
 	"crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 )
 
@@ -11,11 +13,11 @@ import (
 // unicity proofs.
 // TODO idea: use protobuf instead?
 type Block struct {
-	SystemIdentifier    []byte                     `json:"systemIdentifier"`
-	TxSystemBlockNumber uint64                     `json:"txSystemBlockNumber"`
-	PreviousBlockHash   []byte                     `json:"previousBlockHash"`
-	Transactions        []*transaction.Transaction `json:"transactions"` // TODO use transaction struct/interface from AB-129
-	UnicityCertificate  *UnicityCertificate        `json:"unicityCertificate"`
+	SystemIdentifier    []byte                           `json:"systemIdentifier"`
+	TxSystemBlockNumber uint64                           `json:"txSystemBlockNumber"`
+	PreviousBlockHash   []byte                           `json:"previousBlockHash"`
+	Transactions        []*transaction.Transaction       `json:"transactions"` // TODO use transaction struct/interface from AB-129
+	UnicityCertificate  *certificates.UnicityCertificate `json:"unicityCertificate"`
 }
 
 //Hash returns the hash of the block.

@@ -2,6 +2,7 @@ package shard
 
 import (
 	"crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"testing"
@@ -67,8 +68,8 @@ func TestGetBlock_Ok(t *testing.T) {
 	// add mock block
 	_ = bs.Add(&partition.Block{
 		TxSystemBlockNumber: 1,
-		UnicityCertificate: &partition.UnicityCertificate{
-			UnicityCertificate: &partition.UnicitySeal{},
+		UnicityCertificate: &certificates.UnicityCertificate {
+			UnicitySeal: &certificates.UnicitySeal{},
 		},
 	})
 

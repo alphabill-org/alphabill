@@ -7,5 +7,5 @@ import (
 // TODO AB-111
 type Genesis struct {
 	InputRecord              *certificates.InputRecord
-	UnicityCertificateRecord *UnicityCertificate
+	UnicityCertificateRecord *certificates.UnicityCertificate
 }

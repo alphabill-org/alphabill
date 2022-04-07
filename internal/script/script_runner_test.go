@@ -13,33 +13,33 @@ func TestAlwaysTrueScript_Ok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := PredicateAlwaysTrue()
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestP2pkhScript_Ok(t *testing.T) {
 	tx := newP2pkhTx(t, HashAlgSha256)
 	err := RunScript(tx.predicateArgument, tx.bearerPredicate, tx.sigData)
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestP2pkhScriptSha512_Ok(t *testing.T) {
 	tx := newP2pkhTx(t, HashAlgSha512)
 	err := RunScript(tx.predicateArgument, tx.bearerPredicate, tx.sigData)
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestEmptyScriptWithTrailingBoolTrue_Nok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := []byte{StartByte, BoolTrue}
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestOpcodeDataOutOfBounds_Nok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := []byte{StartByte, OpPushBool} // removed data byte from OP_PUSH_BOOL
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestOpPushHashInvalidType_Nok(t *testing.T) {
@@ -47,14 +47,14 @@ func TestOpPushHashInvalidType_Nok(t *testing.T) {
 	tx.bearerPredicate[5] = HashAlgSha512 // set OP_PUSH_HASH type to sha512
 
 	err := RunScript(tx.predicateArgument, tx.bearerPredicate, tx.sigData)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestScriptWithoutFirstByte_Nok(t *testing.T) {
 	predicateArgument := []byte{StartByte}
 	bearerPredicate := []byte{OpPushBool, BoolTrue} // missing start byte
 	err := RunScript(predicateArgument, bearerPredicate, nil)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestMaxScriptBytes_Nok(t *testing.T) {
@@ -62,16 +62,16 @@ func TestMaxScriptBytes_Nok(t *testing.T) {
 	validScript := createValidScriptWithMinLength(MaxScriptBytes - 10)
 	overfilledScript := createValidScriptWithMinLength(MaxScriptBytes + 10)
 
-	// test that script creaated by createValidScriptWithMinLength can be valid
+	// test that script created by createValidScriptWithMinLength can be valid
 	err := RunScript(emptyScript, validScript, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	err = RunScript(validScript, emptyScript, nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	err = RunScript(emptyScript, overfilledScript, nil)
-	require.NotNil(t, err)
+	require.Error(t, err)
 	err = RunScript(overfilledScript, emptyScript, nil)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func createValidScriptWithMinLength(minLength int) []byte {

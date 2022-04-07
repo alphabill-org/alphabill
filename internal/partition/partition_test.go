@@ -57,7 +57,7 @@ var (
 				BlockHash:    nil,
 				SummaryValue: nil,
 			},
-			UnicityCertificateRecord: &UnicityCertificate{
+			UnicityCertificateRecord: &certificates.UnicityCertificate{
 				InputRecord: &certificates.InputRecord{
 					PreviousHash: []byte{0x1},
 					Hash:         []byte{0x2},
@@ -65,8 +65,8 @@ var (
 					SummaryValue: Uint64SummaryValue(12).Bytes(),
 				},
 				UnicityTreeCertificate: nil,
-				UnicityCertificate: &UnicitySeal{
-					RootChainBlockNumber: 1,
+				UnicitySeal: &certificates.UnicitySeal{
+					RootChainRoundNumber: 1,
 					PreviousHash:         nil,
 					Hash:                 nil,
 				},
@@ -77,11 +77,10 @@ var (
 
 func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
 	s := &mockTxSystem{}
-	p := newTestPartition(t, s)
-	defer p.Close()
-	ucr := &UnicityCertificate{
-		UnicityCertificate: &UnicitySeal{
-			RootChainBlockNumber: 0,
+	p, _ := createTestPartitionWithTxSystem(t, s)
+	ucr := &certificates.UnicityCertificate{
+		UnicitySeal: &certificates.UnicitySeal{
+			RootChainRoundNumber: 0,
 			PreviousHash:         nil,
 			Hash:                 nil,
 		},
@@ -98,7 +97,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 		txSystem       TransactionSystem
 		eb             *eventbus.EventBus
 		leaderSelector *LeaderSelector
-		ucrValidator   UnicityCertificateRecordValidator
+		ucrValidator   UnicityCertificateValidator
 		txValidator    TxValidator
 		configuration  *Configuration
 	}
@@ -170,7 +169,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				txValidator:    txValidator,
 				configuration:  testConf,
 			},
-			ErrUcrValidatorIsNil,
+			ErrUnicityCertificateValidatorIsNil,
 		},
 		{
 			"tx validator is nil",
@@ -222,17 +221,9 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 }
 
 func TestNew_StartsMainLoop(t *testing.T) {
-	ctx := context.Background()
+	_, eventBus := createPartitionWithDefaultTxSystem(t)
 
-	selector, err := NewLeaderSelector(createPeer(t))
-	require.NoError(t, err)
-	eventBus := eventbus.New()
-	p, err := New(ctx, txSystem, eventBus, selector, certificateValidator, txValidator, testConf)
-	defer p.Close()
-	require.NoError(t, err)
-	require.Equal(t, idle, p.status)
-
-	pc10, err := eventBus.Subscribe(TopicPC10, 10)
+	pc10, err := eventBus.Subscribe(TopicPC1O, 10)
 	require.NoError(t, err)
 
 	p1, err := eventBus.Subscribe(TopicP1, 10)
@@ -245,16 +236,13 @@ func TestNew_StartsMainLoop(t *testing.T) {
 }
 
 func TestPartition_HandleInvalidTxEvent(t *testing.T) {
-	ctx := context.Background()
-
-	selector, err := NewLeaderSelector(createPeer(t))
+	p, eventBus := createPartitionWithDefaultTxSystem(t)
+	pc10, err := eventBus.Subscribe(TopicPC1O, 10)
 	require.NoError(t, err)
-	eventBus := eventbus.New()
-	p, err := New(ctx, txSystem, eventBus, selector, certificateValidator, txValidator, testConf)
-	defer p.Close()
-	pc10, err := eventBus.Subscribe(TopicPC10, 10)
+
 	p1, err := eventBus.Subscribe(TopicP1, 10)
 
+	require.NoError(t, err)
 	eventBus.Submit(TopicPartitionTransaction, "invalid tx")
 
 	require.Eventually(t, func() bool { <-pc10; return true }, test.WaitDuration, test.WaitTick)
@@ -264,27 +252,25 @@ func TestPartition_HandleInvalidTxEvent(t *testing.T) {
 }
 
 func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
-	ctx := context.Background()
-
-	selector, err := NewLeaderSelector(createPeer(t))
+	p, eventBus := createPartitionWithDefaultTxSystem(t)
+	pc10, err := eventBus.Subscribe(TopicPC1O, 10)
 	require.NoError(t, err)
-	eventBus := eventbus.New()
-	p, err := New(ctx, txSystem, eventBus, selector, certificateValidator, txValidator, testConf)
-	defer p.Close()
-	pc10, err := eventBus.Subscribe(TopicPC10, 10)
-	p1, err := eventBus.Subscribe(TopicP1, 10)
 
-	eventBus.Submit(TopicPartitionTransaction, TransactionEvent{Transaction: testtransaction.RandomBillTransfer()})
+	p1, err := eventBus.Subscribe(TopicP1, 10)
+	require.NoError(t, err)
+
+	err = eventBus.Submit(TopicPartitionTransaction, TransactionEvent{Transaction: testtransaction.RandomBillTransfer()})
+	require.NoError(t, err)
 
 	require.Eventually(t, func() bool { <-pc10; return true }, test.WaitDuration, test.WaitTick)
 	var p1Event P1Event
 	require.Eventually(t, func() bool { e := <-p1; p1Event = e.(P1Event); return true }, test.WaitDuration, test.WaitTick)
-	err = eventBus.Submit(TopicPartitionUnicityCertificate, UnicityCertificateRecordEvent{
-		Certificate: &UnicityCertificate{
+	err = eventBus.Submit(TopicPartitionUnicityCertificate, UnicityCertificateEvent{
+		Certificate: &certificates.UnicityCertificate{
 			InputRecord:            p1Event.inputRecord,
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
-			UnicityCertificate: &UnicitySeal{
-				RootChainBlockNumber: 2,
+			UnicitySeal: &certificates.UnicitySeal{
+				RootChainRoundNumber: 2,
 				PreviousHash:         nil,
 				Hash:                 nil,
 			},
@@ -302,10 +288,8 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 }
 
 func createPeer(t *testing.T) *network.Peer {
-	ctx := context.Background()
 	conf := &network.PeerConfiguration{}
-
-	peer, err := network.NewPeer(ctx, conf)
+	peer, err := network.NewPeer(conf)
 	require.NoError(t, err)
 
 	pubKey, err := peer.PublicKey()
@@ -321,13 +305,20 @@ func createPeer(t *testing.T) *network.Peer {
 	return peer
 }
 
-func newTestPartition(t *testing.T, txSystem TransactionSystem) *Partition {
+func createTestPartitionWithTxSystem(t *testing.T, system TransactionSystem) (*Partition, *eventbus.EventBus) {
 	selector, err := NewLeaderSelector(createPeer(t))
 	require.NoError(t, err)
 	ctx := context.Background()
-	p, err := New(ctx, txSystem, eventbus.New(), selector, certificateValidator, txValidator, testConf)
+	bus := eventbus.New()
+	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, testConf)
 	require.NoError(t, err)
-	return p
+	require.Equal(t, idle, p.status)
+	t.Cleanup(p.Close)
+	return p, bus
+}
+
+func createPartitionWithDefaultTxSystem(t *testing.T) (*Partition, *eventbus.EventBus) {
+	return createTestPartitionWithTxSystem(t, txSystem)
 }
 
 func (m *mockTxSystem) RInit() {
@@ -351,7 +342,7 @@ func (t Uint64SummaryValue) AddToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(uint64(t)))
 }
 
-func (c *CertificateValidator) Validate(_ *UnicityCertificate) error {
+func (c *CertificateValidator) Validate(_ *certificates.UnicityCertificate) error {
 	return nil
 }
 

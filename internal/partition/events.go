@@ -7,28 +7,38 @@ import (
 )
 
 const (
+	// TopicPartitionUnicityCertificate topic is used to read unicity certificates received from the root chain.
 	TopicPartitionUnicityCertificate = "partition.certificates"
-	TopicPartitionTransaction        = "partition.transactions"
-	TopicPC10                        = "partition.PC1-O"
-	TopicP1                          = "root.P1"
+	// TopicPartitionTransaction topic is used to receive transactions from wallets or other partition nodes.
+	TopicPartitionTransaction = "partition.transactions"
+	// TopicPC1O is used to send and receive block proposals.
+	TopicPC1O = "partition.PC1-O"
+	// TopicP1 is used to send block certification requests to the root chain
+	TopicP1 = "root.P1"
 )
 
 type (
-	UnicityCertificateRecordEvent struct {
-		Certificate *UnicityCertificate
+
+	// UnicityCertificateEvent contains an unicity certificate for the block proposal.
+	UnicityCertificateEvent struct {
+		Certificate *certificates.UnicityCertificate
 	}
 
+	// TransactionEvent contains a transaction that will be handled by the partition block proposal component.
 	TransactionEvent struct {
 		Transaction *transaction.Transaction
 	}
 
+	// PC1OEvent is a block proposal event. See Alphabill yellowpaper for more information.
 	PC1OEvent struct {
 		SystemIdentifier         []byte
 		NodeIdentifier           peer.ID
-		UnicityCertificateRecord *UnicityCertificate
+		UnicityCertificateRecord *certificates.UnicityCertificate
 		Transactions             []*transaction.Transaction
 	}
 
+	// P1Event is a message sent by the partition node to acquire unicity certificate for the block. See Alphabill
+	// yellowpaper for more information.
 	P1Event struct {
 		SystemIdentifier []byte
 		NodeIdentifier   peer.ID

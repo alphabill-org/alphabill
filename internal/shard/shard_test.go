@@ -31,18 +31,18 @@ func TestProcessNew_Nil(t *testing.T) {
 func TestProcess_Ok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	s, err := New(sp)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	sp.On("Process", mock.Anything).Return(nil)
 
 	err = s.Process(&genericTx{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestProcess_Nok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	s, err := New(sp)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	sp.On("Process", mock.Anything).Return(errors.New("expecting error"))
 

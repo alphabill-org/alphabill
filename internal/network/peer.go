@@ -64,23 +64,23 @@ type (
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
 // listens to the multiaddresses "/ip4/0.0.0.0/tcp/0".
-func NewPeer(ctx context.Context, conf *PeerConfiguration) (*Peer, error) {
+func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 	if conf == nil {
 		return nil, ErrPeerConfigurationIsNil
 	}
 	// keys
-	privateKey, _, err := readOrGenerateKeyPair(conf)
+	privateKey, publicKey, err := readOrGenerateKeyPair(conf)
 	if err != nil {
 		return nil, err
 	}
 
 	// address
 	address := defaultAddress
-	if conf != nil && conf.Address != "" {
+	if conf.Address != "" {
 		address = conf.Address
 	}
 	// node identifier
-	id, err := peer.IDFromPublicKey(privateKey.GetPublic())
+	id, err := peer.IDFromPublicKey(publicKey)
 	if err != nil {
 		return nil, err
 	}

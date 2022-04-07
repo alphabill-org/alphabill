@@ -262,8 +262,7 @@ func CreateBootstrapConfiguration(t *testing.T, p *network.Peer) *network.PeerCo
 
 func initPeer(t *testing.T, conf *network.PeerConfiguration) *network.Peer {
 	t.Helper()
-	ctx := context.Background()
-	peer, err := network.NewPeer(ctx, conf)
+	peer, err := network.NewPeer(conf)
 	require.NoError(t, err)
 	return peer
 }

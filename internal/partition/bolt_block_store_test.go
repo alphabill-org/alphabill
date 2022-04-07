@@ -6,6 +6,8 @@ import (
 	"path"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 
 	"github.com/stretchr/testify/require"
@@ -89,7 +91,7 @@ func newDummyBlock(blockNo uint64) *Block {
 		TxSystemBlockNumber: blockNo,
 		PreviousBlockHash:   []byte{2},
 		Transactions:        []*transaction.Transaction{},
-		UnicityCertificate:  &UnicityCertificate{},
+		UnicityCertificate:  &certificates.UnicityCertificate{},
 	}
 }
 

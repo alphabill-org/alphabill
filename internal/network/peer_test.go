@@ -1,7 +1,6 @@
 package network
 
 import (
-	"context"
 	"crypto/rand"
 	"fmt"
 	"testing"
@@ -12,15 +11,13 @@ import (
 )
 
 func TestNewPeer_PeerConfigurationIsNil(t *testing.T) {
-	ctx := context.Background()
-	peer, err := NewPeer(ctx, nil)
+	peer, err := NewPeer(nil)
 	require.ErrorIs(t, err, ErrPeerConfigurationIsNil)
 	require.Nil(t, peer)
 }
 
-func TestNewPeer_GeneratesKeys(t *testing.T) {
-	ctx := context.Background()
-	peer, err := NewPeer(ctx, &PeerConfiguration{})
+func TestNewPeer_NewPeerCanBeCreated(t *testing.T) {
+	peer, err := NewPeer(&PeerConfiguration{})
 	require.NoError(t, err)
 	defer peer.Close()
 	require.NotNil(t, peer)
@@ -30,7 +27,6 @@ func TestNewPeer_GeneratesKeys(t *testing.T) {
 }
 
 func TestNewPeer_WithPersistentPeers(t *testing.T) {
-	ctx := context.Background()
 	peers, err := createPeers(4)
 	defer func() {
 		for _, peer := range peers {
@@ -54,7 +50,7 @@ func TestNewPeer_WithPersistentPeers(t *testing.T) {
 		}
 	}
 
-	peer, err := NewPeer(ctx, &PeerConfiguration{
+	peer, err := NewPeer(&PeerConfiguration{
 		Address:         "",
 		KeyPair:         nil,
 		PersistentPeers: pis,
@@ -68,29 +64,25 @@ func TestNewPeer_WithPersistentPeers(t *testing.T) {
 }
 
 func TestNewPeer_InvalidPrivateKey(t *testing.T) {
-	ctx := context.Background()
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
 			PrivateKey: test.RandomBytes(30),
 		},
 	}
-	_, err := NewPeer(ctx, conf)
-	require.Error(t, err)
+	_, err := NewPeer(conf)
 	require.Errorf(t, err, ErrStringInvalidPrivateKey)
 }
 
 func TestNewPeer_InvalidPublicKey(t *testing.T) {
 	privKey, _, _ := crypto.GenerateEd25519Key(rand.Reader)
 	privKeyBytes, _ := crypto.MarshalPrivateKey(privKey)
-	ctx := context.Background()
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
 			PrivateKey: privKeyBytes,
 			PublicKey:  test.RandomBytes(30),
 		},
 	}
-	_, err := NewPeer(ctx, conf)
-	require.Error(t, err)
+	_, err := NewPeer(conf)
 	require.Errorf(t, err, ErrStringInvalidPublicKey)
 }
 
@@ -98,14 +90,13 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 	privateKey, pubKey, _ := crypto.GenerateEd25519Key(rand.Reader)
 	keyBytes, err := crypto.MarshalPrivateKey(privateKey)
 	pubKeyBytes, _ := crypto.MarshalPublicKey(pubKey)
-	ctx := context.Background()
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
 			PrivateKey: keyBytes,
 			PublicKey:  pubKeyBytes,
 		},
 	}
-	peer, err := NewPeer(ctx, conf)
+	peer, err := NewPeer(conf)
 	require.NoError(t, err)
 	p := peer.host.Peerstore().PeersWithKeys()[0]
 	pub, _ := p.ExtractPublicKey()
@@ -116,16 +107,11 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 func createPeers(nrOfPeers int) ([]*Peer, error) {
 	peers := make([]*Peer, nrOfPeers)
 	for i := 0; i < nrOfPeers; i++ {
-		p, err := createPeer()
+		p, err := NewPeer(&PeerConfiguration{})
 		if err != nil {
 			return peers, err
 		}
 		peers[i] = p
 	}
 	return peers, nil
-}
-
-func createPeer() (*Peer, error) {
-	ctx := context.Background()
-	return NewPeer(ctx, &PeerConfiguration{})
 }

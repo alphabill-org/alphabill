@@ -1,6 +1,9 @@
 package partition
 
-import "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+)
 
 type (
 
@@ -9,8 +12,8 @@ type (
 		Validate(tx *transaction.Transaction) error
 	}
 
-	// UnicityCertificateRecordValidator is used to validate received UnicityCertificate.
-	UnicityCertificateRecordValidator interface {
-		Validate(ucr *UnicityCertificate) error
+	// UnicityCertificateValidator is used to validate received UnicityCertificate.
+	UnicityCertificateValidator interface {
+		Validate(uc *certificates.UnicityCertificate) error
 	}
 )

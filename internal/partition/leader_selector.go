@@ -3,6 +3,8 @@ package partition
 import (
 	"sync"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -48,27 +50,29 @@ func (l *LeaderSelector) IsCurrentNodeLeader() bool {
 }
 
 // UpdateLeader updates the next block proposer. If input is nil then leader is set to UnknownLeader.
-func (l *LeaderSelector) UpdateLeader(uc *UnicitySeal) error {
+func (l *LeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	if uc == nil {
+	if seal == nil {
 		l.leader = UnknownLeader
 		logger.Info("Leader set to unknown")
-		return nil
+		return
 	}
 	peerCount := uint64(len(l.self.Configuration().PersistentPeers))
-	index := uc.RootChainBlockNumber % peerCount
+	index := seal.RootChainRoundNumber % peerCount
 	if index > peerCount {
 		l.leader = UnknownLeader
 		logger.Warning("Invalid leader index. Leader set to 'unknown'")
-		return ErrInvalidLeaderIndex
+		return
 	}
 	leader, err := l.self.Configuration().PersistentPeers[index].GetID()
 	if err != nil {
-		return err
+		l.leader = UnknownLeader
+		logger.Warning("Invalid leader index. Leader set to 'unknown'")
+		return
 	}
 	l.leader = leader
 	logger.Info("New leader is %v", leader)
-	return nil
+	return
 }

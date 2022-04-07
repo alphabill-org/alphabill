@@ -2,22 +2,18 @@ package money
 
 import (
 	"crypto"
+	"math/rand"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money/mocks"
-	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
-	"math/rand"
-	"testing"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
-
+	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"github.com/stretchr/testify/mock"
-
 	"github.com/holiman/uint256"
-
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 

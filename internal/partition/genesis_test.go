@@ -26,11 +26,11 @@ var systemIdentifier = []byte{0, 0, 0, 1}
 var nodeID peer.ID = "test"
 var nodeID2 peer.ID = "test2"
 
-func TestNewGenesisPartitionNode_InvalidInputs(t *testing.T) {
+func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	type args struct {
 		txSystem TransactionSystem
-		peerID   peer.ID
-		conf     *Configuration
+		opts     []Option
 	}
 
 	tests := []struct {
@@ -44,27 +44,42 @@ func TestNewGenesisPartitionNode_InvalidInputs(t *testing.T) {
 			wantErr: ErrTxSystemIsNil,
 		},
 		{
+			name: "client signer is nil",
+			args: args{
+				txSystem: &partition.MockTxSystem{},
+				opts:     []Option{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
+			},
+			wantErr: ErrSignerIsNil,
+		},
+		{
+			name: "invalid system identifier",
+			args: args{
+				txSystem: &partition.MockTxSystem{},
+				opts: []Option{
+					WithSystemIdentifier(nil),
+					WithPeerID("1"),
+					WithSigner(signer),
+					WithHashAlgorithm(gocrypto.SHA256),
+				},
+			},
+			wantErr: ErrInvalidSystemIdentifier,
+		},
+		{
 			name: "peer ID is empty",
 			args: args{
 				txSystem: &partition.MockTxSystem{},
-				peerID:   "",
-				conf:     &Configuration{SystemIdentifier: systemIdentifier},
+				opts: []Option{
+					WithSystemIdentifier(systemIdentifier),
+					WithSigner(signer),
+					WithPeerID(""),
+				},
 			},
-			wantErr: ErrPeerIDIsEmpty,
-		},
-		{
-			name: "configuration is nil",
-			args: args{
-				txSystem: &partition.MockTxSystem{},
-				peerID:   nodeID,
-				conf:     nil,
-			},
-			wantErr: ErrPartitionConfigurationIsNil,
+			wantErr: genesis.ErrNodeIdentifierIsEmpty,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewGenesisPartitionNode(tt.args.txSystem, tt.args.peerID, tt.args.conf)
+			got, err := NewNodeGenesis(tt.args.txSystem, tt.args.opts...)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
 		})
@@ -92,7 +107,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
-func TestNewGenesisPartitionRecord_InvalidInputs(t *testing.T) {
+func TestNewGenesisPartitionRecord_NotOk(t *testing.T) {
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	type args struct {
 		nodes     []*genesis.PartitionNode
@@ -135,7 +150,7 @@ func TestNewGenesisPartitionRecord_InvalidInputs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewGenesisPartitionRecord(tt.args.nodes, tt.args.t2Timeout)
+			got, err := NewPartitionGenesis(tt.args.nodes, tt.args.t2Timeout)
 			require.Nil(t, got)
 			require.ErrorIs(t, err, tt.wantErr)
 		})
@@ -149,7 +164,7 @@ func TestNewGenesisPartitionRecord_Ok(t *testing.T) {
 	pn1 := createPartitionNode(t, signer1, systemIdentifier, nodeID)
 	pn2 := createPartitionNode(t, signer2, systemIdentifier, nodeID2)
 	nodes := []*genesis.PartitionNode{pn1, pn2}
-	pr, err := NewGenesisPartitionRecord(nodes, timeout)
+	pr, err := NewPartitionGenesis(nodes, timeout)
 	require.NoError(t, err)
 	require.NotNil(t, pr)
 	require.Equal(t, timeout, pr.SystemDescriptionRecord.T2Timeout)
@@ -160,12 +175,12 @@ func TestNewGenesisPartitionRecord_Ok(t *testing.T) {
 func createPartitionNode(t *testing.T, signer crypto.Signer, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
 	txSystem := &partition.MockTxSystem{}
-	conf := &Configuration{
-		SystemIdentifier: systemIdentifier,
-		HashAlgorithm:    gocrypto.SHA256,
-		Signer:           signer,
-	}
-	pn, err := NewGenesisPartitionNode(txSystem, nodeIdentifier, conf)
+	pn, err := NewNodeGenesis(
+		txSystem,
+		WithPeerID(nodeIdentifier),
+		WithSystemIdentifier(systemIdentifier),
+		WithSigner(signer),
+	)
 	require.NoError(t, err)
 	return pn
 }

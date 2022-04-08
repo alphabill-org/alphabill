@@ -1,50 +1,113 @@
 package partition
 
 import (
+	gocrypto "crypto"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-// TODO AB-111
-type Genesis struct {
-	InputRecord              *certificates.InputRecord
-	UnicityCertificateRecord *certificates.UnicityCertificate
+var ErrSignerIsNil = errors.New("signer is nil")
+var ErrInvalidSystemIdentifier = errors.New("system identifier is invalid")
+
+type (
+	genesisConf struct {
+		peerID           peer.ID
+		systemIdentifier []byte
+		hashAlgorithm    gocrypto.Hash
+		signer           crypto.Signer
+	}
+
+	Option func(c *genesisConf)
+)
+
+func (c genesisConf) isValid() error {
+	if c.peerID == "" {
+		return genesis.ErrNodeIdentifierIsEmpty
+	}
+	if c.signer == nil {
+		return ErrSignerIsNil
+	}
+	if len(c.systemIdentifier) == 0 {
+		return ErrInvalidSystemIdentifier
+	}
+	return nil
 }
 
-var ErrPeerIDIsEmpty = errors.New("peer ID is empty")
+func WithPeerID(peerID peer.ID) Option {
+	return func(c *genesisConf) {
+		c.peerID = peerID
+	}
+}
 
-// NewGenesisPartitionNode creates a new genesis.PartitionNode from the given inputs.
-func NewGenesisPartitionNode(txSystem TransactionSystem, peerID peer.ID, conf *Configuration) (*genesis.PartitionNode, error) {
+func WithSystemIdentifier(systemIdentifier []byte) Option {
+	return func(c *genesisConf) {
+		c.systemIdentifier = systemIdentifier
+	}
+}
+
+func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
+	return func(c *genesisConf) {
+		c.hashAlgorithm = hashAlgorithm
+	}
+}
+
+func WithSigner(signer crypto.Signer) Option {
+	return func(c *genesisConf) {
+		c.signer = signer
+	}
+}
+
+// NewNodeGenesis creates a new genesis.PartitionNode from the given inputs. This function creates the first
+// p1.P1Request by calling the TransactionSystem.RCompl function. Must contain PeerID, signer, and system identifier
+// options:
+//
+//    pn, err := NewNodeGenesis(
+//					txSystem,
+//					WithPeerID(myPeerID),
+//					WithSigner(signer),
+//					WithSystemIdentifier(sysID),
+//				)
+//
+// This function must be called by all partition nodes in the network.
+func NewNodeGenesis(txSystem TransactionSystem, opts ...Option) (*genesis.PartitionNode, error) {
 	if txSystem == nil {
 		return nil, ErrTxSystemIsNil
 	}
-	if peerID == "" {
-		return nil, ErrPeerIDIsEmpty
+	c := &genesisConf{
+		hashAlgorithm: gocrypto.SHA256,
 	}
-	if conf == nil {
-		return nil, ErrPartitionConfigurationIsNil
+
+	for _, option := range opts {
+		option(c)
+	}
+
+	if err := c.isValid(); err != nil {
+		return nil, err
 	}
 
 	// create the first round of the tx system
 	hash, summaryValue := txSystem.RCompl()
-	zeroHash := make([]byte, conf.HashAlgorithm.Size())
+	zeroHash := make([]byte, c.hashAlgorithm.Size())
 
 	// first block
 	b := &Block{
-		systemIdentifier:    conf.SystemIdentifier,
-		txSystemBlockNumber: 1,
-		previousBlockHash:   zeroHash,
-		transactions:        nil,
+		SystemIdentifier:    c.systemIdentifier,
+		TxSystemBlockNumber: 1,
+		PreviousBlockHash:   zeroHash,
+		Transactions:        nil,
 	}
-	blockHash := b.Hash(conf.HashAlgorithm)
+	blockHash := b.Hash(c.hashAlgorithm)
 
 	// P1 request
+	id := c.peerID.String()
 	p1Request := &p1.P1Request{
-		SystemIdentifier: conf.SystemIdentifier,
-		NodeIdentifier:   peerID.String(),
+		SystemIdentifier: c.systemIdentifier,
+		NodeIdentifier:   id,
 		RootRoundNumber:  1,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: zeroHash, // extend zero hash
@@ -53,12 +116,15 @@ func NewGenesisPartitionNode(txSystem TransactionSystem, peerID peer.ID, conf *C
 			SummaryValue: summaryValue.Bytes(),
 		},
 	}
-	err := p1Request.Sign(conf.Signer)
+	err := p1Request.Sign(c.signer)
 	if err != nil {
 		return nil, err
 	}
 
-	verifier, err := conf.Signer.Verifier()
+	verifier, err := c.signer.Verifier()
+	if err != nil {
+		return nil, err
+	}
 
 	if err := p1Request.IsValid(verifier); err != nil {
 		return nil, err
@@ -74,16 +140,19 @@ func NewGenesisPartitionNode(txSystem TransactionSystem, peerID peer.ID, conf *C
 
 	// partition node
 	node := &genesis.PartitionNode{
-		NodeIdentifier: peerID.String(),
+		NodeIdentifier: id,
 		PublicKey:      pubKey,
 		P1Request:      p1Request,
 	}
 	return node, nil
 }
 
-// NewGenesisPartitionRecord validates the given genesis.PartitionNode values, creates a genesis.PartitionRecord
-// containing the nodes and given T2 timeout, and verifies the genesis.PartitionRecord.
-func NewGenesisPartitionRecord(nodes []*genesis.PartitionNode, t2Timeout uint32) (*genesis.PartitionRecord, error) {
+// NewPartitionGenesis validates the given genesis.PartitionNode values, creates a genesis.PartitionRecord, and
+// verifies the genesis.PartitionRecord.
+//
+// This function must be called by ONE partition node in the network. The result of this method must be sent to the
+// root chain.
+func NewPartitionGenesis(nodes []*genesis.PartitionNode, t2Timeout uint32) (*genesis.PartitionRecord, error) {
 	if len(nodes) == 0 {
 		return nil, genesis.ErrValidatorsMissing
 	}

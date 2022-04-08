@@ -15,6 +15,7 @@ type (
 		RoundCompleteCount uint64
 		ExecuteCount       uint64
 		RevertCount        uint64
+		SummaryValue       uint64
 	}
 
 	Uint64SummaryValue uint64
@@ -31,10 +32,10 @@ func (m *MockTxSystem) RCompl() ([]byte, state.SummaryValue) {
 	m.RoundCompleteCount++
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, m.RoundCompleteCount)
-	return bytes, Uint64SummaryValue(m.RoundCompleteCount)
+	return bytes, Uint64SummaryValue(m.SummaryValue)
 }
 
-func (m *MockTxSystem) Execute(tx *transaction.Transaction) error {
+func (m *MockTxSystem) Execute(_ *transaction.Transaction) error {
 	m.ExecuteCount++
 	return nil
 }

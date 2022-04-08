@@ -56,6 +56,7 @@ func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
 }
 
 func TestNewPartition_NotOk(t *testing.T) {
+	blockStore := NewInMemoryBlockStore()
 	selector, err := NewLeaderSelector(createPeer(t))
 	require.NoError(t, err)
 	type args struct {
@@ -66,6 +67,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 		ucrValidator   UnicityCertificateValidator
 		txValidator    TxValidator
 		configuration  *Configuration
+		blockStore     BlockStore
 	}
 	tests := []struct {
 		name   string
@@ -82,13 +84,13 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration: &Configuration{
 					T1Timeout:     700 * time.Millisecond,
 					TrustBase:     nil,
 					Signer:        nil,
 					HashAlgorithm: 0,
-					Genesis:       nil,
-				},
+					Genesis:       nil},
 			},
 			err: ErrCtxIsNil,
 		},
@@ -101,6 +103,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
 			err: ErrTxSystemIsNil,
@@ -114,6 +117,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
 			err: ErrEventBusIsNil,
@@ -127,6 +131,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: nil,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
 			err: ErrLeaderSelectorIsNil,
@@ -140,6 +145,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   nil,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
 			err: ErrUnicityCertificateValidatorIsNil,
@@ -153,6 +159,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    nil,
+				blockStore:     blockStore,
 				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
 			err: ErrTxValidatorIsNil,
@@ -166,6 +173,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration:  nil,
 			},
 			err: ErrPartitionConfigurationIsNil,
@@ -179,6 +187,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration: &Configuration{
 					T1Timeout:     2500,
 					HashAlgorithm: gocrypto.SHA256,
@@ -196,6 +205,7 @@ func TestNewPartition_NotOk(t *testing.T) {
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration: &Configuration{
 					T1Timeout:     2500,
 					HashAlgorithm: gocrypto.SHA256,
@@ -204,16 +214,29 @@ func TestNewPartition_NotOk(t *testing.T) {
 			},
 			errStr: "invalid root partition genesis file",
 		},
+		{
+			name: "block store is nil",
+			args: args{
+				ctx:            context.Background(),
+				txSystem:       &partition.MockTxSystem{},
+				eb:             eventbus.New(),
+				leaderSelector: selector,
+				ucrValidator:   certificateValidator,
+				txValidator:    txValidator,
+				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
+				blockStore:     nil,
+			},
+			err: ErrBlockStoreIsNil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := New(tt.args.ctx, tt.args.txSystem, tt.args.eb, tt.args.leaderSelector, tt.args.ucrValidator, tt.args.txValidator, tt.args.configuration)
+			got, err := New(tt.args.ctx, tt.args.txSystem, tt.args.eb, tt.args.leaderSelector, tt.args.ucrValidator, tt.args.txValidator, tt.args.blockStore, tt.args.configuration)
 			if tt.err != nil {
 				require.ErrorIs(t, err, tt.err)
 			} else {
 				require.True(t, strings.Contains(err.Error(), tt.errStr))
 			}
-
 			require.Nil(t, got)
 		})
 	}
@@ -234,6 +257,7 @@ func TestNew_InvalidGenesisRootHash(t *testing.T) {
 		selector,
 		certificateValidator,
 		txValidator,
+		NewInMemoryBlockStore(),
 		conf,
 	)
 	require.Nil(t, p)
@@ -255,6 +279,7 @@ func TestNew_InvalidSummaryValue(t *testing.T) {
 		selector,
 		certificateValidator,
 		txValidator,
+		NewInMemoryBlockStore(),
 		conf,
 	)
 	require.Nil(t, p)
@@ -356,7 +381,7 @@ func createTestPartitionWithTxSystem(t *testing.T, system TransactionSystem, con
 	require.NoError(t, err)
 	ctx := context.Background()
 	bus := eventbus.New()
-	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, conf)
+	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, NewInMemoryBlockStore(), conf)
 	require.NoError(t, err)
 	require.Equal(t, idle, p.status)
 	t.Cleanup(p.Close)

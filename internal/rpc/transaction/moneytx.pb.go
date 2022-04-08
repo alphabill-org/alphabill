@@ -20,7 +20,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Alphabill specific transaction attributes.
 type BillTransfer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

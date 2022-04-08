@@ -28,6 +28,7 @@ var (
 	ErrCtxIsNil                         = errors.New("ctx is nil")
 	ErrUnicityCertificateValidatorIsNil = errors.New("unicity certificate validator is nil")
 	ErrTxValidatorIsNil                 = errors.New("tx validator is nil")
+	ErrBlockStoreIsNil                  = errors.New("block store is nil")
 	ErrGenesisIsNil                     = errors.New("genesis is nil")
 	ErrInvalidRootHash                  = errors.New("tx system root hash does not equal to genesis file hash")
 	ErrInvalidSummaryValue              = errors.New("tx system summary value does not equal to genesis file summary value")
@@ -75,6 +76,7 @@ func New(
 	leaderSelector *LeaderSelector,
 	ucValidator UnicityCertificateValidator,
 	txValidator TxValidator,
+	blockStore BlockStore,
 	configuration *Configuration,
 ) (*Partition, error) {
 	if ctx == nil {
@@ -99,6 +101,9 @@ func New(
 	if txValidator == nil {
 		return nil, ErrTxValidatorIsNil
 	}
+	if blockStore == nil {
+		return nil, ErrBlockStoreIsNil
+	}
 	if leaderSelector == nil {
 		return nil, ErrLeaderSelectorIsNil
 	}
@@ -114,8 +119,6 @@ func New(
 	if err != nil {
 		return nil, err
 	}
-
-	blockStorage := newInMemoryBlockStore()
 
 	if err := partitionGenesis.IsValid(configuration.TrustBase, configuration.HashAlgorithm); err != nil {
 		logger.Warning("Invalid partition genesis file: %v", err)
@@ -147,7 +150,7 @@ func New(
 		transactionsCh:                    transactionsCh,
 		unicityCertificateRecordValidator: ucValidator,
 		txValidator:                       txValidator,
-		blockStore:                        blockStorage,
+		blockStore:                        blockStore,
 	}
 	p.ctx, p.ctxCancel = context.WithCancel(ctx)
 

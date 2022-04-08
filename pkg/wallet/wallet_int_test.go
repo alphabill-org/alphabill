@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
@@ -75,7 +76,7 @@ func TestSync(t *testing.T) {
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
 				},
-				UnicityCertificate: []byte{},
+				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		},
 	}
@@ -134,7 +135,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 				BlockNo:            blockNo,
 				PrevBlockHash:      hash.Sum256([]byte{}),
 				Transactions:       []*transaction.Transaction{},
-				UnicityCertificate: []byte{},
+				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
 		serviceServer.ch <- block
@@ -237,7 +238,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 				BlockNo:            blockNo,
 				PrevBlockHash:      hash.Sum256([]byte{}),
 				Transactions:       []*transaction.Transaction{},
-				UnicityCertificate: []byte{},
+				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
 		serverService.ch <- block

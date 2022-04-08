@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"encoding/hex"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
@@ -162,7 +163,7 @@ func TestBlockProcessing(t *testing.T) {
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 			},
-			UnicityCertificate: []byte{},
+			UnicityCertificate: &certificates.UnicityCertificate{},
 		},
 	}
 

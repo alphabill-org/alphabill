@@ -96,7 +96,7 @@ func newDummyBlock(blockNo uint64) *Block {
 }
 
 func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
-	dbFile := path.Join(os.TempDir(), blocksDbFileName)
+	dbFile := path.Join(os.TempDir(), BoltBlockStoreFileName)
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
 		if err != nil {

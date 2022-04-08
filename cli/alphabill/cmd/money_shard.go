@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
+	"os"
+	"path"
 )
 
 type (
@@ -81,5 +84,15 @@ func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfigurati
 		return err
 	}
 
-	return defaultShardRunFunc(ctx, &config.baseShardConfiguration, &moneyShardTxConverter{}, billsState)
+	err = os.MkdirAll(config.Root.HomeDir, 0700) // -rwx------
+	if err != nil {
+		return err
+	}
+	blockStoreFile := path.Join(config.Root.HomeDir, partition.BoltBlockStoreFileName)
+	blockStore, err := partition.NewBoltBlockStore(blockStoreFile)
+	if err != nil {
+		return err
+	}
+
+	return defaultShardRunFunc(ctx, &config.baseShardConfiguration, &moneyShardTxConverter{}, billsState, blockStore)
 }

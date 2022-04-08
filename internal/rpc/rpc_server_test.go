@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"net"
 	"strings"
 	"testing"
@@ -22,8 +23,10 @@ import (
 
 var failingTransactionID = uint256.NewInt(5)
 
-type MockTransactionProcessor struct {
-}
+type (
+	MockTransactionProcessor struct{}
+	MockLedgerService        struct{}
+)
 
 func (mpp *MockTransactionProcessor) Process(gtx transaction.GenericTransaction) error {
 	if gtx.UnitID().Eq(failingTransactionID) {
@@ -36,31 +39,46 @@ func (mpp *MockTransactionProcessor) Convert(tx *transaction.Transaction) (trans
 	return transaction.NewMoneyTx(tx)
 }
 
-func TestNewTransactionServer_ProcessorMissing(t *testing.T) {
-	p, err := NewTransactionsServer(nil)
+func (mls *MockLedgerService) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
+	return &alphabill.GetBlockResponse{Block: &alphabill.Block{BlockNo: 1}}, nil
+}
+
+func (mls *MockLedgerService) GetMaxBlockNo(request *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
+	return &alphabill.GetMaxBlockNoResponse{BlockNo: 100}, nil
+}
+
+func TestNewRpcServer_ProcessorMissing(t *testing.T) {
+	p, err := NewRpcServer(nil, &MockLedgerService{})
 	assert.Nil(t, p)
 	assert.NotNil(t, err)
 	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
 }
 
-func TestNewTransactionServer_Ok(t *testing.T) {
-	p, err := NewTransactionsServer(&MockTransactionProcessor{})
+func TestNewRpcServer_LedgerServiceMissing(t *testing.T) {
+	p, err := NewRpcServer(&MockTransactionProcessor{}, nil)
+	assert.Nil(t, p)
+	assert.NotNil(t, err)
+	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
+}
+
+func TestNewRpcServer_Ok(t *testing.T) {
+	p, err := NewRpcServer(&MockTransactionProcessor{}, &MockLedgerService{})
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 }
 
-func TestTransactionServer_ProcessTransaction_Fails(t *testing.T) {
+func TestRpcServer_ProcessTransaction_Fails(t *testing.T) {
 	ctx := context.Background()
-	con, client := createTransactionsClient(t, ctx)
+	con, client := createRpcClient(t, ctx)
 	defer con.Close()
 	response, err := client.ProcessTransaction(ctx, createTransaction(failingTransactionID))
 	assert.Nil(t, response)
 	assert.Errorf(t, err, "failed")
 }
 
-func TestTransactionServer_ProcessTransaction_Ok(t *testing.T) {
+func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	ctx := context.Background()
-	con, client := createTransactionsClient(t, ctx)
+	con, client := createRpcClient(t, ctx)
 	defer con.Close()
 
 	req := createTransaction(uint256.NewInt(1))
@@ -70,13 +88,14 @@ func TestTransactionServer_ProcessTransaction_Ok(t *testing.T) {
 	assert.True(t, response.Ok)
 }
 
-func createTransactionsClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, transaction.TransactionsClient) {
+func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alphabill.AlphaBillServiceClient) {
 	t.Helper()
 	processor := &MockTransactionProcessor{}
+	LedgerService := &MockLedgerService{}
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
-	transactionsServer, _ := NewTransactionsServer(processor)
-	transaction.RegisterTransactionsServer(grpcServer, transactionsServer)
+	rpcServer, _ := NewRpcServer(processor, LedgerService)
+	alphabill.RegisterAlphaBillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			t.Fatal(err)
@@ -89,7 +108,7 @@ func createTransactionsClient(t *testing.T, ctx context.Context) (*grpc.ClientCo
 	if err != nil {
 		t.Fatal(err)
 	}
-	return conn, transaction.NewTransactionsClient(conn)
+	return conn, alphabill.NewAlphaBillServiceClient(conn)
 }
 
 func createTransaction(id *uint256.Int) *transaction.Transaction {

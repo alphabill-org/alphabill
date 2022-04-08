@@ -1,4 +1,4 @@
-initial-bill-value=666
-server-address=localhost:1234
+initial-bill-value=1000000
+server-address=localhost:9543
 server-max-recv-msg-size=9999
 trust-base=0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0

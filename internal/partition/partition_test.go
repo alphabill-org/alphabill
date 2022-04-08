@@ -46,6 +46,7 @@ var (
 	txSystem             = &mockTxSystem{}
 	certificateValidator = &CertificateValidator{}
 	txValidator          = &TransactionValidator{}
+	blockStore           = NewInMemoryBlockStore()
 	testConf             = &Configuration{
 		SystemIdentifier: nil,
 		T1Timeout:        1 * time.Second,
@@ -100,6 +101,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 		ucrValidator   UnicityCertificateValidator
 		txValidator    TxValidator
 		configuration  *Configuration
+		blockStore     BlockStore
 	}
 	tests := []struct {
 		name string
@@ -116,6 +118,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
 				configuration:  testConf,
+				blockStore:     blockStore,
 			},
 			ErrCtxIsNil,
 		},
@@ -129,6 +132,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
 				configuration:  testConf,
+				blockStore:     blockStore,
 			},
 			ErrTxSystemIsNil,
 		},
@@ -142,6 +146,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
 				configuration:  testConf,
+				blockStore:     blockStore,
 			},
 			ErrEventBusIsNil,
 		},
@@ -155,6 +160,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
 				configuration:  testConf,
+				blockStore:     blockStore,
 			},
 			ErrLeaderSelectorIsNil,
 		},
@@ -168,6 +174,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   nil,
 				txValidator:    txValidator,
 				configuration:  testConf,
+				blockStore:     blockStore,
 			},
 			ErrUnicityCertificateValidatorIsNil,
 		},
@@ -181,6 +188,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   certificateValidator,
 				txValidator:    nil,
 				configuration:  testConf,
+				blockStore:     blockStore,
 			},
 			ErrTxValidatorIsNil,
 		},
@@ -194,6 +202,7 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
 				configuration:  nil,
+				blockStore:     blockStore,
 			},
 			ErrPartitionConfigurationIsNil,
 		},
@@ -207,13 +216,28 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
 				configuration:  &Configuration{},
+				blockStore:     blockStore,
 			},
 			ErrGenesisIsNil,
+		},
+		{
+			"block store is nil",
+			args{
+				ctx:            context.Background(),
+				txSystem:       txSystem,
+				eb:             eventbus.New(),
+				leaderSelector: selector,
+				ucrValidator:   certificateValidator,
+				txValidator:    txValidator,
+				configuration:  testConf,
+				blockStore:     nil,
+			},
+			ErrBlockStoreIsNil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := New(tt.args.ctx, tt.args.txSystem, tt.args.eb, tt.args.leaderSelector, tt.args.ucrValidator, tt.args.txValidator, tt.args.configuration)
+			got, err := New(tt.args.ctx, tt.args.txSystem, tt.args.eb, tt.args.leaderSelector, tt.args.ucrValidator, tt.args.txValidator, tt.args.blockStore, tt.args.configuration)
 			require.ErrorIs(t, err, tt.err)
 			require.Nil(t, got)
 		})
@@ -310,7 +334,7 @@ func createTestPartitionWithTxSystem(t *testing.T, system TransactionSystem) (*P
 	require.NoError(t, err)
 	ctx := context.Background()
 	bus := eventbus.New()
-	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, testConf)
+	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, blockStore, testConf)
 	require.NoError(t, err)
 	require.Equal(t, idle, p.status)
 	t.Cleanup(p.Close)

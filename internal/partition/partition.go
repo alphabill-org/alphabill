@@ -28,6 +28,7 @@ var (
 	ErrCtxIsNil                         = errors.New("ctx is nil")
 	ErrUnicityCertificateValidatorIsNil = errors.New("unicity certificate validator is nil")
 	ErrTxValidatorIsNil                 = errors.New("tx validator is nil")
+	ErrBlockStoreIsNil                  = errors.New("block store is nil")
 	ErrGenesisIsNil                     = errors.New("genesis is nil")
 )
 
@@ -73,6 +74,7 @@ func New(
 	leaderSelector *LeaderSelector,
 	ucValidator UnicityCertificateValidator,
 	txValidator TxValidator,
+	blockStore BlockStore,
 	configuration *Configuration,
 ) (*Partition, error) {
 	if ctx == nil {
@@ -96,6 +98,9 @@ func New(
 	if txValidator == nil {
 		return nil, ErrTxValidatorIsNil
 	}
+	if blockStore == nil {
+		return nil, ErrBlockStoreIsNil
+	}
 	if leaderSelector == nil {
 		return nil, ErrLeaderSelectorIsNil
 	}
@@ -112,8 +117,6 @@ func New(
 		return nil, err
 	}
 
-	blockStorage := newInMemoryBlockStore()
-
 	p := &Partition{
 		transactionSystem:                 txSystem,
 		configuration:                     configuration,
@@ -124,7 +127,7 @@ func New(
 		transactionsCh:                    transactionsCh,
 		unicityCertificateRecordValidator: ucValidator,
 		txValidator:                       txValidator,
-		blockStore:                        blockStorage,
+		blockStore:                        blockStore,
 	}
 	p.ctx, p.ctxCancel = context.WithCancel(ctx)
 

@@ -23,8 +23,11 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AlphaBillServiceClient interface {
-	GetBlocks(ctx context.Context, in *GetBlocksRequest, opts ...grpc.CallOption) (AlphaBillService_GetBlocksClient, error)
 	ProcessTransaction(ctx context.Context, in *transaction.Transaction, opts ...grpc.CallOption) (*transaction.TransactionResponse, error)
+	GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
+	GetMaxBlockNo(ctx context.Context, in *GetMaxBlockNoRequest, opts ...grpc.CallOption) (*GetMaxBlockNoResponse, error)
+	// TODO deprecated: use GetBlock(GetBlockRequest) instead
+	GetBlocks(ctx context.Context, in *GetBlocksRequest, opts ...grpc.CallOption) (AlphaBillService_GetBlocksClient, error)
 }
 
 type alphaBillServiceClient struct {
@@ -33,6 +36,33 @@ type alphaBillServiceClient struct {
 
 func NewAlphaBillServiceClient(cc grpc.ClientConnInterface) AlphaBillServiceClient {
 	return &alphaBillServiceClient{cc}
+}
+
+func (c *alphaBillServiceClient) ProcessTransaction(ctx context.Context, in *transaction.Transaction, opts ...grpc.CallOption) (*transaction.TransactionResponse, error) {
+	out := new(transaction.TransactionResponse)
+	err := c.cc.Invoke(ctx, "/abrpc.AlphaBillService/ProcessTransaction", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alphaBillServiceClient) GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error) {
+	out := new(GetBlockResponse)
+	err := c.cc.Invoke(ctx, "/abrpc.AlphaBillService/GetBlock", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *alphaBillServiceClient) GetMaxBlockNo(ctx context.Context, in *GetMaxBlockNoRequest, opts ...grpc.CallOption) (*GetMaxBlockNoResponse, error) {
+	out := new(GetMaxBlockNoResponse)
+	err := c.cc.Invoke(ctx, "/abrpc.AlphaBillService/GetMaxBlockNo", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *alphaBillServiceClient) GetBlocks(ctx context.Context, in *GetBlocksRequest, opts ...grpc.CallOption) (AlphaBillService_GetBlocksClient, error) {
@@ -67,21 +97,15 @@ func (x *alphaBillServiceGetBlocksClient) Recv() (*GetBlocksResponse, error) {
 	return m, nil
 }
 
-func (c *alphaBillServiceClient) ProcessTransaction(ctx context.Context, in *transaction.Transaction, opts ...grpc.CallOption) (*transaction.TransactionResponse, error) {
-	out := new(transaction.TransactionResponse)
-	err := c.cc.Invoke(ctx, "/abrpc.AlphaBillService/ProcessTransaction", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AlphaBillServiceServer is the server API for AlphaBillService service.
 // All implementations must embed UnimplementedAlphaBillServiceServer
 // for forward compatibility
 type AlphaBillServiceServer interface {
-	GetBlocks(*GetBlocksRequest, AlphaBillService_GetBlocksServer) error
 	ProcessTransaction(context.Context, *transaction.Transaction) (*transaction.TransactionResponse, error)
+	GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error)
+	GetMaxBlockNo(context.Context, *GetMaxBlockNoRequest) (*GetMaxBlockNoResponse, error)
+	// TODO deprecated: use GetBlock(GetBlockRequest) instead
+	GetBlocks(*GetBlocksRequest, AlphaBillService_GetBlocksServer) error
 	mustEmbedUnimplementedAlphaBillServiceServer()
 }
 
@@ -89,11 +113,17 @@ type AlphaBillServiceServer interface {
 type UnimplementedAlphaBillServiceServer struct {
 }
 
-func (UnimplementedAlphaBillServiceServer) GetBlocks(*GetBlocksRequest, AlphaBillService_GetBlocksServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetBlocks not implemented")
-}
 func (UnimplementedAlphaBillServiceServer) ProcessTransaction(context.Context, *transaction.Transaction) (*transaction.TransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessTransaction not implemented")
+}
+func (UnimplementedAlphaBillServiceServer) GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBlock not implemented")
+}
+func (UnimplementedAlphaBillServiceServer) GetMaxBlockNo(context.Context, *GetMaxBlockNoRequest) (*GetMaxBlockNoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMaxBlockNo not implemented")
+}
+func (UnimplementedAlphaBillServiceServer) GetBlocks(*GetBlocksRequest, AlphaBillService_GetBlocksServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetBlocks not implemented")
 }
 func (UnimplementedAlphaBillServiceServer) mustEmbedUnimplementedAlphaBillServiceServer() {}
 
@@ -106,6 +136,60 @@ type UnsafeAlphaBillServiceServer interface {
 
 func RegisterAlphaBillServiceServer(s grpc.ServiceRegistrar, srv AlphaBillServiceServer) {
 	s.RegisterService(&AlphaBillService_ServiceDesc, srv)
+}
+
+func _AlphaBillService_ProcessTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(transaction.Transaction)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlphaBillServiceServer).ProcessTransaction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/abrpc.AlphaBillService/ProcessTransaction",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlphaBillServiceServer).ProcessTransaction(ctx, req.(*transaction.Transaction))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlphaBillService_GetBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBlockRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlphaBillServiceServer).GetBlock(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/abrpc.AlphaBillService/GetBlock",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlphaBillServiceServer).GetBlock(ctx, req.(*GetBlockRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AlphaBillService_GetMaxBlockNo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMaxBlockNoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlphaBillServiceServer).GetMaxBlockNo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/abrpc.AlphaBillService/GetMaxBlockNo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlphaBillServiceServer).GetMaxBlockNo(ctx, req.(*GetMaxBlockNoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _AlphaBillService_GetBlocks_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -129,24 +213,6 @@ func (x *alphaBillServiceGetBlocksServer) Send(m *GetBlocksResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _AlphaBillService_ProcessTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(transaction.Transaction)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AlphaBillServiceServer).ProcessTransaction(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/abrpc.AlphaBillService/ProcessTransaction",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AlphaBillServiceServer).ProcessTransaction(ctx, req.(*transaction.Transaction))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AlphaBillService_ServiceDesc is the grpc.ServiceDesc for AlphaBillService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -157,6 +223,14 @@ var AlphaBillService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ProcessTransaction",
 			Handler:    _AlphaBillService_ProcessTransaction_Handler,
+		},
+		{
+			MethodName: "GetBlock",
+			Handler:    _AlphaBillService_GetBlock_Handler,
+		},
+		{
+			MethodName: "GetMaxBlockNo",
+			Handler:    _AlphaBillService_GetMaxBlockNo_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

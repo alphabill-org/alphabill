@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
@@ -35,7 +36,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		BlockNo:            1,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs,
-		UnicityCertificate: []byte{},
+		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
@@ -65,7 +66,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 			BlockNo:            blockHeight,
 			PrevBlockHash:      hash.Sum256([]byte{}),
 			Transactions:       []*transaction.Transaction{},
-			UnicityCertificate: []byte{},
+			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
 		err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 		require.NoError(t, err)
@@ -85,7 +86,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		BlockNo:            swapTimeoutBlockCount + 1,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs[2:3], // swap tx
-		UnicityCertificate: []byte{},
+		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
@@ -112,7 +113,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 		BlockNo:            dcTimeoutBlockCount,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
-		UnicityCertificate: []byte{},
+		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
@@ -150,7 +151,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 		BlockNo:            swapTimeoutBlockCount,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
-		UnicityCertificate: []byte{},
+		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)
@@ -184,7 +185,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 		BlockNo:            dcTimeoutBlockCount,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
-		UnicityCertificate: []byte{},
+		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
 	require.NoError(t, err)

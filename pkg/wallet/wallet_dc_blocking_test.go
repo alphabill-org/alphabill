@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
@@ -211,7 +212,7 @@ func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.T
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 			},
-			UnicityCertificate: []byte{},
+			UnicityCertificate: &certificates.UnicityCertificate{},
 		},
 	}
 }

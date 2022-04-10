@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+import "p1.proto";
+import "certificates.proto";
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis/;genesis";
+
+message RootGenesis {
+  repeated GenesisPartitionRecord partitions = 1;
+  // root chain public key
+  bytes trust_base = 2;
+  uint32 hash_algorithm = 3;
+}
+
+message GenesisPartitionRecord {
+  repeated PartitionNode nodes = 1;
+  UnicityCertificate certificate = 2;
+  SystemDescriptionRecord system_description_record = 3;
+}
+
+message PartitionGenesis {
+  SystemDescriptionRecord system_description_record = 1;
+  UnicityCertificate certificate = 2;
+  bytes trust_base = 3;
+}
+
+message SystemDescriptionRecord {
+  bytes system_identifier = 1;
+  uint32 t2timeout = 2;
+}
+
+message PartitionRecord {
+  SystemDescriptionRecord system_description_record = 1;
+  repeated PartitionNode validators = 2;
+}
+
+message PartitionNode  {
+  string node_identifier = 1;
+  // key used to sign messages
+  bytes public_key = 2;
+  P1Request p1Request = 3;
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -69,7 +70,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	txClient := transaction.NewTransactionsClient(conn)
+	txClient := alphabill.NewAlphaBillServiceClient(conn)
 	txResponse, err := txClient.ProcessTransaction(ctx, tx)
 	if err != nil {
 		log.Fatal(err)

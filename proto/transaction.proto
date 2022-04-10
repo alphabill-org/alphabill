@@ -5,7 +5,7 @@ import "google/protobuf/any.proto";
 
 option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction;transaction";
 
-// TransactionOrder is a generic transaction order, same for all transaction systems.
+// Transaction is a generic transaction order, same for all transaction systems.
 message Transaction {
   bytes system_id = 1;
   bytes unit_id = 2;
@@ -19,8 +19,4 @@ message TransactionResponse {
   bool ok = 1;
   // Contains error message if ok is false.
   string message = 2;
-}
-
-service Transactions {
-  rpc ProcessTransaction(Transaction) returns (TransactionResponse) {};
 }

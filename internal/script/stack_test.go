@@ -1,8 +1,9 @@
 package script
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateEmptyStack_Ok(t *testing.T) {
@@ -34,7 +35,7 @@ func TestPopFromEmptyStack_Nok(t *testing.T) {
 func TestPeekFromEmptyStack_Nok(t *testing.T) {
 	s := stack{}
 	peek, err := s.peek()
-	require.NotNil(t, err)
+	require.Error(t, err)
 	require.Nil(t, peek)
 }
 
@@ -42,7 +43,7 @@ func TestPeekFromStack_Ok(t *testing.T) {
 	s := stack{}
 	s.push([]byte{0x01})
 	peek, err := s.peek()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, []byte{0x01}, peek)
 	require.EqualValues(t, 1, s.size())
 }

@@ -2,12 +2,17 @@ syntax = "proto3";
 package abrpc;
 
 import "transaction.proto";
+import "certificates.proto";
 
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill;alphabill";
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/alphabill/alphabill;alphabill";
 
 service AlphaBillService {
-  rpc GetBlocks(GetBlocksRequest) returns (stream GetBlocksResponse) {};
   rpc ProcessTransaction(rpc.Transaction) returns (rpc.TransactionResponse) {};
+  rpc GetBlock(GetBlockRequest) returns (GetBlockResponse) {};
+  rpc GetMaxBlockNo(GetMaxBlockNoRequest) returns (GetMaxBlockNoResponse) {};
+
+  // TODO deprecated: use GetBlock(GetBlockRequest) instead
+  rpc GetBlocks(GetBlocksRequest) returns (stream GetBlocksResponse) {};
 }
 
 message GetBlocksRequest {
@@ -19,9 +24,27 @@ message GetBlocksResponse {
   Block block = 2;
 }
 
+message GetBlockRequest {
+  uint64 block_no = 1;
+}
+
+message GetBlockResponse {
+  // message contains error message if block was not found
+  string message = 1;
+  Block block = 2;
+}
+
+message GetMaxBlockNoRequest {}
+
+message GetMaxBlockNoResponse {
+  // message contains error message if block number was not found
+  string message = 1;
+  uint64 block_no = 2;
+}
+
 message Block {
   uint64 block_no = 1;
   bytes prev_block_hash = 2;
   repeated rpc.Transaction transactions = 3;
-  bytes unicity_certificate = 4;
+  UnicityCertificate unicity_certificate = 4;
 }

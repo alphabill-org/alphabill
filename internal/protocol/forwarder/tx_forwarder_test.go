@@ -52,17 +52,17 @@ func (l *FixedLeader) NextLeader() (peer.ID, error) {
 
 func TestTxHandler_FollowerForwardsRequestToLeader(t *testing.T) {
 	// init leader
-	leader := InitPeer(t, nil)
+	leader := initPeer(t, &network.PeerConfiguration{})
 	defer leader.Close()
 	fixedLeader := &FixedLeader{Leader: leader}
 	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
-	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
+	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
 	followerTxHandler, followerTxBuffer := RegisterTxHandler(t, follower, fixedLeader)
 	defer followerTxHandler.Close()
-	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
 
 	// send requests
 	err := followerTxHandler.Handle(context.Background(), transfer)
@@ -79,7 +79,7 @@ func TestTxHandler_NextLeaderSelectorReturnsError(t *testing.T) {
 	// init follower
 	noLeaderErr := errors.New("no leader")
 	fixedLeader := &FixedLeader{Error: noLeaderErr}
-	follower := InitPeer(t, nil)
+	follower := initPeer(t, &network.PeerConfiguration{})
 	defer follower.Close()
 	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
 
@@ -92,7 +92,7 @@ func TestTxHandler_NextLeaderSelectorReturnsError(t *testing.T) {
 func TestTxHandler_NextLeaderIsUnknown(t *testing.T) {
 	// init follower
 	fixedLeader := &FixedLeader{LeaderUnknown: true}
-	follower := InitPeer(t, nil)
+	follower := initPeer(t, &network.PeerConfiguration{})
 	defer follower.Close()
 	followerTxHandler, followerTxPool := RegisterTxHandler(t, follower, fixedLeader)
 
@@ -103,20 +103,20 @@ func TestTxHandler_NextLeaderIsUnknown(t *testing.T) {
 }
 
 func TestTxHandler_LeaderChangedWhenTxWasForwarded(t *testing.T) {
-	leader2 := InitPeer(t, nil)
+	leader2 := initPeer(t, &network.PeerConfiguration{})
 
 	// init leader
-	leader := InitPeer(t, nil)
+	leader := initPeer(t, &network.PeerConfiguration{})
 	defer leader.Close()
 	errLeader := &FixedLeader{Leader: leader2}
 	_, leaderTxBuffer := RegisterTxHandler(t, leader, errLeader)
 
 	// init follower
-	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
+	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
 	fixedLeader := &FixedLeader{leader, nil, false}
 	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
 
 	// send requests
 	err := followerTxHandler.Handle(context.Background(), transfer)
@@ -128,18 +128,18 @@ func TestTxHandler_LeaderChangedWhenTxWasForwarded(t *testing.T) {
 
 func TestTxHandler_LeaderFailsLeaderCheck(t *testing.T) {
 	// init leader
-	leader := InitPeer(t, nil)
+	leader := initPeer(t, &network.PeerConfiguration{})
 	defer leader.Close()
 	noLeaderErr := errors.New("no leader")
 	errLeader := &FixedLeader{Error: noLeaderErr}
 	_, leaderTxBuffer := RegisterTxHandler(t, leader, errLeader)
 
 	// init follower
-	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
+	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
 	fixedLeader := &FixedLeader{Leader: leader}
 	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
 
 	// send requests
 	err := followerTxHandler.Handle(context.Background(), transfer)
@@ -156,21 +156,21 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 
 	leaderConf := &network.PeerConfiguration{
 		KeyPair: &network.PeerKeyPair{
-			Priv: privKeyBytes,
-			Pub:  pubKeyBytes,
+			PrivateKey: privKeyBytes,
+			PublicKey:  pubKeyBytes,
 		},
 	}
 
 	// init leader
-	leader := InitPeer(t, leaderConf)
+	leader := initPeer(t, leaderConf)
 	fixedLeader := &FixedLeader{Leader: leader}
 	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
-	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
+	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
 	txHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
 	// send requests
 	err := txHandler.Handle(context.Background(), transfer)
 	// verify tx buffers
@@ -185,7 +185,7 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 	leaderConf.Address = leaderAddress
 
 	// init leader again
-	leader = InitPeer(t, leaderConf)
+	leader = initPeer(t, leaderConf)
 	defer leader.Close()
 	_, err = New(leader, fixedLeader, leaderTxBuffer)
 	require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
 
 func TestTxHandler_LeaderDoesNotForward(t *testing.T) {
 	// init leader
-	leader := InitPeer(t, nil)
+	leader := initPeer(t, &network.PeerConfiguration{})
 	defer leader.Close()
 	fixedLeader := &FixedLeader{Leader: leader}
 	txHandler, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
@@ -216,15 +216,15 @@ func TestTxHandler_LeaderDoesNotForward(t *testing.T) {
 
 func TestTxHandler_LeaderDown(t *testing.T) {
 	// init leader
-	leader := InitPeer(t, nil)
+	leader := initPeer(t, &network.PeerConfiguration{})
 	fixedLeader := &FixedLeader{Leader: leader}
 	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
 
 	// init follower
-	follower := InitPeer(t, CreateBootstrapConfiguration(t, leader))
+	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
 	defer follower.Close()
 	txHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.RoutingTableSize() == 1 }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
 	// shut down leader
 	err := leader.Close()
 	require.NoError(t, err)
@@ -249,16 +249,20 @@ func RegisterTxHandler(t *testing.T, p *network.Peer, leaderSelector LeaderSelec
 
 func CreateBootstrapConfiguration(t *testing.T, p *network.Peer) *network.PeerConfiguration {
 	t.Helper()
-	return &network.PeerConfiguration{BootstrapPeers: []*network.PeerInfo{{
-		ID:      peer.Encode(p.ID()),
-		Address: p.MultiAddresses()[0].String(),
+	pubKey, err := p.PublicKey()
+	require.NoError(t, err)
+
+	pubKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+	require.NoError(t, err)
+	return &network.PeerConfiguration{PersistentPeers: []*network.PeerInfo{{
+		PublicKey: pubKeyBytes,
+		Address:   p.MultiAddresses()[0].String(),
 	}}}
 }
 
-func InitPeer(t *testing.T, conf *network.PeerConfiguration) *network.Peer {
+func initPeer(t *testing.T, conf *network.PeerConfiguration) *network.Peer {
 	t.Helper()
-	ctx := context.Background()
-	peer, err := network.NewPeer(ctx, conf)
+	peer, err := network.NewPeer(conf)
 	require.NoError(t, err)
 	return peer
 }

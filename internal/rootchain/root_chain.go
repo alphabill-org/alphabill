@@ -124,7 +124,8 @@ func (rc *RootChain) loop() {
 			if nt == nil {
 				continue
 			}
-			if nt.Name == t3TimerID {
+			timerName := nt.Name()
+			if timerName == t3TimerID {
 				logger.Debug("Handling T3 timeout")
 				identifiers, err := rc.state.createUnicityCertificates()
 				if err != nil {
@@ -137,9 +138,9 @@ func (rc *RootChain) loop() {
 					rc.timers.Restart(identifier)
 				}
 			} else {
-				logger.Debug("Handling T2 timeout with ID '%X'", []byte(nt.Name))
-				rc.state.copyOldInputRecords(nt.Name)
-				rc.timers.Restart(nt.Name)
+				logger.Debug("Handling T2 timeout with a name '%X'", []byte(timerName))
+				rc.state.copyOldInputRecords(timerName)
+				rc.timers.Restart(timerName)
 			}
 		}
 	}

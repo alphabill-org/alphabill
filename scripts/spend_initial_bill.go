@@ -70,7 +70,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	txClient := alphabill.NewAlphaBillServiceClient(conn)
+	txClient := alphabill.NewAlphabillServiceClient(conn)
 	txResponse, err := txClient.ProcessTransaction(ctx, tx)
 	if err != nil {
 		log.Fatal(err)

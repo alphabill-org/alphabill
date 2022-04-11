@@ -12,7 +12,7 @@ import (
 
 type (
 	rpcServer struct {
-		alphabill.UnimplementedAlphaBillServiceServer
+		alphabill.UnimplementedAlphabillServiceServer
 		processor     TransactionsProcessor
 		ledgerService LedgerService
 	}

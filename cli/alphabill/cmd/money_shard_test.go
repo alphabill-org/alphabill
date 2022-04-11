@@ -278,7 +278,7 @@ func TestRunShard_Ok(t *testing.T) {
 		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
 		require.NoError(t, err)
 		defer conn.Close()
-		rpcClient := alphabill.NewAlphaBillServiceClient(conn)
+		rpcClient := alphabill.NewAlphabillServiceClient(conn)
 
 		// Test cases
 		makeSuccessfulPayment(t, ctx, rpcClient)
@@ -291,7 +291,7 @@ func TestRunShard_Ok(t *testing.T) {
 	})
 }
 
-func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphaBillServiceClient) {
+func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
 
 	tx := &transaction.Transaction{
@@ -314,7 +314,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 	require.True(t, response.Ok, "Successful response ok should be true")
 }
 
-func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphaBillServiceClient) {
+func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	wrongBillID := uint256.NewInt(6).Bytes32()
 
 	tx := &transaction.Transaction{

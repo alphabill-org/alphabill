@@ -145,17 +145,3 @@ func TestConcurrentDcJobCannotBeStarted(t *testing.T) {
 	// and metadata is the same
 	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount})
 }
-
-func TestDcJobCannotBeStartedInUnsyncedWallet(t *testing.T) {
-	// wallet contains 2 normal bills but is in unsynced state
-	w, mockClient := CreateTestWallet(t)
-	addBills(t, w)
-	setBlockHeightAndMaxBlockHeight(t, w, 100, 120)
-
-	// when dust collector runs
-	err := w.collectDust(false)
-	require.NoError(t, err)
-
-	// then no tx must not be broadcast
-	require.Len(t, mockClient.txs, 0)
-}

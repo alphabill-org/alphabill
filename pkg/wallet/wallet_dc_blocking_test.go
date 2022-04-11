@@ -37,8 +37,8 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	}
 
 	// when the swap tx with given nonce is received
-	block := createBlockWithSwapTx(dcNonce, k, mockClient.txs)
-	err := w.processBlock(block)
+	res := createBlockWithSwapTx(dcNonce, k, mockClient.txs)
+	err := w.processBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -49,7 +49,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	require.EqualValues(t, b.Id, uint256.NewInt(0).SetBytes(dcNonce))
 
 	// when the block's post processor runs
-	err = w.postProcessBlock(block)
+	err = w.postProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return
@@ -75,8 +75,8 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 
 	// when the swap tx with dc bills is received
 	bills, _ := w.db.GetBills()
-	block := createBlockWithSwapTxFromDcBills(dcNonce, k, bills...)
-	err := w.processBlock(block)
+	res := createBlockWithSwapTxFromDcBills(dcNonce, k, bills...)
+	err := w.processBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -87,7 +87,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	require.EqualValues(t, b.Id, dcNonce)
 
 	// when the block's post processor runs
-	err = w.postProcessBlock(block)
+	err = w.postProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return
@@ -122,11 +122,11 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	require.Len(t, w.dcWg.swaps, 2)
 
 	// when group 1 swap is received
-	block1 := createBlockWithSwapTxFromDcBills(dcNonce1, k, b11, b12)
-	block1.GetBlock().BlockNo = 1
-	err := w.processBlock(block1)
+	res1 := createBlockWithSwapTxFromDcBills(dcNonce1, k, b11, b12)
+	res1.Block.BlockNo = 1
+	err := w.processBlock(res1.Block)
 	require.NoError(t, err)
-	err = w.postProcessBlock(block1)
+	err = w.postProcessBlock(res1.Block)
 	require.NoError(t, err)
 
 	// then swap waitgroup is decremented
@@ -137,11 +137,11 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	require.Len(t, bills, 4)
 
 	// when the swap tx with dc bills is received
-	block2 := createBlockWithSwapTxFromDcBills(dcNonce2, k, b21, b22, b23)
-	block2.GetBlock().BlockNo = 2
-	err = w.processBlock(block2)
+	res2 := createBlockWithSwapTxFromDcBills(dcNonce2, k, b21, b22, b23)
+	res2.Block.BlockNo = 2
+	err = w.processBlock(res2.Block)
 	require.NoError(t, err)
-	err = w.postProcessBlock(block2)
+	err = w.postProcessBlock(res2.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return
@@ -185,7 +185,7 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	return &wg
 }
 
-func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills ...*bill) *alphabill.GetBlocksResponse {
+func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills ...*bill) *alphabill.GetBlockResponse {
 	var dcTxs []*transaction.Transaction
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &transaction.Transaction{
@@ -199,8 +199,8 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 	return createBlockWithSwapTx(dcNonce32[:], k, dcTxs)
 }
 
-func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.Transaction) *alphabill.GetBlocksResponse {
-	return &alphabill.GetBlocksResponse{
+func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.Transaction) *alphabill.GetBlockResponse {
+	return &alphabill.GetBlockResponse{
 		Block: &alphabill.Block{
 			BlockNo:       1,
 			PrevBlockHash: hash.Sum256([]byte{}),

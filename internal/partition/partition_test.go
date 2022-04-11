@@ -4,22 +4,24 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"hash"
+	"strings"
 	"testing"
 	"time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/partition"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 
@@ -28,57 +30,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	certificateValidator = &CertificateValidator{}
+	txValidator          = &TransactionValidator{}
+)
+
 type (
-	mockTxSystem struct {
-		rinitCount   uint64
-		rComplCount  uint64
-		executeCount uint64
-	}
-
-	Uint64SummaryValue uint64
-
 	CertificateValidator struct{}
 
 	TransactionValidator struct{}
 )
 
-var (
-	txSystem             = &mockTxSystem{}
-	certificateValidator = &CertificateValidator{}
-	txValidator          = &TransactionValidator{}
-	blockStore           = NewInMemoryBlockStore()
-	testConf             = &Configuration{
-		SystemIdentifier: nil,
-		T1Timeout:        1 * time.Second,
-		HashAlgorithm:    gocrypto.SHA256,
-		Genesis: &Genesis{
-			InputRecord: &certificates.InputRecord{
-				PreviousHash: nil,
-				Hash:         nil,
-				BlockHash:    nil,
-				SummaryValue: nil,
-			},
-			UnicityCertificateRecord: &certificates.UnicityCertificate{
-				InputRecord: &certificates.InputRecord{
-					PreviousHash: []byte{0x1},
-					Hash:         []byte{0x2},
-					BlockHash:    []byte{0x3},
-					SummaryValue: Uint64SummaryValue(12).Bytes(),
-				},
-				UnicityTreeCertificate: nil,
-				UnicitySeal: &certificates.UnicitySeal{
-					RootChainRoundNumber: 1,
-					PreviousHash:         nil,
-					Hash:                 nil,
-				},
-			},
-		},
-	}
-)
-
 func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
-	s := &mockTxSystem{}
-	p, _ := createTestPartitionWithTxSystem(t, s)
+	s := &partition.MockTxSystem{}
+	p, _ := createTestPartitionWithTxSystem(t, s, testConfiguration(t, &partition.MockTxSystem{}))
 	ucr := &certificates.UnicityCertificate{
 		UnicitySeal: &certificates.UnicitySeal{
 			RootChainRoundNumber: 0,
@@ -87,10 +52,11 @@ func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
 		},
 	}
 	p.startNewRound(ucr)
-	require.Equal(t, uint64(2), s.rinitCount)
+	require.Equal(t, uint64(2), s.RoundInitCount)
 }
 
-func TestNewPartition_NilInputParameters(t *testing.T) {
+func TestNewPartition_NotOk(t *testing.T) {
+	blockStore := NewInMemoryBlockStore()
 	selector, err := NewLeaderSelector(createPeer(t))
 	require.NoError(t, err)
 	type args struct {
@@ -104,144 +70,220 @@ func TestNewPartition_NilInputParameters(t *testing.T) {
 		blockStore     BlockStore
 	}
 	tests := []struct {
-		name string
-		args args
-		err  error
+		name   string
+		args   args
+		err    error
+		errStr string
 	}{
 		{
-			"ctx is nil",
-			args{
+			name: "ctx is nil",
+			args: args{
 				ctx:            nil,
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             eventbus.New(),
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
-				configuration:  testConf,
 				blockStore:     blockStore,
+				configuration: &Configuration{
+					T1Timeout:     700 * time.Millisecond,
+					TrustBase:     nil,
+					Signer:        nil,
+					HashAlgorithm: 0,
+					Genesis:       nil},
 			},
-			ErrCtxIsNil,
+			err: ErrCtxIsNil,
 		},
 		{
-			"tx system is nil",
-			args{
+			name: "tx system is nil",
+			args: args{
 				ctx:            context.Background(),
 				txSystem:       nil,
 				eb:             eventbus.New(),
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
-				configuration:  testConf,
 				blockStore:     blockStore,
+				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
-			ErrTxSystemIsNil,
+			err: ErrTxSystemIsNil,
 		},
 		{
-			"eventbus is nil",
-			args{
+			name: "eventbus is nil",
+			args: args{
 				ctx:            context.Background(),
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             nil,
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
-				configuration:  testConf,
 				blockStore:     blockStore,
+				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
-			ErrEventBusIsNil,
+			err: ErrEventBusIsNil,
 		},
 		{
-			"leader selector is nil",
-			args{
+			name: "leader selector is nil",
+			args: args{
 				ctx:            context.Background(),
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             eventbus.New(),
 				leaderSelector: nil,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
-				configuration:  testConf,
 				blockStore:     blockStore,
+				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
-			ErrLeaderSelectorIsNil,
+			err: ErrLeaderSelectorIsNil,
 		},
 		{
-			"certificate validator is nil",
-			args{
+			name: "certificate validator is nil",
+			args: args{
 				ctx:            context.Background(),
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             eventbus.New(),
 				leaderSelector: selector,
 				ucrValidator:   nil,
 				txValidator:    txValidator,
-				configuration:  testConf,
 				blockStore:     blockStore,
+				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
-			ErrUnicityCertificateValidatorIsNil,
+			err: ErrUnicityCertificateValidatorIsNil,
 		},
 		{
-			"tx validator is nil",
-			args{
+			name: "tx validator is nil",
+			args: args{
 				ctx:            context.Background(),
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             eventbus.New(),
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    nil,
-				configuration:  testConf,
 				blockStore:     blockStore,
+				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 			},
-			ErrTxValidatorIsNil,
+			err: ErrTxValidatorIsNil,
 		},
 		{
-			"configuration is nil",
-			args{
+			name: "configuration is nil",
+			args: args{
 				ctx:            context.Background(),
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             eventbus.New(),
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
+				blockStore:     blockStore,
 				configuration:  nil,
-				blockStore:     blockStore,
 			},
-			ErrPartitionConfigurationIsNil,
+			err: ErrPartitionConfigurationIsNil,
 		},
 		{
-			"genesis is nil",
-			args{
+			name: "genesis is nil",
+			args: args{
 				ctx:            context.Background(),
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             eventbus.New(),
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
-				configuration:  &Configuration{},
 				blockStore:     blockStore,
+				configuration: &Configuration{
+					T1Timeout:     2500,
+					HashAlgorithm: gocrypto.SHA256,
+					Genesis:       nil,
+				},
 			},
-			ErrGenesisIsNil,
+			err: ErrGenesisIsNil,
 		},
 		{
-			"block store is nil",
-			args{
+			name: "invalid partition genesis file",
+			args: args{
 				ctx:            context.Background(),
-				txSystem:       txSystem,
+				txSystem:       &partition.MockTxSystem{},
 				eb:             eventbus.New(),
 				leaderSelector: selector,
 				ucrValidator:   certificateValidator,
 				txValidator:    txValidator,
-				configuration:  testConf,
+				blockStore:     blockStore,
+				configuration: &Configuration{
+					T1Timeout:     2500,
+					HashAlgorithm: gocrypto.SHA256,
+					Genesis:       &genesis.PartitionGenesis{},
+				},
+			},
+			errStr: "invalid root partition genesis file",
+		},
+		{
+			name: "block store is nil",
+			args: args{
+				ctx:            context.Background(),
+				txSystem:       &partition.MockTxSystem{},
+				eb:             eventbus.New(),
+				leaderSelector: selector,
+				ucrValidator:   certificateValidator,
+				txValidator:    txValidator,
+				configuration:  testConfiguration(t, &partition.MockTxSystem{}),
 				blockStore:     nil,
 			},
-			ErrBlockStoreIsNil,
+			err: ErrBlockStoreIsNil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := New(tt.args.ctx, tt.args.txSystem, tt.args.eb, tt.args.leaderSelector, tt.args.ucrValidator, tt.args.txValidator, tt.args.blockStore, tt.args.configuration)
-			require.ErrorIs(t, err, tt.err)
+			if tt.err != nil {
+				require.ErrorIs(t, err, tt.err)
+			} else {
+				require.True(t, strings.Contains(err.Error(), tt.errStr))
+			}
 			require.Nil(t, got)
 		})
 	}
+}
+
+func TestNew_InvalidGenesisRootHash(t *testing.T) {
+	selector, err := NewLeaderSelector(createPeer(t))
+	require.NoError(t, err)
+	conf := testConfiguration(t, &partition.MockTxSystem{})
+
+	system := &partition.MockTxSystem{}
+	system.RoundCompleteCount = 100
+
+	p, err := New(
+		context.Background(),
+		system,
+		eventbus.New(),
+		selector,
+		certificateValidator,
+		txValidator,
+		NewInMemoryBlockStore(),
+		conf,
+	)
+	require.Nil(t, p)
+	require.ErrorIs(t, err, ErrInvalidRootHash)
+}
+
+func TestNew_InvalidSummaryValue(t *testing.T) {
+	selector, err := NewLeaderSelector(createPeer(t))
+	require.NoError(t, err)
+	conf := testConfiguration(t, &partition.MockTxSystem{})
+
+	system := &partition.MockTxSystem{}
+	system.SummaryValue = 100
+
+	p, err := New(
+		context.Background(),
+		system,
+		eventbus.New(),
+		selector,
+		certificateValidator,
+		txValidator,
+		NewInMemoryBlockStore(),
+		conf,
+	)
+	require.Nil(t, p)
+	require.ErrorIs(t, err, ErrInvalidSummaryValue)
 }
 
 func TestNew_StartsMainLoop(t *testing.T) {
@@ -260,7 +302,8 @@ func TestNew_StartsMainLoop(t *testing.T) {
 }
 
 func TestPartition_HandleInvalidTxEvent(t *testing.T) {
-	p, eventBus := createPartitionWithDefaultTxSystem(t)
+	conf := testConfiguration(t, &partition.MockTxSystem{})
+	p, eventBus := createTestPartitionWithTxSystem(t, &partition.MockTxSystem{}, conf)
 	pc10, err := eventBus.Subscribe(TopicPC1O, 10)
 	require.NoError(t, err)
 
@@ -276,8 +319,9 @@ func TestPartition_HandleInvalidTxEvent(t *testing.T) {
 }
 
 func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
-	p, eventBus := createPartitionWithDefaultTxSystem(t)
-	pc10, err := eventBus.Subscribe(TopicPC1O, 10)
+	partitionConf := testConfiguration(t, &partition.MockTxSystem{})
+	p, eventBus := createTestPartitionWithTxSystem(t, &partition.MockTxSystem{}, partitionConf)
+	pc1O, err := eventBus.Subscribe(TopicPC1O, 10)
 	require.NoError(t, err)
 
 	p1, err := eventBus.Subscribe(TopicP1, 10)
@@ -286,13 +330,15 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 	err = eventBus.Submit(TopicPartitionTransaction, TransactionEvent{Transaction: testtransaction.RandomBillTransfer()})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool { <-pc10; return true }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { <-pc1O; return true }, test.WaitDuration, test.WaitTick)
 	var p1Event P1Event
 	require.Eventually(t, func() bool { e := <-p1; p1Event = e.(P1Event); return true }, test.WaitDuration, test.WaitTick)
 	err = eventBus.Submit(TopicPartitionUnicityCertificate, UnicityCertificateEvent{
 		Certificate: &certificates.UnicityCertificate{
-			InputRecord:            p1Event.inputRecord,
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
+			InputRecord: p1Event.inputRecord,
+			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+			},
 			UnicitySeal: &certificates.UnicitySeal{
 				RootChainRoundNumber: 2,
 				PreviousHash:         nil,
@@ -303,7 +349,8 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { <-p1; return true }, test.WaitDuration, test.WaitTick)
-	height, _ := p.blockStore.Height()
+	height, err := p.blockStore.Height()
+	require.NoError(t, err)
 	require.Equal(t, uint64(2), height)
 
 	latestBlock, _ := p.blockStore.LatestBlock()
@@ -319,7 +366,7 @@ func createPeer(t *testing.T) *network.Peer {
 	pubKey, err := peer.PublicKey()
 	require.NoError(t, err)
 
-	pubKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+	pubKeyBytes, err := libp2pcrypto.MarshalPublicKey(pubKey)
 	require.NoError(t, err)
 
 	conf.PersistentPeers = []*network.PeerInfo{{
@@ -329,12 +376,12 @@ func createPeer(t *testing.T) *network.Peer {
 	return peer
 }
 
-func createTestPartitionWithTxSystem(t *testing.T, system TransactionSystem) (*Partition, *eventbus.EventBus) {
+func createTestPartitionWithTxSystem(t *testing.T, system TransactionSystem, conf *Configuration) (*Partition, *eventbus.EventBus) {
 	selector, err := NewLeaderSelector(createPeer(t))
 	require.NoError(t, err)
 	ctx := context.Background()
 	bus := eventbus.New()
-	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, blockStore, testConf)
+	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, NewInMemoryBlockStore(), conf)
 	require.NoError(t, err)
 	require.Equal(t, idle, p.status)
 	t.Cleanup(p.Close)
@@ -342,28 +389,41 @@ func createTestPartitionWithTxSystem(t *testing.T, system TransactionSystem) (*P
 }
 
 func createPartitionWithDefaultTxSystem(t *testing.T) (*Partition, *eventbus.EventBus) {
-	return createTestPartitionWithTxSystem(t, txSystem)
+	conf := testConfiguration(t, &partition.MockTxSystem{})
+	return createTestPartitionWithTxSystem(t, &partition.MockTxSystem{}, conf)
 }
 
-func (m *mockTxSystem) RInit() {
-	m.rinitCount++
-}
-func (m *mockTxSystem) Revert() {
-}
-
-func (m *mockTxSystem) RCompl() ([]byte, state.SummaryValue) {
-	m.rComplCount++
-
-	return make([]byte, 32), Uint64SummaryValue(m.rComplCount)
-}
-
-func (m *mockTxSystem) Execute(tx *transaction.Transaction) error {
-	m.executeCount++
-	return nil
+func testConfiguration(t *testing.T, system TransactionSystem) *Configuration {
+	_, partitionGenesis, nodeSigner, rootSigner := initPartitionGenesis(t, system)
+	rootVerifier, err := rootSigner.Verifier()
+	require.NoError(t, err)
+	return &Configuration{
+		T1Timeout:     1 * time.Second,
+		TrustBase:     rootVerifier,
+		Signer:        nodeSigner,
+		HashAlgorithm: gocrypto.SHA256,
+		Genesis:       partitionGenesis,
+	}
 }
 
-func (t Uint64SummaryValue) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(uint64(t)))
+func initPartitionGenesis(t *testing.T, system TransactionSystem) (*genesis.RootGenesis, *genesis.PartitionGenesis, crypto.Signer, crypto.Signer) {
+	t.Helper()
+	nodeSigner, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+
+	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+
+	pn, err := NewNodeGenesis(system, WithPeerID("1"), WithSystemIdentifier([]byte{0, 0, 0, 1}), WithSigner(nodeSigner))
+	require.NoError(t, err)
+
+	pr, err := NewPartitionGenesis([]*genesis.PartitionNode{pn}, 2500)
+	require.NoError(t, err)
+
+	rootGenesis, pss, err := rootchain.NewGenesis([]*genesis.PartitionRecord{pr}, rootSigner)
+	require.NoError(t, err)
+
+	return rootGenesis, pss[0], nodeSigner, rootSigner
 }
 
 func (c *CertificateValidator) Validate(_ *certificates.UnicityCertificate) error {
@@ -372,22 +432,4 @@ func (c *CertificateValidator) Validate(_ *certificates.UnicityCertificate) erro
 
 func (tv *TransactionValidator) Validate(_ *transaction.Transaction) error {
 	return nil
-}
-
-func (t Uint64SummaryValue) Concatenate(left, right state.SummaryValue) state.SummaryValue {
-	var s, l, r uint64
-	s = uint64(t)
-	lSum, ok := left.(Uint64SummaryValue)
-	if ok {
-		l = uint64(lSum)
-	}
-	rSum, ok := right.(Uint64SummaryValue)
-	if ok {
-		r = uint64(rSum)
-	}
-	return Uint64SummaryValue(s + l + r)
-}
-
-func (t Uint64SummaryValue) Bytes() []byte {
-	return util.Uint64ToBytes(uint64(t))
 }

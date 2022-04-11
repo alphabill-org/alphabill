@@ -245,13 +245,9 @@ func (p *Partition) handleUnicityCertificateRecordEvent(event interface{}) {
 
 func (p *Partition) handleUnicityCertificateRecord(uc *certificates.UnicityCertificate) {
 	// TODO refactor and write tests after task AB-130 is done
-	if uc == nil {
-		logger.Warning("Invalid UnicityCertificateEvent. UC is nil")
-		return
-	}
 
 	if err := p.unicityCertificateRecordValidator.Validate(uc); err != nil {
-		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.GetSystemIdentifier(), uc.UnicityTreeCertificate.SystemIdentifier)
+		logger.Warning("Invalid UnicityCertificate: %v", err)
 		return
 	}
 

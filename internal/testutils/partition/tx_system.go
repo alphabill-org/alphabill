@@ -24,6 +24,7 @@ type (
 func (m *MockTxSystem) RInit() {
 	m.RoundInitCount++
 }
+
 func (m *MockTxSystem) Revert() {
 	m.RevertCount++
 }

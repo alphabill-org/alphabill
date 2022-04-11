@@ -3,10 +3,7 @@ The runner is used by GitLab to build and test the project. The runner image is 
 To update the runner follow these steps:
 
 1. Login `docker login gitdc.ee.guardtime.com:5005 -u <username> -p <access_token>`
-2.
-
-Build `docker build -t gitdc.ee.guardtime.com:5005/alphabill/alphabill/ab-gitlab-runner:$( date +"%Y%m%d") -f Dockerfile-runner ../..`
-
+2. Build `docker build -t gitdc.ee.guardtime.com:5005/alphabill/alphabill/ab-gitlab-runner:$( date +"%Y%m%d") -f Dockerfile-runner ../..`
 3. Upload `docker push gitdc.ee.guardtime.com:5005/alphabill/alphabill/ab-gitlab-runner:$( date +"%Y%m%d")`
 
 Variables:

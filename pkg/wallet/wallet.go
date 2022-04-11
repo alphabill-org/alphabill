@@ -87,12 +87,7 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 		return nil, err
 	}
 
-	return &Wallet{
-		db:               db,
-		config:           config,
-		dustCollectorJob: cron.New(),
-		dcWg:             newDcWaitGroup(),
-	}, nil
+	return newWallet(config, db)
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet,
@@ -213,6 +208,17 @@ func (w *Wallet) Shutdown() {
 // DeleteDb deletes the wallet database.
 func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
+}
+
+func newWallet(config Config, db Db) (*Wallet, error) {
+	return &Wallet{
+		db:               db,
+		config:           config,
+		dustCollectorJob: cron.New(),
+		dcWg:             newDcWaitGroup(),
+		alphaBillClient:  abclient.New(abclient.AlphabillClientConfig{Uri: config.AlphabillClientConfig.Uri}),
+		syncFlag:         &syncFlagWrapper{},
+	}, nil
 }
 
 // syncLedger downloads and processes blocks
@@ -697,14 +703,7 @@ func createWallet(mnemonic string, config Config) (*Wallet, error) {
 		return nil, err
 	}
 
-	return &Wallet{
-		db:               db,
-		config:           config,
-		dustCollectorJob: cron.New(),
-		dcWg:             newDcWaitGroup(),
-		alphaBillClient:  abclient.New(abclient.AlphabillClientConfig{Uri: config.AlphabillClientConfig.Uri}),
-		syncFlag:         &syncFlagWrapper{},
-	}, nil
+	return newWallet(config, db)
 }
 
 func generateMnemonic() (string, error) {

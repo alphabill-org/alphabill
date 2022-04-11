@@ -16,8 +16,7 @@ import (
 )
 
 type (
-	TestData         uint64
-	TestSummaryValue uint64
+	TestData uint64
 )
 
 var (
@@ -85,9 +84,9 @@ func TestOneItem(t *testing.T) {
 	require.NotNil(t, tr.GetRootHash())
 
 	genSum := tr.TotalValue()
-	sum, ok := genSum.(TestSummaryValue)
+	sum, ok := genSum.(Uint64SummaryValue)
 	require.True(t, ok, "should be type of TestSummaryValue")
-	require.Equal(t, TestSummaryValue(100), sum)
+	require.Equal(t, Uint64SummaryValue(100), sum)
 }
 
 func TestTwoItems(t *testing.T) {
@@ -107,9 +106,9 @@ func TestTwoItems(t *testing.T) {
 	require.NotEqual(t, rootHash1, rootHash2)
 
 	genSum := tr.TotalValue()
-	sum, ok := genSum.(TestSummaryValue)
-	require.True(t, ok, "should be type of TestSummaryValue")
-	require.Equal(t, TestSummaryValue(200), sum)
+	sum, ok := genSum.(Uint64SummaryValue)
+	require.True(t, ok, "should be type of Uint64SummaryValue")
+	require.Equal(t, Uint64SummaryValue(200), sum)
 
 	unit, err := tr.get(id)
 	require.NoError(t, err)
@@ -156,7 +155,7 @@ func TestSetData(t *testing.T) {
 
 	tr.set(id, Predicate{1, 2, 3}, data1, stateHash1)
 	sum1 := tr.TotalValue()
-	require.Equal(t, TestSummaryValue(1), sum1)
+	require.Equal(t, Uint64SummaryValue(1), sum1)
 
 	err := tr.setData(id, data2, stateHash2)
 	require.NoError(t, err)
@@ -167,7 +166,7 @@ func TestSetData(t *testing.T) {
 	require.Equal(t, stateHash2, actualUnit.StateHash)
 
 	sum2 := tr.TotalValue()
-	require.Equal(t, TestSummaryValue(2), sum2)
+	require.Equal(t, Uint64SummaryValue(2), sum2)
 }
 
 func TestHashing(t *testing.T) {
@@ -943,29 +942,7 @@ func (u TestData) AddToHasher(hasher hash.Hash) {
 }
 
 func (u TestData) Value() SummaryValue {
-	return TestSummaryValue(u)
-}
-
-func (t TestSummaryValue) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(uint64(t)))
-}
-
-func (t TestSummaryValue) Concatenate(left, right SummaryValue) SummaryValue {
-	var s, l, r uint64
-	s = uint64(t)
-	lSum, ok := left.(TestSummaryValue)
-	if ok {
-		l = uint64(lSum)
-	}
-	rSum, ok := right.(TestSummaryValue)
-	if ok {
-		r = uint64(rSum)
-	}
-	return TestSummaryValue(s + l + r)
-}
-
-func (t TestSummaryValue) Bytes() []byte {
-	return util.Uint64ToBytes(uint64(t))
+	return Uint64SummaryValue(u)
 }
 
 func requireEqual(t *testing.T, expectedOwner Predicate, expectedData TestData, expectedStateHash []byte, actualUnit *Unit) {

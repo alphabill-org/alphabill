@@ -52,7 +52,7 @@ func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
 		},
 	}
 	p.startNewRound(ucr)
-	require.Equal(t, uint64(2), s.RoundInitCount)
+	require.Equal(t, uint64(2), s.BeginBlockCount)
 }
 
 func TestNewPartition_NotOk(t *testing.T) {
@@ -248,7 +248,7 @@ func TestNew_InvalidGenesisRootHash(t *testing.T) {
 	conf := testConfiguration(t, &partition.MockTxSystem{})
 
 	system := &partition.MockTxSystem{}
-	system.RoundCompleteCount = 100
+	system.EndBlockCount = 100
 
 	p, err := New(
 		context.Background(),

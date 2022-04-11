@@ -91,7 +91,7 @@ func NewNodeGenesis(txSystem TransactionSystem, opts ...Option) (*genesis.Partit
 	}
 
 	// create the first round of the tx system
-	hash, summaryValue := txSystem.RCompl()
+	hash, summaryValue := txSystem.EndBlock()
 	zeroHash := make([]byte, c.hashAlgorithm.Size())
 
 	// first block

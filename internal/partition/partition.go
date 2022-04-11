@@ -127,7 +127,7 @@ func New(
 		return nil, errors.Wrap(err, "invalid root partition genesis file")
 	}
 
-	txGenesisRoot, txSummaryValue := txSystem.RCompl()
+	txGenesisRoot, txSummaryValue := txSystem.EndBlock()
 	genesisCertificate := partitionGenesis.Certificate
 	genesisInputRecord := genesisCertificate.InputRecord
 	if !bytes.Equal(genesisInputRecord.Hash, txGenesisRoot) {
@@ -206,7 +206,7 @@ func (p *Partition) loop() {
 }
 
 func (p *Partition) startNewRound(uc *certificates.UnicityCertificate) {
-	p.transactionSystem.RInit()
+	p.transactionSystem.BeginBlock()
 	p.proposal = nil
 	p.pr = nil
 	p.leaderSelector.UpdateLeader(uc.UnicitySeal)
@@ -280,7 +280,7 @@ func (p *Partition) handleUnicityCertificateRecord(uc *certificates.UnicityCerti
 		return
 	}
 	if p.pr == nil {
-		hash, _ := p.transactionSystem.RCompl()
+		hash, _ := p.transactionSystem.EndBlock()
 		if !bytes.Equal(uc.InputRecord.Hash, hash) {
 			logger.Warning("Starting recovery. UC: %v,LUC: %v", uc, p.luc)
 			p.status = recovering
@@ -339,7 +339,7 @@ func (p *Partition) sendProposal() {
 		return
 	}
 	prevHash := p.luc.InputRecord.Hash
-	stateRoot, summary := p.transactionSystem.RCompl()
+	stateRoot, summary := p.transactionSystem.EndBlock()
 	p.pr = &pendingBlockProposal{
 		lucRoundNumber: p.luc.UnicitySeal.RootChainRoundNumber,
 		lucIRHash:      prevHash,

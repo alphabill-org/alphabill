@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"path"
 	"strings"
@@ -275,7 +276,7 @@ func TestRunShard_Ok(t *testing.T) {
 
 		log.Info("Started shard and dialing...")
 		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
+		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)

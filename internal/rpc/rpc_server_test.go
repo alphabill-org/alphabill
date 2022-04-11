@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"strings"
 	"testing"
@@ -104,7 +105,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	d := func(context.Context, string) (net.Conn, error) {
 		return listener.Dial()
 	}
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(d))
+	conn, err := grpc.DialContext(ctx, "", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(d))
 	if err != nil {
 		t.Fatal(err)
 	}

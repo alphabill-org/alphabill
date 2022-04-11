@@ -1,4 +1,4 @@
-package rootchain
+package timer
 
 import (
 	"testing"
@@ -13,13 +13,13 @@ func TestRestartEndedTimer(t *testing.T) {
 	timers.Start("t1", 10*time.Millisecond)
 	require.Eventually(t, func() bool {
 		nt := <-timers.C
-		require.Equal(t, "t1", nt.name)
+		require.Equal(t, "t1", nt.Name)
 		return true
 	}, test.WaitDuration, 1)
 	timers.Restart("t1")
 	require.Eventually(t, func() bool {
 		nt := <-timers.C
-		require.Equal(t, "t1", nt.name)
+		require.Equal(t, "t1", nt.Name)
 		return true
 	}, test.WaitDuration, 1)
 }
@@ -30,7 +30,7 @@ func TestRestartRunningTimer(t *testing.T) {
 	timers.Restart("1")
 	require.Eventually(t, func() bool {
 		nt := <-timers.C
-		require.Equal(t, "1", nt.name)
+		require.Equal(t, "1", nt.Name)
 		return true
 	}, test.WaitDuration, 1)
 	require.Never(t, func() bool {
@@ -50,24 +50,24 @@ func TestStartMultipleTimers(t *testing.T) {
 	timers.Start("3", 1000*time.Millisecond)
 	require.Eventually(t, func() bool {
 		nt := <-timers.C
-		require.Equal(t, "2", nt.name)
+		require.Equal(t, "2", nt.Name)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool {
 		nt := <-timers.C
-		require.Equal(t, "1", nt.name)
+		require.Equal(t, "1", nt.Name)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool {
 		nt := <-timers.C
-		require.Equal(t, "3", nt.name)
+		require.Equal(t, "3", nt.Name)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 
 	timers.Restart("2")
 	require.Eventually(t, func() bool {
 		nt := <-timers.C
-		require.Equal(t, "2", nt.name)
+		require.Equal(t, "2", nt.Name)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool {

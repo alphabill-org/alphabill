@@ -3,7 +3,8 @@ package partition
 import (
 	"bytes"
 	"context"
-	"time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
@@ -18,7 +19,11 @@ const (
 	recovering
 	closing
 )
-const topicCapacity = 100
+
+const (
+	t1TimerName   = "t1"
+	topicCapacity = 100
+)
 
 var (
 	ErrTxSystemIsNil                    = errors.New("transaction system is nil")
@@ -52,7 +57,7 @@ type (
 		luc                               *certificates.UnicityCertificate
 		proposal                          []*transaction.Transaction
 		pr                                *pendingBlockProposal
-		t1                                *time.Timer
+		timers                            *timer.Timers
 		leaderSelector                    *LeaderSelector
 		txValidator                       TxValidator
 		unicityCertificateRecordValidator UnicityCertificateValidator
@@ -108,9 +113,6 @@ func New(
 		return nil, ErrLeaderSelectorIsNil
 	}
 
-	t1 := time.NewTimer(configuration.T1Timeout)
-	stopTimer(t1)
-
 	unicityCertificatesCh, err := eb.Subscribe(TopicPartitionUnicityCertificate, topicCapacity)
 	if err != nil {
 		return nil, err
@@ -140,10 +142,13 @@ func New(
 		return nil, ErrInvalidSummaryValue
 	}
 
+	timers := timer.NewTimers()
+	timers.Start(t1TimerName, configuration.T1Timeout)
+
 	p := &Partition{
 		transactionSystem:                 txSystem,
 		configuration:                     configuration,
-		t1:                                t1,
+		timers:                            timers,
 		leaderSelector:                    leaderSelector,
 		eventbus:                          eb,
 		unicityCertificatesCh:             unicityCertificatesCh,
@@ -161,8 +166,7 @@ func New(
 		Transactions:        []*transaction.Transaction{},
 		UnicityCertificate:  genesisCertificate,
 	}
-	err = p.blockStore.Add(genesisBlock)
-	if err != nil {
+	if err := p.blockStore.Add(genesisBlock); err != nil {
 		return nil, err
 	}
 	p.status = idle
@@ -176,6 +180,7 @@ func New(
 // Close shuts down the Partition component.
 func (p *Partition) Close() {
 	p.status = closing
+	p.timers.WaitClose()
 	p.ctxCancel()
 }
 
@@ -192,7 +197,7 @@ func (p *Partition) loop() {
 		case e := <-p.unicityCertificatesCh:
 			logger.Info("Handling unicity certificate %v", e)
 			p.handleUnicityCertificateRecordEvent(e)
-		case <-p.t1.C:
+		case <-p.timers.C:
 			logger.Info("Handling T1 timeout event")
 			p.handleT1TimeoutEvent()
 		}
@@ -206,7 +211,8 @@ func (p *Partition) startNewRound(uc *certificates.UnicityCertificate) {
 	p.pr = nil
 	p.leaderSelector.UpdateLeader(uc.UnicitySeal)
 	p.luc = uc
-	p.resetTimer()
+
+	p.timers.Restart(t1TimerName)
 }
 
 func (p *Partition) handleTxEvent(event interface{}) {
@@ -239,7 +245,7 @@ func (p *Partition) handleUnicityCertificateRecordEvent(event interface{}) {
 	case UnicityCertificateEvent:
 		p.handleUnicityCertificateRecord(event.(UnicityCertificateEvent).Certificate)
 	default:
-		logger.Warning("Invalid event: %v", event)
+		logger.Warning("Invalid unicity certificate event: %v", event)
 	}
 }
 
@@ -375,19 +381,5 @@ func (p *Partition) sendProposal() {
 	})
 	if err != nil {
 		logger.Warning("Failed to send P1 event: %v", err)
-	}
-}
-
-func (p *Partition) resetTimer() {
-	// stop timer before resetting it because "Reset" should be invoked only on stopped or expired timers with drained
-	// channels.
-	stopTimer(p.t1)
-	p.t1.Reset(p.configuration.T1Timeout)
-}
-
-func stopTimer(t *time.Timer) {
-	if !t.Stop() {
-		// TODO drain channel. call "<-t.C" from the main event loop (AB-119)
-		//<-t.C
 	}
 }

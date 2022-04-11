@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
@@ -29,7 +31,7 @@ type (
 		peer       *network.Peer         // p2p network
 		p1Protocol *p1.P1                // P1 protocol handler
 		state      *state                // state of the root chain. keeps everything needed for consensus.
-		timers     *timers               // keeps track of T2 and T3 timers
+		timers     *timer.Timers         // keeps track of T2 and T3 timers
 		requestsCh chan *p1.RequestEvent // incoming P1 requests channel
 	}
 
@@ -72,7 +74,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 		return nil, err
 	}
 
-	timers := NewTimers()
+	timers := timer.NewTimers()
 	timers.Start(t3TimerID, conf.t3Timeout)
 	for _, p := range genesis.Partitions {
 		for _, validator := range p.Nodes {
@@ -122,7 +124,7 @@ func (rc *RootChain) loop() {
 			if nt == nil {
 				continue
 			}
-			if nt.name == t3TimerID {
+			if nt.Name == t3TimerID {
 				logger.Debug("Handling T3 timeout")
 				identifiers, err := rc.state.createUnicityCertificates()
 				if err != nil {
@@ -135,9 +137,9 @@ func (rc *RootChain) loop() {
 					rc.timers.Restart(identifier)
 				}
 			} else {
-				logger.Debug("Handling T2 timeout with ID '%X'", []byte(nt.name))
-				rc.state.copyOldInputRecords(nt.name)
-				rc.timers.Restart(nt.name)
+				logger.Debug("Handling T2 timeout with ID '%X'", []byte(nt.Name))
+				rc.state.copyOldInputRecords(nt.Name)
+				rc.timers.Restart(nt.Name)
 			}
 		}
 	}

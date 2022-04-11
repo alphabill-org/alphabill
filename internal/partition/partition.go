@@ -30,6 +30,8 @@ var (
 	ErrTxValidatorIsNil                 = errors.New("tx validator is nil")
 	ErrBlockStoreIsNil                  = errors.New("block store is nil")
 	ErrGenesisIsNil                     = errors.New("genesis is nil")
+	ErrInvalidRootHash                  = errors.New("tx system root hash does not equal to genesis file hash")
+	ErrInvalidSummaryValue              = errors.New("tx system summary value does not equal to genesis file summary value")
 )
 
 type (
@@ -86,7 +88,8 @@ func New(
 	if configuration == nil {
 		return nil, ErrPartitionConfigurationIsNil
 	}
-	if configuration.Genesis == nil {
+	partitionGenesis := configuration.Genesis
+	if partitionGenesis == nil {
 		return nil, ErrGenesisIsNil
 	}
 	if eb == nil {
@@ -117,6 +120,26 @@ func New(
 		return nil, err
 	}
 
+	if err := partitionGenesis.IsValid(configuration.TrustBase, configuration.HashAlgorithm); err != nil {
+		logger.Warning("Invalid partition genesis file: %v", err)
+		return nil, errors.Wrap(err, "invalid root partition genesis file")
+	}
+
+	txGenesisRoot, txSummaryValue := txSystem.RCompl()
+	genesisCertificate := partitionGenesis.Certificate
+	genesisInputRecord := genesisCertificate.InputRecord
+	if !bytes.Equal(genesisInputRecord.Hash, txGenesisRoot) {
+		logger.Warning("tx system root hash does not equal to genesis file hash. "+
+			"genesis hash: %X, txSystem hash: %X", genesisInputRecord.Hash, txGenesisRoot)
+		return nil, ErrInvalidRootHash
+	}
+
+	if !bytes.Equal(genesisInputRecord.SummaryValue, txSummaryValue.Bytes()) {
+		logger.Warning("tx system summary value does not equal to genesis file summary value. "+
+			"Genesis SummaryValue: %X, TxSystem SummaryValue: %X", genesisInputRecord.SummaryValue, txSummaryValue.Bytes())
+		return nil, ErrInvalidSummaryValue
+	}
+
 	p := &Partition{
 		transactionSystem:                 txSystem,
 		configuration:                     configuration,
@@ -131,29 +154,12 @@ func New(
 	}
 	p.ctx, p.ctxCancel = context.WithCancel(ctx)
 
-	txGenesisRoot, genesisSummaryValue := p.transactionSystem.RCompl()
-	if !bytes.Equal(configuration.Genesis.InputRecord.Hash, txGenesisRoot) {
-		logger.Warning("tx system root hash does not equal to genesis file hash")
-		//TODO AB-111
-		//return nil, errors.Errorf("tx system root hash does not equal to genesis file hash")
-	}
-
-	if !bytes.Equal(configuration.Genesis.InputRecord.SummaryValue, genesisSummaryValue.Bytes()) {
-		logger.Warning("tx system summary value does not equal to genesis file summary value")
-		//TODO AB-111
-		//return nil, errors.Errorf("tx system summary value does not equal to genesis file summary value")
-	}
-
-	if err = ucValidator.Validate(configuration.Genesis.UnicityCertificateRecord); err != nil {
-		logger.Warning("invalid genesis unicity certificate record. %v", err)
-		return nil, err
-	}
 	genesisBlock := &Block{
-		SystemIdentifier:    p.configuration.SystemIdentifier,
+		SystemIdentifier:    p.configuration.GetSystemIdentifier(),
 		TxSystemBlockNumber: 1,
 		PreviousBlockHash:   nil,
 		Transactions:        []*transaction.Transaction{},
-		UnicityCertificate:  configuration.Genesis.UnicityCertificateRecord,
+		UnicityCertificate:  genesisCertificate,
 	}
 	err = p.blockStore.Add(genesisBlock)
 	if err != nil {
@@ -161,7 +167,7 @@ func New(
 	}
 	p.status = idle
 	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
-	p.startNewRound(configuration.Genesis.UnicityCertificateRecord)
+	p.startNewRound(genesisCertificate)
 	go p.loop()
 
 	return p, nil
@@ -225,7 +231,7 @@ func (p *Partition) process(tx *transaction.Transaction) {
 		return
 	}
 	p.proposal = append(p.proposal, tx)
-	logger.Debug("Transaction '%v' successfully processed", tx)
+	logger.Debug("Transaction processed. ProposalSize: %v", len(p.proposal))
 }
 
 func (p *Partition) handleUnicityCertificateRecordEvent(event interface{}) {
@@ -245,13 +251,13 @@ func (p *Partition) handleUnicityCertificateRecord(uc *certificates.UnicityCerti
 	}
 
 	if err := p.unicityCertificateRecordValidator.Validate(uc); err != nil {
-		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, uc.UnicityTreeCertificate.SystemIdentifier)
+		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.GetSystemIdentifier(), uc.UnicityTreeCertificate.SystemIdentifier)
 		return
 	}
 
 	// ensure(uc.Cuni.α = α)
-	if !bytes.Equal(uc.UnicityTreeCertificate.SystemIdentifier, p.configuration.SystemIdentifier) {
-		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.SystemIdentifier, uc.UnicityTreeCertificate.SystemIdentifier)
+	if !bytes.Equal(uc.UnicityTreeCertificate.SystemIdentifier, p.configuration.GetSystemIdentifier()) {
+		logger.Warning("Invalid UnicityCertificate. Invalid system identifier. Expected: %X, got %X", p.configuration.GetSystemIdentifier(), uc.UnicityTreeCertificate.SystemIdentifier)
 		return
 	}
 	// ensure(¬(uc.UC.nr = luc.UC.nr ∧ uc.IR.h , luc.IR.h))
@@ -280,7 +286,6 @@ func (p *Partition) handleUnicityCertificateRecord(uc *certificates.UnicityCerti
 			return
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, p.pr.stateHash) {
-		logger.Info("Finalizing block")
 		p.finalizeBlock(p.pr.Transactions, uc)
 	} else if bytes.Equal(uc.InputRecord.Hash, p.pr.lucIRHash) {
 		logger.Warning("Reverting state tree. UC: %v,LUC: %v", uc, p.luc)
@@ -296,10 +301,11 @@ func (p *Partition) handleUnicityCertificateRecord(uc *certificates.UnicityCerti
 }
 
 func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, uc *certificates.UnicityCertificate) {
+	logger.Info("Finalizing block. TxCount: %v", len(transactions))
 	height, _ := p.blockStore.Height()           // TODO handle error
 	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
 	b := &Block{
-		SystemIdentifier:    p.configuration.SystemIdentifier,
+		SystemIdentifier:    p.configuration.GetSystemIdentifier(),
 		TxSystemBlockNumber: height + 1,
 		PreviousBlockHash:   latestBlock.Hash(p.configuration.HashAlgorithm),
 		Transactions:        transactions,
@@ -317,8 +323,8 @@ func (p *Partition) handleT1TimeoutEvent() {
 }
 
 func (p *Partition) sendProposal() {
-	logger.Info("Sending PC1-O event")
-	systemIdentifier := p.configuration.SystemIdentifier
+	logger.Info("Sending PC1-O event. TxCount: %v", len(p.proposal))
+	systemIdentifier := p.configuration.GetSystemIdentifier()
 	nodeId := p.leaderSelector.SelfID()
 	err := p.eventbus.Submit(TopicPC1O, &PC1OEvent{
 		SystemIdentifier:         systemIdentifier,
@@ -348,7 +354,7 @@ func (p *Partition) sendProposal() {
 	prevBlockHash := latestBlock.Hash(p.configuration.HashAlgorithm)
 
 	hasher := p.configuration.HashAlgorithm.New()
-	hasher.Write(p.configuration.SystemIdentifier)
+	hasher.Write(p.configuration.GetSystemIdentifier())
 	hasher.Write(transaction.Uint64ToBytes(blockNr))
 	hasher.Write(prevBlockHash)
 	// TODO continue implementing after task AB-129

@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"fmt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
@@ -21,8 +22,6 @@ type (
 
 	StateTree interface {
 		AddItem(id *uint256.Int, owner state.Predicate, data state.UnitData, stateHash []byte) error
-		Revert()
-		Commit()
 		GetRootHash() []byte
 		GetBlockNumber() uint64
 	}
@@ -34,8 +33,8 @@ type (
 	}
 
 	VerifiableDataUnit struct {
-		V uint64
-		T uint64
+		H []byte // data hash
+		N uint64 // block nr
 	}
 
 	VerifiableDataSummary struct {
@@ -58,8 +57,6 @@ func NewVDSchemeState(trustBase []string) (*vdSchemeState, error) {
 		return nil, err
 	}
 
-	print(stateTree)
-
 	dvState := &vdSchemeState{
 		systemIdentifier: conf.ShardId,
 		stateTree:        stateTree,
@@ -74,7 +71,7 @@ func (d *vdSchemeState) Process(gtx txsystem.GenericTransaction) error {
 	switch tx := gtx.(type) {
 	case Register:
 		log.Debug("Processing registration transaction %v", tx)
-		err := d.stateTree.AddItem(tx.UnitID(), script.PredicateAlwaysFalse(), &VerifiableDataUnit{V: 0, T: d.stateTree.GetBlockNumber()}, tx.Hash(d.hashAlgorithm))
+		err := d.stateTree.AddItem(tx.UnitID(), script.PredicateAlwaysFalse(), &VerifiableDataUnit{H: hasherUtil.Sum256(tx.UnitID().Bytes()), N: d.stateTree.GetBlockNumber()}, tx.Hash(d.hashAlgorithm))
 		if err != nil {
 			return errors.Wrapf(err, "could not add item")
 		}
@@ -85,8 +82,8 @@ func (d *vdSchemeState) Process(gtx txsystem.GenericTransaction) error {
 }
 
 func (u *VerifiableDataUnit) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(u.V))
-	hasher.Write(util.Uint64ToBytes(u.T))
+	hasher.Write(u.H)
+	hasher.Write(util.Uint64ToBytes(u.N))
 }
 
 func (u *VerifiableDataUnit) Value() state.SummaryValue {
@@ -99,4 +96,8 @@ func (u *VerifiableDataSummary) AddToHasher(hasher hash.Hash) {
 
 func (u *VerifiableDataSummary) Concatenate(state.SummaryValue, state.SummaryValue) state.SummaryValue {
 	return &VerifiableDataSummary{v: 0}
+}
+
+func (u *VerifiableDataSummary) Bytes() []byte {
+	return util.Uint64ToBytes(u.v)
 }

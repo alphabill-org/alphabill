@@ -36,7 +36,8 @@ func (w *wrapper) UnitID() *uint256.Int {
 }
 
 func (w *wrapper) IDHash() string {
-	idHash := hasherUtil.Sum256(w.UnitID().Bytes())
+	bytes32 := w.UnitID().Bytes32()
+	idHash := hasherUtil.Sum256(bytes32[:])
 	return base64.StdEncoding.EncodeToString(idHash)
 }
 

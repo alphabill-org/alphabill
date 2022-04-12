@@ -52,8 +52,8 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*alphabill.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	if res.Message != "" { // any errors are present in message
-		return nil, errors.New(res.Message)
+	if res.ErrorMessage != "" {
+		return nil, errors.New(res.ErrorMessage)
 	}
 	return res.Block, nil
 }
@@ -67,8 +67,8 @@ func (c *AlphabillClient) GetMaxBlockNo() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if res.Message != "" {
-		return 0, errors.New(res.Message)
+	if res.ErrorMessage != "" {
+		return 0, errors.New(res.ErrorMessage)
 	}
 	return res.BlockNo, nil
 }

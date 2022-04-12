@@ -25,13 +25,13 @@ import (
 )
 
 const (
-	prefetchBlockCount            = 10
-	dcTimeoutBlockCount           = 10
-	swapTimeoutBlockCount         = 60
-	txTimeoutBlockCount           = 100
-	dustBillDeletionTimeout       = 300
-	mnemonicEntropyBitSize        = 128
-	sleepTimeAtMaxBlockHeightInMs = 500
+	prefetchBlockCount          = 10
+	dcTimeoutBlockCount         = 10
+	swapTimeoutBlockCount       = 60
+	txTimeoutBlockCount         = 100
+	dustBillDeletionTimeout     = 300
+	mnemonicEntropyBitSize      = 128
+	sleepTimeAtMaxBlockHeightMs = 500
 )
 
 var (
@@ -223,12 +223,12 @@ func newWallet(config Config, db Db) (*Wallet, error) {
 
 // syncLedger downloads and processes blocks
 func (w *Wallet) syncLedger(syncForever bool) error {
-	if w.syncFlag.isSyncing() {
+	if w.syncFlag.isSynchronizing() {
 		log.Warning("wallet is already synchronizing")
 		return nil
 	}
-	w.syncFlag.setSyncing(true)
-	defer w.syncFlag.setSyncing(false)
+	w.syncFlag.setSynchronizing(true)
+	defer w.syncFlag.setSynchronizing(false)
 
 	blockNo, err := w.db.GetBlockHeight()
 	if err != nil {
@@ -251,26 +251,26 @@ func (w *Wallet) syncLedger(syncForever bool) error {
 					break
 				}
 				if blockNo == maxBlockNo {
-					time.Sleep(sleepTimeAtMaxBlockHeightInMs * time.Millisecond)
+					time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
 					continue
 				}
-				block, err := w.alphaBillClient.GetBlock(blockNo + 1)
+				blockNo = blockNo + 1
+				block, err := w.alphaBillClient.GetBlock(blockNo)
 				if err != nil {
 					log.Error("error receiving block: ", err)
 					break
 				}
 				ch <- block
-				blockNo = blockNo + 1
 			}
 		} else {
 			for blockNo < maxBlockNo {
-				block, err := w.alphaBillClient.GetBlock(blockNo + 1)
+				blockNo = blockNo + 1
+				block, err := w.alphaBillClient.GetBlock(blockNo)
 				if err != nil {
 					log.Error("error receiving block: ", err)
 					break
 				}
 				ch <- block
-				blockNo = blockNo + 1
 			}
 		}
 		log.Info("closing block receiver channel, last received block: " + strconv.FormatUint(blockNo, 10))

@@ -40,10 +40,10 @@ type expectedSwap struct {
 	timeout uint64
 }
 
-// syncFlagWrapper wrapper struct with mutex guarding syncing flag
+// syncFlagWrapper wrapper struct with mutex guarding synchronizing flag
 type syncFlagWrapper struct {
-	mu      sync.Mutex
-	syncing bool // syncing true if wallet is currently synhronizing ledger, false otherwise
+	mu            sync.Mutex
+	synchronizing bool // synchronizing true if wallet is currently synhronizing ledger, false otherwise
 }
 
 func newDcWaitGroup() dcWaitGroup {
@@ -122,14 +122,14 @@ func (wg *dcWaitGroup) addExpectedSwap(swap expectedSwap) {
 	wg.swaps[*uint256.NewInt(0).SetBytes(swap.dcNonce)] = swap.timeout
 }
 
-func (w *syncFlagWrapper) setSyncing(syncing bool) {
+func (w *syncFlagWrapper) setSynchronizing(synchronizing bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.syncing = syncing
+	w.synchronizing = synchronizing
 }
 
-func (w *syncFlagWrapper) isSyncing() bool {
+func (w *syncFlagWrapper) isSynchronizing() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return w.syncing
+	return w.synchronizing
 }

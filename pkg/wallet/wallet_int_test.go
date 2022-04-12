@@ -243,7 +243,7 @@ func (s *testAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *t
 func (s *testAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	res, f := s.blocks[req.BlockNo]
 	if !f {
-		return &alphabill.GetBlockResponse{Block: nil, Message: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
+		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
 	}
 	return res, nil
 }

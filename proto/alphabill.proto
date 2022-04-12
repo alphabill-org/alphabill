@@ -17,16 +17,14 @@ message GetBlockRequest {
 }
 
 message GetBlockResponse {
-  // Message contains error message if block was not found
-  string message = 1;
+  string error_message = 1;
   Block block = 2;
 }
 
 message GetMaxBlockNoRequest {}
 
 message GetMaxBlockNoResponse {
-  // Message contains error message if block number was not found
-  string message = 1;
+  string error_message = 1;
   uint64 block_no = 2;
 }
 

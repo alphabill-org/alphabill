@@ -52,6 +52,9 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*alphabill.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+	if res.Message != "" { // any errors are present in message
+		return nil, errors.New(res.Message)
+	}
 	return res.Block, nil
 }
 

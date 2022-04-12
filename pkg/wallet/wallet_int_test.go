@@ -186,6 +186,31 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// start server
 	serverService := newTestAlphabillServiceServer()
+	server := startServer(port, serverService)
+	t.Cleanup(server.GracefulStop)
+
+	// when CollectDust is called
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		err = w.CollectDust()
+		if err != nil {
+			fmt.Println(err)
+		}
+		wg.Done()
+	}()
+
+	// then dc transactions are sent
+	waitForExpectedSwap(w)
+	require.Len(t, serverService.processedTxs, 2)
+	require.NoError(t, err)
+
+	// and dc wg metadata is saved
+	require.Len(t, w.dcWg.swaps, 1)
+	dcNonce := calculateExpectedDcNonce(t, w)
+	require.EqualValues(t, w.dcWg.swaps[*uint256.NewInt(0).SetBytes(dcNonce)], dcTimeoutBlockCount)
+
+	// when dc timeout is reached
 	serverService.maxBlockHeight = dcTimeoutBlockCount
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		block := &alphabill.GetBlockResponse{
@@ -198,33 +223,11 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 		}
 		serverService.blocks[blockNo] = block
 	}
-	server := startServer(port, serverService)
-	t.Cleanup(server.GracefulStop)
 
-	// when CollectDust is called
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		err := w.CollectDust()
-		wg.Done()
-		require.NoError(t, err)
-	}()
-	waitForExpectedSwap(w)
-
-	// then dc transactions are sent
-	require.Len(t, serverService.processedTxs, 2)
-	require.NoError(t, err)
-
-	// and dc wg metadata is saved
-	require.Len(t, w.dcWg.swaps, 1)
-	dcNonce := calculateExpectedDcNonce(t, w)
-	require.EqualValues(t, w.dcWg.swaps[*uint256.NewInt(0).SetBytes(dcNonce)], dcTimeoutBlockCount)
-
-	// wait for collect dust to finish
-	// database will be closed after this point
+	// then collect dust should finish
 	wg.Wait()
 
-	// then dc wg is cleared
+	// and dc wg is cleared
 	require.Len(t, w.dcWg.swaps, 0)
 }
 
@@ -238,7 +241,11 @@ func (s *testAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *t
 }
 
 func (s *testAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
-	return s.blocks[req.BlockNo], nil
+	res, f := s.blocks[req.BlockNo]
+	if !f {
+		return &alphabill.GetBlockResponse{Block: nil, Message: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
+	}
+	return res, nil
 }
 
 func (s *testAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {

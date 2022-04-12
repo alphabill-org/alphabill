@@ -1,12 +1,12 @@
 package wallet
 
 import (
-	"fmt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -248,7 +248,7 @@ func waitForCondition(waitCondition func() bool) {
 			break
 		}
 		if time.Since(t1).Seconds() > 5 {
-			fmt.Println("breaking on 5s timeout")
+			log.Warning("breaking on 5s timeout")
 			break
 		}
 		time.Sleep(100 * time.Millisecond)

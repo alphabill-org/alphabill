@@ -643,7 +643,9 @@ func (w *Wallet) collectDust(blocking bool) error {
 		return err
 	}
 	if blocking {
+		log.Info("blocking collect dust waiting")
 		w.dcWg.wg.Wait()
+		log.Info("blocking collect dust finished")
 	}
 	return nil
 }

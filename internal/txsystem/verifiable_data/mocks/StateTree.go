@@ -27,11 +27,6 @@ func (_m *StateTree) AddItem(id *uint256.Int, owner state.Predicate, data state.
 	return r0
 }
 
-// Commit provides a mock function with given fields:
-func (_m *StateTree) Commit() {
-	_m.Called()
-}
-
 // GetBlockNumber provides a mock function with given fields:
 func (_m *StateTree) GetBlockNumber() uint64 {
 	ret := _m.Called()
@@ -60,9 +55,4 @@ func (_m *StateTree) GetRootHash() []byte {
 	}
 
 	return r0
-}
-
-// Revert provides a mock function with given fields:
-func (_m *StateTree) Revert() {
-	_m.Called()
 }

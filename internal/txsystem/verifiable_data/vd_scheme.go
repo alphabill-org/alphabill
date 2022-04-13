@@ -3,6 +3,8 @@ package verifiable_data
 import (
 	"crypto"
 	"fmt"
+	"hash"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
@@ -11,7 +13,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/holiman/uint256"
-	"hash"
 )
 
 type (
@@ -67,7 +68,10 @@ func NewVDSchemeState(trustBase []string) (*vdSchemeState, error) {
 }
 
 func (d *vdSchemeState) Process(gtx txsystem.GenericTransaction) error {
-	println("GTX:", gtx)
+	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: nil, SystemIdentifier: d.systemIdentifier, BlockNumber: d.stateTree.GetBlockNumber()})
+	if err != nil {
+		return err
+	}
 	switch tx := gtx.(type) {
 	case Register:
 		log.Debug("Processing registration transaction %v", tx)

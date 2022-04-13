@@ -2,14 +2,15 @@ package cmd
 
 import (
 	"context"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"path"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"google.golang.org/grpc"
 

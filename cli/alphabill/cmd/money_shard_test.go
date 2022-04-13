@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"google.golang.org/grpc/credentials/insecure"
 	"os"
 	"path"
 	"strings"
@@ -275,10 +276,10 @@ func TestRunShard_Ok(t *testing.T) {
 
 		log.Info("Started shard and dialing...")
 		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithInsecure())
+		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()
-		rpcClient := alphabill.NewAlphaBillServiceClient(conn)
+		rpcClient := alphabill.NewAlphabillServiceClient(conn)
 
 		// Test cases
 		makeSuccessfulPayment(t, ctx, rpcClient)
@@ -291,7 +292,7 @@ func TestRunShard_Ok(t *testing.T) {
 	})
 }
 
-func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphaBillServiceClient) {
+func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
 
 	tx := &transaction.Transaction{
@@ -314,7 +315,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 	require.True(t, response.Ok, "Successful response ok should be true")
 }
 
-func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphaBillServiceClient) {
+func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	wrongBillID := uint256.NewInt(6).Bytes32()
 
 	tx := &transaction.Transaction{

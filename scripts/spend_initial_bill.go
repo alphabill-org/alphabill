@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"log"
@@ -61,7 +62,7 @@ func main() {
 
 	// send tx
 	ctx := context.Background()
-	conn, err := grpc.DialContext(ctx, *uri, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	txClient := alphabill.NewAlphaBillServiceClient(conn)
+	txClient := alphabill.NewAlphabillServiceClient(conn)
 	txResponse, err := txClient.ProcessTransaction(ctx, tx)
 	if err != nil {
 		log.Fatal(err)

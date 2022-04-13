@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"strings"
 	"testing"
@@ -88,14 +89,14 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	assert.True(t, response.Ok)
 }
 
-func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alphabill.AlphaBillServiceClient) {
+func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alphabill.AlphabillServiceClient) {
 	t.Helper()
 	processor := &MockTransactionProcessor{}
 	LedgerService := &MockLedgerService{}
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
 	rpcServer, _ := NewRpcServer(processor, LedgerService)
-	alphabill.RegisterAlphaBillServiceServer(grpcServer, rpcServer)
+	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			t.Fatal(err)
@@ -104,11 +105,11 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	d := func(context.Context, string) (net.Conn, error) {
 		return listener.Dial()
 	}
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(d))
+	conn, err := grpc.DialContext(ctx, "", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(d))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return conn, alphabill.NewAlphaBillServiceClient(conn)
+	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
 func createTransaction(id *uint256.Int) *transaction.Transaction {

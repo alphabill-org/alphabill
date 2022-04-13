@@ -38,6 +38,9 @@ func (x *P1Request) IsValid(v crypto.Verifier) error {
 }
 
 func (x *P1Request) Sign(signer crypto.Signer) error {
+	if signer == nil {
+		return ErrSignerIsNil
+	}
 	signature, err := signer.SignBytes(x.Bytes())
 	if err != nil {
 		return err

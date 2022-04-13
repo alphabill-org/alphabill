@@ -9,17 +9,13 @@ import (
 	"testing"
 )
 
-type mockAlphaBillClient struct {
+type mockAlphabillClient struct {
 	txs        []*transaction.Transaction
 	isShutdown bool
 	txResponse *transaction.TransactionResponse
 }
 
-func (c *mockAlphaBillClient) InitBlockReceiver(blockHeight uint64, terminateAtMaxHeight bool, ch chan<- *alphabill.GetBlocksResponse) error {
-	return nil
-}
-
-func (c *mockAlphaBillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (c *mockAlphabillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
 	c.txs = append(c.txs, tx)
 	if c.txResponse != nil {
 		return c.txResponse, nil
@@ -27,15 +23,23 @@ func (c *mockAlphaBillClient) SendTransaction(tx *transaction.Transaction) (*tra
 	return &transaction.TransactionResponse{Ok: true}, nil
 }
 
-func (c *mockAlphaBillClient) Shutdown() {
+func (c *mockAlphabillClient) GetBlock(blockNo uint64) (*alphabill.Block, error) {
+	return nil, nil
+}
+
+func (c *mockAlphabillClient) GetMaxBlockNo() (uint64, error) {
+	return 0, nil
+}
+
+func (c *mockAlphabillClient) Shutdown() {
 	c.isShutdown = true
 }
 
-func (c *mockAlphaBillClient) IsShutdown() bool {
+func (c *mockAlphabillClient) IsShutdown() bool {
 	return c.isShutdown
 }
 
-func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
+func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = testutil.DeleteWalletDb(os.TempDir())
 	c := Config{DbPath: os.TempDir()}
 	w, err := CreateNewWallet(c)
@@ -44,12 +48,12 @@ func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphaBillClient) {
 	})
 	require.NoError(t, err)
 
-	mockClient := &mockAlphaBillClient{}
+	mockClient := &mockAlphabillClient{}
 	w.alphaBillClient = mockClient
 	return w, mockClient
 }
 
-func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphaBillClient) {
+func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = testutil.DeleteWalletDb(os.TempDir())
 	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir()})
 	t.Cleanup(func() {
@@ -57,7 +61,7 @@ func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphaBillClient) {
 	})
 	require.NoError(t, err)
 
-	mockClient := &mockAlphaBillClient{}
+	mockClient := &mockAlphabillClient{}
 	w.alphaBillClient = mockClient
 	return w, mockClient
 }

@@ -91,7 +91,7 @@ func execSyncCmd(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, AlphaBillClientConfig: wallet.AlphaBillClientConfig{Uri: uri}})
+	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri}})
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func execSendCmd(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, AlphaBillClientConfig: wallet.AlphaBillClientConfig{Uri: uri}})
+	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri}})
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func execCollectDust(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, AlphaBillClientConfig: wallet.AlphaBillClientConfig{Uri: uri}})
+	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri}})
 	if err != nil {
 		return err
 	}

@@ -19,11 +19,11 @@ type Config struct {
 	WalletPass string
 
 	// Configuration options for connecting to alphabill nodes.
-	AlphaBillClientConfig AlphaBillClientConfig
+	AlphabillClientConfig AlphabillClientConfig
 }
 
-// AlphaBillClientConfig configuration options for connecting to alphabill nodes.
-type AlphaBillClientConfig struct {
+// AlphabillClientConfig configuration options for connecting to alphabill nodes.
+type AlphabillClientConfig struct {
 	Uri string
 }
 

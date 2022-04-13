@@ -12,7 +12,7 @@ import (
 
 type (
 	rpcServer struct {
-		alphabill.UnimplementedAlphaBillServiceServer
+		alphabill.UnimplementedAlphabillServiceServer
 		processor     TransactionsProcessor
 		ledgerService LedgerService
 	}
@@ -62,7 +62,7 @@ func (r *rpcServer) ProcessTransaction(ctx context.Context, tx *transaction.Tran
 func (r *rpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	block, err := r.ledgerService.GetBlock(req)
 	if err != nil {
-		return &alphabill.GetBlockResponse{Message: err.Error()}, err
+		return &alphabill.GetBlockResponse{ErrorMessage: err.Error()}, err
 	}
 	return block, nil
 }
@@ -70,7 +70,7 @@ func (r *rpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockRequest
 func (r *rpcServer) GetMaxBlockNo(ctx context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
 	maxBlockNo, err := r.ledgerService.GetMaxBlockNo(req)
 	if err != nil {
-		return &alphabill.GetMaxBlockNoResponse{Message: err.Error()}, err
+		return &alphabill.GetMaxBlockNoResponse{ErrorMessage: err.Error()}, err
 	}
 	return maxBlockNo, nil
 }

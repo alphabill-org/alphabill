@@ -6,22 +6,10 @@ import "certificates.proto";
 
 option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/alphabill/alphabill;alphabill";
 
-service AlphaBillService {
+service AlphabillService {
   rpc ProcessTransaction(rpc.Transaction) returns (rpc.TransactionResponse) {};
   rpc GetBlock(GetBlockRequest) returns (GetBlockResponse) {};
   rpc GetMaxBlockNo(GetMaxBlockNoRequest) returns (GetMaxBlockNoResponse) {};
-
-  // TODO deprecated: use GetBlock(GetBlockRequest) instead
-  rpc GetBlocks(GetBlocksRequest) returns (stream GetBlocksResponse) {};
-}
-
-message GetBlocksRequest {
-  uint64 block_height = 1;
-}
-
-message GetBlocksResponse {
-  uint64 max_block_height = 1;
-  Block block = 2;
 }
 
 message GetBlockRequest {
@@ -29,16 +17,14 @@ message GetBlockRequest {
 }
 
 message GetBlockResponse {
-  // message contains error message if block was not found
-  string message = 1;
+  string error_message = 1;
   Block block = 2;
 }
 
 message GetMaxBlockNoRequest {}
 
 message GetMaxBlockNoResponse {
-  // message contains error message if block number was not found
-  string message = 1;
+  string error_message = 1;
   uint64 block_no = 2;
 }
 

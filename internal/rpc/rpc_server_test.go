@@ -113,8 +113,9 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 }
 
 func createTransaction(id *uint256.Int) *transaction.Transaction {
+	bytes32 := id.Bytes32()
 	tx := &transaction.Transaction{
-		UnitId:                id.Bytes(),
+		UnitId:                bytes32[:],
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               0,
 		OwnerProof:            []byte{1},

@@ -51,7 +51,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	billId := uint256.NewInt(*billIdUint).Bytes()
+	bytes32 := uint256.NewInt(*billIdUint).Bytes32()
+	billId := bytes32[:]
 
 	// create tx
 	tx, err := createTransferTx(pubKey, billId, *billValue, *timeout)

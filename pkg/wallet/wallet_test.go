@@ -7,14 +7,12 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/tyler-smith/go-bip39"
 	"os"
-	"path"
 	"testing"
 )
 
@@ -54,9 +52,8 @@ func TestWalletCanBeCreated(t *testing.T) {
 }
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
-	wd, err := os.Getwd()
+	walletDbPath, err := CopyWalletDBFile()
 	require.NoError(t, err)
-	walletDbPath := path.Join(wd, "testdata", "wallet")
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
 	require.NoError(t, err)
@@ -119,7 +116,7 @@ func TestWallet_GetPublicKey(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{DbPath: os.TempDir()})
 	t.Cleanup(func() {
 		DeleteWallet(w)

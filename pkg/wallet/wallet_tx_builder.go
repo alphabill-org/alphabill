@@ -12,6 +12,8 @@ import (
 	"sort"
 )
 
+var alphabillMoneySystemId = []byte{0}
+
 func createTransaction(pubKey []byte, k *accountKey, amount uint64, b *bill, timeout uint64) (*transaction.Transaction, error) {
 	var err error
 	var tx *transaction.Transaction
@@ -27,11 +29,7 @@ func createTransaction(pubKey []byte, k *accountKey, amount uint64, b *bill, tim
 }
 
 func createTransferTx(pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*transaction.Transaction, error) {
-	tx := &transaction.Transaction{
-		UnitId:                bill.getId(),
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
-	}
+	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillTransfer{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: bill.Value,
@@ -47,12 +45,18 @@ func createTransferTx(pubKey []byte, k *accountKey, bill *bill, timeout uint64) 
 	return tx, nil
 }
 
-func createSplitTx(amount uint64, pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*transaction.Transaction, error) {
-	tx := &transaction.Transaction{
-		UnitId:                bill.getId(),
+func createGenericTx(unitId []byte, timeout uint64) *transaction.Transaction {
+	return &transaction.Transaction{
+		SystemId:              alphabillMoneySystemId,
+		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,
+		// OwnerProof is added after whole transaction is built
 	}
+}
+
+func createSplitTx(amount uint64, pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*transaction.Transaction, error) {
+	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillSplit{
 		Amount:         bill.Value,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
@@ -70,11 +74,7 @@ func createSplitTx(amount uint64, pubKey []byte, k *accountKey, bill *bill, time
 }
 
 func createDustTx(k *accountKey, bill *bill, nonce []byte, timeout uint64) (*transaction.Transaction, error) {
-	tx := &transaction.Transaction{
-		UnitId:                bill.getId(),
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
-	}
+	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &transaction.TransferDC{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
@@ -112,11 +112,7 @@ func createSwapTx(k *accountKey, dcBills []*bill, dcNonce []byte, timeout uint64
 		billValueSum += b.Value
 	}
 
-	swapTx := &transaction.Transaction{
-		UnitId:                dcNonce,
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
-	}
+	swapTx := createGenericTx(dcNonce, timeout)
 	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &transaction.Swap{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
 		BillIdentifiers: billIds,

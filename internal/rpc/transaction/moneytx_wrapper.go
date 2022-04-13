@@ -210,7 +210,8 @@ func (w *swapWrapper) SigBytes() []byte {
 	w.wrapper.sigBytes(b)
 	b.Write(w.OwnerCondition())
 	for _, billId := range w.BillIdentifiers() {
-		b.Write(billId.Bytes())
+		bytes32 := billId.Bytes32()
+		b.Write(bytes32[:])
 	}
 	for _, dcTx := range w.DCTransfers() {
 		b.Write(dcTx.SigBytes())

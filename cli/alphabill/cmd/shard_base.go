@@ -41,7 +41,7 @@ func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, conve
 		return err
 	}
 
-	alphabill.RegisterAlphaBillServiceServer(grpcServer, rpcServer)
+	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 
 	starterFunc := func(ctx context.Context) {
 		go func() {

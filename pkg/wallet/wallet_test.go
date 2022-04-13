@@ -175,7 +175,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, block := range blocks {
-		err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
+		err := w.processBlock(block)
 		require.NoError(t, err)
 	}
 

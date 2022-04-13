@@ -38,7 +38,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs,
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
+	err = w.processBlock(block)
 	require.NoError(t, err)
 
 	// then metadata is updated
@@ -68,7 +68,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 			Transactions:       []*transaction.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
-		err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
+		err = w.processBlock(block)
 		require.NoError(t, err)
 	}
 
@@ -88,7 +88,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs[2:3], // swap tx
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
+	err = w.processBlock(block)
 	require.NoError(t, err)
 
 	// then dc metadata is cleared
@@ -115,7 +115,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(&alphabill.GetBlocksResponse{Block: block})
+	err = w.processBlock(block)
 	require.NoError(t, err)
 
 	// then swap should be broadcast
@@ -153,7 +153,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
+	err := w.processBlock(block)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -187,7 +187,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.processBlock(&alphabill.GetBlocksResponse{Block: block})
+	err := w.processBlock(block)
 	require.NoError(t, err)
 
 	// then no tx is broadcast
@@ -255,10 +255,10 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	require.False(t, b3.isExpired(blockHeight))
 
 	// receing a block should delete expired bills
-	err := w.processBlock(&alphabill.GetBlocksResponse{Block: &alphabill.Block{
+	err := w.processBlock(&alphabill.Block{
 		BlockNo:      blockHeight + 1,
 		Transactions: []*transaction.Transaction{},
-	}})
+	})
 	require.NoError(t, err)
 
 	// verify that one expired bill gets removed and remaining bills are not expired
@@ -342,15 +342,6 @@ func setDcMetadata(t *testing.T, w *Wallet, dcNonce []byte, m *dcMetadata) {
 
 func setBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 	err := w.db.SetBlockHeight(blockHeight)
-	require.NoError(t, err)
-	err = w.db.SetMaxBlockHeight(blockHeight)
-	require.NoError(t, err)
-}
-
-func setBlockHeightAndMaxBlockHeight(t *testing.T, w *Wallet, blockHeight uint64, maxBlockHeight uint64) {
-	err := w.db.SetBlockHeight(blockHeight)
-	require.NoError(t, err)
-	err = w.db.SetMaxBlockHeight(maxBlockHeight)
 	require.NoError(t, err)
 }
 

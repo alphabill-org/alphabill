@@ -9,6 +9,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -23,13 +24,21 @@ import (
 
 const port = 9111
 
+type testAlphabillServiceServer struct {
+	pubKey         []byte
+	maxBlockHeight uint64
+	processedTxs   []*transaction.Transaction
+	blocks         map[uint64]*alphabill.GetBlockResponse
+	alphabill.UnimplementedAlphabillServiceServer
+}
+
 func TestSync(t *testing.T) {
 	// setup wallet
 	_ = testutil.DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
-		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -40,9 +49,9 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
-	blocks := []*alphabill.GetBlocksResponse{
+	serviceServer := newTestAlphabillServiceServer()
+	blocks := []*alphabill.GetBlockResponse{
 		{
-			MaxBlockHeight: 10,
 			Block: &alphabill.Block{
 				BlockNo:       1,
 				PrevBlockHash: hash.Sum256([]byte{}),
@@ -80,11 +89,10 @@ func TestSync(t *testing.T) {
 			},
 		},
 	}
-	serviceServer := &testAlphaBillServiceServer{ch: make(chan *alphabill.GetBlocksResponse, 100)}
+	serviceServer.maxBlockHeight = 1
 	for _, block := range blocks {
-		serviceServer.ch <- block
+		serviceServer.blocks[block.Block.BlockNo] = block
 	}
-	serviceServer.CloseChannel()
 	server := startServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
 
@@ -99,15 +107,19 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// when wallet is synced with the node
-	err = w.Sync()
-	require.NoError(t, err)
+	go func() {
+		err := w.Sync()
+		require.NoError(t, err)
+	}()
 
-	// then block height is increased
-	height, err = w.db.GetBlockHeight()
-	require.EqualValues(t, 1, height)
-	require.NoError(t, err)
+	// wait for block to be processed
+	require.Eventually(t, func() bool {
+		height, err := w.db.GetBlockHeight()
+		require.NoError(t, err)
+		return height == 1
+	}, test.WaitDuration, test.WaitTick)
 
-	// and balance is increased
+	// then balance is increased
 	balance, err = w.GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
@@ -118,7 +130,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	_ = testutil.DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
-		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -126,11 +138,10 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
-	serviceServer := &testAlphaBillServiceServer{ch: make(chan *alphabill.GetBlocksResponse, 100)}
+	serviceServer := newTestAlphabillServiceServer()
 	maxBlockHeight := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
-		block := &alphabill.GetBlocksResponse{
-			MaxBlockHeight: maxBlockHeight,
+		block := &alphabill.GetBlockResponse{
 			Block: &alphabill.Block{
 				BlockNo:            blockNo,
 				PrevBlockHash:      hash.Sum256([]byte{}),
@@ -138,9 +149,9 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serviceServer.ch <- block
+		serviceServer.blocks[blockNo] = block
 	}
-	serviceServer.CloseChannel()
+	serviceServer.maxBlockHeight = maxBlockHeight
 	server := startServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
 
@@ -159,44 +170,12 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSendInUnsyncedWallet(t *testing.T) {
-	// setup wallet
-	_ = testutil.DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{
-		DbPath:                os.TempDir(),
-		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
-	)
-	addBill(t, w, 100)
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
-	require.NoError(t, err)
-
-	// start server
-	serviceServer := &testAlphaBillServiceServer{}
-	server := startServer(port, serviceServer)
-	t.Cleanup(server.GracefulStop)
-
-	// verify wallet has not been synced
-	require.Nil(t, w.alphaBillClient)
-
-	// when Send is called in unsynced wallet
-	err = w.Send(make([]byte, 33), 50)
-
-	// then transaction is sent
-	require.NoError(t, err)
-	require.Len(t, serviceServer.processedTxs, 1)
-
-	// and alphabill client has been set
-	require.NotNil(t, w.alphaBillClient)
-}
-
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
 	_ = testutil.DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
-		AlphaBillClientConfig: AlphaBillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -206,8 +185,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	addBill(t, w, 200)
 
 	// start server
-	serverService := &testAlphaBillServiceServer{ch: make(chan *alphabill.GetBlocksResponse, 100)}
-	defer serverService.CloseChannel()
+	serverService := newTestAlphabillServiceServer()
 	server := startServer(port, serverService)
 	t.Cleanup(server.GracefulStop)
 
@@ -215,13 +193,15 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err := w.CollectDust()
+		err = w.CollectDust()
+		if err != nil {
+			fmt.Println(err)
+		}
 		wg.Done()
-		require.NoError(t, err)
 	}()
-	waitForExpectedSwap(w)
 
 	// then dc transactions are sent
+	waitForExpectedSwap(w)
 	require.Len(t, serverService.processedTxs, 2)
 	require.NoError(t, err)
 
@@ -230,10 +210,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	dcNonce := calculateExpectedDcNonce(t, w)
 	require.EqualValues(t, w.dcWg.swaps[*uint256.NewInt(0).SetBytes(dcNonce)], dcTimeoutBlockCount)
 
-	// when dc timeout is reached without receiving dc transfers
+	// when dc timeout is reached
+	serverService.maxBlockHeight = dcTimeoutBlockCount
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
-		block := &alphabill.GetBlocksResponse{
-			MaxBlockHeight: 100,
+		block := &alphabill.GetBlockResponse{
 			Block: &alphabill.Block{
 				BlockNo:            blockNo,
 				PrevBlockHash:      hash.Sum256([]byte{}),
@@ -241,42 +221,35 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serverService.ch <- block
+		serverService.blocks[blockNo] = block
 	}
 
-	// wait for collect dust to finish
-	// database will be closed after this point
+	// then collect dust should finish
 	wg.Wait()
 
-	// then dc wg is cleared
+	// and dc wg is cleared
 	require.Len(t, w.dcWg.swaps, 0)
 }
 
-type testAlphaBillServiceServer struct {
-	pubKey         []byte
-	maxBlockHeight uint64
-	processedTxs   []*transaction.Transaction
-	ch             chan *alphabill.GetBlocksResponse
-	alphabill.UnimplementedAlphaBillServiceServer
+func newTestAlphabillServiceServer() *testAlphabillServiceServer {
+	return &testAlphabillServiceServer{blocks: make(map[uint64]*alphabill.GetBlockResponse, 100)}
 }
 
-func (s *testAlphaBillServiceServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphaBillService_GetBlocksServer) error {
-	for blockResponse := range s.ch {
-		err := stream.Send(blockResponse)
-		if err != nil {
-			log.Printf("error sending block %s", err)
-		}
-	}
-	return nil
-}
-
-func (s *testAlphaBillServiceServer) ProcessTransaction(ctx context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (s *testAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
 	s.processedTxs = append(s.processedTxs, tx)
 	return &transaction.TransactionResponse{Ok: true}, nil
 }
 
-func (s *testAlphaBillServiceServer) CloseChannel() {
-	close(s.ch)
+func (s *testAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
+	res, f := s.blocks[req.BlockNo]
+	if !f {
+		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
+	}
+	return res, nil
+}
+
+func (s *testAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
+	return &alphabill.GetMaxBlockNoResponse{BlockNo: s.maxBlockHeight}, nil
 }
 
 func createBillTransferTx(pubKeyHash []byte) *anypb.Any {
@@ -328,14 +301,14 @@ func createRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
 	return tx
 }
 
-func startServer(port int, alphaBillService *testAlphaBillServiceServer) *grpc.Server {
+func startServer(port int, alphaBillService *testAlphabillServiceServer) *grpc.Server {
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
-	alphabill.RegisterAlphaBillServiceServer(grpcServer, alphaBillService)
+	alphabill.RegisterAlphabillServiceServer(grpcServer, alphaBillService)
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			defer closeListener(lis)

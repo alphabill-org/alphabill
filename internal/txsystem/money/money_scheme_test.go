@@ -454,7 +454,8 @@ func newRandomSwap() *swap {
 
 	// swap tx bill id = hash of dc transfers
 	hasher := crypto.SHA256.New()
-	hasher.Write(dcTransfer.unitId.Bytes())
+	bytes32 := dcTransfer.unitId.Bytes32()
+	hasher.Write(bytes32[:])
 	billId := hasher.Sum(nil)
 
 	// dc transfer nonce must be equal to swap tx id

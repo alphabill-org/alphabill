@@ -19,8 +19,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 )
 
-// state holds the state of the root chain.
-type state struct {
+// State holds the State of the root chain.
+type State struct {
 	roundNumber               uint64                               // current round number
 	previousRoundRootHash     []byte                               // previous round root hash
 	partitionStore            *partitionStore                      // keeps track of partition in the root chain
@@ -32,7 +32,7 @@ type state struct {
 	verifier                  crypto.Verifier
 }
 
-func newStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*state, error) {
+func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, error) {
 	_, verifier, err := GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")
@@ -41,7 +41,7 @@ func newStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*state, 
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 
-	s, err := newStateFromPartitionRecords(g.GetPartitionRecords(), signer, gocrypto.Hash(g.HashAlgorithm))
+	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), signer, gocrypto.Hash(g.HashAlgorithm))
 	if err != nil {
 		return nil, err
 	}
@@ -60,9 +60,9 @@ func newStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*state, 
 	return s, nil
 }
 
-// newStateFromPartitionRecords creates the state from the genesis.PartitionRecord array. The state returned by this
+// NewStateFromPartitionRecords creates the State from the genesis.PartitionRecord array. The State returned by this
 // method is usually used to generate genesis file.
-func newStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer crypto.Signer, hashAlgorithm gocrypto.Hash) (*state, error) {
+func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer crypto.Signer, hashAlgorithm gocrypto.Hash) (*State, error) {
 	if len(partitions) == 0 {
 		return nil, errors.New("partitions not found")
 	}
@@ -98,7 +98,7 @@ func newStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 		logger.Debug("Partition %X initialized.", p.SystemDescriptionRecord.SystemIdentifier)
 	}
 
-	return &state{
+	return &State{
 		roundNumber:               1,
 		previousRoundRootHash:     make([]byte, gocrypto.SHA256.Size()),
 		latestUnicityCertificates: newUnicityCertificateStore(),
@@ -111,12 +111,13 @@ func newStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 	}, nil
 }
 
-func (s *state) handleInputRequestEvent(e *p1.RequestEvent) {
+func (s *State) HandleInputRequestEvent(e *p1.RequestEvent) {
 	if !s.isInputRecordValid(e.Req) && e.ResponseCh != nil {
 		e.ResponseCh <- &p1.P1Response{Status: p1.P1Response_INVALID}
 		return
 	}
 	r := e.Req
+	logger.Debug("handling tx ")
 	identifier := string(r.SystemIdentifier)
 	latestUnicityCertificate := s.latestUnicityCertificates.get(identifier)
 	seal := latestUnicityCertificate.UnicitySeal
@@ -132,8 +133,8 @@ func (s *state) handleInputRequestEvent(e *p1.RequestEvent) {
 		e.ResponseCh <- &p1.P1Response{Status: p1.P1Response_INVALID}
 		return
 	} else if !bytes.Equal(r.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
-		// Extending of unknown state. "ok" status means that response contains the UC
-		logger.Debug("P1 Request extends unknown state. Expected previous hash: %X, got: %X", seal.Hash, r.InputRecord.PreviousHash)
+		// Extending of unknown State. "ok" status means that response contains the UC
+		logger.Debug("P1 Request extends unknown State. Expected previous hash: %X, got: %X", seal.Hash, r.InputRecord.PreviousHash)
 		// "ok" status means that response contains the UC
 		e.ResponseCh <- &p1.P1Response{Status: p1.P1Response_OK, Message: latestUnicityCertificate}
 		return
@@ -157,7 +158,7 @@ func (s *state) handleInputRequestEvent(e *p1.RequestEvent) {
 	s.checkConsensus(identifier)
 }
 
-func (s *state) checkConsensus(identifier string) bool {
+func (s *State) checkConsensus(identifier string) bool {
 	rs := s.incomingRequests[identifier]
 	hash, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(identifier))
 	if hash != nil {
@@ -174,7 +175,7 @@ func (s *state) checkConsensus(identifier string) bool {
 	return false
 }
 
-func (s *state) createUnicityCertificates() ([]string, error) {
+func (s *State) CreateUnicityCertificates() ([]string, error) {
 	data := s.toUnicityTreeData(s.inputRecords)
 	logger.Info("Creating unicity certificates. RoundNr %v, inputRecords: %v", s.roundNumber, len(data))
 	ut, err := unicitytree.New(s.hashAlgorithm.New(), data)
@@ -244,14 +245,14 @@ func (s *state) createUnicityCertificates() ([]string, error) {
 	return systemIdentifiers, nil
 }
 
-// copyOldInputRecords copies input records from the latest unicity certificates to inputRecords.
-func (s *state) copyOldInputRecords(identifier string) {
+// CopyOldInputRecords copies input records from the latest unicity certificates to inputRecords.
+func (s *State) CopyOldInputRecords(identifier string) {
 	if _, f := s.inputRecords[identifier]; !f {
 		s.inputRecords[identifier] = s.latestUnicityCertificates.get(identifier).InputRecord
 	}
 }
 
-func (s *state) toUnicityTreeData(records map[string]*certificates.InputRecord) []*unicitytree.Data {
+func (s *State) toUnicityTreeData(records map[string]*certificates.InputRecord) []*unicitytree.Data {
 	data := make([]*unicitytree.Data, len(records))
 	i := 0
 	for key, r := range records {
@@ -266,7 +267,7 @@ func (s *state) toUnicityTreeData(records map[string]*certificates.InputRecord) 
 	return data
 }
 
-func (s *state) createUnicitySeal(rootHash []byte) (*certificates.UnicitySeal, error) {
+func (s *State) createUnicitySeal(rootHash []byte) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
 		RootChainRoundNumber: s.roundNumber,
 		PreviousHash:         s.previousRoundRootHash,
@@ -275,7 +276,7 @@ func (s *state) createUnicitySeal(rootHash []byte) (*certificates.UnicitySeal, e
 	return u, u.Sign(s.signer)
 }
 
-func (s *state) isInputRecordValid(req *p1.P1Request) bool {
+func (s *State) isInputRecordValid(req *p1.P1Request) bool {
 	if req == nil {
 		logger.Warning("InputRecord is nil")
 		return false
@@ -301,4 +302,8 @@ func (s *state) isInputRecordValid(req *p1.P1Request) bool {
 		return false
 	}
 	return true
+}
+
+func (s *State) GetRoundNumber() uint64 {
+	return s.roundNumber
 }

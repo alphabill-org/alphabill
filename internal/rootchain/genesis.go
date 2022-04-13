@@ -10,8 +10,8 @@ import (
 
 // NewGenesis creates a new genesis for the root chain and each partition.
 func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
-	// initiate state
-	state, err := newStateFromPartitionRecords(partitions, signer, gocrypto.SHA256)
+	// initiate State
+	state, err := NewStateFromPartitionRecords(partitions, signer, gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -25,7 +25,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 	}
 
 	// create unicity certificates
-	if _, err = state.createUnicityCertificates(); err != nil {
+	if _, err = state.CreateUnicityCertificates(); err != nil {
 		return nil, nil, err
 	}
 

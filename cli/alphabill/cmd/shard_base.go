@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
+	"net"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard"
@@ -10,7 +12,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"net"
 )
 
 type baseShardConfiguration struct {
@@ -18,7 +19,7 @@ type baseShardConfiguration struct {
 	Server *grpcServerConfiguration
 }
 
-func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor, blockStore partition.BlockStore) error {
+func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor, blockStore store.BlockStore) error {
 	shardComponent, err := shard.New(converter, stateProcessor, blockStore)
 	if err != nil {
 		return err

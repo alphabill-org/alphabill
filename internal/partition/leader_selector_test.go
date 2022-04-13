@@ -7,13 +7,13 @@ import (
 )
 
 func TestNewLeaderSelector_PeerIsNil(t *testing.T) {
-	ls, err := NewLeaderSelector(nil)
+	ls, err := NewDefaultLeaderSelector(nil)
 	require.ErrorIs(t, err, ErrPeerIsNilIndex)
 	require.Nil(t, ls)
 }
 
 func TestNewLeaderSelector_Ok(t *testing.T) {
-	ls, err := NewLeaderSelector(createPeer(t))
+	ls, err := NewDefaultLeaderSelector(createPeer(t))
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 	require.Equal(t, UnknownLeader, ls.leader.String())
@@ -22,7 +22,7 @@ func TestNewLeaderSelector_Ok(t *testing.T) {
 
 func TestLeaderSelector_SelfID(t *testing.T) {
 	peer := createPeer(t)
-	ls, err := NewLeaderSelector(peer)
+	ls, err := NewDefaultLeaderSelector(peer)
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 	require.Equal(t, peer.ID(), ls.SelfID())
@@ -30,7 +30,7 @@ func TestLeaderSelector_SelfID(t *testing.T) {
 
 func TestLeaderSelector_IsCurrentNodeLeader(t *testing.T) {
 	peer := createPeer(t)
-	ls, err := NewLeaderSelector(peer)
+	ls, err := NewDefaultLeaderSelector(peer)
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 }

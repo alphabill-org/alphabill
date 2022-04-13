@@ -3,10 +3,9 @@ package transaction
 import (
 	"bytes"
 	"crypto"
-	"encoding/base64"
-	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"github.com/holiman/uint256"
 	"hash"
+
+	"github.com/holiman/uint256"
 )
 
 const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
@@ -15,7 +14,6 @@ type (
 	GenericTransaction interface {
 		SystemID() []byte
 		UnitID() *uint256.Int
-		IDHash() string
 		Timeout() uint64
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte
@@ -33,12 +31,6 @@ type (
 
 func (w *wrapper) UnitID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(w.transaction.UnitId)
-}
-
-func (w *wrapper) IDHash() string {
-	bytes32 := w.UnitID().Bytes32()
-	idHash := hasherUtil.Sum256(bytes32[:])
-	return base64.StdEncoding.EncodeToString(idHash)
 }
 
 func (w *wrapper) Timeout() uint64 {

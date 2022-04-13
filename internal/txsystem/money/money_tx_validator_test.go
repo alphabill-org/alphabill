@@ -332,7 +332,8 @@ func newInvalidNonceSwap() *swap {
 func newInvalidTargetBearerSwap() *swap {
 	s := newValidSwap()
 	dc := s.dcTransfers[0].(*transferDC)
-	dc.targetBearer = uint256.NewInt(2).Bytes()
+	bytes32 := uint256.NewInt(2).Bytes32()
+	dc.targetBearer = bytes32[:]
 	return s
 }
 
@@ -341,7 +342,8 @@ func newValidSwap() *swap {
 
 	// swap tx bill id = hash of dc transfers
 	hasher := crypto.SHA256.New()
-	hasher.Write(dcTransfer.unitId.Bytes())
+	bytes32 := dcTransfer.unitId.Bytes32()
+	hasher.Write(bytes32[:])
 	billId := hasher.Sum(nil)
 
 	// dc transfer nonce must be equal to swap tx id

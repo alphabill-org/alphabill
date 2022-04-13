@@ -85,7 +85,8 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 
 	// 5. new bill id is properly computed ι=h(ι1,...,ιm)
 	expectedBillId := hashBillIds(tx, hashAlgorithm)
-	if !bytes.Equal(tx.UnitID().Bytes(), expectedBillId) {
+	unitIdBytes := tx.UnitID().Bytes32()
+	if !bytes.Equal(unitIdBytes[:], expectedBillId) {
 		return ErrSwapInvalidBillId
 	}
 
@@ -95,7 +96,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 	// 7. bill transfer orders contain proper nonce
 	// 8. bill transfer orders contain proper target bearer
 	for _, dcTx := range tx.DCTransfers() {
-		if !bytes.Equal(dcTx.Nonce(), tx.UnitID().Bytes()) {
+		if !bytes.Equal(dcTx.Nonce(), unitIdBytes[:]) {
 			return ErrSwapInvalidNonce
 		}
 		if !bytes.Equal(dcTx.TargetBearer(), tx.OwnerCondition()) {
@@ -114,7 +115,8 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 func hashBillIds(tx Swap, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	for _, billId := range tx.BillIdentifiers() {
-		hasher.Write(billId.Bytes())
+		bytes32 := billId.Bytes32()
+		hasher.Write(bytes32[:])
 	}
 	return hasher.Sum(nil)
 }

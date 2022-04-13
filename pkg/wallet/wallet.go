@@ -133,13 +133,11 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	blockHeight, err := w.db.GetBlockHeight()
+	maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
 	if err != nil {
 		return err
 	}
-	// TODO in case of sending tx from unsynced wallet the timeout could be in the past
-	// we have to get current max block height from node or ensure the wallet is synced beforehand
-	timeout := blockHeight + txTimeoutBlockCount
+	timeout := maxBlockNo + txTimeoutBlockCount
 	if err != nil {
 		return err
 	}
@@ -353,6 +351,10 @@ func (w *Wallet) trySwap() error {
 	if err != nil {
 		return err
 	}
+	maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
+	if err != nil {
+		return err
+	}
 	bills, err := w.db.GetBills()
 	if err != nil {
 		return err
@@ -365,7 +367,7 @@ func (w *Wallet) trySwap() error {
 			return err
 		}
 		if dcMeta != nil && dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
-			timeout := blockHeight + swapTimeoutBlockCount
+			timeout := maxBlockNo + swapTimeoutBlockCount
 			err := w.swapDcBills(billGroup.dcBills, billGroup.dcNonce, timeout)
 			if err != nil {
 				return err
@@ -571,6 +573,10 @@ func (w *Wallet) collectDust(blocking bool) error {
 		if err != nil {
 			return err
 		}
+		maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
+		if err != nil {
+			return err
+		}
 		bills, err := w.db.GetBills()
 		if err != nil {
 			return err
@@ -582,14 +588,17 @@ func (w *Wallet) collectDust(blocking bool) error {
 		dcBillGroups := groupDcBills(bills)
 		if len(dcBillGroups) > 0 {
 			for _, v := range dcBillGroups {
-				newTimeout := blockHeight + swapTimeoutBlockCount
 				if blockHeight >= v.dcTimeout {
-					err := w.swapDcBills(v.dcBills, v.dcNonce, newTimeout)
+					swapTimeout := maxBlockNo + swapTimeoutBlockCount
+					err = w.swapDcBills(v.dcBills, v.dcNonce, swapTimeout)
 					if err != nil {
 						return err
 					}
+					expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: swapTimeout})
+				} else {
+					// expecting to receive swap during dcTimeout
+					expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: v.dcTimeout})
 				}
-				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: newTimeout})
 			}
 		} else {
 			swapInProgress, err := w.isSwapInProgress()
@@ -607,7 +616,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 			}
 
 			dcNonce := calculateDcNonce(bills)
-			dcTimeout := blockHeight + dcTimeoutBlockCount
+			dcTimeout := maxBlockNo + dcTimeoutBlockCount
 			var dcValueSum uint64
 			for _, b := range bills {
 				dcValueSum += b.Value

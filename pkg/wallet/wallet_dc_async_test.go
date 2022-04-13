@@ -13,6 +13,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addDcBills(t, w, nonce, 10)
 	setBlockHeight(t, w, 100)
+	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
 	err := w.collectDust(false)
@@ -43,6 +44,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	addBill(t, w, 1)
 	addDcBill(t, w, nonce, 2, 10)
 	setBlockHeight(t, w, 100)
+	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
 	err := w.collectDust(false)
@@ -70,6 +72,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 	setBlockHeight(t, w, 100)
+	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
 	err := w.collectDust(false)
@@ -110,6 +113,7 @@ func TestDcJobSendsMultipleSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	addDcBill(t, w, nonce1, 1, 10)
 	addDcBill(t, w, nonce2, 2, 10)
 	setBlockHeight(t, w, 10)
+	mockClient.maxBlockNo = 10
 
 	// when dust collector runs
 	err := w.collectDust(false)

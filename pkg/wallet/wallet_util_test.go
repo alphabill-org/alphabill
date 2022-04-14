@@ -76,7 +76,7 @@ func DeleteWallet(w *Wallet) {
 }
 
 func DeleteWalletDb(walletDir string) error {
-	dbFilePath := walletDir + walletFileName
+	dbFilePath := path.Join(walletDir, walletFileName)
 	log.Info("Deleting wallet.db: %v" + dbFilePath)
 	return os.Remove(dbFilePath)
 }

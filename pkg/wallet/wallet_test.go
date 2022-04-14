@@ -12,7 +12,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/tyler-smith/go-bip39"
-	"os"
 	"testing"
 )
 
@@ -116,12 +115,7 @@ func TestWallet_GetPublicKey(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
-	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{DbPath: os.TempDir()})
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
-	require.NoError(t, err)
+	w, _ := CreateTestWallet(t)
 
 	k, err := w.db.GetAccountKey()
 	require.NoError(t, err)

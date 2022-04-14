@@ -33,16 +33,6 @@ type (
 		Value() SummaryValue
 	}
 
-	// SummaryValue is different from UnitData. It is derived from UnitData with UnitData.Value function.
-	SummaryValue interface {
-		// AddToHasher adds the value of summary value to the hasher.
-		AddToHasher(hasher hash.Hash)
-		// Concatenate calculates new SummaryValue by concatenating this, left and right.
-		Concatenate(left, right SummaryValue) SummaryValue
-		// Bytes returns bytes of the SummaryValue
-		Bytes() []byte
-	}
-
 	Unit struct {
 		Bearer    Predicate // The owner predicate of the Item/Node
 		Data      UnitData  // The Data part of the Item/Node

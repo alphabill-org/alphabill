@@ -4,13 +4,13 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/partition"
 
 	"github.com/btcsuite/btcutil/base58"
 
@@ -46,7 +46,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		{
 			name: "client signer is nil",
 			args: args{
-				txSystem: &partition.MockTxSystem{},
+				txSystem: &testtxsystem.CounterTxSystem{},
 				opts:     []Option{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
 			},
 			wantErr: ErrSignerIsNil,
@@ -54,7 +54,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		{
 			name: "invalid system identifier",
 			args: args{
-				txSystem: &partition.MockTxSystem{},
+				txSystem: &testtxsystem.CounterTxSystem{},
 				opts: []Option{
 					WithSystemIdentifier(nil),
 					WithPeerID("1"),
@@ -67,7 +67,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		{
 			name: "peer ID is empty",
 			args: args{
-				txSystem: &partition.MockTxSystem{},
+				txSystem: &testtxsystem.CounterTxSystem{},
 				opts: []Option{
 					WithSystemIdentifier(systemIdentifier),
 					WithSigner(signer),
@@ -101,7 +101,6 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 
 	ir := p1Request.InputRecord
 	expectedHash := make([]byte, 32)
-	expectedHash[0] = 1
 	require.Equal(t, expectedHash, ir.Hash)
 	require.Equal(t, calculateBlockHash(1, systemIdentifier, zeroHash), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
@@ -174,7 +173,7 @@ func TestNewGenesisPartitionRecord_Ok(t *testing.T) {
 
 func createPartitionNode(t *testing.T, signer crypto.Signer, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
-	txSystem := &partition.MockTxSystem{}
+	txSystem := &testtxsystem.CounterTxSystem{}
 	pn, err := NewNodeGenesis(
 		txSystem,
 		WithPeerID(nodeIdentifier),

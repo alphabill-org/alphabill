@@ -17,32 +17,32 @@ var (
 	ErrPeerIsNilIndex     = errors.New("peer is nil")
 )
 
-// LeaderSelector is used to select a leader from the validator pool.
-type LeaderSelector struct {
+// DefaultLeaderSelector is used to select a leader from the validator pool.
+type DefaultLeaderSelector struct {
 	mutex  sync.Mutex
 	leader peer.ID // current leader ID
 	self   *network.Peer
 }
 
-func NewLeaderSelector(self *network.Peer) (*LeaderSelector, error) {
+func NewDefaultLeaderSelector(self *network.Peer) (*DefaultLeaderSelector, error) {
 	if self == nil {
 		return nil, ErrPeerIsNilIndex
 	}
-	return &LeaderSelector{self: self, leader: UnknownLeader}, nil
+	return &DefaultLeaderSelector{self: self, leader: UnknownLeader}, nil
 }
 
-func (l *LeaderSelector) SelfID() peer.ID {
+func (l *DefaultLeaderSelector) SelfID() peer.ID {
 	return l.self.ID()
 }
 
-func (l *LeaderSelector) GetLeader() peer.ID {
+func (l *DefaultLeaderSelector) GetLeader() peer.ID {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	return l.leader
 }
 
 // IsCurrentNodeLeader returns true it current node is the leader and must propose the next block.
-func (l *LeaderSelector) IsCurrentNodeLeader() bool {
+func (l *DefaultLeaderSelector) IsCurrentNodeLeader() bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	logger.Info("leader: %v, current node %v", l.leader, l.self.ID())
@@ -50,7 +50,7 @@ func (l *LeaderSelector) IsCurrentNodeLeader() bool {
 }
 
 // UpdateLeader updates the next block proposer. If input is nil then leader is set to UnknownLeader.
-func (l *LeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
+func (l *DefaultLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 

@@ -3,6 +3,8 @@ package partition
 import (
 	gocrypto "crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -91,11 +93,11 @@ func NewNodeGenesis(txSystem TransactionSystem, opts ...Option) (*genesis.Partit
 	}
 
 	// create the first round of the tx system
-	hash, summaryValue := txSystem.RCompl()
+	hash, summaryValue := txSystem.Init()
 	zeroHash := make([]byte, c.hashAlgorithm.Size())
 
 	// first block
-	b := &Block{
+	b := &block.Block{
 		SystemIdentifier:    c.systemIdentifier,
 		TxSystemBlockNumber: 1,
 		PreviousBlockHash:   zeroHash,

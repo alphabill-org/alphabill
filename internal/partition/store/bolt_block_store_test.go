@@ -1,10 +1,12 @@
-package partition
+package store
 
 import (
 	"fmt"
 	"os"
 	"path"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
@@ -85,8 +87,8 @@ func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
 	require.ErrorIs(t, err, errInvalidBlockNo)
 }
 
-func newDummyBlock(blockNo uint64) *Block {
-	return &Block{
+func newDummyBlock(blockNo uint64) *block.Block {
+	return &block.Block{
 		SystemIdentifier:    []byte{0},
 		TxSystemBlockNumber: blockNo,
 		PreviousBlockHash:   []byte{2},
@@ -106,7 +108,7 @@ func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
 	return NewBoltBlockStore(dbFile)
 }
 
-func verifyBlock(t *testing.T, expected *Block, actual *Block) {
+func verifyBlock(t *testing.T, expected *block.Block, actual *block.Block) {
 	require.EqualValues(t, expected.SystemIdentifier, actual.SystemIdentifier)
 	require.EqualValues(t, expected.TxSystemBlockNumber, actual.TxSystemBlockNumber)
 	require.EqualValues(t, expected.PreviousBlockHash, actual.PreviousBlockHash)

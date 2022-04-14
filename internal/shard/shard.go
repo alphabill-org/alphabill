@@ -3,7 +3,7 @@ package shard
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
@@ -13,7 +13,7 @@ type (
 	shardNode struct {
 		stateProcessor StateProcessor
 		txConverter    TxConverter
-		blockStore     partition.BlockStore
+		blockStore     store.BlockStore
 	}
 	StateProcessor interface {
 		// Process validates and processes a transaction order.
@@ -27,7 +27,7 @@ type (
 // New create a new Shard Component.
 // At the moment it only updates the state. In the future it should synchronize with other shards
 // communicate with Core and Blockchain.
-func New(converter TxConverter, stateProcessor StateProcessor, blockStore partition.BlockStore) (*shardNode, error) {
+func New(converter TxConverter, stateProcessor StateProcessor, blockStore store.BlockStore) (*shardNode, error) {
 	if stateProcessor == nil {
 		return nil, errors.Wrapf(errors.ErrInvalidArgument, errstr.NilArgument)
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
@@ -28,8 +30,8 @@ type (
 		ctxCancel  context.CancelFunc
 		peer       *network.Peer         // p2p network
 		p1Protocol *p1.P1                // P1 protocol handler
-		state      *state                // state of the root chain. keeps everything needed for consensus.
-		timers     *timers               // keeps track of T2 and T3 timers
+		state      *State                // state of the root chain. keeps everything needed for consensus.
+		timers     *timer.Timers         // keeps track of T2 and T3 timers
 		requestsCh chan *p1.RequestEvent // incoming P1 requests channel
 	}
 
@@ -59,7 +61,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 		return nil, ErrPeerIsNil
 	}
 	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
-	s, err := newStateFromGenesis(genesis, signer)
+	s, err := NewStateFromGenesis(genesis, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +74,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 		return nil, err
 	}
 
-	timers := NewTimers()
+	timers := timer.NewTimers()
 	timers.Start(t3TimerID, conf.t3Timeout)
 	for _, p := range genesis.Partitions {
 		for _, validator := range p.Nodes {
@@ -117,14 +119,15 @@ func (rc *RootChain) loop() {
 				continue
 			}
 			WriteDebugJsonLog(logger, "Handling P1 request", e.Req)
-			rc.state.handleInputRequestEvent(e)
+			rc.state.HandleInputRequestEvent(e)
 		case nt := <-rc.timers.C:
 			if nt == nil {
 				continue
 			}
-			if nt.name == t3TimerID {
+			timerName := nt.Name()
+			if timerName == t3TimerID {
 				logger.Debug("Handling T3 timeout")
-				identifiers, err := rc.state.createUnicityCertificates()
+				identifiers, err := rc.state.CreateUnicityCertificates()
 				if err != nil {
 					logger.Warning("round %v failed: %v", rc.state.roundNumber, err)
 				}
@@ -135,9 +138,9 @@ func (rc *RootChain) loop() {
 					rc.timers.Restart(identifier)
 				}
 			} else {
-				logger.Debug("Handling T2 timeout with ID '%X'", []byte(nt.name))
-				rc.state.copyOldInputRecords(nt.name)
-				rc.timers.Restart(nt.name)
+				logger.Debug("Handling T2 timeout with a name '%X'", []byte(timerName))
+				rc.state.CopyOldInputRecords(timerName)
+				rc.timers.Restart(timerName)
 			}
 		}
 	}

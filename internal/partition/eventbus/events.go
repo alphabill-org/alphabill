@@ -1,4 +1,4 @@
-package partition
+package eventbus
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -31,10 +31,10 @@ type (
 
 	// PC1OEvent is a block proposal event. See Alphabill yellowpaper for more information.
 	PC1OEvent struct {
-		SystemIdentifier         []byte
-		NodeIdentifier           peer.ID
-		UnicityCertificateRecord *certificates.UnicityCertificate
-		Transactions             []*transaction.Transaction
+		SystemIdentifier   []byte
+		NodeIdentifier     peer.ID
+		UnicityCertificate *certificates.UnicityCertificate
+		Transactions       []*transaction.Transaction
 	}
 
 	// P1Event is a message sent by the partition node to acquire unicity certificate for the block. See Alphabill
@@ -42,7 +42,7 @@ type (
 	P1Event struct {
 		SystemIdentifier []byte
 		NodeIdentifier   peer.ID
-		lucRoundNumber   uint64
-		inputRecord      *certificates.InputRecord
+		LucRoundNumber   uint64
+		InputRecord      *certificates.InputRecord
 	}
 )

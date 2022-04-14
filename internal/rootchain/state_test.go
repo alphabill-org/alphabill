@@ -66,7 +66,7 @@ func Test_newStateFromGenesis_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := newStateFromGenesis(tt.args.g, tt.args.signer)
+			got, err := NewStateFromGenesis(tt.args.g, tt.args.signer)
 			require.Nil(t, got)
 			require.True(t, strings.Contains(err.Error(), tt.errStg))
 		})
@@ -82,7 +82,7 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 	rootGenesis, _, err := NewGenesis(partitions, rootSigner)
 	require.NoError(t, err)
 
-	s1, err := newStateFromGenesis(rootGenesis, rootSigner)
+	s1, err := NewStateFromGenesis(rootGenesis, rootSigner)
 	require.NoError(t, err)
 
 	s2 := createStateAndExecuteRound(t, partitions, rootSigner)
@@ -99,7 +99,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	_, _, partition1 := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	_, _, partition2 := createPartitionRecord(t, partition2IR, partition2ID, 4)
 
-	s, err := newStateFromPartitionRecords([]*genesis.PartitionRecord{partition1, partition2}, rootSigner, gocrypto.SHA256)
+	s, err := NewStateFromPartitionRecords([]*genesis.PartitionRecord{partition1, partition2}, rootSigner, gocrypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), s.roundNumber)
 	// partition store checks
@@ -126,7 +126,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, partition2IR, s.inputRecords[string(partition2ID)])
 
 	// create certificates
-	_, err = s.createUnicityCertificates()
+	_, err = s.CreateUnicityCertificates()
 	require.NoError(t, err)
 	require.Equal(t, 2, s.latestUnicityCertificates.size())
 	p1UC := s.latestUnicityCertificates.get(string(partition1ID))
@@ -140,7 +140,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.NoError(t, p1UC.IsValid(rootVerifier, s.hashAlgorithm, partition1ID, p1Hash))
 	require.NoError(t, p2UC.IsValid(rootVerifier, s.hashAlgorithm, partition2ID, p2Hash))
 
-	// verify state after the round
+	// verify State after the round
 	require.Equal(t, uint64(2), s.roundNumber)
 	require.Equal(t, p1UC.UnicitySeal.Hash, s.previousRoundRootHash)
 	require.Equal(t, 2, len(s.incomingRequests))
@@ -157,8 +157,8 @@ func TestHandleInputRequestEvent_OlderUnicityCertificate(t *testing.T) {
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
 	req := CreateP1Request(partition1.Validators[0].NodeIdentifier, s, signers[0])
-	s.copyOldInputRecords(string(partition1ID))
-	_, err = s.createUnicityCertificates()
+	s.CopyOldInputRecords(string(partition1ID))
+	_, err = s.CreateUnicityCertificates()
 	resp := SendRequestAndExpectStatus(t, s, req, p1.P1Response_OK)
 	require.Greater(t, resp.Message.UnicitySeal.RootChainRoundNumber, req.RootRoundNumber)
 }
@@ -277,21 +277,21 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 	require.NoError(t, err)
 
 	responseCh := make(chan *p1.P1Response, 1)
-	s.handleInputRequestEvent(&p1.RequestEvent{
+	s.HandleInputRequestEvent(&p1.RequestEvent{
 		Req:        req,
 		ResponseCh: responseCh,
 	})
 	responseCh1 := make(chan *p1.P1Response, 1)
-	s.handleInputRequestEvent(&p1.RequestEvent{
+	s.HandleInputRequestEvent(&p1.RequestEvent{
 		Req:        req1,
 		ResponseCh: responseCh1,
 	})
 	responseCh2 := make(chan *p1.P1Response, 1)
-	s.handleInputRequestEvent(&p1.RequestEvent{
+	s.HandleInputRequestEvent(&p1.RequestEvent{
 		Req:        req2,
 		ResponseCh: responseCh2,
 	})
-	_, err = s.createUnicityCertificates()
+	_, err = s.CreateUnicityCertificates()
 	require.NoError(t, err)
 	assert.Eventually(t, func() bool {
 		res := <-responseCh
@@ -312,15 +312,15 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 	}, 100*time.Millisecond, 50)
 }
 
-func createStateAndExecuteRound(t *testing.T, partitions []*genesis.PartitionRecord, rootSigner *crypto.InMemorySecp256K1Signer) *state {
+func createStateAndExecuteRound(t *testing.T, partitions []*genesis.PartitionRecord, rootSigner *crypto.InMemorySecp256K1Signer) *State {
 	t.Helper()
-	s2, err := newStateFromPartitionRecords(partitions, rootSigner, gocrypto.SHA256)
+	s2, err := NewStateFromPartitionRecords(partitions, rootSigner, gocrypto.SHA256)
 	require.NoError(t, err)
 	for _, p := range partitions {
 		id := string(p.SystemDescriptionRecord.SystemIdentifier)
 		s2.checkConsensus(id)
 	}
-	_, err = s2.createUnicityCertificates()
+	_, err = s2.CreateUnicityCertificates()
 	require.NoError(t, err)
 	return s2
 }
@@ -363,7 +363,7 @@ func createPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID 
 	return
 }
 
-func CreateP1Request(nodeIdentifier string, s *state, signers crypto.Signer) *p1.P1Request {
+func CreateP1Request(nodeIdentifier string, s *State, signers crypto.Signer) *p1.P1Request {
 	req := &p1.P1Request{
 		SystemIdentifier: partition1ID,
 		NodeIdentifier:   nodeIdentifier,
@@ -379,9 +379,9 @@ func CreateP1Request(nodeIdentifier string, s *state, signers crypto.Signer) *p1
 	return req
 }
 
-func SendRequestAndExpectNeverReturns(t *testing.T, s *state, req *p1.P1Request) {
+func SendRequestAndExpectNeverReturns(t *testing.T, s *State, req *p1.P1Request) {
 	responseCh := make(chan *p1.P1Response, 1)
-	s.handleInputRequestEvent(&p1.RequestEvent{
+	s.HandleInputRequestEvent(&p1.RequestEvent{
 		Req:        req,
 		ResponseCh: responseCh,
 	})
@@ -392,10 +392,10 @@ func SendRequestAndExpectNeverReturns(t *testing.T, s *state, req *p1.P1Request)
 	}, 100*time.Millisecond, 50)
 }
 
-func SendRequestAndExpectStatus(t *testing.T, s *state, req *p1.P1Request, status p1.P1Response_Status) *p1.P1Response {
+func SendRequestAndExpectStatus(t *testing.T, s *State, req *p1.P1Request, status p1.P1Response_Status) *p1.P1Response {
 	t.Helper()
 	responseCh := make(chan *p1.P1Response, 1)
-	s.handleInputRequestEvent(&p1.RequestEvent{
+	s.HandleInputRequestEvent(&p1.RequestEvent{
 		Req:        req,
 		ResponseCh: responseCh,
 	})

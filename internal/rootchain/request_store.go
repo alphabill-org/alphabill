@@ -11,7 +11,7 @@ import (
 // requestStore keeps track of received consensus requests.
 type requestStore struct {
 	requests   map[string]*p1.RequestEvent // all received requests. key is node identifier
-	hashCounts map[string]uint             // counts of requests with matching state. key is IR hash string.
+	hashCounts map[string]uint             // counts of requests with matching State. key is IR hash string.
 }
 
 // newRequestStore creates a new empty requestStore.

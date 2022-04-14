@@ -2,10 +2,13 @@ package shard
 
 import (
 	"crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/mock"
@@ -35,7 +38,7 @@ func TestProcessNew_Nil(t *testing.T) {
 func TestProcess_Ok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	tc := new(mocks.TxConverter)
-	bs := partition.NewInMemoryBlockStore()
+	bs := store.NewInMemoryBlockStore()
 	s, err := New(tc, sp, bs)
 	require.NoError(t, err)
 
@@ -48,7 +51,7 @@ func TestProcess_Ok(t *testing.T) {
 func TestProcess_Nok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	tc := new(mocks.TxConverter)
-	bs := partition.NewInMemoryBlockStore()
+	bs := store.NewInMemoryBlockStore()
 	s, err := New(tc, sp, bs)
 	require.NoError(t, err)
 
@@ -61,14 +64,14 @@ func TestProcess_Nok(t *testing.T) {
 func TestGetBlock_Ok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	tc := new(mocks.TxConverter)
-	bs := partition.NewInMemoryBlockStore()
+	bs := store.NewInMemoryBlockStore()
 	s, err := New(tc, sp, bs)
 	require.NoError(t, err)
 
 	// add mock block
-	_ = bs.Add(&partition.Block{
+	_ = bs.Add(&block.Block{
 		TxSystemBlockNumber: 1,
-		UnicityCertificate: &certificates.UnicityCertificate {
+		UnicityCertificate: &certificates.UnicityCertificate{
 			UnicitySeal: &certificates.UnicitySeal{},
 		},
 	})
@@ -81,7 +84,7 @@ func TestGetBlock_Ok(t *testing.T) {
 func TestGetBlock_Nok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	tc := new(mocks.TxConverter)
-	bs := partition.NewInMemoryBlockStore()
+	bs := store.NewInMemoryBlockStore()
 	s, err := New(tc, sp, bs)
 	require.NoError(t, err)
 
@@ -93,12 +96,12 @@ func TestGetBlock_Nok(t *testing.T) {
 func TestGetMaxBlockNo_Ok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	tc := new(mocks.TxConverter)
-	bs := partition.NewInMemoryBlockStore()
+	bs := store.NewInMemoryBlockStore()
 	s, err := New(tc, sp, bs)
 	require.NoError(t, err)
 
 	// add mock block
-	_ = bs.Add(&partition.Block{TxSystemBlockNumber: 1})
+	_ = bs.Add(&block.Block{TxSystemBlockNumber: 1})
 
 	b, err := s.GetMaxBlockNo(&alphabill.GetMaxBlockNoRequest{})
 	require.NoError(t, err)
@@ -108,7 +111,7 @@ func TestGetMaxBlockNo_Ok(t *testing.T) {
 func TestGetMaxBlockNo_Nok(t *testing.T) {
 	sp := new(mocks.StateProcessor)
 	tc := new(mocks.TxConverter)
-	bs := partition.NewInMemoryBlockStore()
+	bs := store.NewInMemoryBlockStore()
 	s, err := New(tc, sp, bs)
 	require.NoError(t, err)
 

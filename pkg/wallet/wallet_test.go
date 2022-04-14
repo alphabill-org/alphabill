@@ -7,7 +7,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -119,12 +118,7 @@ func TestWallet_GetPublicKey(t *testing.T) {
 }
 
 func TestBlockProcessing(t *testing.T) {
-	_ = testutil.DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{DbPath: os.TempDir()})
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
-	require.NoError(t, err)
+	w, _ := CreateTestWallet(t)
 
 	k, err := w.db.GetAccountKey()
 	require.NoError(t, err)

@@ -3,15 +3,11 @@ package unicitytree
 import (
 	"crypto"
 	"crypto/sha256"
-	"hash"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"github.com/stretchr/testify/require"
 )
@@ -74,28 +70,4 @@ func TestGetCertificate_InvalidKey(t *testing.T) {
 
 	require.Nil(t, cert)
 	require.ErrorIs(t, err, ErrInvalidSystemIdentifierLength)
-}
-
-type Uint64SummaryValue uint64
-
-func (t Uint64SummaryValue) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(uint64(t)))
-}
-
-func (t Uint64SummaryValue) Concatenate(left, right state.SummaryValue) state.SummaryValue {
-	var s, l, r uint64
-	s = uint64(t)
-	lSum, ok := left.(Uint64SummaryValue)
-	if ok {
-		l = uint64(lSum)
-	}
-	rSum, ok := right.(Uint64SummaryValue)
-	if ok {
-		r = uint64(rSum)
-	}
-	return Uint64SummaryValue(s + l + r)
-}
-
-func (t Uint64SummaryValue) Bytes() []byte {
-	return util.Uint64ToBytes(uint64(t))
 }

@@ -28,10 +28,10 @@ func TestExtractCertificate_Ok(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, cert)
 		z := calculateZ(key, at)
-		certRoot, summary, err := cert.CompTreeCert(key, z, TestSummaryValue(int(key.Uint64())), crypto.SHA256)
+		certRoot, summary, err := cert.CompTreeCert(key, z, Uint64SummaryValue(int(key.Uint64())), crypto.SHA256)
 		require.NoError(t, err)
 		require.Equal(t, root, certRoot)
-		require.Equal(t, TestSummaryValue(116), summary)
+		require.Equal(t, Uint64SummaryValue(116), summary)
 	}
 }
 
@@ -64,13 +64,13 @@ func TestExtractCertificate_ItemNotFound(t *testing.T) {
 
 func TestCompTreeCert_IdIsNil(t *testing.T) {
 	c := &certificate{}
-	_, _, err := c.CompTreeCert(nil, []byte{}, TestSummaryValue(10), crypto.SHA256)
+	_, _, err := c.CompTreeCert(nil, []byte{}, Uint64SummaryValue(10), crypto.SHA256)
 	require.ErrorIs(t, ErrIdIsNil, err)
 }
 
 func TestCompTreeCert_ZIsNil(t *testing.T) {
 	c := &certificate{}
-	_, _, err := c.CompTreeCert(uint256.NewInt(1), nil, TestSummaryValue(10), crypto.SHA256)
+	_, _, err := c.CompTreeCert(uint256.NewInt(1), nil, Uint64SummaryValue(10), crypto.SHA256)
 	require.ErrorIs(t, ErrZIsNil, err)
 }
 

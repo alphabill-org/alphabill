@@ -41,7 +41,6 @@ func TestNewRootChain_LoadUsingOptions(t *testing.T) {
 	require.NotNil(t, signer)
 	require.NotNil(t, rc)
 	require.NotNil(t, peer)
-	require.EqualValues(t, duration, rc.timers.timers[t3TimerID].duration)
 }
 
 func TestRootChain_SendMultipleRequests(t *testing.T) {

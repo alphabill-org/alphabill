@@ -1,8 +1,11 @@
-package partition
+package store
 
 import (
 	"encoding/binary"
 	"encoding/json"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	bolt "go.etcd.io/bbolt"
 )
@@ -43,7 +46,7 @@ func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 	return bs, nil
 }
 
-func (bs *BoltBlockStore) Add(b *Block) error {
+func (bs *BoltBlockStore) Add(b *block.Block) error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
 		err := bs.verifyBlock(tx, b)
 		if err != nil {
@@ -66,8 +69,8 @@ func (bs *BoltBlockStore) Add(b *Block) error {
 	})
 }
 
-func (bs *BoltBlockStore) Get(blockNumber uint64) (*Block, error) {
-	var block *Block
+func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
+	var block *block.Block
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		blockJson := tx.Bucket(blocksBucket).Get(serializeUint64(blockNumber))
 		if blockJson != nil {
@@ -93,7 +96,7 @@ func (bs *BoltBlockStore) Height() (uint64, error) {
 	return height, nil
 }
 
-func (bs *BoltBlockStore) LatestBlock() (*Block, error) {
+func (bs *BoltBlockStore) LatestBlock() (*block.Block, error) {
 	height, err := bs.Height()
 	if err != nil {
 		return nil, err
@@ -101,7 +104,7 @@ func (bs *BoltBlockStore) LatestBlock() (*Block, error) {
 	return bs.Get(height)
 }
 
-func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *Block) error {
+func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 	latestBlockNo := bs.getLatestBlockNo(tx)
 	if latestBlockNo+1 != b.TxSystemBlockNumber {
 		return errInvalidBlockNo

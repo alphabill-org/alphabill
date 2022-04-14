@@ -3,7 +3,6 @@ package wallet
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/stretchr/testify/require"
 	"os"
 	"path"
@@ -77,7 +76,6 @@ func DeleteWallet(w *Wallet) {
 
 func DeleteWalletDb(walletDir string) error {
 	dbFilePath := path.Join(walletDir, walletFileName)
-	log.Info("Deleting wallet.db: %v" + dbFilePath)
 	return os.Remove(dbFilePath)
 }
 

@@ -418,6 +418,7 @@ func (w *wdb) createBuckets() error {
 func openDb(dbFilePath string, walletPass string, create bool) (*wdb, error) {
 	exists := util.FileExists(dbFilePath)
 	if create && exists {
+		log.Info("wallet.db already exists: ", dbFilePath)
 		return nil, errWalletDbAlreadyExists
 	} else if !create && !exists {
 		return nil, errWalletDbDoesNotExists

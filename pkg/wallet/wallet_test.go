@@ -51,7 +51,7 @@ func TestWalletCanBeCreated(t *testing.T) {
 }
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
-	walletDbPath, err := CopyWalletDBFile()
+	walletDbPath, err := CopyWalletDBFile(t)
 	require.NoError(t, err)
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
@@ -74,13 +74,13 @@ func TestWalletSendFunction(t *testing.T) {
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
 
-	// test errInvalidPubKey
+	// test ErrInvalidPubKey
 	err := w.Send(invalidPubKey, amount)
-	require.ErrorIs(t, err, errInvalidPubKey)
+	require.ErrorIs(t, err, ErrInvalidPubKey)
 
-	// test errInsufficientBalance
+	// test ErrInsufficientBalance
 	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errInsufficientBalance)
+	require.ErrorIs(t, err, ErrInsufficientBalance)
 
 	// test abclient returns error
 	b := bill{
@@ -95,11 +95,11 @@ func TestWalletSendFunction(t *testing.T) {
 	require.Error(t, err, "payment returned error code: some error")
 	mockClient.txResponse = nil
 
-	// test errSwapInProgress
+	// test ErrSwapInProgress
 	nonce := calculateExpectedDcNonce(t, w)
 	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
 	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errSwapInProgress)
+	require.ErrorIs(t, err, ErrSwapInProgress)
 	setDcMetadata(t, w, nonce, nil)
 
 	// test ok response

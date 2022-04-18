@@ -2,18 +2,27 @@ package wallet
 
 import (
 	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 )
 
 const walletPass = "default-wallet-pass"
 
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
-	w, _ := CreateTestWalletFromSeed(t)
+	_ = DeleteWalletDb(os.TempDir())
+	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir(), WalletPass: walletPass})
+	t.Cleanup(func() {
+		DeleteWallet(w)
+	})
+
+	isEncrypted, err := w.db.IsEncrypted()
+	require.NoError(t, err)
+	require.True(t, isEncrypted)
 	verifyTestWallet(t, w)
 }
 
 func TestEncryptedWalletCanBeLoaded(t *testing.T) {
-	walletDbPath, err := CopyEncryptedWalletDBFile()
+	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: walletPass})
@@ -26,16 +35,19 @@ func TestEncryptedWalletCanBeLoaded(t *testing.T) {
 }
 
 func TestLoadingEncryptedWalletWrongPassphrase(t *testing.T) {
-	walletDbPath, err := CopyEncryptedWalletDBFile()
+	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: "wrong passphrase"})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		w.Shutdown()
-	})
+	require.ErrorIs(t, err, ErrInvalidPassword)
+	require.Nil(t, w)
+}
 
-	ac, err := w.db.GetAccountKey()
-	require.Nil(t, ac)
-	require.Errorf(t, err, "error decrypting data (incorrect passphrase?)")
+func TestLoadingEncryptedWalletWithoutPassphrase(t *testing.T) {
+	walletDbPath, err := CopyEncryptedWalletDBFile(t)
+	require.NoError(t, err)
+
+	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
+	require.ErrorIs(t, err, ErrInvalidPassword)
+	require.Nil(t, w)
 }

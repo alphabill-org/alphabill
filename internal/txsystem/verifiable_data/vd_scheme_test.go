@@ -2,11 +2,12 @@ package verifiable_data
 
 import (
 	"crypto"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 const defaultUnicityTrustBase = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
@@ -24,14 +25,6 @@ type (
 		genericTx
 	}
 )
-
-func TestNewVDScheme(t *testing.T) {
-	//state := new(mocks.StateTree)
-	//state.On("")
-
-	_, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
-	require.NoError(t, err)
-}
 
 func TestRegisterData(t *testing.T) {
 	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})

@@ -3,6 +3,7 @@ package txbuffer
 import (
 	"context"
 	gocrypto "crypto"
+	"sync"
 	"testing"
 	"time"
 
@@ -159,9 +160,15 @@ func TestProcess_CancelProcess(t *testing.T) {
 	time.AfterFunc(10*time.Millisecond, func() {
 		cancel()
 	})
-	buffer.Process(context, nil, func(tx *transaction.Transaction) bool {
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	buffer.Process(context, wg, func(tx *transaction.Transaction) bool {
 		return false
 	})
+	require.Eventually(t, func() bool {
+		wg.Wait()
+		return true
+	}, test.WaitDuration, test.WaitTick)
 	require.Equal(t, uint32(1), buffer.Count())
 }
 

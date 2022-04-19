@@ -25,6 +25,9 @@ type Config struct {
 // AlphabillClientConfig configuration options for connecting to alphabill nodes.
 type AlphabillClientConfig struct {
 	Uri string
+
+	// RequestTimeoutMs timeout for RPC request, if not set then requests never expire
+	RequestTimeoutMs uint64
 }
 
 // GetWalletDir returns wallet directory,

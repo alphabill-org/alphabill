@@ -223,13 +223,17 @@ func newWallet(config Config, db Db) (*Wallet, error) {
 		config:           config,
 		dustCollectorJob: cron.New(),
 		dcWg:             newDcWaitGroup(),
-		alphaBillClient:  abclient.New(abclient.AlphabillClientConfig{Uri: config.AlphabillClientConfig.Uri}),
-		syncFlag:         &syncFlagWrapper{},
+		alphaBillClient: abclient.New(abclient.AlphabillClientConfig{
+			Uri:              config.AlphabillClientConfig.Uri,
+			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
+		}),
+		syncFlag: &syncFlagWrapper{},
 	}, nil
 }
 
 // syncLedger downloads and processes blocks
 func (w *Wallet) syncLedger(syncForever bool) error {
+	log.Info("staring synchronization process")
 	if w.syncFlag.isSynchronizing() {
 		log.Warning("wallet is already synchronizing")
 		return nil

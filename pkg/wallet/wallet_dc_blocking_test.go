@@ -159,12 +159,13 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 
 func TestSendingSwapUpdatesDcWaitGroupTimeout(t *testing.T) {
 	// create wallet with dc bill that is timed out
-	w, _ := CreateTestWallet(t)
+	w, mockClient := CreateTestWallet(t)
 	nonce := uint256.NewInt(2)
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2, dcTimeoutBlockCount)
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
 	_ = w.db.SetBlockHeight(dcTimeoutBlockCount)
+	mockClient.maxBlockNo = dcTimeoutBlockCount
 	w.dcWg.addExpectedSwap(expectedSwap{dcNonce: nonce32[:], timeout: dcTimeoutBlockCount})
 
 	// when trySwap is called

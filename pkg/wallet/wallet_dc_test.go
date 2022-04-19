@@ -34,6 +34,8 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	}
 
 	// when the block with dc txs is received
+	swapTimeout := uint64(swapTimeoutBlockCount + 1)
+	mockClient.maxBlockNo = 1
 	block := &alphabill.Block{
 		BlockNo:            1,
 		PrevBlockHash:      hash.Sum256([]byte{}),
@@ -45,7 +47,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 
 	// then metadata is updated
 	verifyBlockHeight(t, w, 1)
-	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 0, DcTimeout: 0, SwapTimeout: 1 + swapTimeoutBlockCount})
+	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 0, DcTimeout: 0, SwapTimeout: swapTimeout})
 
 	// and swap tx is broadcast
 	require.Len(t, mockClient.txs, 3) // 2 dc + 1 swap
@@ -63,6 +65,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	}
 
 	// when further blocks are received
+	mockClient.maxBlockNo = dcTimeoutBlockCount
 	for blockHeight := uint64(2); blockHeight <= dcTimeoutBlockCount; blockHeight++ {
 		block = &alphabill.Block{
 			BlockNo:            blockHeight,
@@ -79,13 +82,14 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 
 	// and only blockHeight is updated
 	verifyBlockHeight(t, w, dcTimeoutBlockCount)
-	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 0, DcTimeout: 0, SwapTimeout: 1 + swapTimeoutBlockCount})
+	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 0, DcTimeout: 0, SwapTimeout: swapTimeout})
 
 	// when swap tx block is received
+	mockClient.maxBlockNo = swapTimeout
 	err = w.db.SetBlockHeight(swapTimeoutBlockCount)
 	require.NoError(t, err)
 	block = &alphabill.Block{
-		BlockNo:            swapTimeoutBlockCount + 1,
+		BlockNo:            swapTimeout,
 		PrevBlockHash:      hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs[2:3], // swap tx
 		UnicityCertificate: &certificates.UnicityCertificate{},
@@ -95,7 +99,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 
 	// then dc metadata is cleared
 	verifyDcMetadataEmpty(t, w, dcNonce)
-	verifyBlockHeight(t, w, swapTimeoutBlockCount+1)
+	verifyBlockHeight(t, w, swapTimeout)
 	verifyBalance(t, w, 3)
 }
 
@@ -109,6 +113,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
 
 	// when dcTimeout is reached
+	mockClient.maxBlockNo = dcTimeoutBlockCount
 	err := w.db.SetBlockHeight(dcTimeoutBlockCount - 1)
 	require.NoError(t, err)
 	block := &alphabill.Block{
@@ -146,6 +151,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2, 10)
 	setBlockHeight(t, w, swapTimeoutBlockCount-1)
+	mockClient.maxBlockNo = swapTimeoutBlockCount
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{SwapTimeout: swapTimeoutBlockCount})
 
 	// when swap timeout is reached

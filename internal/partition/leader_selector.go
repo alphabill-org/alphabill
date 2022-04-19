@@ -3,6 +3,8 @@ package partition
 import (
 	"sync"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -17,18 +19,30 @@ var (
 	ErrPeerIsNilIndex     = errors.New("peer is nil")
 )
 
-// DefaultLeaderSelector is used to select a leader from the validator pool.
-type DefaultLeaderSelector struct {
-	mutex  sync.Mutex
-	leader peer.ID // current leader ID
-	self   *network.Peer
-}
+type (
+	LeaderSelector interface {
+		UpdateLeader(seal *certificates.UnicitySeal)
+		IsCurrentNodeLeader() bool
+		SelfID() peer.ID
+	}
 
-func NewDefaultLeaderSelector(self *network.Peer) (*DefaultLeaderSelector, error) {
+	// DefaultLeaderSelector is used to select a leader from the validator pool.
+	DefaultLeaderSelector struct {
+		mutex    sync.Mutex
+		leader   peer.ID // current leader ID
+		self     *network.Peer
+		eventBus *eventbus.EventBus
+	}
+)
+
+func NewDefaultLeaderSelector(self *network.Peer, eb *eventbus.EventBus) (*DefaultLeaderSelector, error) {
 	if self == nil {
 		return nil, ErrPeerIsNilIndex
 	}
-	return &DefaultLeaderSelector{self: self, leader: UnknownLeader}, nil
+	if eb == nil {
+		return nil, ErrEventBusIsNil
+	}
+	return &DefaultLeaderSelector{self: self, leader: UnknownLeader, eventBus: eb}, nil
 }
 
 func (l *DefaultLeaderSelector) SelfID() peer.ID {
@@ -55,24 +69,33 @@ func (l *DefaultLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	defer l.mutex.Unlock()
 
 	if seal == nil {
-		l.leader = UnknownLeader
+		l.setLeader(UnknownLeader)
+
 		logger.Info("Leader set to unknown")
 		return
 	}
 	peerCount := uint64(len(l.self.Configuration().PersistentPeers))
 	index := seal.RootChainRoundNumber % peerCount
 	if index > peerCount {
-		l.leader = UnknownLeader
+		l.setLeader(UnknownLeader)
 		logger.Warning("Invalid leader index. Leader set to 'unknown'")
 		return
 	}
 	leader, err := l.self.Configuration().PersistentPeers[index].GetID()
 	if err != nil {
-		l.leader = UnknownLeader
+		l.setLeader(UnknownLeader)
 		logger.Warning("Invalid leader index. Leader set to 'unknown'")
 		return
 	}
-	l.leader = leader
+	l.setLeader(leader)
 	logger.Info("New leader is %v", leader)
 	return
+}
+
+func (l *DefaultLeaderSelector) setLeader(leader peer.ID) {
+	l.leader = leader
+	err := l.eventBus.Submit(eventbus.TopicLeaders, eventbus.NewLeaderEvent{NewLeader: l.leader})
+	if err != nil {
+		logger.Warning("Failed to submit leader change event: %v", err)
+	}
 }

@@ -22,11 +22,11 @@ import (
 
 const defaultUnicityTrustBase = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
 
-//func TestVDShard(t *testing.T) {
-//	abApp := New()
-//	abApp.rootCmd.SetArgs([]string{"vd-shard", "--trust-base", defaultUnicityTrustBase})
-//	abApp.Execute(context.Background())
-//}
+func TestVDShard(t *testing.T) {
+	abApp := New()
+	abApp.rootCmd.SetArgs([]string{"vd-shard", "--trust-base", defaultUnicityTrustBase})
+	abApp.Execute(context.Background())
+}
 
 func TestRunVDShard(t *testing.T) {
 	test.MustRunInTime(t, 5*time.Second, func() {

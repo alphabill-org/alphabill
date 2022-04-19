@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
+	"os"
+	"path"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/verifiable_data"
 	"github.com/spf13/cobra"
-	"os"
-	"path"
 )
 
 type (
@@ -57,8 +58,8 @@ func defaultVDShardRunFunc(ctx context.Context, cfg *vdShardConfiguration) error
 	if err != nil {
 		return err
 	}
-	blockStoreFile := path.Join(cfg.Root.HomeDir, "vd", partition.BoltBlockStoreFileName)
-	blockStore, err := partition.NewBoltBlockStore(blockStoreFile)
+	blockStoreFile := path.Join(cfg.Root.HomeDir, "vd", store.BoltBlockStoreFileName)
+	blockStore, err := store.NewBoltBlockStore(blockStoreFile)
 	if err != nil {
 		return err
 	}

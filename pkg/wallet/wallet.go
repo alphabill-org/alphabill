@@ -245,15 +245,11 @@ func (w *Wallet) syncLedger(syncForever bool) error {
 	if err != nil {
 		return err
 	}
-	maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
-	if err != nil {
-		return err
-	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	ch := make(chan *alphabill.Block, prefetchBlockCount)
-	go w.fetchBlocks(syncForever, blockNo, maxBlockNo, ch, &wg)
+	go w.fetchBlocks(syncForever, blockNo, ch, &wg)
 	go func() {
 		err = w.processBlocks(ch)
 		if err != nil {
@@ -272,7 +268,7 @@ func (w *Wallet) syncLedger(syncForever bool) error {
 	return nil
 }
 
-func (w *Wallet) fetchBlocks(syncForever bool, blockNo uint64, maxBlockNo uint64, ch chan<- *alphabill.Block, wg *sync.WaitGroup) {
+func (w *Wallet) fetchBlocks(syncForever bool, blockNo uint64, ch chan<- *alphabill.Block, wg *sync.WaitGroup) {
 	if syncForever {
 		for {
 			maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
@@ -293,14 +289,19 @@ func (w *Wallet) fetchBlocks(syncForever bool, blockNo uint64, maxBlockNo uint64
 			ch <- block
 		}
 	} else {
-		for blockNo < maxBlockNo {
-			blockNo = blockNo + 1
-			block, err := w.alphaBillClient.GetBlock(blockNo)
-			if err != nil {
-				log.Error("error receiving block: ", err)
-				break
+		maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
+		if err != nil {
+			log.Error("error fetching max block no: ", err)
+		} else {
+			for blockNo < maxBlockNo {
+				blockNo = blockNo + 1
+				block, err := w.alphaBillClient.GetBlock(blockNo)
+				if err != nil {
+					log.Error("error receiving block: ", err)
+					break
+				}
+				ch <- block
 			}
-			ch <- block
 		}
 	}
 	log.Info("closing block receiver channel, last received block: " + strconv.FormatUint(blockNo, 10))

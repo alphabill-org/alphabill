@@ -2,13 +2,15 @@ package wallet
 
 import (
 	"crypto"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
@@ -351,22 +353,22 @@ func verifyBalance(t *testing.T, w *Wallet, balance uint64) {
 	require.EqualValues(t, balance, actualDcNonce)
 }
 
-func parseBillTransferTx(t *testing.T, tx *transaction.Transaction) *transaction.BillTransfer {
-	btTx := &transaction.BillTransfer{}
+func parseBillTransferTx(t *testing.T, tx *transaction.Transaction) *billtx.BillTransfer {
+	btTx := &billtx.BillTransfer{}
 	err := tx.TransactionAttributes.UnmarshalTo(btTx)
 	require.NoError(t, err)
 	return btTx
 }
 
-func parseDcTx(t *testing.T, tx *transaction.Transaction) *transaction.TransferDC {
-	dcTx := &transaction.TransferDC{}
+func parseDcTx(t *testing.T, tx *transaction.Transaction) *billtx.TransferDC {
+	dcTx := &billtx.TransferDC{}
 	err := tx.TransactionAttributes.UnmarshalTo(dcTx)
 	require.NoError(t, err)
 	return dcTx
 }
 
-func parseSwapTx(t *testing.T, tx *transaction.Transaction) *transaction.Swap {
-	txSwap := &transaction.Swap{}
+func parseSwapTx(t *testing.T, tx *transaction.Transaction) *billtx.Swap {
+	txSwap := &billtx.Swap{}
 	err := tx.TransactionAttributes.UnmarshalTo(txSwap)
 	require.NoError(t, err)
 	return txSwap

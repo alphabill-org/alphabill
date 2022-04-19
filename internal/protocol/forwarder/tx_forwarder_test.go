@@ -7,7 +7,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/peerstore"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
 

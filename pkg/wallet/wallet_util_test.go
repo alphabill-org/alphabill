@@ -1,12 +1,13 @@
 package wallet
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"github.com/stretchr/testify/require"
 )
 
 type mockAlphabillClient struct {

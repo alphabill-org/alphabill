@@ -6,10 +6,12 @@ import (
 	"os"
 	"path"
 
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
@@ -72,7 +74,7 @@ func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardR
 }
 
 func (r *moneyShardTxConverter) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	return transaction.NewMoneyTx(tx)
+	return billtx.NewMoneyTx(tx)
 }
 
 func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfiguration) error {

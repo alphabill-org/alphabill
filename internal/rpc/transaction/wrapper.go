@@ -5,29 +5,20 @@ import (
 	"crypto"
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+
 	"github.com/holiman/uint256"
 )
 
 const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
 
-type (
-	GenericTransaction interface {
-		SystemID() []byte
-		UnitID() *uint256.Int
-		Timeout() uint64
-		OwnerProof() []byte
-		Hash(hashFunc crypto.Hash) []byte
-		SigBytes() []byte
-	}
-
-	wrapper struct {
-		transaction *Transaction
-		hashFunc    crypto.Hash
-		hashValue   []byte
-	}
-)
-
-// GeneralTransaction interface
+type wrapper struct {
+	transaction *transaction.Transaction
+	hashFunc    crypto.Hash
+	hashValue   []byte
+}
 
 func (w *wrapper) UnitID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(w.transaction.UnitId)
@@ -48,14 +39,14 @@ func (w *wrapper) OwnerProof() []byte {
 func (w *wrapper) sigBytes(b bytes.Buffer) {
 	b.Write(w.transaction.SystemId)
 	b.Write(w.transaction.UnitId)
-	b.Write(Uint64ToBytes(w.transaction.Timeout))
+	b.Write(util.Uint64ToBytes(w.transaction.Timeout))
 }
 
 func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(w.transaction.SystemId)
 	hasher.Write(w.transaction.UnitId)
 	hasher.Write(w.transaction.OwnerProof)
-	hasher.Write(Uint64ToBytes(w.transaction.Timeout))
+	hasher.Write(util.Uint64ToBytes(w.transaction.Timeout))
 }
 
 func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {

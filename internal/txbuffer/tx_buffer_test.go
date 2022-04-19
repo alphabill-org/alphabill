@@ -10,7 +10,7 @@ import (
 
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"github.com/stretchr/testify/require"
 )
@@ -120,7 +120,9 @@ func TestRemove_Ok(t *testing.T) {
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 
-	err = buffer.Remove(string(tx.Hash(gocrypto.SHA256)))
+	hash, err := tx.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+	err = buffer.Remove(string(hash))
 	require.NoError(t, err)
 	require.Equal(t, zero, buffer.Count())
 	require.Equal(t, zero, uint32(len(buffer.transactions)))
@@ -136,7 +138,7 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 	err = buffer.Add(newRandomTx(t))
 	require.NoError(t, err)
 	var c int
-	go buffer.Process(context.Background(), func(tx transaction.GenericTransaction) bool {
+	go buffer.Process(context.Background(), nil, func(tx *transaction.Transaction) bool {
 		c++
 		return true
 	})
@@ -157,15 +159,13 @@ func TestProcess_CancelProcess(t *testing.T) {
 	time.AfterFunc(10*time.Millisecond, func() {
 		cancel()
 	})
-	buffer.Process(context, func(tx transaction.GenericTransaction) bool {
+	buffer.Process(context, nil, func(tx *transaction.Transaction) bool {
 		return false
 	})
 	require.Equal(t, uint32(1), buffer.Count())
 }
 
-func newRandomTx(t *testing.T) transaction.GenericTransaction {
+func newRandomTx(t *testing.T) *transaction.Transaction {
 	t.Helper()
-	tx, err := transaction.NewMoneyTx(testtransaction.RandomBillTransfer())
-	require.NoError(t, err)
-	return tx
+	return testtransaction.RandomBillTransfer()
 }

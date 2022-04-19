@@ -2,7 +2,7 @@ package eventbus
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -11,6 +11,8 @@ const (
 	TopicPartitionUnicityCertificate = "partition.certificates"
 	// TopicPartitionTransaction topic is used to receive transactions from wallets or other partition nodes.
 	TopicPartitionTransaction = "partition.transactions"
+	// TopicLeaders is used to receive leader change events.
+	TopicLeaders = "partition.leaders"
 	// TopicPC1O is used to send and receive block proposals.
 	TopicPC1O = "partition.PC1-O"
 	// TopicP1 is used to send block certification requests to the root chain
@@ -27,6 +29,10 @@ type (
 	// TransactionEvent contains a transaction that will be handled by the partition block proposal component.
 	TransactionEvent struct {
 		Transaction *transaction.Transaction
+	}
+
+	NewLeaderEvent struct {
+		NewLeader peer.ID
 	}
 
 	// PC1OEvent is a block proposal event. See Alphabill yellowpaper for more information.

@@ -3,8 +3,12 @@ package transaction
 import (
 	"bytes"
 	"crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"hash"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"github.com/holiman/uint256"
@@ -35,7 +39,7 @@ type (
 )
 
 // NewMoneyTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
-func NewMoneyTx(tx *Transaction) (GenericTransaction, error) {
+func NewMoneyTx(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
 	switch tx.TransactionAttributes.TypeUrl {
 	case protobufTypeUrlPrefix + "BillTransfer":
 		pb := &BillTransfer{}
@@ -103,7 +107,7 @@ func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
 
 	hasher.Write(w.transfer.NewBearer)
-	hasher.Write(Uint64ToBytes(w.transfer.TargetValue))
+	hasher.Write(util.Uint64ToBytes(w.transfer.TargetValue))
 	hasher.Write(w.transfer.Backlink)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
@@ -143,9 +147,9 @@ func (w *billSplitWrapper) Hash(hashFunc crypto.Hash) []byte {
 }
 
 func (w *billSplitWrapper) addAttributesToHasher(hasher hash.Hash) {
-	hasher.Write(Uint64ToBytes(w.billSplit.Amount))
+	hasher.Write(util.Uint64ToBytes(w.billSplit.Amount))
 	hasher.Write(w.billSplit.TargetBearer)
-	hasher.Write(Uint64ToBytes(w.billSplit.RemainingValue))
+	hasher.Write(util.Uint64ToBytes(w.billSplit.RemainingValue))
 	hasher.Write(w.billSplit.Backlink)
 }
 
@@ -169,7 +173,7 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 		hasher.Write(p)
 	}
 
-	hasher.Write(Uint64ToBytes(w.swap.TargetValue))
+	hasher.Write(util.Uint64ToBytes(w.swap.TargetValue))
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
@@ -180,7 +184,7 @@ func (w *transferWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.wrapper.sigBytes(b)
 	b.Write(w.NewBearer())
-	b.Write(Uint64ToBytes(w.TargetValue()))
+	b.Write(util.Uint64ToBytes(w.TargetValue()))
 	b.Write(w.Backlink())
 	return b.Bytes()
 }
@@ -190,7 +194,7 @@ func (w *transferDCWrapper) SigBytes() []byte {
 	w.wrapper.sigBytes(b)
 	b.Write(w.Nonce())
 	b.Write(w.TargetBearer())
-	b.Write(Uint64ToBytes(w.TargetValue()))
+	b.Write(util.Uint64ToBytes(w.TargetValue()))
 	b.Write(w.Backlink())
 	return b.Bytes()
 }
@@ -198,9 +202,9 @@ func (w *transferDCWrapper) SigBytes() []byte {
 func (w *billSplitWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.wrapper.sigBytes(b)
-	b.Write(Uint64ToBytes(w.Amount()))
+	b.Write(util.Uint64ToBytes(w.Amount()))
 	b.Write(w.TargetBearer())
-	b.Write(Uint64ToBytes(w.RemainingValue()))
+	b.Write(util.Uint64ToBytes(w.RemainingValue()))
 	b.Write(w.Backlink())
 	return b.Bytes()
 }
@@ -219,14 +223,14 @@ func (w *swapWrapper) SigBytes() []byte {
 	for _, proof := range w.Proofs() {
 		b.Write(proof)
 	}
-	b.Write(Uint64ToBytes(w.TargetValue()))
+	b.Write(util.Uint64ToBytes(w.TargetValue()))
 	return b.Bytes()
 }
 
 func (x *TransferDC) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
 	hasher.Write(x.TargetBearer)
-	hasher.Write(Uint64ToBytes(x.TargetValue))
+	hasher.Write(util.Uint64ToBytes(x.TargetValue))
 	hasher.Write(x.Backlink)
 }
 
@@ -250,7 +254,7 @@ func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	idBytes := w.UnitID().Bytes32()
 	hasher.Write(idBytes[:])
 	w.addAttributesToHasher(hasher)
-	hasher.Write(Uint64ToBytes(w.Timeout()))
+	hasher.Write(util.Uint64ToBytes(w.Timeout()))
 	return hasher.Sum(nil)
 }
 

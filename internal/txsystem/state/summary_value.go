@@ -7,8 +7,10 @@ import (
 )
 
 type (
+
 	// SummaryValue is different from UnitData. It is derived from UnitData with UnitData.Value function.
 	SummaryValue interface {
+
 		// AddToHasher adds the value of summary value to the hasher.
 		AddToHasher(hasher hash.Hash)
 		// Concatenate calculates new SummaryValue by concatenating this, left and right.

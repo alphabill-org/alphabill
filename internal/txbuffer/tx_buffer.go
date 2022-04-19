@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"sync"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
@@ -24,14 +24,14 @@ type (
 
 	// TxBuffer is an in-memory data structure containing the set of unconfirmed transactions.
 	TxBuffer struct {
-		mutex         sync.Mutex                                // mutex for locks
-		transactions  map[string]transaction.GenericTransaction // map containing valid pending transactions.
-		count         uint32                                    // number of transactions in the tx-buffer
-		maxSize       uint32                                    // maximum TxBuffer size.
+		mutex         sync.Mutex                          // mutex for locks
+		transactions  map[string]*transaction.Transaction // map containing valid pending transactions.
+		count         uint32                              // number of transactions in the tx-buffer
+		maxSize       uint32                              // maximum TxBuffer size.
 		hashAlgorithm gocrypto.Hash
 	}
 
-	TxHandler func(tx transaction.GenericTransaction) bool
+	TxHandler func(tx *transaction.Transaction) bool
 )
 
 // New creates a new instance of the TxBuffer. MaxSize specifies the total number of transactions the TxBuffer may
@@ -43,13 +43,13 @@ func New(maxSize uint32, hashAlgorithm gocrypto.Hash) (*TxBuffer, error) {
 	return &TxBuffer{
 		maxSize:       maxSize,
 		hashAlgorithm: hashAlgorithm,
-		transactions:  make(map[string]transaction.GenericTransaction),
+		transactions:  make(map[string]*transaction.Transaction),
 	}, nil
 }
 
 // Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
 // already present in the TxBuffer, or TxBuffer is full.
-func (t *TxBuffer) Add(tx transaction.GenericTransaction) error {
+func (t *TxBuffer) Add(tx *transaction.Transaction) error {
 	if tx == nil {
 		return ErrTxIsNil
 	}
@@ -60,7 +60,10 @@ func (t *TxBuffer) Add(tx transaction.GenericTransaction) error {
 		return ErrTxBufferFull
 	}
 
-	txHash := tx.Hash(t.hashAlgorithm)
+	txHash, err := tx.Hash(t.hashAlgorithm)
+	if err != nil {
+		return err
+	}
 	txId := string(txHash)
 	_, found := t.transactions[txId]
 	if found {
@@ -71,17 +74,15 @@ func (t *TxBuffer) Add(tx transaction.GenericTransaction) error {
 	return nil
 }
 
-func (t *TxBuffer) Process(ctx context.Context, process TxHandler) {
+func (t *TxBuffer) Process(ctx context.Context, wg *sync.WaitGroup, process TxHandler) {
 	for {
 		select {
 		case <-ctx.Done():
-			// TODO log done
+			wg.Done()
 			return
 		default:
-			// by default process the first transaction
 			if id, tx := t.getNext(); tx != nil {
 				if !process(tx) {
-					// TODO log processing failed
 					continue
 				}
 				t.Remove(id)
@@ -92,17 +93,17 @@ func (t *TxBuffer) Process(ctx context.Context, process TxHandler) {
 }
 
 // GetAll returns all transactions from the TxBuffer. All returned transactions are removed from the TxBuffer.
-func (t *TxBuffer) GetAll() []transaction.GenericTransaction {
+func (t *TxBuffer) GetAll() []*transaction.Transaction {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	values := make([]transaction.GenericTransaction, t.count)
+	values := make([]*transaction.Transaction, t.count)
 
 	var i uint32 = 0
 	for _, v := range t.transactions {
 		values[i] = v
 		i++
 	}
-	t.transactions = make(map[string]transaction.GenericTransaction)
+	t.transactions = make(map[string]*transaction.Transaction)
 	t.count = 0
 	return values
 }
@@ -128,7 +129,7 @@ func (t *TxBuffer) Count() uint32 {
 }
 
 // getNext returns a transaction from the buffer
-func (t *TxBuffer) getNext() (string, transaction.GenericTransaction) {
+func (t *TxBuffer) getNext() (string, *transaction.Transaction) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	if t.count == 0 {

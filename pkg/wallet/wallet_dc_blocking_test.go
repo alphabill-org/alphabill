@@ -1,18 +1,20 @@
 package wallet
 
 import (
+	"sync"
+	"testing"
+	"time"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestBlockingDcWithNormalBills(t *testing.T) {
@@ -230,7 +232,7 @@ func waitForExpectedSwap(w *Wallet) {
 }
 
 func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*transaction.Transaction) *anypb.Any {
-	tx, _ := anypb.New(&transaction.Swap{
+	tx, _ := anypb.New(&billtx.Swap{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     dcTxs,

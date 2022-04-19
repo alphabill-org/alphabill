@@ -3,9 +3,11 @@ package block
 import (
 	"crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 )
 
 // Block is a set of transactions, grouped together for mostly efficiency reasons. At partition level a block is an
@@ -24,7 +26,7 @@ type Block struct {
 func (b Block) Hash(hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	hasher.Write(b.SystemIdentifier)
-	hasher.Write(transaction.Uint64ToBytes(b.TxSystemBlockNumber))
+	hasher.Write(util.Uint64ToBytes(b.TxSystemBlockNumber))
 	hasher.Write(b.PreviousBlockHash)
 	// TODO continue implementing after task AB-129
 	/*for _, tx := range b.Transactions {

@@ -3,9 +3,11 @@ package testtxsystem
 import (
 	"encoding/binary"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 )
 
 type CounterTxSystem struct {
@@ -20,10 +22,25 @@ type CounterTxSystem struct {
 	BeginBlockCountDelta uint64
 }
 
-func (m *CounterTxSystem) Init() ([]byte, state.SummaryValue) {
+type Summary struct {
+	root    []byte
+	summary []byte
+}
+
+func (s *Summary) Root() []byte {
+	return s.root
+}
+
+func (s *Summary) Summary() []byte {
+	return s.summary
+}
+
+func (m *CounterTxSystem) Init() txsystem.State {
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, m.InitCount)
-	return bytes, state.Uint64SummaryValue(m.SummaryValue)
+	return &Summary{
+		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
+	}
 }
 
 func (m *CounterTxSystem) BeginBlock() {
@@ -36,11 +53,13 @@ func (m *CounterTxSystem) Revert() {
 	m.RevertCount++
 }
 
-func (m *CounterTxSystem) EndBlock() ([]byte, state.SummaryValue) {
+func (m *CounterTxSystem) EndBlock() txsystem.State {
 	m.EndBlockCountDelta++
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, m.EndBlockCount+m.EndBlockCountDelta)
-	return bytes, state.Uint64SummaryValue(m.SummaryValue)
+	return &Summary{
+		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
+	}
 }
 
 func (m *CounterTxSystem) Commit() {

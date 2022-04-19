@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
@@ -32,9 +32,11 @@ type (
 	// TxForwarder sends transactions to the expected leader.
 	TxForwarder struct {
 		self               *network.Peer
-		transactionHandler func(tx *transaction.Transaction)
+		transactionHandler TxHandler
 		timeout            time.Duration
 	}
+
+	TxHandler func(tx *transaction.Transaction)
 )
 
 func New(self *network.Peer, timeout time.Duration, transactionHandler func(tx *transaction.Transaction)) (*TxForwarder, error) {

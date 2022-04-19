@@ -2,8 +2,12 @@ package transaction
 
 import (
 	"crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
@@ -112,11 +116,11 @@ func TestWrapper_Split(t *testing.T) {
 	hasher := crypto.SHA256.New()
 	idBytes := split.UnitID().Bytes32()
 	hasher.Write(idBytes[:])
-	hasher.Write(Uint64ToBytes(split.Amount()))
+	hasher.Write(util.Uint64ToBytes(split.Amount()))
 	hasher.Write(split.TargetBearer())
-	hasher.Write(Uint64ToBytes(split.RemainingValue()))
+	hasher.Write(util.Uint64ToBytes(split.RemainingValue()))
 	hasher.Write(split.Backlink())
-	hasher.Write(Uint64ToBytes(split.Timeout()))
+	hasher.Write(util.Uint64ToBytes(split.Timeout()))
 	expectedPrndSh := hasher.Sum(nil)
 
 	require.Equal(t, expectedPrndSh, actualPrndSh)
@@ -129,7 +133,7 @@ func TestWrapper_Swap(t *testing.T) {
 		pbSwap                  = newPBSwap(
 			test.RandomBytes(32),
 			[][]byte{test.RandomBytes(10)},
-			[]*Transaction{pbTransferDCTransaction},
+			[]*transaction.Transaction{pbTransferDCTransaction},
 			[][]byte{test.RandomBytes(32)},
 			777)
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbSwap)
@@ -158,7 +162,7 @@ func TestWrapper_Swap(t *testing.T) {
 }
 
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
-func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransaction *Transaction, transfer money.TransferDC) {
+func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransaction *transaction.Transaction, transfer money.TransferDC) {
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
 	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitID())
 	require.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
@@ -172,8 +176,8 @@ func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDC, pbTransacti
 	assert.NotEmpty(t, transfer.SigBytes())
 }
 
-func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *Transaction {
-	to := &Transaction{
+func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *transaction.Transaction {
+	to := &transaction.Transaction{
 		SystemId:              test.RandomBytes(4),
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
@@ -213,7 +217,7 @@ func newPBBillSplit(amount uint64, targetBearer []byte, remainingValue uint64, b
 	}
 }
 
-func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*Transaction, proofs [][]byte, targetValue uint64) *Swap {
+func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*transaction.Transaction, proofs [][]byte, targetValue uint64) *Swap {
 	return &Swap{
 		OwnerCondition:  ownerCondition,
 		BillIdentifiers: billIdentifiers,

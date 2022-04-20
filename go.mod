@@ -2,16 +2,6 @@ module gitdc.ee.guardtime.com/alphabill/alphabill
 
 go 1.18
 
-replace github.com/coreos/etcd => github.com/coreos/etcd v3.3.24+incompatible
-
-replace go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20190108173120-83c051b701d3
-
-replace github.com/apache/thrift => github.com/apache/thrift v0.14.0
-
-replace github.com/buger/jsonparser => github.com/buger/jsonparser v1.1.1
-
-replace github.com/microcosm-cc/bluemonday => github.com/microcosm-cc/bluemonday v1.0.16
-
 require (
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
@@ -25,10 +15,10 @@ require (
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/robfig/cron/v3 v3.0.0
 	github.com/rs/zerolog v1.26.1
-	github.com/spf13/cobra v1.3.0
+	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.10.1
-	github.com/stretchr/testify v1.7.0
+	github.com/spf13/viper v1.11.0
+	github.com/stretchr/testify v1.7.1
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
 	github.com/vektra/mockery/v2 v2.10.0
 	go.etcd.io/bbolt v1.3.6
@@ -43,7 +33,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/magiconair/properties v1.8.5 // indirect
+	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
@@ -54,7 +44,7 @@ require (
 	golang.org/x/net v0.0.0-20220418201149-a630d4f3e7a2 // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
+	google.golang.org/genproto v0.0.0-20220407144326-9054f6ed7bac // indirect
 )
 
 require (
@@ -142,6 +132,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.0-beta.8 // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.33.0 // indirect
@@ -150,7 +141,7 @@ require (
 	github.com/raulk/go-watchdog v1.2.0 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/spf13/afero v1.8.1 // indirect
+	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.3.0 // indirect

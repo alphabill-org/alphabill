@@ -154,7 +154,7 @@ func createNodes(t *testing.T, nrOfNodes int, leader *network.Peer) ([]*PC1O, []
 		require.NoError(t, err)
 
 		leaderPeers = append(leaderPeers, &network.PeerInfo{
-			Address:   fmt.Sprintf("%v", peer.MultiAddresses()[0]),
+			Address:   fmt.Sprintf("%v", peer.MultiAddresses()),
 			PublicKey: pubKeyBytes,
 		})
 		leader.Network().Peerstore().SetAddrs(peer.ID(), peer.MultiAddresses(), peerstore.PermanentAddrTTL)

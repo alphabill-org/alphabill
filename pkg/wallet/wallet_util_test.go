@@ -3,9 +3,9 @@ package wallet
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"os"
+	"path"
 	"testing"
 )
 
@@ -41,7 +41,7 @@ func (c *mockAlphabillClient) IsShutdown() bool {
 }
 
 func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	c := Config{DbPath: os.TempDir()}
 	w, err := CreateNewWallet(c)
 	t.Cleanup(func() {
@@ -55,7 +55,7 @@ func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 }
 
 func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphabillClient) {
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir()})
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -72,4 +72,40 @@ func DeleteWallet(w *Wallet) {
 		w.Shutdown()
 		w.DeleteDb()
 	}
+}
+
+func DeleteWalletDb(walletDir string) error {
+	dbFilePath := path.Join(walletDir, walletFileName)
+	return os.Remove(dbFilePath)
+}
+
+func CopyWalletDBFile() (string, error) {
+	wd, _ := os.Getwd()
+	srcDir := path.Join(wd, "testdata", "wallet")
+	return copyWalletDB(srcDir)
+}
+
+func CopyEncryptedWalletDBFile() (string, error) {
+	wd, _ := os.Getwd()
+	srcDir := path.Join(wd, "testdata", "wallet", "encrypted")
+	return copyWalletDB(srcDir)
+}
+
+func copyWalletDB(srcDir string) (string, error) {
+	dstDir := os.TempDir()
+	srcFile := path.Join(srcDir, walletFileName)
+	dstFile := path.Join(dstDir, walletFileName)
+	return dstDir, copyFile(srcFile, dstFile)
+}
+
+func copyFile(src string, dst string) error {
+	srcBytes, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(dst, srcBytes, 0700)
+	if err != nil {
+		return err
+	}
+	return nil
 }

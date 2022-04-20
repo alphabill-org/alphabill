@@ -12,8 +12,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/tyler-smith/go-bip39"
-	"os"
-	"path"
 	"testing"
 )
 
@@ -53,9 +51,8 @@ func TestWalletCanBeCreated(t *testing.T) {
 }
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
-	wd, err := os.Getwd()
+	walletDbPath, err := CopyWalletDBFile()
 	require.NoError(t, err)
-	walletDbPath := path.Join(wd, "testdata", "wallet")
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
 	require.NoError(t, err)

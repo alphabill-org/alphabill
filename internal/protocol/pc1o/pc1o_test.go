@@ -23,7 +23,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 )
 
-const defaultTimeout = 100 * time.Millisecond
+const defaultTimeout = 300 * time.Millisecond
 
 var emptyPC1ORequest = &PC1ORequest{
 	SystemIdentifier:   nil,

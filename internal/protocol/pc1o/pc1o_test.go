@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	golog "github.com/ipfs/go-log"
+
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 
 	"google.golang.org/protobuf/proto"
@@ -41,6 +43,10 @@ func (p *pcs1oRequest) r(req *PC1ORequest) {
 		time.Sleep(10 * time.Second)
 	}
 	p.req = req
+}
+
+func init() {
+	golog.SetAllLoggers(golog.LevelDebug) // change this to Debug if libp2p logs are needed
 }
 
 func TestNew(t *testing.T) {

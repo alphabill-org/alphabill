@@ -171,6 +171,8 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 
 // Sync synchronises wallet with given alphabill node and starts dust collector background job,
 // it blocks forever or until alphabill connection is terminated. This function should only be called ONCE.
+// Any errors returned here mean that the synchronization process failed to initialize,
+// if rpc connection is terminated then no error is returned.
 func (w *Wallet) Sync() error {
 	_, err := w.startDustCollectorJob()
 	if err != nil {
@@ -231,9 +233,9 @@ func newWallet(config Config, db Db) (*Wallet, error) {
 	}, nil
 }
 
-// syncLedger downloads and processes blocks
+// syncLedger downloads and processes blocks, blocks until error in rpc connection
 func (w *Wallet) syncLedger(syncForever bool) error {
-	log.Info("staring synchronization process")
+	log.Info("starting ledger synchronization process")
 	if w.syncFlag.isSynchronizing() {
 		log.Warning("wallet is already synchronizing")
 		return nil

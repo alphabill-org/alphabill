@@ -257,13 +257,9 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wall
 	if err != nil {
 		return nil, err
 	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{
+	return wallet.LoadExistingWallet(wallet.Config{
 		DbPath:                walletDir,
 		WalletPass:            walletPass,
 		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
 	})
-	if err != nil {
-		return nil, err
-	}
-	return w, err
 }

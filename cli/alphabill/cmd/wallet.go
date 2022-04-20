@@ -97,16 +97,7 @@ func execSyncCmd(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
-	password, err := cmd.Flags().GetString("password")
-	if err != nil {
-		return err
-	}
-	w, err := wallet.LoadExistingWallet(
-		wallet.Config{
-			DbPath:                walletDir,
-			WalletPass:            password,
-			AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
-		})
+	w, err := loadExistingWallet(cmd, walletDir, uri)
 	if err != nil {
 		return err
 	}
@@ -131,19 +122,11 @@ func sendCmd(rootConfig *rootConfiguration) *cobra.Command {
 }
 
 func execSendCmd(cmd *cobra.Command, walletDir string) error {
-	password, err := cmd.Flags().GetString("password")
-	if err != nil {
-		return err
-	}
 	uri, err := cmd.Flags().GetString("alphabill-uri")
 	if err != nil {
 		return err
 	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{
-		DbPath:                walletDir,
-		WalletPass:            password,
-		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
-	})
+	w, err := loadExistingWallet(cmd, walletDir, uri)
 	if err != nil {
 		return err
 	}
@@ -181,11 +164,7 @@ func getBalanceCmd(rootConfig *rootConfiguration) *cobra.Command {
 }
 
 func execGetBalanceCmd(cmd *cobra.Command, walletDir string) error {
-	password, err := cmd.Flags().GetString("password")
-	if err != nil {
-		return err
-	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, WalletPass: password})
+	w, err := loadExistingWallet(cmd, walletDir, "")
 	if err != nil {
 		return err
 	}
@@ -211,11 +190,7 @@ func getPubKeyCmd(rootConfig *rootConfiguration) *cobra.Command {
 }
 
 func execGetPubKeyCmd(cmd *cobra.Command, walletDir string) error {
-	password, err := cmd.Flags().GetString("password")
-	if err != nil {
-		return err
-	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{DbPath: walletDir, WalletPass: password})
+	w, err := loadExistingWallet(cmd, walletDir, "")
 	if err != nil {
 		return err
 	}
@@ -248,15 +223,10 @@ func execCollectDust(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
-	password, err := cmd.Flags().GetString("password")
+	w, err := loadExistingWallet(cmd, walletDir, uri)
 	if err != nil {
 		return err
 	}
-	w, err := wallet.LoadExistingWallet(wallet.Config{
-		DbPath:                walletDir,
-		WalletPass:            password,
-		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
-	})
 	if err != nil {
 		return err
 	}
@@ -280,4 +250,20 @@ func pubKeyHexToBytes(s string) ([]byte, bool) {
 		return nil, false
 	}
 	return pubKeyBytes, true
+}
+
+func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wallet.Wallet, error) {
+	walletPass, err := cmd.Flags().GetString("password")
+	if err != nil {
+		return nil, err
+	}
+	w, err := wallet.LoadExistingWallet(wallet.Config{
+		DbPath:                walletDir,
+		WalletPass:            walletPass,
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return w, err
 }

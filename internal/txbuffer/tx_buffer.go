@@ -134,7 +134,7 @@ func (t *TxBuffer) getNext() (string, *transaction.Transaction) {
 		return "", nil
 	}
 	keys := reflect.ValueOf(t.transactions).MapKeys()
-	// #nosec G104
+	// #nosec G404
 	randomKey := keys[rand.Intn(len(keys))]
 	key := randomKey.Interface().(string)
 	return key, t.transactions[key]

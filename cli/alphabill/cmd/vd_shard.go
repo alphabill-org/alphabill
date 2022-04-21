@@ -6,7 +6,8 @@ import (
 	"path"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	vdtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/verifiable_data"
 	"github.com/spf13/cobra"
 )
@@ -45,7 +46,7 @@ func newVDShardCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Co
 }
 
 func (r *vdShardTxConverter) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	return transaction.NewVerifiableDataTx(tx)
+	return vdtx.NewVerifiableDataTx(tx)
 }
 
 func defaultVDShardRunFunc(ctx context.Context, cfg *vdShardConfiguration) error {

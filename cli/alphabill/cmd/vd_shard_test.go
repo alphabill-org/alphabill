@@ -9,9 +9,10 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	vdtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -80,7 +81,7 @@ func TestRunVDShard(t *testing.T) {
 			OwnerProof:            script.PredicateArgumentEmpty(),
 			SystemId:              []byte{1},
 		}
-		reg := &transaction.RegisterData{}
+		reg := &vdtx.RegisterData{}
 		err = anypb.MarshalFrom(tx.TransactionAttributes, reg, proto.MarshalOptions{})
 		require.NoError(t, err)
 
@@ -90,7 +91,7 @@ func TestRunVDShard(t *testing.T) {
 
 		// failing case
 		tx.SystemId = []byte{0} // incorrect system id
-		reg = &transaction.RegisterData{}
+		reg = &vdtx.RegisterData{}
 		err = anypb.MarshalFrom(tx.TransactionAttributes, reg, proto.MarshalOptions{})
 		require.NoError(t, err)
 

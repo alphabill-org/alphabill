@@ -3,7 +3,9 @@ package transaction
 import (
 	"bytes"
 	"crypto"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 )
 
 type registerDataWrapper struct {
@@ -11,7 +13,7 @@ type registerDataWrapper struct {
 	reg *RegisterData
 }
 
-func NewVerifiableDataTx(tx *Transaction) (GenericTransaction, error) {
+func NewVerifiableDataTx(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
 	println("NewVerifiableDataTx:", tx, tx.TransactionAttributes.TypeUrl)
 	switch tx.TransactionAttributes.TypeUrl {
 	case protobufTypeUrlPrefix + "RegisterData":

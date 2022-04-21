@@ -9,6 +9,7 @@ import (
 	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
@@ -17,7 +18,7 @@ import (
 
 type (
 	Register interface {
-		txsystem.GenericTransaction
+		transaction.GenericTransaction
 		Attributes() []byte // TODO tbd
 	}
 
@@ -67,7 +68,7 @@ func NewVDSchemeState(trustBase []string) (*vdSchemeState, error) {
 	return dvState, nil
 }
 
-func (d *vdSchemeState) Process(gtx txsystem.GenericTransaction) error {
+func (d *vdSchemeState) Process(gtx transaction.GenericTransaction) error {
 	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: nil, SystemIdentifier: d.systemIdentifier, BlockNumber: d.stateTree.GetBlockNumber()})
 	if err != nil {
 		return err

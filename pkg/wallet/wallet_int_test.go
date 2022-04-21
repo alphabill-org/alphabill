@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"log"
 	"net"
 	"os"
@@ -199,6 +200,12 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 			fmt.Println(err)
 		}
 		wg.Done()
+	}()
+
+	// and wallet synchronization is started
+	go func() {
+		err := w.Sync()
+		assert.NoError(t, err)
 	}()
 
 	// then dc transactions are sent

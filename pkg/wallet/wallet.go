@@ -170,37 +170,36 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	return nil
 }
 
-// Sync synchronises wallet with given alphabill node and starts dust collector background job,
-// it blocks forever or until alphabill connection is terminated. This function should only be called ONCE.
+// Sync synchronises wallet with given alphabill node.
+// The function blocks forever or until alphabill connection is terminated, returns nil if already synchronizing.
 // Any errors returned here mean that the synchronization process failed to initialize,
-// if rpc connection is terminated then no error is returned.
+// if after successful initilization the rpc connection is terminated then the function returns nil, no error is returned.
 func (w *Wallet) Sync() error {
-	_, err := w.startDustCollectorJob()
-	if err != nil {
-		return err
-	}
 	return w.syncLedger(true)
 }
 
-// SyncToMaxBlockHeight synchronises wallet with given alphabill node, it blocks until maximum block height,
-// at the start of the process, is reached. It does not start dust collector background process.
+// SyncToMaxBlockHeight synchronises wallet with given alphabill node.
+// The function blocks until maximum block height, calculated at the start of the process, is reached.
 func (w *Wallet) SyncToMaxBlockHeight() error {
 	return w.syncLedger(false)
 }
 
-// CollectDust starts the dust collector process,
-// it blocks until dust collector process is finished or times out.
+// CollectDust starts the dust collector process.
+// Wallet needs to be synchronizing using Sync or SyncToMaxBlockHeight in order to receive transactions and finish the process.
+// The function blocks until dust collector process is finished or timed out.
 func (w *Wallet) CollectDust() error {
-	go func() {
-		err := w.syncLedger(true)
-		if err != nil {
-			log.Error("error syncronizing ledger for CollectDust %w", err)
-		}
-	}()
 	return w.collectDust(true)
 }
 
-// Shutdown terminates connection to alphabill node, closes wallet db and any background goroutines.
+// StartDustCollectorJob starts the dust collector background process that runs every hour until wallet is shut down.
+// Wallet needs to be synchronizing using Sync or SyncToMaxBlockHeight in order to receive transactions and finish the process.
+// Returns error if the job failed to start.
+func (w *Wallet) StartDustCollectorJob() error {
+	_, err := w.startDustCollectorJob()
+	return err
+}
+
+// Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
 func (w *Wallet) Shutdown() {
 	log.Info("Shutting down wallet")
 	if w.alphaBillClient != nil {
@@ -257,10 +256,10 @@ func (w *Wallet) syncLedger(syncForever bool) error {
 		err = w.processBlocks(ch)
 		if err != nil {
 			log.Error("error processing block: ", err)
-			// in case of error in block processing gorouting we need to either
+			// in case of error in block processing goroutine we need to either
 			// 1) retry the block or 2) signal block receiver goroutine to stop fetching blocks,
-			// we do 2) by shutting down the entire wallet.
-			w.Shutdown()
+			// we do 2) by closing alphabill connection
+			w.alphaBillClient.Shutdown()
 		} else {
 			log.Info("block processor channel closed")
 		}

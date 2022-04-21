@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"google.golang.org/protobuf/proto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
@@ -55,11 +57,11 @@ func TestPartition_StartNewRoundCallsRInit(t *testing.T) {
 
 func TestNewPartition_NotOk(t *testing.T) {
 	blockStore := store.NewInMemoryBlockStore()
-	selector, err := NewDefaultLeaderSelector(createPeer(t))
+	selector, err := NewDefaultLeaderSelector(createPeer(t), eventbus.New())
 	require.NoError(t, err)
 	type args struct {
 		ctx            context.Context
-		txSystem       TransactionSystem
+		txSystem       txsystem.TransactionSystem
 		eb             *eventbus.EventBus
 		leaderSelector LeaderSelector
 		ucrValidator   UnicityCertificateValidator
@@ -241,7 +243,8 @@ func TestNewPartition_NotOk(t *testing.T) {
 }
 
 func TestNew_InvalidGenesisRootHash(t *testing.T) {
-	selector, err := NewDefaultLeaderSelector(createPeer(t))
+	eb := eventbus.New()
+	selector, err := NewDefaultLeaderSelector(createPeer(t), eb)
 	require.NoError(t, err)
 	conf := testConfiguration(t, &testtxsystem.CounterTxSystem{})
 
@@ -251,7 +254,7 @@ func TestNew_InvalidGenesisRootHash(t *testing.T) {
 	p, err := New(
 		context.Background(),
 		system,
-		eventbus.New(),
+		eb,
 		selector,
 		certificateValidator,
 		txValidator,
@@ -263,7 +266,8 @@ func TestNew_InvalidGenesisRootHash(t *testing.T) {
 }
 
 func TestNew_InvalidSummaryValue(t *testing.T) {
-	selector, err := NewDefaultLeaderSelector(createPeer(t))
+	eb := eventbus.New()
+	selector, err := NewDefaultLeaderSelector(createPeer(t), eb)
 	require.NoError(t, err)
 	conf := testConfiguration(t, &testtxsystem.CounterTxSystem{})
 
@@ -273,7 +277,7 @@ func TestNew_InvalidSummaryValue(t *testing.T) {
 	p, err := New(
 		context.Background(),
 		system,
-		eventbus.New(),
+		eb,
 		selector,
 		certificateValidator,
 		txValidator,
@@ -594,11 +598,11 @@ func createPeer(t *testing.T) *network.Peer {
 	return peer
 }
 
-func createTestPartitionWithTxSystem(t *testing.T, system TransactionSystem, conf *Configuration) (*Partition, *eventbus.EventBus) {
-	selector, err := NewDefaultLeaderSelector(createPeer(t))
+func createTestPartitionWithTxSystem(t *testing.T, system txsystem.TransactionSystem, conf *Configuration) (*Partition, *eventbus.EventBus) {
+	bus := eventbus.New()
+	selector, err := NewDefaultLeaderSelector(createPeer(t), bus)
 	require.NoError(t, err)
 	ctx := context.Background()
-	bus := eventbus.New()
 	p, err := New(ctx, system, bus, selector, certificateValidator, txValidator, store.NewInMemoryBlockStore(), conf)
 	require.NoError(t, err)
 	require.Equal(t, idle, p.status)
@@ -612,7 +616,7 @@ func createPartitionWithDefaultTxSystem(t *testing.T) (*Partition, *eventbus.Eve
 	return createTestPartitionWithTxSystem(t, s, conf)
 }
 
-func testConfiguration(t *testing.T, system TransactionSystem) *Configuration {
+func testConfiguration(t *testing.T, system txsystem.TransactionSystem) *Configuration {
 	_, partitionGenesis, nodeSigner, rootSigner := initPartitionGenesis(t, system)
 	rootVerifier, err := rootSigner.Verifier()
 	require.NoError(t, err)
@@ -625,7 +629,7 @@ func testConfiguration(t *testing.T, system TransactionSystem) *Configuration {
 	}
 }
 
-func initPartitionGenesis(t *testing.T, system TransactionSystem) (*genesis.RootGenesis, *genesis.PartitionGenesis, crypto.Signer, crypto.Signer) {
+func initPartitionGenesis(t *testing.T, system txsystem.TransactionSystem) (*genesis.RootGenesis, *genesis.PartitionGenesis, crypto.Signer, crypto.Signer) {
 	t.Helper()
 	nodeSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)

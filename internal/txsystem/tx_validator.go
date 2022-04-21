@@ -2,13 +2,15 @@ package txsystem
 
 import (
 	"bytes"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 )
 
 var (
-	// generic tx validity conditions
 	ErrTransactionExpired      = errors.New("transaction timeout must be greater than current block height")
 	ErrInvalidSystemIdentifier = errors.New("error invalid system identifier")
 	ErrInvalidDataType         = errors.New("invalid data type")
@@ -16,7 +18,7 @@ var (
 )
 
 type TxValidationContext struct {
-	Tx               GenericTransaction
+	Tx               transaction.GenericTransaction
 	Bd               *state.Unit
 	SystemIdentifier []byte
 	BlockNumber      uint64

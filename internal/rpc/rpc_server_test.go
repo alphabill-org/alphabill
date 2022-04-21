@@ -2,11 +2,14 @@ package rpc
 
 import (
 	"context"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"strings"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +21,6 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 )
 
@@ -37,7 +39,7 @@ func (mpp *MockTransactionProcessor) Process(gtx transaction.GenericTransaction)
 }
 
 func (mpp *MockTransactionProcessor) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	return transaction.NewMoneyTx(tx)
+	return billtx.NewMoneyTx(tx)
 }
 
 func (mls *MockLedgerService) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
@@ -120,7 +122,7 @@ func createTransaction(id *uint256.Int) *transaction.Transaction {
 		Timeout:               0,
 		OwnerProof:            []byte{1},
 	}
-	bt := &transaction.BillTransfer{
+	bt := &billtx.BillTransfer{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,

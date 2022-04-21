@@ -2,12 +2,13 @@ package rpc
 
 import (
 	"context"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 )
 
 type (

@@ -5,11 +5,16 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
+	"sync"
+	"time"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
@@ -18,10 +23,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
 	"github.com/tyler-smith/go-bip39"
-	"sort"
-	"strconv"
-	"sync"
-	"time"
 )
 
 const (
@@ -432,11 +433,11 @@ func (w *Wallet) swapDcBills(dcBills []*bill, dcNonce []byte, timeout uint64) er
 }
 
 func (w *Wallet) collectBills(txPb *transaction.Transaction, blockHeight uint64) error {
-	gtx, err := transaction.NewMoneyTx(txPb)
+	gtx, err := billtx.NewMoneyTx(txPb)
 	if err != nil {
 		return err
 	}
-	stx := gtx.(txsystem.GenericTransaction)
+	stx := gtx.(transaction.GenericTransaction)
 
 	switch tx := stx.(type) {
 	case money.Transfer:

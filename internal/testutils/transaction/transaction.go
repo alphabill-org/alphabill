@@ -3,14 +3,17 @@ package testtransaction
 import (
 	"math/rand"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func RandomBillTransfer() *transaction.Transaction {
 	tx := randomTx()
 
-	bt := &transaction.BillTransfer{
+	bt := &moneytx.BillTransfer{
 		NewBearer: randomBytes(3),
 		// #nosec G404
 		TargetValue: rand.Uint64(),
@@ -24,7 +27,7 @@ func RandomBillTransfer() *transaction.Transaction {
 func RandomBillSplit() *transaction.Transaction {
 	tx := randomTx()
 
-	bt := &transaction.BillSplit{
+	bt := &moneytx.BillSplit{
 		// #nosec G404
 		Amount:       rand.Uint64(),
 		TargetBearer: randomBytes(3),

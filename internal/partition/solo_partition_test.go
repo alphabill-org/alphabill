@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
@@ -17,7 +19,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 
@@ -48,7 +50,7 @@ type SingleNodePartition struct {
 	rootSigner  crypto.Signer
 }
 
-func NewSingleNodePartition(t *testing.T, txSystem TransactionSystem) *SingleNodePartition {
+func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	nodeGenesis, err := NewNodeGenesis(txSystem, WithPeerID("1"),
@@ -93,7 +95,7 @@ func NewSingleNodePartition(t *testing.T, txSystem TransactionSystem) *SingleNod
 		t.Error(err)
 	}
 	bus := eventbus.New()
-	store := store.NewInMemoryBlockStore()
+	s := store.NewInMemoryBlockStore()
 
 	// partition
 	p, err := New(
@@ -103,7 +105,7 @@ func NewSingleNodePartition(t *testing.T, txSystem TransactionSystem) *SingleNod
 		leaderSelector,
 		validator,
 		&AlwaysValidTransactionValidator{},
-		store,
+		s,
 		c,
 	)
 	if err != nil {
@@ -124,7 +126,7 @@ func NewSingleNodePartition(t *testing.T, txSystem TransactionSystem) *SingleNod
 		partition:   p,
 		rootState:   rc,
 		nodeConf:    c,
-		store:       store,
+		store:       s,
 		rootSigner:  rootSigner,
 	}
 	t.Cleanup(partition.Close)

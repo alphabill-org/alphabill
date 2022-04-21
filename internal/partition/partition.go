@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-
-	"github.com/libp2p/go-libp2p-core/peer"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 
@@ -18,7 +20,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 )
 
 const (
@@ -58,16 +60,10 @@ type (
 		Transactions   []*transaction.Transaction
 	}
 
-	LeaderSelector interface {
-		UpdateLeader(seal *certificates.UnicitySeal)
-		IsCurrentNodeLeader() bool
-		SelfID() peer.ID
-	}
-
 	// Partition is a distributed system, it consists of either a set of shards, or one or more partition nodes.
 	// Partition implements an instance of a specific TransactionSystem.
 	Partition struct {
-		transactionSystem           TransactionSystem
+		transactionSystem           txsystem.TransactionSystem
 		configuration               *Configuration
 		luc                         *certificates.UnicityCertificate
 		proposal                    []*transaction.Transaction
@@ -91,7 +87,7 @@ type (
 // New creates a new instance of Partition component.
 func New(
 	ctx context.Context,
-	txSystem TransactionSystem,
+	txSystem txsystem.TransactionSystem,
 	eb *eventbus.EventBus,
 	leaderSelector LeaderSelector,
 	ucValidator UnicityCertificateValidator,
@@ -142,7 +138,9 @@ func New(
 		return nil, errors.Wrap(err, "invalid root partition genesis file")
 	}
 
-	txGenesisRoot, txSummaryValue := txSystem.Init()
+	state := txSystem.Init()
+	txGenesisRoot := state.Root()
+	txSummaryValue := state.Summary()
 	genesisCertificate := partitionGenesis.Certificate
 	genesisInputRecord := genesisCertificate.InputRecord
 	if !bytes.Equal(genesisInputRecord.Hash, txGenesisRoot) {
@@ -151,9 +149,9 @@ func New(
 		return nil, ErrInvalidRootHash
 	}
 
-	if !bytes.Equal(genesisInputRecord.SummaryValue, txSummaryValue.Bytes()) {
+	if !bytes.Equal(genesisInputRecord.SummaryValue, txSummaryValue) {
 		logger.Warning("tx system summary value does not equal to genesis file summary value. "+
-			"Genesis SummaryValue: %X, TxSystem SummaryValue: %X", genesisInputRecord.SummaryValue, txSummaryValue.Bytes())
+			"Genesis SummaryValue: %X, TxSystem SummaryValue: %X", genesisInputRecord.SummaryValue, txSummaryValue)
 		return nil, ErrInvalidSummaryValue
 	}
 
@@ -328,8 +326,8 @@ func (p *Partition) handleUnicityCertificate(uc *certificates.UnicityCertificate
 
 	if p.pr == nil {
 		// There is no pending block proposal. Start recovery unless the state is already up-to-date with UC.
-		hash, _ := p.transactionSystem.EndBlock()
-		if !bytes.Equal(uc.InputRecord.Hash, hash) {
+		state := p.transactionSystem.EndBlock()
+		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
 			logger.Warning("Starting recovery")
 			p.status = recovering
 			// TODO start recovery (AB-41)
@@ -397,7 +395,9 @@ func (p *Partition) sendProposal() {
 	}
 	prevHash := p.luc.InputRecord.Hash
 	logger.Debug("Previous IR hash %v", base64.StdEncoding.EncodeToString(prevHash))
-	stateRoot, summary := p.transactionSystem.EndBlock()
+	state := p.transactionSystem.EndBlock()
+	stateRoot := state.Root()
+	summary := state.Summary()
 	p.pr = &pendingBlockProposal{
 		lucRoundNumber: p.luc.UnicitySeal.RootChainRoundNumber,
 		lucIRHash:      prevHash,
@@ -415,7 +415,7 @@ func (p *Partition) sendProposal() {
 
 	hasher := p.configuration.HashAlgorithm.New()
 	hasher.Write(p.configuration.GetSystemIdentifier())
-	hasher.Write(transaction.Uint64ToBytes(blockNr))
+	hasher.Write(util.Uint64ToBytes(blockNr))
 	hasher.Write(prevBlockHash)
 
 	// TODO continue implementing after task AB-129
@@ -434,7 +434,7 @@ func (p *Partition) sendProposal() {
 			PreviousHash: prevHash,
 			Hash:         stateRoot,
 			BlockHash:    blockHash,
-			SummaryValue: summary.Bytes(),
+			SummaryValue: summary,
 		},
 	}
 	logger.Info("Sending P1 event")

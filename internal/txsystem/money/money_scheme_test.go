@@ -2,12 +2,12 @@ package money
 
 import (
 	"crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"math/rand"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money/mocks"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
@@ -66,7 +66,7 @@ func TestProcessTransaction(t *testing.T) {
 	blockNumber := uint64(0)
 	testData := []struct {
 		name        string
-		transaction txsystem.GenericTransaction
+		transaction transaction.GenericTransaction
 		expect      func(rs *mocks.RevertibleState)
 		expectErr   error
 	}{

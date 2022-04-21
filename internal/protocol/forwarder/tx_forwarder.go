@@ -2,109 +2,121 @@ package forwarder
 
 import (
 	"context"
-	"fmt"
+	"io/ioutil"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-var logger = log.CreateForPackage()
+var (
+	ErrPeerIsNil      = errors.New("peer is nil")
+	ErrTxHandlerIsNil = errors.New("tx handler is nil")
+	ErrTimout         = errors.New("forwarding timeout")
+)
 
 const (
 	// ProtocolIdTxForwarder is the protocol.ID of the AlphaBill transaction forwarding protocol.
-	ProtocolIdTxForwarder            = "/ab/tx/1.0.0"
-	DefaultForwardingTimeout         = 2 * time.Second
-	UnknownLeader            peer.ID = ""
+	ProtocolIdTxForwarder    = "/ab/pc1-I/0.0.1"
+	DefaultForwardingTimeout = 700 * time.Second
 )
 
 type (
-	// LeaderSelector interface is used to get the next leader.
-	LeaderSelector interface {
-		// NextLeader returns the identifier of the next leader.
-		NextLeader() (peer.ID, error)
+
+	// TxForwarder sends transactions to the expected leader.
+	TxForwarder struct {
+		self               *network.Peer
+		transactionHandler TxHandler
+		timeout            time.Duration
 	}
 
-	// TxForwarder sends transactions, as they arrive, to the expected next leader.
-	TxForwarder struct {
-		leaderSelector LeaderSelector
-		txBuffer       *txbuffer.TxBuffer
-		self           *network.Peer
-	}
+	TxHandler func(tx *transaction.Transaction)
 )
 
-// New constructs a new *TxForwarder and activates it by attaching its stream handler to the given network.Peer.
-func New(self *network.Peer, leaderSelector LeaderSelector, txBuffer *txbuffer.TxBuffer) (*TxForwarder, error) {
+func New(self *network.Peer, timeout time.Duration, transactionHandler func(tx *transaction.Transaction)) (*TxForwarder, error) {
 	if self == nil {
-		return nil, errors.New(errstr.NilArgument)
+		return nil, ErrPeerIsNil
 	}
-	if leaderSelector == nil {
-		return nil, errors.New(errstr.NilArgument)
+	if transactionHandler == nil {
+		return nil, ErrTxHandlerIsNil
 	}
-	if txBuffer == nil {
-		return nil, errors.New(errstr.NilArgument)
-	}
-	tf := &TxForwarder{
-		txBuffer:       txBuffer,
-		leaderSelector: leaderSelector,
-		self:           self,
-	}
-	self.RegisterProtocolHandler(ProtocolIdTxForwarder, tf.handleStream)
-	return tf, nil
+	t := &TxForwarder{self: self, transactionHandler: transactionHandler, timeout: timeout}
+	self.RegisterProtocolHandler(ProtocolIdTxForwarder, t.handleStream)
+	return t, nil
 }
 
-// Handle handles the incoming transaction. If current node isn't the leader then the transaction is forwarded to the
-// expected next leader. If current node is the leader then the transaction is added the txbuffer.TxBuffer.
-func (tf *TxForwarder) Handle(ctx context.Context, req *transaction.Transaction) error {
-	nextLeader, err := tf.leaderSelector.NextLeader()
-	if err != nil {
+// Forward sends the transaction to the receiver.
+func (tf *TxForwarder) Forward(req *transaction.Transaction, receiver peer.ID) error {
+	if req == nil {
+		return errors.New(errstr.NilArgument)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), tf.timeout)
+	responseCh := make(chan error, 1)
+
+	go func() {
+		defer close(responseCh)
+		defer cancel()
+		s, err := tf.self.CreateStream(ctx, receiver, ProtocolIdTxForwarder)
+		if err != nil {
+			responseCh <- errors.Wrap(err, "failed to open stream")
+			return
+		}
+		defer func() {
+			err := s.Close()
+			if err != nil {
+				logger.Warning("Failed to close libp2p stream: %v", err)
+			}
+		}()
+		w := protocol.NewProtoBufWriter(s)
+		defer func() {
+			err := w.Close()
+			if err != nil {
+				logger.Warning("Failed to close protobuf writer: %v", err)
+			}
+		}()
+		if err := w.Write(req); err != nil {
+			_ = s.Reset()
+			responseCh <- errors.Errorf("failed to forward transaction, %v", err)
+			return
+		}
+
+		response, err := ioutil.ReadAll(s)
+		if err != nil {
+			responseCh <- errors.Errorf("failed to read response, %v", err)
+			return
+		}
+		if string(response) != "received" {
+			responseCh <- errors.Errorf("invalid response from peer %v. response: %v", receiver, string(response))
+			return
+		}
+		logger.Debug("forwarded tx to peer %v", receiver)
+		responseCh <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		logger.Info("forwarding timeout")
+		return ErrTimout
+	case err := <-responseCh:
 		return err
 	}
-	if nextLeader == UnknownLeader || nextLeader == tf.self.ID() {
-		// leader is unknown or the current node is the leader
-		return tf.handleTx(req)
-	}
-	// forward transaction to the leader
-	return tf.forwardTx(ctx, req, nextLeader)
-}
-
-// Close shuts down the TxForwarder.
-func (tf *TxForwarder) Close() error {
-	tf.self.RemoveProtocolHandler(ProtocolIdTxForwarder)
-	return nil
-}
-
-// forwardTx forwards the transaction to the receiver.
-func (tf *TxForwarder) forwardTx(ctx context.Context, req *transaction.Transaction, receiver peer.ID) error {
-	ctx, cancel := context.WithTimeout(ctx, DefaultForwardingTimeout)
-	defer cancel()
-
-	s, err := tf.self.CreateStream(ctx, receiver, ProtocolIdTxForwarder)
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	w := protocol.NewProtoBufWriter(s)
-	if err := w.Write(req); err != nil {
-		_ = s.Reset()
-		return fmt.Errorf("failed to forward transaction, %w", err)
-	}
-	logger.Debug("forwarded tx to peer %v", receiver)
-	return nil
 }
 
 // handleStream receives incoming transactions from other peers in the network.
 func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 	r := protocol.NewProtoBufReader(s)
-	defer r.Close()
+	defer func() {
+		err := s.Close()
+		if err != nil {
+			logger.Warning("Failed to close protobuf reader: %v", err)
+		}
+	}()
 
 	req := &transaction.Transaction{}
 	err := r.Read(req)
@@ -112,26 +124,9 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 		logger.Warning("Failed to read the transaction: %v", err)
 		return
 	}
-	logger.Debug("Got a new transaction %v", req)
-	nextLeader, err := tf.leaderSelector.NextLeader()
+	tf.transactionHandler(req)
+	_, err = s.Write([]byte("received"))
 	if err != nil {
-		logger.Warning("Ignoring tx: %v", err)
-		return
+		logger.Warning("Failed to write response: %v", err)
 	}
-	if nextLeader != tf.self.ID() {
-		logger.Warning("Ignoring tx. Current node isn't the next leader.")
-		return
-	}
-	err = tf.handleTx(req)
-	if err != nil {
-		logger.Warning("Transaction was not added to the TxBuffer: %v", err)
-	}
-}
-
-func (tf *TxForwarder) handleTx(req *transaction.Transaction) error {
-	genericTx, err := transaction.NewMoneyTx(req)
-	if err != nil {
-		return err
-	}
-	return tf.txBuffer.Add(genericTx)
 }

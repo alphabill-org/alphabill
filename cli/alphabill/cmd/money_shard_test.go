@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"google.golang.org/grpc"
@@ -18,9 +19,9 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
@@ -303,7 +304,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0},
 	}
-	bt := &transaction.BillTransfer{
+	bt := &billtx.BillTransfer{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,
@@ -326,7 +327,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0},
 	}
-	bt := &transaction.BillTransfer{
+	bt := &billtx.BillTransfer{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,

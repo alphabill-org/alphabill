@@ -3,9 +3,11 @@ package money
 import (
 	"crypto"
 	"fmt"
+	"hash"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
-	"hash"
 
 	abHasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
@@ -23,14 +25,14 @@ const dustBillDeletionTimeout uint64 = 300
 
 type (
 	Transfer interface {
-		txsystem.GenericTransaction
+		transaction.GenericTransaction
 		NewBearer() []byte
 		TargetValue() uint64
 		Backlink() []byte
 	}
 
 	TransferDC interface {
-		txsystem.GenericTransaction
+		transaction.GenericTransaction
 		Nonce() []byte
 		TargetBearer() []byte
 		TargetValue() uint64
@@ -38,7 +40,7 @@ type (
 	}
 
 	Split interface {
-		txsystem.GenericTransaction
+		transaction.GenericTransaction
 		Amount() uint64
 		TargetBearer() []byte
 		RemainingValue() uint64
@@ -47,7 +49,7 @@ type (
 	}
 
 	Swap interface {
-		txsystem.GenericTransaction
+		transaction.GenericTransaction
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
 		DCTransfers() []TransferDC
@@ -153,7 +155,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 	return msState, nil
 }
 
-func (m *moneySchemeState) Process(gtx txsystem.GenericTransaction) error {
+func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 	bd, _ := m.revertibleState.GetUnit(gtx.UnitID())
 	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: bd, SystemIdentifier: m.systemIdentifier, BlockNumber: m.revertibleState.GetBlockNumber()})
 	if err != nil {
@@ -297,7 +299,7 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 	return nil
 }
 
-func (m *moneySchemeState) updateBillData(tx txsystem.GenericTransaction) error {
+func (m *moneySchemeState) updateBillData(tx transaction.GenericTransaction) error {
 	return m.revertibleState.UpdateData(tx.UnitID(), func(data state.UnitData) (newData state.UnitData) {
 		bd, ok := data.(*BillData)
 		if !ok {

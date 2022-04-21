@@ -3,23 +3,24 @@ package wallet
 import (
 	"context"
 	"fmt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"sync"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const port = 9111
@@ -34,7 +35,7 @@ type testAlphabillServiceServer struct {
 
 func TestSync(t *testing.T) {
 	// setup wallet
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
@@ -127,7 +128,7 @@ func TestSync(t *testing.T) {
 
 func TestSyncToMaxBlockHeight(t *testing.T) {
 	// setup wallet
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
@@ -172,7 +173,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
@@ -253,7 +254,7 @@ func (s *testAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.G
 }
 
 func createBillTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&transaction.BillTransfer{
+	tx, _ := anypb.New(&billtx.BillTransfer{
 		TargetValue: 100,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		Backlink:    hash.Sum256([]byte{}),
@@ -262,7 +263,7 @@ func createBillTransferTx(pubKeyHash []byte) *anypb.Any {
 }
 
 func createBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) *anypb.Any {
-	tx, _ := anypb.New(&transaction.BillSplit{
+	tx, _ := anypb.New(&billtx.BillSplit{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		RemainingValue: remainingValue,
@@ -281,7 +282,7 @@ func createRandomDcTx() *transaction.Transaction {
 }
 
 func createRandomDustTransferTx() *anypb.Any {
-	tx, _ := anypb.New(&transaction.TransferDC{
+	tx, _ := anypb.New(&billtx.TransferDC{
 		TargetBearer: script.PredicateAlwaysTrue(),
 		Backlink:     hash.Sum256([]byte{}),
 		Nonce:        hash.Sum256([]byte{}),
@@ -291,7 +292,7 @@ func createRandomDustTransferTx() *anypb.Any {
 }
 
 func createRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&transaction.Swap{
+	tx, _ := anypb.New(&billtx.Swap{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     []*transaction.Transaction{},

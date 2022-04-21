@@ -1,4 +1,4 @@
-package txsystem
+package transaction
 
 import (
 	"crypto"

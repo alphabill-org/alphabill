@@ -2,8 +2,6 @@ package wallet
 
 import (
 	"encoding/hex"
-	"os"
-	"path"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -54,9 +52,8 @@ func TestWalletCanBeCreated(t *testing.T) {
 }
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
-	wd, err := os.Getwd()
+	walletDbPath, err := CopyWalletDBFile()
 	require.NoError(t, err)
-	walletDbPath := path.Join(wd, "testdata", "wallet")
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
 	require.NoError(t, err)

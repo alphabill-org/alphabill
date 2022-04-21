@@ -15,7 +15,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutil"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
@@ -36,7 +35,7 @@ type testAlphabillServiceServer struct {
 
 func TestSync(t *testing.T) {
 	// setup wallet
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
@@ -129,7 +128,7 @@ func TestSync(t *testing.T) {
 
 func TestSyncToMaxBlockHeight(t *testing.T) {
 	// setup wallet
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
@@ -174,7 +173,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
-	_ = testutil.DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},

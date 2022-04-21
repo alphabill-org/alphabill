@@ -2,8 +2,6 @@ package wallet
 
 import (
 	"github.com/stretchr/testify/require"
-	"os"
-	"path"
 	"testing"
 )
 
@@ -15,9 +13,8 @@ func TestEncryptedWalletCanBeCreated(t *testing.T) {
 }
 
 func TestEncryptedWalletCanBeLoaded(t *testing.T) {
-	wd, err := os.Getwd()
+	walletDbPath, err := CopyEncryptedWalletDBFile()
 	require.NoError(t, err)
-	walletDbPath := path.Join(wd, "testdata", "wallet", "encrypted")
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: walletPass})
 	require.NoError(t, err)
@@ -29,9 +26,8 @@ func TestEncryptedWalletCanBeLoaded(t *testing.T) {
 }
 
 func TestLoadingEncryptedWalletWrongPassphrase(t *testing.T) {
-	wd, err := os.Getwd()
+	walletDbPath, err := CopyEncryptedWalletDBFile()
 	require.NoError(t, err)
-	walletDbPath := path.Join(wd, "testdata", "wallet", "encrypted")
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: "wrong passphrase"})
 	require.NoError(t, err)

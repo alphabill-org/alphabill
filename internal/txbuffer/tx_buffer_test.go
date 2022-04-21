@@ -108,9 +108,11 @@ func TestGetAll_Ok(t *testing.T) {
 func TestRemove_NotFound(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
-
-	err = buffer.Remove("1")
-	require.ErrorIs(t, err, ErrTxNotFound)
+	tx := newRandomTx(t)
+	err = buffer.Add(tx)
+	require.NoError(t, err)
+	buffer.Remove("1")
+	require.Equal(t, uint32(1), buffer.Count())
 }
 
 func TestRemove_Ok(t *testing.T) {
@@ -123,8 +125,7 @@ func TestRemove_Ok(t *testing.T) {
 
 	hash, err := tx.Hash(gocrypto.SHA256)
 	require.NoError(t, err)
-	err = buffer.Remove(string(hash))
-	require.NoError(t, err)
+	buffer.Remove(string(hash))
 	require.Equal(t, zero, buffer.Count())
 	require.Equal(t, zero, uint32(len(buffer.transactions)))
 }

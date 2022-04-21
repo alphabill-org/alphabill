@@ -109,16 +109,14 @@ func (t *TxBuffer) GetAll() []*transaction.Transaction {
 }
 
 // Remove removes the transaction with given id from the TxBuffer.
-func (t *TxBuffer) Remove(id string) error {
+func (t *TxBuffer) Remove(id string) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	_, found := t.transactions[id]
-	if !found {
-		return ErrTxNotFound
+	if found {
+		delete(t.transactions, id)
+		t.count--
 	}
-	delete(t.transactions, id)
-	t.count--
-	return nil
 }
 
 // Count returns the total number of transactions in the TxBuffer.
@@ -136,6 +134,7 @@ func (t *TxBuffer) getNext() (string, *transaction.Transaction) {
 		return "", nil
 	}
 	keys := reflect.ValueOf(t.transactions).MapKeys()
+	// #nosec G404
 	randomKey := keys[rand.Intn(len(keys))]
 	key := randomKey.Interface().(string)
 	return key, t.transactions[key]

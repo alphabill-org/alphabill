@@ -1,5 +1,4 @@
 syntax = "proto3";
-package rpc;
 
 import "google/protobuf/any.proto";
 

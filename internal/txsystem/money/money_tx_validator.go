@@ -3,6 +3,7 @@ package money
 import (
 	"bytes"
 	"crypto"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"

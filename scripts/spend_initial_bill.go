@@ -3,17 +3,20 @@ package main
 import (
 	"context"
 	"flag"
+	"log"
+
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"log"
 )
 
 /*
@@ -92,7 +95,7 @@ func createTransferTx(pubKey []byte, billId []byte, billValue uint64, timeout ui
 		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillTransfer{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.BillTransfer{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    nil,

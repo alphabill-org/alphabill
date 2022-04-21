@@ -1,25 +1,20 @@
 package forwarder
 
 import (
-	"context"
-	"crypto/rand"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/libp2p/go-libp2p-core/peerstore"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
 
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	golog "github.com/ipfs/go-log"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	TxBufferSize = 100
 )
 
 var (
@@ -27,242 +22,126 @@ var (
 	split    = testtransaction.RandomBillSplit()
 )
 
-type FixedLeader struct {
-	Leader        *network.Peer
-	Error         error
-	LeaderUnknown bool
-}
-
 func init() {
 	golog.SetAllLoggers(golog.LevelWarn) // change this to Debug if libp2p logs are needed
 }
 
-func (l *FixedLeader) NextLeader() (peer.ID, error) {
-	if l.LeaderUnknown {
-		return UnknownLeader, nil
-	}
-	if l.Error != nil {
-		return "", l.Error
-	}
-	if l.Leader == nil {
-		return "", errors.New("leader not configured")
-	}
-	return l.Leader.ID(), nil
+func TestNew_PeerIsNil(t *testing.T) {
+	_, err := New(nil, DefaultForwardingTimeout, func(tx *transaction.Transaction) {})
+	require.ErrorIs(t, err, ErrPeerIsNil)
 }
 
-func TestTxHandler_FollowerForwardsRequestToLeader(t *testing.T) {
-	// init leader
-	leader := initPeer(t, &network.PeerConfiguration{})
-	defer leader.Close()
-	fixedLeader := &FixedLeader{Leader: leader}
-	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
-
-	// init follower
-	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
-	defer follower.Close()
-	followerTxHandler, followerTxBuffer := RegisterTxHandler(t, follower, fixedLeader)
-	defer followerTxHandler.Close()
-	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
-
-	// send requests
-	err := followerTxHandler.Handle(context.Background(), transfer)
-	require.NoError(t, err)
-	err = followerTxHandler.Handle(context.Background(), split)
-	require.NoError(t, err)
-
-	// verify tx buffers
-	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 2 }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { return followerTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
+func TestNew_TxHandlerIsNil(t *testing.T) {
+	_, err := New(testnetwork.CreatePeer(t), DefaultForwardingTimeout, nil)
+	require.ErrorIs(t, err, ErrTxHandlerIsNil)
 }
 
-func TestTxHandler_NextLeaderSelectorReturnsError(t *testing.T) {
-	// init follower
-	noLeaderErr := errors.New("no leader")
-	fixedLeader := &FixedLeader{Error: noLeaderErr}
-	follower := initPeer(t, &network.PeerConfiguration{})
-	defer follower.Close()
-	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
+func TestTxHandler_ForwardTx(t *testing.T) {
+	// init peer1
+	peer1 := testnetwork.CreatePeer(t)
+	defer peer1.Close()
 
-	// send requests
-	err := followerTxHandler.Handle(context.Background(), transfer)
+	// init peer1
+	peer2 := testnetwork.CreatePeer(t)
+	defer peer2.Close()
+
+	// init peerstores
+	peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+	peer2.Network().Peerstore().AddAddrs(peer1.ID(), peer1.MultiAddresses(), peerstore.PermanentAddrTTL)
+
+	// init peer1 forwarder
+	var peer1Tx *transaction.Transaction
+	peer1Forwarder, err := New(peer1, DefaultForwardingTimeout, func(tx *transaction.Transaction) {
+		peer1Tx = tx
+	})
+	require.NoError(t, err)
+
+	// init peer2 forwarder
+	var peer2Tx *transaction.Transaction
+	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *transaction.Transaction) {
+		peer2Tx = tx
+	})
+	require.NoError(t, err)
+
+	// peer2 forwards tx to peer1
+	err = peer2Forwarder.Forward(transfer, peer1.ID())
+	require.NoError(t, err)
+	require.Nil(t, peer2Tx)
+	require.NotNil(t, peer1Tx)
+
+	// peer1 forward tx to peer2
+	err = peer1Forwarder.Forward(split, peer2.ID())
+	require.NoError(t, err)
+	require.NotNil(t, peer2Tx)
+}
+
+func TestTxHandler_UnknownPeer(t *testing.T) {
+	// init peer1
+	peer1 := testnetwork.CreatePeer(t)
+	defer peer1.Close()
+
+	// init peer1
+	peer2 := testnetwork.CreatePeer(t)
+	defer peer2.Close()
+
+	// init peer2 forwarder
+	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *transaction.Transaction) {})
+	require.NoError(t, err)
+	err = peer2Forwarder.Forward(split, peer1.ID())
 	require.Error(t, err)
-	require.EqualError(t, err, noLeaderErr.Error())
+	require.True(t, strings.Contains(err.Error(), "failed to open stream"))
 }
 
-func TestTxHandler_NextLeaderIsUnknown(t *testing.T) {
-	// init follower
-	fixedLeader := &FixedLeader{LeaderUnknown: true}
-	follower := initPeer(t, &network.PeerConfiguration{})
-	defer follower.Close()
-	followerTxHandler, followerTxPool := RegisterTxHandler(t, follower, fixedLeader)
+func TestTxHandler_PeerIsClosed(t *testing.T) {
+	// init peer1
+	peer1 := testnetwork.CreatePeer(t)
+	defer peer1.Close()
 
-	// send requests
-	err := followerTxHandler.Handle(context.Background(), transfer)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool { return followerTxPool.Count() == 1 }, test.WaitDuration, test.WaitTick)
-}
+	// init peer1
+	peer2 := testnetwork.CreatePeer(t)
+	defer peer2.Close()
 
-func TestTxHandler_LeaderChangedWhenTxWasForwarded(t *testing.T) {
-	leader2 := initPeer(t, &network.PeerConfiguration{})
+	// init peerstores
+	peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+	peer2.Network().Peerstore().AddAddrs(peer1.ID(), peer1.MultiAddresses(), peerstore.PermanentAddrTTL)
+	require.NoError(t, peer1.Close())
 
-	// init leader
-	leader := initPeer(t, &network.PeerConfiguration{})
-	defer leader.Close()
-	errLeader := &FixedLeader{Leader: leader2}
-	_, leaderTxBuffer := RegisterTxHandler(t, leader, errLeader)
-
-	// init follower
-	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
-	defer follower.Close()
-	fixedLeader := &FixedLeader{leader, nil, false}
-	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
-
-	// send requests
-	err := followerTxHandler.Handle(context.Background(), transfer)
+	// init peer2 forwarder
+	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *transaction.Transaction) {})
 	require.NoError(t, err)
 
-	// verify tx buffers
-	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
-}
-
-func TestTxHandler_LeaderFailsLeaderCheck(t *testing.T) {
-	// init leader
-	leader := initPeer(t, &network.PeerConfiguration{})
-	defer leader.Close()
-	noLeaderErr := errors.New("no leader")
-	errLeader := &FixedLeader{Error: noLeaderErr}
-	_, leaderTxBuffer := RegisterTxHandler(t, leader, errLeader)
-
-	// init follower
-	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
-	defer follower.Close()
-	fixedLeader := &FixedLeader{Leader: leader}
-	followerTxHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
-
-	// send requests
-	err := followerTxHandler.Handle(context.Background(), transfer)
-	require.NoError(t, err)
-
-	// verify tx buffers
-	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
-}
-
-func TestTxHandler_LeaderDiesAndComesBack(t *testing.T) {
-	privKey, pubKey, _ := crypto.GenerateEd25519Key(rand.Reader)
-	privKeyBytes, _ := crypto.MarshalPrivateKey(privKey)
-	pubKeyBytes, _ := crypto.MarshalPublicKey(pubKey)
-
-	leaderConf := &network.PeerConfiguration{
-		KeyPair: &network.PeerKeyPair{
-			PrivateKey: privKeyBytes,
-			PublicKey:  pubKeyBytes,
-		},
-	}
-
-	// init leader
-	leader := initPeer(t, leaderConf)
-	fixedLeader := &FixedLeader{Leader: leader}
-	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
-
-	// init follower
-	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
-	defer follower.Close()
-	txHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
-	// send requests
-	err := txHandler.Handle(context.Background(), transfer)
-	// verify tx buffers
-	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 1 }, test.WaitDuration, test.WaitTick)
-
-	leaderAddress := leader.MultiAddresses()[0].String()
-	// shut down leader
-
-	err = leader.Close()
-	require.NoError(t, err)
-	require.Eventually(t, func() bool { return len(leader.Network().ListenAddresses()) == 0 }, test.WaitDuration, test.WaitTick)
-	leaderConf.Address = leaderAddress
-
-	// init leader again
-	leader = initPeer(t, leaderConf)
-	defer leader.Close()
-	_, err = New(leader, fixedLeader, leaderTxBuffer)
-	require.NoError(t, err)
-	// send transactions to follower
-	err = txHandler.Handle(context.Background(), testtransaction.RandomBillTransfer())
-	require.NoError(t, err)
-	err = txHandler.Handle(context.Background(), testtransaction.RandomBillTransfer())
-	require.NoError(t, err)
-	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 3 }, test.WaitDuration, test.WaitTick)
-
-}
-
-func TestTxHandler_LeaderDoesNotForward(t *testing.T) {
-	// init leader
-	leader := initPeer(t, &network.PeerConfiguration{})
-	defer leader.Close()
-	fixedLeader := &FixedLeader{Leader: leader}
-	txHandler, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
-
-	// send requests
-	err := txHandler.Handle(context.Background(), transfer)
-	require.NoError(t, err)
-	err = txHandler.Handle(context.Background(), split)
-	require.NoError(t, err)
-	// verify tx buffers
-	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 2 }, test.WaitDuration, test.WaitTick)
-}
-
-func TestTxHandler_LeaderDown(t *testing.T) {
-	// init leader
-	leader := initPeer(t, &network.PeerConfiguration{})
-	fixedLeader := &FixedLeader{Leader: leader}
-	_, leaderTxBuffer := RegisterTxHandler(t, leader, fixedLeader)
-
-	// init follower
-	follower := initPeer(t, CreateBootstrapConfiguration(t, leader))
-	defer follower.Close()
-	txHandler, _ := RegisterTxHandler(t, follower, fixedLeader)
-	require.Eventually(t, func() bool { return follower.Network().Peerstore().Peers().Len() == 2 }, test.WaitDuration, test.WaitTick)
-	// shut down leader
-	err := leader.Close()
-	require.NoError(t, err)
-	require.Eventually(t, func() bool { return len(leader.Network().ListenAddresses()) == 0 }, test.WaitDuration, test.WaitTick)
-	// send requests
-	err = txHandler.Handle(context.Background(), transfer)
+	// peer2 forwards tx to peer1
+	err = peer2Forwarder.Forward(transfer, peer1.ID())
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "failed to dial"))
-
-	// verify tx buffers
-	require.Eventually(t, func() bool { return leaderTxBuffer.Count() == 0 }, test.WaitDuration, test.WaitTick)
+	require.True(t, strings.Contains(err.Error(), "connection refused"))
 }
 
-func RegisterTxHandler(t *testing.T, p *network.Peer, leaderSelector LeaderSelector) (*TxForwarder, *txbuffer.TxBuffer) {
-	t.Helper()
-	b, err := txbuffer.New(TxBufferSize)
-	require.NoError(t, err)
-	handler, err := New(p, leaderSelector, b)
-	require.NoError(t, err)
-	return handler, b
-}
+func TestTxHandler_Timeout(t *testing.T) {
+	// init peer1
+	peer1 := testnetwork.CreatePeer(t)
+	defer peer1.Close()
 
-func CreateBootstrapConfiguration(t *testing.T, p *network.Peer) *network.PeerConfiguration {
-	t.Helper()
-	pubKey, err := p.PublicKey()
+	// init peer1
+	peer2 := testnetwork.CreatePeer(t)
+	defer peer2.Close()
+
+	// init peerstores
+	peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
+	peer2.Network().Peerstore().AddAddrs(peer1.ID(), peer1.MultiAddresses(), peerstore.PermanentAddrTTL)
+
+	// init peer1 forwarder
+	_, err := New(peer1, DefaultForwardingTimeout, func(tx *transaction.Transaction) {
+		time.Sleep(time.Second)
+	})
 	require.NoError(t, err)
 
-	pubKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+	// init peer2 forwarder
+	peer2Forwarder, err := New(peer2, time.Millisecond, func(tx *transaction.Transaction) {
+	})
 	require.NoError(t, err)
-	return &network.PeerConfiguration{PersistentPeers: []*network.PeerInfo{{
-		PublicKey: pubKeyBytes,
-		Address:   p.MultiAddresses()[0].String(),
-	}}}
-}
 
-func initPeer(t *testing.T, conf *network.PeerConfiguration) *network.Peer {
-	t.Helper()
-	peer, err := network.NewPeer(conf)
-	require.NoError(t, err)
-	return peer
+	// peer2 forwards tx to peer1
+	err = peer2Forwarder.Forward(transfer, peer1.ID())
+	require.ErrorIs(t, err, ErrTimout)
+
 }

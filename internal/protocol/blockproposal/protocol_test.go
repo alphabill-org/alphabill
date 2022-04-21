@@ -1,4 +1,4 @@
-package pc1o
+package blockproposal
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ import (
 
 const defaultTimeout = 300 * time.Millisecond
 
-var emptyPC1ORequest = &PC1ORequest{
+var emptyProposal = &BlockProposal{
 	SystemIdentifier:   nil,
 	NodeIdentifier:     "",
 	UnicityCertificate: nil,
@@ -34,11 +34,11 @@ var emptyPC1ORequest = &PC1ORequest{
 }
 
 type pcs1oRequest struct {
-	req   *PC1ORequest
+	req   *BlockProposal
 	sleep bool
 }
 
-func (p *pcs1oRequest) r(req *PC1ORequest) {
+func (p *pcs1oRequest) r(req *BlockProposal) {
 	if p.sleep {
 		time.Sleep(10 * time.Second)
 	}
@@ -53,7 +53,7 @@ func TestNew(t *testing.T) {
 	type args struct {
 		self           *network.Peer
 		timeout        time.Duration
-		requestHandler PC10RequestHandler
+		requestHandler ProtocolHandler
 	}
 
 	tests := []struct {
@@ -66,7 +66,7 @@ func TestNew(t *testing.T) {
 			args: args{
 				self:           nil,
 				timeout:        defaultTimeout,
-				requestHandler: func(req *PC1ORequest) {},
+				requestHandler: func(req *BlockProposal) {},
 			},
 			wantErr: ErrPeerIsNil,
 		},
@@ -90,65 +90,65 @@ func TestNew(t *testing.T) {
 }
 
 func TestSendPC1ORequest_RequestIsNil(t *testing.T) {
-	pc1o, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *PC1ORequest) {})
+	pc1o, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *BlockProposal) {})
 	require.NoError(t, err)
 	require.ErrorIs(t, pc1o.Publish(nil), ErrRequestIsNil)
 }
 
 func TestSendPC1ORequest_SingleNodeOk(t *testing.T) {
-	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *PC1ORequest) {})
+	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *BlockProposal) {})
 	require.NoError(t, err)
-	require.NoError(t, leader.Publish(emptyPC1ORequest))
+	require.NoError(t, leader.Publish(emptyProposal))
 }
 
 func TestSendPC1ORequestToMultipleNodes_Ok(t *testing.T) {
-	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *PC1ORequest) {})
+	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *BlockProposal) {})
 	_, reqStores, err := createNodes(t, 4, leader.self)
 	require.NoError(t, err)
-	require.NoError(t, leader.Publish(emptyPC1ORequest))
+	require.NoError(t, leader.Publish(emptyProposal))
 	for _, r := range reqStores {
 		require.Eventually(t, func() bool {
-			return proto.Equal(emptyPC1ORequest, r.req)
+			return proto.Equal(emptyProposal, r.req)
 		}, test.WaitDuration, test.WaitTick)
 	}
 }
 
 func TestSendPC1ORequestToMultipleNodes_FollowerRefusesConnection(t *testing.T) {
-	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *PC1ORequest) {})
+	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *BlockProposal) {})
 	followers, reqStores, err := createNodes(t, 4, leader.self)
 
 	require.NoError(t, err)
 	err = followers[0].self.Close()
 	require.NoError(t, err)
-	err = leader.Publish(emptyPC1ORequest)
+	err = leader.Publish(emptyProposal)
 	require.True(t, strings.Contains(err.Error(), "failed to open stream"))
 	for i := 1; i < 4; i++ {
 		require.Eventually(t, func() bool {
-			return proto.Equal(emptyPC1ORequest, reqStores[i].req)
+			return proto.Equal(emptyProposal, reqStores[i].req)
 		}, test.WaitDuration, test.WaitTick)
 	}
 
 }
 
 func TestSendPC1ORequestToMultipleNodes_OneNodeFails(t *testing.T) {
-	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *PC1ORequest) {})
+	leader, err := New(testnetwork.CreatePeer(t), defaultTimeout, func(req *BlockProposal) {})
 	_, reqStores, err := createNodes(t, 2, leader.self)
 	require.NoError(t, err)
 
 	reqStores[1].sleep = true
 
-	require.NoError(t, leader.Publish(emptyPC1ORequest))
+	require.NoError(t, leader.Publish(emptyProposal))
 	require.Eventually(t, func() bool {
-		return proto.Equal(emptyPC1ORequest, reqStores[0].req)
+		return proto.Equal(emptyProposal, reqStores[0].req)
 	}, 100*time.Millisecond, 10*time.Millisecond)
 	require.Never(t, func() bool {
-		return proto.Equal(emptyPC1ORequest, reqStores[1].req)
+		return proto.Equal(emptyProposal, reqStores[1].req)
 	}, 100*time.Millisecond, 10*time.Millisecond)
 
 }
 
-func createNodes(t *testing.T, nrOfNodes int, leader *network.Peer) ([]*PC1O, []*pcs1oRequest, error) {
-	peers := make([]*PC1O, nrOfNodes)
+func createNodes(t *testing.T, nrOfNodes int, leader *network.Peer) ([]*Protocol, []*pcs1oRequest, error) {
+	peers := make([]*Protocol, nrOfNodes)
 	handlers := make([]*pcs1oRequest, nrOfNodes)
 	leaderPeers := leader.Configuration().PersistentPeers
 	for i := 0; i < nrOfNodes; i++ {

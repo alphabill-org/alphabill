@@ -40,14 +40,14 @@ func (t *AlwaysValidTransactionValidator) Validate(tx *transaction.Transaction) 
 }
 
 type SingleNodePartition struct {
-	nodeConf    *Configuration
-	eventBus    *eventbus.EventBus
-	store       *store.InMemoryBlockStore
-	partition   *Partition
-	p1Channel   <-chan interface{}
-	pc10Channel <-chan interface{}
-	rootState   *rootchain.State
-	rootSigner  crypto.Signer
+	nodeConf             *Configuration
+	eventBus             *eventbus.EventBus
+	store                *store.InMemoryBlockStore
+	partition            *Partition
+	p1Channel            <-chan interface{}
+	blockProposalChannel <-chan interface{}
+	rootState            *rootchain.State
+	rootSigner           crypto.Signer
 }
 
 func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
@@ -115,19 +115,19 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	if err != nil {
 		t.Error(err)
 	}
-	pc10Channel, err := bus.Subscribe(eventbus.TopicPC1O, 10)
+	blockProposalChannel, err := bus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
 	if err != nil {
 		t.Error(err)
 	}
 	partition := &SingleNodePartition{
-		eventBus:    bus,
-		p1Channel:   p1Channel,
-		pc10Channel: pc10Channel,
-		partition:   p,
-		rootState:   rc,
-		nodeConf:    c,
-		store:       s,
-		rootSigner:  rootSigner,
+		eventBus:             bus,
+		p1Channel:            p1Channel,
+		blockProposalChannel: blockProposalChannel,
+		partition:            p,
+		rootState:            rc,
+		nodeConf:             c,
+		store:                s,
+		rootSigner:           rootSigner,
 	}
 	t.Cleanup(partition.Close)
 	return partition

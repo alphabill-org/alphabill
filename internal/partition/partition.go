@@ -76,6 +76,7 @@ type (
 		status                      status
 		unicityCertificatesCh       <-chan interface{}
 		transactionsCh              <-chan interface{}
+		blockProposalsCh            <-chan interface{}
 		eventbus                    *eventbus.EventBus
 		ctx                         context.Context
 		ctxCancel                   context.CancelFunc
@@ -132,6 +133,10 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+	blockProposalsCh, err := eb.Subscribe(eventbus.TopicBlockProposalInput, defaultTopicCapacity)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := partitionGenesis.IsValid(configuration.TrustBase, configuration.HashAlgorithm); err != nil {
 		logger.Warning("Invalid partition genesis file: %v", err)
@@ -166,6 +171,7 @@ func New(
 		eventbus:                    eb,
 		unicityCertificatesCh:       unicityCertificatesCh,
 		transactionsCh:              transactionsCh,
+		blockProposalsCh:            blockProposalsCh,
 		unicityCertificateValidator: ucValidator,
 		txValidator:                 txValidator,
 		blockStore:                  blockStore,
@@ -210,12 +216,21 @@ func (p *Partition) loop() {
 		case e := <-p.unicityCertificatesCh:
 			logger.Info("Handling unicity certificate %v", e)
 			p.handleUnicityCertificateEvent(e)
+		case e := <-p.blockProposalsCh:
+			logger.Info("Handling block proposal %v", e)
+			success, proposal := convertType[eventbus.BlockProposalEvent](e)
+			if !success {
+				logger.Warning("Invalid Block proposal event type: %v", e)
+				return
+			}
+			err := p.handleBlockProposal(proposal)
+			if err != nil {
+				logger.Warning("Block proposal processing failed: %v", err)
+			}
 		case <-p.timers.C:
 			logger.Info("Handling T1 timeout event")
 			p.handleT1TimeoutEvent()
 		}
-
-		// TODO handle block proposals (AB-119)
 	}
 }
 func (p *Partition) GetCurrentProposal() []*transaction.Transaction {
@@ -267,6 +282,25 @@ func (p *Partition) handleUnicityCertificateEvent(event interface{}) {
 	default:
 		logger.Warning("Invalid unicity certificate event: %v", event)
 	}
+}
+
+// handleBlockProposal processes a block proposals. Performs the following steps:
+//  1. Block proposal as a whole is validated:
+// 		 * It must have valid signature, correct transaction system ID, valid UC;
+//     	 * the UC must be not older than the latest known by current node;
+//    	 * Sender must be the leader for the round started by included UC.
+//  2. If included UC is newer than latest UC then the new UC is processed; this rolls back possible pending change in
+//     the transaction system. If new UC is ‘repeat UC’ then update is reasonably fast; if recovery is necessary then
+//     likely it takes some time and there is no reason to finish the processing of current proposal.
+//  3. If the transaction system root is not equal to one extended by the processed proposal then processing is aborted.
+//  4. All transaction orders in proposal are validated; on encountering an invalid transaction order the processing is
+//     aborted.
+//  5. Transaction orders are executed by applying them to the transaction system.
+//  6. Pending unicity certificate request data structure is created and persisted.
+//  7. Certificate Request query (protocol P1 query) is assembled and sent to the Root Chain.
+func (p *Partition) handleBlockProposal(event eventbus.BlockProposalEvent) error {
+
+	return nil
 }
 
 // handleUnicityCertificate processes the Unicity Certificate and finalizes a block. Performs the following steps:
@@ -380,17 +414,17 @@ func (p *Partition) handleT1TimeoutEvent() {
 }
 
 func (p *Partition) sendProposal() {
-	logger.Info("Sending PC1-O event. TxCount: %v", len(p.proposal))
+	logger.Info("Sending BlockProposal. TxCount: %v", len(p.proposal))
 	systemIdentifier := p.configuration.GetSystemIdentifier()
 	nodeId := p.leaderSelector.SelfID()
-	err := p.eventbus.Submit(eventbus.TopicPC1O, &eventbus.PC1OEvent{
+	err := p.eventbus.Submit(eventbus.TopicBlockProposalOutput, &eventbus.BlockProposalEvent{
 		SystemIdentifier:   systemIdentifier,
 		NodeIdentifier:     nodeId,
 		UnicityCertificate: p.luc,
 		Transactions:       p.proposal,
 	})
 	if err != nil {
-		logger.Warning("Failed to send PC1-0 event: %v", err)
+		logger.Warning("Failed to send BlockProposal event: %v", err)
 		return
 	}
 	prevHash := p.luc.InputRecord.Hash
@@ -442,4 +476,13 @@ func (p *Partition) sendProposal() {
 	if err != nil {
 		logger.Warning("Failed to send P1 event: %v", err)
 	}
+}
+
+func convertType[T any](event interface{}) (bool, T) {
+	var result T
+	switch event.(type) {
+	case T:
+		return true, event.(T)
+	}
+	return false, result
 }

@@ -2,9 +2,9 @@ syntax = "proto3";
 
 import "certificates.proto";
 import "transaction.proto";
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/pc1o;pc1o";
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal;blockproposal";
 
-message PC1ORequest {
+message BlockProposal {
   bytes system_identifier = 1;
   string node_identifier = 2;
   UnicityCertificate unicity_certificate = 3;

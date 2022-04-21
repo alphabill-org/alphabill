@@ -291,7 +291,7 @@ func TestNew_InvalidSummaryValue(t *testing.T) {
 func TestNew_StartsMainLoop(t *testing.T) {
 	_, eventBus := createPartitionWithDefaultTxSystem(t)
 
-	pc10, err := eventBus.Subscribe(eventbus.TopicPC1O, 10)
+	proposal, err := eventBus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
 	require.NoError(t, err)
 
 	p1, err := eventBus.Subscribe(eventbus.TopicP1, 10)
@@ -299,7 +299,7 @@ func TestNew_StartsMainLoop(t *testing.T) {
 
 	eventBus.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: testtransaction.RandomBillTransfer()})
 
-	require.Eventually(t, func() bool { <-pc10; return true }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { <-proposal; return true }, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool { <-p1; return true }, test.WaitDuration, test.WaitTick)
 }
 
@@ -307,7 +307,7 @@ func TestPartition_HandleInvalidTxEvent(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	conf := testConfiguration(t, system)
 	p, eventBus := createTestPartitionWithTxSystem(t, system, conf)
-	pc10, err := eventBus.Subscribe(eventbus.TopicPC1O, 10)
+	proposal, err := eventBus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
 	require.NoError(t, err)
 
 	p1, err := eventBus.Subscribe(eventbus.TopicP1, 10)
@@ -315,7 +315,7 @@ func TestPartition_HandleInvalidTxEvent(t *testing.T) {
 	require.NoError(t, err)
 	eventBus.Submit(eventbus.TopicPartitionTransaction, "invalid tx")
 
-	require.Eventually(t, func() bool { <-pc10; return true }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { <-proposal; return true }, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool { <-p1; return true }, test.WaitDuration, test.WaitTick)
 	require.Equal(t, 0, len(p.proposal))
 	require.Equal(t, 0, len(p.pr.Transactions))
@@ -325,7 +325,7 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	partitionConf := testConfiguration(t, system)
 	p, eventBus := createTestPartitionWithTxSystem(t, system, partitionConf)
-	pc1O, err := eventBus.Subscribe(eventbus.TopicPC1O, 10)
+	proposal, err := eventBus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
 	require.NoError(t, err)
 
 	p1, err := eventBus.Subscribe(eventbus.TopicP1, 10)
@@ -334,7 +334,7 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 	err = eventBus.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: testtransaction.RandomBillTransfer()})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool { <-pc1O; return true }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool { <-proposal; return true }, test.WaitDuration, test.WaitTick)
 	var p1Event eventbus.P1Event
 	require.Eventually(t, func() bool { e := <-p1; p1Event = e.(eventbus.P1Event); return true }, test.WaitDuration, test.WaitTick)
 	err = eventBus.Submit(eventbus.TopicPartitionUnicityCertificate, eventbus.UnicityCertificateEvent{
@@ -529,7 +529,7 @@ func TestPartition_HandleUnicityCertificate_Revert(t *testing.T) {
 	// create block proposal and drain channels
 	tp.partition.handleT1TimeoutEvent()
 	<-tp.p1Channel
-	<-tp.pc10Channel
+	<-tp.blockProposalChannel
 	require.Equal(t, uint64(0), system.RevertCount)
 
 	// send repeat UC
@@ -560,7 +560,7 @@ func TestPartition_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T)
 	// prepare proposal
 	tp.partition.handleT1TimeoutEvent()
 	<-tp.p1Channel
-	<-tp.pc10Channel
+	<-tp.blockProposalChannel
 	require.Equal(t, uint64(0), system.RevertCount)
 	// send UC with different IR hash
 	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)

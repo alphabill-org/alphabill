@@ -3,6 +3,8 @@ package partition
 import (
 	gocrypto "crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -76,7 +78,7 @@ func WithSigner(signer crypto.Signer) Option {
 //				)
 //
 // This function must be called by all partition nodes in the network.
-func NewNodeGenesis(txSystem TransactionSystem, opts ...Option) (*genesis.PartitionNode, error) {
+func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...Option) (*genesis.PartitionNode, error) {
 	if txSystem == nil {
 		return nil, ErrTxSystemIsNil
 	}
@@ -93,7 +95,10 @@ func NewNodeGenesis(txSystem TransactionSystem, opts ...Option) (*genesis.Partit
 	}
 
 	// create the first round of the tx system
-	hash, summaryValue := txSystem.Init()
+	state := txSystem.Init()
+	hash := state.Root()
+	summaryValue := state.Summary()
+
 	zeroHash := make([]byte, c.hashAlgorithm.Size())
 
 	// first block
@@ -115,7 +120,7 @@ func NewNodeGenesis(txSystem TransactionSystem, opts ...Option) (*genesis.Partit
 			PreviousHash: zeroHash, // extend zero hash
 			Hash:         hash,
 			BlockHash:    blockHash,
-			SummaryValue: summaryValue.Bytes(),
+			SummaryValue: summaryValue,
 		},
 	}
 	err := p1Request.Sign(c.signer)

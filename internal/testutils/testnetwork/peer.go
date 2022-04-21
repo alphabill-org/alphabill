@@ -21,7 +21,7 @@ func CreatePeer(t *testing.T) *network.Peer {
 	require.NoError(t, err)
 
 	conf.PersistentPeers = []*network.PeerInfo{{
-		Address:   fmt.Sprintf("%v", peer.MultiAddresses()[0]),
+		Address:   fmt.Sprintf("%v", peer.MultiAddresses()),
 		PublicKey: pubKeyBytes,
 	}}
 	return peer

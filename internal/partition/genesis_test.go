@@ -4,6 +4,8 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
@@ -29,7 +31,7 @@ var nodeID2 peer.ID = "test2"
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		txSystem TransactionSystem
+		txSystem txsystem.TransactionSystem
 		opts     []Option
 	}
 

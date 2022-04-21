@@ -2,14 +2,16 @@ package wallet
 
 import (
 	"bytes"
+	"sort"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"sort"
 )
 
 var alphabillMoneySystemId = []byte{0}
@@ -30,7 +32,7 @@ func createTransaction(pubKey []byte, k *accountKey, amount uint64, b *bill, tim
 
 func createTransferTx(pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*transaction.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillTransfer{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.BillTransfer{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: bill.Value,
 		Backlink:    bill.TxHash,
@@ -57,7 +59,7 @@ func createGenericTx(unitId []byte, timeout uint64) *transaction.Transaction {
 
 func createSplitTx(amount uint64, pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*transaction.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transaction.BillSplit{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.BillSplit{
 		Amount:         bill.Value,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		RemainingValue: bill.Value - amount,
@@ -75,7 +77,7 @@ func createSplitTx(amount uint64, pubKey []byte, k *accountKey, bill *bill, time
 
 func createDustTx(k *accountKey, bill *bill, nonce []byte, timeout uint64) (*transaction.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transaction.TransferDC{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferDC{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
 		Backlink:     bill.TxHash,
@@ -113,7 +115,7 @@ func createSwapTx(k *accountKey, dcBills []*bill, dcNonce []byte, timeout uint64
 	}
 
 	swapTx := createGenericTx(dcNonce, timeout)
-	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &transaction.Swap{
+	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &billtx.Swap{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
 		BillIdentifiers: billIds,
 		DcTransfers:     dustTransferOrders,
@@ -135,7 +137,7 @@ func signTx(tx *transaction.Transaction, ac *accountKey) error {
 	if err != nil {
 		return err
 	}
-	gtx, err := transaction.NewMoneyTx(tx)
+	gtx, err := billtx.NewMoneyTx(tx)
 	if err != nil {
 		return err
 	}

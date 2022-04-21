@@ -2,13 +2,13 @@ package money
 
 import (
 	"crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestTransfer(t *testing.T) {

@@ -65,8 +65,8 @@ func (p *PC1O) Publish(req *PC1ORequest) error {
 	responses := make(chan error, len(persistentPeers))
 
 	var err error
-	for _, peer := range persistentPeers {
-		id, e := peer.GetID()
+	for _, pi := range persistentPeers {
+		id, e := pi.GetID()
 		if e != nil {
 			err = multierror.Append(err, e)
 			continue

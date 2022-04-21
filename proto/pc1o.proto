@@ -7,7 +7,7 @@ option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protoco
 message PC1ORequest {
   bytes system_identifier = 1;
   string node_identifier = 2;
-  UnicityCertificate unicityCertificate = 3;
+  UnicityCertificate unicity_certificate = 3;
   repeated Transaction transactions = 4;
   bytes signature = 5;
 }

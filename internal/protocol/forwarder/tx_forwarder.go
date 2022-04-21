@@ -67,9 +67,19 @@ func (tf *TxForwarder) Forward(req *transaction.Transaction, receiver peer.ID) e
 			responseCh <- errors.Wrap(err, "failed to open stream")
 			return
 		}
-		defer s.Close()
+		defer func() {
+			err := s.Close()
+			if err != nil {
+				logger.Warning("Failed to close libp2p stream: %v", err)
+			}
+		}()
 		w := protocol.NewProtoBufWriter(s)
-		defer w.Close()
+		defer func() {
+			err := w.Close()
+			if err != nil {
+				logger.Warning("Failed to close protobuf writer: %v", err)
+			}
+		}()
 		if err := w.Write(req); err != nil {
 			_ = s.Reset()
 			responseCh <- errors.Errorf("failed to forward transaction, %v", err)
@@ -96,14 +106,17 @@ func (tf *TxForwarder) Forward(req *transaction.Transaction, receiver peer.ID) e
 	case err := <-responseCh:
 		return err
 	}
-
-	return nil
 }
 
 // handleStream receives incoming transactions from other peers in the network.
 func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 	r := protocol.NewProtoBufReader(s)
-	defer r.Close()
+	defer func() {
+		err := s.Close()
+		if err != nil {
+			logger.Warning("Failed to close protobuf reader: %v", err)
+		}
+	}()
 
 	req := &transaction.Transaction{}
 	err := r.Read(req)

@@ -14,10 +14,7 @@ import (
 
 const UnknownLeader = ""
 
-var (
-	ErrInvalidLeaderIndex = errors.New("invalid leader index")
-	ErrPeerIsNilIndex     = errors.New("peer is nil")
-)
+var ErrPeerIsNilIndex = errors.New("peer is nil")
 
 type (
 	LeaderSelector interface {

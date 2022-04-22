@@ -22,6 +22,8 @@ type (
 	vdShardTxConverter struct{}
 )
 
+const vdFolder = "vd"
+
 func newVDShardCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Command {
 	config := &vdShardConfiguration{
 		baseShardConfiguration: baseShardConfiguration{
@@ -29,7 +31,7 @@ func newVDShardCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Co
 			Server: &grpcServerConfiguration{},
 		},
 	}
-	// shardCmd represents the shard command
+
 	var shardCmd = &cobra.Command{
 		Use:   "vd-shard",
 		Short: "Starts a Verifiable Data partition's shard node",
@@ -55,11 +57,11 @@ func defaultVDShardRunFunc(ctx context.Context, cfg *vdShardConfiguration) error
 		return err
 	}
 
-	err = os.MkdirAll(cfg.Root.HomeDir+"/vd", 0700) // -rwx------
+	err = os.MkdirAll(path.Join(cfg.Root.HomeDir, vdFolder), 0700) // -rwx------
 	if err != nil {
 		return err
 	}
-	blockStoreFile := path.Join(cfg.Root.HomeDir, "vd", store.BoltBlockStoreFileName)
+	blockStoreFile := path.Join(cfg.Root.HomeDir, vdFolder, store.BoltBlockStoreFileName)
 	blockStore, err := store.NewBoltBlockStore(blockStoreFile)
 	if err != nil {
 		return err

@@ -14,10 +14,8 @@ type registerDataWrapper struct {
 }
 
 func NewVerifiableDataTx(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	println("NewVerifiableDataTx:", tx, tx.TransactionAttributes.TypeUrl)
 	switch tx.TransactionAttributes.TypeUrl {
 	case protobufTypeUrlPrefix + "RegisterData":
-		println("NewVerifiableDataTx:RegisterData")
 		pb := &RegisterData{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
@@ -47,8 +45,4 @@ func (r *registerDataWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	r.wrapper.sigBytes(b)
 	return b.Bytes()
-}
-
-func (r *registerDataWrapper) Attributes() []byte {
-	return nil // TODO
 }

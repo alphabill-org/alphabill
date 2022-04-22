@@ -2,7 +2,6 @@ package money
 
 import (
 	"crypto"
-	"fmt"
 	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
@@ -220,7 +219,7 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 			Backlink: tx.Hash(m.hashAlgorithm),
 		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
-			return errors.Wrapf(err, "could not add item")
+			return errors.Wrap(err, "could not add item")
 		}
 	case Swap:
 		log.Debug("Processing swap %v", tx)
@@ -252,11 +251,11 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 			Backlink: tx.Hash(m.hashAlgorithm),
 		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
-			return errors.Wrapf(err, "could not add item")
+			return errors.Wrap(err, "could not add item")
 		}
 		return nil
 	default:
-		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
+		return errors.Errorf("Unknown type %T", gtx)
 	}
 	return nil
 }

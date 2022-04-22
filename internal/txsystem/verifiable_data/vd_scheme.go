@@ -2,7 +2,6 @@ package verifiable_data
 
 import (
 	"crypto"
-	"fmt"
 	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -17,9 +16,8 @@ import (
 )
 
 type (
-	Register interface {
+	RegisterTx interface {
 		transaction.GenericTransaction
-		Attributes() []byte // TODO tbd
 	}
 
 	StateTree interface {
@@ -35,14 +33,12 @@ type (
 	}
 
 	VerifiableDataUnit struct {
-		H []byte // data hash
-		N uint64 // block nr
-	}
-
-	VerifiableDataSummary struct {
-		v uint64
+		DataHash    []byte
+		BlockNumber uint64
 	}
 )
+
+const zeroSummaryValue = state.Uint64SummaryValue(0)
 
 var (
 	log = logger.CreateForPackage()
@@ -74,35 +70,23 @@ func (d *vdSchemeState) Process(gtx transaction.GenericTransaction) error {
 		return err
 	}
 	switch tx := gtx.(type) {
-	case Register:
+	case RegisterTx:
 		log.Debug("Processing registration transaction %v", tx)
-		err := d.stateTree.AddItem(tx.UnitID(), script.PredicateAlwaysFalse(), &VerifiableDataUnit{H: hasherUtil.Sum256(tx.UnitID().Bytes()), N: d.stateTree.GetBlockNumber()}, tx.Hash(d.hashAlgorithm))
+		err := d.stateTree.AddItem(tx.UnitID(), script.PredicateAlwaysFalse(), &VerifiableDataUnit{DataHash: hasherUtil.Sum256(tx.UnitID().Bytes()), BlockNumber: d.stateTree.GetBlockNumber()}, tx.Hash(d.hashAlgorithm))
 		if err != nil {
-			return errors.Wrapf(err, "could not add item")
+			return errors.Wrap(err, "could not add item")
 		}
 		return nil
 	default:
-		return errors.New(fmt.Sprintf("Unknown type %T", gtx))
+		return errors.Errorf("Unknown type %T", gtx)
 	}
 }
 
 func (u *VerifiableDataUnit) AddToHasher(hasher hash.Hash) {
-	hasher.Write(u.H)
-	hasher.Write(util.Uint64ToBytes(u.N))
+	hasher.Write(u.DataHash)
+	hasher.Write(util.Uint64ToBytes(u.BlockNumber))
 }
 
 func (u *VerifiableDataUnit) Value() state.SummaryValue {
-	return &VerifiableDataSummary{v: 0}
-}
-
-func (u *VerifiableDataSummary) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(u.v))
-}
-
-func (u *VerifiableDataSummary) Concatenate(state.SummaryValue, state.SummaryValue) state.SummaryValue {
-	return &VerifiableDataSummary{v: 0}
-}
-
-func (u *VerifiableDataSummary) Bytes() []byte {
-	return util.Uint64ToBytes(u.v)
+	return zeroSummaryValue
 }

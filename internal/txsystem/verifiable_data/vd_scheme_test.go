@@ -61,7 +61,6 @@ func TestRegisterData_withDuplicate(t *testing.T) {
 	require.NoError(t, err)
 	// send duplicate
 	err = vd.Process(reg)
-	println("err: ", err.Error())
 	require.Error(t, err, "could not add item")
 }
 
@@ -72,6 +71,3 @@ func (t *genericTx) OwnerProof() []byte   { return t.ownerProof }
 func (t *genericTx) SigBytes() []byte     { return t.sigBytes }
 
 func (r *reg) Hash(_ crypto.Hash) []byte { return []byte("reg hash") }
-func (r *reg) Attributes() []byte {
-	return nil
-}

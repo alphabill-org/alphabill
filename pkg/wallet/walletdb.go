@@ -213,11 +213,11 @@ func (w *wdb) IsEncrypted() (bool, error) {
 }
 
 func (w *wdb) VerifyPassword() (bool, error) {
-	encryped, err := w.IsEncrypted()
+	encrypted, err := w.IsEncrypted()
 	if err != nil {
 		return false, err
 	}
-	if encryped {
+	if encrypted {
 		_, err = w.GetAccountKey()
 		if err != nil {
 			if errors.Is(err, abcrypto.ErrEmptyPassphrase) {

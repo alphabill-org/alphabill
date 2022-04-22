@@ -203,11 +203,7 @@ func (w *wdb) IsEncrypted() (bool, error) {
 	var res bool
 	err := w.withTx(func(tx *bolt.Tx) error {
 		encrypted := tx.Bucket(metaBucket).Get(isEncryptedKeyName)
-		if bytes.Equal(encrypted, []byte{0x01}) {
-			res = true
-		} else {
-			res = false
-		}
+		res = bytes.Equal(encrypted, []byte{0x01})
 		return nil
 	}, false)
 	if err != nil {

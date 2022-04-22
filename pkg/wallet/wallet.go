@@ -171,17 +171,17 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 }
 
 // Sync synchronises wallet with given alphabill node.
-// The function blocks forever or until alphabill connection is terminated, returns nil if already synchronizing.
-// Any errors returned here mean that the synchronization process failed to initialize,
-// if after successful initilization the rpc connection is terminated then the function returns nil, no error is returned.
-func (w *Wallet) Sync() error {
-	return w.syncLedger(true)
+// The function blocks forever or until alphabill connection is terminated.
+// Returns immediately if already synchronizing.
+func (w *Wallet) Sync() {
+	w.syncLedger(true)
 }
 
 // SyncToMaxBlockHeight synchronises wallet with given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
-func (w *Wallet) SyncToMaxBlockHeight() error {
-	return w.syncLedger(false)
+// Returns immediately if already synchronizing.
+func (w *Wallet) SyncToMaxBlockHeight() {
+	w.syncLedger(false)
 }
 
 // CollectDust starts the dust collector process.
@@ -202,6 +202,15 @@ func (w *Wallet) StartDustCollectorJob() error {
 // Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
 func (w *Wallet) Shutdown() {
 	log.Info("Shutting down wallet")
+
+	// send cancel signal only if channel is not full
+	// this check is needed in case Shutdown is called multiple times
+	// alternatively we can prohibit reusing wallet that has been shut down
+	select {
+	case w.syncFlag.cancelSyncCh <- true:
+	default:
+	}
+
 	if w.alphaBillClient != nil {
 		w.alphaBillClient.Shutdown()
 	}
@@ -229,54 +238,65 @@ func newWallet(config Config, db Db) (*Wallet, error) {
 			Uri:              config.AlphabillClientConfig.Uri,
 			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
 		}),
-		syncFlag: &syncFlagWrapper{},
+		syncFlag: newSyncFlagWrapper(),
 	}, nil
 }
 
 // syncLedger downloads and processes blocks, blocks until error in rpc connection
-func (w *Wallet) syncLedger(syncForever bool) error {
+func (w *Wallet) syncLedger(syncForever bool) {
 	log.Info("starting ledger synchronization process")
 	if w.syncFlag.isSynchronizing() {
 		log.Warning("wallet is already synchronizing")
-		return nil
+		return
 	}
 	w.syncFlag.setSynchronizing(true)
 	defer w.syncFlag.setSynchronizing(false)
 
-	blockNo, err := w.db.GetBlockHeight()
-	if err != nil {
-		return err
-	}
-
 	var wg sync.WaitGroup
 	wg.Add(2)
 	ch := make(chan *alphabill.Block, prefetchBlockCount)
-	go w.fetchBlocks(syncForever, blockNo, ch, &wg)
 	go func() {
-		err = w.processBlocks(ch)
+		var err error
+		if syncForever {
+			err = w.fetchBlocksForever(ch)
+		} else {
+			err = w.fetchBlocksUntilMaxBlock(ch)
+		}
+		if err != nil {
+			log.Error("error fetching block: ", err)
+		}
+		log.Info("closing block receiver channel")
+		close(ch)
+		wg.Done()
+	}()
+	go func() {
+		err := w.processBlocks(ch)
 		if err != nil {
 			log.Error("error processing block: ", err)
-			// in case of error in block processing goroutine we need to either
-			// 1) retry the block or 2) signal block receiver goroutine to stop fetching blocks,
-			// we do 2) by closing alphabill connection
-			w.alphaBillClient.Shutdown()
+			// signal block receiver goroutine to stop fetching blocks
+			w.syncFlag.cancelSyncCh <- true
 		} else {
 			log.Info("block processor channel closed")
 		}
 		wg.Done()
 	}()
 	wg.Wait()
-	log.Info("alphabill sync finished")
-	return nil
+	log.Info("ledger sync finished")
 }
 
-func (w *Wallet) fetchBlocks(syncForever bool, blockNo uint64, ch chan<- *alphabill.Block, wg *sync.WaitGroup) {
-	if syncForever {
-		for {
+func (w *Wallet) fetchBlocksForever(ch chan<- *alphabill.Block) error {
+	blockNo, err := w.db.GetBlockHeight()
+	if err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-w.syncFlag.cancelSyncCh:
+			return nil
+		default:
 			maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
 			if err != nil {
-				log.Error("error fetching max block no: ", err)
-				break
+				return err
 			}
 			if blockNo == maxBlockNo {
 				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
@@ -285,30 +305,36 @@ func (w *Wallet) fetchBlocks(syncForever bool, blockNo uint64, ch chan<- *alphab
 			blockNo = blockNo + 1
 			block, err := w.alphaBillClient.GetBlock(blockNo)
 			if err != nil {
-				log.Error("error receiving block: ", err)
-				break
+				return err
 			}
 			ch <- block
 		}
-	} else {
-		maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
-		if err != nil {
-			log.Error("error fetching max block no: ", err)
-		} else {
-			for blockNo < maxBlockNo {
-				blockNo = blockNo + 1
-				block, err := w.alphaBillClient.GetBlock(blockNo)
-				if err != nil {
-					log.Error("error receiving block: ", err)
-					break
-				}
-				ch <- block
+	}
+}
+
+func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *alphabill.Block) error {
+	blockNo, err := w.db.GetBlockHeight()
+	if err != nil {
+		return err
+	}
+	maxBlockNo, err := w.alphaBillClient.GetMaxBlockNo()
+	if err != nil {
+		return err
+	}
+	for blockNo < maxBlockNo {
+		select {
+		case <-w.syncFlag.cancelSyncCh:
+			return nil
+		default:
+			blockNo = blockNo + 1
+			block, err := w.alphaBillClient.GetBlock(blockNo)
+			if err != nil {
+				return err
 			}
+			ch <- block
 		}
 	}
-	log.Info("closing block receiver channel, last received block: " + strconv.FormatUint(blockNo, 10))
-	close(ch)
-	wg.Done()
+	return nil
 }
 
 func (w *Wallet) processBlocks(ch <-chan *alphabill.Block) error {

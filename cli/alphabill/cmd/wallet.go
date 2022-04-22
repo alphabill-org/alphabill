@@ -102,7 +102,8 @@ func execSyncCmd(cmd *cobra.Command, walletDir string) error {
 		return err
 	}
 	defer w.Shutdown()
-	return w.SyncToMaxBlockHeight()
+	w.SyncToMaxBlockHeight()
+	return nil
 }
 
 func sendCmd(rootConfig *rootConfiguration) *cobra.Command {

@@ -3,7 +3,6 @@ package wallet
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"log"
 	"net"
 	"os"
@@ -110,8 +109,7 @@ func TestSync(t *testing.T) {
 
 	// when wallet is synced with the node
 	go func() {
-		err := w.Sync()
-		require.NoError(t, err)
+		w.Sync()
 	}()
 
 	// wait for block to be processed
@@ -163,8 +161,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	require.NoError(t, err)
 
 	// when wallet is synced to max block height
-	err = w.SyncToMaxBlockHeight()
-	require.NoError(t, err)
+	w.SyncToMaxBlockHeight()
 
 	// then block height is exactly equal to max block height, and further blocks are not processed
 	height, err = w.db.GetBlockHeight()
@@ -204,8 +201,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// and wallet synchronization is started
 	go func() {
-		err := w.Sync()
-		assert.NoError(t, err)
+		w.Sync()
 	}()
 
 	// then dc transactions are sent

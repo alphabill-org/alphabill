@@ -3,6 +3,7 @@ package certificates
 import (
 	"bytes"
 	gocrypto "crypto"
+	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -35,4 +36,10 @@ func (x *UnicityCertificate) IsValid(verifier crypto.Verifier, algorithm gocrypt
 		return errors.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)
 	}
 	return nil
+}
+
+func (x *UnicityCertificate) AddToHasher(hasher hash.Hash) {
+	x.InputRecord.AddToHasher(hasher)
+	x.UnicityTreeCertificate.AddToHasher(hasher)
+	x.UnicitySeal.AddToHasher(hasher)
 }

@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"time"
 )
 
 // ABClient manages connection to alphabill node and implements RPC methods
@@ -22,7 +23,8 @@ type ABClient interface {
 }
 
 type AlphabillClientConfig struct {
-	Uri string
+	Uri              string
+	RequestTimeoutMs uint64
 }
 
 type AlphabillClient struct {
@@ -41,7 +43,13 @@ func (c *AlphabillClient) SendTransaction(tx *transaction.Transaction) (*transac
 	if err != nil {
 		return nil, err
 	}
-	return c.client.ProcessTransaction(context.Background(), tx)
+	ctx := context.Background()
+	if c.config.RequestTimeoutMs > 0 {
+		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
+		defer cancel()
+		ctx = ctxTimeout
+	}
+	return c.client.ProcessTransaction(ctx, tx)
 }
 
 func (c *AlphabillClient) GetBlock(blockNo uint64) (*alphabill.Block, error) {
@@ -49,7 +57,13 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*alphabill.Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.client.GetBlock(context.Background(), &alphabill.GetBlockRequest{BlockNo: blockNo})
+	ctx := context.Background()
+	if c.config.RequestTimeoutMs > 0 {
+		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
+		defer cancel()
+		ctx = ctxTimeout
+	}
+	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNo})
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +78,13 @@ func (c *AlphabillClient) GetMaxBlockNo() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := c.client.GetMaxBlockNo(context.Background(), &alphabill.GetMaxBlockNoRequest{})
+	ctx := context.Background()
+	if c.config.RequestTimeoutMs > 0 {
+		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
+		defer cancel()
+		ctx = ctxTimeout
+	}
+	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
 	if err != nil {
 		return 0, err
 	}

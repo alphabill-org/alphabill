@@ -10,7 +10,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	vdtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
@@ -78,7 +77,6 @@ func TestRunVDShard(t *testing.T) {
 			UnitId:                id[:],
 			TransactionAttributes: new(anypb.Any),
 			Timeout:               1,
-			OwnerProof:            script.PredicateArgumentEmpty(),
 			SystemId:              []byte{1},
 		}
 		reg := &vdtx.RegisterData{}

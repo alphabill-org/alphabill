@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,11 @@ type (
 	reg struct {
 		genericTx
 	}
+
+	unknownTx struct {
+		genericTx
+		foo string
+	}
 )
 
 func TestRegisterData(t *testing.T) {
@@ -34,12 +40,63 @@ func TestRegisterData(t *testing.T) {
 	id := hasher.Sum(nil)
 	err = vd.Process(&reg{
 		genericTx: genericTx{
-			systemID:   []byte{1},
-			unitId:     uint256.NewInt(0).SetBytes(id),
-			timeout:    2,
-			ownerProof: script.PredicateAlwaysFalse(),
+			systemID: []byte{1},
+			unitId:   uint256.NewInt(0).SetBytes(id),
+			timeout:  2,
 		},
 	})
+	require.NoError(t, err)
+}
+
+func TestRegisterData_invalidSystemId(t *testing.T) {
+	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	require.NoError(t, err)
+	hasher := crypto.SHA256.New()
+	hasher.Write(test.RandomBytes(32))
+	id := hasher.Sum(nil)
+	err = vd.Process(&reg{
+		genericTx: genericTx{
+			systemID: []byte{0},
+			unitId:   uint256.NewInt(0).SetBytes(id),
+			timeout:  2,
+		},
+	})
+	require.Error(t, err)
+}
+
+func TestRegisterData_invalidOwnerProof(t *testing.T) {
+	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	require.NoError(t, err)
+	hasher := crypto.SHA256.New()
+	hasher.Write(test.RandomBytes(32))
+	id := hasher.Sum(nil)
+	err = vd.Process(&reg{
+		genericTx: genericTx{
+			systemID:   []byte{0},
+			unitId:     uint256.NewInt(0).SetBytes(id),
+			timeout:    2,
+			ownerProof: script.PredicateAlwaysTrue(),
+		},
+	})
+	require.Error(t, err)
+}
+
+func TestRegisterData_UnknownTx(t *testing.T) {
+	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	require.NoError(t, err)
+	hasher := crypto.SHA256.New()
+	hasher.Write(test.RandomBytes(32))
+	id := hasher.Sum(nil)
+	err = vd.Process(&unknownTx{
+		genericTx: genericTx{
+			systemID: []byte{1},
+			unitId:   uint256.NewInt(0).SetBytes(id),
+			timeout:  2,
+		},
+		foo: "bar",
+	})
+	// in fact any tx (until systemID matches) fits as a 'reg' tx,
+	// at least until we have a fixed set of attributes
 	require.NoError(t, err)
 }
 
@@ -51,10 +108,9 @@ func TestRegisterData_withDuplicate(t *testing.T) {
 	id := hasher.Sum(nil)
 	reg := &reg{
 		genericTx: genericTx{
-			systemID:   []byte{1},
-			unitId:     uint256.NewInt(0).SetBytes(id),
-			timeout:    2,
-			ownerProof: script.PredicateAlwaysFalse(),
+			systemID: []byte{1},
+			unitId:   uint256.NewInt(0).SetBytes(id),
+			timeout:  2,
 		},
 	}
 	err = vd.Process(reg)
@@ -71,3 +127,5 @@ func (t *genericTx) OwnerProof() []byte   { return t.ownerProof }
 func (t *genericTx) SigBytes() []byte     { return t.sigBytes }
 
 func (r *reg) Hash(_ crypto.Hash) []byte { return []byte("reg hash") }
+
+func (r *unknownTx) Hash(_ crypto.Hash) []byte { return nil }

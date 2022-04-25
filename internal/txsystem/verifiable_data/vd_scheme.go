@@ -70,8 +70,12 @@ func (d *vdSchemeState) Process(gtx transaction.GenericTransaction) error {
 	}
 	switch tx := gtx.(type) {
 	case RegisterTx:
+		err = d.validateRegTx(tx)
+		if err != nil {
+			return err
+		}
 		log.Debug("Processing registration transaction %v", tx)
-		err := d.stateTree.AddItem(tx.UnitID(), script.PredicateAlwaysFalse(), &VerifiableDataUnit{DataHash: hasherUtil.Sum256(tx.UnitID().Bytes()), BlockNumber: d.stateTree.GetBlockNumber()}, tx.Hash(d.hashAlgorithm))
+		err = d.stateTree.AddItem(tx.UnitID(), script.PredicateAlwaysFalse(), &VerifiableDataUnit{DataHash: hasherUtil.Sum256(tx.UnitID().Bytes()), BlockNumber: d.stateTree.GetBlockNumber()}, tx.Hash(d.hashAlgorithm))
 		if err != nil {
 			return errors.Wrap(err, "could not add item")
 		}
@@ -79,6 +83,13 @@ func (d *vdSchemeState) Process(gtx transaction.GenericTransaction) error {
 	default:
 		return errors.Errorf("Unknown type %T", gtx)
 	}
+}
+
+func (d *vdSchemeState) validateRegTx(tx RegisterTx) error {
+	if len(tx.OwnerProof()) > 0 {
+		return errors.New("Register transaction cannot have an owner proof")
+	}
+	return nil
 }
 
 func (u *VerifiableDataUnit) AddToHasher(hasher hash.Hash) {

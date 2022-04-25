@@ -3,6 +3,7 @@ package wallet
 import (
 	"encoding/hex"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	"sync"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -201,17 +202,21 @@ func TestWalletShutdownTerminatesSync(t *testing.T) {
 	addBill(t, w, 100)
 
 	// when Sync is called
-	done := false
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		w.Sync()
-		done = true
+		wg.Done()
 	}()
 
 	// and wallet is closed
 	w.Shutdown()
 
 	// then Sync goroutine should end
-	require.Eventually(t, func() bool { return done }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool {
+		wg.Wait()
+		return true
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
@@ -222,14 +227,18 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 	w.Shutdown()
 
 	// and Sync is called
-	done := false
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		w.Sync()
-		done = true
+		wg.Done()
 	}()
 
 	// then Sync goroutine should end
-	require.Eventually(t, func() bool { return done }, test.WaitDuration, test.WaitTick)
+	require.Eventually(t, func() bool {
+		wg.Wait()
+		return true
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {

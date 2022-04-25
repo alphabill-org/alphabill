@@ -9,19 +9,19 @@ RUN yum install -y make
 
 # Install go (gcc needed for some go libraries)
 RUN yum install -y tar gcc
-RUN curl -SL https://golang.org/dl/go1.18.linux-amd64.tar.gz | tar -xzC /usr/local
+RUN curl -SL https://golang.org/dl/go1.18.1.linux-amd64.tar.gz | tar -xzC /usr/local
 ENV PATH=/usr/local/go/bin:$PATH
 
 # Install trivy
-RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.19.2
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.26.0
 RUN curl https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl > html.tpl
 
 # Install nancy
-RUN curl -sL https://github.com/sonatype-nexus-community/nancy/releases/download/v1.0.22/nancy-v1.0.22-linux-amd64 -o /usr/local/bin/nancy
+RUN curl -sL https://github.com/sonatype-nexus-community/nancy/releases/download/v1.0.33/nancy-v1.0.33-linux-amd64 -o /usr/local/bin/nancy
 RUN chmod +x /usr/local/bin/nancy
 
 # Install gosec
-RUN curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b /usr/local/go/bin v2.8.1
+RUN curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b /usr/local/go/bin v2.11.0
 
 # Install git
 RUN yum install -y git

@@ -128,7 +128,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 	}
 
 	msState := &moneySchemeState{
-		systemIdentifier:   []byte{0}, // TODO get system identifier somewhere
+		systemIdentifier:   []byte{0}, // TODO AB-178 get system identifier somewhere
 		hashAlgorithm:      hashAlgorithm,
 		revertibleState:    options.revertibleState,
 		dustCollectorBills: make(map[uint64][]*uint256.Int),

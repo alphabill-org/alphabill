@@ -46,7 +46,6 @@ var (
 
 func NewVDSchemeState(trustBase []string) (*vdSchemeState, error) {
 	conf := &state.Config{
-		ShardId:       []byte{1},
 		HashAlgorithm: crypto.SHA256,
 		TrustBase:     trustBase,
 	}
@@ -56,7 +55,7 @@ func NewVDSchemeState(trustBase []string) (*vdSchemeState, error) {
 	}
 
 	dvState := &vdSchemeState{
-		systemIdentifier: conf.ShardId,
+		systemIdentifier: []byte{1}, // TODO AB-178 get system identifier somewhere
 		stateTree:        stateTree,
 		hashAlgorithm:    conf.HashAlgorithm,
 	}

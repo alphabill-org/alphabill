@@ -108,9 +108,7 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// when wallet is synced with the node
-	go func() {
-		w.Sync()
-	}()
+	go w.Sync()
 
 	// wait for block to be processed
 	require.Eventually(t, func() bool {
@@ -200,9 +198,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	}()
 
 	// and wallet synchronization is started
-	go func() {
-		w.Sync()
-	}()
+	go w.Sync()
 
 	// then dc transactions are sent
 	waitForExpectedSwap(w)

@@ -36,9 +36,10 @@ const (
 )
 
 var (
-	errInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	errSwapInProgress      = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
-	errInsufficientBalance = errors.New("insufficient balance for transaction")
+	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	ErrSwapInProgress      = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
+	ErrInvalidPassword     = errors.New("invalid password")
 )
 
 type Wallet struct {
@@ -88,6 +89,14 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 		return nil, err
 	}
 
+	ok, err := db.VerifyPassword()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrInvalidPassword
+	}
+
 	return newWallet(config, db)
 }
 
@@ -110,7 +119,7 @@ func (w *Wallet) GetPublicKey() ([]byte, error) {
 // to the given public key, the public key must be in compressed secp256k1 format.
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
-		return errInvalidPubKey
+		return ErrInvalidPubKey
 	}
 
 	swapInProgress, err := w.isSwapInProgress()
@@ -118,7 +127,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 	if swapInProgress {
-		return errSwapInProgress
+		return ErrSwapInProgress
 	}
 
 	balance, err := w.GetBalance()
@@ -126,7 +135,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 	if amount > balance {
-		return errInsufficientBalance
+		return ErrInsufficientBalance
 	}
 
 	b, err := w.db.GetBillWithMinValue(amount)
@@ -711,9 +720,13 @@ func createWallet(mnemonic string, config Config) (*Wallet, error) {
 		return nil, err
 	}
 
+	err = db.SetEncrypted(config.WalletPass != "")
+	if err != nil {
+		return nil, err
+	}
+
 	err = generateKeys(mnemonic, db)
 	if err != nil {
-		db.DeleteDb()
 		return nil, err
 	}
 

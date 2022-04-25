@@ -44,6 +44,11 @@ type expectedSwap struct {
 type syncFlagWrapper struct {
 	mu            sync.Mutex
 	synchronizing bool // synchronizing true if wallet is currently synhronizing ledger, false otherwise
+	cancelSyncCh  chan bool
+}
+
+func newSyncFlagWrapper() *syncFlagWrapper {
+	return &syncFlagWrapper{cancelSyncCh: make(chan bool, 1)}
 }
 
 func newDcWaitGroup() dcWaitGroup {

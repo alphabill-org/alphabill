@@ -81,13 +81,21 @@ func DeleteWalletDb(walletDir string) error {
 	return os.Remove(dbFilePath)
 }
 
-func CopyWalletDBFile() (string, error) {
+func CopyWalletDBFile(t *testing.T) (string, error) {
+	_ = DeleteWalletDb(os.TempDir())
+	t.Cleanup(func() {
+		_ = DeleteWalletDb(os.TempDir())
+	})
 	wd, _ := os.Getwd()
 	srcDir := path.Join(wd, "testdata", "wallet")
 	return copyWalletDB(srcDir)
 }
 
-func CopyEncryptedWalletDBFile() (string, error) {
+func CopyEncryptedWalletDBFile(t *testing.T) (string, error) {
+	_ = DeleteWalletDb(os.TempDir())
+	t.Cleanup(func() {
+		_ = DeleteWalletDb(os.TempDir())
+	})
 	wd, _ := os.Getwd()
 	srcDir := path.Join(wd, "testdata", "wallet", "encrypted")
 	return copyWalletDB(srcDir)

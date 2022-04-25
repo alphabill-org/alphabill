@@ -1,16 +1,19 @@
 package wallet
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
 	"os"
 	"path"
+	"strings"
 )
 
 var (
@@ -25,6 +28,7 @@ var (
 	masterKeyName      = []byte("masterKey")
 	mnemonicKeyName    = []byte("mnemonicKey")
 	blockHeightKeyName = []byte("blockHeightKey")
+	isEncryptedKeyName = []byte("isEncryptedKey")
 )
 
 var (
@@ -45,6 +49,10 @@ type Db interface {
 
 	GetMnemonic() (string, error)
 	SetMnemonic(string) error
+
+	IsEncrypted() (bool, error)
+	SetEncrypted(bool) error
+	VerifyPassword() (bool, error)
 
 	SetBill(bill *bill) error
 	ContainsBill(id *uint256.Int) (bool, error)
@@ -177,6 +185,51 @@ func (w *wdb) GetMnemonic() (string, error) {
 		return "", err
 	}
 	return res, nil
+}
+
+func (w *wdb) SetEncrypted(encrypted bool) error {
+	return w.withTx(func(tx *bolt.Tx) error {
+		var b byte
+		if encrypted {
+			b = 0x01
+		} else {
+			b = 0x00
+		}
+		return tx.Bucket(metaBucket).Put(isEncryptedKeyName, []byte{b})
+	}, true)
+}
+
+func (w *wdb) IsEncrypted() (bool, error) {
+	var res bool
+	err := w.withTx(func(tx *bolt.Tx) error {
+		encrypted := tx.Bucket(metaBucket).Get(isEncryptedKeyName)
+		res = bytes.Equal(encrypted, []byte{0x01})
+		return nil
+	}, false)
+	if err != nil {
+		return false, err
+	}
+	return res, nil
+}
+
+func (w *wdb) VerifyPassword() (bool, error) {
+	encrypted, err := w.IsEncrypted()
+	if err != nil {
+		return false, err
+	}
+	if encrypted {
+		_, err = w.GetAccountKey()
+		if err != nil {
+			if errors.Is(err, abcrypto.ErrEmptyPassphrase) {
+				return false, nil
+			}
+			if strings.Contains(err.Error(), abcrypto.ErrMsgDecryptingValue) {
+				return false, nil
+			}
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func (w *wdb) SetBill(bill *bill) error {
@@ -457,7 +510,11 @@ func parseBill(v []byte) (*bill, error) {
 }
 
 func (w *wdb) encryptValue(val []byte) ([]byte, error) {
-	if w.walletPass == "" {
+	isEncrypted, err := w.IsEncrypted()
+	if err != nil {
+		return nil, err
+	}
+	if !isEncrypted {
 		return val, nil
 	}
 	encryptedValue, err := crypto.Encrypt(w.walletPass, val)
@@ -468,7 +525,11 @@ func (w *wdb) encryptValue(val []byte) ([]byte, error) {
 }
 
 func (w *wdb) decryptValue(val []byte) ([]byte, error) {
-	if w.walletPass == "" {
+	isEncrypted, err := w.IsEncrypted()
+	if err != nil {
+		return nil, err
+	}
+	if !isEncrypted {
 		return val, nil
 	}
 	decryptedValue, err := crypto.Decrypt(w.walletPass, string(val))

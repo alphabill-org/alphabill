@@ -37,6 +37,7 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 func (a *alphabillApp) Execute(ctx context.Context) {
 	a.rootCmd.AddCommand(newMoneyShardCmd(ctx, a.rootConfig, convertOptsToRunnable(a.opts)))
 	a.rootCmd.AddCommand(newWalletCmd(ctx, a.rootConfig))
+	a.rootCmd.AddCommand(newRootGenesisCmd(ctx, a.rootConfig))
 
 	cobra.CheckErr(a.rootCmd.Execute())
 }

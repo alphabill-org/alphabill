@@ -33,7 +33,7 @@ type (
 )
 
 func TestRegisterData(t *testing.T) {
-	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	vd, err := NewVerifiableDataTxSystem([]string{defaultUnicityTrustBase})
 	require.NoError(t, err)
 	hasher := crypto.SHA256.New()
 	hasher.Write(test.RandomBytes(32))
@@ -49,7 +49,7 @@ func TestRegisterData(t *testing.T) {
 }
 
 func TestRegisterData_invalidSystemId(t *testing.T) {
-	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	vd, err := NewVerifiableDataTxSystem([]string{defaultUnicityTrustBase})
 	require.NoError(t, err)
 	hasher := crypto.SHA256.New()
 	hasher.Write(test.RandomBytes(32))
@@ -65,7 +65,7 @@ func TestRegisterData_invalidSystemId(t *testing.T) {
 }
 
 func TestRegisterData_invalidOwnerProof(t *testing.T) {
-	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	vd, err := NewVerifiableDataTxSystem([]string{defaultUnicityTrustBase})
 	require.NoError(t, err)
 	hasher := crypto.SHA256.New()
 	hasher.Write(test.RandomBytes(32))
@@ -82,7 +82,7 @@ func TestRegisterData_invalidOwnerProof(t *testing.T) {
 }
 
 func TestRegisterData_UnknownTx(t *testing.T) {
-	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	vd, err := NewVerifiableDataTxSystem([]string{defaultUnicityTrustBase})
 	require.NoError(t, err)
 	hasher := crypto.SHA256.New()
 	hasher.Write(test.RandomBytes(32))
@@ -101,7 +101,7 @@ func TestRegisterData_UnknownTx(t *testing.T) {
 }
 
 func TestRegisterData_withDuplicate(t *testing.T) {
-	vd, err := NewVDSchemeState([]string{defaultUnicityTrustBase})
+	vd, err := NewVerifiableDataTxSystem([]string{defaultUnicityTrustBase})
 	require.NoError(t, err)
 	hasher := crypto.SHA256.New()
 	hasher.Write(test.RandomBytes(32))

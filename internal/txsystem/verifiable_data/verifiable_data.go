@@ -26,7 +26,7 @@ type (
 		GetBlockNumber() uint64
 	}
 
-	vdSchemeState struct {
+	vdState struct {
 		systemIdentifier []byte
 		stateTree        StateTree
 		hashAlgorithm    crypto.Hash
@@ -44,7 +44,7 @@ var (
 	log = logger.CreateForPackage()
 )
 
-func NewVDSchemeState(trustBase []string) (*vdSchemeState, error) {
+func NewVerifiableDataTxSystem(trustBase []string) (*vdState, error) {
 	conf := &state.Config{
 		HashAlgorithm: crypto.SHA256,
 		TrustBase:     trustBase,
@@ -54,16 +54,16 @@ func NewVDSchemeState(trustBase []string) (*vdSchemeState, error) {
 		return nil, err
 	}
 
-	dvState := &vdSchemeState{
+	vdState := &vdState{
 		systemIdentifier: []byte{1}, // TODO AB-178 get system identifier somewhere
 		stateTree:        stateTree,
 		hashAlgorithm:    conf.HashAlgorithm,
 	}
 
-	return dvState, nil
+	return vdState, nil
 }
 
-func (d *vdSchemeState) Process(gtx transaction.GenericTransaction) error {
+func (d *vdState) Process(gtx transaction.GenericTransaction) error {
 	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: nil, SystemIdentifier: d.systemIdentifier, BlockNumber: d.stateTree.GetBlockNumber()})
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func (d *vdSchemeState) Process(gtx transaction.GenericTransaction) error {
 	}
 }
 
-func (d *vdSchemeState) validateRegTx(tx RegisterTx) error {
+func (d *vdState) validateRegTx(tx RegisterTx) error {
 	if len(tx.OwnerProof()) > 0 {
 		return errors.New("Register transaction cannot have an owner proof")
 	}

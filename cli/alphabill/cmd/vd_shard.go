@@ -52,7 +52,7 @@ func (r *vdShardTxConverter) Convert(tx *transaction.Transaction) (transaction.G
 }
 
 func defaultVDShardRunFunc(ctx context.Context, cfg *vdShardConfiguration) error {
-	state, err := verifiable_data.NewVDSchemeState(cfg.UnicityTrustBase)
+	state, err := verifiable_data.NewVerifiableDataTxSystem(cfg.UnicityTrustBase)
 	if err != nil {
 		return err
 	}

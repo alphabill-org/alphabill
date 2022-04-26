@@ -23,7 +23,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 )
 
-const defaultTimeout = 300 * time.Millisecond
+const defaultTimeout = 1 * time.Second
 
 var emptyProposal = &BlockProposal{
 	SystemIdentifier:   nil,

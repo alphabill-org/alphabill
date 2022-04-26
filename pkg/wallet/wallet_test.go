@@ -2,6 +2,8 @@ package wallet
 
 import (
 	"encoding/hex"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	"sync"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -52,7 +54,7 @@ func TestWalletCanBeCreated(t *testing.T) {
 }
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
-	walletDbPath, err := CopyWalletDBFile()
+	walletDbPath, err := CopyWalletDBFile(t)
 	require.NoError(t, err)
 
 	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
@@ -75,13 +77,13 @@ func TestWalletSendFunction(t *testing.T) {
 	validPubKey := make([]byte, 33)
 	amount := uint64(50)
 
-	// test errInvalidPubKey
+	// test ErrInvalidPubKey
 	err := w.Send(invalidPubKey, amount)
-	require.ErrorIs(t, err, errInvalidPubKey)
+	require.ErrorIs(t, err, ErrInvalidPubKey)
 
-	// test errInsufficientBalance
+	// test ErrInsufficientBalance
 	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errInsufficientBalance)
+	require.ErrorIs(t, err, ErrInsufficientBalance)
 
 	// test abclient returns error
 	b := bill{
@@ -96,11 +98,11 @@ func TestWalletSendFunction(t *testing.T) {
 	require.Error(t, err, "payment returned error code: some error")
 	mockClient.txResponse = nil
 
-	// test errSwapInProgress
+	// test ErrSwapInProgress
 	nonce := calculateExpectedDcNonce(t, w)
 	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
 	err = w.Send(validPubKey, amount)
-	require.ErrorIs(t, err, errSwapInProgress)
+	require.ErrorIs(t, err, ErrSwapInProgress)
 	setDcMetadata(t, w, nonce, nil)
 
 	// test ok response
@@ -193,6 +195,50 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.Len(t, mockClient.txs, 1)
 	btTx := parseBillTransferTx(t, mockClient.txs[0])
 	require.EqualValues(t, 100, btTx.TargetValue)
+}
+
+func TestWalletShutdownTerminatesSync(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	addBill(t, w, 100)
+
+	// when Sync is called
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		w.Sync()
+		wg.Done()
+	}()
+
+	// and wallet is closed
+	w.Shutdown()
+
+	// then Sync goroutine should end
+	require.Eventually(t, func() bool {
+		wg.Wait()
+		return true
+	}, test.WaitDuration, test.WaitTick)
+}
+
+func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	addBill(t, w, 100)
+
+	// when wallet is closed
+	w.Shutdown()
+
+	// and Sync is called
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		w.Sync()
+		wg.Done()
+	}()
+
+	// then Sync goroutine should end
+	require.Eventually(t, func() bool {
+		wg.Wait()
+		return true
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {

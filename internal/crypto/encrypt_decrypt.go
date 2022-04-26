@@ -12,6 +12,9 @@ import (
 	"strings"
 )
 
+var ErrEmptyPassphrase = errors.New("passphrase cannot be empty")
+var ErrMsgDecryptingValue = "error decrypting data (incorrect passphrase?)"
+
 type saltedCypherKey struct {
 	key  []byte
 	salt []byte
@@ -19,7 +22,7 @@ type saltedCypherKey struct {
 
 func Encrypt(passphrase string, plaintext []byte) (string, error) {
 	if passphrase == "" {
-		return "", errors.New("passphrase cannot be empty")
+		return "", ErrEmptyPassphrase
 	}
 
 	saltedKey, err := deriveCipherKey(passphrase, nil)
@@ -49,7 +52,7 @@ func Encrypt(passphrase string, plaintext []byte) (string, error) {
 
 func Decrypt(passphrase string, data string) ([]byte, error) {
 	if passphrase == "" {
-		return nil, errors.New("passphrase cannot be empty")
+		return nil, ErrEmptyPassphrase
 	}
 
 	arr := strings.Split(data, "-")
@@ -85,7 +88,7 @@ func Decrypt(passphrase string, data string) ([]byte, error) {
 
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error decrypting data (incorrect passphrase?): %w", err)
+		return nil, fmt.Errorf(ErrMsgDecryptingValue+": %w", err)
 	}
 	return plaintext, nil
 }

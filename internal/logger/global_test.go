@@ -250,7 +250,7 @@ func (s *GlobalLoggerTestSuite) TestConcurrentOperation() {
 	msgCount := 100
 	loggerCount := 5
 
-	test.MustRunInTime(s.T(), time.Second, func() {
+	test.MustRunInTime(s.T(), 2*time.Second, func() {
 		for x := 0; x < testCount; x++ {
 			s.buffer.Reset()
 			wg := sync.WaitGroup{}

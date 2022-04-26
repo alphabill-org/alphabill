@@ -33,6 +33,22 @@ func TestGenerateGenesisFiles(t *testing.T) {
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
 }
 
+func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
+	outputDir := setupTestDir(t)
+	conf := &rootGenesisConfig{
+		Root: &rootConfiguration{
+			HomeDir:    alphabillHomeDir(),
+			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+			LogCfgFile: defaultLoggerConfigFile,
+		},
+		PartitionRecordFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
+		KeyFile:              "testdata/root-key.json",
+		OutputDir:            outputDir,
+	}
+	err := rootGenesisRunFunc(context.Background(), conf)
+	require.Errorf(t, err, "signature verify failed")
+}
+
 func setupTestDir(t *testing.T) string {
 	outputDir := path.Join(os.TempDir(), "genesis")
 	_ = os.RemoveAll(outputDir)

@@ -9,7 +9,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"os"
 	"path"
 
 	"github.com/spf13/cobra"
@@ -32,7 +31,7 @@ type (
 	}
 
 	rootKey struct {
-		Key string `json:"key"`
+		PrivateKey string `json:"privateKey"`
 	}
 )
 
@@ -48,19 +47,13 @@ func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobr
 	}
 
 	cmd.Flags().StringVarP(&config.KeyFile, "key-file", "k", "", "path to root chain key file")
-
 	cmd.Flags().StringSliceVarP(&config.PartitionRecordFiles, partitionRecordFileCmd, "p", []string{}, "path to partition record file")
+	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", alphabillHomeDir(), "path to output directory")
+
 	err := cmd.MarkFlagRequired(partitionRecordFileCmd)
 	if err != nil {
 		panic(err)
 	}
-
-	defaultOutputDir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", defaultOutputDir, "path to output directory")
-
 	return cmd
 }
 
@@ -81,7 +74,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	err = savePartitonGenesisFiles(pg, config.OutputDir)
+	err = savePartitionGenesisFiles(pg, config.OutputDir)
 	if err != nil {
 		return err
 	}
@@ -109,7 +102,7 @@ func loadKey(path string) (abcrypto.Signer, error) {
 	if err != nil {
 		return nil, err
 	}
-	rkBytes, err := hexutil.Decode(rk.Key)
+	rkBytes, err := hexutil.Decode(rk.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +114,9 @@ func saveRootGenesisFile(rg *genesis.RootGenesis, outputDir string) error {
 	return util.WriteJsonFile(outputFile, rg)
 }
 
-func savePartitonGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string) error {
+func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string) error {
 	for _, pg := range pgs {
-		err := savePartitonGenesisFile(pg, outputDir)
+		err := savePartitionGenesisFile(pg, outputDir)
 		if err != nil {
 			return err
 		}
@@ -131,7 +124,7 @@ func savePartitonGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string)
 	return nil
 }
 
-func savePartitonGenesisFile(pg *genesis.PartitionGenesis, outputDir string) error {
+func savePartitionGenesisFile(pg *genesis.PartitionGenesis, outputDir string) error {
 	sid := binary.BigEndian.Uint32(pg.SystemDescriptionRecord.SystemIdentifier)
 	filename := fmt.Sprintf("partition-genesis-%d.json", sid)
 	outputFile := path.Join(outputDir, filename)

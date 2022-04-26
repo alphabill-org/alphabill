@@ -95,7 +95,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...Option) (*genes
 	}
 
 	// create the first round of the tx system
-	state := txSystem.Init()
+	state := txSystem.State()
 	hash := state.Root()
 	summaryValue := state.Summary()
 

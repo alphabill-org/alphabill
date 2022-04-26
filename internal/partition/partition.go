@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
@@ -51,13 +54,11 @@ var (
 )
 
 type (
-
-	//TODO idea: maybe we can use a block struct instead (needs a spec change)? (AB-119)
-	pendingBlockProposal struct {
-		lucRoundNumber uint64
-		lucIRHash      []byte
-		stateHash      []byte
-		Transactions   []*transaction.Transaction
+	pendingProposal struct {
+		roundNumber  uint64
+		prevHash     []byte
+		stateHash    []byte
+		Transactions []*transaction.Transaction
 	}
 
 	// Partition is a distributed system, it consists of either a set of shards, or one or more partition nodes.
@@ -67,11 +68,12 @@ type (
 		configuration               *Configuration
 		luc                         *certificates.UnicityCertificate
 		proposal                    []*transaction.Transaction
-		pr                          *pendingBlockProposal
+		pr                          *pendingProposal
 		timers                      *timer.Timers
 		leaderSelector              LeaderSelector
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
+		blockProposalValidator      BlockProposalValidator
 		blockStore                  store.BlockStore
 		status                      status
 		unicityCertificatesCh       <-chan interface{}
@@ -143,7 +145,7 @@ func New(
 		return nil, errors.Wrap(err, "invalid root partition genesis file")
 	}
 
-	state := txSystem.Init()
+	state := txSystem.State()
 	txGenesisRoot := state.Root()
 	txSummaryValue := state.Summary()
 	genesisCertificate := partitionGenesis.Certificate
@@ -177,6 +179,14 @@ func New(
 		blockStore:                  blockStore,
 	}
 	p.ctx, p.ctxCancel = context.WithCancel(ctx)
+	p.blockProposalValidator, err = NewDefaultBlockProposalValidator(
+		partitionGenesis.SystemDescriptionRecord,
+		configuration.TrustBase,
+		configuration.HashAlgorithm,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	genesisBlock := &block.Block{
 		SystemIdentifier:    p.configuration.GetSystemIdentifier(),
@@ -211,24 +221,36 @@ func (p *Partition) loop() {
 			logger.Info("Exiting partition component main loop")
 			return
 		case tx := <-p.transactionsCh:
+			if p.status == closing {
+				continue
+			}
 			logger.Info("Handling tx event %v", tx)
 			p.handleTxEvent(tx)
 		case e := <-p.unicityCertificatesCh:
+			if p.status == closing {
+				continue
+			}
 			logger.Info("Handling unicity certificate %v", e)
 			p.handleUnicityCertificateEvent(e)
 		case e := <-p.blockProposalsCh:
+			if p.status == closing {
+				continue
+			}
 			logger.Info("Handling block proposal %v", e)
-			success, proposal := convertType[eventbus.BlockProposalEvent](e)
+			success, proposalEvent := convertType[eventbus.BlockProposalEvent](e)
 			if !success {
 				logger.Warning("Invalid Block proposal event type: %v", e)
-				return
+				continue
 			}
-			err := p.handleBlockProposal(proposal)
+			err := p.handleBlockProposal(proposalEvent.BlockProposal)
 			if err != nil {
 				logger.Warning("Block proposal processing failed: %v", err)
 			}
 		case <-p.timers.C:
-			logger.Info("Handling T1 timeout event")
+			if p.status == closing {
+				continue
+			}
+			logger.Info("Handling T1 timeout")
 			p.handleT1TimeoutEvent()
 		}
 	}
@@ -257,9 +279,7 @@ func (p *Partition) handleTxEvent(event interface{}) {
 }
 
 func (p *Partition) process(tx *transaction.Transaction) {
-	if p.status == closing {
-		return
-	}
+	defer trackExecutionTime(time.Now(), "Processing transaction")
 	if err := p.txValidator.Validate(tx); err != nil {
 		logger.Warning("Transaction '%v' is invalid: %v", tx, err)
 		return
@@ -298,9 +318,50 @@ func (p *Partition) handleUnicityCertificateEvent(event interface{}) {
 //  5. Transaction orders are executed by applying them to the transaction system.
 //  6. Pending unicity certificate request data structure is created and persisted.
 //  7. Certificate Request query (protocol P1 query) is assembled and sent to the Root Chain.
-func (p *Partition) handleBlockProposal(event eventbus.BlockProposalEvent) error {
+func (p *Partition) handleBlockProposal(prop *blockproposal.BlockProposal) error {
+	defer trackExecutionTime(time.Now(), "Handling BlockProposal")
+	if prop == nil {
+		return blockproposal.ErrBlockProposalIsNil
+	}
+	nodeSignatureVerifier, err := p.configuration.GetPublicKey(prop.NodeIdentifier)
+	if err != nil {
+		return err
+	}
+	if err := p.blockProposalValidator.Validate(prop, nodeSignatureVerifier); err != nil {
+		logger.Warning("Block proposal is not valid: %v", err)
+		return err
+	}
 
-	return nil
+	uc := prop.UnicityCertificate
+	// UC must be newer than the last one seen
+	if uc.UnicitySeal.RootChainRoundNumber < p.luc.UnicitySeal.RootChainRoundNumber {
+		logger.Warning("Received UC is older than LUC. UC round Number:  %v, LUC round number: %v",
+			uc.UnicitySeal.RootChainRoundNumber, p.luc.UnicitySeal.RootChainRoundNumber)
+		return errors.Errorf("received UC is older than LUC. uc round %v, luc round %v",
+			uc.UnicitySeal.RootChainRoundNumber, p.luc.UnicitySeal.RootChainRoundNumber)
+	}
+	expectedLeader := p.leaderSelector.GetLeader(uc.UnicitySeal)
+	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
+		return errors.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
+	}
+
+	if uc.UnicitySeal.RootChainRoundNumber > p.luc.UnicitySeal.RootChainRoundNumber {
+		err := p.handleUnicityCertificate(uc)
+		if err != nil && err != ErrStateReverted {
+			return err
+		}
+	}
+	prevHash := uc.InputRecord.Hash
+	txState := p.transactionSystem.State()
+
+	if !bytes.Equal(prevHash, txState.Root()) {
+		return errors.Errorf("invalid tx system state root. expected: %X, got: %X", txState.Root(), prevHash)
+	}
+	p.transactionSystem.BeginBlock()
+	for _, tx := range prop.Transactions {
+		p.process(tx)
+	}
+	return p.sendCertificationRequest()
 }
 
 // handleUnicityCertificate processes the Unicity Certificate and finalizes a block. Performs the following steps:
@@ -318,6 +379,7 @@ func (p *Partition) handleBlockProposal(event eventbus.BlockProposalEvent) error
 //     newer last known UC than the one being processed.
 //  8. New round is started.
 func (p *Partition) handleUnicityCertificate(uc *certificates.UnicityCertificate) error {
+	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
 	// UC is validated cryptographically
 	if err := p.unicityCertificateValidator.Validate(uc); err != nil {
 		logger.Warning("Invalid UnicityCertificate: %v", err)
@@ -370,9 +432,9 @@ func (p *Partition) handleUnicityCertificate(uc *certificates.UnicityCertificate
 	} else if bytes.Equal(uc.InputRecord.Hash, p.pr.stateHash) {
 		// UC certifies pending block proposal
 		p.finalizeBlock(p.pr.Transactions, uc)
-	} else if bytes.Equal(uc.InputRecord.Hash, p.pr.lucIRHash) {
+	} else if bytes.Equal(uc.InputRecord.Hash, p.pr.prevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash", uc.InputRecord.Hash, p.pr.lucIRHash)
+		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash", uc.InputRecord.Hash, p.pr.prevHash)
 		p.transactionSystem.Revert()
 		p.startNewRound(uc)
 		return ErrStateReverted
@@ -391,6 +453,7 @@ func (p *Partition) handleUnicityCertificate(uc *certificates.UnicityCertificate
 
 // finalizeBlock creates the block and adds it to the blockStore.
 func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, uc *certificates.UnicityCertificate) {
+	defer trackExecutionTime(time.Now(), "Block finalization")
 	logger.Info("Finalizing block. TxCount: %v", len(transactions))
 	height, _ := p.blockStore.Height()           // TODO handle error
 	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
@@ -407,45 +470,66 @@ func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, uc *c
 }
 
 func (p *Partition) handleT1TimeoutEvent() {
+	defer p.leaderSelector.UpdateLeader(nil)
 	if p.leaderSelector.IsCurrentNodeLeader() {
-		p.sendProposal()
+		if err := p.sendBlockProposal(); err != nil {
+			logger.Warning("Failed to send BlockProposal event: %v", err)
+			return
+		}
+		if err := p.sendCertificationRequest(); err != nil {
+			logger.Warning("Failed to send certification request: %v", err)
+		}
 	}
-	p.leaderSelector.UpdateLeader(nil)
 }
 
-func (p *Partition) sendProposal() {
+func (p *Partition) sendBlockProposal() error {
+	defer trackExecutionTime(time.Now(), "Sending BlockProposal")
 	logger.Info("Sending BlockProposal. TxCount: %v", len(p.proposal))
 	systemIdentifier := p.configuration.GetSystemIdentifier()
 	nodeId := p.leaderSelector.SelfID()
-	err := p.eventbus.Submit(eventbus.TopicBlockProposalOutput, &eventbus.BlockProposalEvent{
+	prop := &blockproposal.BlockProposal{
 		SystemIdentifier:   systemIdentifier,
-		NodeIdentifier:     nodeId,
+		NodeIdentifier:     nodeId.String(),
 		UnicityCertificate: p.luc,
 		Transactions:       p.proposal,
-	})
-	if err != nil {
-		logger.Warning("Failed to send BlockProposal event: %v", err)
-		return
 	}
+	err := prop.Sign(p.configuration.HashAlgorithm, p.configuration.Signer)
+	if err != nil {
+		return err
+	}
+	return p.eventbus.Submit(eventbus.TopicBlockProposalOutput, &eventbus.BlockProposalEvent{BlockProposal: prop})
+}
+
+func (p *Partition) sendCertificationRequest() error {
+	defer trackExecutionTime(time.Now(), "Sending CertificationRequest")
+	systemIdentifier := p.configuration.GetSystemIdentifier()
+	nodeId := p.leaderSelector.SelfID()
 	prevHash := p.luc.InputRecord.Hash
 	logger.Debug("Previous IR hash %v", base64.StdEncoding.EncodeToString(prevHash))
 	state := p.transactionSystem.EndBlock()
 	stateRoot := state.Root()
 	summary := state.Summary()
-	p.pr = &pendingBlockProposal{
-		lucRoundNumber: p.luc.UnicitySeal.RootChainRoundNumber,
-		lucIRHash:      prevHash,
-		stateHash:      stateRoot,
-		Transactions:   p.proposal,
+
+	height, err := p.blockStore.Height()
+	if err != nil {
+		return err
+	}
+	blockNr := height + 1
+
+	latestBlock, err := p.blockStore.LatestBlock()
+	if err != nil {
+		return err
+	}
+	prevBlockHash := latestBlock.Hash(p.configuration.HashAlgorithm)
+
+	p.pr = &pendingProposal{
+		roundNumber:  p.luc.UnicitySeal.RootChainRoundNumber,
+		prevHash:     prevHash,
+		stateHash:    stateRoot,
+		Transactions: p.proposal,
 	}
 
 	// TODO store pending block proposal (AB-132)
-
-	height, _ := p.blockStore.Height() // TODO handle error
-	blockNr := height + 1
-
-	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
-	prevBlockHash := latestBlock.Hash(p.configuration.HashAlgorithm)
 
 	hasher := p.configuration.HashAlgorithm.New()
 	hasher.Write(p.configuration.GetSystemIdentifier())
@@ -463,7 +547,7 @@ func (p *Partition) sendProposal() {
 	event := eventbus.P1Event{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeId,
-		LucRoundNumber:   p.pr.lucRoundNumber,
+		LucRoundNumber:   p.pr.roundNumber,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: prevHash,
 			Hash:         stateRoot,
@@ -472,10 +556,7 @@ func (p *Partition) sendProposal() {
 		},
 	}
 	logger.Info("Sending P1 event")
-	err = p.eventbus.Submit(eventbus.TopicP1, event)
-	if err != nil {
-		logger.Warning("Failed to send P1 event: %v", err)
-	}
+	return p.eventbus.Submit(eventbus.TopicP1, event)
 }
 
 func convertType[T any](event interface{}) (bool, T) {
@@ -485,4 +566,8 @@ func convertType[T any](event interface{}) (bool, T) {
 		return true, event.(T)
 	}
 	return false, result
+}
+
+func trackExecutionTime(start time.Time, name string) {
+	logger.Debug("%s took %s", name, time.Since(start))
 }

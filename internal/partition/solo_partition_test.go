@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
@@ -33,9 +35,13 @@ import (
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 )
 
+type AlwaysValidBlockProposalValidator struct{}
 type AlwaysValidTransactionValidator struct{}
 
-func (t *AlwaysValidTransactionValidator) Validate(tx *transaction.Transaction) error {
+func (t *AlwaysValidTransactionValidator) Validate(*transaction.Transaction) error {
+	return nil
+}
+func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, crypto.Verifier) error {
 	return nil
 }
 
@@ -111,6 +117,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	if err != nil {
 		t.Error(err)
 	}
+	p.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
 	p1Channel, err := bus.Subscribe(eventbus.TopicP1, 10)
 	if err != nil {
 		t.Error(err)
@@ -143,6 +150,10 @@ func (tp *SingleNodePartition) SubmitTx(tx *transaction.Transaction) error {
 
 func (tp *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) error {
 	return tp.partition.handleUnicityCertificate(uc)
+}
+
+func (tp *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
+	return tp.partition.handleBlockProposal(prop)
 }
 
 func (tp *SingleNodePartition) GetProposalTxs() []*transaction.Transaction {
@@ -248,6 +259,13 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	}
 	l.leader = l.currentNode
 	return
+}
+
+func (l *TestLeaderSelector) GetLeader(seal *certificates.UnicitySeal) peer.ID {
+	if seal == nil {
+		return ""
+	}
+	return l.currentNode
 }
 
 func ProposalSize(tp *SingleNodePartition, i int) func() bool {

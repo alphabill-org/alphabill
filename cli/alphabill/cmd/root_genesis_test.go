@@ -17,9 +17,9 @@ func TestGenerateGenesisFiles(t *testing.T) {
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		PartitionRecordFile: []string{"testdata/partition-record-1.json"},
-		KeyFile:             "testdata/root-key.json",
-		OutputDir:           outputDir,
+		PartitionRecordFiles: []string{"testdata/partition-record-1.json"},
+		KeyFile:              "testdata/root-key.json",
+		OutputDir:            outputDir,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
 	require.NoError(t, err)

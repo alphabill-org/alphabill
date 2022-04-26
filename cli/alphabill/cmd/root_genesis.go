@@ -22,7 +22,7 @@ type (
 		Root *rootConfiguration
 
 		// paths to partition record json files
-		PartitionRecordFile []string
+		PartitionRecordFiles []string
 
 		// path to root chain key file
 		KeyFile string
@@ -49,7 +49,7 @@ func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobr
 
 	cmd.Flags().StringVarP(&config.KeyFile, "key-file", "k", "", "path to root chain key file")
 
-	cmd.Flags().StringSliceVarP(&config.PartitionRecordFile, partitionRecordFileCmd, "p", []string{}, "path to partition record file")
+	cmd.Flags().StringSliceVarP(&config.PartitionRecordFiles, partitionRecordFileCmd, "p", []string{}, "path to partition record file")
 	err := cmd.MarkFlagRequired(partitionRecordFileCmd)
 	if err != nil {
 		panic(err)
@@ -65,7 +65,7 @@ func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobr
 }
 
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
-	pr, err := loadPartitionRecords(config.PartitionRecordFile)
+	pr, err := loadPartitionRecords(config.PartitionRecordFiles)
 	if err != nil {
 		return err
 	}

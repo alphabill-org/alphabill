@@ -19,6 +19,7 @@ var ErrPeerIsNilIndex = errors.New("peer is nil")
 type (
 	LeaderSelector interface {
 		UpdateLeader(seal *certificates.UnicitySeal)
+		GetLeader(seal *certificates.UnicitySeal) peer.ID
 		IsCurrentNodeLeader() bool
 		SelfID() peer.ID
 	}
@@ -46,17 +47,11 @@ func (l *DefaultLeaderSelector) SelfID() peer.ID {
 	return l.self.ID()
 }
 
-func (l *DefaultLeaderSelector) GetLeader() peer.ID {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-	return l.leader
-}
-
 // IsCurrentNodeLeader returns true it current node is the leader and must propose the next block.
 func (l *DefaultLeaderSelector) IsCurrentNodeLeader() bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	logger.Info("leader: %v, current node %v", l.leader, l.self.ID())
+	logger.Info("current leader: '%v', current node '%v'", l.leader, l.self.ID())
 	return l.leader == l.self.ID()
 }
 
@@ -64,29 +59,27 @@ func (l *DefaultLeaderSelector) IsCurrentNodeLeader() bool {
 func (l *DefaultLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	newLeader := l.GetLeader(seal)
+	l.setLeader(newLeader)
+	logger.Info("Leader set to %v", newLeader)
+}
 
+func (l *DefaultLeaderSelector) GetLeader(seal *certificates.UnicitySeal) peer.ID {
 	if seal == nil {
-		l.setLeader(UnknownLeader)
-
-		logger.Info("Leader set to unknown")
-		return
+		return UnknownLeader
 	}
 	peerCount := uint64(len(l.self.Configuration().PersistentPeers))
 	index := seal.RootChainRoundNumber % peerCount
 	if index > peerCount {
-		l.setLeader(UnknownLeader)
-		logger.Warning("Invalid leader index. Leader set to 'unknown'")
-		return
+		logger.Warning("Invalid leader index.")
+		return UnknownLeader
 	}
 	leader, err := l.self.Configuration().PersistentPeers[index].GetID()
 	if err != nil {
-		l.setLeader(UnknownLeader)
-		logger.Warning("Invalid leader index. Leader set to 'unknown'")
-		return
+		logger.Warning("Invalid leader index.")
+		return UnknownLeader
 	}
-	l.setLeader(leader)
-	logger.Info("New leader is %v", leader)
-	return
+	return leader
 }
 
 func (l *DefaultLeaderSelector) setLeader(leader peer.ID) {

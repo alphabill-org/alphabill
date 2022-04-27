@@ -300,7 +300,7 @@ func (p *Partition) handleUnicityCertificate(uc *certificates.UnicityCertificate
 	// there can not be two UC-s with the same Root Chain block number but certifying different state root hashes.
 	if uc.UnicitySeal.RootChainRoundNumber == p.luc.UnicitySeal.RootChainRoundNumber &&
 		!bytes.Equal(uc.InputRecord.Hash, p.luc.InputRecord.Hash) {
-		logger.Warning("Got two UC-s with the same Root Chain block number but certifying different state root "+
+		logger.Warning("Got two UC-s with the same Base Chain block number but certifying different state root "+
 			"hashes. RootChainNumber: %v, UC IR hash: %X, LUC IR hash: %X",
 			uc.UnicitySeal.RootChainRoundNumber,
 			uc.InputRecord.Hash,

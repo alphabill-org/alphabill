@@ -36,7 +36,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 		envVars        []envVar // Environment variables that will be set before creating command
 		expectedConfig *moneyShardConfiguration
 	}{
-		// Root configuration permutations
+		// Base configuration permutations
 		{
 			args:           "shard",
 			expectedConfig: defaultShardConfiguration(),
@@ -44,7 +44,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			args: "shard --home=/custom-home",
 			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
-				sc.Root = &rootConfiguration{
+				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home",
 					CfgFile:    "/custom-home" + string(os.PathSeparator) + defaultConfigFile,
 					LogCfgFile: defaultLoggerConfigFile,
@@ -55,7 +55,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			args: "shard --home=/custom-home --config=custom-config.props",
 			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
-				sc.Root = &rootConfiguration{
+				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home",
 					CfgFile:    "/custom-home/custom-config.props",
 					LogCfgFile: defaultLoggerConfigFile,
@@ -66,7 +66,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			args: "shard --config=custom-config.props",
 			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
-				sc.Root = &rootConfiguration{
+				sc.Base = &baseConfiguration{
 					HomeDir:    alphabillHomeDir(),
 					CfgFile:    alphabillHomeDir() + "/custom-config.props",
 					LogCfgFile: defaultLoggerConfigFile,
@@ -129,7 +129,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			},
 			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
-				sc.Root = &rootConfiguration{
+				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home-1",
 					CfgFile:    "/custom-home-1/custom-config.props",
 					LogCfgFile: "custom-log-conf.yaml",
@@ -144,7 +144,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			},
 			expectedConfig: func() *moneyShardConfiguration {
 				sc := defaultShardConfiguration()
-				sc.Root = &rootConfiguration{
+				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home",
 					CfgFile:    "/custom-home/custom-config.props",
 					LogCfgFile: defaultLoggerConfigFile,
@@ -169,7 +169,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 			}
 
 			abApp := New()
-			abApp.rootCmd.SetArgs(strings.Split(tt.args, " "))
+			abApp.baseCmd.SetArgs(strings.Split(tt.args, " "))
 			abApp.WithOpts(Opts.ShardRunFunc(shardRunFunc)).Execute(context.Background())
 
 			assert.Equal(t, tt.expectedConfig, actualConfig)
@@ -199,8 +199,8 @@ logger-config=custom-log-conf.yaml
 	}
 
 	expectedConfig := defaultShardConfiguration()
-	expectedConfig.Root.CfgFile = f.Name()
-	expectedConfig.Root.LogCfgFile = "custom-log-conf.yaml"
+	expectedConfig.Base.CfgFile = f.Name()
+	expectedConfig.Base.LogCfgFile = "custom-log-conf.yaml"
 	expectedConfig.InitialBillValue = 666
 	expectedConfig.Server.Address = "srv:1234"
 	expectedConfig.Server.MaxRecvMsgSize = 9999
@@ -214,7 +214,7 @@ logger-config=custom-log-conf.yaml
 
 	abApp := New()
 	args := "shard --config=" + f.Name()
-	abApp.rootCmd.SetArgs(strings.Split(args, " "))
+	abApp.baseCmd.SetArgs(strings.Split(args, " "))
 	abApp.WithOpts(Opts.ShardRunFunc(shardRunFunc)).Execute(context.Background())
 
 	assert.Equal(t, expectedConfig, actualConfig)
@@ -223,7 +223,7 @@ logger-config=custom-log-conf.yaml
 func defaultShardConfiguration() *moneyShardConfiguration {
 	return &moneyShardConfiguration{
 		baseShardConfiguration: baseShardConfiguration{
-			Root: &rootConfiguration{
+			Base: &baseConfiguration{
 				HomeDir:    alphabillHomeDir(),
 				CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 				LogCfgFile: defaultLoggerConfigFile,

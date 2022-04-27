@@ -19,7 +19,7 @@ const partitionRecordFileCmd = "partition-record-file"
 
 type (
 	rootGenesisConfig struct {
-		Root *rootConfiguration
+		Base *baseConfiguration
 
 		// paths to partition record json files
 		PartitionRecordFiles []string
@@ -37,8 +37,8 @@ type (
 )
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
-func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Command {
-	config := &rootGenesisConfig{Root: rootConfig}
+func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+	config := &rootGenesisConfig{Base: baseConfig}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
@@ -59,12 +59,12 @@ func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobr
 }
 
 // getOutputDir returns custom outputdir if provided, otherwise $ABHOME/rootchain, and creates parent directories.
-// Must be called after root command PersistentPreRunE function has been called, so that $ABHOME is initialized.
+// Must be called after base command PersistentPreRunE function has been called, so that $ABHOME is initialized.
 func (c *rootGenesisConfig) getOutputDir() string {
 	if c.OutputDir != "" {
 		return c.OutputDir
 	}
-	defaultOutputDir := path.Join(c.Root.HomeDir, "rootchain")
+	defaultOutputDir := path.Join(c.Base.HomeDir, "rootchain")
 	err := os.MkdirAll(defaultOutputDir, 0700) // -rwx------
 	if err != nil {
 		panic(err)

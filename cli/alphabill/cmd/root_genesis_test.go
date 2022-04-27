@@ -12,7 +12,7 @@ import (
 func TestGenerateGenesisFiles(t *testing.T) {
 	outputDir := setupTestDir(t)
 	conf := &rootGenesisConfig{
-		Root: &rootConfiguration{
+		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
@@ -36,7 +36,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 	outputDir := setupTestDir(t)
 	conf := &rootGenesisConfig{
-		Root: &rootConfiguration{
+		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,

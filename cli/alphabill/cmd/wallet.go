@@ -13,7 +13,7 @@ const defaultAlphabillUri = "localhost:9543"
 const passwordUsage = "password used to encrypt sensitive data"
 
 // newWalletCmd creates a new cobra command for the wallet component.
-func newWalletCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Command {
+func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	// TODO wallet-sdk log statements should probably not appear to console i.e.
 	// ./alphabill wallet get-balance
 	// 150
@@ -34,20 +34,20 @@ func newWalletCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Com
 			fmt.Println("Error: must specify a subcommand create, sync, send, get-balance, get-pubkey or collect-dust")
 		},
 	}
-	walletCmd.AddCommand(createCmd(rootConfig))
-	walletCmd.AddCommand(syncCmd(rootConfig))
-	walletCmd.AddCommand(getBalanceCmd(rootConfig))
-	walletCmd.AddCommand(getPubKeyCmd(rootConfig))
-	walletCmd.AddCommand(sendCmd(rootConfig))
-	walletCmd.AddCommand(collectDustCmd(rootConfig))
+	walletCmd.AddCommand(createCmd(baseConfig))
+	walletCmd.AddCommand(syncCmd(baseConfig))
+	walletCmd.AddCommand(getBalanceCmd(baseConfig))
+	walletCmd.AddCommand(getPubKeyCmd(baseConfig))
+	walletCmd.AddCommand(sendCmd(baseConfig))
+	walletCmd.AddCommand(collectDustCmd(baseConfig))
 	return walletCmd
 }
 
-func createCmd(rootConfig *rootConfiguration) *cobra.Command {
+func createCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "create",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execCreateCmd(cmd, rootConfig.HomeDir)
+			return execCreateCmd(cmd, baseConfig.HomeDir)
 		},
 	}
 	cmd.Flags().StringP("seed", "s", "", "mnemonic seed, the number of words should be 12, 15, 18, 21 or 24")
@@ -80,11 +80,11 @@ func execCreateCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func syncCmd(rootConfig *rootConfiguration) *cobra.Command {
+func syncCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "sync",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSyncCmd(cmd, rootConfig.HomeDir)
+			return execSyncCmd(cmd, baseConfig.HomeDir)
 		},
 	}
 	cmd.Flags().StringP("alphabill-uri", "u", defaultAlphabillUri, "alphabill uri to connect to")
@@ -106,11 +106,11 @@ func execSyncCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func sendCmd(rootConfig *rootConfiguration) *cobra.Command {
+func sendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "send",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSendCmd(cmd, rootConfig.HomeDir)
+			return execSendCmd(cmd, baseConfig.HomeDir)
 		},
 	}
 	cmd.Flags().StringP("address", "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
@@ -153,11 +153,11 @@ func execSendCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func getBalanceCmd(rootConfig *rootConfiguration) *cobra.Command {
+func getBalanceCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "get-balance",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execGetBalanceCmd(cmd, rootConfig.HomeDir)
+			return execGetBalanceCmd(cmd, baseConfig.HomeDir)
 		},
 	}
 	cmd.Flags().StringP("password", "p", "", passwordUsage)
@@ -179,11 +179,11 @@ func execGetBalanceCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func getPubKeyCmd(rootConfig *rootConfiguration) *cobra.Command {
+func getPubKeyCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "get-pubkey",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execGetPubKeyCmd(cmd, rootConfig.HomeDir)
+			return execGetPubKeyCmd(cmd, baseConfig.HomeDir)
 		},
 	}
 	cmd.Flags().StringP("password", "p", "", passwordUsage)
@@ -205,13 +205,13 @@ func execGetPubKeyCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func collectDustCmd(rootConfig *rootConfiguration) *cobra.Command {
+func collectDustCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "collect-dust",
 		Short: "collect-dust consolidates bills",
 		Long:  "collect-dust consolidates bills",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execCollectDust(cmd, rootConfig.HomeDir)
+			return execCollectDust(cmd, baseConfig.HomeDir)
 		},
 	}
 	cmd.Flags().StringP("alphabill-uri", "u", defaultAlphabillUri, "alphabill uri to connect to")

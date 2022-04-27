@@ -9,6 +9,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"os"
 	"path"
 
 	"github.com/spf13/cobra"
@@ -48,13 +49,27 @@ func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobr
 
 	cmd.Flags().StringVarP(&config.KeyFile, "key-file", "k", "", "path to root chain key file")
 	cmd.Flags().StringSliceVarP(&config.PartitionRecordFiles, partitionRecordFileCmd, "p", []string{}, "path to partition record file")
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", alphabillHomeDir(), "path to output directory")
+	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default $ABHOME/rootchain)")
 
 	err := cmd.MarkFlagRequired(partitionRecordFileCmd)
 	if err != nil {
 		panic(err)
 	}
 	return cmd
+}
+
+// getOutputDir returns custom outputdir if provided, otherwise $ABHOME/rootchain, and creates parent directories.
+// Must be called after root command PersistentPreRunE function has been called, so that $ABHOME is initialized.
+func (c *rootGenesisConfig) getOutputDir() string {
+	if c.OutputDir != "" {
+		return c.OutputDir
+	}
+	defaultOutputDir := path.Join(c.Root.HomeDir, "rootchain")
+	err := os.MkdirAll(defaultOutputDir, 0700) // -rwx------
+	if err != nil {
+		panic(err)
+	}
+	return defaultOutputDir
 }
 
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
@@ -70,11 +85,11 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	err = saveRootGenesisFile(rg, config.OutputDir)
+	err = saveRootGenesisFile(rg, config.getOutputDir())
 	if err != nil {
 		return err
 	}
-	err = savePartitionGenesisFiles(pg, config.OutputDir)
+	err = savePartitionGenesisFiles(pg, config.getOutputDir())
 	if err != nil {
 		return err
 	}

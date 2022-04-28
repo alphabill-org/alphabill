@@ -75,6 +75,10 @@ func (r *baseConfiguration) configFileExists() bool {
 	return err == nil
 }
 
+func (r *baseConfiguration) defaultRootGenesisFilePath() string {
+	return path.Join(r.HomeDir, "rootchain")
+}
+
 func envKey(key string) string {
 	return strings.ToUpper(envPrefix + "_" + key)
 }

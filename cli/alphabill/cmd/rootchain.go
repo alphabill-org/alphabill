@@ -2,35 +2,35 @@ package cmd
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/spf13/cobra"
 	"path"
 	"time"
 )
 
-type (
-	rootChainConfig struct {
-		Base *baseConfiguration
+type rootChainConfig struct {
+	Base *baseConfiguration
 
-		// path to root chain key file
-		KeyFile string
+	// path to root chain key file
+	KeyFile string
 
-		// path to root-genesis.json file
-		GenesisFile string
+	// path to root-genesis.json file
+	GenesisFile string
 
-		// rootchain node address in libp2p multiaddress format
-		Address string
+	// rootchain node address in libp2p multiaddress format
+	Address string
 
-		// how long root chain nodes wait for message from Leader before initiating a view change
-		T3Timeout uint64
+	// how long root chain nodes wait for message from Leader before initiating a view change
+	T3Timeout uint64
 
-		// root chain request channel capacity
-		MaxRequests uint
-	}
-)
+	// root chain request channel capacity
+	MaxRequests uint
+}
 
 // newRootChainCmd creates a new cobra command for root chain
 func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
@@ -87,18 +87,13 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 		rootchain.WithRequestChCapacity(config.MaxRequests),
 	)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "rootchain failed to start: %s")
 	}
-
-	// close rootchain when cli ctx is cancelled
-	go func() {
-		select {
-		case <-ctx.Done():
-			log.Info("closing root chain")
-			rc.Close()
-		}
-	}()
-	return nil
+	// use StartAndWait for SIGTERM hook
+	return starter.StartAndWait(ctx, "rootchain", func(ctx context.Context) {
+		<-ctx.Done()
+		rc.Close()
+	})
 }
 
 func createPeer(config *rootChainConfig, rootKey *rootKey) (*network.Peer, error) {

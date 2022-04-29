@@ -2,25 +2,34 @@ package cmd
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"github.com/stretchr/testify/require"
 	"path"
+	"sync"
 	"testing"
 )
 
 func TestRootChainCanBeStarted(t *testing.T) {
 	conf := validRootChainConfig()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, _ := async.WithWaitGroup(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 
-	err := defaultRootChainRunFunc(ctx, conf)
-	require.NoError(t, err)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		err := defaultRootChainRunFunc(ctx, conf)
+		require.NoError(t, err)
+		wg.Done()
+	}()
+
+	cancel()
+	wg.Wait() // wait for rootchain to close and require statements to execute
 }
 
 func TestRootChainInvalidRootKey_CannotBeStarted(t *testing.T) {
 	conf := validRootChainConfig()
 	conf.KeyFile = "testdata/invalid-root-key.json"
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, _ := async.WithWaitGroup(context.Background())
 
 	err := defaultRootChainRunFunc(ctx, conf)
 	require.Errorf(t, err, "invalid genesis")

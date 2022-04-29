@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/spf13/cobra"
 	"path"
 	"time"
@@ -66,19 +68,19 @@ func (c *rootChainConfig) getGenesisFilePath() string {
 }
 
 func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error {
-	rk, err := util.ReadJsonFile(config.KeyFile, &rootKey{})
-	if err != nil {
-		return err
-	}
-	peer, err := createPeer(config, rk)
-	if err != nil {
-		return err
-	}
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
 		return err
 	}
+	rk, err := util.ReadJsonFile(config.KeyFile, &rootKey{})
+	if err != nil {
+		return err
+	}
 	signer, err := rk.toSigner()
+	if err != nil {
+		return err
+	}
+	peer, err := createPeer(config)
 	if err != nil {
 		return err
 	}
@@ -96,8 +98,8 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	})
 }
 
-func createPeer(config *rootChainConfig, rootKey *rootKey) (*network.Peer, error) {
-	keyPair, err := rootKey.toPeerKeyPair()
+func createPeer(config *rootChainConfig) (*network.Peer, error) {
+	keyPair, err := generateKeyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -106,4 +108,23 @@ func createPeer(config *rootChainConfig, rootKey *rootKey) (*network.Peer, error
 		KeyPair: keyPair,
 	}
 	return network.NewPeer(conf)
+}
+
+func generateKeyPair() (*network.PeerKeyPair, error) {
+	privateKey, pubKey, err := crypto.GenerateEd25519Key(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	privateKeyBytes, err := crypto.MarshalPrivateKey(privateKey)
+	if err != nil {
+		return nil, err
+	}
+	publicKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+	if err != nil {
+		return nil, err
+	}
+	return &network.PeerKeyPair{
+		PublicKey:  publicKeyBytes,
+		PrivateKey: privateKeyBytes,
+	}, nil
 }

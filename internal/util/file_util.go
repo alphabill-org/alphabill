@@ -19,6 +19,7 @@ func FileExists(path string) bool {
 }
 
 func ReadJsonFile[T any](path string, res *T) (*T, error) {
+	// #nosec G304
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err

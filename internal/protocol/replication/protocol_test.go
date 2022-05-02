@@ -150,12 +150,12 @@ func TestGetBlocks_ErrUnknownSystemIdentifier(t *testing.T) {
 
 func TestGetBlocks_RequestHandlerReturnsUnknownError(t *testing.T) {
 	blockReceiverPeer, blockSenderPeer := createPeers(t)
-	receiverProtocol, err := New(blockReceiverPeer, 20*time.Millisecond, emptyRequestHandler, emptyResponseHandler)
+	receiverProtocol, err := New(blockReceiverPeer, time.Second, emptyRequestHandler, emptyResponseHandler)
 	require.NoError(t, err)
 	r := errors.New("test")
 	_, err = New(
 		blockSenderPeer,
-		20*time.Millisecond,
+		time.Second,
 		func(systemIdentifier []byte, fromBlockNr, toBlockNr uint64) ([]*block.Block, error) {
 			return nil, r
 		},

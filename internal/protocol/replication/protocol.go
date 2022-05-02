@@ -22,7 +22,7 @@ var (
 	ErrPeerIsNil            = errors.New("peer is nil")
 	ErrResponseHandlerIsNil = errors.New("response handler is nil")
 	ErrRequestHandlerIsNil  = errors.New("request handler is nil")
-	ErrTimout               = errors.New("forwarding timeout")
+	ErrTimout               = errors.New("ledger replication timeout")
 
 	ErrUnknownSystemIdentifier = errors.New("unknown system identifier")
 )

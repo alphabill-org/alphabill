@@ -16,16 +16,17 @@ import (
 
 type (
 	alphabillApp struct {
-		rootCmd    *cobra.Command
-		rootConfig *rootConfiguration
-		opts       interface{}
+		rootCmd        *cobra.Command
+		rootConfig     *rootConfiguration
+		opts           interface{}
+		cmdInterceptor func(*cobra.Command)
 	}
 )
 
 // New creates a new Alphabill application
 func New() *alphabillApp {
 	rootCmd, rootConfig := newRootCmd()
-	return &alphabillApp{rootCmd, rootConfig, nil}
+	return &alphabillApp{rootCmd, rootConfig, nil, nil}
 }
 
 func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
@@ -39,7 +40,16 @@ func (a *alphabillApp) Execute(ctx context.Context) {
 	a.rootCmd.AddCommand(newVDShardCmd(ctx, a.rootConfig))
 	a.rootCmd.AddCommand(newWalletCmd(ctx, a.rootConfig))
 
+	if a.cmdInterceptor != nil {
+		a.cmdInterceptor(a.rootCmd)
+	}
+
 	cobra.CheckErr(a.rootCmd.Execute())
+}
+
+func (a *alphabillApp) withCmdInterceptor(fn func(*cobra.Command)) *alphabillApp {
+	a.cmdInterceptor = fn
+	return a
 }
 
 func newRootCmd() (*cobra.Command, *rootConfiguration) {

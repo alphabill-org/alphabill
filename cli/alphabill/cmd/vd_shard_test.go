@@ -2,15 +2,20 @@ package cmd
 
 import (
 	"context"
+	"math/rand"
 	"path"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
+
+	"github.com/spf13/cobra"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	vdtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -23,14 +28,29 @@ import (
 const defaultUnicityTrustBase = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
 
 func TestVDShardCmd(t *testing.T) {
-	t.Skip("Skipping due to unresolved waitgroup error")
-	abApp := New()
+	flagChecked := false
+	abApp := New().withCmdInterceptor(func(c *cobra.Command) {
+		for _, command := range c.Commands() {
+			command.RunE = func(cmd *cobra.Command, args []string) error {
+				cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+					if flag.Name == "trust-base" {
+						flagChecked = true
+						require.True(t, flag.Changed)
+						require.Equal(t, "["+defaultUnicityTrustBase+"]", flag.Value.String())
+					}
+				})
+				require.Equal(t, "vd-shard", cmd.Use)
+				return nil
+			}
+		}
+	})
 	abApp.rootCmd.SetArgs([]string{"vd-shard", "--trust-base", defaultUnicityTrustBase})
 	abApp.Execute(context.Background())
+	require.True(t, flagChecked)
 }
 
 func TestRunVDShard(t *testing.T) {
-	test.MustRunInTime(t, 5*time.Second, func() {
+	testtime.MustRunInTime(t, 5*time.Second, func() {
 		port := "9543"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
 		dialAddr := "localhost:" + port
@@ -72,7 +92,7 @@ func TestRunVDShard(t *testing.T) {
 
 		// Test
 		// green path
-		id := uint256.NewInt(defaultInitialBillId).Bytes32()
+		id := uint256.NewInt(rand.Uint64()).Bytes32()
 		tx := &transaction.Transaction{
 			UnitId:                id[:],
 			TransactionAttributes: new(anypb.Any),

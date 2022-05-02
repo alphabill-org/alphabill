@@ -7,10 +7,20 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
+	"syscall"
 )
 
-const defaultAlphabillUri = "localhost:9543"
-const passwordUsage = "password used to encrypt sensitive data"
+const (
+	defaultAlphabillUri = "localhost:9543"
+	passwordUsage       = "password used to encrypt sensitive data"
+
+	alphabillUriCmdName = "alphabill-uri"
+	seedCmdName         = "seed"
+	addressCmdName      = "address"
+	amountCmdName       = "amount"
+	passwordCmdName     = "password"
+)
 
 // newWalletCmd creates a new cobra command for the wallet component.
 func newWalletCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Command {
@@ -50,17 +60,17 @@ func createCmd(rootConfig *rootConfiguration) *cobra.Command {
 			return execCreateCmd(cmd, rootConfig.HomeDir)
 		},
 	}
-	cmd.Flags().StringP("seed", "s", "", "mnemonic seed, the number of words should be 12, 15, 18, 21 or 24")
-	cmd.Flags().StringP("password", "p", "", passwordUsage)
+	cmd.Flags().StringP(seedCmdName, "s", "", "mnemonic seed, the number of words should be 12, 15, 18, 21 or 24")
+	cmd.Flags().BoolP(passwordCmdName, "p", false, passwordUsage)
 	return cmd
 }
 
 func execCreateCmd(cmd *cobra.Command, walletDir string) error {
-	mnemonic, err := cmd.Flags().GetString("seed")
+	mnemonic, err := cmd.Flags().GetString(seedCmdName)
 	if err != nil {
 		return err
 	}
-	password, err := cmd.Flags().GetString("password")
+	password, err := createPassphrase(cmd)
 	if err != nil {
 		return err
 	}
@@ -87,13 +97,13 @@ func syncCmd(rootConfig *rootConfiguration) *cobra.Command {
 			return execSyncCmd(cmd, rootConfig.HomeDir)
 		},
 	}
-	cmd.Flags().StringP("alphabill-uri", "u", defaultAlphabillUri, "alphabill uri to connect to")
-	cmd.Flags().StringP("password", "p", "", passwordUsage)
+	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	cmd.Flags().BoolP(passwordCmdName, "p", false, passwordUsage)
 	return cmd
 }
 
 func execSyncCmd(cmd *cobra.Command, walletDir string) error {
-	uri, err := cmd.Flags().GetString("alphabill-uri")
+	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return err
 	}
@@ -113,17 +123,17 @@ func sendCmd(rootConfig *rootConfiguration) *cobra.Command {
 			return execSendCmd(cmd, rootConfig.HomeDir)
 		},
 	}
-	cmd.Flags().StringP("address", "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	cmd.Flags().Uint64P("amount", "v", 0, "the amount to send to the receiver")
-	cmd.Flags().StringP("alphabill-uri", "u", defaultAlphabillUri, "alphabill uri to connect to")
-	cmd.Flags().StringP("password", "p", "", passwordUsage)
-	_ = cmd.MarkFlagRequired("address")
-	_ = cmd.MarkFlagRequired("amount")
+	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
+	cmd.Flags().Uint64P(amountCmdName, "v", 0, "the amount to send to the receiver")
+	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	cmd.Flags().BoolP(passwordCmdName, "p", false, passwordUsage)
+	_ = cmd.MarkFlagRequired(addressCmdName)
+	_ = cmd.MarkFlagRequired(amountCmdName)
 	return cmd
 }
 
 func execSendCmd(cmd *cobra.Command, walletDir string) error {
-	uri, err := cmd.Flags().GetString("alphabill-uri")
+	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return err
 	}
@@ -131,7 +141,7 @@ func execSendCmd(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
-	pubKeyHex, err := cmd.Flags().GetString("address")
+	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
 		return err
 	}
@@ -139,7 +149,7 @@ func execSendCmd(cmd *cobra.Command, walletDir string) error {
 	if !ok {
 		return errors.New("address in not in valid format")
 	}
-	amount, err := cmd.Flags().GetUint64("amount")
+	amount, err := cmd.Flags().GetUint64(amountCmdName)
 	if err != nil {
 		return err
 	}
@@ -160,7 +170,7 @@ func getBalanceCmd(rootConfig *rootConfiguration) *cobra.Command {
 			return execGetBalanceCmd(cmd, rootConfig.HomeDir)
 		},
 	}
-	cmd.Flags().StringP("password", "p", "", passwordUsage)
+	cmd.Flags().BoolP(passwordCmdName, "p", false, passwordUsage)
 	return cmd
 }
 
@@ -186,7 +196,7 @@ func getPubKeyCmd(rootConfig *rootConfiguration) *cobra.Command {
 			return execGetPubKeyCmd(cmd, rootConfig.HomeDir)
 		},
 	}
-	cmd.Flags().StringP("password", "p", "", passwordUsage)
+	cmd.Flags().BoolP(passwordCmdName, "p", false, passwordUsage)
 	return cmd
 }
 
@@ -214,13 +224,13 @@ func collectDustCmd(rootConfig *rootConfiguration) *cobra.Command {
 			return execCollectDust(cmd, rootConfig.HomeDir)
 		},
 	}
-	cmd.Flags().StringP("alphabill-uri", "u", defaultAlphabillUri, "alphabill uri to connect to")
-	cmd.Flags().StringP("password", "p", "", passwordUsage)
+	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	cmd.Flags().BoolP(passwordCmdName, "p", false, passwordUsage)
 	return cmd
 }
 
 func execCollectDust(cmd *cobra.Command, walletDir string) error {
-	uri, err := cmd.Flags().GetString("alphabill-uri")
+	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return err
 	}
@@ -254,7 +264,7 @@ func pubKeyHexToBytes(s string) ([]byte, bool) {
 }
 
 func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wallet.Wallet, error) {
-	walletPass, err := cmd.Flags().GetString("password")
+	walletPass, err := getPassphrase(cmd, "Enter passphrase: ")
 	if err != nil {
 		return nil, err
 	}
@@ -263,4 +273,48 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wall
 		WalletPass:            walletPass,
 		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
 	})
+}
+
+func createPassphrase(cmd *cobra.Command) (string, error) {
+	passwordFlag, err := cmd.Flags().GetBool(passwordCmdName)
+	if err != nil {
+		return "", err
+	}
+	if !passwordFlag {
+		return "", nil
+	}
+	p1, err := readPassword("Create new passphrase: ")
+	if err != nil {
+		return "", err
+	}
+	fmt.Println() // insert empty line between two prompots
+	p2, err := readPassword("Confirm passphrase: ")
+	if err != nil {
+		return "", err
+	}
+	fmt.Println()
+	if p1 != p2 {
+		return "", errors.New("passphrases need to be equal")
+	}
+	return p1, nil
+}
+
+func getPassphrase(cmd *cobra.Command, promptMessage string) (string, error) {
+	passwordFlag, err := cmd.Flags().GetBool(passwordCmdName)
+	if err != nil {
+		return "", err
+	}
+	if !passwordFlag {
+		return "", nil
+	}
+	return readPassword(promptMessage)
+}
+
+func readPassword(promptMessage string) (string, error) {
+	fmt.Print(promptMessage)
+	passwordBytes, err := term.ReadPassword(syscall.Stdin)
+	if err != nil {
+		return "", err
+	}
+	return string(passwordBytes), nil
 }

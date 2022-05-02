@@ -125,7 +125,7 @@ func TestGetBlocks_Timeout(t *testing.T) {
 
 func TestGetBlocks_SystemIdentifierIsNil(t *testing.T) {
 	blockReceiverPeer, _ := createPeers(t)
-	receiverProtocol, err := New(blockReceiverPeer, 20*time.Millisecond, emptyRequestHandler, emptyResponseHandler)
+	receiverProtocol, err := New(blockReceiverPeer, time.Second, emptyRequestHandler, emptyResponseHandler)
 	require.NoError(t, err)
 	err = receiverProtocol.GetBlocks(nil, 2, 5)
 	require.ErrorContains(t, err, errstr.NilArgument)
@@ -133,11 +133,11 @@ func TestGetBlocks_SystemIdentifierIsNil(t *testing.T) {
 
 func TestGetBlocks_ErrUnknownSystemIdentifier(t *testing.T) {
 	blockReceiverPeer, blockSenderPeer := createPeers(t)
-	receiverProtocol, err := New(blockReceiverPeer, 20*time.Millisecond, emptyRequestHandler, emptyResponseHandler)
+	receiverProtocol, err := New(blockReceiverPeer, time.Second, emptyRequestHandler, emptyResponseHandler)
 	require.NoError(t, err)
 	_, err = New(
 		blockSenderPeer,
-		20*time.Millisecond,
+		time.Second,
 		func(systemIdentifier []byte, fromBlockNr, toBlockNr uint64) ([]*block.Block, error) {
 			return nil, ErrUnknownSystemIdentifier
 		},
@@ -176,7 +176,7 @@ func TestGetBlocks_InvalidFromBlockNrAndToBlockNr(t *testing.T) {
 	require.ErrorContains(t, err, "from block nr 4 is greater than to block nr 2")
 }
 
-func emptyResponseHandler(block *block.Block) {
+func emptyResponseHandler(*block.Block) {
 }
 
 func createPeers(t *testing.T) (*network.Peer, *network.Peer) {

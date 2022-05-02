@@ -6,6 +6,8 @@ import (
 	"path"
 	"testing"
 
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -30,7 +32,7 @@ func TestPersistentBlockStore_AddGetBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify block
-	b, err := bs.Get(tp.TxSystemBlockNumber)
+	b, err := bs.Get(tp.BlockNumber)
 	require.NoError(t, err)
 	verifyBlock(t, tp, b)
 }
@@ -89,11 +91,11 @@ func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
 
 func newDummyBlock(blockNo uint64) *block.Block {
 	return &block.Block{
-		SystemIdentifier:    []byte{0},
-		TxSystemBlockNumber: blockNo,
-		PreviousBlockHash:   []byte{2},
-		Transactions:        []*transaction.Transaction{},
-		UnicityCertificate:  &certificates.UnicityCertificate{},
+		SystemIdentifier:   []byte{0},
+		BlockNumber:        blockNo,
+		PreviousBlockHash:  []byte{2},
+		Transactions:       []*transaction.Transaction{testtransaction.RandomBillTransfer()},
+		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 }
 
@@ -110,7 +112,7 @@ func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
 
 func verifyBlock(t *testing.T, expected *block.Block, actual *block.Block) {
 	require.EqualValues(t, expected.SystemIdentifier, actual.SystemIdentifier)
-	require.EqualValues(t, expected.TxSystemBlockNumber, actual.TxSystemBlockNumber)
+	require.EqualValues(t, expected.BlockNumber, actual.BlockNumber)
 	require.EqualValues(t, expected.PreviousBlockHash, actual.PreviousBlockHash)
 	require.EqualValues(t, expected.Transactions, actual.Transactions)
 	require.EqualValues(t, expected.UnicityCertificate, actual.UnicityCertificate)

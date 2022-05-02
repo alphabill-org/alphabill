@@ -103,10 +103,10 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...Option) (*genes
 
 	// first block
 	b := &block.Block{
-		SystemIdentifier:    c.systemIdentifier,
-		TxSystemBlockNumber: 1,
-		PreviousBlockHash:   zeroHash,
-		Transactions:        nil,
+		SystemIdentifier:  c.systemIdentifier,
+		BlockNumber:       1,
+		PreviousBlockHash: zeroHash,
+		Transactions:      nil,
 	}
 	blockHash := b.Hash(c.hashAlgorithm)
 

@@ -3,6 +3,8 @@ package network
 import (
 	"context"
 	"crypto/rand"
+	mrand "math/rand"
+	"time"
 
 	"github.com/libp2p/go-libp2p-core/peerstore"
 
@@ -157,6 +159,22 @@ func (p *Peer) Close() (res error) {
 		res = multierror.Append(res, err)
 	}
 	return
+}
+
+// GetRandomPeerID returns a random peer.ID from the peerstore.
+func (p *Peer) GetRandomPeerID() peer.ID {
+	networkPeers := p.Network().Peerstore().Peers()
+
+	var peers []peer.ID
+	for _, id := range networkPeers {
+		if id != p.ID() {
+			peers = append(peers, id)
+		}
+	}
+
+	mrand.Seed(time.Now().UnixNano())
+	index := mrand.Intn(len(peers))
+	return peers[index]
 }
 
 func (pi *PeerInfo) GetID() (peer.ID, error) {

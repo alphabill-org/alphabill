@@ -255,7 +255,7 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 		}
 		return nil
 	default:
-		return errors.Errorf("Unknown type %T", gtx)
+		return errors.Errorf("unknown type %T", gtx)
 	}
 	return nil
 }

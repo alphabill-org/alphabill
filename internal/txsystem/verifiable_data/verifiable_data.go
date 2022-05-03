@@ -81,13 +81,13 @@ func (d *vdState) Process(gtx transaction.GenericTransaction) error {
 		}
 		return nil
 	default:
-		return errors.Errorf("Unknown type %T", gtx)
+		return errors.Errorf("unknown type %T", gtx)
 	}
 }
 
 func (d *vdState) validateRegTx(tx RegisterTx) error {
 	if len(tx.OwnerProof()) > 0 {
-		return errors.New("Register transaction cannot have an owner proof")
+		return errors.New("'register data' transaction cannot have an owner proof")
 	}
 	return nil
 }

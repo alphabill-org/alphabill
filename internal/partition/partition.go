@@ -189,11 +189,11 @@ func New(
 	}
 
 	genesisBlock := &block.Block{
-		SystemIdentifier:    p.configuration.GetSystemIdentifier(),
-		TxSystemBlockNumber: 1,
-		PreviousBlockHash:   nil,
-		Transactions:        []*transaction.Transaction{},
-		UnicityCertificate:  genesisCertificate,
+		SystemIdentifier:   p.configuration.GetSystemIdentifier(),
+		BlockNumber:        1,
+		PreviousBlockHash:  nil,
+		Transactions:       []*transaction.Transaction{},
+		UnicityCertificate: genesisCertificate,
 	}
 	if err := p.blockStore.Add(genesisBlock); err != nil {
 		return nil, err
@@ -458,11 +458,11 @@ func (p *Partition) finalizeBlock(transactions []*transaction.Transaction, uc *c
 	height, _ := p.blockStore.Height()           // TODO handle error
 	latestBlock, _ := p.blockStore.LatestBlock() // TODO handle error
 	b := &block.Block{
-		SystemIdentifier:    p.configuration.GetSystemIdentifier(),
-		TxSystemBlockNumber: height + 1,
-		PreviousBlockHash:   latestBlock.Hash(p.configuration.HashAlgorithm),
-		Transactions:        transactions,
-		UnicityCertificate:  uc,
+		SystemIdentifier:   p.configuration.GetSystemIdentifier(),
+		BlockNumber:        height + 1,
+		PreviousBlockHash:  latestBlock.Hash(p.configuration.HashAlgorithm),
+		Transactions:       transactions,
+		UnicityCertificate: uc,
 	}
 	// TODO ensure block hash equals to IR hash
 	_ = p.blockStore.Add(b) // TODO handle error

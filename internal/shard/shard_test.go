@@ -70,7 +70,7 @@ func TestGetBlock_Ok(t *testing.T) {
 
 	// add mock block
 	_ = bs.Add(&block.Block{
-		TxSystemBlockNumber: 1,
+		BlockNumber: 1,
 		UnicityCertificate: &certificates.UnicityCertificate{
 			UnicitySeal: &certificates.UnicitySeal{},
 		},
@@ -78,7 +78,7 @@ func TestGetBlock_Ok(t *testing.T) {
 
 	b, err := s.GetBlock(&alphabill.GetBlockRequest{BlockNo: 1})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, b.Block.BlockNo)
+	require.EqualValues(t, 1, b.Block.BlockNumber)
 }
 
 func TestGetBlock_Nok(t *testing.T) {
@@ -101,7 +101,7 @@ func TestGetMaxBlockNo_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	// add mock block
-	_ = bs.Add(&block.Block{TxSystemBlockNumber: 1})
+	_ = bs.Add(&block.Block{BlockNumber: 1})
 
 	b, err := s.GetMaxBlockNo(&alphabill.GetMaxBlockNoRequest{})
 	require.NoError(t, err)

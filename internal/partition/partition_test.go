@@ -368,7 +368,7 @@ func TestPartition_HandleUnicityCertificateRecordEvent(t *testing.T) {
 	require.Equal(t, uint64(2), height)
 
 	latestBlock, _ := p.blockStore.LatestBlock()
-	require.Equal(t, uint64(2), latestBlock.TxSystemBlockNumber)
+	require.Equal(t, uint64(2), latestBlock.BlockNumber)
 	require.Equal(t, 1, len(latestBlock.Transactions))
 }
 
@@ -441,7 +441,7 @@ func TestPartition_CreateEmptyBlock(t *testing.T) {
 
 	block2, err := tp.GetLatestBlock()
 	require.NoError(t, err)
-	require.Equal(t, block.TxSystemBlockNumber+1, block2.TxSystemBlockNumber)
+	require.Equal(t, block.BlockNumber+1, block2.BlockNumber)
 	require.Equal(t, block.SystemIdentifier, block2.SystemIdentifier)
 	require.Equal(t, block.Hash(gocrypto.SHA256), block2.PreviousBlockHash)
 	uc1 := block.UnicityCertificate

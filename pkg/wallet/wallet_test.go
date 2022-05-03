@@ -2,13 +2,14 @@ package wallet
 
 import (
 	"encoding/hex"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"sync"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/btcsuite/btcutil/hdkeychain"
@@ -123,10 +124,10 @@ func TestBlockProcessing(t *testing.T) {
 	k, err := w.db.GetAccountKey()
 	require.NoError(t, err)
 
-	blocks := []*alphabill.Block{
+	blocks := []*block.Block{
 		{
-			BlockNo:       1,
-			PrevBlockHash: hash.Sum256([]byte{}),
+			BlockNumber:       1,
+			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*transaction.Transaction{
 				// random dust transfer can be processed
 				{

@@ -4,9 +4,10 @@ import (
 	"crypto"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
@@ -36,13 +37,13 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	// when the block with dc txs is received
 	swapTimeout := uint64(swapTimeoutBlockCount + 1)
 	mockClient.maxBlockNo = 1
-	block := &alphabill.Block{
-		BlockNo:            1,
-		PrevBlockHash:      hash.Sum256([]byte{}),
+	b := &block.Block{
+		BlockNumber:        1,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs,
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(block)
+	err = w.processBlock(b)
 	require.NoError(t, err)
 
 	// then metadata is updated
@@ -67,13 +68,13 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	// when further blocks are received
 	mockClient.maxBlockNo = dcTimeoutBlockCount
 	for blockHeight := uint64(2); blockHeight <= dcTimeoutBlockCount; blockHeight++ {
-		block = &alphabill.Block{
-			BlockNo:            blockHeight,
-			PrevBlockHash:      hash.Sum256([]byte{}),
+		b = &block.Block{
+			BlockNumber:        blockHeight,
+			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*transaction.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
-		err = w.processBlock(block)
+		err = w.processBlock(b)
 		require.NoError(t, err)
 	}
 
@@ -88,13 +89,13 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	mockClient.maxBlockNo = swapTimeout
 	err = w.db.SetBlockHeight(swapTimeoutBlockCount)
 	require.NoError(t, err)
-	block = &alphabill.Block{
-		BlockNo:            swapTimeout,
-		PrevBlockHash:      hash.Sum256([]byte{}),
+	b = &block.Block{
+		BlockNumber:        swapTimeout,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs[2:3], // swap tx
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(block)
+	err = w.processBlock(b)
 	require.NoError(t, err)
 
 	// then dc metadata is cleared
@@ -116,13 +117,13 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	mockClient.maxBlockNo = dcTimeoutBlockCount
 	err := w.db.SetBlockHeight(dcTimeoutBlockCount - 1)
 	require.NoError(t, err)
-	block := &alphabill.Block{
-		BlockNo:            dcTimeoutBlockCount,
-		PrevBlockHash:      hash.Sum256([]byte{}),
+	b := &block.Block{
+		BlockNumber:        dcTimeoutBlockCount,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(block)
+	err = w.processBlock(b)
 	require.NoError(t, err)
 
 	// then swap should be broadcast
@@ -155,13 +156,13 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{SwapTimeout: swapTimeoutBlockCount})
 
 	// when swap timeout is reached
-	block := &alphabill.Block{
-		BlockNo:            swapTimeoutBlockCount,
-		PrevBlockHash:      hash.Sum256([]byte{}),
+	b := &block.Block{
+		BlockNumber:        swapTimeoutBlockCount,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.processBlock(block)
+	err := w.processBlock(b)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -189,13 +190,13 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 	setDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
 
 	// when dc timeout is reached
-	block := &alphabill.Block{
-		BlockNo:            dcTimeoutBlockCount,
-		PrevBlockHash:      hash.Sum256([]byte{}),
+	b := &block.Block{
+		BlockNumber:        dcTimeoutBlockCount,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.processBlock(block)
+	err := w.processBlock(b)
 	require.NoError(t, err)
 
 	// then no tx is broadcast
@@ -262,9 +263,9 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	require.True(t, b2.isExpired(blockHeight))
 	require.False(t, b3.isExpired(blockHeight))
 
-	// receing a block should delete expired bills
-	err := w.processBlock(&alphabill.Block{
-		BlockNo:      blockHeight + 1,
+	// receiving a block should delete expired bills
+	err := w.processBlock(&block.Block{
+		BlockNumber:  blockHeight + 1,
 		Transactions: []*transaction.Transaction{},
 	})
 	require.NoError(t, err)

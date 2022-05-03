@@ -24,10 +24,10 @@ type (
 
 const vdFolder = "vd"
 
-func newVDShardCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Command {
+func newVDShardCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	config := &vdShardConfiguration{
 		baseShardConfiguration: baseShardConfiguration{
-			Root:   rootConfig,
+			Base:   baseConfig,
 			Server: &grpcServerConfiguration{},
 		},
 	}
@@ -57,11 +57,11 @@ func defaultVDShardRunFunc(ctx context.Context, cfg *vdShardConfiguration) error
 		return err
 	}
 
-	err = os.MkdirAll(path.Join(cfg.Root.HomeDir, vdFolder), 0700) // -rwx------
+	err = os.MkdirAll(path.Join(cfg.Base.HomeDir, vdFolder), 0700) // -rwx------
 	if err != nil {
 		return err
 	}
-	blockStoreFile := path.Join(cfg.Root.HomeDir, vdFolder, store.BoltBlockStoreFileName)
+	blockStoreFile := path.Join(cfg.Base.HomeDir, vdFolder, store.BoltBlockStoreFileName)
 	blockStore, err := store.NewBoltBlockStore(blockStoreFile)
 	if err != nil {
 		return err

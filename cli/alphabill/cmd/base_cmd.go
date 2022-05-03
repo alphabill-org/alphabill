@@ -16,8 +16,8 @@ import (
 
 type (
 	alphabillApp struct {
-		rootCmd        *cobra.Command
-		rootConfig     *rootConfiguration
+		baseCmd        *cobra.Command
+		baseConfig     *baseConfiguration
 		opts           interface{}
 		cmdInterceptor func(*cobra.Command)
 	}
@@ -25,8 +25,8 @@ type (
 
 // New creates a new Alphabill application
 func New() *alphabillApp {
-	rootCmd, rootConfig := newRootCmd()
-	return &alphabillApp{rootCmd, rootConfig, nil, nil}
+	baseCmd, baseConfig := newBaseCmd()
+	return &alphabillApp{baseCmd, baseConfig, nil, nil}
 }
 
 func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
@@ -36,15 +36,17 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 
 // Execute adds all child commands and runs the application
 func (a *alphabillApp) Execute(ctx context.Context) {
-	a.rootCmd.AddCommand(newMoneyShardCmd(ctx, a.rootConfig, convertOptsToRunnable(a.opts)))
-	a.rootCmd.AddCommand(newVDShardCmd(ctx, a.rootConfig))
-	a.rootCmd.AddCommand(newWalletCmd(ctx, a.rootConfig))
+	a.baseCmd.AddCommand(newMoneyShardCmd(ctx, a.baseConfig, convertOptsToRunnable(a.opts)))
+	a.baseCmd.AddCommand(newVDShardCmd(ctx, a.baseConfig))
+	a.baseCmd.AddCommand(newWalletCmd(ctx, a.baseConfig))
+	a.baseCmd.AddCommand(newRootGenesisCmd(ctx, a.baseConfig))
+	a.baseCmd.AddCommand(newRootChainCmd(ctx, a.baseConfig))
 
 	if a.cmdInterceptor != nil {
-		a.cmdInterceptor(a.rootCmd)
+		a.cmdInterceptor(a.baseCmd)
 	}
 
-	cobra.CheckErr(a.rootCmd.Execute())
+	cobra.CheckErr(a.baseCmd.Execute())
 }
 
 func (a *alphabillApp) withCmdInterceptor(fn func(*cobra.Command)) *alphabillApp {
@@ -52,16 +54,16 @@ func (a *alphabillApp) withCmdInterceptor(fn func(*cobra.Command)) *alphabillApp
 	return a
 }
 
-func newRootCmd() (*cobra.Command, *rootConfiguration) {
-	config := &rootConfiguration{}
-	// rootCmd represents the base command when called without any subcommands
-	var rootCmd = &cobra.Command{
+func newBaseCmd() (*cobra.Command, *baseConfiguration) {
+	config := &baseConfiguration{}
+	// baseCmd represents the base command when called without any subcommands
+	var baseCmd = &cobra.Command{
 		Use:   "alphabill",
 		Short: "The alphabill CLI",
 		Long:  `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the root command works well
-			// If subcommand does not define PersistentPreRunE, the one from root cmd is used.
+			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the base command works well
+			// If subcommand does not define PersistentPreRunE, the one from base cmd is used.
 			err := initializeConfig(cmd, config)
 			if err != nil {
 				return err
@@ -70,19 +72,19 @@ func newRootCmd() (*cobra.Command, *rootConfiguration) {
 			return nil
 		},
 	}
-	config.addConfigurationFlags(rootCmd)
+	config.addConfigurationFlags(baseCmd)
 
-	return rootCmd, config
+	return baseCmd, config
 }
 
 // initializeConfig reads in config file and ENV variables if set.
-func initializeConfig(cmd *cobra.Command, rootConfig *rootConfiguration) error {
+func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 	v := viper.New()
 
-	rootConfig.initConfigFileLocation()
+	config.initConfigFileLocation()
 
-	if rootConfig.configFileExists() {
-		v.SetConfigFile(rootConfig.CfgFile)
+	if config.configFileExists() {
+		v.SetConfigFile(config.CfgFile)
 	}
 
 	// Attempt to read the config file, gracefully ignoring errors
@@ -114,7 +116,7 @@ func initializeConfig(cmd *cobra.Command, rootConfig *rootConfiguration) error {
 	return nil
 }
 
-func initializeLogger(config *rootConfiguration) {
+func initializeLogger(config *baseConfiguration) {
 	loggerConfigFile := config.LogCfgFile
 	if !strings.HasPrefix(config.LogCfgFile, string(os.PathSeparator)) {
 		// Logger config file URL is using relative path

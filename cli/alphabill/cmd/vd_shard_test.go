@@ -44,7 +44,7 @@ func TestVDShardCmd(t *testing.T) {
 			}
 		}
 	})
-	abApp.rootCmd.SetArgs([]string{"vd-shard", "--trust-base", defaultUnicityTrustBase})
+	abApp.baseCmd.SetArgs([]string{"vd-shard", "--trust-base", defaultUnicityTrustBase})
 	abApp.Execute(context.Background())
 	require.True(t, flagChecked)
 }
@@ -57,7 +57,7 @@ func TestRunVDShard(t *testing.T) {
 
 		conf := &vdShardConfiguration{
 			baseShardConfiguration: baseShardConfiguration{
-				Root: &rootConfiguration{
+				Base: &baseConfiguration{
 					HomeDir:    alphabillHomeDir(),
 					CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 					LogCfgFile: defaultLoggerConfigFile,

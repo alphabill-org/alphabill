@@ -34,6 +34,16 @@ Default location of the logger configuration file is `$AB_HOME/logger-config.yam
 
 The location can be changed through `--logger-config` configuration key. If it's relative URL, then it's relative to `$AB_HOME`. 
 
+### Wallet Logging Configuration
+
+Wallet logging can be configured only through CLI parameters. 
+
+`./alphabill wallet --log-file=<path/to/my/file> --log-level=INFO`
+
+Default log file is `$AB_HOME/wallet/wallet.log`. Default log level is `INFO`
+
+Possible log level values: `NONE, ERROR, WARNING, NOTICE, INFO, DEBUG`
+
 ## Set up autocompletion
 
 To use autocompletion (supported with `bash`, `fish`, `powershell` and `zsh`), run the following commands after building (this is `bash` example):

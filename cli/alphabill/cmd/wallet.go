@@ -5,30 +5,32 @@ import (
 	"errors"
 	"fmt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
+	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
+	"os"
+	"path"
+	"strings"
 )
 
 const defaultAlphabillUri = "localhost:9543"
 const passwordUsage = "password used to encrypt sensitive data"
+const logFileCmdName = "log-file"
+const logLevelCmdName = "log-level"
 
 // newWalletCmd creates a new cobra command for the wallet component.
-func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	// TODO wallet-sdk log statements should probably not appear to console i.e.
-	// ./alphabill wallet get-balance
-	// 150
-	// [I]{0001}2022/02/11 11:20:21.128808 wallet.go:192: Shutting down wallet
-	// [I]{0001}2022/02/11 11:20:21.128882 walletdb.go:376: Closing wallet db
-	//
-	// we can set SDKs logger by log.SetLogger(logger.CreateForPackage())
-	// however, the given and expected loggers seem to be incompatible
+func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	var walletCmd = &cobra.Command{
 		Use:   "wallet",
 		Short: "cli for managing alphabill wallet",
 		Long:  "cli for managing alphabill wallet",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// overrides parent PersistentPreRunE so that logger will not get initialized for wallet subcommand
-			return nil
+			// initalize config so that baseConfig.HomeDir gets configured
+			err := initializeConfig(cmd, baseConfig)
+			if err != nil {
+				return err
+			}
+			return initWalletLogger(cmd, baseConfig.HomeDir)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("Error: must specify a subcommand create, sync, send, get-balance, get-pubkey or collect-dust")
@@ -40,6 +42,8 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	walletCmd.AddCommand(getPubKeyCmd(baseConfig))
 	walletCmd.AddCommand(sendCmd(baseConfig))
 	walletCmd.AddCommand(collectDustCmd(baseConfig))
+	walletCmd.PersistentFlags().String(logFileCmdName, "", fmt.Sprintf("log file path (default $AB_HOME/wallet/wallet.log)"))
+	walletCmd.PersistentFlags().String(logLevelCmdName, "INFO", fmt.Sprintf("logging level [%s]", walletLogLevels()))
 	return walletCmd
 }
 
@@ -209,7 +213,6 @@ func collectDustCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "collect-dust",
 		Short: "collect-dust consolidates bills",
-		Long:  "collect-dust consolidates bills",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, baseConfig.HomeDir)
 		},
@@ -263,4 +266,45 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wall
 		WalletPass:            walletPass,
 		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
 	})
+}
+
+func walletLogLevels() string {
+	keys := make([]string, 0, len(wlog.Levels))
+	for k := range wlog.Levels {
+		keys = append(keys, k)
+	}
+	return strings.Join(keys, "/")
+}
+
+func initWalletLogger(cmd *cobra.Command, homeDir string) error {
+	logLevelStr, err := cmd.Flags().GetString(logLevelCmdName)
+	if err != nil {
+		return err
+	}
+	logLevel := wlog.Levels[logLevelStr]
+
+	logFilePath, err := cmd.Flags().GetString(logFileCmdName)
+	if err != nil {
+		return err
+	}
+	if logFilePath == "" {
+		logFilePath = path.Join(homeDir, "wallet")
+		err = os.MkdirAll(logFilePath, 0700) // -rwx------
+		if err != nil {
+			return err
+		}
+		logFilePath = path.Join(logFilePath, "wallet.log")
+	}
+
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
+	if err != nil {
+		return err
+	}
+
+	walletLogger, err := wlog.New(logLevel, logFile)
+	if err != nil {
+		return err
+	}
+	wlog.SetLogger(walletLogger)
+	return nil
 }

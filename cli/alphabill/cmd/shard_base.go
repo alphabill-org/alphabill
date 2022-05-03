@@ -15,7 +15,7 @@ import (
 )
 
 type baseShardConfiguration struct {
-	Root   *rootConfiguration
+	Base   *baseConfiguration
 	Server *grpcServerConfiguration
 }
 

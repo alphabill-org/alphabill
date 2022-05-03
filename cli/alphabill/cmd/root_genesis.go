@@ -8,7 +8,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"os"
 	"path"
 
@@ -16,29 +15,25 @@ import (
 )
 
 const partitionRecordFileCmd = "partition-record-file"
+const rootGenesisFileName = "root-genesis.json"
+const keyFileCmd = "key-file"
 
-type (
-	rootGenesisConfig struct {
-		Root *rootConfiguration
+type rootGenesisConfig struct {
+	Base *baseConfiguration
 
-		// paths to partition record json files
-		PartitionRecordFiles []string
+	// paths to partition record json files
+	PartitionRecordFiles []string
 
-		// path to root chain key file
-		KeyFile string
+	// path to root chain key file
+	KeyFile string
 
-		// path to output directory where genesis files will be created (default current directory)
-		OutputDir string
-	}
-
-	rootKey struct {
-		PrivateKey string `json:"privateKey"`
-	}
-)
+	// path to output directory where genesis files will be created (default current directory)
+	OutputDir string
+}
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
-func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobra.Command {
-	config := &rootGenesisConfig{Root: rootConfig}
+func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+	config := &rootGenesisConfig{Base: baseConfig}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
@@ -47,9 +42,9 @@ func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobr
 		},
 	}
 
-	cmd.Flags().StringVarP(&config.KeyFile, "key-file", "k", "", "path to root chain key file")
+	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to root chain key file (new key is generated if empty)")
 	cmd.Flags().StringSliceVarP(&config.PartitionRecordFiles, partitionRecordFileCmd, "p", []string{}, "path to partition record file")
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default $ABHOME/rootchain)")
+	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $ABHOME/rootchain)")
 
 	err := cmd.MarkFlagRequired(partitionRecordFileCmd)
 	if err != nil {
@@ -59,12 +54,12 @@ func newRootGenesisCmd(ctx context.Context, rootConfig *rootConfiguration) *cobr
 }
 
 // getOutputDir returns custom outputdir if provided, otherwise $ABHOME/rootchain, and creates parent directories.
-// Must be called after root command PersistentPreRunE function has been called, so that $ABHOME is initialized.
+// Must be called after base command PersistentPreRunE function has been called, so that $ABHOME is initialized.
 func (c *rootGenesisConfig) getOutputDir() string {
 	if c.OutputDir != "" {
 		return c.OutputDir
 	}
-	defaultOutputDir := path.Join(c.Root.HomeDir, "rootchain")
+	defaultOutputDir := c.Base.defaultRootGenesisFilePath()
 	err := os.MkdirAll(defaultOutputDir, 0700) // -rwx------
 	if err != nil {
 		panic(err)
@@ -112,20 +107,15 @@ func loadKey(path string) (abcrypto.Signer, error) {
 	if path == "" {
 		return abcrypto.NewInMemorySecp256K1Signer()
 	}
-
 	rk, err := util.ReadJsonFile(path, &rootKey{})
 	if err != nil {
 		return nil, err
 	}
-	rkBytes, err := hexutil.Decode(rk.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	return abcrypto.NewInMemorySecp256K1SignerFromKey(rkBytes)
+	return rk.toSigner()
 }
 
 func saveRootGenesisFile(rg *genesis.RootGenesis, outputDir string) error {
-	outputFile := path.Join(outputDir, "root-genesis.json")
+	outputFile := path.Join(outputDir, rootGenesisFileName)
 	return util.WriteJsonFile(outputFile, rg)
 }
 

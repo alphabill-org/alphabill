@@ -19,7 +19,7 @@ var ErrPeerIsNilIndex = errors.New("peer is nil")
 type (
 	LeaderSelector interface {
 		UpdateLeader(seal *certificates.UnicitySeal)
-		GetLeader(seal *certificates.UnicitySeal) peer.ID
+		LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID
 		IsCurrentNodeLeader() bool
 		SelfID() peer.ID
 	}
@@ -59,12 +59,13 @@ func (l *DefaultLeaderSelector) IsCurrentNodeLeader() bool {
 func (l *DefaultLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	newLeader := l.GetLeader(seal)
+	newLeader := l.LeaderFromUnicitySeal(seal)
 	l.setLeader(newLeader)
 	logger.Info("Leader set to %v", newLeader)
 }
 
-func (l *DefaultLeaderSelector) GetLeader(seal *certificates.UnicitySeal) peer.ID {
+func (l *DefaultLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
+	// We don't need the lock because we don't change the state of the struct.
 	if seal == nil {
 		return UnknownLeader
 	}
@@ -76,7 +77,7 @@ func (l *DefaultLeaderSelector) GetLeader(seal *certificates.UnicitySeal) peer.I
 	}
 	leader, err := l.self.Configuration().PersistentPeers[index].GetID()
 	if err != nil {
-		logger.Warning("Invalid leader index.")
+		logger.Warning("Invalid leader index: %v", err)
 		return UnknownLeader
 	}
 	return leader

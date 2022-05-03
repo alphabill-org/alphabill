@@ -340,7 +340,7 @@ func (p *Partition) handleBlockProposal(prop *blockproposal.BlockProposal) error
 		return errors.Errorf("received UC is older than LUC. uc round %v, luc round %v",
 			uc.UnicitySeal.RootChainRoundNumber, p.luc.UnicitySeal.RootChainRoundNumber)
 	}
-	expectedLeader := p.leaderSelector.GetLeader(uc.UnicitySeal)
+	expectedLeader := p.leaderSelector.LeaderFromUnicitySeal(uc.UnicitySeal)
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return errors.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}

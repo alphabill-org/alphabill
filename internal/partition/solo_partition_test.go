@@ -152,8 +152,12 @@ func (tp *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.Unicity
 	return tp.partition.handleUnicityCertificate(uc)
 }
 
-func (tp *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
+func (tp *SingleNodePartition) HandleBlockProposal(prop *blockproposal.BlockProposal) error {
 	return tp.partition.handleBlockProposal(prop)
+}
+
+func (tp *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
+	return tp.eventBus.Submit(eventbus.TopicBlockProposalInput, eventbus.BlockProposalEvent{BlockProposal: prop})
 }
 
 func (tp *SingleNodePartition) GetProposalTxs() []*transaction.Transaction {
@@ -261,7 +265,7 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	return
 }
 
-func (l *TestLeaderSelector) GetLeader(seal *certificates.UnicitySeal) peer.ID {
+func (l *TestLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
 	if seal == nil {
 		return ""
 	}
@@ -299,4 +303,11 @@ func ContainsTransaction(block *block.Block, tx *transaction.Transaction) bool {
 		}
 	}
 	return false
+}
+
+func CertificationRequestReceived(tp *SingleNodePartition) func() bool {
+	return func() bool {
+		e := <-tp.p1Channel
+		return e != nil
+	}
 }

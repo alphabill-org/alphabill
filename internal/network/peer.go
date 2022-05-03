@@ -173,6 +173,7 @@ func (p *Peer) GetRandomPeerID() peer.ID {
 	}
 
 	mrand.Seed(time.Now().UnixNano())
+	// #nosec G404
 	index := mrand.Intn(len(peers))
 	return peers[index]
 }

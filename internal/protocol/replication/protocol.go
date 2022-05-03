@@ -123,7 +123,7 @@ func (p *Protocol) GetBlocks(systemIdentifier []byte, fromBlockNr, toBlockNr uin
 
 	select {
 	case <-ctx.Done():
-		logger.Info("forwarding timeout")
+		logger.Info("ledger replication timeout")
 		return ErrTimout
 	case err := <-errorCh:
 		logger.Info("Ledger replication failed: %v", err)

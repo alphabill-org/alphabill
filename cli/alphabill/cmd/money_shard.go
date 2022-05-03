@@ -52,7 +52,7 @@ func newMoneyShardCmd(ctx context.Context, baseConfig *baseConfiguration, shardR
 			Server: &grpcServerConfiguration{},
 		},
 	}
-	// shardCmd represents the shard command
+
 	var shardCmd = &cobra.Command{
 		Use:   "shard",
 		Short: "Starts a shard node",

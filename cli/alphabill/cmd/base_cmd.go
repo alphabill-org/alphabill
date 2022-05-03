@@ -16,16 +16,17 @@ import (
 
 type (
 	alphabillApp struct {
-		baseCmd    *cobra.Command
-		baseConfig *baseConfiguration
-		opts       interface{}
+		baseCmd        *cobra.Command
+		baseConfig     *baseConfiguration
+		opts           interface{}
+		cmdInterceptor func(*cobra.Command)
 	}
 )
 
 // New creates a new Alphabill application
 func New() *alphabillApp {
 	baseCmd, baseConfig := newBaseCmd()
-	return &alphabillApp{baseCmd, baseConfig, nil}
+	return &alphabillApp{baseCmd, baseConfig, nil, nil}
 }
 
 func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
@@ -36,11 +37,21 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 // Execute adds all child commands and runs the application
 func (a *alphabillApp) Execute(ctx context.Context) {
 	a.baseCmd.AddCommand(newMoneyShardCmd(ctx, a.baseConfig, convertOptsToRunnable(a.opts)))
+	a.baseCmd.AddCommand(newVDShardCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newWalletCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newRootGenesisCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newRootChainCmd(ctx, a.baseConfig))
 
+	if a.cmdInterceptor != nil {
+		a.cmdInterceptor(a.baseCmd)
+	}
+
 	cobra.CheckErr(a.baseCmd.Execute())
+}
+
+func (a *alphabillApp) withCmdInterceptor(fn func(*cobra.Command)) *alphabillApp {
+	a.cmdInterceptor = fn
+	return a
 }
 
 func newBaseCmd() (*cobra.Command, *baseConfiguration) {

@@ -1,0 +1,8 @@
+syntax = "proto3";
+package rpc;
+
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction;transaction";
+
+message RegisterData {
+
+}

@@ -280,7 +280,7 @@ func walletLogLevels() string {
 	return strings.Join(keys, "/")
 }
 
-func initWalletLogger(cmd *cobra.Command, homeDir string) error {
+func initWalletLogger(cmd *cobra.Command, walletHomeDir string) error {
 	logLevelStr, err := cmd.Flags().GetString(logLevelCmdName)
 	if err != nil {
 		return err
@@ -292,7 +292,7 @@ func initWalletLogger(cmd *cobra.Command, homeDir string) error {
 		return err
 	}
 	if logFilePath == "" {
-		logFilePath = homeDir
+		logFilePath = walletHomeDir
 		err = os.MkdirAll(logFilePath, 0700) // -rwx------
 		if err != nil {
 			return err

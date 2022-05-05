@@ -46,7 +46,7 @@ func TestSync(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	k, err := w.db.GetAccountKey()
+	k, err := w.db.GetAccountKey(nil)
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
@@ -98,7 +98,7 @@ func TestSync(t *testing.T) {
 	t.Cleanup(server.GracefulStop)
 
 	// verify starting block height
-	height, err := w.db.GetBlockHeight()
+	height, err := w.db.GetBlockHeight(nil)
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
 
@@ -112,7 +112,7 @@ func TestSync(t *testing.T) {
 
 	// wait for block to be processed
 	require.Eventually(t, func() bool {
-		height, err := w.db.GetBlockHeight()
+		height, err := w.db.GetBlockHeight(nil)
 		require.NoError(t, err)
 		return height == 1
 	}, test.WaitDuration, test.WaitTick)
@@ -154,7 +154,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	t.Cleanup(server.GracefulStop)
 
 	// verify starting block height
-	height, err := w.db.GetBlockHeight()
+	height, err := w.db.GetBlockHeight(nil)
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
 
@@ -162,7 +162,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	w.SyncToMaxBlockHeight()
 
 	// then block height is exactly equal to max block height, and further blocks are not processed
-	height, err = w.db.GetBlockHeight()
+	height, err = w.db.GetBlockHeight(nil)
 	require.EqualValues(t, maxBlockHeight, height)
 	require.NoError(t, err)
 }

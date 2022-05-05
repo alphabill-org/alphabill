@@ -41,34 +41,33 @@ var (
 const walletFileName = "wallet.db"
 
 type Db interface {
-	GetAccountKey() (*accountKey, error)
-	SetAccountKey(key *accountKey) error
+	GetAccountKey(dbTx any) (*accountKey, error)
+	SetAccountKey(dbTx any, key *accountKey) error
 
-	GetMasterKey() (string, error)
-	SetMasterKey(string) error
+	GetMasterKey(dbTx any) (string, error)
+	SetMasterKey(dbTx any, masterKey string) error
 
-	GetMnemonic() (string, error)
-	SetMnemonic(string) error
+	GetMnemonic(dbTx any) (string, error)
+	SetMnemonic(dbTx any, mnemonic string) error
 
-	IsEncrypted() (bool, error)
-	SetEncrypted(bool) error
-	VerifyPassword() (bool, error)
+	IsEncrypted(dbTx any) (bool, error)
+	SetEncrypted(dbTx any, encrypted bool) error
+	VerifyPassword(dbTx any) (bool, error)
 
-	SetBill(bill *bill) error
-	ContainsBill(id *uint256.Int) (bool, error)
-	RemoveBill(id *uint256.Int) error
-	GetBills() ([]*bill, error)
-	GetBillWithMinValue(minVal uint64) (*bill, error)
-	GetBalance() (uint64, error)
+	SetBill(dbTx any, bill *bill) error
+	ContainsBill(dbTx any, id *uint256.Int) (bool, error)
+	RemoveBill(dbTx any, id *uint256.Int) error
+	GetBills(dbTx any) ([]*bill, error)
+	GetBillWithMinValue(dbTx any, minVal uint64) (*bill, error)
+	GetBalance(dbTx any) (uint64, error)
+	GetBlockHeight(dbTx any) (uint64, error)
+	SetBlockHeight(dbTx any, blockHeight uint64) error
 
-	GetBlockHeight() (uint64, error)
-	SetBlockHeight(blockHeight uint64) error
+	GetDcMetadataMap(dbTx any) (map[uint256.Int]*dcMetadata, error)
+	GetDcMetadata(dbTx any, nonce []byte) (*dcMetadata, error)
+	SetDcMetadata(dbTx any, nonce []byte, dcMetadata *dcMetadata) error
 
-	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
-	GetDcMetadata(nonce []byte) (*dcMetadata, error)
-	SetDcMetadata(nonce []byte, dcMetadata *dcMetadata) error
-
-	WithTransaction(func() error) error
+	WithTransaction(func(dbTx any) error) error
 
 	Close()
 	DeleteDb()
@@ -78,7 +77,6 @@ type wdb struct {
 	db         *bolt.DB
 	dbFilePath string
 	walletPass string
-	tx         *bolt.Tx
 }
 
 func OpenDb(config Config) (*wdb, error) {
@@ -90,13 +88,13 @@ func OpenDb(config Config) (*wdb, error) {
 	return openDb(dbFilePath, config.WalletPass, false)
 }
 
-func (w *wdb) SetAccountKey(key *accountKey) error {
-	return w.withTx(func(tx *bolt.Tx) error {
+func (w *wdb) SetAccountKey(dbTx any, key *accountKey) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
 			return err
 		}
-		val, err = w.encryptValue(val)
+		val, err = w.encryptValue(dbTx, val)
 		if err != nil {
 			return err
 		}
@@ -104,14 +102,14 @@ func (w *wdb) SetAccountKey(key *accountKey) error {
 	}, true)
 }
 
-func (w *wdb) GetAccountKey() (*accountKey, error) {
+func (w *wdb) GetAccountKey(dbTx any) (*accountKey, error) {
 	var key *accountKey
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		k := tx.Bucket(keysBucket).Get(accountKeyName)
 		if k == nil {
 			return errKeyNotFound
 		}
-		val, err := w.decryptValue(k)
+		val, err := w.decryptValue(dbTx, k)
 		if err != nil {
 			return err
 		}
@@ -127,9 +125,9 @@ func (w *wdb) GetAccountKey() (*accountKey, error) {
 	return key, nil
 }
 
-func (w *wdb) SetMasterKey(masterKey string) error {
-	return w.withTx(func(tx *bolt.Tx) error {
-		val, err := w.encryptValue([]byte(masterKey))
+func (w *wdb) SetMasterKey(dbTx any, masterKey string) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
+		val, err := w.encryptValue(dbTx, []byte(masterKey))
 		if err != nil {
 			return err
 		}
@@ -137,14 +135,14 @@ func (w *wdb) SetMasterKey(masterKey string) error {
 	}, true)
 }
 
-func (w *wdb) GetMasterKey() (string, error) {
+func (w *wdb) GetMasterKey(dbTx any) (string, error) {
 	var res string
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		masterKey := tx.Bucket(keysBucket).Get(masterKeyName)
 		if masterKey == nil {
 			return errKeyNotFound
 		}
-		val, err := w.decryptValue(masterKey)
+		val, err := w.decryptValue(dbTx, masterKey)
 		if err != nil {
 			return err
 		}
@@ -157,9 +155,9 @@ func (w *wdb) GetMasterKey() (string, error) {
 	return res, nil
 }
 
-func (w *wdb) SetMnemonic(mnemonic string) error {
-	return w.withTx(func(tx *bolt.Tx) error {
-		val, err := w.encryptValue([]byte(mnemonic))
+func (w *wdb) SetMnemonic(dbTx any, mnemonic string) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
+		val, err := w.encryptValue(dbTx, []byte(mnemonic))
 		if err != nil {
 			return err
 		}
@@ -167,14 +165,14 @@ func (w *wdb) SetMnemonic(mnemonic string) error {
 	}, true)
 }
 
-func (w *wdb) GetMnemonic() (string, error) {
+func (w *wdb) GetMnemonic(dbTx any) (string, error) {
 	var res string
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		mnemonic := tx.Bucket(keysBucket).Get(mnemonicKeyName)
 		if mnemonic == nil {
 			return errKeyNotFound
 		}
-		val, err := w.decryptValue(mnemonic)
+		val, err := w.decryptValue(dbTx, mnemonic)
 		if err != nil {
 			return err
 		}
@@ -187,8 +185,8 @@ func (w *wdb) GetMnemonic() (string, error) {
 	return res, nil
 }
 
-func (w *wdb) SetEncrypted(encrypted bool) error {
-	return w.withTx(func(tx *bolt.Tx) error {
+func (w *wdb) SetEncrypted(dbTx any, encrypted bool) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
 		var b byte
 		if encrypted {
 			b = 0x01
@@ -199,9 +197,9 @@ func (w *wdb) SetEncrypted(encrypted bool) error {
 	}, true)
 }
 
-func (w *wdb) IsEncrypted() (bool, error) {
+func (w *wdb) IsEncrypted(dbTx any) (bool, error) {
 	var res bool
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		encrypted := tx.Bucket(metaBucket).Get(isEncryptedKeyName)
 		res = bytes.Equal(encrypted, []byte{0x01})
 		return nil
@@ -212,13 +210,13 @@ func (w *wdb) IsEncrypted() (bool, error) {
 	return res, nil
 }
 
-func (w *wdb) VerifyPassword() (bool, error) {
-	encrypted, err := w.IsEncrypted()
+func (w *wdb) VerifyPassword(dbTx any) (bool, error) {
+	encrypted, err := w.IsEncrypted(dbTx)
 	if err != nil {
 		return false, err
 	}
 	if encrypted {
-		_, err = w.GetAccountKey()
+		_, err = w.GetAccountKey(dbTx)
 		if err != nil {
 			if errors.Is(err, abcrypto.ErrEmptyPassphrase) {
 				return false, nil
@@ -232,8 +230,8 @@ func (w *wdb) VerifyPassword() (bool, error) {
 	return true, nil
 }
 
-func (w *wdb) SetBill(bill *bill) error {
-	return w.withTx(func(tx *bolt.Tx) error {
+func (w *wdb) SetBill(dbTx any, bill *bill) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(bill)
 		if err != nil {
 			return err
@@ -242,9 +240,9 @@ func (w *wdb) SetBill(bill *bill) error {
 	}, true)
 }
 
-func (w *wdb) ContainsBill(id *uint256.Int) (bool, error) {
+func (w *wdb) ContainsBill(dbTx any, id *uint256.Int) (bool, error) {
 	var res bool
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		billId := id.Bytes32()
 		res = tx.Bucket(billsBucket).Get(billId[:]) != nil
 		return nil
@@ -255,9 +253,9 @@ func (w *wdb) ContainsBill(id *uint256.Int) (bool, error) {
 	return res, nil
 }
 
-func (w *wdb) GetBills() ([]*bill, error) {
+func (w *wdb) GetBills(dbTx any) ([]*bill, error) {
 	var res []*bill
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(billsBucket)
 		c := bucket.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
@@ -275,16 +273,16 @@ func (w *wdb) GetBills() ([]*bill, error) {
 	return res, nil
 }
 
-func (w *wdb) RemoveBill(id *uint256.Int) error {
-	return w.withTx(func(tx *bolt.Tx) error {
+func (w *wdb) RemoveBill(dbTx any, id *uint256.Int) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
 		bytes32 := id.Bytes32()
 		return tx.Bucket(billsBucket).Delete(bytes32[:])
 	}, true)
 }
 
-func (w *wdb) GetBillWithMinValue(minVal uint64) (*bill, error) {
+func (w *wdb) GetBillWithMinValue(dbTx any, minVal uint64) (*bill, error) {
 	var res *bill
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		c := tx.Bucket(billsBucket).Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var b *bill
@@ -305,9 +303,9 @@ func (w *wdb) GetBillWithMinValue(minVal uint64) (*bill, error) {
 	return res, nil
 }
 
-func (w *wdb) GetBalance() (uint64, error) {
+func (w *wdb) GetBalance(dbTx any) (uint64, error) {
 	sum := uint64(0)
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		return tx.Bucket(billsBucket).ForEach(func(k, v []byte) error {
 			var b *bill
 			err := json.Unmarshal(v, &b)
@@ -324,9 +322,9 @@ func (w *wdb) GetBalance() (uint64, error) {
 	return sum, nil
 }
 
-func (w *wdb) GetBlockHeight() (uint64, error) {
+func (w *wdb) GetBlockHeight(dbTx any) (uint64, error) {
 	var res uint64
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKeyName)
 		if blockHeightBytes == nil {
 			return nil
@@ -340,17 +338,17 @@ func (w *wdb) GetBlockHeight() (uint64, error) {
 	return res, nil
 }
 
-func (w *wdb) SetBlockHeight(blockHeight uint64) error {
-	return w.withTx(func(tx *bolt.Tx) error {
+func (w *wdb) SetBlockHeight(dbTx any, blockHeight uint64) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
 		return tx.Bucket(metaBucket).Put(blockHeightKeyName, b)
 	}, true)
 }
 
-func (w *wdb) GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error) {
+func (w *wdb) GetDcMetadataMap(dbTx any) (map[uint256.Int]*dcMetadata, error) {
 	res := map[uint256.Int]*dcMetadata{}
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		return tx.Bucket(dcMetaBucket).ForEach(func(k, v []byte) error {
 			var m *dcMetadata
 			err := json.Unmarshal(v, &m)
@@ -367,9 +365,9 @@ func (w *wdb) GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error) {
 	return res, nil
 }
 
-func (w *wdb) GetDcMetadata(nonce []byte) (*dcMetadata, error) {
+func (w *wdb) GetDcMetadata(dbTx any, nonce []byte) (*dcMetadata, error) {
 	var res *dcMetadata
-	err := w.withTx(func(tx *bolt.Tx) error {
+	err := w.withTx(dbTx, func(tx *bolt.Tx) error {
 		m := tx.Bucket(dcMetaBucket).Get(nonce)
 		if m != nil {
 			return json.Unmarshal(m, &res)
@@ -382,8 +380,8 @@ func (w *wdb) GetDcMetadata(nonce []byte) (*dcMetadata, error) {
 	return res, nil
 }
 
-func (w *wdb) SetDcMetadata(dcNonce []byte, dcMetadata *dcMetadata) error {
-	return w.withTx(func(tx *bolt.Tx) error {
+func (w *wdb) SetDcMetadata(dbTx any, dcNonce []byte, dcMetadata *dcMetadata) error {
+	return w.withTx(dbTx, func(tx *bolt.Tx) error {
 		if dcMetadata != nil {
 			val, err := json.Marshal(dcMetadata)
 			if err != nil {
@@ -409,11 +407,9 @@ func (w *wdb) DeleteDb() {
 	}
 }
 
-func (w *wdb) WithTransaction(myFunc func() error) error {
+func (w *wdb) WithTransaction(myFunc func(dbTx any) error) error {
 	return w.db.Update(func(tx *bolt.Tx) error {
-		w.tx = tx
-		defer w.clearTx()
-		return myFunc()
+		return myFunc(tx)
 	})
 }
 
@@ -432,18 +428,14 @@ func (w *wdb) Close() {
 	}
 }
 
-func (w *wdb) withTx(myFunc func(tx *bolt.Tx) error, writeTx bool) error {
-	if w.tx != nil {
-		return myFunc(w.tx)
+func (w *wdb) withTx(dbTx any, myFunc func(tx *bolt.Tx) error, writeTx bool) error {
+	if dbTx != nil {
+		return myFunc(dbTx.(*bolt.Tx))
 	} else if writeTx {
 		return w.db.Update(myFunc)
 	} else {
 		return w.db.View(myFunc)
 	}
-}
-
-func (w *wdb) clearTx() {
-	w.tx = nil
 }
 
 func (w *wdb) createBuckets() error {
@@ -481,7 +473,7 @@ func openDb(dbFilePath string, walletPass string, create bool) (*wdb, error) {
 		return nil, err
 	}
 
-	w := &wdb{db, dbFilePath, walletPass, nil}
+	w := &wdb{db, dbFilePath, walletPass}
 	err = w.createBuckets()
 	if err != nil {
 		return nil, err
@@ -509,8 +501,8 @@ func parseBill(v []byte) (*bill, error) {
 	return b, err
 }
 
-func (w *wdb) encryptValue(val []byte) ([]byte, error) {
-	isEncrypted, err := w.IsEncrypted()
+func (w *wdb) encryptValue(dbTx any, val []byte) ([]byte, error) {
+	isEncrypted, err := w.IsEncrypted(dbTx)
 	if err != nil {
 		return nil, err
 	}
@@ -524,8 +516,8 @@ func (w *wdb) encryptValue(val []byte) ([]byte, error) {
 	return []byte(encryptedValue), nil
 }
 
-func (w *wdb) decryptValue(val []byte) ([]byte, error) {
-	isEncrypted, err := w.IsEncrypted()
+func (w *wdb) decryptValue(dbTx any, val []byte) ([]byte, error) {
+	isEncrypted, err := w.IsEncrypted(dbTx)
 	if err != nil {
 		return nil, err
 	}

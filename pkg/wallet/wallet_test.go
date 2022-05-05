@@ -38,16 +38,16 @@ func TestWalletCanBeCreated(t *testing.T) {
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
-	mnemonic, err := w.db.GetMnemonic()
+	mnemonic, err := w.db.GetMnemonic(nil)
 	require.NoError(t, err)
 	require.True(t, bip39.IsMnemonicValid(mnemonic))
 
-	masterKeyString, err := w.db.GetMasterKey()
+	masterKeyString, err := w.db.GetMasterKey(nil)
 	require.NoError(t, err)
 	masterKey, err := hdkeychain.NewKeyFromString(masterKeyString)
 	require.NoError(t, err)
 
-	ac, err := w.db.GetAccountKey()
+	ac, err := w.db.GetAccountKey(nil)
 	require.NoError(t, err)
 
 	eac, err := newAccountKey(masterKey, testAccountKeyDerivationPath)
@@ -94,7 +94,7 @@ func TestWalletSendFunction(t *testing.T) {
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	err = w.db.SetBill(&b)
+	err = w.db.SetBill(nil, &b)
 	require.NoError(t, err)
 	mockClient.txResponse = &transaction.TransactionResponse{Ok: false, Message: "some error"}
 	err = w.Send(validPubKey, amount)
@@ -123,7 +123,7 @@ func TestWallet_GetPublicKey(t *testing.T) {
 func TestBlockProcessing(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	k, err := w.db.GetAccountKey()
+	k, err := w.db.GetAccountKey(nil)
 	require.NoError(t, err)
 
 	blocks := []*alphabill.Block{
@@ -164,10 +164,10 @@ func TestBlockProcessing(t *testing.T) {
 		},
 	}
 
-	height, err := w.db.GetBlockHeight()
+	height, err := w.db.GetBlockHeight(nil)
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
-	balance, err := w.db.GetBalance()
+	balance, err := w.db.GetBalance(nil)
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -176,10 +176,10 @@ func TestBlockProcessing(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	height, err = w.db.GetBlockHeight()
+	height, err = w.db.GetBlockHeight(nil)
 	require.EqualValues(t, 1, height)
 	require.NoError(t, err)
-	balance, err = w.db.GetBalance()
+	balance, err = w.db.GetBalance(nil)
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }
@@ -257,14 +257,14 @@ func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {
-	mnemonic, err := w.db.GetMnemonic()
+	mnemonic, err := w.db.GetMnemonic(nil)
 	require.NoError(t, err)
 	require.Equal(t, testMnemonic, mnemonic)
 
-	mk, err := w.db.GetMasterKey()
+	mk, err := w.db.GetMasterKey(nil)
 	require.Equal(t, testMasterKeyBase58, mk)
 
-	ac, err := w.db.GetAccountKey()
+	ac, err := w.db.GetAccountKey(nil)
 	require.NoError(t, err)
 	require.Equal(t, testPubKeyHex, hex.EncodeToString(ac.PubKey))
 	require.Equal(t, testPrivKeyHex, hex.EncodeToString(ac.PrivKey))

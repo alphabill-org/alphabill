@@ -82,7 +82,7 @@ func (wg *dcWaitGroup) DecrementSwaps(blockHeight uint64, wdb Db) error {
 	defer wg.mu.Unlock()
 
 	for dcNonce, timeout := range wg.swaps {
-		exists, err := wdb.ContainsBill(&dcNonce)
+		exists, err := wdb.ContainsBill(nil, &dcNonce)
 		if err != nil {
 			return err
 		}

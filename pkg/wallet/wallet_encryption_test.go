@@ -15,7 +15,7 @@ func TestEncryptedWalletCanBeCreated(t *testing.T) {
 		DeleteWallet(w)
 	})
 
-	isEncrypted, err := w.db.IsEncrypted()
+	isEncrypted, err := w.db.IsEncrypted(nil)
 	require.NoError(t, err)
 	require.True(t, isEncrypted)
 	verifyTestWallet(t, w)

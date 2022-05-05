@@ -56,7 +56,7 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		blockNoInBytes := serializeUint64(b.TxSystemBlockNumber)
+		blockNoInBytes := serializeUint64(b.BlockNumber)
 		err = tx.Bucket(blocksBucket).Put(blockNoInBytes, val)
 		if err != nil {
 			return err
@@ -106,7 +106,7 @@ func (bs *BoltBlockStore) LatestBlock() (*block.Block, error) {
 
 func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 	latestBlockNo := bs.getLatestBlockNo(tx)
-	if latestBlockNo+1 != b.TxSystemBlockNumber {
+	if latestBlockNo+1 != b.BlockNumber {
 		return errInvalidBlockNo
 	}
 	return nil

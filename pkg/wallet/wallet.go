@@ -10,9 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
@@ -252,7 +253,7 @@ func (w *Wallet) syncLedger(syncForever bool) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	ch := make(chan *alphabill.Block, prefetchBlockCount)
+	ch := make(chan *block.Block, prefetchBlockCount)
 	go func() {
 		var err error
 		if syncForever {
@@ -282,7 +283,7 @@ func (w *Wallet) syncLedger(syncForever bool) {
 	log.Info("ledger sync finished")
 }
 
-func (w *Wallet) fetchBlocksForever(ch chan<- *alphabill.Block) error {
+func (w *Wallet) fetchBlocksForever(ch chan<- *block.Block) error {
 	blockNo, err := w.db.GetBlockHeight()
 	if err != nil {
 		return err
@@ -310,7 +311,7 @@ func (w *Wallet) fetchBlocksForever(ch chan<- *alphabill.Block) error {
 	}
 }
 
-func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *alphabill.Block) error {
+func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *block.Block) error {
 	blockNo, err := w.db.GetBlockHeight()
 	if err != nil {
 		return err
@@ -335,9 +336,9 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *alphabill.Block) error {
 	return nil
 }
 
-func (w *Wallet) processBlocks(ch <-chan *alphabill.Block) error {
+func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		log.Info("Processing block: " + strconv.FormatUint(b.BlockNo, 10))
+		log.Info("Processing block: " + strconv.FormatUint(b.BlockNumber, 10))
 		err := w.processBlock(b)
 		if err != nil {
 			return err
@@ -351,7 +352,7 @@ func (w *Wallet) processBlocks(ch <-chan *alphabill.Block) error {
 }
 
 // TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
-func (w *Wallet) processBlock(b *alphabill.Block) error {
+func (w *Wallet) processBlock(b *block.Block) error {
 	return w.db.WithTransaction(func() error {
 		blockHeight, err := w.db.GetBlockHeight()
 		if err != nil {
@@ -367,11 +368,11 @@ func (w *Wallet) processBlock(b *alphabill.Block) error {
 				return err
 			}
 		}
-		err = w.deleteExpiredDcBills(b.BlockNo)
+		err = w.deleteExpiredDcBills(b.BlockNumber)
 		if err != nil {
 			return err
 		}
-		err = w.db.SetBlockHeight(b.BlockNo)
+		err = w.db.SetBlockHeight(b.BlockNumber)
 		if err != nil {
 			return err
 		}
@@ -384,8 +385,8 @@ func (w *Wallet) processBlock(b *alphabill.Block) error {
 }
 
 // postProcessBlock called after successful commit on block processing
-func (w *Wallet) postProcessBlock(b *alphabill.Block) error {
-	return w.dcWg.DecrementSwaps(b.BlockNo, w.db)
+func (w *Wallet) postProcessBlock(b *block.Block) error {
+	return w.dcWg.DecrementSwaps(b.BlockNumber, w.db)
 }
 
 func (w *Wallet) trySwap() error {
@@ -828,12 +829,12 @@ func calculateDcNonce(bills []*bill) []byte {
 	return hasher.Sum(nil)
 }
 
-func validateBlockHeight(b *alphabill.Block, blockHeight uint64) error {
+func validateBlockHeight(b *block.Block, blockHeight uint64) error {
 	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
 	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
-	if b.BlockNo-blockHeight != 1 {
-		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNo, blockHeight))
+	if b.BlockNumber-blockHeight != 1 {
+		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNumber, blockHeight))
 	}
 	return nil
 }

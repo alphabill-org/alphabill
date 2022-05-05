@@ -43,10 +43,19 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 			SystemDescriptionRecord: p.SystemDescriptionRecord,
 		}
 
+		var keys = make([]*genesis.PublicKeyInfo, len(p.Validators))
+		for j, v := range p.Validators {
+			keys[j] = &genesis.PublicKeyInfo{
+				NodeIdentifier: v.NodeIdentifier,
+				PublicKey:      v.PublicKey,
+			}
+		}
+
 		partitionGenesis[i] = &genesis.PartitionGenesis{
 			SystemDescriptionRecord: p.SystemDescriptionRecord,
 			Certificate:             certificate,
 			TrustBase:               rootPublicKey,
+			Keys:                    keys,
 		}
 	}
 

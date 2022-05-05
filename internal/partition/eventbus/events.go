@@ -2,22 +2,40 @@ package eventbus
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 const (
+
 	// TopicPartitionUnicityCertificate topic is used to read unicity certificates received from the root chain.
 	TopicPartitionUnicityCertificate = "partition.certificates"
+
 	// TopicPartitionTransaction topic is used to receive transactions from wallets or other partition nodes.
 	TopicPartitionTransaction = "partition.transactions"
+
+	// TopicBlockProposalInput is used to receive block proposals from the leader.
+	TopicBlockProposalInput = "partition.proposal.input"
+
+	// TopicBlockProposalOutput is used to send block proposals to followers.
+	TopicBlockProposalOutput = "partition.proposal.output"
+
 	// TopicLeaders is used to receive leader change events.
 	TopicLeaders = "partition.leaders"
-	// TopicPC1O is used to send and receive block proposals.
-	TopicPC1O = "partition.PC1-O"
+
 	// TopicP1 is used to send block certification requests to the root chain
 	TopicP1 = "root.P1"
 )
+
+var defaultTopics = []string{
+	TopicPartitionUnicityCertificate,
+	TopicPartitionTransaction,
+	TopicBlockProposalInput,
+	TopicBlockProposalOutput,
+	TopicLeaders,
+	TopicP1,
+}
 
 type (
 
@@ -35,12 +53,9 @@ type (
 		NewLeader peer.ID
 	}
 
-	// PC1OEvent is a block proposal event. See Alphabill yellowpaper for more information.
-	PC1OEvent struct {
-		SystemIdentifier   []byte
-		NodeIdentifier     peer.ID
-		UnicityCertificate *certificates.UnicityCertificate
-		Transactions       []*transaction.Transaction
+	// BlockProposalEvent is a block proposal event. See Alphabill yellowpaper for more information.
+	BlockProposalEvent struct {
+		*blockproposal.BlockProposal
 	}
 
 	// P1Event is a message sent by the partition node to acquire unicity certificate for the block. See Alphabill

@@ -69,7 +69,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	conf := loadConf(opts)
 	requestsCh := make(chan *p1.RequestEvent, conf.requestChCapacity)
 
-	p1, err := p1.New(peer, requestsCh)
+	p1, err := p1.NewRootChainCertificationProtocol(peer, requestsCh)
 	if err != nil {
 		return nil, err
 	}

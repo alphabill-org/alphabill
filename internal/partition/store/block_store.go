@@ -13,5 +13,5 @@ type BlockStore interface {
 	// Height returns the number of committed blocks in the blockchain.
 	Height() (uint64, error)
 	// LatestBlock returns the latest committed block.
-	LatestBlock() (*block.Block, error)
+	LatestBlock() *block.Block
 }

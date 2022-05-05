@@ -54,8 +54,7 @@ func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 	require.EqualValues(t, 3, height)
 
 	// verify latest block is the last block added
-	b, err := bs.LatestBlock()
-	require.NoError(t, err)
+	b := bs.LatestBlock()
 	verifyBlock(t, tb3, b)
 }
 
@@ -68,7 +67,7 @@ func TestPersistentBlockStore_EmptyStore(t *testing.T) {
 	require.EqualValues(t, 0, height)
 
 	// verify latest block returns nil
-	b, err := bs.LatestBlock()
+	b := bs.LatestBlock()
 	require.NoError(t, err)
 	require.Nil(t, b)
 }

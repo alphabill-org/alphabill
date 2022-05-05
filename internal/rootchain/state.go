@@ -217,7 +217,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 		}
 		s.latestUnicityCertificates.put(identifier, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
-		WriteDebugJsonLog(logger, fmt.Sprintf("New uncity certificate for partition %X", d.SystemIdentifier), certificate)
+		WriteDebugJsonLog(logger, fmt.Sprintf("NewRootChainCertificationProtocol uncity certificate for partition %X", d.SystemIdentifier), certificate)
 	}
 	// send responses
 	for key, store := range s.incomingRequests {
@@ -239,7 +239,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 	}
 
 	s.inputRecords = make(map[string]*certificates.InputRecord)
-	logger.Debug("New Root Chain root hash is %X", rootHash)
+	logger.Debug("NewRootChainCertificationProtocol Root Chain root hash is %X", rootHash)
 	s.previousRoundRootHash = rootHash
 	s.roundNumber++
 	return systemIdentifiers, nil

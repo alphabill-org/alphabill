@@ -3,6 +3,8 @@ package partition
 import (
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
@@ -14,25 +16,25 @@ import (
 
 func TestNewLeaderSelector_PeerIsNil(t *testing.T) {
 	ls, err := NewDefaultLeaderSelector(nil, eventbus.New())
-	require.ErrorIs(t, err, ErrPeerIsNilIndex)
+	require.ErrorIs(t, err, ErrPeerIsNil)
 	require.Nil(t, ls)
 }
 
 func TestNewLeaderSelector_EventBusIsNil(t *testing.T) {
-	ls, err := NewDefaultLeaderSelector(createPeer(t), nil)
+	ls, err := NewDefaultLeaderSelector(testnetwork.CreatePeer(t), nil)
 	require.ErrorIs(t, err, ErrEventBusIsNil)
 	require.Nil(t, ls)
 }
 
 func TestNewLeaderSelector_Ok(t *testing.T) {
-	ls, err := NewDefaultLeaderSelector(createPeer(t), eventbus.New())
+	ls, err := NewDefaultLeaderSelector(testnetwork.CreatePeer(t), eventbus.New())
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 	require.Equal(t, UnknownLeader, ls.leader.String())
 }
 
 func TestLeaderSelector_SelfID(t *testing.T) {
-	peer := createPeer(t)
+	peer := testnetwork.CreatePeer(t)
 	ls, err := NewDefaultLeaderSelector(peer, eventbus.New())
 	require.NoError(t, err)
 	require.NotNil(t, ls)
@@ -40,7 +42,7 @@ func TestLeaderSelector_SelfID(t *testing.T) {
 }
 
 func TestLeaderSelector_IsCurrentNodeLeader(t *testing.T) {
-	peer := createPeer(t)
+	peer := testnetwork.CreatePeer(t)
 	ls, err := NewDefaultLeaderSelector(peer, eventbus.New())
 	require.NoError(t, err)
 	require.NotNil(t, ls)
@@ -50,7 +52,7 @@ func TestLeaderSelector_SendsEventsToLeaderChangeTopic(t *testing.T) {
 	bus := eventbus.New()
 	leaderCh, err := bus.Subscribe(eventbus.TopicLeaders, 10)
 	require.NoError(t, err)
-	ls, err := NewDefaultLeaderSelector(createPeer(t), bus)
+	ls, err := NewDefaultLeaderSelector(testnetwork.CreatePeer(t), bus)
 	require.NoError(t, err)
 	leaderID := peer.ID("new_leader")
 	ls.setLeader(leaderID)

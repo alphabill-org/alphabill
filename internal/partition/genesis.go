@@ -26,7 +26,7 @@ type (
 		signer           crypto.Signer
 	}
 
-	Option func(c *genesisConf)
+	GenesisOption func(c *genesisConf)
 )
 
 func (c genesisConf) isValid() error {
@@ -42,33 +42,33 @@ func (c genesisConf) isValid() error {
 	return nil
 }
 
-func WithPeerID(peerID peer.ID) Option {
+func WithPeerID(peerID peer.ID) GenesisOption {
 	return func(c *genesisConf) {
 		c.peerID = peerID
 	}
 }
 
-func WithSystemIdentifier(systemIdentifier []byte) Option {
+func WithSystemIdentifier(systemIdentifier []byte) GenesisOption {
 	return func(c *genesisConf) {
 		c.systemIdentifier = systemIdentifier
 	}
 }
 
-func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
+func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) GenesisOption {
 	return func(c *genesisConf) {
 		c.hashAlgorithm = hashAlgorithm
 	}
 }
 
-func WithSigner(signer crypto.Signer) Option {
+func WithSigner(signer crypto.Signer) GenesisOption {
 	return func(c *genesisConf) {
 		c.signer = signer
 	}
 }
 
 // NewNodeGenesis creates a new genesis.PartitionNode from the given inputs. This function creates the first
-// p1.P1Request by calling the TransactionSystem.RCompl function. Must contain PeerID, signer, and system identifier
-// options:
+// p1.P1Request by calling the TransactionSystem.EndBlock function. Must contain PeerID, signer, and system identifier
+// configuration:
 //
 //    pn, err := NewNodeGenesis(
 //					txSystem,
@@ -78,7 +78,7 @@ func WithSigner(signer crypto.Signer) Option {
 //				)
 //
 // This function must be called by all partition nodes in the network.
-func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...Option) (*genesis.PartitionNode, error) {
+func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) (*genesis.PartitionNode, error) {
 	if txSystem == nil {
 		return nil, ErrTxSystemIsNil
 	}

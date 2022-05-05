@@ -1,38 +1,26 @@
 package partition
 
 import (
-	"context"
 	gocrypto "crypto"
 	"reflect"
 	"testing"
-	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/libp2p/go-libp2p-core/peer"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"github.com/libp2p/go-libp2p-core/peer"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
@@ -46,10 +34,10 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 }
 
 type SingleNodePartition struct {
-	nodeConf             *Configuration
+	nodeConf             *configuration
 	eventBus             *eventbus.EventBus
-	store                *store.InMemoryBlockStore
-	partition            *Partition
+	store                store.BlockStore
+	partition            *Node
 	p1Channel            <-chan interface{}
 	blockProposalChannel <-chan interface{}
 	rootState            *rootchain.State
@@ -59,9 +47,10 @@ type SingleNodePartition struct {
 func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
+	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(txSystem, WithPeerID("1"),
 		WithSigner(nodeSigner),
-		WithSystemIdentifier([]byte{1, 1, 1, 1}))
+		WithSystemIdentifier(systemId))
 	if err != nil {
 		t.Error(err)
 	}
@@ -73,7 +62,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	}
 
 	// root genesis
-	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
+	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
 	rootGenesis, partitionGenesis, err := rootchain.NewGenesis([]*genesis.PartitionRecord{partitionRecord}, rootSigner)
 	if err != nil {
 		t.Error(err)
@@ -84,56 +73,39 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	if err != nil {
 		t.Error(err)
 	}
-	c := &Configuration{
-		T1Timeout:     999 * time.Hour,
-		TrustBase:     rootVerifier,
-		Signer:        nodeSigner,
-		HashAlgorithm: gocrypto.SHA256,
-		Genesis:       partitionGenesis[0],
-	}
-
 	leaderSelector := &TestLeaderSelector{
 		leader:      peer.ID("1"),
 		currentNode: peer.ID("1"),
 	}
-	validator, err := NewDefaultUnicityCertificateValidator(partitionRecord.SystemDescriptionRecord, rootVerifier, gocrypto.SHA256)
-	if err != nil {
-		t.Error(err)
-	}
-	bus := eventbus.New()
-	s := store.NewInMemoryBlockStore()
-
 	// partition
 	p, err := New(
-		context.Background(),
+		createPeer(t),
+		nodeSigner,
 		txSystem,
-		bus,
-		leaderSelector,
-		validator,
-		&AlwaysValidTransactionValidator{},
-		s,
-		c,
+		partitionGenesis[0],
+		WithLeaderSelector(leaderSelector),
+		WithTxValidator(&AlwaysValidTransactionValidator{}),
 	)
 	if err != nil {
 		t.Error(err)
 	}
 	p.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
-	p1Channel, err := bus.Subscribe(eventbus.TopicP1, 10)
+	p1Channel, err := p.eventbus.Subscribe(eventbus.TopicP1, 10)
 	if err != nil {
 		t.Error(err)
 	}
-	blockProposalChannel, err := bus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
+	blockProposalChannel, err := p.eventbus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
 	if err != nil {
 		t.Error(err)
 	}
 	partition := &SingleNodePartition{
-		eventBus:             bus,
+		eventBus:             p.eventbus,
 		p1Channel:            p1Channel,
 		blockProposalChannel: blockProposalChannel,
 		partition:            p,
 		rootState:            rc,
-		nodeConf:             c,
-		store:                s,
+		nodeConf:             p.configuration,
+		store:                p.blockStore,
 		rootSigner:           rootSigner,
 	}
 	t.Cleanup(partition.Close)
@@ -162,7 +134,7 @@ func (tp *SingleNodePartition) GetProposalTxs() []*transaction.Transaction {
 
 func (tp *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
 	systemIdentifier := tp.nodeConf.GetSystemIdentifier()
-	sdrhash := tp.nodeConf.Genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
+	sdrhash := tp.nodeConf.genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
 	data := []*unicitytree.Data{{
 		SystemIdentifier:            systemIdentifier,
 		InputRecord:                 ir,
@@ -205,28 +177,28 @@ func (tp *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRou
 	return u, u.Sign(tp.rootSigner)
 }
 
-func (tp *SingleNodePartition) GetLatestBlock() (*block.Block, error) {
+func (tp *SingleNodePartition) GetLatestBlock() *block.Block {
 	return tp.store.LatestBlock()
 }
 
 func (tp *SingleNodePartition) CreateBlock() error {
 	tp.partition.handleT1TimeoutEvent()
 	e := <-tp.p1Channel
-	p1E := e.(eventbus.P1Event)
+	p1E := e.(eventbus.BlockCertificationEvent)
 
 	req := &p1.P1Request{
-		SystemIdentifier: p1E.SystemIdentifier,
-		NodeIdentifier:   p1E.NodeIdentifier.String(),
-		RootRoundNumber:  p1E.LucRoundNumber,
-		InputRecord:      p1E.InputRecord,
+		SystemIdentifier: p1E.Req.SystemIdentifier,
+		NodeIdentifier:   p1E.Req.NodeIdentifier,
+		RootRoundNumber:  p1E.Req.RootRoundNumber,
+		InputRecord:      p1E.Req.InputRecord,
 	}
-	err := req.Sign(tp.nodeConf.Signer)
+	err := req.Sign(tp.nodeConf.signer)
 	if err != nil {
 		return err
 	}
 	respCh := make(chan *p1.P1Response, 1)
 	tp.rootState.HandleInputRequestEvent(&p1.RequestEvent{
-		Req:        req,
+		Req:        p1E.Req,
 		ResponseCh: respCh,
 	})
 
@@ -276,7 +248,7 @@ func ProposalSize(tp *SingleNodePartition, i int) func() bool {
 
 func NextBlockReceived(tp *SingleNodePartition, prevBlock *block.Block) func() bool {
 	return func() bool {
-		b, _ := tp.GetLatestBlock()
+		b := tp.GetLatestBlock()
 		return b.UnicityCertificate.UnicitySeal.RootChainRoundNumber == prevBlock.UnicityCertificate.UnicitySeal.GetRootChainRoundNumber()+1
 	}
 }

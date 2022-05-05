@@ -3,6 +3,7 @@ package eventbus
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -58,12 +59,13 @@ type (
 		*blockproposal.BlockProposal
 	}
 
-	// P1Event is a message sent by the partition node to acquire unicity certificate for the block. See Alphabill
+	// BlockCertificationEvent is a message sent by the partition node to acquire unicity certificate for the block. See Alphabill
 	// yellowpaper for more information.
-	P1Event struct {
-		SystemIdentifier []byte
+	BlockCertificationEvent struct {
+		Req *p1.P1Request
+		/*SystemIdentifier []byte
 		NodeIdentifier   peer.ID
 		LucRoundNumber   uint64
-		InputRecord      *certificates.InputRecord
+		InputRecord      *certificates.InputRecord*/
 	}
 )

@@ -23,7 +23,8 @@ var errInvalidBlockNo = errors.New("invalid block number")
 
 // BoltBlockStore is a persistent implementation of BlockStore interface.
 type BoltBlockStore struct {
-	db *bolt.DB
+	db          *bolt.DB
+	latestBlock *block.Block
 }
 
 // NewBoltBlockStore creates new on-disk persistent block store using bolt db.
@@ -34,7 +35,7 @@ func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 		return nil, err
 	}
 
-	bs := &BoltBlockStore{db}
+	bs := &BoltBlockStore{db: db}
 	err = bs.createBuckets()
 	if err != nil {
 		return nil, err
@@ -52,6 +53,7 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 		if err != nil {
 			return err
 		}
+		bs.latestBlock = b
 		val, err := json.Marshal(b)
 		if err != nil {
 			return err
@@ -96,12 +98,8 @@ func (bs *BoltBlockStore) Height() (uint64, error) {
 	return height, nil
 }
 
-func (bs *BoltBlockStore) LatestBlock() (*block.Block, error) {
-	height, err := bs.Height()
-	if err != nil {
-		return nil, err
-	}
-	return bs.Get(height)
+func (bs *BoltBlockStore) LatestBlock() *block.Block {
+	return bs.latestBlock
 }
 
 func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {

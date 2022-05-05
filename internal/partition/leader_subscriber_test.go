@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
@@ -24,7 +26,7 @@ const testPeerID = peer.ID("test")
 func TestNewLeaderHandler_NotOk(t *testing.T) {
 	txBuffer, err := txbuffer.New(10, gocrypto.SHA256)
 	require.NoError(t, err)
-	f, err := forwarder.New(createPeer(t), 10*time.Millisecond, func(tx *transaction.Transaction) {
+	f, err := forwarder.New(testnetwork.CreatePeer(t), 10*time.Millisecond, func(tx *transaction.Transaction) {
 		err := txBuffer.Add(tx)
 		require.NoError(t, err)
 	})
@@ -80,7 +82,7 @@ func TestNewLeaderHandler_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewLeaderHandler(tt.args.self, tt.args.eb, tt.args.buffer, tt.args.forwarder)
+			got, err := NewLeaderSubscriber(tt.args.self, tt.args.eb, tt.args.buffer, tt.args.forwarder)
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Nil(t, got)
 		})
@@ -119,16 +121,16 @@ func TestNewLeaderHandler_TxForwardingFails(t *testing.T) {
 	require.Eventually(t, func() bool { return txBuffer1.Count() == uint32(1) }, test.WaitDuration, test.WaitTick)
 }
 
-func createLeaderHandler(t *testing.T) (*txbuffer.TxBuffer, *eventbus.EventBus, *LeaderHandler) {
+func createLeaderHandler(t *testing.T) (*txbuffer.TxBuffer, *eventbus.EventBus, *LeaderSubscriber) {
 	txBuffer, err := txbuffer.New(10, gocrypto.SHA256)
 	require.NoError(t, err)
-	p := createPeer(t)
+	p := testnetwork.CreatePeer(t)
 	f, err := forwarder.New(p, 10*time.Millisecond, func(tx *transaction.Transaction) {
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)
 	eb := eventbus.New()
-	lh, err := NewLeaderHandler(p.ID(), eb, txBuffer, f)
+	lh, err := NewLeaderSubscriber(p.ID(), eb, txBuffer, f)
 	t.Cleanup(lh.Close)
 	return txBuffer, eb, lh
 }

@@ -1,8 +1,12 @@
 package partition
 
 import (
+	"bytes"
 	gocrypto "crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
@@ -12,9 +16,16 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 )
 
+var (
+	ErrSystemIdentifierIsNil = errors.New("System identifier is nil")
+	ErrBlockStoreIsNil       = errors.New("block store is nil")
+	ErrTransactionExpired    = errors.New("transaction timeout must be greater than current block height")
+)
+
 type (
 
-	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc)
+	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc.). This validator
+	// should not contain transaction system specific validation logic.
 	TxValidator interface {
 		Validate(tx *transaction.Transaction) error
 	}
@@ -23,7 +34,7 @@ type (
 	UnicityCertificateValidator interface {
 
 		// Validate validates the given certificates.UnicityCertificate. Returns an error if given unicity certificate
-		// is invalid.
+		// is not valid.
 		Validate(uc *certificates.UnicityCertificate) error
 	}
 
@@ -31,7 +42,7 @@ type (
 	BlockProposalValidator interface {
 
 		// Validate validates the given blockproposal.BlockProposal. Returns an error if given block proposal
-		// is invalid.
+		// is not valid.
 		Validate(bp *blockproposal.BlockProposal, nodeSignatureVerifier crypto.Verifier) error
 	}
 
@@ -50,14 +61,47 @@ type (
 		trustBase             crypto.Verifier
 		algorithm             gocrypto.Hash
 	}
+
+	DefaultTxValidator struct {
+		systemIdentifier []byte
+		blockStore       store.BlockStore
+	}
 )
 
-// NewDefaultUnicityCertificateValidator creates a new instance of BlockProposalValidator.
+// NewDefaultTxValidator creates a new instance of default	TxValidator.
+func NewDefaultTxValidator(systemIdentifier []byte, blockStore store.BlockStore) (TxValidator, error) {
+	if systemIdentifier == nil {
+		return nil, ErrSystemIdentifierIsNil
+	}
+	if blockStore == nil {
+		return nil, ErrBlockStoreIsNil
+	}
+	return &DefaultTxValidator{
+		systemIdentifier: systemIdentifier,
+		blockStore:       blockStore,
+	}, nil
+}
+
+func (dtv *DefaultTxValidator) Validate(tx *transaction.Transaction) error {
+	if !bytes.Equal(dtv.systemIdentifier, tx.SystemId) {
+		//  transaction was not sent to correct transaction system
+		return errors.Wrapf(ErrInvalidSystemIdentifier, "expected %X, got %X", dtv.systemIdentifier, tx.SystemId)
+	}
+
+	block := dtv.blockStore.LatestBlock()
+	if tx.Timeout >= block.BlockNumber {
+		// transaction is expired
+		return ErrTransactionExpired
+	}
+	return nil
+}
+
+// NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
 	systemDescription *genesis.SystemDescriptionRecord,
 	trustBase crypto.Verifier,
 	algorithm gocrypto.Hash,
-) (*DefaultUnicityCertificateValidator, error) {
+) (UnicityCertificateValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}
@@ -77,12 +121,12 @@ func (ucv *DefaultUnicityCertificateValidator) Validate(uc *certificates.Unicity
 	return uc.IsValid(ucv.trustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
 }
 
-// NewDefaultBlockProposalValidator creates a new instance of DefaultBlockProposalValidator.
+// NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
 	systemDescription *genesis.SystemDescriptionRecord,
 	trustBase crypto.Verifier,
 	algorithm gocrypto.Hash,
-) (*DefaultBlockProposalValidator, error) {
+) (BlockProposalValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}

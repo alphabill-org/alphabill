@@ -5,6 +5,11 @@ func PredicateAlwaysTrue() []byte {
 	return []byte{StartByte, OpPushBool, BoolTrue}
 }
 
+// PredicateAlwaysFalse is a predicate that evaluates to false
+func PredicateAlwaysFalse() []byte {
+	return []byte{StartByte, OpPushBool, BoolFalse}
+}
+
 // PredicatePayToPublicKeyHash is a predicate that evaluates true if a valid signature and public key is given as arguments
 func PredicatePayToPublicKeyHash(hashAlg byte, pubKeyHash []byte, sigScheme byte) []byte {
 	p := make([]byte, 0, 42)

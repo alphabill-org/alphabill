@@ -21,7 +21,7 @@ import (
 
 /*
 Example usage
-go run spend_initial_bill.go --pubkey 0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 100
+go run scripts/money/spend_initial_bill.go --pubkey 0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 100
 */
 func main() {
 	// parse command line parameters

@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	rootConfiguration struct {
+	baseConfiguration struct {
 		// The Alphabill home directory
 		HomeDir string
 		// Configuration file URL. If it's relative, then it's relative from the HomeDir.
@@ -35,13 +35,13 @@ const (
 	keyConfig = "config"
 )
 
-func (r *rootConfiguration) addConfigurationFlags(cmd *cobra.Command) {
+func (r *baseConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", alphabillHomeDir()))
 	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
 	cmd.PersistentFlags().StringVar(&r.LogCfgFile, "logger-config", defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
 }
 
-func (r *rootConfiguration) initConfigFileLocation() {
+func (r *baseConfiguration) initConfigFileLocation() {
 	// Home directory and config file are special configuration values as these are used for loading in rest of the configuration.
 	// Handle these manually, before other configuration loaded with Viper.
 
@@ -70,9 +70,13 @@ func (r *rootConfiguration) initConfigFileLocation() {
 	}
 }
 
-func (r *rootConfiguration) configFileExists() bool {
+func (r *baseConfiguration) configFileExists() bool {
 	_, err := os.Stat(r.CfgFile)
 	return err == nil
+}
+
+func (r *baseConfiguration) defaultRootGenesisFilePath() string {
+	return path.Join(r.HomeDir, "rootchain")
 }
 
 func envKey(key string) string {

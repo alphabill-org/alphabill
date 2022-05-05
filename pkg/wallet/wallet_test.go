@@ -2,12 +2,15 @@ package wallet
 
 import (
 	"encoding/hex"
+	"os"
+	"path"
 	"sync"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
@@ -240,6 +243,18 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 		wg.Wait()
 		return true
 	}, test.WaitDuration, test.WaitTick)
+}
+
+func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
+	// create wallet with invalid seed
+	_ = DeleteWalletDb(os.TempDir())
+	c := Config{DbPath: os.TempDir()}
+	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
+	_, err := CreateWalletFromSeed(invalidSeed, c)
+	require.Errorf(t, err, "mnemonic is invalid")
+
+	// verify database is not created
+	require.False(t, util.FileExists(path.Join(os.TempDir(), walletFileName)))
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {

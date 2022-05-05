@@ -19,8 +19,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
 	"github.com/tyler-smith/go-bip39"
@@ -98,7 +96,7 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 		return nil, ErrInvalidPassword
 	}
 
-	return newWallet(config, db)
+	return newWallet(config, db), nil
 }
 
 // GetBalance returns sum value of all bills currently owned by the wallet,
@@ -229,7 +227,7 @@ func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
 }
 
-func newWallet(config Config, db Db) (*Wallet, error) {
+func newWallet(config Config, db Db) *Wallet {
 	return &Wallet{
 		db:               db,
 		config:           config,
@@ -240,7 +238,7 @@ func newWallet(config Config, db Db) (*Wallet, error) {
 			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
 		}),
 		syncFlag: newSyncFlagWrapper(),
-	}, nil
+	}
 }
 
 // syncLedger downloads and processes blocks, blocks until error in rpc connection
@@ -748,22 +746,31 @@ func (w *Wallet) deleteExpiredDcBills(blockHeight uint64) error {
 }
 
 func createWallet(mnemonic string, config Config) (*Wallet, error) {
+	k, err := generateKeys(mnemonic)
+	if err != nil {
+		return nil, err
+	}
 	db, err := getDb(config, true)
 	if err != nil {
 		return nil, err
 	}
-
 	err = db.SetEncrypted(config.WalletPass != "")
 	if err != nil {
 		return nil, err
 	}
-
-	err = generateKeys(mnemonic, db)
+	err = db.SetMnemonic(mnemonic)
 	if err != nil {
 		return nil, err
 	}
-
-	return newWallet(config, db)
+	err = db.SetMasterKey(k.masterKey.String())
+	if err != nil {
+		return nil, err
+	}
+	err = db.SetAccountKey(k.accountKey)
+	if err != nil {
+		return nil, err
+	}
+	return newWallet(config, db), nil
 }
 
 func generateMnemonic() (string, error) {
@@ -774,68 +781,14 @@ func generateMnemonic() (string, error) {
 	return bip39.NewMnemonic(entropy)
 }
 
-func generateKeys(mnemonic string, db Db) error {
-	if !bip39.IsMnemonicValid(mnemonic) {
-		return errors.New("mnemonic is invalid")
-	}
-	seed, err := bip39.NewSeedWithErrorChecking(mnemonic, "")
-	if err != nil {
-		return err
-	}
-
-	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
-	// m / purpose' / coin_type' / account' / change / address_index
-	// m - master key
-	// 44' - cryptocurrencies
-	// 634' - coin type, randomly chosen number from https://github.com/satoshilabs/slips/blob/master/slip-0044.md
-	// 0' - account number (currently use only one account)
-	// 0 - change address 0 or 1; 0 = externally used address, 1 = internal address, currently always 0
-	// 0 - address index
-	// we currently have an ethereum like account based model meaning 1 account = 1 address and no plans to support multiple accounts at this time,
-	// so we use wallet's "HD" part only for generating single key from seed
-	derivationPath := "m/44'/634'/0'/0/0"
-
-	// only HDPrivateKeyID is used from chaincfg.MainNetParams,
-	// it is used as version flag in extended key, which in turn is used to identify the extended key's type.
-	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
-	if err != nil {
-		return err
-	}
-	k, err := newAccountKey(masterKey, derivationPath)
-	if err != nil {
-		return err
-	}
-	err = db.SetAccountKey(k)
-	if err != nil {
-		return err
-	}
-	err = db.SetMasterKey(masterKey.String())
-	if err != nil {
-		return err
-	}
-	err = db.SetMnemonic(mnemonic)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func getDb(config Config, create bool) (Db, error) {
-	var db Db
-	var err error
-	if config.Db == nil {
-		if create {
-			db, err = createNewDb(config)
-		} else {
-			db, err = OpenDb(config)
-		}
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		db = config.Db
+	if config.Db != nil {
+		return config.Db, nil
 	}
-	return db, nil
+	if create {
+		return createNewDb(config)
+	}
+	return OpenDb(config)
 }
 
 // groupDcBills groups bills together by dc nonce

@@ -45,14 +45,14 @@ var log = logger.CreateForPackage()
 // newMoneyShardCmd creates a new cobra command for the shard component.
 //
 // shardRunFunc - set the function to override the default behaviour. Meant for tests.
-func newMoneyShardCmd(ctx context.Context, rootConfig *rootConfiguration, shardRunFunc moneyShardRunnable) *cobra.Command {
+func newMoneyShardCmd(ctx context.Context, baseConfig *baseConfiguration, shardRunFunc moneyShardRunnable) *cobra.Command {
 	config := &moneyShardConfiguration{
 		baseShardConfiguration: baseShardConfiguration{
-			Root:   rootConfig,
+			Base:   baseConfig,
 			Server: &grpcServerConfiguration{},
 		},
 	}
-	// shardCmd represents the shard command
+
 	var shardCmd = &cobra.Command{
 		Use:   "shard",
 		Short: "Starts a shard node",
@@ -87,11 +87,11 @@ func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfigurati
 		return err
 	}
 
-	err = os.MkdirAll(config.Root.HomeDir, 0700) // -rwx------
+	err = os.MkdirAll(config.Base.HomeDir, 0700) // -rwx------
 	if err != nil {
 		return err
 	}
-	blockStoreFile := path.Join(config.Root.HomeDir, store.BoltBlockStoreFileName)
+	blockStoreFile := path.Join(config.Base.HomeDir, store.BoltBlockStoreFileName)
 	blockStore, err := store.NewBoltBlockStore(blockStoreFile)
 	if err != nil {
 		return err

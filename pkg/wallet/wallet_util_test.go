@@ -15,7 +15,7 @@ type mockAlphabillClient struct {
 	txs        []*transaction.Transaction
 	txResponse *transaction.TransactionResponse
 	maxBlockNo uint64
-	isShutdown bool
+	shutdown   bool
 }
 
 func (c *mockAlphabillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
@@ -35,11 +35,11 @@ func (c *mockAlphabillClient) GetMaxBlockNo() (uint64, error) {
 }
 
 func (c *mockAlphabillClient) Shutdown() {
-	c.isShutdown = true
+	c.shutdown = true
 }
 
 func (c *mockAlphabillClient) IsShutdown() bool {
-	return c.isShutdown
+	return c.shutdown
 }
 
 func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {

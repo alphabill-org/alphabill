@@ -2,7 +2,6 @@ package abclient
 
 import (
 	"context"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
@@ -10,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"sync"
 	"time"
 )
 
@@ -31,6 +31,9 @@ type AlphabillClient struct {
 	config     AlphabillClientConfig
 	connection *grpc.ClientConn
 	client     alphabill.AlphabillServiceClient
+
+	// mu mutex guarding mutable fields (connection and client)
+	mu sync.RWMutex
 }
 
 // New creates instance of AlphabillClient
@@ -95,7 +98,9 @@ func (c *AlphabillClient) GetMaxBlockNo() (uint64, error) {
 }
 
 func (c *AlphabillClient) Shutdown() {
-	if c.IsShutdown() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.isShutdown() {
 		return
 	}
 	log.Info("shutting down alphabill client")
@@ -106,6 +111,12 @@ func (c *AlphabillClient) Shutdown() {
 }
 
 func (c *AlphabillClient) IsShutdown() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.isShutdown()
+}
+
+func (c *AlphabillClient) isShutdown() bool {
 	return c.connection == nil || c.connection.GetState() == connectivity.Shutdown
 }
 
@@ -113,9 +124,15 @@ func (c *AlphabillClient) IsShutdown() bool {
 // connect can be called any number of times, it does nothing if connection is already established and not shut down.
 // Shutdown can be used to shut down the client and terminate the connection.
 func (c *AlphabillClient) connect() error {
-	if c.connection != nil && !c.IsShutdown() {
+	if !c.IsShutdown() {
 		return nil
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.isShutdown() {
+		return nil
+	}
+
 	conn, err := grpc.Dial(c.config.Uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err

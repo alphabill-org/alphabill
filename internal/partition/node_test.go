@@ -327,7 +327,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
-	err := tp.SubmitBlockProposal(nil)
+	err := tp.HandleBlockProposal(nil)
 	require.ErrorIs(t, err, blockproposal.ErrBlockProposalIsNil)
 }
 
@@ -339,7 +339,8 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock())
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
-	err := tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "1", UnicityCertificate: block.UnicityCertificate})
+	err := tp.HandleBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "1", UnicityCertificate: block.UnicityCertificate})
+	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "public key with node id 1 not found"))
 }
 
@@ -351,10 +352,10 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock())
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
+
 	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.SystemDescriptionRecord, tp.nodeConf.trustBase, gocrypto.SHA256)
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
-
 	err = tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})
 	require.ErrorIs(t, err, p1.ErrInvalidSystemIdentifier)
 }
@@ -393,7 +394,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
-	err = tp.SubmitBlockProposal(bp)
+	err = tp.HandleBlockProposal(bp)
 	require.True(t, strings.Contains(err.Error(), "invalid node identifier. leader from UC:"))
 }
 
@@ -416,6 +417,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 	require.NoError(t, err)
 	err = tp.SubmitBlockProposal(bp)
 	require.NoError(t, err)
+	require.Eventually(t, CertificationRequestReceived(tp), test.WaitDuration, test.WaitTick)
 }
 
 func TestBlockProposal_TxSystemStateIsDifferent(t *testing.T) {
@@ -437,7 +439,7 @@ func TestBlockProposal_TxSystemStateIsDifferent(t *testing.T) {
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
 	system.InitCount = 10000
-	err = tp.SubmitBlockProposal(bp)
+	err = tp.HandleBlockProposal(bp)
 	require.True(t, strings.Contains(err.Error(), "invalid tx system state root. expected"))
 }
 

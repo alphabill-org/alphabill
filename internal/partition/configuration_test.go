@@ -258,11 +258,11 @@ func TestGetGenesisBlock(t *testing.T) {
 type mockLeaderSelector struct {
 }
 
-func (m mockLeaderSelector) UpdateLeader(*certificates.UnicitySeal) {
+func (m mockLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
+	return ""
 }
 
-func (m mockLeaderSelector) GetLeader(*certificates.UnicitySeal) peer.ID {
-	return ""
+func (m mockLeaderSelector) UpdateLeader(*certificates.UnicitySeal) {
 }
 
 func (m mockLeaderSelector) IsCurrentNodeLeader() bool {

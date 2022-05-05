@@ -288,7 +288,7 @@ func (p *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		return errors.Errorf("received UC is older than LUC. uc round %v, luc round %v",
 			uc.UnicitySeal.RootChainRoundNumber, p.luc.UnicitySeal.RootChainRoundNumber)
 	}
-	expectedLeader := p.leaderSelector.GetLeader(uc.UnicitySeal)
+	expectedLeader := p.leaderSelector.LeaderFromUnicitySeal(uc.UnicitySeal)
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return errors.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
@@ -344,7 +344,7 @@ func (p *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 	// there can not be two UC-s with the same Root Chain block number but certifying different state root hashes.
 	if uc.UnicitySeal.RootChainRoundNumber == p.luc.UnicitySeal.RootChainRoundNumber &&
 		!bytes.Equal(uc.InputRecord.Hash, p.luc.InputRecord.Hash) {
-		logger.Warning("Got two UC-s with the same Root Chain block number but certifying different state root "+
+		logger.Warning("Got two UC-s with the same Base Chain block number but certifying different state root "+
 			"hashes. RootChainNumber: %v, UC IR hash: %X, LUC IR hash: %X",
 			uc.UnicitySeal.RootChainRoundNumber,
 			uc.InputRecord.Hash,

@@ -10,7 +10,7 @@ import (
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peerstore"
 

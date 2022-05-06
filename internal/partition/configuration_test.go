@@ -13,7 +13,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"

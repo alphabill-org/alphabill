@@ -8,6 +8,8 @@ import (
 	"net"
 	"time"
 
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 
 	"github.com/libp2p/go-libp2p-core/peerstore"
@@ -92,7 +94,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 
 	// start root chain
 	rootPeer, err := network.NewPeer(&network.PeerConfiguration{
-		Address: "/ip4/0.0.0.0/tcp/0", // random port
+		Address: testnetwork.RandomLocalPeerAddress,
 	})
 	root, err := rootchain.NewRootChain(rootPeer, rootGenesis, rootSigner, rootchain.WithT3Timeout(900*time.Millisecond))
 
@@ -127,7 +129,6 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 		if err != nil {
 			return nil, err
 		}
-
 		_, err = partition.NewBlockProposalSubscriber(peer, 10, 200*time.Millisecond, eventBus)
 		if err != nil {
 			return nil, err
@@ -222,9 +223,9 @@ func createNetworkPeers(count int) ([]*network.Peer, error) {
 	// init Nodes
 	for i := 0; i < count; i++ {
 		p, err := network.NewPeer(&network.PeerConfiguration{
-			Address:         peerInfo[i].Address, // random port
-			KeyPair:         keyPairs[i],         // TLS key. The ID of the node is derived from this keypair.
-			PersistentPeers: peerInfo,            // Persistent peers
+			Address:         peerInfo[i].Address,
+			KeyPair:         keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
+			PersistentPeers: peerInfo,    // Persistent peers
 		})
 		if err != nil {
 			return nil, err

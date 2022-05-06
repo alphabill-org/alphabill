@@ -3,7 +3,7 @@ package partition
 import (
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 

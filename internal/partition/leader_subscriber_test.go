@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 

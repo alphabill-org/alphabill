@@ -13,7 +13,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 
 	"github.com/stretchr/testify/require"
 

@@ -32,22 +32,29 @@ func TestNewNetwork_Ok(t *testing.T) {
 
 	tx := randomTx(systemIdentifier)
 	require.NoError(t, network.SubmitTx(tx))
-	require.Eventually(t, BlockContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 
 	tx = randomTx(systemIdentifier)
 	err = network.BroadcastTx(tx)
-	require.Eventually(t, BlockContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }
 
-func BlockContainsTx(tx *transaction.Transaction, network *AlphabillNetwork) func() bool {
+func BlockchainContainsTx(tx *transaction.Transaction, network *AlphabillNetwork) func() bool {
 	return func() bool {
 		for _, store := range network.BlockStores {
-			b := store.LatestBlock()
-			for _, t := range b.Transactions {
-				if proto.Equal(t, tx) {
-					return true
+			height, _ := store.Height()
+			for i := uint64(0); i <= height; i++ {
+				b, err := store.Get(height - i)
+				if err != nil || b == nil {
+					continue
+				}
+				for _, t := range b.Transactions {
+					if proto.Equal(t, tx) {
+						return true
+					}
 				}
 			}
+
 		}
 		return false
 	}

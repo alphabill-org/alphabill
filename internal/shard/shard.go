@@ -1,6 +1,7 @@
 package shard
 
 import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
@@ -58,9 +59,9 @@ func (n *shardNode) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.Get
 		return nil, errors.Errorf("block with number %v not found", request.BlockNo)
 	}
 
-	return &alphabill.GetBlockResponse{Block: &alphabill.Block{
-		BlockNo:            b.TxSystemBlockNumber,
-		PrevBlockHash:      b.PreviousBlockHash,
+	return &alphabill.GetBlockResponse{Block: &block.Block{
+		BlockNumber:        b.BlockNumber,
+		PreviousBlockHash:  b.PreviousBlockHash,
 		Transactions:       b.Transactions,
 		UnicityCertificate: b.UnicityCertificate,
 	}}, nil

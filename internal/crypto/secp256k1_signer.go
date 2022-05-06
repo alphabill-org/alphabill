@@ -4,8 +4,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 	"io"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
@@ -52,7 +53,19 @@ func (s *InMemorySecp256K1Signer) SignBytes(data []byte) ([]byte, error) {
 	if data == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, "cannot sign nil data")
 	}
-	return secp256k1.Sign(hash.Sum256(data), s.privKey)
+	return s.SignHash(hash.Sum256(data))
+}
+
+// SignHash creates a recoverable ECDSA signature.
+// The produced signature is in the 65-byte [R || S || V] format where V is 0 or 1.
+func (s *InMemorySecp256K1Signer) SignHash(hash []byte) ([]byte, error) {
+	if s == nil {
+		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+	}
+	if hash == nil {
+		return nil, errors.Wrap(errors.ErrInvalidArgument, "cannot sign nil hash")
+	}
+	return secp256k1.Sign(hash, s.privKey)
 }
 
 // SignObject transforms the object to canonical form and then signs the data using SignBytes method.

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
@@ -33,21 +35,25 @@ import (
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 )
 
+type AlwaysValidBlockProposalValidator struct{}
 type AlwaysValidTransactionValidator struct{}
 
-func (t *AlwaysValidTransactionValidator) Validate(tx *transaction.Transaction) error {
+func (t *AlwaysValidTransactionValidator) Validate(*transaction.Transaction) error {
+	return nil
+}
+func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, crypto.Verifier) error {
 	return nil
 }
 
 type SingleNodePartition struct {
-	nodeConf    *Configuration
-	eventBus    *eventbus.EventBus
-	store       *store.InMemoryBlockStore
-	partition   *Partition
-	p1Channel   <-chan interface{}
-	pc10Channel <-chan interface{}
-	rootState   *rootchain.State
-	rootSigner  crypto.Signer
+	nodeConf             *Configuration
+	eventBus             *eventbus.EventBus
+	store                *store.InMemoryBlockStore
+	partition            *Partition
+	p1Channel            <-chan interface{}
+	blockProposalChannel <-chan interface{}
+	rootState            *rootchain.State
+	rootSigner           crypto.Signer
 }
 
 func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
@@ -111,23 +117,24 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	if err != nil {
 		t.Error(err)
 	}
+	p.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
 	p1Channel, err := bus.Subscribe(eventbus.TopicP1, 10)
 	if err != nil {
 		t.Error(err)
 	}
-	pc10Channel, err := bus.Subscribe(eventbus.TopicPC1O, 10)
+	blockProposalChannel, err := bus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
 	if err != nil {
 		t.Error(err)
 	}
 	partition := &SingleNodePartition{
-		eventBus:    bus,
-		p1Channel:   p1Channel,
-		pc10Channel: pc10Channel,
-		partition:   p,
-		rootState:   rc,
-		nodeConf:    c,
-		store:       s,
-		rootSigner:  rootSigner,
+		eventBus:             bus,
+		p1Channel:            p1Channel,
+		blockProposalChannel: blockProposalChannel,
+		partition:            p,
+		rootState:            rc,
+		nodeConf:             c,
+		store:                s,
+		rootSigner:           rootSigner,
 	}
 	t.Cleanup(partition.Close)
 	return partition
@@ -143,6 +150,14 @@ func (tp *SingleNodePartition) SubmitTx(tx *transaction.Transaction) error {
 
 func (tp *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) error {
 	return tp.partition.handleUnicityCertificate(uc)
+}
+
+func (tp *SingleNodePartition) HandleBlockProposal(prop *blockproposal.BlockProposal) error {
+	return tp.partition.handleBlockProposal(prop)
+}
+
+func (tp *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
+	return tp.eventBus.Submit(eventbus.TopicBlockProposalInput, eventbus.BlockProposalEvent{BlockProposal: prop})
 }
 
 func (tp *SingleNodePartition) GetProposalTxs() []*transaction.Transaction {
@@ -250,6 +265,13 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	return
 }
 
+func (l *TestLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
+	if seal == nil {
+		return ""
+	}
+	return l.currentNode
+}
+
 func ProposalSize(tp *SingleNodePartition, i int) func() bool {
 	return func() bool {
 		return len(tp.GetProposalTxs()) == i
@@ -281,4 +303,11 @@ func ContainsTransaction(block *block.Block, tx *transaction.Transaction) bool {
 		}
 	}
 	return false
+}
+
+func CertificationRequestReceived(tp *SingleNodePartition) func() bool {
+	return func() bool {
+		e := <-tp.p1Channel
+		return e != nil
+	}
 }

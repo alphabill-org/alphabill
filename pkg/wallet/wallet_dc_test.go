@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"crypto"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -227,9 +228,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.db.GetAccountKey(nil)
 
 	dcBills := []*bill{
-		{Id: uint256.NewInt(2), DcTx: createRandomDcTx()},
-		{Id: uint256.NewInt(1), DcTx: createRandomDcTx()},
-		{Id: uint256.NewInt(0), DcTx: createRandomDcTx()},
+		{Id: uint256.NewInt(2), DcTx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(1), DcTx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(0), DcTx: testtransaction.CreateRandomDcTx()},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 

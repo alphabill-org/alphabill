@@ -45,7 +45,7 @@ type Wallet struct {
 	db               Db
 	alphaBillClient  abclient.ABClient
 	dustCollectorJob *cron.Cron
-	dcWg             dcWaitGroup
+	dcWg             *dcWaitGroup
 	syncFlag         *syncFlagWrapper
 }
 
@@ -199,7 +199,7 @@ func (w *Wallet) StartDustCollectorJob() error {
 
 // Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
 func (w *Wallet) Shutdown() {
-	log.Info("Shutting down wallet")
+	log.Info("shutting down wallet")
 
 	// send cancel signal only if channel is not full
 	// this check is needed in case Shutdown is called multiple times
@@ -242,11 +242,11 @@ func newWallet(config Config, db Db) *Wallet {
 
 // syncLedger downloads and processes blocks, blocks until error in rpc connection
 func (w *Wallet) syncLedger(syncForever bool) {
-	log.Info("starting ledger synchronization process")
 	if w.syncFlag.isSynchronizing() {
 		log.Warning("wallet is already synchronizing")
 		return
 	}
+	log.Info("starting ledger synchronization process")
 	w.syncFlag.setSynchronizing(true)
 	defer w.syncFlag.setSynchronizing(false)
 
@@ -337,7 +337,6 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *alphabill.Block) error {
 
 func (w *Wallet) processBlocks(ch <-chan *alphabill.Block) error {
 	for b := range ch {
-		log.Info("Processing block: " + strconv.FormatUint(b.BlockNo, 10))
 		err := w.processBlock(b)
 		if err != nil {
 			return err
@@ -353,6 +352,7 @@ func (w *Wallet) processBlocks(ch <-chan *alphabill.Block) error {
 // TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
 func (w *Wallet) processBlock(b *alphabill.Block) error {
 	return w.db.WithTransaction(func(dbTx any) error {
+		log.Info("processing block: " + strconv.FormatUint(b.BlockNo, 10))
 		blockHeight, err := w.db.GetBlockHeight(dbTx)
 		if err != nil {
 			return err
@@ -694,9 +694,9 @@ func (w *Wallet) collectDust(blocking bool) error {
 		return err
 	}
 	if blocking {
-		log.Info("blocking collect dust waiting")
+		log.Info("waiting for blocking collect dust")
 		w.dcWg.wg.Wait()
-		log.Info("blocking collect dust finished")
+		log.Info("finished waiting for blocking collect dust")
 	}
 	return nil
 }

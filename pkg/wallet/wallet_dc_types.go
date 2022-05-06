@@ -51,8 +51,8 @@ func newSyncFlagWrapper() *syncFlagWrapper {
 	return &syncFlagWrapper{cancelSyncCh: make(chan bool, 1)}
 }
 
-func newDcWaitGroup() dcWaitGroup {
-	return dcWaitGroup{swaps: map[uint256.Int]uint64{}}
+func newDcWaitGroup() *dcWaitGroup {
+	return &dcWaitGroup{swaps: map[uint256.Int]uint64{}}
 }
 
 func (m *dcMetadata) isSwapRequired(blockHeight uint64, dcSum uint64) bool {

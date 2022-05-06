@@ -3,6 +3,7 @@ package wallet
 import (
 	"encoding/hex"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"os"
 	"path"
@@ -134,28 +135,28 @@ func TestBlockProcessing(t *testing.T) {
 				// random dust transfer can be processed
 				{
 					UnitId:                hash.Sum256([]byte{0x00}),
-					TransactionAttributes: createRandomDustTransferTx(),
+					TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
 				},
 				// receive transfer of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: createBillTransferTx(k.PubKeyHashSha256),
+					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHashSha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive split of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: createBillSplitTx(k.PubKeyHashSha256, 100, 100),
+					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHashSha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive swap of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: createRandomSwapTransferTx(k.PubKeyHashSha256),
+					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHashSha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},

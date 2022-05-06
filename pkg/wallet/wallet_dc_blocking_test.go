@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"sync"
 	"testing"
 	"time"
@@ -193,7 +194,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &transaction.Transaction{
 			UnitId:                b.getId(),
-			TransactionAttributes: createRandomDustTransferTx(),
+			TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),
 		})

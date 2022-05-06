@@ -1,6 +1,8 @@
 package testtransaction
 
 import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"math/rand"
 
 	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
@@ -57,4 +59,53 @@ func randomBytes(len int) []byte {
 		panic(err)
 	}
 	return bytes
+}
+
+func CreateBillTransferTx(pubKeyHash []byte) *anypb.Any {
+	tx, _ := anypb.New(&moneytx.BillTransfer{
+		TargetValue: 100,
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		Backlink:    hash.Sum256([]byte{}),
+	})
+	return tx
+}
+
+func CreateBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) *anypb.Any {
+	tx, _ := anypb.New(&moneytx.BillSplit{
+		Amount:         amount,
+		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		RemainingValue: remainingValue,
+		Backlink:       hash.Sum256([]byte{}),
+	})
+	return tx
+}
+
+func CreateRandomDcTx() *transaction.Transaction {
+	return &transaction.Transaction{
+		UnitId:                hash.Sum256([]byte{0x00}),
+		TransactionAttributes: CreateRandomDustTransferTx(),
+		Timeout:               1000,
+		OwnerProof:            script.PredicateArgumentEmpty(),
+	}
+}
+
+func CreateRandomDustTransferTx() *anypb.Any {
+	tx, _ := anypb.New(&moneytx.TransferDC{
+		TargetBearer: script.PredicateAlwaysTrue(),
+		Backlink:     hash.Sum256([]byte{}),
+		Nonce:        hash.Sum256([]byte{}),
+		TargetValue:  100,
+	})
+	return tx
+}
+
+func CreateRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
+	tx, _ := anypb.New(&moneytx.Swap{
+		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		BillIdentifiers: [][]byte{},
+		DcTransfers:     []*transaction.Transaction{},
+		Proofs:          [][]byte{},
+		TargetValue:     100,
+	})
+	return tx
 }

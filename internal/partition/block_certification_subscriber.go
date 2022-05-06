@@ -22,6 +22,12 @@ type CertificationRequestSubscriber struct {
 }
 
 func NewBlockCertificationSubscriber(self *network.Peer, rootNodeID peer.ID, capacity uint, eb *eventbus.EventBus) (*CertificationRequestSubscriber, error) {
+	if self == nil {
+		return nil, ErrPeerIsNil
+	}
+	if eb == nil {
+		return nil, ErrEventBusIsNil
+	}
 	requestCh, err := eb.Subscribe(eventbus.TopicP1, capacity)
 	if err != nil {
 		return nil, err
@@ -48,6 +54,7 @@ func (c *CertificationRequestSubscriber) loop() {
 			converted, req := convertType[eventbus.BlockCertificationEvent](e)
 			if !converted {
 				logger.Warning("Invalid certification event: %v", e)
+				continue
 			}
 			logger.Info("Request received: %v", req)
 			err := c.protocol.Submit(req.Req, c.rootNodeID)
@@ -59,7 +66,10 @@ func (c *CertificationRequestSubscriber) loop() {
 }
 
 func (c *CertificationRequestSubscriber) responseHandler(response *p1.P1Response) {
-	// TODO what happens if status isn't OK????
+	if response.Status != p1.P1Response_OK {
+		logger.Warning("Unexpected certification request response status: %s", response.Status)
+		return
+	}
 	c.eventbus.Submit(eventbus.TopicPartitionUnicityCertificate, eventbus.UnicityCertificateEvent{
 		Certificate: response.Message,
 	})

@@ -74,6 +74,7 @@ func (bp *Protocol) Publish(req *BlockProposal) error {
 		if id == bp.self.ID() {
 			continue
 		}
+		logger.Debug("Sending proposal to peer %v", id)
 		wg.Add(1)
 		go bp.send(req, id, responses, wg)
 	}
@@ -141,4 +142,8 @@ func (bp *Protocol) handleStream(s libp2pNetwork.Stream) {
 		return
 	}
 	bp.requestHandler(req)
+}
+
+func (bp *Protocol) Close() {
+	bp.self.RemoveProtocolHandler(ProtocolBlockProposal)
 }

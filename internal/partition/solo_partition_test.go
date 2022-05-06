@@ -137,10 +137,10 @@ func (tp *SingleNodePartition) GetProposalTxs() []*transaction.Transaction {
 }
 
 func (tp *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
-	systemIdentifier := tp.nodeConf.GetSystemIdentifier()
+	id := tp.nodeConf.GetSystemIdentifier()
 	sdrhash := tp.nodeConf.genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
 	data := []*unicitytree.Data{{
-		SystemIdentifier:            systemIdentifier,
+		SystemIdentifier:            id,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: sdrhash,
 	},
@@ -154,7 +154,7 @@ func (tp *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 	if err != nil {
 		return nil, err
 	}
-	cert, err := ut.GetCertificate(systemIdentifier)
+	cert, err := ut.GetCertificate(id)
 	if err != nil {
 		// this should never happen. if it does then exit with panic because we cannot generate
 		// unicity tree certificates.

@@ -20,6 +20,12 @@ type BlockProposalSubscriber struct {
 }
 
 func NewBlockProposalSubscriber(self *network.Peer, capacity uint, timeout time.Duration, eb *eventbus.EventBus) (*BlockProposalSubscriber, error) {
+	if self == nil {
+		return nil, ErrPeerIsNil
+	}
+	if eb == nil {
+		return nil, ErrEventBusIsNil
+	}
 	outCh, err := eb.Subscribe(eventbus.TopicBlockProposalOutput, capacity)
 	if err != nil {
 		return nil, err
@@ -44,7 +50,7 @@ func (c *BlockProposalSubscriber) loop() {
 		case e := <-c.outCh:
 			converted, req := convertType[eventbus.BlockProposalEvent](e)
 			if !converted {
-				logger.Warning("Invalid certification event: %v", e)
+				logger.Warning("Invalid proposal event: %v", e)
 				continue
 			}
 			logger.Info("Request received: %v", req)
@@ -53,12 +59,10 @@ func (c *BlockProposalSubscriber) loop() {
 				logger.Warning("Failed to publish block proposal: %v", err)
 			}
 		}
-
 	}
 }
 
 func (c *BlockProposalSubscriber) handler(proposal *blockproposal.BlockProposal) {
-	// TODO what happens if status isn't OK????
 	c.eventbus.Submit(eventbus.TopicBlockProposalInput, eventbus.BlockProposalEvent{
 		BlockProposal: proposal,
 	})
@@ -66,6 +70,5 @@ func (c *BlockProposalSubscriber) handler(proposal *blockproposal.BlockProposal)
 
 func (c *BlockProposalSubscriber) Close() {
 	c.ctxCancel()
-	// TODO
-	// c.protocol.Close()
+	c.protocol.Close()
 }

@@ -356,7 +356,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.SystemDescriptionRecord, tp.nodeConf.trustBase, gocrypto.SHA256)
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
-	err = tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})
+	err = tp.HandleBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})
 	require.ErrorIs(t, err, p1.ErrInvalidSystemIdentifier)
 }
 
@@ -369,7 +369,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	require.NoError(t, tp.CreateBlock())
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
-	err := tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})
+	err := tp.HandleBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
 	require.True(t, strings.Contains(err.Error(), "received UC is older than LUC. uc round 1, luc round 2"))
 }
 

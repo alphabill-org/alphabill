@@ -3,6 +3,7 @@ package certificates
 import (
 	"bytes"
 	gocrypto "crypto"
+	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
 
@@ -31,4 +32,12 @@ func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash
 
 func (x *UnicityTreeCertificate) GetAuthPath(leafHash []byte, hashAlgorithm gocrypto.Hash) ([]byte, error) {
 	return smt.CalculatePathRoot(x.SiblingHashes, leafHash, x.SystemIdentifier, hashAlgorithm)
+}
+
+func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {
+	hasher.Write(x.SystemIdentifier)
+	hasher.Write(x.SystemDescriptionHash)
+	for _, siblingHash := range x.SiblingHashes {
+		hasher.Write(siblingHash)
+	}
 }

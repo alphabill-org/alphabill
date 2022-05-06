@@ -4,9 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"path"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ func (c *mockAlphabillClient) SendTransaction(tx *transaction.Transaction) (*tra
 	return &transaction.TransactionResponse{Ok: true}, nil
 }
 
-func (c *mockAlphabillClient) GetBlock(blockNo uint64) (*alphabill.Block, error) {
+func (c *mockAlphabillClient) GetBlock(uint64) (*block.Block, error) {
 	return nil, nil
 }
 

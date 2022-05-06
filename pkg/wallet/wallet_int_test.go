@@ -40,9 +40,9 @@ func TestSync(t *testing.T) {
 	serviceServer := testserver.NewTestAlphabillServiceServer()
 	blocks := []*alphabill.GetBlockResponse{
 		{
-			Block: &alphabill.Block{
-				BlockNo:       1,
-				PrevBlockHash: hash.Sum256([]byte{}),
+			Block: &block.Block{
+				BlockNumber:       1,
+				PreviousBlockHash: hash.Sum256([]byte{}),
 				Transactions: []*transaction.Transaction{
 					// random dust transfer can be processed
 					{
@@ -79,7 +79,7 @@ func TestSync(t *testing.T) {
 	}
 	serviceServer.SetMaxBlockHeight(1)
 	for _, block := range blocks {
-		serviceServer.SetBlock(block.Block.BlockNo, block)
+		serviceServer.SetBlock(block.Block.BlockNumber, block)
 	}
 	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
@@ -126,10 +126,10 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	serviceServer := testserver.NewTestAlphabillServiceServer()
 	maxBlockHeight := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
-		block := &alphabill.GetBlockResponse{
-			Block: &alphabill.Block{
-				BlockNo:            blockNo,
-				PrevBlockHash:      hash.Sum256([]byte{}),
+		b := &alphabill.GetBlockResponse{
+			Block: &block.Block{
+				BlockNumber:        blockNo,
+				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*transaction.Transaction{},
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
@@ -200,15 +200,15 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	// when dc timeout is reached
 	serverService.SetMaxBlockHeight(dcTimeoutBlockCount)
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
-		block := &alphabill.GetBlockResponse{
-			Block: &alphabill.Block{
-				BlockNo:            blockNo,
-				PrevBlockHash:      hash.Sum256([]byte{}),
+		b := &alphabill.GetBlockResponse{
+			Block: &block.Block{
+				BlockNumber:        blockNo,
+				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*transaction.Transaction{},
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serverService.SetBlock(blockNo, block)
+		serverService.SetBlock(blockNo, b)
 	}
 
 	// then collect dust should finish

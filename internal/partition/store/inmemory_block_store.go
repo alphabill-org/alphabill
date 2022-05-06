@@ -14,7 +14,7 @@ func NewInMemoryBlockStore() *InMemoryBlockStore {
 }
 
 func (bs *InMemoryBlockStore) Add(b *block.Block) error {
-	bs.blocks[b.TxSystemBlockNumber] = b
+	bs.blocks[b.BlockNumber] = b
 	return nil
 }
 

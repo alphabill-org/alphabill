@@ -2,6 +2,7 @@ package abclient
 
 import (
 	"context"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
@@ -16,7 +17,7 @@ import (
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
 	SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error)
-	GetBlock(blockNo uint64) (*alphabill.Block, error)
+	GetBlock(blockNo uint64) (*block.Block, error)
 	GetMaxBlockNo() (uint64, error)
 	Shutdown()
 	IsShutdown() bool
@@ -55,7 +56,7 @@ func (c *AlphabillClient) SendTransaction(tx *transaction.Transaction) (*transac
 	return c.client.ProcessTransaction(ctx, tx)
 }
 
-func (c *AlphabillClient) GetBlock(blockNo uint64) (*alphabill.Block, error) {
+func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 	err := c.connect()
 	if err != nil {
 		return nil, err

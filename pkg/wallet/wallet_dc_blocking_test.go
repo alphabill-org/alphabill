@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
@@ -126,7 +128,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 
 	// when group 1 swap is received
 	res1 := createBlockWithSwapTxFromDcBills(dcNonce1, k, b11, b12)
-	res1.Block.BlockNo = 1
+	res1.Block.BlockNumber = 1
 	err := w.processBlock(res1.Block)
 	require.NoError(t, err)
 	err = w.postProcessBlock(res1.Block)
@@ -141,7 +143,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 
 	// when the swap tx with dc bills is received
 	res2 := createBlockWithSwapTxFromDcBills(dcNonce2, k, b21, b22, b23)
-	res2.Block.BlockNo = 2
+	res2.Block.BlockNumber = 2
 	err = w.processBlock(res2.Block)
 	require.NoError(t, err)
 	err = w.postProcessBlock(res2.Block)
@@ -205,9 +207,9 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 
 func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.Transaction) *alphabill.GetBlockResponse {
 	return &alphabill.GetBlockResponse{
-		Block: &alphabill.Block{
-			BlockNo:       1,
-			PrevBlockHash: hash.Sum256([]byte{}),
+		Block: &block.Block{
+			BlockNumber:       1,
+			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*transaction.Transaction{
 				{
 					UnitId:                dcNonce,

@@ -29,7 +29,6 @@ func TestNewLeaderSelector_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 	require.Equal(t, UnknownLeader, ls.leader.String())
-	require.Equal(t, UnknownLeader, ls.GetLeader().String())
 }
 
 func TestLeaderSelector_SelfID(t *testing.T) {

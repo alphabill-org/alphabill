@@ -11,6 +11,7 @@ import (
 
 func CreatePeer(t *testing.T) *network.Peer {
 	conf := &network.PeerConfiguration{}
+	conf.Address = "/ip4/127.0.0.1/tcp/0"
 	peer, err := network.NewPeer(conf)
 	require.NoError(t, err)
 

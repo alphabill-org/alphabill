@@ -303,7 +303,7 @@ func createPassphrase(cmd *cobra.Command) (string, error) {
 	}
 	fmt.Println() // insert empty line after reading prompts
 	if p1 != p2 {
-		return "", errors.New("passphrases do not much")
+		return "", errors.New("passphrases do not match")
 	}
 	return p1, nil
 }

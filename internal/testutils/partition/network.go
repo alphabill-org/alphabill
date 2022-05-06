@@ -8,8 +8,6 @@ import (
 	"net"
 	"time"
 
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 
 	"github.com/libp2p/go-libp2p-core/peerstore"
@@ -94,7 +92,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 
 	// start root chain
 	rootPeer, err := network.NewPeer(&network.PeerConfiguration{
-		Address: testnetwork.RandomLocalPeerAddress,
+		Address: "/ip4/127.0.0.1/tcp/0",
 	})
 	root, err := rootchain.NewRootChain(rootPeer, rootGenesis, rootSigner, rootchain.WithT3Timeout(900*time.Millisecond))
 

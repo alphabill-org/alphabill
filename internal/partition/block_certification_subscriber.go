@@ -59,7 +59,7 @@ func (c *CertificationRequestSubscriber) loop() {
 			logger.Info("Request received: %v", req)
 			err := c.protocol.Submit(req.Req, c.rootNodeID)
 			if err != nil {
-				logger.Warning("Failed to send certification request %v to the root node %v", e, c.rootNodeID)
+				logger.Warning("Failed to send certification request %v to the root node %v: %v", e, c.rootNodeID, err)
 			}
 		}
 	}

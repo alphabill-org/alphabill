@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
@@ -134,7 +135,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serviceServer.SetBlock(blockNo, block)
+		serviceServer.SetBlock(blockNo, b)
 	}
 	serviceServer.SetMaxBlockHeight(maxBlockHeight)
 	server := testserver.StartServer(port, serviceServer)

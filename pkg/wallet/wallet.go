@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"

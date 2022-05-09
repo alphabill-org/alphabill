@@ -277,7 +277,7 @@ func walletLogLevels() string {
 	for k := range wlog.Levels {
 		keys = append(keys, k)
 	}
-	return strings.Join(keys, "/")
+	return strings.Join(keys, ",")
 }
 
 func initWalletLogger(cmd *cobra.Command, walletHomeDir string) error {

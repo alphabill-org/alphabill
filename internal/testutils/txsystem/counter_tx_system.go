@@ -35,7 +35,7 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
-func (m *CounterTxSystem) Init() txsystem.State {
+func (m *CounterTxSystem) State() txsystem.State {
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, m.InitCount)
 	return &Summary{

@@ -1,8 +1,11 @@
 package crypto
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 	"testing"
+
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -90,6 +93,37 @@ func TestSignerNilData(t *testing.T) {
 	bytes, err := signer.SignBytes(nil)
 	require.Error(t, err)
 	require.Nil(t, bytes)
+}
+
+func TestSignNilHash(t *testing.T) {
+	signer, err := NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	bytes, err := signer.SignHash(nil)
+	require.Error(t, err)
+	require.Nil(t, bytes)
+}
+
+func TestVerifyNilHash(t *testing.T) {
+	signer, err := NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+
+	err = verifier.VerifyHash(test.RandomBytes(64), nil)
+	require.Error(t, err)
+}
+
+func TestSignAndVerifyHash(t *testing.T) {
+	signer, err := NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+
+	hash := test.RandomBytes(32)
+	signature, err := signer.SignHash(hash)
+	require.NoError(t, err)
+	err = verifier.VerifyHash(signature, hash)
+	require.NoError(t, err)
 }
 
 func TestVerifierNilVerifier(t *testing.T) {

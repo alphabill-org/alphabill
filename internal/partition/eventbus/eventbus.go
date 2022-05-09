@@ -23,6 +23,11 @@ func New() *EventBus {
 	b := &EventBus{
 		topics: make(map[string][]chan interface{}),
 	}
+	// init default topics
+	for _, t := range defaultTopics {
+		b.topics[t] = []chan interface{}{}
+	}
+
 	return b
 }
 

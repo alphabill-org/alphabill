@@ -12,7 +12,10 @@ func TestEventBus_New(t *testing.T) {
 	bus := New()
 	defer bus.Close()
 	require.NotNil(t, bus)
-	require.Equal(t, 0, len(bus.topics))
+	require.Equal(t, 6, len(bus.topics))
+	for _, subscribers := range bus.topics {
+		require.Equal(t, 0, len(subscribers))
+	}
 	require.False(t, bus.closing)
 }
 
@@ -31,7 +34,7 @@ func TestSubscribe_Ok(t *testing.T) {
 	channel, err := bus.Subscribe("topic", 10)
 	require.NoError(t, err)
 	require.NotNil(t, channel)
-	require.Equal(t, 1, len(bus.topics))
+	require.Equal(t, 7, len(bus.topics))
 	require.Equal(t, 10, cap(channel))
 	require.Equal(t, 0, len(channel))
 }

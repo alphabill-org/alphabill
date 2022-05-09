@@ -2,6 +2,7 @@ package certificates
 
 import (
 	"bytes"
+	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -59,6 +60,10 @@ func (x *UnicitySeal) Bytes() []byte {
 	b.Write(x.PreviousHash)
 	b.Write(x.Hash)
 	return b.Bytes()
+}
+
+func (x *UnicitySeal) AddToHasher(hasher hash.Hash) {
+	hasher.Write(x.Bytes())
 }
 
 func (x *UnicitySeal) Verify(v crypto.Verifier) error {

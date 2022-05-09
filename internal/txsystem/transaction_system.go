@@ -6,17 +6,13 @@ import (
 
 type (
 	// TransactionSystem is a set of rules and logic for defining units and performing transactions with them.
-	//  * Init method is called when the transaction system is started, and it must return the initial state of the
-	// 	transaction system.
-	//  * The following sequence of methods is executed for each block: BeginBlock, Execute (called once for each transaction in
-	// the block), EndBlock, and
-	//		* Commit (consensus round was successful) or
-	//		* Revert (consensus round was unsuccessful).
+	// The following sequence of methods is executed for each block: BeginBlock, Execute (called once for each
+	// transaction in the block), EndBlock, and Commit (consensus round was successful) or Revert (consensus
+	// round was unsuccessful).
 	TransactionSystem interface {
 
-		// Init signals the start of the blockchain. Is called when the transaction system is started. Returns the initial
-		// state and summary value of the transaction system.
-		Init() State
+		// State returns the current state of the transaction system.
+		State() State
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
 		BeginBlock()

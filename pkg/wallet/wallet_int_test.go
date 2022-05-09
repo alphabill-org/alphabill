@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
@@ -53,9 +55,9 @@ func TestSync(t *testing.T) {
 	serviceServer := newTestAlphabillServiceServer()
 	blocks := []*alphabill.GetBlockResponse{
 		{
-			Block: &alphabill.Block{
-				BlockNo:       1,
-				PrevBlockHash: hash.Sum256([]byte{}),
+			Block: &block.Block{
+				BlockNumber:       1,
+				PreviousBlockHash: hash.Sum256([]byte{}),
 				Transactions: []*transaction.Transaction{
 					// random dust transfer can be processed
 					{
@@ -92,7 +94,7 @@ func TestSync(t *testing.T) {
 	}
 	serviceServer.maxBlockHeight = 1
 	for _, block := range blocks {
-		serviceServer.blocks[block.Block.BlockNo] = block
+		serviceServer.blocks[block.Block.BlockNumber] = block
 	}
 	server := startServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
@@ -139,15 +141,15 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	serviceServer := newTestAlphabillServiceServer()
 	maxBlockHeight := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
-		block := &alphabill.GetBlockResponse{
-			Block: &alphabill.Block{
-				BlockNo:            blockNo,
-				PrevBlockHash:      hash.Sum256([]byte{}),
+		b := &alphabill.GetBlockResponse{
+			Block: &block.Block{
+				BlockNumber:        blockNo,
+				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*transaction.Transaction{},
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serviceServer.blocks[blockNo] = block
+		serviceServer.blocks[blockNo] = b
 	}
 	serviceServer.maxBlockHeight = maxBlockHeight
 	server := startServer(port, serviceServer)
@@ -213,15 +215,15 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	// when dc timeout is reached
 	serverService.maxBlockHeight = dcTimeoutBlockCount
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
-		block := &alphabill.GetBlockResponse{
-			Block: &alphabill.Block{
-				BlockNo:            blockNo,
-				PrevBlockHash:      hash.Sum256([]byte{}),
+		b := &alphabill.GetBlockResponse{
+			Block: &block.Block{
+				BlockNumber:        blockNo,
+				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*transaction.Transaction{},
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serverService.blocks[blockNo] = block
+		serverService.blocks[blockNo] = b
 	}
 
 	// then collect dust should finish

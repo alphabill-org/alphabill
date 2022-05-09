@@ -1,4 +1,4 @@
-package pc1o
+package blockproposal
 
 import (
 	"context"
@@ -16,66 +16,66 @@ import (
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 )
 
-const ProtocolPC1O = "/ab/root/pc1-O/1.0.0"
+const ProtocolBlockProposal = "/ab/root/pc1-O/1.0.0"
 
 var (
 	ErrPeerIsNil           = errors.New("self is nil")
-	ErrRequestHandlerIsNil = errors.New("pc1-O request handler is nil")
-	ErrRequestIsNil        = errors.New("pc1-O request is nil")
+	ErrRequestHandlerIsNil = errors.New("block proposal request handler is nil")
+	ErrRequestIsNil        = errors.New("block proposal request is nil")
 	ErrTimout              = errors.New("timeout")
 )
 
-// PC1O is a block proposal protocol. It is used by leader to send block proposals to followers.
-// See Alphabill yellowpaper for more information.
+// Protocol is a block proposal protocol (a.k.a. PC1-O protocol). It is used by leader to send and receive block
+// proposals from the network. See Alphabill yellowpaper for more information.
 type (
-	PC1O struct {
+	Protocol struct {
 		self           *network.Peer
 		timeout        time.Duration
-		requestHandler PC10RequestHandler
+		requestHandler ProtocolHandler
 	}
 
-	PC10RequestHandler func(req *PC1ORequest)
+	ProtocolHandler func(req *BlockProposal)
 )
 
-// New creates an instance of PC1-O protocol. See Alphabill yellowpaper for more information.
-func New(self *network.Peer, timeout time.Duration, requestHandler PC10RequestHandler) (*PC1O, error) {
+// New creates an instance of block proposal protocol. See Alphabill yellowpaper for more information.
+func New(self *network.Peer, timeout time.Duration, requestHandler ProtocolHandler) (*Protocol, error) {
 	if self == nil {
 		return nil, ErrPeerIsNil
 	}
 	if requestHandler == nil {
 		return nil, ErrRequestHandlerIsNil
 	}
-	pc1o := &PC1O{
+	bp := &Protocol{
 		self:           self,
 		timeout:        timeout,
 		requestHandler: requestHandler,
 	}
-	self.RegisterProtocolHandler(ProtocolPC1O, pc1o.handleStream)
-	return pc1o, nil
+	self.RegisterProtocolHandler(ProtocolBlockProposal, bp.handleStream)
+	return bp, nil
 }
 
-// Publish sends PC1ORequest to all validator nodes in the network. NB! This method blocks until a response is received
+// Publish sends BlockProposal to all validator nodes in the network. NB! This method blocks until a response is received
 // from all validators.
-func (p *PC1O) Publish(req *PC1ORequest) error {
+func (bp *Protocol) Publish(req *BlockProposal) error {
 	if req == nil {
 		return ErrRequestIsNil
 	}
-	persistentPeers := p.self.Configuration().PersistentPeers
+	persistentPeers := bp.self.Configuration().PersistentPeers
 	wg := &sync.WaitGroup{}
 	responses := make(chan error, len(persistentPeers))
 
 	var err error
-	for _, pi := range persistentPeers {
-		id, e := pi.GetID()
+	for _, p := range persistentPeers {
+		id, e := p.GetID()
 		if e != nil {
 			err = multierror.Append(err, e)
 			continue
 		}
-		if id == p.self.ID() {
+		if id == bp.self.ID() {
 			continue
 		}
 		wg.Add(1)
-		go p.send(req, id, responses, wg)
+		go bp.send(req, id, responses, wg)
 	}
 	// wait all responses
 	wg.Wait()
@@ -91,14 +91,14 @@ func (p *PC1O) Publish(req *PC1ORequest) error {
 	return err
 }
 
-func (p *PC1O) send(req *PC1ORequest, peerID peer.ID, responses chan error, wg *sync.WaitGroup) {
-	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+func (bp *Protocol) send(req *BlockProposal, peerID peer.ID, responses chan error, wg *sync.WaitGroup) {
+	ctx, cancel := context.WithTimeout(context.Background(), bp.timeout)
 	responseCh := make(chan error, 1)
 
 	go func() {
 		defer close(responseCh)
 		defer cancel()
-		s, err := p.self.CreateStream(ctx, peerID, ProtocolPC1O)
+		s, err := bp.self.CreateStream(ctx, peerID, ProtocolBlockProposal)
 		if err != nil {
 			responseCh <- errors.Wrapf(err, "failed to open stream for peer %v", peerID)
 			return
@@ -116,7 +116,7 @@ func (p *PC1O) send(req *PC1ORequest, peerID peer.ID, responses chan error, wg *
 
 	select {
 	case <-ctx.Done():
-		logger.Info("PC1-O timeout: receiver: %v, sender %v", peerID, p.self.ID())
+		logger.Info("PC1-O timeout: receiver: %v, sender %v", peerID, bp.self.ID())
 		responses <- ErrTimout
 		wg.Done()
 	case err := <-responseCh:
@@ -125,7 +125,7 @@ func (p *PC1O) send(req *PC1ORequest, peerID peer.ID, responses chan error, wg *
 	}
 }
 
-func (p *PC1O) handleStream(s libp2pNetwork.Stream) {
+func (bp *Protocol) handleStream(s libp2pNetwork.Stream) {
 	r := protocol.NewProtoBufReader(s)
 	defer func() {
 		err := r.Close()
@@ -134,11 +134,11 @@ func (p *PC1O) handleStream(s libp2pNetwork.Stream) {
 		}
 	}()
 
-	req := &PC1ORequest{}
+	req := &BlockProposal{}
 	err := r.Read(req)
 	if err != nil {
 		logger.Warning("Failed to read the PC10Request: %v", err)
 		return
 	}
-	p.requestHandler(req)
+	bp.requestHandler(req)
 }

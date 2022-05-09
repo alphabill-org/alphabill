@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
@@ -43,7 +45,7 @@ func (mpp *MockTransactionProcessor) Convert(tx *transaction.Transaction) (trans
 }
 
 func (mls *MockLedgerService) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
-	return &alphabill.GetBlockResponse{Block: &alphabill.Block{BlockNo: 1}}, nil
+	return &alphabill.GetBlockResponse{Block: &block.Block{BlockNumber: 1}}, nil
 }
 
 func (mls *MockLedgerService) GetMaxBlockNo(request *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {

@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+import "block.proto";
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/replication;replication";
+
+message LedgerReplicationResponse {
+  enum Status {
+    OK = 0;
+    INVALID_REQUEST_PARAMETERS = 1;
+    UNKNOWN_SYSTEM_IDENTIFIER = 2;
+    BLOCKS_NOT_FOUND = 3;
+    UNKNOWN = 4;
+  }
+  Status status = 1;
+  string message = 2;
+  repeated Block blocks = 3;
+}

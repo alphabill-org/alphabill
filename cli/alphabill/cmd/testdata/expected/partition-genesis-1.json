@@ -54,5 +54,11 @@
       "signature": "5S1Arkp1VxDnkIDWMQKDguDdIYFatxDoMOyPmn6pTVEXRJ3OBqYtnj/7wuSAb5jCNaojLiSyGyzaEvILjWe9MwA="
     }
   },
-  "trust_base": "A1Vc2QG8mD8hZ5F9ut+L5AVaYgyueTM4Z8uh8Z9hyoFj"
+  "trust_base": "A1Vc2QG8mD8hZ5F9ut+L5AVaYgyueTM4Z8uh8Z9hyoFj",
+  "keys": [
+    {
+      "node_identifier": "1",
+      "public_key": "A66zgghWxT3pDN2R6xSKSx8+oCypACFPjazCCsG+bNCS"
+    }
+  ]
 }

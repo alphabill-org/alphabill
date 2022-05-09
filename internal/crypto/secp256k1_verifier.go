@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -38,6 +39,14 @@ func (v *verifierSecp256k1) VerifyBytes(sig []byte, data []byte) error {
 	if v == nil || v.pubKey == nil || sig == nil || data == nil {
 		return errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
+	return v.VerifyHash(sig, hash.Sum256(data))
+}
+
+// VerifyHash verifies the hash against the signature, using the internal public key.
+func (v *verifierSecp256k1) VerifyHash(sig []byte, hash []byte) error {
+	if v == nil || v.pubKey == nil || sig == nil || hash == nil {
+		return errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
+	}
 	if len(sig) == ethcrypto.SignatureLength {
 		// If signature contains recovery ID, then remove it.
 		sig = sig[:len(sig)-1]
@@ -45,7 +54,7 @@ func (v *verifierSecp256k1) VerifyBytes(sig []byte, data []byte) error {
 	if len(sig) != ethcrypto.RecoveryIDOffset {
 		return errors.Wrapf(errors.ErrInvalidState, "signature length is %d b (expected %d b)", len(sig), ethcrypto.RecoveryIDOffset)
 	}
-	if secp256k1.VerifySignature(v.pubKey, hash.Sum256(data), sig) {
+	if secp256k1.VerifySignature(v.pubKey, hash, sig) {
 		return nil
 	}
 	return errors.Wrap(errors.ErrVerificationFailed, "signature verify failed")

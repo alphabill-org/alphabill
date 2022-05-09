@@ -95,7 +95,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...Option) (*genes
 	}
 
 	// create the first round of the tx system
-	state := txSystem.Init()
+	state := txSystem.State()
 	hash := state.Root()
 	summaryValue := state.Summary()
 
@@ -103,10 +103,10 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...Option) (*genes
 
 	// first block
 	b := &block.Block{
-		SystemIdentifier:    c.systemIdentifier,
-		TxSystemBlockNumber: 1,
-		PreviousBlockHash:   zeroHash,
-		Transactions:        nil,
+		SystemIdentifier:  c.systemIdentifier,
+		BlockNumber:       1,
+		PreviousBlockHash: zeroHash,
+		Transactions:      nil,
 	}
 	blockHash := b.Hash(c.hashAlgorithm)
 

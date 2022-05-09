@@ -1,10 +1,11 @@
 package wallet
 
 import (
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"sync"
 	"testing"
 	"time"
+
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 

@@ -2,6 +2,9 @@ package abclient
 
 import (
 	"context"
+	"sync"
+	"time"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
@@ -10,8 +13,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
-	"sync"
-	"time"
 )
 
 // ABClient manages connection to alphabill node and implements RPC methods

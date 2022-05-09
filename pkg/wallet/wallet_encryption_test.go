@@ -1,9 +1,10 @@
 package wallet
 
 import (
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const walletPass = "default-wallet-pass"

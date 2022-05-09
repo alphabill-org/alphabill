@@ -3,6 +3,7 @@ package wallet
 import (
 	"crypto/ecdsa"
 	"errors"
+
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"github.com/btcsuite/btcd/chaincfg"

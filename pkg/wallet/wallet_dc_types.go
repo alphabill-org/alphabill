@@ -1,8 +1,9 @@
 package wallet
 
 import (
-	"github.com/holiman/uint256"
 	"sync"
+
+	"github.com/holiman/uint256"
 )
 
 // dcMetadata container for grouping dcMetadata by nonce, persisted to db

@@ -2,12 +2,13 @@ package wallet
 
 import (
 	"encoding/hex"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"os"
 	"path"
 	"sync"
 	"testing"
+
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"

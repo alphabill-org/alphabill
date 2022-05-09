@@ -2,8 +2,9 @@ package wallet
 
 import (
 	"crypto"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"testing"
+
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 

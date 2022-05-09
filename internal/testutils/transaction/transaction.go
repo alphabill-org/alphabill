@@ -1,14 +1,12 @@
 package testtransaction
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"math/rand"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
 	"google.golang.org/protobuf/types/known/anypb"
 )
 

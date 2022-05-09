@@ -5,15 +5,16 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"os"
+	"path"
+	"strings"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
-	"os"
-	"path"
-	"strings"
 )
 
 var (

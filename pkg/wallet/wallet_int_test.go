@@ -2,6 +2,11 @@ package wallet
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"sync"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
@@ -13,10 +18,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"os"
-	"strconv"
-	"sync"
-	"testing"
 )
 
 const port = 9111

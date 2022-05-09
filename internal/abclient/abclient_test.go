@@ -2,15 +2,16 @@ package abclient
 
 import (
 	"crypto/sha256"
+	"strconv"
+	"sync"
+	"testing"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	testserver "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/server"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"google.golang.org/protobuf/types/known/anypb"
-	"strconv"
-	"sync"
-	"testing"
 )
 
 const port = 9222

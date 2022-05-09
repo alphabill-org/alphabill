@@ -63,9 +63,12 @@ func (c *BlockProposalSubscriber) loop() {
 }
 
 func (c *BlockProposalSubscriber) handler(proposal *blockproposal.BlockProposal) {
-	c.eventbus.Submit(eventbus.TopicBlockProposalInput, eventbus.BlockProposalEvent{
+	err := c.eventbus.Submit(eventbus.TopicBlockProposalInput, eventbus.BlockProposalEvent{
 		BlockProposal: proposal,
 	})
+	if err != nil {
+		logger.Warning("Failed to submit block proposal: %v", err)
+	}
 }
 
 func (c *BlockProposalSubscriber) Close() {

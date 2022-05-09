@@ -17,7 +17,6 @@ var (
 	ErrInvalidMaxSize = errors.New("invalid maximum size")
 	ErrTxIsNil        = errors.New("tx is nil")
 	ErrTxInBuffer     = errors.New("tx already in tx buffer")
-	ErrTxNotFound     = errors.New("tx not found")
 )
 
 type (

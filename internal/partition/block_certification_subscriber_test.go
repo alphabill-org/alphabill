@@ -4,22 +4,16 @@ import (
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
-
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"github.com/libp2p/go-libp2p-core/peerstore"
-
-	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
-
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
+	"github.com/stretchr/testify/require"
 )
 
 const capacity = 10
@@ -82,16 +76,16 @@ func (h *testCertificationRequestHandler) handle(s libp2pNetwork.Stream) {
 }
 
 func TestSendBlockCertificationRequest_Ok(t *testing.T) {
-	peer := testnetwork.CreatePeer(t)
+	p := testnetwork.CreatePeer(t)
 	root := testnetwork.CreatePeer(t)
 	handler := testCertificationRequestHandler{}
 	root.RegisterProtocolHandler(p1.ProtocolP1, handler.handle)
-	peer.Network().Peerstore().AddAddrs(root.ID(), root.MultiAddresses(), peerstore.PermanentAddrTTL)
+	p.Network().Peerstore().AddAddrs(root.ID(), root.MultiAddresses(), peerstore.PermanentAddrTTL)
 
 	eb := eventbus.New()
 	ch, err := eb.Subscribe(eventbus.TopicPartitionUnicityCertificate, 1)
 	require.NoError(t, err)
-	sub, err := NewBlockCertificationSubscriber(peer, root.ID(), capacity, eb)
+	sub, err := NewBlockCertificationSubscriber(p, root.ID(), capacity, eb)
 	require.NoError(t, err)
 	defer sub.Close()
 	err = eb.Submit(eventbus.TopicP1, eventbus.BlockCertificationEvent{Req: &p1.P1Request{}})

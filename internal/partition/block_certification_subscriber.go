@@ -70,9 +70,12 @@ func (c *CertificationRequestSubscriber) responseHandler(response *p1.P1Response
 		logger.Warning("Unexpected certification request response status: %s", response.Status)
 		return
 	}
-	c.eventbus.Submit(eventbus.TopicPartitionUnicityCertificate, eventbus.UnicityCertificateEvent{
+	err := c.eventbus.Submit(eventbus.TopicPartitionUnicityCertificate, eventbus.UnicityCertificateEvent{
 		Certificate: response.Message,
 	})
+	if err != nil {
+		logger.Warning("Failed to submit unicity certificate: %v", err)
+	}
 }
 
 func (c *CertificationRequestSubscriber) Close() {

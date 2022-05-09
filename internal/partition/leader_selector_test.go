@@ -34,16 +34,16 @@ func TestNewLeaderSelector_Ok(t *testing.T) {
 }
 
 func TestLeaderSelector_SelfID(t *testing.T) {
-	peer := testnetwork.CreatePeer(t)
-	ls, err := NewDefaultLeaderSelector(peer, eventbus.New())
+	p := testnetwork.CreatePeer(t)
+	ls, err := NewDefaultLeaderSelector(p, eventbus.New())
 	require.NoError(t, err)
 	require.NotNil(t, ls)
-	require.Equal(t, peer.ID(), ls.SelfID())
+	require.Equal(t, p.ID(), ls.SelfID())
 }
 
 func TestLeaderSelector_IsCurrentNodeLeader(t *testing.T) {
-	peer := testnetwork.CreatePeer(t)
-	ls, err := NewDefaultLeaderSelector(peer, eventbus.New())
+	p := testnetwork.CreatePeer(t)
+	ls, err := NewDefaultLeaderSelector(p, eventbus.New())
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 }

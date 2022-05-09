@@ -6,29 +6,22 @@ import (
 	"strings"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	libp2p2crypto "github.com/libp2p/go-libp2p-core/crypto"
-	"google.golang.org/protobuf/proto"
-
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	libp2p2crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var (

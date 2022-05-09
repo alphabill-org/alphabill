@@ -41,12 +41,17 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 			return rootGenesisRunFunc(ctx, config)
 		},
 	}
+	cmd.AddCommand(newGenerateKeyCmd(ctx, config))
 
-	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to root chain key file (new key is generated if empty)")
+	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to root chain key file")
 	cmd.Flags().StringSliceVarP(&config.PartitionRecordFiles, partitionRecordFileCmd, "p", []string{}, "path to partition record file")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $ABHOME/rootchain)")
 
-	err := cmd.MarkFlagRequired(partitionRecordFileCmd)
+	err := cmd.MarkFlagRequired(keyFileCmd)
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.MarkFlagRequired(partitionRecordFileCmd)
 	if err != nil {
 		panic(err)
 	}
@@ -104,9 +109,6 @@ func loadPartitionRecords(paths []string) ([]*genesis.PartitionRecord, error) {
 }
 
 func loadKey(path string) (abcrypto.Signer, error) {
-	if path == "" {
-		return abcrypto.NewInMemorySecp256K1Signer()
-	}
 	rk, err := util.ReadJsonFile(path, &rootKey{})
 	if err != nil {
 		return nil, err

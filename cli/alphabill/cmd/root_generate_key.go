@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"context"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-	"github.com/spf13/cobra"
 	"os"
 	"path"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/spf13/cobra"
 )
 
 const (

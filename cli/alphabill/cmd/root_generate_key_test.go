@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"context"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"path"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"github.com/stretchr/testify/require"
 )

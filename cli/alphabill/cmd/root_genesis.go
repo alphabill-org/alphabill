@@ -4,19 +4,22 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"os"
+	"path"
+
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-	"os"
-	"path"
 
 	"github.com/spf13/cobra"
 )
 
-const partitionRecordFileCmd = "partition-record-file"
-const rootGenesisFileName = "root-genesis.json"
-const keyFileCmd = "key-file"
+const (
+	partitionRecordFileCmd = "partition-record-file"
+	rootGenesisFileName    = "root-genesis.json"
+	keyFileCmd             = "key-file"
+)
 
 type rootGenesisConfig struct {
 	Base *baseConfiguration

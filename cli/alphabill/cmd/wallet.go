@@ -8,10 +8,10 @@ import (
 	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	"os"
 	"path"
 	"strings"
-	"golang.org/x/term"
 	"syscall"
 )
 
@@ -26,8 +26,8 @@ const (
 	amountCmdName         = "amount"
 	passwordPromptCmdName = "password"
 	passwordArgCmdName    = "pn"
-	logFileCmdName    = "log-file"
-	logLevelCmdName    = "log-level"
+	logFileCmdName        = "log-file"
+	logLevelCmdName       = "log-level"
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.

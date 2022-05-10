@@ -87,7 +87,7 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 		return nil, err
 	}
 
-	ok, err := db.VerifyPassword(nil)
+	ok, err := db.Do().VerifyPassword()
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +101,12 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 // GetBalance returns sum value of all bills currently owned by the wallet,
 // the value returned is the smallest denomination of alphabills.
 func (w *Wallet) GetBalance() (uint64, error) {
-	return w.db.GetBalance(nil)
+	return w.db.Do().GetBalance()
 }
 
 // GetPublicKey returns public key of the wallet (compressed secp256k1 key 33 bytes)
 func (w *Wallet) GetPublicKey() ([]byte, error) {
-	key, err := w.db.GetAccountKey(nil)
+	key, err := w.db.Do().GetAccountKey()
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return ErrInsufficientBalance
 	}
 
-	b, err := w.db.GetBillWithMinValue(nil, amount)
+	b, err := w.db.Do().GetBillWithMinValue(amount)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	k, err := w.db.GetAccountKey(nil)
+	k, err := w.db.Do().GetAccountKey()
 	if err != nil {
 		return err
 	}
@@ -283,7 +283,7 @@ func (w *Wallet) syncLedger(syncForever bool) {
 }
 
 func (w *Wallet) fetchBlocksForever(ch chan<- *block.Block) error {
-	blockNo, err := w.db.GetBlockHeight(nil)
+	blockNo, err := w.db.Do().GetBlockHeight()
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,7 @@ func (w *Wallet) fetchBlocksForever(ch chan<- *block.Block) error {
 }
 
 func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *block.Block) error {
-	blockNo, err := w.db.GetBlockHeight(nil)
+	blockNo, err := w.db.Do().GetBlockHeight()
 	if err != nil {
 		return err
 	}
@@ -351,9 +351,9 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 
 // TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
 func (w *Wallet) processBlock(b *block.Block) error {
-	return w.db.WithTransaction(func(dbTx any) error {
+	return w.db.WithTransaction(func(tx TxContext) error {
 		log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10))
-		blockHeight, err := w.db.GetBlockHeight(dbTx)
+		blockHeight, err := tx.GetBlockHeight()
 		if err != nil {
 			return err
 		}
@@ -362,20 +362,20 @@ func (w *Wallet) processBlock(b *block.Block) error {
 			return err
 		}
 		for _, txPb := range b.Transactions {
-			err = w.collectBills(dbTx, txPb, blockHeight)
+			err = w.collectBills(tx, txPb, blockHeight)
 			if err != nil {
 				return err
 			}
 		}
-		err = w.deleteExpiredDcBills(dbTx, b.BlockNumber)
+		err = w.deleteExpiredDcBills(tx, b.BlockNumber)
 		if err != nil {
 			return err
 		}
-		err = w.db.SetBlockHeight(dbTx, b.BlockNumber)
+		err = tx.SetBlockHeight(b.BlockNumber)
 		if err != nil {
 			return err
 		}
-		err = w.trySwap(dbTx)
+		err = w.trySwap(tx)
 		if err != nil {
 			return err
 		}
@@ -388,8 +388,8 @@ func (w *Wallet) postProcessBlock(b *block.Block) error {
 	return w.dcWg.DecrementSwaps(b.BlockNumber, w.db)
 }
 
-func (w *Wallet) trySwap(tx any) error {
-	blockHeight, err := w.db.GetBlockHeight(tx)
+func (w *Wallet) trySwap(tx TxContext) error {
+	blockHeight, err := tx.GetBlockHeight()
 	if err != nil {
 		return err
 	}
@@ -397,14 +397,14 @@ func (w *Wallet) trySwap(tx any) error {
 	if err != nil {
 		return err
 	}
-	bills, err := w.db.GetBills(tx)
+	bills, err := tx.GetBills()
 	if err != nil {
 		return err
 	}
 	dcBillGroups := groupDcBills(bills)
 	for nonce, billGroup := range dcBillGroups {
 		nonce32 := nonce.Bytes32()
-		dcMeta, err := w.db.GetDcMetadata(tx, nonce32[:])
+		dcMeta, err := tx.GetDcMetadata(nonce32[:])
 		if err != nil {
 			return err
 		}
@@ -419,14 +419,14 @@ func (w *Wallet) trySwap(tx any) error {
 	}
 
 	// delete expired metadata
-	nonceMetadataMap, err := w.db.GetDcMetadataMap(tx)
+	nonceMetadataMap, err := tx.GetDcMetadataMap()
 	if err != nil {
 		return err
 	}
 	for nonce, m := range nonceMetadataMap {
 		if m.timeoutReached(blockHeight) {
 			nonce32 := nonce.Bytes32()
-			err := w.db.SetDcMetadata(tx, nonce32[:], nil)
+			err := tx.SetDcMetadata(nonce32[:], nil)
 			if err != nil {
 				return err
 			}
@@ -435,8 +435,8 @@ func (w *Wallet) trySwap(tx any) error {
 	return nil
 }
 
-func (w *Wallet) swapDcBills(tx any, dcBills []*bill, dcNonce []byte, timeout uint64) error {
-	k, err := w.db.GetAccountKey(tx)
+func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, timeout uint64) error {
+	k, err := tx.GetAccountKey()
 	if err != nil {
 		return err
 	}
@@ -452,10 +452,10 @@ func (w *Wallet) swapDcBills(tx any, dcBills []*bill, dcNonce []byte, timeout ui
 	if !res.Ok {
 		return errors.New("swap tx returned error code: " + res.Message)
 	}
-	return w.db.SetDcMetadata(tx, dcNonce, &dcMetadata{SwapTimeout: timeout})
+	return tx.SetDcMetadata(dcNonce, &dcMetadata{SwapTimeout: timeout})
 }
 
-func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeight uint64) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blockHeight uint64) error {
 	gtx, err := billtx.NewMoneyTx(txPb)
 	if err != nil {
 		return err
@@ -469,13 +469,13 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 			return err
 		}
 		if isOwner {
-			err = w.db.SetBill(dbTx, &bill{
+			err = dbTx.SetBill(&bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
 		} else {
-			err := w.db.RemoveBill(dbTx, tx.UnitID())
+			err := dbTx.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -486,7 +486,7 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 			return err
 		}
 		if isOwner {
-			err = w.db.SetBill(dbTx, &bill{
+			err = dbTx.SetBill(&bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
 				TxHash:              tx.Hash(crypto.SHA256),
@@ -497,7 +497,7 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 				DcExpirationTimeout: blockHeight + dustBillDeletionTimeout,
 			})
 		} else {
-			err := w.db.RemoveBill(dbTx, tx.UnitID())
+			err := dbTx.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -507,12 +507,12 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill, err := w.db.ContainsBill(dbTx, tx.UnitID())
+		containsBill, err := dbTx.ContainsBill(tx.UnitID())
 		if err != nil {
 			return err
 		}
 		if containsBill {
-			err := w.db.SetBill(dbTx, &bill{
+			err := dbTx.SetBill(&bill{
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
 				TxHash: tx.Hash(crypto.SHA256),
@@ -526,7 +526,7 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 			return err
 		}
 		if isOwner {
-			err := w.db.SetBill(dbTx, &bill{
+			err := dbTx.SetBill(&bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
@@ -541,7 +541,7 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 			return err
 		}
 		if isOwner {
-			err = w.db.SetBill(dbTx, &bill{
+			err = dbTx.SetBill(&bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
@@ -551,19 +551,19 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 			}
 
 			// clear dc metadata
-			err = w.db.SetDcMetadata(dbTx, txPb.UnitId, nil)
+			err = dbTx.SetDcMetadata(txPb.UnitId, nil)
 			if err != nil {
 				return err
 			}
 
 			for _, dustTransfer := range tx.DCTransfers() {
-				err := w.db.RemoveBill(dbTx, dustTransfer.UnitID())
+				err := dbTx.RemoveBill(dustTransfer.UnitID())
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := w.db.RemoveBill(dbTx, tx.UnitID())
+			err := dbTx.RemoveBill(tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -575,7 +575,7 @@ func (w *Wallet) collectBills(dbTx any, txPb *transaction.Transaction, blockHeig
 }
 
 // isOwner checks if given p2pkh bearer predicate contains Wallet's pubKey hash
-func (w *Wallet) isOwner(dbTx any, bp []byte) (bool, error) {
+func (w *Wallet) isOwner(dbTx TxContext, bp []byte) (bool, error) {
 	// p2pkh predicate: [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 0xac, 0x01]
 	// p2pkh predicate: [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]
 
@@ -590,13 +590,13 @@ func (w *Wallet) isOwner(dbTx any, bp []byte) (bool, error) {
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
 	hashAlgo := bp[5]
 	if hashAlgo == 0x01 {
-		k, err := w.db.GetAccountKey(dbTx)
+		k, err := dbTx.GetAccountKey()
 		if err != nil {
 			return false, err
 		}
 		return bytes.Equal(bp[6:38], k.PubKeyHashSha256), nil
 	} else if hashAlgo == 0x02 {
-		k, err := w.db.GetAccountKey(dbTx)
+		k, err := dbTx.GetAccountKey()
 		if err != nil {
 			return false, err
 		}
@@ -610,8 +610,8 @@ func (w *Wallet) isOwner(dbTx any, bp []byte) (bool, error) {
 // If blocking is true then the function blocks until swap has been completed or timed out,
 // if blocking is false then the function returns after sending the dc transfers.
 func (w *Wallet) collectDust(blocking bool) error {
-	err := w.db.WithTransaction(func(dbTx any) error {
-		blockHeight, err := w.db.GetBlockHeight(dbTx)
+	err := w.db.WithTransaction(func(dbTx TxContext) error {
+		blockHeight, err := dbTx.GetBlockHeight()
 		if err != nil {
 			return err
 		}
@@ -619,7 +619,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 		if err != nil {
 			return err
 		}
-		bills, err := w.db.GetBills(dbTx)
+		bills, err := dbTx.GetBills()
 		if err != nil {
 			return err
 		}
@@ -652,7 +652,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 				return nil
 			}
 
-			k, err := w.db.GetAccountKey(dbTx)
+			k, err := dbTx.GetAccountKey()
 			if err != nil {
 				return err
 			}
@@ -677,7 +677,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 				}
 			}
 			expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
-			err = w.db.SetDcMetadata(dbTx, dcNonce, &dcMetadata{
+			err = dbTx.SetDcMetadata(dcNonce, &dcMetadata{
 				DcValueSum: dcValueSum,
 				DcTimeout:  dcTimeout,
 			})
@@ -702,12 +702,12 @@ func (w *Wallet) collectDust(blocking bool) error {
 }
 
 // isSwapInProgress returns true if there's a running dc process managed by the wallet
-func (w *Wallet) isSwapInProgress(dbTx any) (bool, error) {
-	blockHeight, err := w.db.GetBlockHeight(dbTx)
+func (w *Wallet) isSwapInProgress(dbTx TxContext) (bool, error) {
+	blockHeight, err := dbTx.GetBlockHeight()
 	if err != nil {
 		return false, err
 	}
-	dcMetadataMap, err := w.db.GetDcMetadataMap(dbTx)
+	dcMetadataMap, err := dbTx.GetDcMetadataMap()
 	if err != nil {
 		return false, err
 	}
@@ -728,14 +728,14 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	})
 }
 
-func (w *Wallet) deleteExpiredDcBills(dbTx any, blockHeight uint64) error {
-	bills, err := w.db.GetBills(dbTx)
+func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockHeight uint64) error {
+	bills, err := dbTx.GetBills()
 	if err != nil {
 		return err
 	}
 	for _, b := range bills {
 		if b.isExpired(blockHeight) {
-			err = w.db.RemoveBill(dbTx, b.Id)
+			err = dbTx.RemoveBill(b.Id)
 			if err != nil {
 				return err
 			}
@@ -753,20 +753,20 @@ func createWallet(mnemonic string, config Config) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.WithTransaction(func(dbTx any) error {
-		err := db.SetEncrypted(dbTx, config.WalletPass != "")
+	err = db.WithTransaction(func(tx TxContext) error {
+		err := tx.SetEncrypted(config.WalletPass != "")
 		if err != nil {
 			return err
 		}
-		err = db.SetMnemonic(dbTx, mnemonic)
+		err = tx.SetMnemonic(mnemonic)
 		if err != nil {
 			return err
 		}
-		err = db.SetMasterKey(dbTx, k.masterKey.String())
+		err = tx.SetMasterKey(k.masterKey.String())
 		if err != nil {
 			return err
 		}
-		err = db.SetAccountKey(dbTx, k.accountKey)
+		err = tx.SetAccountKey(k.accountKey)
 		if err != nil {
 			return err
 		}

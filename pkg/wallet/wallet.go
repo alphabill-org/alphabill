@@ -120,7 +120,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return ErrInvalidPubKey
 	}
 
-	swapInProgress, err := w.isSwapInProgress(nil)
+	swapInProgress, err := w.isSwapInProgress(w.db.Do())
 	if err != nil {
 		return err
 	}

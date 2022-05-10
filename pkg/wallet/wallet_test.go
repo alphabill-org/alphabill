@@ -2,12 +2,13 @@ package wallet
 
 import (
 	"encoding/hex"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"os"
 	"path"
 	"sync"
 	"testing"
+
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -39,16 +40,16 @@ func TestWalletCanBeCreated(t *testing.T) {
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
-	mnemonic, err := w.db.GetMnemonic(nil)
+	mnemonic, err := w.db.Do().GetMnemonic()
 	require.NoError(t, err)
 	require.True(t, bip39.IsMnemonicValid(mnemonic))
 
-	masterKeyString, err := w.db.GetMasterKey(nil)
+	masterKeyString, err := w.db.Do().GetMasterKey()
 	require.NoError(t, err)
 	masterKey, err := hdkeychain.NewKeyFromString(masterKeyString)
 	require.NoError(t, err)
 
-	ac, err := w.db.GetAccountKey(nil)
+	ac, err := w.db.Do().GetAccountKey()
 	require.NoError(t, err)
 
 	eac, err := newAccountKey(masterKey, testAccountKeyDerivationPath)
@@ -95,7 +96,7 @@ func TestWalletSendFunction(t *testing.T) {
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	err = w.db.SetBill(nil, &b)
+	err = w.db.Do().SetBill(&b)
 	require.NoError(t, err)
 	mockClient.txResponse = &transaction.TransactionResponse{Ok: false, Message: "some error"}
 	err = w.Send(validPubKey, amount)
@@ -124,7 +125,7 @@ func TestWallet_GetPublicKey(t *testing.T) {
 func TestBlockProcessing(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	k, err := w.db.GetAccountKey(nil)
+	k, err := w.db.Do().GetAccountKey()
 	require.NoError(t, err)
 
 	blocks := []*block.Block{
@@ -165,10 +166,10 @@ func TestBlockProcessing(t *testing.T) {
 		},
 	}
 
-	height, err := w.db.GetBlockHeight(nil)
+	height, err := w.db.Do().GetBlockHeight()
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
-	balance, err := w.db.GetBalance(nil)
+	balance, err := w.db.Do().GetBalance()
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -177,10 +178,10 @@ func TestBlockProcessing(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	height, err = w.db.GetBlockHeight(nil)
+	height, err = w.db.Do().GetBlockHeight()
 	require.EqualValues(t, 1, height)
 	require.NoError(t, err)
-	balance, err = w.db.GetBalance(nil)
+	balance, err = w.db.Do().GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }
@@ -258,14 +259,14 @@ func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {
-	mnemonic, err := w.db.GetMnemonic(nil)
+	mnemonic, err := w.db.Do().GetMnemonic()
 	require.NoError(t, err)
 	require.Equal(t, testMnemonic, mnemonic)
 
-	mk, err := w.db.GetMasterKey(nil)
+	mk, err := w.db.Do().GetMasterKey()
 	require.Equal(t, testMasterKeyBase58, mk)
 
-	ac, err := w.db.GetAccountKey(nil)
+	ac, err := w.db.Do().GetAccountKey()
 	require.NoError(t, err)
 	require.Equal(t, testPubKeyHex, hex.EncodeToString(ac.PubKey))
 	require.Equal(t, testPrivKeyHex, hex.EncodeToString(ac.PrivKey))

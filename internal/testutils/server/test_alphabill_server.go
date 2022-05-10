@@ -3,12 +3,13 @@ package testserver
 import (
 	"context"
 	"fmt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-	"google.golang.org/grpc"
 	"log"
 	"net"
 	"sync"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"google.golang.org/grpc"
 )
 
 type TestAlphabillServiceServer struct {

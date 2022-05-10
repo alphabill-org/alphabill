@@ -24,6 +24,7 @@ func TestLoadGlobalConfigFromFile(t *testing.T) {
 }
 
 func TestLoggingToFile(t *testing.T) {
+	initializeGlobalFactory()
 	logFilePath, confFilePath := setupTest(t)
 	err := UpdateGlobalConfigFromFile(confFilePath)
 	require.NoError(t, err)

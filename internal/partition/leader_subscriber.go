@@ -25,8 +25,8 @@ var (
 	ErrTxForwarderIsNil = errors.New("tx forwarder is nil")
 )
 
-// LeaderHandler handles leader change events.
-type LeaderHandler struct {
+// LeaderSubscriber handles leader change events.
+type LeaderSubscriber struct {
 	self          peer.ID
 	eb            *eventbus.EventBus
 	buffer        *txbuffer.TxBuffer
@@ -40,7 +40,7 @@ type LeaderHandler struct {
 	wg            *sync.WaitGroup
 }
 
-func NewLeaderHandler(self peer.ID, eb *eventbus.EventBus, buffer *txbuffer.TxBuffer, forwarder *forwarder.TxForwarder) (*LeaderHandler, error) {
+func NewLeaderSubscriber(self peer.ID, eb *eventbus.EventBus, buffer *txbuffer.TxBuffer, forwarder *forwarder.TxForwarder) (*LeaderSubscriber, error) {
 	if self == UnknownLeader {
 		return nil, ErrUnknownPeerID
 	}
@@ -59,7 +59,7 @@ func NewLeaderHandler(self peer.ID, eb *eventbus.EventBus, buffer *txbuffer.TxBu
 		return nil, err
 	}
 
-	l := &LeaderHandler{
+	l := &LeaderSubscriber{
 		self:          self,
 		wg:            &sync.WaitGroup{},
 		eb:            eb,
@@ -73,18 +73,18 @@ func NewLeaderHandler(self peer.ID, eb *eventbus.EventBus, buffer *txbuffer.TxBu
 	return l, nil
 }
 
-func (lh *LeaderHandler) Close() {
+func (lh *LeaderSubscriber) Close() {
 	if lh.txCtx != nil {
 		lh.txCancel()
 	}
 	lh.cancel()
 }
 
-func (lh *LeaderHandler) loop() {
+func (lh *LeaderSubscriber) loop() {
 	for {
 		select {
 		case <-lh.ctx.Done():
-			logger.Info("Exiting LeaderHandler main loop")
+			logger.Info("Exiting LeaderSubscriber main loop")
 			return
 		case e := <-lh.leadersCh:
 			logger.Info("Leader change event received: %v", e)
@@ -93,7 +93,7 @@ func (lh *LeaderHandler) loop() {
 	}
 }
 
-func (lh *LeaderHandler) handleNewLeaderEvent(event interface{}) {
+func (lh *LeaderSubscriber) handleNewLeaderEvent(event interface{}) {
 	switch event.(type) {
 	case eventbus.NewLeaderEvent:
 		lh.currentLeader = event.(eventbus.NewLeaderEvent).NewLeader
@@ -115,7 +115,7 @@ func (lh *LeaderHandler) handleNewLeaderEvent(event interface{}) {
 	}
 }
 
-func (lh *LeaderHandler) processTx(tx *transaction.Transaction) bool {
+func (lh *LeaderSubscriber) processTx(tx *transaction.Transaction) bool {
 	if lh.self == lh.currentLeader {
 		if err := lh.eb.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: tx}); err != nil {
 			return false

@@ -7,14 +7,11 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 const UnknownLeader = ""
-
-var ErrPeerIsNilIndex = errors.New("peer is nil")
 
 type (
 	LeaderSelector interface {
@@ -35,7 +32,7 @@ type (
 
 func NewDefaultLeaderSelector(self *network.Peer, eb *eventbus.EventBus) (*DefaultLeaderSelector, error) {
 	if self == nil {
-		return nil, ErrPeerIsNilIndex
+		return nil, ErrPeerIsNil
 	}
 	if eb == nil {
 		return nil, ErrEventBusIsNil

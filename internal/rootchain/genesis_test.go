@@ -32,6 +32,8 @@ func TestNewGenesis_Ok(t *testing.T) {
 	require.NotNil(t, ps)
 	require.Equal(t, 1, len(ps))
 	require.NoError(t, rg.IsValid(rootChainVerifier))
+	WriteDebugJsonLog(logger, "", rg)
+
 }
 
 func TestNewGenesis_ConsensusNotPossible(t *testing.T) {

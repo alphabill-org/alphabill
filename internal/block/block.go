@@ -7,7 +7,7 @@ import (
 )
 
 //Hash returns the hash of the block.
-func (x Block) Hash(hashAlgorithm crypto.Hash) []byte {
+func (x *Block) Hash(hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write(util.Uint64ToBytes(x.BlockNumber))

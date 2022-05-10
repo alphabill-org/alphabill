@@ -13,14 +13,14 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
 	"github.com/stretchr/testify/require"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 )
 
 func TestSendP1Request(t *testing.T) {
 	requestHandler := make(chan *RequestEvent)
 	server := testnetwork.CreatePeer(t)
 	defer server.Close()
-	p1, err := New(server, requestHandler)
+	p1, err := NewRootChainCertificationProtocol(server, requestHandler)
 	require.NoError(t, err)
 
 	defer p1.Close()
@@ -84,7 +84,7 @@ func TestNew_InvalidInputs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := New(tt.args.self, tt.args.requestHandler)
+			got, err := NewRootChainCertificationProtocol(tt.args.self, tt.args.requestHandler)
 			require.ErrorIs(t, err, tt.err)
 			require.Nil(t, got)
 		})

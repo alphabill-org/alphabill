@@ -74,6 +74,7 @@ func (bp *Protocol) Publish(req *BlockProposal) error {
 		if id == bp.self.ID() {
 			continue
 		}
+		logger.Debug("Sending proposal to peer %v", id)
 		wg.Add(1)
 		go bp.send(req, id, responses, wg)
 	}
@@ -116,7 +117,7 @@ func (bp *Protocol) send(req *BlockProposal, peerID peer.ID, responses chan erro
 
 	select {
 	case <-ctx.Done():
-		logger.Info("PC1-O timeout: receiver: %v, sender %v", peerID, bp.self.ID())
+		logger.Info("Block proposal timeout: receiver: %v, sender %v", peerID, bp.self.ID())
 		responses <- ErrTimout
 		wg.Done()
 	case err := <-responseCh:
@@ -137,8 +138,12 @@ func (bp *Protocol) handleStream(s libp2pNetwork.Stream) {
 	req := &BlockProposal{}
 	err := r.Read(req)
 	if err != nil {
-		logger.Warning("Failed to read the PC10Request: %v", err)
+		logger.Warning("Failed to read the block proposal request: %v", err)
 		return
 	}
 	bp.requestHandler(req)
+}
+
+func (bp *Protocol) Close() {
+	bp.self.RemoveProtocolHandler(ProtocolBlockProposal)
 }

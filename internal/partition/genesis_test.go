@@ -32,7 +32,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	type args struct {
 		txSystem txsystem.TransactionSystem
-		opts     []Option
+		opts     []GenesisOption
 	}
 
 	tests := []struct {
@@ -49,7 +49,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			name: "client signer is nil",
 			args: args{
 				txSystem: &testtxsystem.CounterTxSystem{},
-				opts:     []Option{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
+				opts:     []GenesisOption{WithSystemIdentifier(systemIdentifier), WithPeerID("1")},
 			},
 			wantErr: ErrSignerIsNil,
 		},
@@ -57,7 +57,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			name: "invalid system identifier",
 			args: args{
 				txSystem: &testtxsystem.CounterTxSystem{},
-				opts: []Option{
+				opts: []GenesisOption{
 					WithSystemIdentifier(nil),
 					WithPeerID("1"),
 					WithSigner(signer),
@@ -70,7 +70,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			name: "peer ID is empty",
 			args: args{
 				txSystem: &testtxsystem.CounterTxSystem{},
-				opts: []Option{
+				opts: []GenesisOption{
 					WithSystemIdentifier(systemIdentifier),
 					WithSigner(signer),
 					WithPeerID(""),

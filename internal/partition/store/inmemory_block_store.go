@@ -26,10 +26,6 @@ func (bs *InMemoryBlockStore) Height() (uint64, error) {
 	return uint64(len(bs.blocks)), nil
 }
 
-func (bs *InMemoryBlockStore) LatestBlock() (*block.Block, error) {
-	height, err := bs.Height()
-	if err != nil {
-		return nil, err
-	}
-	return bs.blocks[height], nil
+func (bs *InMemoryBlockStore) LatestBlock() *block.Block {
+	return bs.blocks[uint64(len(bs.blocks))]
 }

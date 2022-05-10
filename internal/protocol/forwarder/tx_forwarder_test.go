@@ -9,7 +9,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 

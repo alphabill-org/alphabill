@@ -17,7 +17,6 @@ var (
 	ErrInvalidMaxSize = errors.New("invalid maximum size")
 	ErrTxIsNil        = errors.New("tx is nil")
 	ErrTxInBuffer     = errors.New("tx already in tx buffer")
-	ErrTxNotFound     = errors.New("tx not found")
 )
 
 type (
@@ -50,6 +49,7 @@ func New(maxSize uint32, hashAlgorithm gocrypto.Hash) (*TxBuffer, error) {
 // Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
 // already present in the TxBuffer, or TxBuffer is full.
 func (t *TxBuffer) Add(tx *transaction.Transaction) error {
+	logger.Debug("Adding a new tx to the transaction buffer")
 	if tx == nil {
 		return ErrTxIsNil
 	}
@@ -64,7 +64,9 @@ func (t *TxBuffer) Add(tx *transaction.Transaction) error {
 	if err != nil {
 		return err
 	}
+	logger.Debug("Transaction hash is %X", txHash)
 	txId := string(txHash)
+
 	_, found := t.transactions[txId]
 	if found {
 		return ErrTxInBuffer

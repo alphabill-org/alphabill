@@ -16,7 +16,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/testnetwork"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 
 	"github.com/stretchr/testify/require"
 

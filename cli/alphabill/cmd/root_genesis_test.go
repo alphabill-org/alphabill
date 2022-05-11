@@ -11,7 +11,7 @@ import (
 )
 
 func TestGenerateGenesisFiles(t *testing.T) {
-	outputDir := setupTestDir(t)
+	outputDir := setupTestDir(t, "genesis")
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
@@ -35,7 +35,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 }
 
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
-	outputDir := setupTestDir(t)
+	outputDir := setupTestDir(t, "genesis")
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
@@ -50,8 +50,8 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 	require.Errorf(t, err, "signature verify failed")
 }
 
-func setupTestDir(t *testing.T) string {
-	outputDir := path.Join(os.TempDir(), "genesis")
+func setupTestDir(t *testing.T, dirName string) string {
+	outputDir := path.Join(os.TempDir(), dirName)
 	_ = os.RemoveAll(outputDir)
 	_ = os.MkdirAll(outputDir, 0700) // -rwx------
 	t.Cleanup(func() {

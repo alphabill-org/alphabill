@@ -1,9 +1,10 @@
 package wallet
 
 import (
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const walletPass = "default-wallet-pass"
@@ -15,7 +16,7 @@ func TestEncryptedWalletCanBeCreated(t *testing.T) {
 		DeleteWallet(w)
 	})
 
-	isEncrypted, err := w.db.IsEncrypted()
+	isEncrypted, err := w.db.Do().IsEncrypted()
 	require.NoError(t, err)
 	require.True(t, isEncrypted)
 	verifyTestWallet(t, w)

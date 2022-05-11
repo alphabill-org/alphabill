@@ -1,14 +1,12 @@
 package logger
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
 	"regexp"
 
-	yaml "gopkg.in/yaml.v3"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gopkg.in/yaml.v3"
 )
 
 func init() {
@@ -66,11 +64,11 @@ func loadGlobalConfigFromFile(fileName string) (GlobalConfig, error) {
 	}
 	// Output writer
 	if config.OutputPath != "" {
-		file, err := os.Create(config.OutputPath)
+		file, err := os.OpenFile(config.OutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
 		if err != nil {
 			return GlobalConfig{}, errors.Wrap(err, "failed to create output writer")
 		}
-		globalConfig.Writer = bufio.NewWriter(file)
+		globalConfig.Writer = file
 	} else {
 		globalConfig.Writer = os.Stdout
 	}

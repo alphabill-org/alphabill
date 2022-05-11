@@ -100,7 +100,7 @@ func TestWalletSendFunction(t *testing.T) {
 	require.NoError(t, err)
 	mockClient.txResponse = &transaction.TransactionResponse{Ok: false, Message: "some error"}
 	err = w.Send(validPubKey, amount)
-	require.Error(t, err, "payment returned error code: some error")
+	require.ErrorContains(t, err, "payment returned error code: some error")
 	mockClient.txResponse = nil
 
 	// test ErrSwapInProgress
@@ -252,7 +252,7 @@ func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	c := Config{DbPath: os.TempDir()}
 	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
 	_, err := CreateWalletFromSeed(invalidSeed, c)
-	require.Errorf(t, err, "mnemonic is invalid")
+	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created
 	require.False(t, util.FileExists(path.Join(os.TempDir(), walletFileName)))

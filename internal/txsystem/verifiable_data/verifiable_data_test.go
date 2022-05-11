@@ -117,7 +117,7 @@ func TestRegisterData_withDuplicate(t *testing.T) {
 	require.NoError(t, err)
 	// send duplicate
 	err = vd.Process(reg)
-	require.Error(t, err, "could not add item")
+	require.ErrorContains(t, err, "could not add item")
 }
 
 func (t *genericTx) SystemID() []byte     { return t.systemID }

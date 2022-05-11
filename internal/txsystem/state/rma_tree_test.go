@@ -72,7 +72,7 @@ func TestHashAlgorithms(t *testing.T) {
 
 	config.HashAlgorithm = crypto.MD5
 	tr, err = New(config)
-	require.Errorf(t, err, errStrInvalidHashAlgorithm)
+	require.ErrorContains(t, err, errStrInvalidHashAlgorithm)
 	require.Nil(t, tr)
 }
 
@@ -241,7 +241,7 @@ func TestUpdateData(t *testing.T) {
 	}
 
 	err := tr.UpdateData(id, updateFunc, stateHash)
-	require.Errorf(t, err, "updating non existing node must fail")
+	require.Error(t, err, "updating non existing node must fail")
 
 	err = tr.AddItem(id, owner, data, stateHash)
 	require.NoError(t, err)

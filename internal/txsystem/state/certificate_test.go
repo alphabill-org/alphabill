@@ -2,6 +2,7 @@ package state
 
 import (
 	"crypto"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -59,7 +60,7 @@ func TestExtractCertificate_ItemNotFound(t *testing.T) {
 	at.setNode(key10, newNodeContent(int(key10.Uint64())))
 	at.GetRootHash()
 	_, err := at.ExtractCertificate(key11)
-	require.Errorf(t, err, errStrItemDoesntExist)
+	require.ErrorContains(t, err, fmt.Sprintf(errStrItemDoesntExist, 11))
 }
 
 func TestCompTreeCert_IdIsNil(t *testing.T) {

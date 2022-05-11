@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path"
+	"strings"
+	"syscall"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
-	"os"
-	"path"
-	"strings"
-	"syscall"
 )
 
 const (

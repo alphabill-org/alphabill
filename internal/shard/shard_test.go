@@ -2,6 +2,7 @@ package shard
 
 import (
 	"crypto"
+	"fmt"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
@@ -89,7 +90,7 @@ func TestGetBlock_Nok(t *testing.T) {
 	require.NoError(t, err)
 
 	b, err := s.GetBlock(&alphabill.GetBlockRequest{BlockNo: 1})
-	require.Errorf(t, err, "block with number %v not found", 1)
+	require.ErrorContains(t, err, fmt.Sprintf("block with number %v not found", 1))
 	require.Nil(t, b)
 }
 

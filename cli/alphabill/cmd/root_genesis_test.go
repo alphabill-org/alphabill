@@ -47,7 +47,7 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 		OutputDir:            outputDir,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
-	require.Errorf(t, err, "signature verify failed")
+	require.ErrorContains(t, err, "signature verify failed")
 }
 
 func setupTestDir(t *testing.T, dirName string) string {

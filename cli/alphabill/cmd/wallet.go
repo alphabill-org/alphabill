@@ -45,7 +45,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 			return initWalletLogger(cmd, walletHomeDir(baseConfig))
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Error: must specify a subcommand create, sync, send, get-balance, get-pubkey or collect-dust")
+			fmt.Println("Error: must specify a subcommand like create, sync, send etc")
 		},
 	}
 	walletCmd.AddCommand(createCmd(baseConfig))
@@ -80,19 +80,30 @@ func execCreateCmd(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
+	config := wallet.Config{DbPath: walletDir, WalletPass: password}
 	var w *wallet.Wallet
 	if mnemonic != "" {
 		fmt.Println("Creating wallet from mnemonic seed...")
-		w, err = wallet.CreateWalletFromSeed(mnemonic, wallet.Config{DbPath: walletDir, WalletPass: password})
+		w, err = wallet.CreateWalletFromSeed(mnemonic, config)
 	} else {
 		fmt.Println("Creating new wallet...")
-		w, err = wallet.CreateNewWallet(wallet.Config{DbPath: walletDir, WalletPass: password})
+		w, err = wallet.CreateNewWallet(config)
 	}
 	if err != nil {
 		return err
 	}
 	defer w.Shutdown()
-	fmt.Println("Wallet successfully created")
+	fmt.Println("Wallet created successfully.")
+
+	// print mnemonic if new wallet was created
+	if mnemonic == "" {
+		mnemonicSeed, err := w.GetMnemonic()
+		if err != nil {
+			return err
+		}
+		fmt.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
+		fmt.Println("mnemonic key: " + mnemonicSeed)
+	}
 	return nil
 }
 
@@ -224,7 +235,7 @@ func execGetPubKeyCmd(cmd *cobra.Command, walletDir string) error {
 func collectDustCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "collect-dust",
-		Short: "collect-dust consolidates bills",
+		Short: "consolidates bills",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, walletHomeDir(baseConfig))
 		},
@@ -269,15 +280,22 @@ func pubKeyHexToBytes(s string) ([]byte, bool) {
 }
 
 func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wallet.Wallet, error) {
-	walletPass, err := getPassphrase(cmd, "Enter passphrase: ")
+	config := wallet.Config{
+		DbPath:                walletDir,
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
+	}
+	isEncrypted, err := wallet.IsEncrypted(config)
 	if err != nil {
 		return nil, err
 	}
-	return wallet.LoadExistingWallet(wallet.Config{
-		DbPath:                walletDir,
-		WalletPass:            walletPass,
-		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
-	})
+	if isEncrypted {
+		walletPass, err := getPassphrase(cmd, "Enter passphrase: ")
+		if err != nil {
+			return nil, err
+		}
+		config.WalletPass = walletPass
+	}
+	return wallet.LoadExistingWallet(config)
 }
 
 func walletHomeDir(baseConfig *baseConfiguration) string {
@@ -336,12 +354,10 @@ func createPassphrase(cmd *cobra.Command) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	fmt.Println() // insert empty line between two prompts
 	p2, err := readPassword("Confirm passphrase: ")
 	if err != nil {
 		return "", err
 	}
-	fmt.Println() // insert empty line after reading prompts
 	if p1 != p2 {
 		return "", errors.New("passphrases do not match")
 	}
@@ -356,13 +372,6 @@ func getPassphrase(cmd *cobra.Command, promptMessage string) (string, error) {
 	if passwordFromArg != "" {
 		return passwordFromArg, nil
 	}
-	passwordFlag, err := cmd.Flags().GetBool(passwordPromptCmdName)
-	if err != nil {
-		return "", err
-	}
-	if !passwordFlag {
-		return "", nil
-	}
 	return readPassword(promptMessage)
 }
 
@@ -372,6 +381,7 @@ func readPassword(promptMessage string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	fmt.Println() // line break after reading password
 	return string(passwordBytes), nil
 }
 

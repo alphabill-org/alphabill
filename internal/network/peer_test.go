@@ -70,7 +70,7 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 		},
 	}
 	_, err := NewPeer(conf)
-	require.Errorf(t, err, ErrStringInvalidPrivateKey)
+	require.ErrorContains(t, err, ErrStringInvalidPrivateKey)
 }
 
 func TestNewPeer_InvalidPublicKey(t *testing.T) {
@@ -83,7 +83,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 		},
 	}
 	_, err := NewPeer(conf)
-	require.Errorf(t, err, ErrStringInvalidPublicKey)
+	require.ErrorContains(t, err, ErrStringInvalidPublicKey)
 }
 
 func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {

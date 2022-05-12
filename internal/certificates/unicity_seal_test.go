@@ -128,7 +128,7 @@ func TestSign_SignerIsNil(t *testing.T) {
 		Hash:                 zeroHash,
 	}
 	err := seal.Sign(nil)
-	require.Error(t, ErrSignerIsNil, err)
+	require.ErrorIs(t, err, ErrSignerIsNil)
 }
 
 func TestVerify_VerifierIsNil(t *testing.T) {
@@ -139,5 +139,5 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		Signature:            zeroHash,
 	}
 	err := seal.Verify(nil)
-	require.Error(t, ErrVerifierIsNil, err)
+	require.ErrorIs(t, err, ErrVerifierIsNil)
 }

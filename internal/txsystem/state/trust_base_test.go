@@ -1,8 +1,9 @@
 package state
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestTrustBaseCanBeCreated(t *testing.T) {
@@ -54,7 +55,7 @@ func TestTrustBaseErrorConditions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tb, err := newTrustBase(tt.hexKeys)
 			require.Nil(t, tb)
-			require.Error(t, err, tt.errMsg)
+			require.ErrorContains(t, err, tt.errMsg)
 		})
 	}
 }

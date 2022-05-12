@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"context"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
-	"github.com/stretchr/testify/require"
 	"path"
 	"sync"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRootChainCanBeStarted(t *testing.T) {
@@ -32,7 +33,7 @@ func TestRootChainInvalidRootKey_CannotBeStarted(t *testing.T) {
 	ctx, _ := async.WithWaitGroup(context.Background())
 
 	err := defaultRootChainRunFunc(ctx, conf)
-	require.Errorf(t, err, "invalid genesis")
+	require.ErrorContains(t, err, "invalid genesis")
 }
 
 func validRootChainConfig() *rootChainConfig {

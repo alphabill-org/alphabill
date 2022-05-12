@@ -70,12 +70,12 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 		},
 	}
 	_, err := NewPeer(conf)
-	require.Errorf(t, err, ErrStringInvalidPrivateKey)
+	require.ErrorContains(t, err, ErrStringInvalidPrivateKey)
 }
 
 func TestNewPeer_InvalidPublicKey(t *testing.T) {
 	privKey, _, _ := crypto.GenerateSecp256k1Key(rand.Reader)
-	privKeyBytes, _ := crypto.MarshalPrivateKey(privKey)
+	privKeyBytes, _ := privKey.Raw()
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
 			PrivateKey: privKeyBytes,
@@ -83,7 +83,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 		},
 	}
 	_, err := NewPeer(conf)
-	require.Errorf(t, err, ErrStringInvalidPublicKey)
+	require.ErrorContains(t, err, ErrStringInvalidPublicKey)
 }
 
 func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {

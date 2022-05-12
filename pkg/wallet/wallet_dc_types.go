@@ -1,8 +1,9 @@
 package wallet
 
 import (
-	"github.com/holiman/uint256"
 	"sync"
+
+	"github.com/holiman/uint256"
 )
 
 // dcMetadata container for grouping dcMetadata by nonce, persisted to db
@@ -51,8 +52,8 @@ func newSyncFlagWrapper() *syncFlagWrapper {
 	return &syncFlagWrapper{cancelSyncCh: make(chan bool, 1)}
 }
 
-func newDcWaitGroup() dcWaitGroup {
-	return dcWaitGroup{swaps: map[uint256.Int]uint64{}}
+func newDcWaitGroup() *dcWaitGroup {
+	return &dcWaitGroup{swaps: map[uint256.Int]uint64{}}
 }
 
 func (m *dcMetadata) isSwapRequired(blockHeight uint64, dcSum uint64) bool {
@@ -82,7 +83,7 @@ func (wg *dcWaitGroup) DecrementSwaps(blockHeight uint64, wdb Db) error {
 	defer wg.mu.Unlock()
 
 	for dcNonce, timeout := range wg.swaps {
-		exists, err := wdb.ContainsBill(&dcNonce)
+		exists, err := wdb.Do().ContainsBill(&dcNonce)
 		if err != nil {
 			return err
 		}

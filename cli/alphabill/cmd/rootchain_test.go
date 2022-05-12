@@ -33,7 +33,7 @@ func TestRootChainInvalidRootKey_CannotBeStarted(t *testing.T) {
 	ctx, _ := async.WithWaitGroup(context.Background())
 
 	err := defaultRootChainRunFunc(ctx, conf)
-	require.Errorf(t, err, "invalid genesis")
+	require.ErrorContains(t, err, "invalid genesis")
 }
 
 func validRootChainConfig() *rootChainConfig {

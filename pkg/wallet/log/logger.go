@@ -49,6 +49,15 @@ var logPrefix = []string{
 	DEBUG:   "[D]",
 }
 
+var Levels = map[string]Priority{
+	"NONE":    NONE,
+	"ERROR":   ERROR,
+	"WARNING": WARNING,
+	"NOTICE":  NOTICE,
+	"INFO":    INFO,
+	"DEBUG":   DEBUG,
+}
+
 // A WriterLogger represents an active logging object that generates lines of
 // output to an io.Writer.
 // It is a wrapper object for the standard library log.Logger.

@@ -106,7 +106,7 @@ func TestCalculateRoot_InvalidLeafHash(t *testing.T) {
 
 func TestCalculateRoot_KeyIsNil(t *testing.T) {
 	_, err := CalculatePathRoot([][]byte{}, nil, nil, crypto.SHA256)
-	require.Error(t, ErrInvalidKeyLength, err)
+	require.ErrorIs(t, err, ErrInvalidKeyLength)
 }
 
 func TestGetAuthPath_DataNotPresent(t *testing.T) {

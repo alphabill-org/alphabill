@@ -85,7 +85,7 @@ func TestInputRecord_IsValid(t *testing.T) {
 
 func TestInputRecord_IsNil(t *testing.T) {
 	var ir *InputRecord
-	require.Error(t, ErrInputRecordIsNil, ir.IsValid())
+	require.ErrorIs(t, ir.IsValid(), ErrInputRecordIsNil)
 }
 
 func TestInputRecord_AddToHasher(t *testing.T) {

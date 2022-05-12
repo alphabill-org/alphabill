@@ -28,26 +28,6 @@ func TestRegisterData_InvalidOwnerProof(t *testing.T) {
 	require.ErrorIs(t, err, ErrOwnerProofPresent)
 }
 
-/*
-func TestRegisterData_UnknownTx(t *testing.T) {
-	vd, err := New([]string{defaultUnicityTrustBase}, vdSystemIdentifier)
-	require.NoError(t, err)
-	hasher := crypto.SHA256.New()
-	hasher.Write(test.RandomBytes(32))
-	id := hasher.Sum(nil)
-	err = vd.Process(&unknownTx{
-		genericTx: genericTx{
-			systemID: []byte{1},
-			unitId:   uint256.NewInt(0).SetBytes(id),
-			timeout:  2,
-		},
-		foo: "bar",
-	})
-	// in fact any tx (until systemID matches) fits as a 'reg' tx,
-	// at least until we have a fixed set of attributes
-	require.NoError(t, err)
-}*/
-
 func TestRegisterData_WithDuplicate(t *testing.T) {
 	vd := createVD(t)
 	tx := createTx()

@@ -1,9 +1,10 @@
 package wallet
 
 import (
+	"testing"
+
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestDcJobWithExistingDcBills(t *testing.T) {

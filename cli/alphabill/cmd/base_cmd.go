@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
@@ -125,7 +126,7 @@ func initializeLogger(config *baseConfiguration) {
 	loggerConfigFile := config.LogCfgFile
 	if !strings.HasPrefix(config.LogCfgFile, string(os.PathSeparator)) {
 		// Logger config file URL is using relative path
-		loggerConfigFile = config.HomeDir + string(os.PathSeparator) + config.LogCfgFile
+		loggerConfigFile = path.Join(config.HomeDir, config.LogCfgFile)
 	}
 
 	err := logger.UpdateGlobalConfigFromFile(loggerConfigFile)

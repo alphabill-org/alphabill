@@ -46,7 +46,7 @@ func TestShardConfig_EnvAndFlags(t *testing.T) {
 				sc := defaultShardConfiguration()
 				sc.Base = &baseConfiguration{
 					HomeDir:    "/custom-home",
-					CfgFile:    "/custom-home" + string(os.PathSeparator) + defaultConfigFile,
+					CfgFile:    path.Join("/custom-home", defaultConfigFile),
 					LogCfgFile: defaultLoggerConfigFile,
 				}
 				return sc

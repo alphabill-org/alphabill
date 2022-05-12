@@ -66,7 +66,7 @@ func (r *baseConfiguration) initConfigFileLocation() {
 	}
 	if !strings.HasPrefix(r.CfgFile, string(os.PathSeparator)) {
 		// Config file name is using relative path
-		r.CfgFile = r.HomeDir + string(os.PathSeparator) + r.CfgFile
+		r.CfgFile = path.Join(r.HomeDir, r.CfgFile)
 	}
 }
 

@@ -1,39 +1,26 @@
 package wallet
 
 import (
-	"context"
 	"fmt"
-	"log"
-	"net"
 	"os"
 	"strconv"
 	"sync"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testserver "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/server"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const port = 9111
-
-type testAlphabillServiceServer struct {
-	pubKey         []byte
-	maxBlockHeight uint64
-	processedTxs   []*transaction.Transaction
-	blocks         map[uint64]*alphabill.GetBlockResponse
-	alphabill.UnimplementedAlphabillServiceServer
-}
 
 func TestSync(t *testing.T) {
 	// setup wallet
@@ -41,18 +28,18 @@ func TestSync(t *testing.T) {
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
-	)
+		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
+	})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
 
-	k, err := w.db.GetAccountKey()
+	k, err := w.db.Do().GetAccountKey()
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
-	serviceServer := newTestAlphabillServiceServer()
+	serviceServer := testserver.NewTestAlphabillServiceServer()
 	blocks := []*alphabill.GetBlockResponse{
 		{
 			Block: &block.Block{
@@ -62,28 +49,28 @@ func TestSync(t *testing.T) {
 					// random dust transfer can be processed
 					{
 						UnitId:                hash.Sum256([]byte{0x00}),
-						TransactionAttributes: createRandomDustTransferTx(),
+						TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentEmpty(),
 					},
 					// receive transfer of 100 bills
 					{
 						UnitId:                hash.Sum256([]byte{0x01}),
-						TransactionAttributes: createBillTransferTx(k.PubKeyHashSha256),
+						TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHashSha256),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
 					// receive split of 100 bills
 					{
 						UnitId:                hash.Sum256([]byte{0x02}),
-						TransactionAttributes: createBillSplitTx(k.PubKeyHashSha256, 100, 100),
+						TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHashSha256, 100, 100),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
 					// receive swap of 100 bills
 					{
 						UnitId:                hash.Sum256([]byte{0x03}),
-						TransactionAttributes: createRandomSwapTransferTx(k.PubKeyHashSha256),
+						TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHashSha256),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
@@ -92,15 +79,15 @@ func TestSync(t *testing.T) {
 			},
 		},
 	}
-	serviceServer.maxBlockHeight = 1
+	serviceServer.SetMaxBlockHeight(1)
 	for _, block := range blocks {
-		serviceServer.blocks[block.Block.BlockNumber] = block
+		serviceServer.SetBlock(block.Block.BlockNumber, block)
 	}
-	server := startServer(port, serviceServer)
+	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
 
 	// verify starting block height
-	height, err := w.db.GetBlockHeight()
+	height, err := w.db.Do().GetBlockHeight()
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
 
@@ -114,7 +101,7 @@ func TestSync(t *testing.T) {
 
 	// wait for block to be processed
 	require.Eventually(t, func() bool {
-		height, err := w.db.GetBlockHeight()
+		height, err := w.db.Do().GetBlockHeight()
 		require.NoError(t, err)
 		return height == 1
 	}, test.WaitDuration, test.WaitTick)
@@ -138,7 +125,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
-	serviceServer := newTestAlphabillServiceServer()
+	serviceServer := testserver.NewTestAlphabillServiceServer()
 	maxBlockHeight := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
 		b := &alphabill.GetBlockResponse{
@@ -149,14 +136,14 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serviceServer.blocks[blockNo] = b
+		serviceServer.SetBlock(blockNo, b)
 	}
-	serviceServer.maxBlockHeight = maxBlockHeight
-	server := startServer(port, serviceServer)
+	serviceServer.SetMaxBlockHeight(maxBlockHeight)
+	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
 
 	// verify starting block height
-	height, err := w.db.GetBlockHeight()
+	height, err := w.db.Do().GetBlockHeight()
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
 
@@ -164,7 +151,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 	w.SyncToMaxBlockHeight()
 
 	// then block height is exactly equal to max block height, and further blocks are not processed
-	height, err = w.db.GetBlockHeight()
+	height, err = w.db.Do().GetBlockHeight()
 	require.EqualValues(t, maxBlockHeight, height)
 	require.NoError(t, err)
 }
@@ -174,8 +161,8 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(Config{
 		DbPath:                os.TempDir(),
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
-	)
+		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
+	})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
@@ -184,8 +171,8 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	addBill(t, w, 200)
 
 	// start server
-	serverService := newTestAlphabillServiceServer()
-	server := startServer(port, serverService)
+	serverService := testserver.NewTestAlphabillServiceServer()
+	server := testserver.StartServer(port, serverService)
 	t.Cleanup(server.GracefulStop)
 
 	// when CollectDust is called
@@ -204,7 +191,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// then dc transactions are sent
 	waitForExpectedSwap(w)
-	require.Len(t, serverService.processedTxs, 2)
+	require.Len(t, serverService.GetProcessedTransactions(), 2)
 	require.NoError(t, err)
 
 	// and dc wg metadata is saved
@@ -213,7 +200,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.EqualValues(t, w.dcWg.swaps[*uint256.NewInt(0).SetBytes(dcNonce)], dcTimeoutBlockCount)
 
 	// when dc timeout is reached
-	serverService.maxBlockHeight = dcTimeoutBlockCount
+	serverService.SetMaxBlockHeight(dcTimeoutBlockCount)
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &alphabill.GetBlockResponse{
 			Block: &block.Block{
@@ -223,7 +210,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
-		serverService.blocks[blockNo] = b
+		serverService.SetBlock(blockNo, b)
 	}
 
 	// then collect dust should finish
@@ -231,94 +218,4 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// and dc wg is cleared
 	require.Len(t, w.dcWg.swaps, 0)
-}
-
-func newTestAlphabillServiceServer() *testAlphabillServiceServer {
-	return &testAlphabillServiceServer{blocks: make(map[uint64]*alphabill.GetBlockResponse, 100)}
-}
-
-func (s *testAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
-	s.processedTxs = append(s.processedTxs, tx)
-	return &transaction.TransactionResponse{Ok: true}, nil
-}
-
-func (s *testAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
-	res, f := s.blocks[req.BlockNo]
-	if !f {
-		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
-	}
-	return res, nil
-}
-
-func (s *testAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: s.maxBlockHeight}, nil
-}
-
-func createBillTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&billtx.BillTransfer{
-		TargetValue: 100,
-		NewBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		Backlink:    hash.Sum256([]byte{}),
-	})
-	return tx
-}
-
-func createBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) *anypb.Any {
-	tx, _ := anypb.New(&billtx.BillSplit{
-		Amount:         amount,
-		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		RemainingValue: remainingValue,
-		Backlink:       hash.Sum256([]byte{}),
-	})
-	return tx
-}
-
-func createRandomDcTx() *transaction.Transaction {
-	return &transaction.Transaction{
-		UnitId:                hash.Sum256([]byte{0x00}),
-		TransactionAttributes: createRandomDustTransferTx(),
-		Timeout:               1000,
-		OwnerProof:            script.PredicateArgumentEmpty(),
-	}
-}
-
-func createRandomDustTransferTx() *anypb.Any {
-	tx, _ := anypb.New(&billtx.TransferDC{
-		TargetBearer: script.PredicateAlwaysTrue(),
-		Backlink:     hash.Sum256([]byte{}),
-		Nonce:        hash.Sum256([]byte{}),
-		TargetValue:  100,
-	})
-	return tx
-}
-
-func createRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&billtx.Swap{
-		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
-		BillIdentifiers: [][]byte{},
-		DcTransfers:     []*transaction.Transaction{},
-		Proofs:          [][]byte{},
-		TargetValue:     100,
-	})
-	return tx
-}
-
-func startServer(port int, alphaBillService *testAlphabillServiceServer) *grpc.Server {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	grpcServer := grpc.NewServer()
-	alphabill.RegisterAlphabillServiceServer(grpcServer, alphaBillService)
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			defer closeListener(lis)
-		}
-	}()
-	return grpcServer
-}
-
-func closeListener(lis net.Listener) {
-	_ = lis.Close()
 }

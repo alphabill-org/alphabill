@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -10,7 +11,7 @@ import (
 )
 
 func TestGenerateGenesisFiles(t *testing.T) {
-	outputDir := setupTestDir(t)
+	outputDir := setupTestDir(t, "genesis")
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
@@ -34,7 +35,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 }
 
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
-	outputDir := setupTestDir(t)
+	outputDir := setupTestDir(t, "genesis")
 	conf := &rootGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
@@ -46,9 +47,15 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 		OutputDir:                 outputDir,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
-	require.Errorf(t, err, "signature verify failed")
+	require.ErrorContains(t, err, "signature verify failed")
 }
 
-func setupTestDir(t *testing.T) string {
-	return setupTestHomeDir(t, "genesis")
+func setupTestDir(t *testing.T, dirName string) string {
+	outputDir := path.Join(os.TempDir(), dirName)
+	_ = os.RemoveAll(outputDir)
+	_ = os.MkdirAll(outputDir, 0700) // -rwx------
+	t.Cleanup(func() {
+		_ = os.RemoveAll(outputDir)
+	})
+	return outputDir
 }

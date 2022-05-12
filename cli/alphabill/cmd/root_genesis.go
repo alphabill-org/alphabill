@@ -18,9 +18,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const partitionRecordFileCmd = "partition-node-genesis-file"
-const rootGenesisFileName = "root-genesis.json"
-const keyFileCmd = "key-file"
+const (
+	partitionRecordFileCmd = "partition-node-genesis-file"
+	rootGenesisFileName    = "root-genesis.json"
+	keyFileCmd             = "key-file"
+)
 
 type rootGenesisConfig struct {
 	Base *baseConfiguration
@@ -50,8 +52,13 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	cmd.Flags().BoolVarP(&config.ForceKeyGeneration, "force-key-gen", "f", false, "generates new keys for the root chain node if the key-file does not exist")
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFileCmd, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
+	cmd.AddCommand(newGenerateKeyCmd(ctx, config))
 
-	err := cmd.MarkFlagRequired(partitionRecordFileCmd)
+	err := cmd.MarkFlagRequired(keyFileCmd)
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.MarkFlagRequired(partitionRecordFileCmd)
 	if err != nil {
 		panic(err)
 	}

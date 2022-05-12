@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -24,7 +26,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 
-	k, _ := w.db.GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey()
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -46,7 +48,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
-	bills, _ := w.db.GetBills()
+	bills, _ := w.db.Do().GetBills()
 	require.Len(t, bills, 1)
 	b := bills[0]
 	require.EqualValues(t, b.Value, 3)
@@ -68,7 +70,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 	dcNonce := uint256.NewInt(1337)
 	addDcBills(t, w, dcNonce, 10)
-	k, _ := w.db.GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey()
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -78,13 +80,13 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	require.Len(t, w.dcWg.swaps, 1)
 
 	// when the swap tx with dc bills is received
-	bills, _ := w.db.GetBills()
+	bills, _ := w.db.Do().GetBills()
 	res := createBlockWithSwapTxFromDcBills(dcNonce, k, bills...)
 	err := w.processBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
-	bills, _ = w.db.GetBills()
+	bills, _ = w.db.Do().GetBills()
 	require.Len(t, bills, 1)
 	b := bills[0]
 	require.EqualValues(t, b.Value, 3)
@@ -116,7 +118,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	b22 := addDcBill(t, w, dcNonce2, 4, 10)
 	b23 := addDcBill(t, w, dcNonce2, 5, 10)
 
-	k, _ := w.db.GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey()
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -137,7 +139,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	require.Len(t, w.dcWg.swaps, 1)
 
 	// and bills are updated
-	bills, _ := w.db.GetBills()
+	bills, _ := w.db.Do().GetBills()
 	require.Len(t, bills, 4)
 
 	// when the swap tx with dc bills is received
@@ -155,7 +157,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	require.Len(t, w.dcWg.swaps, 0)
 
 	// and wallet bills are updated
-	bills, _ = w.db.GetBills()
+	bills, _ = w.db.Do().GetBills()
 	require.Len(t, bills, 2)
 }
 
@@ -166,12 +168,12 @@ func TestSendingSwapUpdatesDcWaitGroupTimeout(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2, dcTimeoutBlockCount)
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
-	_ = w.db.SetBlockHeight(dcTimeoutBlockCount)
+	_ = w.db.Do().SetBlockHeight(dcTimeoutBlockCount)
 	mockClient.maxBlockNo = dcTimeoutBlockCount
 	w.dcWg.addExpectedSwap(expectedSwap{dcNonce: nonce32[:], timeout: dcTimeoutBlockCount})
 
 	// when trySwap is called
-	err := w.trySwap()
+	err := w.trySwap(w.db.Do())
 	require.NoError(t, err)
 
 	// then dcWg timeout is updated
@@ -195,7 +197,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &transaction.Transaction{
 			UnitId:                b.getId(),
-			TransactionAttributes: createRandomDustTransferTx(),
+			TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),
 		})

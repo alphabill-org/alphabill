@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path"
+	"syscall"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
-	"os"
-	"path"
-	"strings"
-	"syscall"
 )
 
 const (
@@ -55,7 +55,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 	walletCmd.AddCommand(sendCmd(baseConfig))
 	walletCmd.AddCommand(collectDustCmd(baseConfig))
 	walletCmd.PersistentFlags().String(logFileCmdName, "", fmt.Sprintf("log file path (default $AB_HOME/wallet/wallet.log)"))
-	walletCmd.PersistentFlags().String(logLevelCmdName, "INFO", fmt.Sprintf("logging level [%s]", walletLogLevels()))
+	walletCmd.PersistentFlags().String(logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
 	return walletCmd
 }
 
@@ -282,14 +282,6 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wall
 
 func walletHomeDir(baseConfig *baseConfiguration) string {
 	return path.Join(baseConfig.HomeDir, "wallet")
-}
-
-func walletLogLevels() string {
-	keys := make([]string, 0, len(wlog.Levels))
-	for k := range wlog.Levels {
-		keys = append(keys, k)
-	}
-	return strings.Join(keys, ",")
 }
 
 func initWalletLogger(cmd *cobra.Command, walletHomeDir string) error {

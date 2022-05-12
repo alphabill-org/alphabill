@@ -4,17 +4,21 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"os"
+	"path"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-	"os"
-	"path"
 
 	"github.com/spf13/cobra"
 )
 
-const partitionRecordFileCmd = "partition-record-file"
+const partitionRecordFileCmd = "partition-node-genesis-file"
 const rootGenesisFileName = "root-genesis.json"
 const keyFileCmd = "key-file"
 
@@ -22,13 +26,14 @@ type rootGenesisConfig struct {
 	Base *baseConfiguration
 
 	// paths to partition record json files
-	PartitionRecordFiles []string
+	PartitionNodeGenesisFiles []string
 
 	// path to root chain key file
 	KeyFile string
 
 	// path to output directory where genesis files will be created (default current directory)
-	OutputDir string
+	OutputDir          string
+	ForceKeyGeneration bool
 }
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
@@ -41,10 +46,10 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 			return rootGenesisRunFunc(ctx, config)
 		},
 	}
-
-	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to root chain key file (new key is generated if empty)")
-	cmd.Flags().StringSliceVarP(&config.PartitionRecordFiles, partitionRecordFileCmd, "p", []string{}, "path to partition record file")
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $ABHOME/rootchain)")
+	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to the key file (default: $AB_HOME/rootchain/keys.json). If key file does not exist and flag -f is present then new keys are generated.")
+	cmd.Flags().BoolVarP(&config.ForceKeyGeneration, "force-key-gen", "f", false, "generates new keys for the root chain node if the key-file does not exist")
+	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFileCmd, "p", []string{}, "path to partition node genesis files")
+	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 
 	err := cmd.MarkFlagRequired(partitionRecordFileCmd)
 	if err != nil {
@@ -53,8 +58,8 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	return cmd
 }
 
-// getOutputDir returns custom outputdir if provided, otherwise $ABHOME/rootchain, and creates parent directories.
-// Must be called after base command PersistentPreRunE function has been called, so that $ABHOME is initialized.
+// getOutputDir returns custom outputdir if provided, otherwise $AB_HOME/rootchain, and creates parent directories.
+// Must be called after base command PersistentPreRunE function has been called, so that $AB_HOME is initialized.
 func (c *rootGenesisConfig) getOutputDir() string {
 	if c.OutputDir != "" {
 		return c.OutputDir
@@ -68,15 +73,26 @@ func (c *rootGenesisConfig) getOutputDir() string {
 }
 
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
-	pr, err := loadPartitionRecords(config.PartitionRecordFiles)
+	k, err := LoadKeys(config.KeyFile, config.ForceKeyGeneration)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.KeyFile)
+	}
+
+	pr, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
 		return err
 	}
-	k, err := loadKey(config.KeyFile)
+	privateKeyBytes, err := k.EncryptionPrivateKey.GetPublic().Raw()
 	if err != nil {
 		return err
 	}
-	rg, pg, err := rootchain.NewGenesis(pr, k)
+
+	encVerifier, err := crypto.NewVerifierSecp256k1(privateKeyBytes)
+	if err != nil {
+		return err
+	}
+
+	rg, pg, err := rootchain.NewGenesisFromPartitionNodes(pr, 2500, k.SigningPrivateKey, encVerifier)
 	if err != nil {
 		return err
 	}
@@ -91,27 +107,16 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	return nil
 }
 
-func loadPartitionRecords(paths []string) ([]*genesis.PartitionRecord, error) {
-	var prs []*genesis.PartitionRecord
+func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, error) {
+	var pns []*genesis.PartitionNode
 	for _, p := range paths {
-		pr, err := util.ReadJsonFile(p, &genesis.PartitionRecord{})
+		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to read partition node genesis file '%s'", p)
 		}
-		prs = append(prs, pr)
+		pns = append(pns, pr)
 	}
-	return prs, nil
-}
-
-func loadKey(path string) (abcrypto.Signer, error) {
-	if path == "" {
-		return abcrypto.NewInMemorySecp256K1Signer()
-	}
-	rk, err := util.ReadJsonFile(path, &rootKey{})
-	if err != nil {
-		return nil, err
-	}
-	return rk.toSigner()
+	return pns, nil
 }
 
 func saveRootGenesisFile(rg *genesis.RootGenesis, outputDir string) error {

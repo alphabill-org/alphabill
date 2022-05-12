@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
@@ -76,7 +78,7 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 	requestStores := make(map[string]*requestStore)
 	partitionRecords := make(map[string]*genesis.PartitionRecord)
 	for _, p := range partitions {
-		WriteDebugJsonLog(logger, "Loading partition record", p)
+		util.WriteDebugJsonLog(logger, "RootChain genesis is", p)
 		if err := p.IsValid(); err != nil {
 			return nil, errors.Errorf("invalid partition record: %v", err)
 		}
@@ -117,24 +119,23 @@ func (s *State) HandleInputRequestEvent(e *p1.RequestEvent) {
 		return
 	}
 	r := e.Req
-	logger.Debug("handling tx ")
 	identifier := string(r.SystemIdentifier)
 	latestUnicityCertificate := s.latestUnicityCertificates.get(identifier)
 	seal := latestUnicityCertificate.UnicitySeal
 	if r.RootRoundNumber < seal.RootChainRoundNumber {
 		// Older UC, return current.
-		logger.Debug("Old request. Root chain round number %X, partition round number: %X", seal.RootChainRoundNumber, r.RootRoundNumber)
+		logger.Debug("Old request. Root chain round number %v, partition round number: %v", seal.RootChainRoundNumber, r.RootRoundNumber)
 		// "ok" status means that response contains the UC
 		e.ResponseCh <- &p1.P1Response{Status: p1.P1Response_OK, Message: latestUnicityCertificate}
 		return
 	} else if r.RootRoundNumber > seal.RootChainRoundNumber {
 		// should not happen, partition has newer UC
-		logger.Warning("Partition has never unicity certificate. Root chain round number %X, partition round number: %X", seal.RootChainRoundNumber, r.RootRoundNumber)
+		logger.Warning("Partition has never unicity certificate. Root chain round number %v, partition round number: %v", seal.RootChainRoundNumber, r.RootRoundNumber)
 		e.ResponseCh <- &p1.P1Response{Status: p1.P1Response_INVALID}
 		return
 	} else if !bytes.Equal(r.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
 		// Extending of unknown State. "ok" status means that response contains the UC
-		logger.Debug("P1 Request extends unknown State. Expected previous hash: %X, got: %X", seal.Hash, r.InputRecord.PreviousHash)
+		logger.Debug("P1 Request extends unknown State. Expected previous hash: %v, got: %v", seal.Hash, r.InputRecord.PreviousHash)
 		// "ok" status means that response contains the UC
 		e.ResponseCh <- &p1.P1Response{Status: p1.P1Response_OK, Message: latestUnicityCertificate}
 		return
@@ -183,6 +184,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 		return nil, err
 	}
 	rootHash := ut.GetRootHash()
+	logger.Info("New root hash is %X", rootHash)
 	unicitySeal, err := s.createUnicitySeal(rootHash)
 	if err != nil {
 		return nil, err
@@ -217,13 +219,13 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 		}
 		s.latestUnicityCertificates.put(identifier, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
-		WriteDebugJsonLog(logger, fmt.Sprintf("NewRootChainCertificationProtocol uncity certificate for partition %X", d.SystemIdentifier), certificate)
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("New uncity certificate for partition %X is", d.SystemIdentifier), certificate)
 	}
 	// send responses
 	for key, store := range s.incomingRequests {
 		requestStore := s.incomingRequests[key]
+		logger.Info("Starting to send responses to partition %X. Active connections %v.", []byte(key), len(requestStore.requests))
 		if len(requestStore.requests) > 0 {
-			logger.Info("Sending responses to partition %X. Active requests count is %v.", []byte(key), len(requestStore.requests))
 			for _, req := range requestStore.requests {
 				logger.Debug("Returning unicity certificate for node %v from partition %X", req.Req.NodeIdentifier, []byte(key))
 				if req.ResponseCh != nil {
@@ -239,7 +241,6 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 	}
 
 	s.inputRecords = make(map[string]*certificates.InputRecord)
-	logger.Debug("NewRootChainCertificationProtocol Root Chain root hash is %X", rootHash)
 	s.previousRoundRootHash = rootHash
 	s.roundNumber++
 	return systemIdentifiers, nil
@@ -292,13 +293,13 @@ func (s *State) isInputRecordValid(req *p1.P1Request) bool {
 		logger.Warning("Unknown node identifier %v", nodeIdentifier)
 		return false
 	}
-	verifier, err := crypto.NewVerifierSecp256k1(node.PublicKey)
+	verifier, err := crypto.NewVerifierSecp256k1(node.SigningPublicKey)
 	if err != nil {
-		logger.Warning("Node %v has invalid public key %X: %v", nodeIdentifier, node.PublicKey, err)
+		logger.Warning("Node %v has invalid signing public key %X: %v", nodeIdentifier, node.SigningPublicKey, err)
 		return false
 	}
 	if err := req.IsValid(verifier); err != nil {
-		logger.Warning("Invalid InputRequest request %v. Error: %v. PublicKey: %v", req, err, base64.StdEncoding.EncodeToString(node.PublicKey))
+		logger.Warning("Invalid InputRequest request %v. Error: %v. SigningPublicKey: %v", req, err, base64.StdEncoding.EncodeToString(node.SigningPublicKey))
 		return false
 	}
 	return true

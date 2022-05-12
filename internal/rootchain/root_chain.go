@@ -2,7 +2,10 @@ package rootchain
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 
@@ -118,7 +121,7 @@ func (rc *RootChain) loop() {
 			if e == nil {
 				continue
 			}
-			WriteDebugJsonLog(logger, "Handling P1 request", e.Req)
+			util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from peer %s", e.Req.NodeIdentifier), e.Req)
 			rc.state.HandleInputRequestEvent(e)
 		case nt := <-rc.timers.C:
 			if nt == nil {
@@ -129,7 +132,7 @@ func (rc *RootChain) loop() {
 				logger.Debug("Handling T3 timeout")
 				identifiers, err := rc.state.CreateUnicityCertificates()
 				if err != nil {
-					logger.Warning("round %v failed: %v", rc.state.roundNumber, err)
+					logger.Warning("Round %v failed: %v", rc.state.roundNumber, err)
 				}
 				rc.timers.Restart(t3TimerID)
 

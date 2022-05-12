@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
 	"github.com/stretchr/testify/assert"
@@ -79,7 +81,8 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 	_, _, partition1 := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	_, _, partition2 := createPartitionRecord(t, partition2IR, partition2ID, 4)
 	partitions := []*genesis.PartitionRecord{partition1, partition2}
-	rootGenesis, _, err := NewGenesis(partitions, rootSigner)
+	_, encPubKey := testsig.CreateSignerAndVerifier(t)
+	rootGenesis, _, err := NewGenesis(partitions, rootSigner, encPubKey)
 	require.NoError(t, err)
 
 	s1, err := NewStateFromGenesis(rootGenesis, rootSigner)
@@ -352,9 +355,10 @@ func createPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID 
 		require.NoError(t, err)
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
-			NodeIdentifier: fmt.Sprint(i),
-			PublicKey:      pubKey,
-			P1Request:      p1Req,
+			NodeIdentifier:      fmt.Sprint(i),
+			SigningPublicKey:    pubKey,
+			EncryptionPublicKey: pubKey,
+			P1Request:           p1Req,
 		})
 
 		signers = append(signers, partition1Signer)

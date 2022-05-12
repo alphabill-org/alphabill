@@ -41,7 +41,7 @@ func TestNewPeer_WithPersistentPeers(t *testing.T) {
 		pubKey, err := peer.PublicKey()
 		require.NoError(t, err)
 
-		pubKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+		pubKeyBytes, err := pubKey.Raw()
 		require.NoError(t, err)
 
 		pis[i] = &PeerInfo{
@@ -74,7 +74,7 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 }
 
 func TestNewPeer_InvalidPublicKey(t *testing.T) {
-	privKey, _, _ := crypto.GenerateEd25519Key(rand.Reader)
+	privKey, _, _ := crypto.GenerateSecp256k1Key(rand.Reader)
 	privKeyBytes, _ := crypto.MarshalPrivateKey(privKey)
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
@@ -87,9 +87,11 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 }
 
 func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
-	privateKey, pubKey, _ := crypto.GenerateEd25519Key(rand.Reader)
-	keyBytes, err := crypto.MarshalPrivateKey(privateKey)
-	pubKeyBytes, _ := crypto.MarshalPublicKey(pubKey)
+	privateKey, pubKey, _ := crypto.GenerateSecp256k1Key(rand.Reader)
+	keyBytes, err := privateKey.Raw()
+	require.NoError(t, err)
+	pubKeyBytes, err := pubKey.Raw()
+	require.NoError(t, err)
 	conf := &PeerConfiguration{
 		KeyPair: &PeerKeyPair{
 			PrivateKey: keyBytes,
@@ -101,7 +103,7 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 	p := peer.host.Peerstore().PeersWithKeys()[0]
 	pub, _ := p.ExtractPublicKey()
 	raw, _ := pub.Raw()
-	require.Equal(t, pubKeyBytes[4:], raw)
+	require.Equal(t, pubKeyBytes, raw)
 }
 
 func createPeers(nrOfPeers int) ([]*Peer, error) {

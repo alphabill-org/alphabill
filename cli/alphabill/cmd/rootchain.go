@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
-	"crypto/rand"
+	"path"
+	"time"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
@@ -11,8 +13,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/spf13/cobra"
-	"path"
-	"time"
 )
 
 type rootChainConfig struct {
@@ -46,9 +46,9 @@ func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 			return defaultRootChainRunFunc(ctx, config)
 		},
 	}
-	cmd.Flags().StringVar(&config.KeyFile, keyFileCmd, "", "path to root chain key file")
-	cmd.Flags().StringVar(&config.GenesisFile, "genesis-file", "", "path to root-genesis.json file (default $ABHOME/rootchain)")
-	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/53331", "rootchain address in libp2p multiaddress-format")
+	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to root chain key file")
+	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain)")
+	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "rootchain address in libp2p multiaddress-format")
 	cmd.Flags().Uint64Var(&config.T3Timeout, "t3-timeout", 900, "how long root chain nodes wait for message from leader before initiating a new round")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "root chain request buffer capacity")
 	err := cmd.MarkFlagRequired(keyFileCmd)
@@ -58,8 +58,8 @@ func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 	return cmd
 }
 
-// getGenesisFilePath returns genesis file path if provided, otherwise $ABHOME/rootchain/root-genesis.json
-// Must be called after $ABHOME is initialized in base command PersistentPreRunE function.
+// getGenesisFilePath returns genesis file path if provided, otherwise $AB_HOME/rootchain/root-genesis.json
+// Must be called after $AB_HOME is initialized in base command PersistentPreRunE function.
 func (c *rootChainConfig) getGenesisFilePath() string {
 	if c.GenesisFile != "" {
 		return c.GenesisFile
@@ -70,21 +70,20 @@ func (c *rootChainConfig) getGenesisFilePath() string {
 func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to open root genesis file %s", config.getGenesisFilePath())
 	}
-	rk, err := util.ReadJsonFile(config.KeyFile, &rootKey{})
+	rk, err := LoadKeys(config.KeyFile, false)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to read keys %s", config.KeyFile)
 	}
-	signer, err := rk.toSigner()
+	peer, err := createPeer(config, rk.EncryptionPrivateKey)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "peer creation failed")
 	}
-	peer, err := createPeer(config)
-	if err != nil {
-		return err
-	}
-	rc, err := rootchain.NewRootChain(peer, rootGenesis, signer,
+	rc, err := rootchain.NewRootChain(
+		peer,
+		rootGenesis,
+		rk.SigningPrivateKey,
 		rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
 		rootchain.WithRequestChCapacity(config.MaxRequests),
 	)
@@ -98,33 +97,22 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	})
 }
 
-func createPeer(config *rootChainConfig) (*network.Peer, error) {
-	keyPair, err := generateKeyPair()
+func createPeer(config *rootChainConfig, encPrivate crypto.PrivKey) (*network.Peer, error) {
+	privateKeyBytes, err := encPrivate.Raw()
 	if err != nil {
 		return nil, err
+	}
+	publicKeyBytes, err := encPrivate.GetPublic().Raw()
+	if err != nil {
+		return nil, err
+	}
+	keyPair := &network.PeerKeyPair{
+		PublicKey:  publicKeyBytes,
+		PrivateKey: privateKeyBytes,
 	}
 	conf := &network.PeerConfiguration{
 		Address: config.Address,
 		KeyPair: keyPair,
 	}
 	return network.NewPeer(conf)
-}
-
-func generateKeyPair() (*network.PeerKeyPair, error) {
-	privateKey, pubKey, err := crypto.GenerateEd25519Key(rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-	privateKeyBytes, err := crypto.MarshalPrivateKey(privateKey)
-	if err != nil {
-		return nil, err
-	}
-	publicKeyBytes, err := crypto.MarshalPublicKey(pubKey)
-	if err != nil {
-		return nil, err
-	}
-	return &network.PeerKeyPair{
-		PublicKey:  publicKeyBytes,
-		PrivateKey: privateKeyBytes,
-	}, nil
 }

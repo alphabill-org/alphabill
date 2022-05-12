@@ -109,7 +109,7 @@ var (
 	ErrInvalidInitialBillID = errors.New("initial bill ID may not be equal to the DC money supply ID")
 )
 
-func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...MoneySchemeOption) (*moneySchemeState, error) {
+func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...Option) (*moneySchemeState, error) {
 	if initialBill == nil {
 		return nil, ErrInitialBillIsNil
 	}
@@ -120,7 +120,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 	if err != nil {
 		return nil, err
 	}
-	options := MoneySchemeOptions{
+	options := Options{
 		revertibleState: defaultTree,
 	}
 	for _, o := range customOpts {

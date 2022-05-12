@@ -38,11 +38,10 @@ func NewBlockProposalSubscriber(self *network.Peer, capacity uint, timeout time.
 	c.protocol, err = blockproposal.New(self, timeout, c.handler)
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 
-	go c.loop()
 	return c, nil
 }
 
-func (c *BlockProposalSubscriber) loop() {
+func (c *BlockProposalSubscriber) Run() {
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -53,7 +52,6 @@ func (c *BlockProposalSubscriber) loop() {
 				logger.Warning("Invalid proposal event: %v", e)
 				continue
 			}
-			logger.Info("Request received: %v", req)
 			err := c.protocol.Publish(req.BlockProposal)
 			if err != nil {
 				logger.Warning("Failed to publish block proposal: %v", err)

@@ -8,10 +8,37 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 )
 
+// NewGenesisFromPartitionNodes creates a new genesis for the root chain and partitions.
+func NewGenesisFromPartitionNodes(nodes []*genesis.PartitionNode, t2Timeout uint32, rootSigner crypto.Signer, encPubKey crypto.Verifier) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
+	var partitionNodesMap = make(map[string][]*genesis.PartitionNode)
+	for _, n := range nodes {
+		if err := n.IsValid(); err != nil {
+			return nil, nil, err
+		}
+		si := string(n.GetP1Request().GetSystemIdentifier())
+		partitionNodesMap[si] = append(partitionNodesMap[si], n)
+	}
+
+	var partitionRecords []*genesis.PartitionRecord
+	for _, nodes := range partitionNodesMap {
+		pr, err := newPartitionRecord(nodes, t2Timeout)
+		if err != nil {
+			return nil, nil, err
+		}
+		partitionRecords = append(partitionRecords, pr)
+	}
+	return NewGenesis(partitionRecords, rootSigner, encPubKey)
+}
+
 // NewGenesis creates a new genesis for the root chain and each partition.
-func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
+func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer, encPubKey crypto.Verifier) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	// initiate State
-	state, err := NewStateFromPartitionRecords(partitions, signer, gocrypto.SHA256)
+	state, err := NewStateFromPartitionRecords(partitions, rootSigner, gocrypto.SHA256)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	encPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -31,7 +58,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 
 	genesisPartitions := make([]*genesis.GenesisPartitionRecord, len(partitions))
 	partitionGenesis := make([]*genesis.PartitionGenesis, len(partitions))
-	rootPublicKey, verifier, err := GetPublicKeyAndVerifier(signer)
+	rootPublicKey, verifier, err := GetPublicKeyAndVerifier(rootSigner)
 
 	// generate genesis structs
 	for i, p := range partitions {
@@ -46,8 +73,9 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 		var keys = make([]*genesis.PublicKeyInfo, len(p.Validators))
 		for j, v := range p.Validators {
 			keys[j] = &genesis.PublicKeyInfo{
-				NodeIdentifier: v.NodeIdentifier,
-				PublicKey:      v.PublicKey,
+				NodeIdentifier:      v.NodeIdentifier,
+				SigningPublicKey:    v.SigningPublicKey,
+				EncryptionPublicKey: v.EncryptionPublicKey,
 			}
 		}
 
@@ -55,6 +83,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 			SystemDescriptionRecord: p.SystemDescriptionRecord,
 			Certificate:             certificate,
 			TrustBase:               rootPublicKey,
+			EncryptionKey:           encPubKeyBytes,
 			Keys:                    keys,
 		}
 	}
@@ -68,4 +97,27 @@ func NewGenesis(partitions []*genesis.PartitionRecord, signer crypto.Signer) (*g
 		return nil, nil, err
 	}
 	return rootGenesis, partitionGenesis, nil
+}
+
+func newPartitionRecord(nodes []*genesis.PartitionNode, t2Timeout uint32) (*genesis.PartitionRecord, error) {
+	// validate nodes
+	for _, n := range nodes {
+		if err := n.IsValid(); err != nil {
+			return nil, err
+		}
+	}
+	// create partition record
+	pr := &genesis.PartitionRecord{
+		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemIdentifier: nodes[0].P1Request.SystemIdentifier,
+			T2Timeout:        t2Timeout,
+		},
+		Validators: nodes,
+	}
+
+	// validate partition record
+	if err := pr.IsValid(); err != nil {
+		return nil, err
+	}
+	return pr, nil
 }

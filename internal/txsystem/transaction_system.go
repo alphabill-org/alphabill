@@ -15,7 +15,7 @@ type (
 		State() State
 
 		// BeginBlock signals the start of a new block and is invoked before any Execute method calls.
-		BeginBlock()
+		BeginBlock(uint64)
 
 		// Execute method executes the transaction. An error must be returned if the transaction execution was not
 		// successful.

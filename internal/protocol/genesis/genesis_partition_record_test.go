@@ -18,10 +18,12 @@ import (
 func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 
-	signerNode1, err := crypto.NewInMemorySecp256K1Signer()
+	signingKey1, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	signerNode2, err := crypto.NewInMemorySecp256K1Signer()
+	signingKey2, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
+	_, encryptionKey1 := testsig.CreateSignerAndVerifier(t)
+	_, encryptionKey2 := testsig.CreateSignerAndVerifier(t)
 
 	type fields struct {
 		Nodes                   []*PartitionNode
@@ -65,31 +67,43 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signerNode1),
-					createPartitionNode(t, "1", signerNode2),
+					createPartitionNode(t, "1", signingKey1, encryptionKey1),
+					createPartitionNode(t, "1", signingKey2, encryptionKey2),
 				},
 				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
 			wantErrStr: "duplicated node id: 1",
 		},
 		{
-			name: "contains nodes with same public key",
+			name: "contains nodes with same signing public key",
 			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signerNode1),
-					createPartitionNode(t, "2", signerNode1),
+					createPartitionNode(t, "1", signingKey1, encryptionKey1),
+					createPartitionNode(t, "2", signingKey1, encryptionKey2),
 				},
 				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
-			wantErrStr: "duplicated node public key",
+			wantErrStr: "duplicated node signing public key",
+		},
+		{
+			name: "contains nodes with same encryption public key",
+			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			fields: fields{
+				Nodes: []*PartitionNode{
+					createPartitionNode(t, "1", signingKey1, encryptionKey1),
+					createPartitionNode(t, "2", signingKey2, encryptionKey1),
+				},
+				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
+			},
+			wantErrStr: "duplicated node encryption public key",
 		},
 		{
 			name: "certificate is nil",
 			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signerNode1),
+					createPartitionNode(t, "1", signingKey1, encryptionKey1),
 				},
 				SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 0}, T2Timeout: 10},
 			},
@@ -119,12 +133,16 @@ func TestGenesisPartitionRecord_IsValid_Nil(t *testing.T) {
 	require.ErrorIs(t, ErrGenesisPartitionRecordIsNil, pr.IsValid(verifier, gocrypto.SHA256))
 }
 
-func createPartitionNode(t *testing.T, nodeID string, signer crypto.Signer) *PartitionNode {
+func createPartitionNode(t *testing.T, nodeID string, signingKey crypto.Signer, encryptionPubKey crypto.Verifier) *PartitionNode {
 	t.Helper()
-	node1Verifier, err := signer.Verifier()
+	node1Verifier, err := signingKey.Verifier()
 	require.NoError(t, err)
 	node1VerifierPubKey, err := node1Verifier.MarshalPublicKey()
 	require.NoError(t, err)
+
+	encryptionPubKeyBytes, err := encryptionPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+
 	p1Request := &p1.P1Request{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeID,
@@ -136,11 +154,12 @@ func createPartitionNode(t *testing.T, nodeID string, signer crypto.Signer) *Par
 			SummaryValue: make([]byte, 32),
 		},
 	}
-	require.NoError(t, p1Request.Sign(signer))
+	require.NoError(t, p1Request.Sign(signingKey))
 	pr := &PartitionNode{
-		NodeIdentifier: nodeID,
-		PublicKey:      node1VerifierPubKey,
-		P1Request:      p1Request,
+		NodeIdentifier:      nodeID,
+		SigningPublicKey:    node1VerifierPubKey,
+		EncryptionPublicKey: encryptionPubKeyBytes,
+		P1Request:           p1Request,
 	}
 	return pr
 }

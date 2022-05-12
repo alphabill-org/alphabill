@@ -14,13 +14,13 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-type baseShardConfiguration struct {
+type baseNodeConfiguration struct {
 	Base   *baseConfiguration
 	Server *grpcServerConfiguration
 }
 
-func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor, blockStore store.BlockStore) error {
-	shardComponent, err := shard.New(converter, stateProcessor, blockStore)
+func defaultShardRunFunc(ctx context.Context, cfg *baseNodeConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor, blockStore store.BlockStore) error {
+	nodeComponent, err := shard.New(converter, stateProcessor, blockStore)
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func defaultShardRunFunc(ctx context.Context, cfg *baseShardConfiguration, conve
 		return err
 	}
 
-	rpcServer, err := rpc.NewRpcServer(shardComponent, shardComponent)
+	rpcServer, err := rpc.NewRpcServer(nodeComponent, nodeComponent)
 	if err != nil {
 		return err
 	}

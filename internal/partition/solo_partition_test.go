@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
@@ -45,25 +47,30 @@ type SingleNodePartition struct {
 }
 
 func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
+	p := createPeer(t)
+
+	key, err := p.PublicKey()
+	require.NoError(t, err)
+	pubKeyBytes, err := key.Raw()
+	require.NoError(t, err)
+
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
+
 	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(txSystem, WithPeerID("1"),
-		WithSigner(nodeSigner),
+		WithSigningKey(nodeSigner),
+		WithEncryptionPubKey(pubKeyBytes),
 		WithSystemIdentifier(systemId))
-	if err != nil {
-		t.Error(err)
-	}
-
-	// partition genesis
-	partitionRecord, err := NewPartitionGenesis([]*genesis.PartitionNode{nodeGenesis}, 2500)
 	if err != nil {
 		t.Error(err)
 	}
 
 	// root genesis
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
-	rootGenesis, partitionGenesis, err := rootchain.NewGenesis([]*genesis.PartitionRecord{partitionRecord}, rootSigner)
+	_, encPubKey := testsig.CreateSignerAndVerifier(t)
+
+	rootGenesis, partitionGenesis, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{nodeGenesis}, 2500, rootSigner, encPubKey)
 	if err != nil {
 		t.Error(err)
 	}
@@ -78,8 +85,9 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 		currentNode: peer.ID("1"),
 	}
 	// partition
-	p, err := New(
-		createPeer(t),
+
+	n, err := New(
+		p,
 		nodeSigner,
 		txSystem,
 		partitionGenesis[0],
@@ -89,23 +97,23 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	if err != nil {
 		t.Error(err)
 	}
-	p.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
-	p1Channel, err := p.eventbus.Subscribe(eventbus.TopicP1, 10)
+	n.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
+	p1Channel, err := n.eventbus.Subscribe(eventbus.TopicP1, 10)
 	if err != nil {
 		t.Error(err)
 	}
-	blockProposalChannel, err := p.eventbus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
+	blockProposalChannel, err := n.eventbus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
 	if err != nil {
 		t.Error(err)
 	}
 	partition := &SingleNodePartition{
-		eventBus:             p.eventbus,
+		eventBus:             n.eventbus,
 		p1Channel:            p1Channel,
 		blockProposalChannel: blockProposalChannel,
-		partition:            p,
+		partition:            n,
 		rootState:            rc,
-		nodeConf:             p.configuration,
-		store:                p.blockStore,
+		nodeConf:             n.configuration,
+		store:                n.blockStore,
 		rootSigner:           rootSigner,
 	}
 	t.Cleanup(partition.Close)
@@ -133,7 +141,7 @@ func (tp *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 }
 
 func (tp *SingleNodePartition) GetProposalTxs() []*transaction.Transaction {
-	return tp.partition.GetCurrentProposal()
+	return tp.partition.proposal
 }
 
 func (tp *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 
 	"github.com/stretchr/testify/require"
@@ -15,8 +17,9 @@ var systemDescription = &SystemDescriptionRecord{
 }
 
 func TestPartitionRecord_IsValid(t *testing.T) {
-	signer, err := crypto.NewInMemorySecp256K1Signer()
+	signingKey, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
+	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		SystemDescriptionRecord *SystemDescriptionRecord
 		Validators              []*PartitionNode
@@ -55,7 +58,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 1},
 					T2Timeout:        10,
 				},
-				Validators: []*PartitionNode{createPartitionNode(t, nodeIdentifier, signer)},
+				Validators: []*PartitionNode{createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)},
 			},
 			wantErrStr: "invalid system id: expected 00000001, got 00000000",
 		},
@@ -64,8 +67,8 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			fields: fields{
 				SystemDescriptionRecord: systemDescription,
 				Validators: []*PartitionNode{
-					createPartitionNode(t, nodeIdentifier, signer),
-					createPartitionNode(t, nodeIdentifier, signer),
+					createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
+					createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey),
 				},
 			},
 			wantErrStr: "duplicated node id: 1",
@@ -95,10 +98,11 @@ func TestPartitionRecord_IsValid_Nil(t *testing.T) {
 func TestPartitionRecord_GetPartitionNode(t *testing.T) {
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
+	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	pr := &PartitionRecord{
 		SystemDescriptionRecord: systemDescription,
 		Validators: []*PartitionNode{
-			createPartitionNode(t, nodeIdentifier, signer),
+			createPartitionNode(t, nodeIdentifier, signer, encryptionPubKey),
 		},
 	}
 	require.NotNil(t, pr.GetPartitionNode(nodeIdentifier))

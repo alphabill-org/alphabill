@@ -1,3 +1,10 @@
 {
-  "privateKey": "0xf7c54d648d73b7f5e4cb3bc5f75d67e3d568158e9c3009f569416f48f563faff"
+  "signing": {
+    "algorithm": "secp256k1",
+    "privateKey": "YIeM5ns/Bb5QtASgAI1MSuKorqzfmo8fTwUDxIBVTWc="
+  },
+  "encryption": {
+    "algorithm": "secp256k1",
+    "privateKey": "pq2UE3OweDH9KP/0VWj2TuqSogMWc7DXhab1oS/hEKQ="
+  }
 }

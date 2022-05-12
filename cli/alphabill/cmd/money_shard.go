@@ -19,7 +19,7 @@ import (
 
 type (
 	moneyShardConfiguration struct {
-		baseShardConfiguration
+		baseNodeConfiguration
 		// The value of initial bill in AlphaBills.
 		InitialBillValue uint64 `validate:"gte=0"`
 		// The initial value of Dust Collector Money supply.
@@ -47,7 +47,7 @@ var log = logger.CreateForPackage()
 // shardRunFunc - set the function to override the default behaviour. Meant for tests.
 func newMoneyShardCmd(ctx context.Context, baseConfig *baseConfiguration, shardRunFunc moneyShardRunnable) *cobra.Command {
 	config := &moneyShardConfiguration{
-		baseShardConfiguration: baseShardConfiguration{
+		baseNodeConfiguration: baseNodeConfiguration{
 			Base:   baseConfig,
 			Server: &grpcServerConfiguration{},
 		},
@@ -97,5 +97,5 @@ func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfigurati
 		return err
 	}
 
-	return defaultShardRunFunc(ctx, &config.baseShardConfiguration, &moneyShardTxConverter{}, billsState, blockStore)
+	return defaultShardRunFunc(ctx, &config.baseNodeConfiguration, &moneyShardTxConverter{}, billsState, blockStore)
 }

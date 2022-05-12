@@ -2,9 +2,10 @@ package money
 
 import (
 	"crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"math/rand"
 	"testing"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
@@ -43,7 +44,7 @@ func TestNewMoneyScheme(t *testing.T) {
 		[]byte(nil), // The initial bill has no stateHash defined
 	).Return(nil)
 
-	_, err := NewMoneySchemeState(crypto.SHA256, []string{defaultUnicityTrustBase}, initialBill, dcMoneyAmount, MoneySchemeOpts.RevertibleState(mockRevertibleState))
+	_, err := NewMoneySchemeState(crypto.SHA256, []string{defaultUnicityTrustBase}, initialBill, dcMoneyAmount, SchemeOpts.RevertibleState(mockRevertibleState))
 	require.NoError(t, err)
 }
 
@@ -215,7 +216,7 @@ func TestProcessTransaction(t *testing.T) {
 				[]string{defaultUnicityTrustBase},
 				initialBill,
 				0,
-				MoneySchemeOpts.RevertibleState(mockRState),
+				SchemeOpts.RevertibleState(mockRState),
 			)
 			require.NoError(t, err)
 			// Finished setup
@@ -387,7 +388,7 @@ func NewMoneyScheme(mockRState *mocks.RevertibleState) (*moneySchemeState, error
 		[]string{defaultUnicityTrustBase},
 		initialBill,
 		100,
-		MoneySchemeOpts.RevertibleState(mockRState),
+		SchemeOpts.RevertibleState(mockRState),
 	)
 	return mss, err
 }

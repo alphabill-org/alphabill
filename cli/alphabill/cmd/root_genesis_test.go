@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"io/ioutil"
-	"os"
 	"path"
 	"testing"
 
@@ -18,9 +17,9 @@ func TestGenerateGenesisFiles(t *testing.T) {
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		PartitionRecordFiles: []string{"testdata/partition-record-1.json"},
-		KeyFile:              "testdata/root-key.json",
-		OutputDir:            outputDir,
+		PartitionNodeGenesisFiles: []string{"testdata/partition-node-genesis-1.json"},
+		KeyFile:                   "testdata/root-key.json",
+		OutputDir:                 outputDir,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
 	require.NoError(t, err)
@@ -42,20 +41,14 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		PartitionRecordFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
-		KeyFile:              "testdata/root-key.json",
-		OutputDir:            outputDir,
+		PartitionNodeGenesisFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
+		KeyFile:                   "testdata/root-key.json",
+		OutputDir:                 outputDir,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
 	require.Errorf(t, err, "signature verify failed")
 }
 
 func setupTestDir(t *testing.T) string {
-	outputDir := path.Join(os.TempDir(), "genesis")
-	_ = os.RemoveAll(outputDir)
-	_ = os.MkdirAll(outputDir, 0700) // -rwx------
-	t.Cleanup(func() {
-		_ = os.RemoveAll(outputDir)
-	})
-	return outputDir
+	return setupTestHomeDir(t, "genesis")
 }

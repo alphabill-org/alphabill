@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +17,7 @@ func CreatePeer(t *testing.T) *network.Peer {
 	pubKey, err := peer.PublicKey()
 	require.NoError(t, err)
 
-	pubKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
 	conf.PersistentPeers = []*network.PeerInfo{{

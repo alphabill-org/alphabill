@@ -179,7 +179,7 @@ func (p *Peer) GetRandomPeerID() peer.ID {
 }
 
 func (pi *PeerInfo) GetID() (peer.ID, error) {
-	pub, err := crypto.UnmarshalPublicKey(pi.PublicKey)
+	pub, err := crypto.UnmarshalSecp256k1PublicKey(pi.PublicKey)
 	if err != nil {
 		return "", err
 	}
@@ -221,14 +221,14 @@ func newPeerStore(peers []*PeerInfo, self peer.ID) (peerstore.Peerstore, error) 
 func readOrGenerateKeyPair(conf *PeerConfiguration) (privateKey crypto.PrivKey, publicKey crypto.PubKey, err error) {
 	if conf.KeyPair == nil {
 		logger.Warning("Peer key not found! Generating a new random key.")
-		privateKey, publicKey, err = crypto.GenerateEd25519Key(rand.Reader)
+		privateKey, publicKey, err = crypto.GenerateSecp256k1Key(rand.Reader)
 	} else {
-		privateKey, err = crypto.UnmarshalPrivateKey(conf.KeyPair.PrivateKey)
+		privateKey, err = crypto.UnmarshalSecp256k1PrivateKey(conf.KeyPair.PrivateKey)
 		if err != nil {
 			err = errors.Wrap(err, ErrStringInvalidPrivateKey)
 			return
 		}
-		publicKey, err = crypto.UnmarshalPublicKey(conf.KeyPair.PublicKey)
+		publicKey, err = crypto.UnmarshalSecp256k1PublicKey(conf.KeyPair.PublicKey)
 		if err != nil {
 			err = errors.Wrap(err, ErrStringInvalidPublicKey)
 			return

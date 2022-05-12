@@ -29,7 +29,9 @@ var nodeID peer.ID = "test"
 var nodeID2 peer.ID = "test2"
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
-	signer, _ := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	pubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
 	type args struct {
 		txSystem txsystem.TransactionSystem
 		opts     []GenesisOption
@@ -54,13 +56,26 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			wantErr: ErrSignerIsNil,
 		},
 		{
+			name: "encryption public key is nil",
+			args: args{
+				txSystem: &testtxsystem.CounterTxSystem{},
+				opts: []GenesisOption{
+					WithSystemIdentifier(systemIdentifier),
+					WithSigningKey(signer),
+					WithEncryptionPubKey(nil),
+					WithPeerID("1")},
+			},
+			wantErr: ErrEncryptionPubKeyIsNil,
+		},
+		{
 			name: "invalid system identifier",
 			args: args{
 				txSystem: &testtxsystem.CounterTxSystem{},
 				opts: []GenesisOption{
 					WithSystemIdentifier(nil),
 					WithPeerID("1"),
-					WithSigner(signer),
+					WithSigningKey(signer),
+					WithEncryptionPubKey(pubKeyBytes),
 					WithHashAlgorithm(gocrypto.SHA256),
 				},
 			},
@@ -72,7 +87,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 				txSystem: &testtxsystem.CounterTxSystem{},
 				opts: []GenesisOption{
 					WithSystemIdentifier(systemIdentifier),
-					WithSigner(signer),
+					WithSigningKey(signer),
 					WithPeerID(""),
 				},
 			},
@@ -92,10 +107,10 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pn := createPartitionNode(t, signer, systemIdentifier, nodeID)
+	pn := createPartitionNode(t, signer, verifier, systemIdentifier, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)
-	require.Equal(t, pubKey, pn.PublicKey)
+	require.Equal(t, pubKey, pn.SigningPublicKey)
 	p1Request := pn.P1Request
 	require.Equal(t, systemIdentifier, p1Request.SystemIdentifier)
 	require.Equal(t, uint64(1), p1Request.RootRoundNumber)
@@ -108,79 +123,17 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
-func TestNewGenesisPartitionRecord_NotOk(t *testing.T) {
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	type args struct {
-		nodes     []*genesis.PartitionNode
-		t2Timeout uint32
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr error
-	}{
-		{
-			name: "validators missing",
-			args: args{
-				nodes: nil,
-			},
-			wantErr: genesis.ErrValidatorsMissing,
-		},
-		{
-			name: "invalid partition node",
-			args: args{
-				nodes: []*genesis.PartitionNode{
-					{
-						NodeIdentifier: "",
-					},
-				},
-				t2Timeout: 10,
-			},
-			wantErr: genesis.ErrNodeIdentifierIsEmpty,
-		},
-		{
-			name: "invalid timeout",
-			args: args{
-				nodes: []*genesis.PartitionNode{
-					createPartitionNode(t, signer, systemIdentifier, nodeID),
-				},
-				t2Timeout: 0,
-			},
-			wantErr: genesis.ErrT2TimeoutIsNil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewPartitionGenesis(tt.args.nodes, tt.args.t2Timeout)
-			require.Nil(t, got)
-			require.ErrorIs(t, err, tt.wantErr)
-		})
-	}
-}
-
-func TestNewGenesisPartitionRecord_Ok(t *testing.T) {
-	var timeout uint32 = 10
-	signer1, _ := testsig.CreateSignerAndVerifier(t)
-	signer2, _ := testsig.CreateSignerAndVerifier(t)
-	pn1 := createPartitionNode(t, signer1, systemIdentifier, nodeID)
-	pn2 := createPartitionNode(t, signer2, systemIdentifier, nodeID2)
-	nodes := []*genesis.PartitionNode{pn1, pn2}
-	pr, err := NewPartitionGenesis(nodes, timeout)
-	require.NoError(t, err)
-	require.NotNil(t, pr)
-	require.Equal(t, timeout, pr.SystemDescriptionRecord.T2Timeout)
-	require.Equal(t, systemIdentifier, pr.SystemDescriptionRecord.SystemIdentifier)
-	require.Equal(t, nodes, pr.Validators)
-}
-
-func createPartitionNode(t *testing.T, signer crypto.Signer, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
 	txSystem := &testtxsystem.CounterTxSystem{}
+	encPubKeyBytes, err := nodeEncryptionPublicKey.MarshalPublicKey()
+	require.NoError(t, err)
 	pn, err := NewNodeGenesis(
 		txSystem,
 		WithPeerID(nodeIdentifier),
 		WithSystemIdentifier(systemIdentifier),
-		WithSigner(signer),
+		WithSigningKey(nodeSigningKey),
+		WithEncryptionPubKey(encPubKeyBytes),
 	)
 	require.NoError(t, err)
 	return pn

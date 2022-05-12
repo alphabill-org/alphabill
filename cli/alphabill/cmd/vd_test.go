@@ -4,59 +4,40 @@ import (
 	"context"
 	"math/rand"
 	"path"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/spf13/pflag"
+	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
 
-	"github.com/spf13/cobra"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	vdtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-const defaultUnicityTrustBase = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
-
-func TestVDShardCmd(t *testing.T) {
-	flagChecked := false
-	abApp := New().withCmdInterceptor(func(c *cobra.Command) {
-		for _, command := range c.Commands() {
-			command.RunE = func(cmd *cobra.Command, args []string) error {
-				cmd.Flags().VisitAll(func(flag *pflag.Flag) {
-					if flag.Name == "trust-base" {
-						flagChecked = true
-						require.True(t, flag.Changed)
-						require.Equal(t, "["+defaultUnicityTrustBase+"]", flag.Value.String())
-					}
-				})
-				require.Equal(t, "vd-shard", cmd.Use)
-				return nil
-			}
-		}
-	})
-	abApp.baseCmd.SetArgs([]string{"vd-shard", "--trust-base", defaultUnicityTrustBase})
-	abApp.Execute(context.Background())
-	require.True(t, flagChecked)
-}
-
-func TestRunVDShard(t *testing.T) {
+func TestRunVD(t *testing.T) {
+	homeDirVD := setupTestHomeDir(t, "vd")
+	keysFileLocation := path.Join(homeDirVD, keysFile)
+	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
+	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		port := "9543"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
 		dialAddr := "localhost:" + port
 
-		conf := &vdShardConfiguration{
-			baseShardConfiguration: baseShardConfiguration{
+		conf := &vdConfiguration{
+			baseNodeConfiguration: baseNodeConfiguration{
 				Base: &baseConfiguration{
 					HomeDir:    alphabillHomeDir(),
 					CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
@@ -67,7 +48,6 @@ func TestRunVDShard(t *testing.T) {
 					MaxRecvMsgSize: defaultMaxRecvMsgSize,
 				},
 			},
-			UnicityTrustBase: []string{defaultUnicityTrustBase},
 		}
 		conf.Server.Address = listenAddr
 
@@ -75,10 +55,33 @@ func TestRunVDShard(t *testing.T) {
 		ctx, _ := async.WithWaitGroup(context.Background())
 		ctx, ctxCancel := context.WithCancel(ctx)
 
-		// Starting the shard in background
+		// generate node genesis
+		cmd := New()
+		args := "vd-genesis --home " + homeDirVD + " -o " + nodeGenesisFileLocation + " -f -k " + keysFileLocation
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		err := cmd.addAndExecuteCommand(context.Background())
+		require.NoError(t, err)
+
+		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		require.NoError(t, err)
+
+		// use same keys for signing and communication encryption.
+		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
+		_, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, 2500, rootSigner, verifier)
+		require.NoError(t, err)
+
+		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
+		require.NoError(t, err)
+
+		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-			err := defaultVDShardRunFunc(ctx, conf)
+
+			cmd = New()
+			args = "vd --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation
+			cmd.baseCmd.SetArgs(strings.Split(args, " "))
+
+			err = cmd.addAndExecuteCommand(ctx)
 			require.NoError(t, err)
 			appStoppedWg.Done()
 		}()
@@ -96,23 +99,16 @@ func TestRunVDShard(t *testing.T) {
 		tx := &transaction.Transaction{
 			UnitId:                id[:],
 			TransactionAttributes: new(anypb.Any),
-			Timeout:               1,
-			SystemId:              []byte{1},
+			Timeout:               10,
+			SystemId:              []byte{0, 0, 0, 1},
 		}
-		reg := &vdtx.RegisterData{}
-		err = anypb.MarshalFrom(tx.TransactionAttributes, reg, proto.MarshalOptions{})
-		require.NoError(t, err)
 
 		response, err := rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.NoError(t, err)
 		require.True(t, response.Ok, "Successful response ok should be true")
 
 		// failing case
-		tx.SystemId = []byte{0} // incorrect system id
-		reg = &vdtx.RegisterData{}
-		err = anypb.MarshalFrom(tx.TransactionAttributes, reg, proto.MarshalOptions{})
-		require.NoError(t, err)
-
+		tx.SystemId = []byte{0, 0, 0, 0} // incorrect system id
 		response, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
 		require.Error(t, err)
 

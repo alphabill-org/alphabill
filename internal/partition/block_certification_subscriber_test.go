@@ -87,6 +87,7 @@ func TestSendBlockCertificationRequest_Ok(t *testing.T) {
 	require.NoError(t, err)
 	sub, err := NewBlockCertificationSubscriber(p, root.ID(), capacity, eb)
 	require.NoError(t, err)
+	go sub.Run()
 	defer sub.Close()
 	err = eb.Submit(eventbus.TopicP1, eventbus.BlockCertificationEvent{Req: &p1.P1Request{}})
 	require.NoError(t, err)

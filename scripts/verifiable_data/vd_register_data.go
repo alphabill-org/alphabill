@@ -19,7 +19,7 @@ import (
 /*
 Example usage
 start shard node:
-$ build/alphabill vd-shard --trust-base 0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0
+$ start.sh
 
 run script:
 $ go run scripts/verifiable_data/vd_register_data.go --data-hash 0x67588d4d37bf6f4d6c63ce4bda38da2b869012b1bc131db07aa1d2b5bfd810dd
@@ -27,7 +27,7 @@ $ go run scripts/verifiable_data/vd_register_data.go --data-hash 0x67588d4d37bf6
 func main() {
 	// parse command line parameters
 	dataHashHex := flag.String("data-hash", "", "SHA256 hash (hex, prefixed with '0x') of the data to verify")
-	timeout := flag.Uint64("timeout", 1, "transaction timeout (block height)")
+	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block height)")
 	uri := flag.String("alphabill-uri", "localhost:9543", "alphabill node uri where to send the transaction")
 	flag.Parse()
 
@@ -82,7 +82,7 @@ func main() {
 func createRegisterDataTx(hash []byte, timeout uint64) (*transaction.Transaction, error) {
 	tx := &transaction.Transaction{
 		UnitId:                hash,
-		SystemId:              []byte{1},
+		SystemId:              []byte{0, 0, 0, 1},
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,
 	}

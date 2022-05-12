@@ -13,7 +13,7 @@ const (
 	// TopicPartitionUnicityCertificate topic is used to read unicity certificates received from the root chain.
 	TopicPartitionUnicityCertificate = "partition.certificates"
 
-	// TopicPartitionTransaction topic is used to receive transactions from wallets or other partition nodes.
+	// TopicPartitionTransaction topic is used to receive transactions from other partition nodes.
 	TopicPartitionTransaction = "partition.transactions"
 
 	// TopicBlockProposalInput is used to receive block proposals from the leader.

@@ -29,7 +29,7 @@ var systemID = []byte{1, 0, 0, 1}
 
 func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	p := testnetwork.CreatePeer(t)
-	signer, _ := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	type args struct {
 		peer    *network.Peer
 		signer  crypto.Signer
@@ -70,7 +70,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 			args: args{
 				peer:    p,
 				signer:  signer,
-				genesis: createPartitionGenesis(t, signer, nil, p),
+				genesis: createPartitionGenesis(t, signer, verifier, nil, p),
 				txs:     nil,
 			},
 			wantErr: ErrTxSystemIsNil,
@@ -87,8 +87,8 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 
 func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	p := testnetwork.CreatePeer(t)
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, nil, p)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{})
 
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 
 func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	p := testnetwork.CreatePeer(t)
-	signer, _ := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	bus := eventbus.New()
 	blockStore := &store.InMemoryBlockStore{}
 	selector := &mockLeaderSelector{}
@@ -118,7 +118,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	conf, err := loadAndValidateConfiguration(
 		p,
 		signer,
-		createPartitionGenesis(t, signer, nil, p),
+		createPartitionGenesis(t, signer, verifier, nil, p),
 		&testtxsystem.CounterTxSystem{},
 		WithContext(ctx),
 		WithEventBus(bus),
@@ -142,23 +142,21 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.Equal(t, t1Timeout, conf.t1Timeout)
 }
 
-func createPartitionGenesis(t *testing.T, signer crypto.Signer, rootSigner crypto.Signer, p *network.Peer) *genesis.PartitionGenesis {
+func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPubKey crypto.Verifier, rootSigner crypto.Signer, p *network.Peer) *genesis.PartitionGenesis {
 	t.Helper()
 	if rootSigner == nil {
 		rootSigner, _ = testsig.CreateSignerAndVerifier(t)
 	}
-	pn := createPartitionNode(t, signer, systemID, p.ID())
-	nodes := []*genesis.PartitionNode{pn}
-	pr, err := NewPartitionGenesis(nodes, 2500)
-	require.NoError(t, err)
-	_, pg, err := rootchain.NewGenesis([]*genesis.PartitionRecord{pr}, rootSigner)
+	pn := createPartitionNode(t, nodeSigningKey, nodeEncryptionPubKey, systemID, p.ID())
+	_, encPubKey := testsig.CreateSignerAndVerifier(t)
+	_, pg, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, 2500, rootSigner, encPubKey)
 	require.NoError(t, err)
 	return pg[0]
 }
 
 func Test_isGenesisValid_NotOk(t *testing.T) {
 	p := testnetwork.CreatePeer(t)
-	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
+	nodeSigner, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		genesis   *genesis.PartitionGenesis
@@ -187,7 +185,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 		{
 			name: "invalid genesis input record hash",
 			fields: fields{
-				genesis:   createPartitionGenesis(t, nodeSigner, rootSigner, p),
+				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
 				trustBase: rootVerifier,
 			},
 			args: args{
@@ -200,7 +198,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 		{
 			name: "invalid genesis summary value",
 			fields: fields{
-				genesis:   createPartitionGenesis(t, nodeSigner, rootSigner, p),
+				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
 				trustBase: rootVerifier,
 			},
 			args: args{
@@ -228,28 +226,28 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 func TestGetPublicKey_Ok(t *testing.T) {
 	p := testnetwork.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, nil, p)
+	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
-	v, err := conf.GetPublicKey(p.ID().String())
+	v, err := conf.GetSigningPublicKey(p.ID().String())
 	require.NoError(t, err)
 	require.Equal(t, verifier, v)
 }
 
 func TestGetPublicKey_NotFound(t *testing.T) {
 	p := testnetwork.CreatePeer(t)
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, nil, p)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
-	_, err = conf.GetPublicKey("1")
+	_, err = conf.GetSigningPublicKey("1")
 	require.ErrorContains(t, err, "public key with node id 1 not found")
 }
 
 func TestGetGenesisBlock(t *testing.T) {
 	p := testnetwork.CreatePeer(t)
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, nil, p)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 	require.NotNil(t, conf.genesisBlock())

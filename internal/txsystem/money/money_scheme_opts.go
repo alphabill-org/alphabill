@@ -1,21 +1,21 @@
 package money
 
 type (
-	MoneySchemeOptions struct {
+	Options struct {
 		revertibleState RevertibleState
 	}
 
-	MoneySchemeOption     func(*MoneySchemeOptions)
+	Option                func(*Options)
 	allMoneySchemeOptions struct{}
 )
 
 var (
-	MoneySchemeOpts = &allMoneySchemeOptions{}
+	SchemeOpts = &allMoneySchemeOptions{}
 )
 
 // RevertibleState sets the revertible state used. Otherwise, default implementation is used.
-func (o *allMoneySchemeOptions) RevertibleState(rt RevertibleState) MoneySchemeOption {
-	return func(options *MoneySchemeOptions) {
+func (o *allMoneySchemeOptions) RevertibleState(rt RevertibleState) Option {
+	return func(options *Options) {
 		options.revertibleState = rt
 	}
 }

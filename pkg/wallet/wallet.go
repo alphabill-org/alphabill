@@ -120,7 +120,12 @@ func (w *Wallet) GetPublicKey() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return key.PubKey, err
+	return key.PubKey, nil
+}
+
+// GetMnemonic returns mnemonic seed of the wallet
+func (w *Wallet) GetMnemonic() (string, error) {
+	return w.db.Do().GetMnemonic()
 }
 
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)

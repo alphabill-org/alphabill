@@ -81,19 +81,30 @@ func execCreateCmd(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
+	config := wallet.Config{DbPath: walletDir, WalletPass: password}
 	var w *wallet.Wallet
 	if mnemonic != "" {
 		fmt.Println("Creating wallet from mnemonic seed...")
-		w, err = wallet.CreateWalletFromSeed(mnemonic, wallet.Config{DbPath: walletDir, WalletPass: password})
+		w, err = wallet.CreateWalletFromSeed(mnemonic, config)
 	} else {
 		fmt.Println("Creating new wallet...")
-		w, err = wallet.CreateNewWallet(wallet.Config{DbPath: walletDir, WalletPass: password})
+		w, err = wallet.CreateNewWallet(config)
 	}
 	if err != nil {
 		return err
 	}
 	defer w.Shutdown()
 	fmt.Println("Wallet created successfully.")
+
+	// print mnemonic if new wallet was created
+	if mnemonic == "" {
+		mnemonicSeed, err := w.GetMnemonic()
+		if err != nil {
+			return err
+		}
+		fmt.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
+		fmt.Println("mnemonic key: " + mnemonicSeed)
+	}
 	return nil
 }
 

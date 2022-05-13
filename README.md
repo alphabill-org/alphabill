@@ -30,10 +30,10 @@ The default $AB_HOME is `$HOME/.alphabill`
 
 ### Start and Stop VD Partition
 
-1. Run script `start.sh` to start a root chain and 3 VD partition nodes.
-2. Run script `stop.sh` to stop the root chain and partition nodes.
+1. Run script `start-vd.sh` to start a root chain and 3 VD partition nodes.
+2. Run script `stop-vd.sh` to stop the root chain and partition nodes.
 
-`start.sh` generates rootchain and partition node keys, genesis files, and starts nodes.
+`start-vd.sh` generates rootchain and partition node keys, genesis files, and starts nodes.
 Node configuration files are located in `testab` directory.
 
 ### Logging configuration

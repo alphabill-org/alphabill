@@ -177,7 +177,10 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 
 	if c.initDefaultEventProcessors {
 		txForwarder, err := forwarder.New(peer, defaultTxForwardingTimeout, func(tx *transaction.Transaction) {
-			c.txBuffer.Add(tx)
+			err := c.txBuffer.Add(tx)
+			if err != nil {
+				logger.Warning("Tx forwarding failed: %v", err)
+			}
 		})
 		if err != nil {
 			return nil, err
@@ -303,8 +306,7 @@ func (c *configuration) GetSystemIdentifier() []byte {
 }
 
 func (c *configuration) GetSigningPublicKey(nodeIdentifier string) (crypto.Verifier, error) {
-	keys := c.genesis.Keys
-	for _, key := range keys {
+	for _, key := range c.genesis.Keys {
 		if key.NodeIdentifier == nodeIdentifier {
 			return crypto.NewVerifierSecp256k1(key.SigningPublicKey)
 		}

@@ -17,8 +17,7 @@ import (
 const zeroSummaryValue = state.Uint64SummaryValue(0)
 
 var (
-	ErrOwnerProofPresent                = errors.New("'register data' transaction cannot have an owner proof")
-	ErrVDPartitionSystemIdentifierIsNil = errors.New("verifiable data partition system identifier is nil")
+	ErrOwnerProofPresent = errors.New("'register data' transaction cannot have an owner proof")
 
 	zeroRootHash = make([]byte, 32)
 )
@@ -58,13 +57,13 @@ func (s vdState) Summary() []byte {
 
 func New() (*txSystem, error) {
 	conf := &state.Config{HashAlgorithm: crypto.SHA256}
-	state, err := state.New(conf)
+	s, err := state.New(conf)
 	if err != nil {
 		return nil, err
 	}
 
 	vdTxSystem := &txSystem{
-		stateTree:     state,
+		stateTree:     s,
 		hashAlgorithm: conf.HashAlgorithm,
 	}
 
@@ -98,7 +97,7 @@ func (d *txSystem) Execute(tx *transaction.Transaction) error {
 	if len(tx.OwnerProof) > 0 {
 		return ErrOwnerProofPresent
 	}
-	hash, err := tx.Hash(d.hashAlgorithm)
+	h, err := tx.Hash(d.hashAlgorithm)
 	if err != nil {
 		return errors.Wrapf(err, "failed to hash tx: %v", err)
 	}
@@ -109,7 +108,7 @@ func (d *txSystem) Execute(tx *transaction.Transaction) error {
 			dataHash:    hasherUtil.Sum256(tx.UnitId),
 			blockNumber: d.currentBlockNumber,
 		},
-		hash,
+		h,
 	)
 	if err != nil {
 		return errors.Wrapf(err, "could not add item: %v", err)

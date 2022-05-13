@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	partitionRecordFileCmd = "partition-node-genesis-file"
-	rootGenesisFileName    = "root-genesis.json"
-	keyFileCmd             = "key-file"
+	partitionRecordFile = "partition-node-genesis-file"
+	rootGenesisFileName = "root-genesis.json"
+	keyFileCmd          = "key-file"
 )
 
 type rootGenesisConfig struct {
@@ -50,7 +50,7 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	}
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to the key file (default: $AB_HOME/rootchain/keys.json). If key file does not exist and flag -f is present then new keys are generated.")
 	cmd.Flags().BoolVarP(&config.ForceKeyGeneration, "force-key-gen", "f", false, "generates new keys for the root chain node if the key-file does not exist")
-	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFileCmd, "p", []string{}, "path to partition node genesis files")
+	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	cmd.AddCommand(newGenerateKeyCmd(ctx, config))
 
@@ -58,7 +58,7 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	if err != nil {
 		panic(err)
 	}
-	err = cmd.MarkFlagRequired(partitionRecordFileCmd)
+	err = cmd.MarkFlagRequired(partitionRecordFile)
 	if err != nil {
 		panic(err)
 	}

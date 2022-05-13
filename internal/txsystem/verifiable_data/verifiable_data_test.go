@@ -28,6 +28,16 @@ func TestRegisterData_InvalidOwnerProof(t *testing.T) {
 	require.ErrorIs(t, err, ErrOwnerProofPresent)
 }
 
+func TestRegisterData_Revert(t *testing.T) {
+	vd := createVD(t)
+	vdState := vd.State()
+	err := vd.Execute(createTx())
+	require.NoError(t, err)
+	require.NotEqual(t, vdState, vd.State())
+	vd.Revert()
+	require.Equal(t, vdState, vd.State())
+}
+
 func TestRegisterData_WithDuplicate(t *testing.T) {
 	vd := createVD(t)
 	tx := createTx()

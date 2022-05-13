@@ -45,5 +45,5 @@ message PartitionNode  {
   string node_identifier = 1;
   bytes signing_public_key = 2;
   bytes encryption_public_key = 3;
-  P1Request p1Request = 4;
+  P1Request p1_request = 4;
 }

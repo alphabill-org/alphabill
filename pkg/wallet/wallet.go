@@ -98,6 +98,16 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 	return newWallet(config, db), nil
 }
 
+// IsEncrypted returns true if wallet exists and is encrypted and or false if wallet exists and is not encrypted,
+// returns error if wallet does not exist.
+func IsEncrypted(config Config) (bool, error) {
+	db, err := getDb(config, false)
+	if err != nil {
+		return false, err
+	}
+	return db.Do().IsEncrypted()
+}
+
 // GetBalance returns sum value of all bills currently owned by the wallet,
 // the value returned is the smallest denomination of alphabills.
 func (w *Wallet) GetBalance() (uint64, error) {
@@ -110,7 +120,12 @@ func (w *Wallet) GetPublicKey() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return key.PubKey, err
+	return key.PubKey, nil
+}
+
+// GetMnemonic returns mnemonic seed of the wallet
+func (w *Wallet) GetMnemonic() (string, error) {
+	return w.db.Do().GetMnemonic()
 }
 
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)

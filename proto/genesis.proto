@@ -21,12 +21,14 @@ message PartitionGenesis {
   SystemDescriptionRecord system_description_record = 1;
   UnicityCertificate certificate = 2;
   bytes trust_base = 3;
-  repeated PublicKeyInfo keys = 4;
+  bytes encryption_key = 4;
+  repeated PublicKeyInfo keys = 5;
 }
 
 message PublicKeyInfo {
   string node_identifier = 1;
-  bytes public_key = 2;
+  bytes signing_public_key = 2;
+  bytes encryption_public_key = 3;
 }
 
 message SystemDescriptionRecord {
@@ -41,7 +43,7 @@ message PartitionRecord {
 
 message PartitionNode  {
   string node_identifier = 1;
-  // key used to sign messages
-  bytes public_key = 2;
-  P1Request p1Request = 3;
+  bytes signing_public_key = 2;
+  bytes encryption_public_key = 3;
+  P1Request p1_request = 4;
 }

@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
@@ -77,6 +75,7 @@ func TestSendProposal_Ok(t *testing.T) {
 	eb := eventbus.New()
 	sub, err := NewBlockProposalSubscriber(peer1, capacity, time.Second, eb)
 	require.NoError(t, err)
+	go sub.Run()
 	defer sub.Close()
 
 	err = eb.Submit(eventbus.TopicBlockProposalOutput, eventbus.BlockProposalEvent{BlockProposal: &blockproposal.BlockProposal{}})
@@ -95,11 +94,13 @@ func TestReceiveProposal_Ok(t *testing.T) {
 	eb := eventbus.New()
 	sub, err := NewBlockProposalSubscriber(peer1, capacity, time.Second, eb)
 	require.NoError(t, err)
+	go sub.Run()
 	defer sub.Close()
 
 	eb2 := eventbus.New()
 	sub2, err := NewBlockProposalSubscriber(peer2, capacity, time.Second, eb2)
 	require.NoError(t, err)
+	go sub.Run()
 	defer sub2.Close()
 
 	ch, err := eb2.Subscribe(eventbus.TopicBlockProposalInput, 1)
@@ -117,7 +118,7 @@ func addPersistentPeers(t *testing.T, peer2 *network.Peer, peer1 *network.Peer) 
 	peer1.Network().Peerstore().AddAddrs(peer2.ID(), peer2.MultiAddresses(), peerstore.PermanentAddrTTL)
 	pubKey, err := peer2.PublicKey()
 	require.NoError(t, err)
-	pubKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
 	peer1.Configuration().PersistentPeers = append(peer1.Configuration().PersistentPeers, &network.PeerInfo{

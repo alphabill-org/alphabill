@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"strings"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -19,9 +18,10 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	type fields struct {
-		NodeIdentifier string
-		PublicKey      []byte
-		P1Request      *p1.P1Request
+		NodeIdentifier      string
+		SigningPublicKey    []byte
+		EncryptionPublicKey []byte
+		P1Request           *p1.P1Request
 	}
 
 	tests := []struct {
@@ -38,27 +38,46 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 			wantErr: ErrNodeIdentifierIsEmpty,
 		},
 		{
-			name: "public key is missing",
+			name: "signing public key is missing",
 			fields: fields{
-				NodeIdentifier: nodeIdentifier,
-				PublicKey:      nil,
+				NodeIdentifier:   nodeIdentifier,
+				SigningPublicKey: nil,
 			},
-			wantErr: ErrPublicKeyIsInvalid,
+			wantErr: ErrSigningPublicKeyIsInvalid,
 		},
 		{
-			name: "public key is invalid",
+			name: "signing public key is invalid",
 			fields: fields{
-				NodeIdentifier: "1",
-				PublicKey:      []byte{0, 0, 0, 0},
+				NodeIdentifier:   "1",
+				SigningPublicKey: []byte{0, 0, 0, 0},
+			},
+			wantErrStr: "pubkey must be 33 bytes long",
+		},
+		{
+			name: "encryption public key is missing",
+			fields: fields{
+				NodeIdentifier:      nodeIdentifier,
+				SigningPublicKey:    pubKey,
+				EncryptionPublicKey: nil,
+			},
+			wantErr: ErrEncryptionPublicKeyIsInvalid,
+		},
+		{
+			name: "encryption public key is invalid",
+			fields: fields{
+				NodeIdentifier:      "1",
+				SigningPublicKey:    pubKey,
+				EncryptionPublicKey: []byte{0, 0, 0, 0},
 			},
 			wantErrStr: "pubkey must be 33 bytes long",
 		},
 		{
 			name: "invalid p1 request",
 			fields: fields{
-				NodeIdentifier: nodeIdentifier,
-				PublicKey:      pubKey,
-				P1Request:      nil,
+				NodeIdentifier:      nodeIdentifier,
+				SigningPublicKey:    pubKey,
+				EncryptionPublicKey: pubKey,
+				P1Request:           nil,
 			},
 			wantErr: p1.ErrP1RequestIsNil,
 		},
@@ -66,15 +85,16 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &PartitionNode{
-				NodeIdentifier: tt.fields.NodeIdentifier,
-				PublicKey:      tt.fields.PublicKey,
-				P1Request:      tt.fields.P1Request,
+				NodeIdentifier:      tt.fields.NodeIdentifier,
+				SigningPublicKey:    tt.fields.SigningPublicKey,
+				EncryptionPublicKey: tt.fields.EncryptionPublicKey,
+				P1Request:           tt.fields.P1Request,
 			}
 			err := x.IsValid()
 			if tt.wantErr != nil {
 				require.Equal(t, tt.wantErr, err)
 			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
+				require.ErrorContains(t, err, tt.wantErrStr)
 			}
 		})
 	}
@@ -97,9 +117,10 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	}
 	require.NoError(t, p1.Sign(signer))
 	pn := &PartitionNode{
-		NodeIdentifier: nodeIdentifier,
-		PublicKey:      pubKey,
-		P1Request:      p1,
+		NodeIdentifier:      nodeIdentifier,
+		SigningPublicKey:    pubKey,
+		EncryptionPublicKey: pubKey,
+		P1Request:           p1,
 	}
 	require.NoError(t, pn.IsValid())
 }

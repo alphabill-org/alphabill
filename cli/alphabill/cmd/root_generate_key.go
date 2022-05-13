@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/spf13/cobra"
 )
 
@@ -45,19 +44,18 @@ func newGenerateKeyCmd(ctx context.Context, rootGenesisConfig *rootGenesisConfig
 			return generateKeysRunFunc(ctx, config)
 		},
 	}
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $ABHOME/root-keys)")
+	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/root-keys)")
 	return cmd
 }
 
 func generateKeysRunFunc(_ context.Context, config *generateKeyConfig) error {
-	rk, err := newRootKey()
+	keys, err := GenerateKeys()
 	if err != nil {
 		return err
 	}
-	return createRootKeyFile(rk, config.getOutputDir())
-}
-
-func createRootKeyFile(rk *rootKey, outputDir string) error {
-	outputFile := path.Join(outputDir, rootKeyFileName)
-	return util.WriteJsonFile(outputFile, rk)
+	err = keys.WriteTo(path.Join(config.getOutputDir(), rootKeyFileName))
+	if err != nil {
+		return err
+	}
+	return nil
 }

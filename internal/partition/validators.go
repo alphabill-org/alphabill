@@ -89,9 +89,9 @@ func (dtv *DefaultTxValidator) Validate(tx *transaction.Transaction) error {
 	}
 
 	block := dtv.blockStore.LatestBlock()
-	if tx.Timeout >= block.BlockNumber {
+	if tx.Timeout <= block.BlockNumber {
 		// transaction is expired
-		return ErrTransactionExpired
+		return errors.Wrapf(ErrTransactionExpired, "timeout %v; blockNumber: %v", tx.Timeout, block.BlockNumber)
 	}
 	return nil
 }

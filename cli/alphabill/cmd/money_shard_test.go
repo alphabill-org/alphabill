@@ -222,7 +222,7 @@ logger-config=custom-log-conf.yaml
 
 func defaultShardConfiguration() *moneyShardConfiguration {
 	return &moneyShardConfiguration{
-		baseShardConfiguration: baseShardConfiguration{
+		baseNodeConfiguration: baseNodeConfiguration{
 			Base: &baseConfiguration{
 				HomeDir:    alphabillHomeDir(),
 				CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),

@@ -2,8 +2,9 @@ package genesis
 
 import (
 	gocrypto "crypto"
-	"strings"
 	"testing"
+
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 
@@ -20,8 +21,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	require.NoError(t, err)
 
 	keyInfo := &PublicKeyInfo{
-		NodeIdentifier: "1",
-		PublicKey:      pubKey,
+		NodeIdentifier:      "1",
+		SigningPublicKey:    pubKey,
+		EncryptionPublicKey: pubKey,
 	}
 
 	type fields struct {
@@ -29,6 +31,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		Certificate             *certificates.UnicityCertificate
 		Keys                    []*PublicKeyInfo
 		TrustBase               []byte
+		EncryptionKey           []byte
 	}
 	type args struct {
 		verifier      crypto.Verifier
@@ -53,7 +56,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "system description record is nil",
 			args: args{verifier: verifier},
 			fields: fields{
-				Keys: []*PublicKeyInfo{keyInfo},
+				Keys:          []*PublicKeyInfo{keyInfo},
+				EncryptionKey: pubKey,
 			},
 			wantErr: ErrSystemDescriptionIsNil,
 		},
@@ -71,42 +75,61 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			wantErr: ErrKeysAreMissing,
 		},
 		{
-			name: "node pub key info is nil",
+			name: "node signing key info is nil",
 			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase: pubKey,
-				Keys:      []*PublicKeyInfo{nil},
+				TrustBase:     pubKey,
+				EncryptionKey: pubKey,
+				Keys:          []*PublicKeyInfo{nil},
 			},
 			wantErr: ErrKeyIsNil,
 		},
 
 		{
-			name: "pub key info identifier is empty",
+			name: "key info identifier is empty",
 			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase: pubKey,
-				Keys:      []*PublicKeyInfo{{NodeIdentifier: "", PublicKey: pubKey}},
+				TrustBase:     pubKey,
+				EncryptionKey: pubKey,
+				Keys: []*PublicKeyInfo{
+					{NodeIdentifier: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
+				},
 			},
 			wantErr: ErrNodeIdentifierIsEmpty,
 		},
 		{
-			name: "pub key is invalid",
+			name: "signing pub key is invalid",
 			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase: pubKey,
-				Keys:      []*PublicKeyInfo{{NodeIdentifier: "111", PublicKey: []byte{0, 0}}},
+				TrustBase:     pubKey,
+				EncryptionKey: pubKey,
+				Keys:          []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: []byte{0, 0}}},
+			},
+			wantErrStr: "pubkey must be 33 bytes long, but is 2",
+		},
+		{
+			name: "encryption pub key is invalid",
+			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			fields: fields{
+				SystemDescriptionRecord: &SystemDescriptionRecord{
+					SystemIdentifier: []byte{0, 0, 0, 0},
+					T2Timeout:        100,
+				},
+				TrustBase:     pubKey,
+				EncryptionKey: pubKey,
+				Keys:          []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
 			},
 			wantErrStr: "pubkey must be 33 bytes long, but is 2",
 		},
@@ -118,8 +141,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase: []byte{0},
-				Keys:      []*PublicKeyInfo{keyInfo},
+				TrustBase:     []byte{0},
+				EncryptionKey: pubKey,
+				Keys:          []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "invalid trust base",
 		},
@@ -131,11 +155,40 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:   pubKey,
-				Certificate: nil,
-				Keys:        []*PublicKeyInfo{keyInfo},
+				TrustBase:     pubKey,
+				Certificate:   nil,
+				EncryptionKey: pubKey,
+				Keys:          []*PublicKeyInfo{keyInfo},
 			},
 			wantErr: certificates.ErrUnicityCertificateIsNil,
+		},
+		{
+			name: "encryption key is nil",
+			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			fields: fields{
+				SystemDescriptionRecord: &SystemDescriptionRecord{
+					SystemIdentifier: []byte{0, 0, 0, 0},
+					T2Timeout:        100,
+				},
+				TrustBase:     pubKey,
+				EncryptionKey: nil,
+				Keys:          []*PublicKeyInfo{keyInfo},
+			},
+			wantErr: ErrRootChainEncryptionKeyMissing,
+		},
+		{
+			name: "encryption key is invalid",
+			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			fields: fields{
+				SystemDescriptionRecord: &SystemDescriptionRecord{
+					SystemIdentifier: []byte{0, 0, 0, 0},
+					T2Timeout:        100,
+				},
+				TrustBase:     pubKey,
+				EncryptionKey: []byte{0, 0, 0, 0},
+				Keys:          []*PublicKeyInfo{keyInfo},
+			},
+			wantErrStr: "pubkey must be 33 bytes long, but is 4",
 		},
 	}
 	for _, tt := range tests {
@@ -144,13 +197,14 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				SystemDescriptionRecord: tt.fields.SystemDescriptionRecord,
 				Certificate:             tt.fields.Certificate,
 				TrustBase:               tt.fields.TrustBase,
+				EncryptionKey:           tt.fields.EncryptionKey,
 				Keys:                    tt.fields.Keys,
 			}
 			err := x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
 			if tt.wantErr != nil {
 				require.Equal(t, tt.wantErr, err)
 			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
+				require.ErrorContains(t, err, tt.wantErrStr)
 			}
 		})
 	}

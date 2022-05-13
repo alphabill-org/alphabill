@@ -87,9 +87,10 @@ func TestRootGenesis_IsValid_Nil(t *testing.T) {
 }
 
 func TestRootGenesis(t *testing.T) {
-	signer, _ := testsig.CreateSignerAndVerifier(t)
+	signingKey, _ := testsig.CreateSignerAndVerifier(t)
+	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
 	hash := []byte{2}
-	node := createPartitionNode(t, nodeIdentifier, signer)
+	node := createPartitionNode(t, nodeIdentifier, signingKey, encryptionPubKey)
 	rg := &RootGenesis{
 		Partitions: []*GenesisPartitionRecord{
 			{

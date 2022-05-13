@@ -43,7 +43,7 @@ func (m *CounterTxSystem) State() txsystem.State {
 	}
 }
 
-func (m *CounterTxSystem) BeginBlock() {
+func (m *CounterTxSystem) BeginBlock(blockNumber uint64) {
 	m.BeginBlockCountDelta++
 }
 

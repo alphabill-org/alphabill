@@ -54,10 +54,10 @@ type (
 		HashAlgorithm     crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
 		TrustBase         []string    // Mandatory, list of compressed secp256k1 public keys (33 bytes each) in hex format.
 		RecordingDisabled bool        // Optional, set to true, to disable keeping track of changes.
-		ShardId           []byte      // Optional, the ID of the shard. By default, 0.
 	}
 
-	// rmaTree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL tree manner and Merkle proofs can be generated.
+	// rmaTree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL
+	// tree manner and Merkle proofs can be generated.
 	rmaTree struct {
 		hashAlgorithm    crypto.Hash   // Hash algorithm used for calculating the tree hash root and the proofs.
 		shardId          []byte        // ID of the shard.
@@ -65,7 +65,6 @@ type (
 		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
 		root             *Node         // root is the top node of the tree.
 		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
-		trustBase        *trustBase
 	}
 
 	changeNode struct {
@@ -111,15 +110,9 @@ func New(config *Config) (*rmaTree, error) {
 	if config.HashAlgorithm != crypto.SHA256 && config.HashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
-	tb, err := newTrustBase(config.TrustBase)
-	if err != nil {
-		return nil, err
-	}
 	return &rmaTree{
 		hashAlgorithm:    config.HashAlgorithm,
 		recordingEnabled: !config.RecordingDisabled,
-		shardId:          config.ShardId,
-		trustBase:        tb,
 	}, nil
 }
 

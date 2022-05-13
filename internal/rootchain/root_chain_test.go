@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 
@@ -65,7 +67,8 @@ func initRootChain(t *testing.T, opts ...Option) (*RootChain, *network.Peer, cry
 	require.NoError(t, err)
 	peer := testnetwork.CreatePeer(t)
 	_, _, partition := createPartitionRecord(t, partitionInputRecord, partitionID, 3)
-	rootGenesis, _, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner)
+	_, encPubKey := testsig.CreateSignerAndVerifier(t)
+	rootGenesis, _, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner, encPubKey)
 	require.NoError(t, err)
 	rc, err := NewRootChain(peer, rootGenesis, rootSigner, opts...)
 	require.NoError(t, err)
@@ -81,7 +84,8 @@ func initRootChainForSendMultipleRequestsTest(t *testing.T) (*p1.Client, *genesi
 
 	rootPeer := testnetwork.CreatePeer(t)
 	partitionsSigners, _, partition := createPartitionRecord(t, partitionInputRecord, partitionID, 1)
-	rootGenesis, pgs, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner)
+	_, encPubKey := testsig.CreateSignerAndVerifier(t)
+	rootGenesis, pgs, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner, encPubKey)
 	require.NoError(t, err)
 	rc, err := NewRootChain(rootPeer, rootGenesis, rootSigner)
 	t.Cleanup(func() {

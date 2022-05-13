@@ -131,6 +131,7 @@ func createLeaderHandler(t *testing.T) (*txbuffer.TxBuffer, *eventbus.EventBus, 
 	require.NoError(t, err)
 	eb := eventbus.New()
 	lh, err := NewLeaderSubscriber(p.ID(), eb, txBuffer, f)
+	go lh.Run()
 	t.Cleanup(lh.Close)
 	return txBuffer, eb, lh
 }

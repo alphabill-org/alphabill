@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
@@ -19,7 +21,6 @@ import (
 	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	libp2p2crypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -444,7 +445,7 @@ func createPeer(t *testing.T) *network.Peer {
 	pubKey, err := peer.PublicKey()
 	require.NoError(t, err)
 
-	pubKeyBytes, err := libp2p2crypto.MarshalPublicKey(pubKey)
+	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
 	conf.PersistentPeers = []*network.PeerInfo{{
@@ -458,20 +459,21 @@ func createNodeWithTxSystem(t *testing.T, systemIdentifier []byte, system txsyst
 	t.Helper()
 	peer := createPeer(t)
 	_, pg, signer, _ := initPartitionGenesis(t, peer, systemIdentifier, system)
-	p, err := New(peer, signer, system, pg, WithUnicityCertificateValidator(certificateValidator), WithTxValidator(txValidator))
+	p, err := New(
+		peer,
+		signer,
+		system,
+		pg,
+		WithUnicityCertificateValidator(certificateValidator),
+		WithTxValidator(txValidator),
+	)
 	require.NoError(t, err)
 	require.Equal(t, idle, p.status)
 	t.Cleanup(p.Close)
 	return p, p.eventbus
 }
 
-func initPartitionGenesis(
-	t *testing.T,
-	peer *network.Peer,
-	systemIdentifier []byte,
-	system txsystem.TransactionSystem,
-) (*genesis.RootGenesis, *genesis.PartitionGenesis, crypto.Signer, crypto.Signer) {
-
+func initPartitionGenesis(t *testing.T, p *network.Peer, systemIdentifier []byte, system txsystem.TransactionSystem) (*genesis.RootGenesis, *genesis.PartitionGenesis, crypto.Signer, crypto.Signer) {
 	t.Helper()
 	nodeSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -479,13 +481,21 @@ func initPartitionGenesis(
 	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
-	pn, err := NewNodeGenesis(system, WithPeerID(peer.ID()), WithSystemIdentifier(systemIdentifier), WithSigner(nodeSigner))
+	pubKey, err := p.PublicKey()
 	require.NoError(t, err)
 
-	pr, err := NewPartitionGenesis([]*genesis.PartitionNode{pn}, 2500)
+	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
-	rootGenesis, pss, err := rootchain.NewGenesis([]*genesis.PartitionRecord{pr}, rootSigner)
+	pn, err := NewNodeGenesis(
+		system, WithPeerID(p.ID()),
+		WithSystemIdentifier(systemIdentifier),
+		WithSigningKey(nodeSigner),
+		WithEncryptionPubKey(pubKeyBytes),
+	)
+	require.NoError(t, err)
+	_, encPubKey := testsig.CreateSignerAndVerifier(t)
+	rootGenesis, pss, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, 2500, rootSigner, encPubKey)
 	require.NoError(t, err)
 
 	return rootGenesis, pss[0], nodeSigner, rootSigner

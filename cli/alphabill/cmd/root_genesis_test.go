@@ -18,9 +18,9 @@ func TestGenerateGenesisFiles(t *testing.T) {
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		PartitionRecordFiles: []string{"testdata/partition-record-1.json"},
-		KeyFile:              "testdata/root-key.json",
-		OutputDir:            outputDir,
+		PartitionNodeGenesisFiles: []string{"testdata/partition-node-genesis-1.json"},
+		KeyFile:                   "testdata/root-key.json",
+		OutputDir:                 outputDir,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
 	require.NoError(t, err)
@@ -42,9 +42,9 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
-		PartitionRecordFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
-		KeyFile:              "testdata/root-key.json",
-		OutputDir:            outputDir,
+		PartitionNodeGenesisFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
+		KeyFile:                   "testdata/root-key.json",
+		OutputDir:                 outputDir,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
 	require.ErrorContains(t, err, "signature verify failed")

@@ -7,8 +7,8 @@
     "input_record": {
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      "summary_value": "AQAA"
+      "block_hash": "msBwL/isEaTnJ90o7nZI6QrFR32tOdtjpqToCJzXn+4=",
+      "summary_value": "AAAAAAAAAAA="
     },
     "unicity_tree_certificate": {
       "system_identifier": "AAAAAQ==",
@@ -50,15 +50,17 @@
     "unicity_seal": {
       "root_chain_round_number": 1,
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      "hash": "LT7cqV5/XK3sD0BwAe9A003c5yIyV1p4yQMEMjIypZc=",
-      "signature": "5S1Arkp1VxDnkIDWMQKDguDdIYFatxDoMOyPmn6pTVEXRJ3OBqYtnj/7wuSAb5jCNaojLiSyGyzaEvILjWe9MwA="
+      "hash": "CByocPfTj1MlRBhdNn/StWQsGqVguCtQE4QULlcdiFI=",
+      "signature": "h3biiy0JHO1gAx80nrQOeaVE+6KnFXBti1XZ1zErI/QqoO6/84ObWS/1Ul9VxyEvKNO85NgU/7Di89Y1ekjawQA="
     }
   },
-  "trust_base": "A1Vc2QG8mD8hZ5F9ut+L5AVaYgyueTM4Z8uh8Z9hyoFj",
+  "trust_base": "AnJdIK9EqWwNh0SDxe5q9QxLjoi3lWVNWsizhywCppBA",
+  "encryption_key": "ArydEzLAl49KjvsyEZWF6YMb9W68MqC1a6QIvAJvl9OA",
   "keys": [
     {
-      "node_identifier": "1",
-      "public_key": "A66zgghWxT3pDN2R6xSKSx8+oCypACFPjazCCsG+bNCS"
+      "node_identifier": "16Uiu2HAmGJRSYgrPS5pim41T8dGd6pNzhWm37xQLXJKJyugaoUDt",
+      "signing_public_key": "A7t+X/7j6KKqW8Rk3ydiavp+nfH5t7JPfZGEdmfd6kuP",
+      "encryption_public_key": "AzYp67k1+Md7QI0CuxYkjAhikjRDUYKG67BXz5c1mQ1X"
     }
   ]
 }

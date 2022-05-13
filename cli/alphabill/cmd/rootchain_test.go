@@ -18,9 +18,9 @@ func TestRootChainCanBeStarted(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := defaultRootChainRunFunc(ctx, conf)
 		require.NoError(t, err)
-		wg.Done()
 	}()
 
 	cancel()

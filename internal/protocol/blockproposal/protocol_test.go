@@ -14,8 +14,6 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/peerstore"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
-
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 
 	"github.com/stretchr/testify/require"
@@ -156,7 +154,7 @@ func createNodes(t *testing.T, nrOfNodes int, leader *network.Peer) ([]*Protocol
 		pubKey, err := peer.PublicKey()
 		require.NoError(t, err)
 
-		pubKeyBytes, err := crypto.MarshalPublicKey(pubKey)
+		pubKeyBytes, err := pubKey.Raw()
 		require.NoError(t, err)
 
 		leaderPeers = append(leaderPeers, &network.PeerInfo{

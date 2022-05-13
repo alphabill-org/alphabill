@@ -1,0 +1,10 @@
+{
+  "signing": {
+    "algorithm": "secp256k1",
+    "privateKey": "YH+SbzKn7hvt+0D1O3YlWZyPDvbCwt1mUfPhohX4dMQ="
+  },
+  "encryption": {
+    "algorithm": "secp256k1",
+    "privateKey": "piFJdNP0Xb7X4+45L8hwt8c9JYVcyeB7SsjPeLOpH2k="
+  }
+}

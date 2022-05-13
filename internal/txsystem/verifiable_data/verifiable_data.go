@@ -6,7 +6,6 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
@@ -15,88 +14,113 @@ import (
 	"github.com/holiman/uint256"
 )
 
-type (
-	RegisterTx interface {
-		transaction.GenericTransaction
-	}
-
-	StateTree interface {
-		AddItem(id *uint256.Int, owner state.Predicate, data state.UnitData, stateHash []byte) error
-		GetRootHash() []byte
-		GetBlockNumber() uint64
-	}
-
-	vdState struct {
-		systemIdentifier []byte
-		stateTree        StateTree
-		hashAlgorithm    crypto.Hash
-	}
-
-	VerifiableDataUnit struct {
-		DataHash    []byte
-		BlockNumber uint64
-	}
-)
-
 const zeroSummaryValue = state.Uint64SummaryValue(0)
 
 var (
-	log = logger.CreateForPackage()
+	ErrOwnerProofPresent = errors.New("'register data' transaction cannot have an owner proof")
+
+	zeroRootHash = make([]byte, 32)
 )
 
-func NewVerifiableDataTxSystem(trustBase []string) (*vdState, error) {
-	conf := &state.Config{
-		HashAlgorithm: crypto.SHA256,
-		TrustBase:     trustBase,
+type (
+	stateTree interface {
+		AddItem(id *uint256.Int, owner state.Predicate, data state.UnitData, stateHash []byte) error
+		GetRootHash() []byte
+		Commit()
+		Revert()
 	}
-	stateTree, err := state.New(conf)
+
+	txSystem struct {
+		stateTree          stateTree
+		hashAlgorithm      crypto.Hash
+		currentBlockNumber uint64
+	}
+
+	vdState struct {
+		root    []byte
+		summary []byte
+	}
+
+	unit struct {
+		dataHash    []byte
+		blockNumber uint64
+	}
+)
+
+func (s vdState) Root() []byte {
+	return s.root
+}
+
+func (s vdState) Summary() []byte {
+	return s.summary
+}
+
+func New() (*txSystem, error) {
+	conf := &state.Config{HashAlgorithm: crypto.SHA256}
+	s, err := state.New(conf)
 	if err != nil {
 		return nil, err
 	}
 
-	vdState := &vdState{
-		systemIdentifier: []byte{1}, // TODO AB-178 get system identifier somewhere
-		stateTree:        stateTree,
-		hashAlgorithm:    conf.HashAlgorithm,
+	vdTxSystem := &txSystem{
+		stateTree:     s,
+		hashAlgorithm: conf.HashAlgorithm,
 	}
 
-	return vdState, nil
+	return vdTxSystem, nil
 }
 
-func (d *vdState) Process(gtx transaction.GenericTransaction) error {
-	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: nil, SystemIdentifier: d.systemIdentifier, BlockNumber: d.stateTree.GetBlockNumber()})
+func (d *txSystem) State() txsystem.State {
+	if d.stateTree.GetRootHash() == nil {
+		return &vdState{zeroRootHash, zeroSummaryValue.Bytes()}
+	}
+	return &vdState{d.stateTree.GetRootHash(), zeroSummaryValue.Bytes()}
+}
+
+func (d *txSystem) BeginBlock(blockNumber uint64) {
+	d.currentBlockNumber = blockNumber
+}
+
+func (d *txSystem) EndBlock() txsystem.State {
+	return d.State()
+}
+
+func (d *txSystem) Revert() {
+	d.stateTree.Revert()
+}
+
+func (d *txSystem) Commit() {
+	d.stateTree.Commit()
+}
+
+func (d *txSystem) Execute(tx *transaction.Transaction) error {
+	if len(tx.OwnerProof) > 0 {
+		return ErrOwnerProofPresent
+	}
+	h, err := tx.Hash(d.hashAlgorithm)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to hash tx: %v", err)
 	}
-	switch tx := gtx.(type) {
-	case RegisterTx:
-		err = d.validateRegTx(tx)
-		if err != nil {
-			return err
-		}
-		log.Debug("Processing registration transaction %v", tx)
-		err = d.stateTree.AddItem(tx.UnitID(), script.PredicateAlwaysFalse(), &VerifiableDataUnit{DataHash: hasherUtil.Sum256(tx.UnitID().Bytes()), BlockNumber: d.stateTree.GetBlockNumber()}, tx.Hash(d.hashAlgorithm))
-		if err != nil {
-			return errors.Wrap(err, "could not add item")
-		}
-		return nil
-	default:
-		return errors.Errorf("unknown type %T", gtx)
-	}
-}
-
-func (d *vdState) validateRegTx(tx RegisterTx) error {
-	if len(tx.OwnerProof()) > 0 {
-		return errors.New("'register data' transaction cannot have an owner proof")
+	err = d.stateTree.AddItem(
+		uint256.NewInt(0).SetBytes(tx.UnitId),
+		script.PredicateAlwaysFalse(),
+		&unit{
+			dataHash:    hasherUtil.Sum256(tx.UnitId),
+			blockNumber: d.currentBlockNumber,
+		},
+		h,
+	)
+	if err != nil {
+		return errors.Wrapf(err, "could not add item: %v", err)
 	}
 	return nil
 }
 
-func (u *VerifiableDataUnit) AddToHasher(hasher hash.Hash) {
-	hasher.Write(u.DataHash)
-	hasher.Write(util.Uint64ToBytes(u.BlockNumber))
+func (u *unit) AddToHasher(hasher hash.Hash) {
+	hasher.Write(u.dataHash)
+	hasher.Write(util.Uint64ToBytes(u.blockNumber))
 }
 
-func (u *VerifiableDataUnit) Value() state.SummaryValue {
+func (u *unit) Value() state.SummaryValue {
 	return zeroSummaryValue
 }

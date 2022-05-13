@@ -33,7 +33,7 @@ func (m *CounterTxSystem) State() txsystem.State {
 	return &Summary{root: bytes, summary: util.Uint64ToBytes(m.SummaryValue)}
 }
 
-func (m *CounterTxSystem) BeginBlock() {
+func (m *CounterTxSystem) BeginBlock(uint64) {
 }
 
 func (m *CounterTxSystem) Revert() {

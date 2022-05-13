@@ -37,17 +37,22 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 
 // Execute adds all child commands and runs the application
 func (a *alphabillApp) Execute(ctx context.Context) {
+	cobra.CheckErr(a.addAndExecuteCommand(ctx))
+}
+
+func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newMoneyShardCmd(ctx, a.baseConfig, convertOptsToRunnable(a.opts)))
-	a.baseCmd.AddCommand(newVDShardCmd(ctx, a.baseConfig))
+	a.baseCmd.AddCommand(newVDNodeCmd(ctx, a.baseConfig))
+	a.baseCmd.AddCommand(newVDGenesisCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newWalletCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newRootGenesisCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newRootChainCmd(ctx, a.baseConfig))
+	a.baseCmd.AddCommand(newNodeIdentifierCmd(ctx))
 
 	if a.cmdInterceptor != nil {
 		a.cmdInterceptor(a.baseCmd)
 	}
-
-	cobra.CheckErr(a.baseCmd.Execute())
+	return a.baseCmd.Execute()
 }
 
 func (a *alphabillApp) withCmdInterceptor(fn func(*cobra.Command)) *alphabillApp {

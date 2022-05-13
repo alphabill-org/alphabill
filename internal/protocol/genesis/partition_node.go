@@ -6,9 +6,10 @@ import (
 )
 
 var (
-	ErrPartitionNodeIsNil    = errors.New("partition node is nil")
-	ErrNodeIdentifierIsEmpty = errors.New("node identifier is empty")
-	ErrPublicKeyIsInvalid    = errors.New("public key is invalid")
+	ErrPartitionNodeIsNil           = errors.New("partition node is nil")
+	ErrNodeIdentifierIsEmpty        = errors.New("node identifier is empty")
+	ErrSigningPublicKeyIsInvalid    = errors.New("signing public key is invalid")
+	ErrEncryptionPublicKeyIsInvalid = errors.New("encryption public key is invalid")
 )
 
 func (x *PartitionNode) IsValid() error {
@@ -18,14 +19,21 @@ func (x *PartitionNode) IsValid() error {
 	if x.NodeIdentifier == "" {
 		return ErrNodeIdentifierIsEmpty
 	}
-	if len(x.PublicKey) == 0 {
-		return ErrPublicKeyIsInvalid
+	if len(x.SigningPublicKey) == 0 {
+		return ErrSigningPublicKeyIsInvalid
 	}
-	pubKey, err := crypto.NewVerifierSecp256k1(x.PublicKey)
+	signingPubKey, err := crypto.NewVerifierSecp256k1(x.SigningPublicKey)
 	if err != nil {
 		return err
 	}
-	if err := x.P1Request.IsValid(pubKey); err != nil {
+	if len(x.EncryptionPublicKey) == 0 {
+		return ErrEncryptionPublicKeyIsInvalid
+	}
+	_, err = crypto.NewVerifierSecp256k1(x.EncryptionPublicKey)
+	if err != nil {
+		return err
+	}
+	if err := x.P1Request.IsValid(signingPubKey); err != nil {
 		return err
 	}
 	return nil
@@ -33,7 +41,8 @@ func (x *PartitionNode) IsValid() error {
 
 func nodesUnique(x []*PartitionNode) error {
 	var ids = make(map[string]string)
-	var keys = make(map[string][]byte)
+	var signingKeys = make(map[string][]byte)
+	var encryptionKeys = make(map[string][]byte)
 	for _, node := range x {
 		if err := node.IsValid(); err != nil {
 			return err
@@ -44,11 +53,17 @@ func nodesUnique(x []*PartitionNode) error {
 		}
 		ids[id] = id
 
-		pubKey := string(node.PublicKey)
-		if _, f := keys[pubKey]; f {
-			return errors.Errorf("duplicated node public key: %X", node.PublicKey)
+		signingPubKey := string(node.SigningPublicKey)
+		if _, f := signingKeys[signingPubKey]; f {
+			return errors.Errorf("duplicated node signing public key: %X", node.SigningPublicKey)
 		}
-		keys[pubKey] = node.PublicKey
+		signingKeys[signingPubKey] = node.SigningPublicKey
+
+		encPubKey := string(node.EncryptionPublicKey)
+		if _, f := encryptionKeys[encPubKey]; f {
+			return errors.Errorf("duplicated node encryption public key: %X", node.EncryptionPublicKey)
+		}
+		encryptionKeys[encPubKey] = node.EncryptionPublicKey
 	}
 	return nil
 }

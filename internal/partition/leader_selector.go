@@ -58,7 +58,7 @@ func (l *DefaultLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	defer l.mutex.Unlock()
 	newLeader := l.LeaderFromUnicitySeal(seal)
 	l.setLeader(newLeader)
-	logger.Info("Leader set to %v", newLeader)
+	logger.Info("Leader set to '%v'", newLeader)
 }
 
 func (l *DefaultLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
@@ -74,7 +74,7 @@ func (l *DefaultLeaderSelector) LeaderFromUnicitySeal(seal *certificates.Unicity
 	}
 	leader, err := l.self.Configuration().PersistentPeers[index].GetID()
 	if err != nil {
-		logger.Warning("Invalid leader index: %v", err)
+		logger.Warning("Failed to get leader ID: %v", err)
 		return UnknownLeader
 	}
 	return leader

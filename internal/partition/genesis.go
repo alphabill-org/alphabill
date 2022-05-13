@@ -16,14 +16,16 @@ import (
 )
 
 var ErrSignerIsNil = errors.New("signer is nil")
+var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
 var ErrInvalidSystemIdentifier = errors.New("system identifier is invalid")
 
 type (
 	genesisConf struct {
-		peerID           peer.ID
-		systemIdentifier []byte
-		hashAlgorithm    gocrypto.Hash
-		signer           crypto.Signer
+		peerID                peer.ID
+		systemIdentifier      []byte
+		hashAlgorithm         gocrypto.Hash
+		signer                crypto.Signer
+		encryptionPubKeyBytes []byte
 	}
 
 	GenesisOption func(c *genesisConf)
@@ -35,6 +37,9 @@ func (c genesisConf) isValid() error {
 	}
 	if c.signer == nil {
 		return ErrSignerIsNil
+	}
+	if len(c.encryptionPubKeyBytes) == 0 {
+		return ErrEncryptionPubKeyIsNil
 	}
 	if len(c.systemIdentifier) == 0 {
 		return ErrInvalidSystemIdentifier
@@ -60,21 +65,28 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) GenesisOption {
 	}
 }
 
-func WithSigner(signer crypto.Signer) GenesisOption {
+func WithSigningKey(signer crypto.Signer) GenesisOption {
 	return func(c *genesisConf) {
 		c.signer = signer
 	}
 }
 
+func WithEncryptionPubKey(encryptionPubKey []byte) GenesisOption {
+	return func(c *genesisConf) {
+		c.encryptionPubKeyBytes = encryptionPubKey
+	}
+}
+
 // NewNodeGenesis creates a new genesis.PartitionNode from the given inputs. This function creates the first
 // p1.P1Request by calling the TransactionSystem.EndBlock function. Must contain PeerID, signer, and system identifier
-// configuration:
+// and public encryption key configuration:
 //
 //    pn, err := NewNodeGenesis(
 //					txSystem,
 //					WithPeerID(myPeerID),
-//					WithSigner(signer),
+//					WithSigningKey(signer),
 //					WithSystemIdentifier(sysID),
+// 					WithEncryptionPubKey(encPubKey),
 //				)
 //
 // This function must be called by all partition nodes in the network.
@@ -140,48 +152,20 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 		return nil, err
 	}
 
-	pubKey, err := verifier.MarshalPublicKey()
+	signingPubKey, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return nil, err
 	}
 
 	// partition node
 	node := &genesis.PartitionNode{
-		NodeIdentifier: id,
-		PublicKey:      pubKey,
-		P1Request:      p1Request,
+		NodeIdentifier:      id,
+		SigningPublicKey:    signingPubKey,
+		EncryptionPublicKey: c.encryptionPubKeyBytes,
+		P1Request:           p1Request,
 	}
-	return node, nil
-}
-
-// NewPartitionGenesis validates the given genesis.PartitionNode values, creates a genesis.PartitionRecord, and
-// verifies the genesis.PartitionRecord.
-//
-// This function must be called by ONE partition node in the network. The result of this method must be sent to the
-// root chain.
-func NewPartitionGenesis(nodes []*genesis.PartitionNode, t2Timeout uint32) (*genesis.PartitionRecord, error) {
-	if len(nodes) == 0 {
-		return nil, genesis.ErrValidatorsMissing
-	}
-	// validate nodes
-	for _, n := range nodes {
-		if err := n.IsValid(); err != nil {
-			return nil, err
-		}
-	}
-
-	// create partition record
-	pr := &genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-			SystemIdentifier: nodes[0].P1Request.SystemIdentifier,
-			T2Timeout:        t2Timeout,
-		},
-		Validators: nodes,
-	}
-
-	// validate partition record
-	if err := pr.IsValid(); err != nil {
+	if err := node.IsValid(); err != nil {
 		return nil, err
 	}
-	return pr, nil
+	return node, nil
 }

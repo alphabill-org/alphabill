@@ -40,12 +40,10 @@ func NewBlockCertificationSubscriber(self *network.Peer, rootNodeID peer.ID, cap
 	}
 	c.protocol, err = p1.NewPartitionNodeCertificationProtocol(self, c.responseHandler)
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
-
-	go c.loop()
 	return c, nil
 }
 
-func (c *CertificationRequestSubscriber) loop() {
+func (c *CertificationRequestSubscriber) Run() {
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -56,7 +54,6 @@ func (c *CertificationRequestSubscriber) loop() {
 				logger.Warning("Invalid certification event: %v", e)
 				continue
 			}
-			logger.Info("Request received: %v", req)
 			err := c.protocol.Submit(req.Req, c.rootNodeID)
 			if err != nil {
 				logger.Warning("Failed to send certification request %v to the root node %v: %v", e, c.rootNodeID, err)

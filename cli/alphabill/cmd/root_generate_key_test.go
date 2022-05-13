@@ -5,8 +5,6 @@ import (
 	"path"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,11 +22,10 @@ func TestGenerateKeys(t *testing.T) {
 	err := generateKeysRunFunc(context.Background(), conf)
 	require.NoError(t, err)
 
-	rk, err := util.ReadJsonFile(path.Join(outputDir, rootKeyFileName), &rootKey{})
+	keys, err := LoadKeys(path.Join(outputDir, rootKeyFileName), false)
 	require.NoError(t, err)
-	require.NotNil(t, rk)
+	require.NotNil(t, keys)
 
-	signer, err := rk.toSigner()
-	require.NoError(t, err)
+	signer := keys.SigningPrivateKey
 	require.NotNil(t, signer)
 }

@@ -69,7 +69,6 @@ func NewLeaderSubscriber(self peer.ID, eb *eventbus.EventBus, buffer *txbuffer.T
 		currentLeader: UnknownLeader,
 	}
 	l.ctx, l.cancel = context.WithCancel(context.Background())
-	go l.loop()
 	return l, nil
 }
 
@@ -80,14 +79,14 @@ func (lh *LeaderSubscriber) Close() {
 	lh.cancel()
 }
 
-func (lh *LeaderSubscriber) loop() {
+func (lh *LeaderSubscriber) Run() {
 	for {
 		select {
 		case <-lh.ctx.Done():
 			logger.Info("Exiting LeaderSubscriber main loop")
 			return
 		case e := <-lh.leadersCh:
-			logger.Info("Leader change event received: %v", e)
+			logger.Debug("Changing leader to: %v", e)
 			lh.handleNewLeaderEvent(e)
 		}
 	}

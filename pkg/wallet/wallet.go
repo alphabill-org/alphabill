@@ -102,6 +102,7 @@ func LoadExistingWallet(config Config) (*Wallet, error) {
 // returns error if wallet does not exist.
 func IsEncrypted(config Config) (bool, error) {
 	db, err := getDb(config, false)
+	defer db.Close()
 	if err != nil {
 		return false, err
 	}

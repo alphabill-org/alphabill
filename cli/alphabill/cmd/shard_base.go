@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
@@ -43,19 +44,34 @@ func defaultShardRunFunc(ctx context.Context, cfg *baseNodeConfiguration, conver
 
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 
+	wg, err := async.WaitGroup(ctx)
+	if err != nil {
+		return err
+	}
 	starterFunc := func(ctx context.Context) {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			log.Info("Starting gRPC server on %s", cfg.Server.Address)
 			err = grpcServer.Serve(listener)
 			if err != nil {
 				log.Error("Server exited with erroneous situation: %s", err)
-				return
+			} else {
+				log.Info("Server exited successfully")
 			}
-			log.Info("Server exited successfully")
 		}()
-		<-ctx.Done()
-		grpcServer.GracefulStop()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// ctx is cancelled when receiving SIGTERM in StartAndWait
+			// this goroutine has to be started inside starterFunc as cancel context is added inside starterFunc
+			<-ctx.Done()
+			log.Info("Stopping gRPC server on %s", cfg.Server.Address)
+			grpcServer.GracefulStop()
+		}()
 	}
 
+	// startAndWaits waits until ctx.waitgroup is done OR sigterm cancels signal OR timeout (not used here)
 	return starter.StartAndWait(ctx, "shard", starterFunc)
 }

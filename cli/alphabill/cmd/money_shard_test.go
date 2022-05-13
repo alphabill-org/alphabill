@@ -220,40 +220,6 @@ logger-config=custom-log-conf.yaml
 	assert.Equal(t, expectedConfig, actualConfig)
 }
 
-func defaultShardConfiguration() *moneyShardConfiguration {
-	return &moneyShardConfiguration{
-		baseNodeConfiguration: baseNodeConfiguration{
-			Base: &baseConfiguration{
-				HomeDir:    alphabillHomeDir(),
-				CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
-				LogCfgFile: defaultLoggerConfigFile,
-			},
-			Server: &grpcServerConfiguration{
-				Address:        defaultServerAddr,
-				MaxRecvMsgSize: defaultMaxRecvMsgSize,
-			},
-		},
-		InitialBillValue:   defaultInitialBillValue,
-		DCMoneySupplyValue: defaultDCMoneySupplyValue,
-		UnicityTrustBase:   []string{},
-	}
-}
-
-// envVarsStr creates sting for test names from envVars
-func envVarsStr(envVars []envVar) (out string) {
-	if len(envVars) == 0 {
-		return
-	}
-	out += "ENV:"
-	for i, ev := range envVars {
-		if i > 0 {
-			out += "&"
-		}
-		out += ev[0] + "=" + ev[1]
-	}
-	return
-}
-
 func TestRunShard_Ok(t *testing.T) {
 	test.MustRunInTime(t, 5*time.Second, func() {
 		port := "9543"
@@ -292,6 +258,40 @@ func TestRunShard_Ok(t *testing.T) {
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
+}
+
+func defaultShardConfiguration() *moneyShardConfiguration {
+	return &moneyShardConfiguration{
+		baseNodeConfiguration: baseNodeConfiguration{
+			Base: &baseConfiguration{
+				HomeDir:    alphabillHomeDir(),
+				CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+				LogCfgFile: defaultLoggerConfigFile,
+			},
+			Server: &grpcServerConfiguration{
+				Address:        defaultServerAddr,
+				MaxRecvMsgSize: defaultMaxRecvMsgSize,
+			},
+		},
+		InitialBillValue:   defaultInitialBillValue,
+		DCMoneySupplyValue: defaultDCMoneySupplyValue,
+		UnicityTrustBase:   []string{},
+	}
+}
+
+// envVarsStr creates sting for test names from envVars
+func envVarsStr(envVars []envVar) (out string) {
+	if len(envVars) == 0 {
+		return
+	}
+	out += "ENV:"
+	for i, ev := range envVars {
+		if i > 0 {
+			out += "&"
+		}
+		out += ev[0] + "=" + ev[1]
+	}
+	return
 }
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {

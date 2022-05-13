@@ -6,6 +6,7 @@ import (
 	"net"
 	"sort"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -87,21 +88,34 @@ func defaultNodeRunFunc(ctx context.Context, cfg *vdConfiguration) error {
 	if err != nil {
 		return err
 	}
+	wg, err := async.WaitGroup(ctx)
+	if err != nil {
+		return err
+	}
 	starterFunc := func(ctx context.Context) {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			log.Info("Starting gRPC server on %s", cfg.Server.Address)
 			err = grpcServer.Serve(listener)
 			if err != nil {
 				log.Error("Server exited with erroneous situation: %s", err)
-				return
+			} else {
+				log.Info("Server exited successfully")
 			}
-			log.Info("Server exited successfully")
 		}()
-		<-ctx.Done()
-		grpcServer.GracefulStop()
-		node.Close()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// ctx is cancelled when receiving SIGTERM in StartAndWait
+			// this goroutine has to be started inside starterFunc as cancel context is added inside starterFunc
+			<-ctx.Done()
+			log.Info("Stopping gRPC server on %s", cfg.Server.Address)
+			grpcServer.GracefulStop()
+			node.Close()
+		}()
 	}
-
+	// startAndWaits waits until ctx.waitgroup is done OR sigterm cancels signal OR timeout (not used here)
 	return starter.StartAndWait(ctx, "vd node", starterFunc)
 }
 

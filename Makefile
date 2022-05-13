@@ -2,6 +2,7 @@ all: clean tools generate test build gosec
 
 clean:
 	rm -rf build/
+	rm -rf testab/
 	rm -rf internal/rpc/payment/*.pb.go
 
 generate:

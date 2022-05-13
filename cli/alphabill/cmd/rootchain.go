@@ -88,7 +88,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 		rootchain.WithRequestChCapacity(config.MaxRequests),
 	)
 	if err != nil {
-		return errors.Wrap(err, "rootchain failed to start: %s")
+		return errors.Wrapf(err, "rootchain failed to start: %v", err)
 	}
 	// use StartAndWait for SIGTERM hook
 	return starter.StartAndWait(ctx, "rootchain", func(ctx context.Context) {

@@ -28,42 +28,55 @@ const (
 	passwordArgCmdName    = "pn"
 	logFileCmdName        = "log-file"
 	logLevelCmdName       = "log-level"
+	walletLocationCmdName = "wallet-location"
 )
+
+type walletConfig struct {
+	Base          *baseConfiguration
+	WalletHomeDir string
+	LogLevel      string
+	LogFile       string
+}
 
 // newWalletCmd creates a new cobra command for the wallet component.
 func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Command {
+	config := &walletConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "wallet",
 		Short: "cli for managing alphabill wallet",
-		Long:  "cli for managing alphabill wallet",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// initalize config so that baseConfig.HomeDir gets configured
 			err := initializeConfig(cmd, baseConfig)
 			if err != nil {
 				return err
 			}
-			return initWalletLogger(cmd, walletHomeDir(baseConfig))
+			err = initWalletConfig(cmd, config)
+			if err != nil {
+				return err
+			}
+			return initWalletLogger(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("Error: must specify a subcommand like create, sync, send etc")
 		},
 	}
-	walletCmd.AddCommand(createCmd(baseConfig))
-	walletCmd.AddCommand(syncCmd(baseConfig))
-	walletCmd.AddCommand(getBalanceCmd(baseConfig))
-	walletCmd.AddCommand(getPubKeyCmd(baseConfig))
-	walletCmd.AddCommand(sendCmd(baseConfig))
-	walletCmd.AddCommand(collectDustCmd(baseConfig))
-	walletCmd.PersistentFlags().String(logFileCmdName, "", fmt.Sprintf("log file path (default $AB_HOME/wallet/wallet.log)"))
-	walletCmd.PersistentFlags().String(logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
+	walletCmd.AddCommand(createCmd(config))
+	walletCmd.AddCommand(syncCmd(config))
+	walletCmd.AddCommand(getBalanceCmd(config))
+	walletCmd.AddCommand(getPubKeyCmd(config))
+	walletCmd.AddCommand(sendCmd(config))
+	walletCmd.AddCommand(collectDustCmd(config))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default $AB_HOME/wallet/wallet.log)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
+	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", fmt.Sprintf("wallet home directory (default $AB_HOME/wallet)"))
 	return walletCmd
 }
 
-func createCmd(baseConfig *baseConfiguration) *cobra.Command {
+func createCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "create",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execCreateCmd(cmd, walletHomeDir(baseConfig))
+			return execCreateCmd(cmd, config)
 		},
 	}
 	cmd.Flags().StringP(seedCmdName, "s", "", "mnemonic seed, the number of words should be 12, 15, 18, 21 or 24")
@@ -71,7 +84,7 @@ func createCmd(baseConfig *baseConfiguration) *cobra.Command {
 	return cmd
 }
 
-func execCreateCmd(cmd *cobra.Command, walletDir string) error {
+func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	mnemonic, err := cmd.Flags().GetString(seedCmdName)
 	if err != nil {
 		return err
@@ -80,14 +93,14 @@ func execCreateCmd(cmd *cobra.Command, walletDir string) error {
 	if err != nil {
 		return err
 	}
-	config := wallet.Config{DbPath: walletDir, WalletPass: password}
+	c := wallet.Config{DbPath: config.WalletHomeDir, WalletPass: password}
 	var w *wallet.Wallet
 	if mnemonic != "" {
 		fmt.Println("Creating wallet from mnemonic seed...")
-		w, err = wallet.CreateWalletFromSeed(mnemonic, config)
+		w, err = wallet.CreateWalletFromSeed(mnemonic, c)
 	} else {
 		fmt.Println("Creating new wallet...")
-		w, err = wallet.CreateNewWallet(config)
+		w, err = wallet.CreateNewWallet(c)
 	}
 	if err != nil {
 		return err
@@ -107,11 +120,11 @@ func execCreateCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func syncCmd(baseConfig *baseConfiguration) *cobra.Command {
+func syncCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "sync",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSyncCmd(cmd, walletHomeDir(baseConfig))
+			return execSyncCmd(cmd, config)
 		},
 	}
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
@@ -119,12 +132,12 @@ func syncCmd(baseConfig *baseConfiguration) *cobra.Command {
 	return cmd
 }
 
-func execSyncCmd(cmd *cobra.Command, walletDir string) error {
+func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, walletDir, uri)
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
 	if err != nil {
 		return err
 	}
@@ -133,11 +146,11 @@ func execSyncCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func sendCmd(baseConfig *baseConfiguration) *cobra.Command {
+func sendCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "send",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSendCmd(cmd, walletHomeDir(baseConfig))
+			return execSendCmd(cmd, config)
 		},
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
@@ -149,12 +162,12 @@ func sendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	return cmd
 }
 
-func execSendCmd(cmd *cobra.Command, walletDir string) error {
+func execSendCmd(cmd *cobra.Command, config *walletConfig) error {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, walletDir, uri)
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
 	if err != nil {
 		return err
 	}
@@ -172,27 +185,25 @@ func execSendCmd(cmd *cobra.Command, walletDir string) error {
 	}
 	err = w.Send(pubKey, amount)
 	if err != nil {
-		// TODO convert known errors to normal output messages?
-		// i.e. in case of errBillWithMinValueNotFound let user know he should collect dust?
 		return err
 	}
 	fmt.Println("successfully sent transaction")
 	return nil
 }
 
-func getBalanceCmd(baseConfig *baseConfiguration) *cobra.Command {
+func getBalanceCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "get-balance",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execGetBalanceCmd(cmd, walletHomeDir(baseConfig))
+			return execGetBalanceCmd(cmd, config)
 		},
 	}
 	addPasswordFlags(cmd)
 	return cmd
 }
 
-func execGetBalanceCmd(cmd *cobra.Command, walletDir string) error {
-	w, err := loadExistingWallet(cmd, walletDir, "")
+func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
 	if err != nil {
 		return err
 	}
@@ -206,19 +217,19 @@ func execGetBalanceCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func getPubKeyCmd(baseConfig *baseConfiguration) *cobra.Command {
+func getPubKeyCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "get-pubkey",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execGetPubKeyCmd(cmd, walletHomeDir(baseConfig))
+			return execGetPubKeyCmd(cmd, config)
 		},
 	}
 	addPasswordFlags(cmd)
 	return cmd
 }
 
-func execGetPubKeyCmd(cmd *cobra.Command, walletDir string) error {
-	w, err := loadExistingWallet(cmd, walletDir, "")
+func execGetPubKeyCmd(cmd *cobra.Command, config *walletConfig) error {
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
 	if err != nil {
 		return err
 	}
@@ -232,12 +243,12 @@ func execGetPubKeyCmd(cmd *cobra.Command, walletDir string) error {
 	return nil
 }
 
-func collectDustCmd(baseConfig *baseConfiguration) *cobra.Command {
+func collectDustCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "collect-dust",
 		Short: "consolidates bills",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execCollectDust(cmd, walletHomeDir(baseConfig))
+			return execCollectDust(cmd, config)
 		},
 	}
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
@@ -245,12 +256,12 @@ func collectDustCmd(baseConfig *baseConfiguration) *cobra.Command {
 	return cmd
 }
 
-func execCollectDust(cmd *cobra.Command, walletDir string) error {
+func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, walletDir, uri)
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
 	if err != nil {
 		return err
 	}
@@ -266,17 +277,6 @@ func execCollectDust(cmd *cobra.Command, walletDir string) error {
 	}
 	fmt.Println("dust collection finished")
 	return nil
-}
-
-func pubKeyHexToBytes(s string) ([]byte, bool) {
-	if len(s) != 68 {
-		return nil, false
-	}
-	pubKeyBytes, err := hexutil.Decode(s)
-	if err != nil {
-		return nil, false
-	}
-	return pubKeyBytes, true
 }
 
 func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wallet.Wallet, error) {
@@ -298,24 +298,24 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wall
 	return wallet.LoadExistingWallet(config)
 }
 
-func walletHomeDir(baseConfig *baseConfiguration) string {
-	return path.Join(baseConfig.HomeDir, "wallet")
+func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
+	walletLocation, err := cmd.Flags().GetString(walletLocationCmdName)
+	if err != nil {
+		return err
+	}
+	if walletLocation != "" {
+		config.WalletHomeDir = walletLocation
+	} else {
+		config.WalletHomeDir = path.Join(config.Base.HomeDir, "wallet")
+	}
+	return nil
 }
 
-func initWalletLogger(cmd *cobra.Command, walletHomeDir string) error {
-	logLevelStr, err := cmd.Flags().GetString(logLevelCmdName)
-	if err != nil {
-		return err
-	}
-	logLevel := wlog.Levels[logLevelStr]
-
-	logFilePath, err := cmd.Flags().GetString(logFileCmdName)
-	if err != nil {
-		return err
-	}
+func initWalletLogger(config *walletConfig) error {
+	logFilePath := config.LogFile
 	if logFilePath == "" {
-		logFilePath = walletHomeDir
-		err = os.MkdirAll(logFilePath, 0700) // -rwx------
+		logFilePath = config.WalletHomeDir
+		err := os.MkdirAll(logFilePath, 0700) // -rwx------
 		if err != nil {
 			return err
 		}
@@ -327,6 +327,7 @@ func initWalletLogger(cmd *cobra.Command, walletHomeDir string) error {
 		return err
 	}
 
+	logLevel := wlog.Levels[config.LogLevel]
 	walletLogger, err := wlog.New(logLevel, logFile)
 	if err != nil {
 		return err
@@ -388,4 +389,15 @@ func readPassword(promptMessage string) (string, error) {
 func addPasswordFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	cmd.Flags().String(passwordArgCmdName, "", passwordArgUsage)
+}
+
+func pubKeyHexToBytes(s string) ([]byte, bool) {
+	if len(s) != 68 {
+		return nil, false
+	}
+	pubKeyBytes, err := hexutil.Decode(s)
+	if err != nil {
+		return nil, false
+	}
+	return pubKeyBytes, true
 }

@@ -105,6 +105,7 @@ func IsEncrypted(config Config) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	defer db.Close()
 	return db.Do().IsEncrypted()
 }
 

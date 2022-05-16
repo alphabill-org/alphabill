@@ -122,6 +122,24 @@ func TestWallet_GetPublicKey(t *testing.T) {
 	require.EqualValues(t, "0x"+testPubKeyHex, hexutil.Encode(pubKey))
 }
 
+func TestWalletIsClosedAfterCallingIsEncrypted(t *testing.T) {
+	// create and shutdown wallet
+	w, _ := CreateTestWallet(t)
+	w.Shutdown()
+
+	// call IsEncrypted
+	_, err := IsEncrypted(w.config)
+	require.NoError(t, err)
+
+	// when wallet is loaded
+	w, err = LoadExistingWallet(w.config)
+	require.NoError(t, err)
+
+	// then using wallet db should not hang
+	_, err = w.GetPublicKey()
+	require.NoError(t, err)
+}
+
 func TestBlockProcessing(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 

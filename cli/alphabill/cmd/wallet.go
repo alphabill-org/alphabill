@@ -66,7 +66,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 	walletCmd.AddCommand(getPubKeyCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default $AB_HOME/wallet/wallet.log)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default <wallet location>/wallet.log)"))
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
 	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", fmt.Sprintf("wallet home directory (default $AB_HOME/wallet)"))
 	return walletCmd

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async/future"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
@@ -91,18 +92,13 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	if err != nil {
 		return errors.Wrap(err, "rootchain failed to start: %s")
 	}
-	wg, err := async.WaitGroup(ctx)
-	if err != nil {
-		return err
-	}
 	// use StartAndWait for SIGTERM hook
 	return starter.StartAndWait(ctx, "rootchain", func(ctx context.Context) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		async.MakeWorker("rootchain shutdown hook", func(ctx context.Context) future.Value {
 			<-ctx.Done()
 			rc.Close()
-		}()
+			return nil
+		}).Start(ctx)
 	})
 }
 

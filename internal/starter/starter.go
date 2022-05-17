@@ -24,6 +24,10 @@ var log = logger.CreateForPackage()
 // The context passed as an argument has to have a ContextWaitGroup context value defined,
 // otherwise StartAndWait will return with an error.
 //
+// StartAndWait executes startFunc and waits for context wait group, if context wait group is empty then startFunc does
+// not block and returns immediately,
+// startFunc can be terminated using SIGTERM signal, context cancel or timeout StartupOption.
+//
 // componentName - used for logging purposes to identify which component is started and shut down.
 // startFunc - function to call when initialization is done. The function must initialize and then return. I.e. not block.
 func StartAndWait(ctx context.Context, componentName string, startFunc StartFunc, opts ...StartupOption) error {

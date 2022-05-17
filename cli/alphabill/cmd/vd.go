@@ -6,6 +6,8 @@ import (
 	"net"
 	"sort"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async/future"
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -88,20 +90,23 @@ func defaultNodeRunFunc(ctx context.Context, cfg *vdConfiguration) error {
 		return err
 	}
 	starterFunc := func(ctx context.Context) {
-		go func() {
-			log.Info("Starting gRPC server on %s", cfg.Server.Address)
-			err = grpcServer.Serve(listener)
-			if err != nil {
-				log.Error("Server exited with erroneous situation: %s", err)
-				return
-			}
-			log.Info("Server exited successfully")
-		}()
-		<-ctx.Done()
-		grpcServer.GracefulStop()
-		node.Close()
+		async.MakeWorker("grpc transport layer server", func(ctx context.Context) future.Value {
+			go func() {
+				log.Info("Starting gRPC server on %s", cfg.Server.Address)
+				err = grpcServer.Serve(listener)
+				if err != nil {
+					log.Error("Server exited with erroneous situation: %s", err)
+				} else {
+					log.Info("Server exited successfully")
+				}
+			}()
+			<-ctx.Done()
+			grpcServer.GracefulStop()
+			node.Close()
+			return nil
+		}).Start(ctx)
 	}
-
+	// StartAndWait waits until ctx.waitgroup is done OR sigterm cancels signal OR timeout (not used here)
 	return starter.StartAndWait(ctx, "vd node", starterFunc)
 }
 

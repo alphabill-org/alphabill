@@ -48,6 +48,7 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newRootGenesisCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newRootChainCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIdentifierCmd(ctx))
+	a.baseCmd.AddCommand(newVDClientCmd(ctx, a.baseConfig))
 
 	if a.cmdInterceptor != nil {
 		a.cmdInterceptor(a.baseCmd)

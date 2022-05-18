@@ -1,9 +1,10 @@
-package wallet
+package money
 
 import (
 	"os"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -11,7 +12,7 @@ const walletPass = "default-wallet-pass"
 
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir(), WalletPass: walletPass})
+	w, err := CreateNewWalletFromSeed(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
@@ -26,7 +27,7 @@ func TestEncryptedWalletCanBeLoaded(t *testing.T) {
 	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: walletPass})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, WalletPass: walletPass})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()
@@ -39,8 +40,8 @@ func TestLoadingEncryptedWalletWrongPassphrase(t *testing.T) {
 	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: "wrong passphrase"})
-	require.ErrorIs(t, err, ErrInvalidPassword)
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, WalletPass: "wrong passphrase"})
+	require.ErrorIs(t, err, wallet.ErrInvalidPassword)
 	require.Nil(t, w)
 }
 
@@ -48,7 +49,7 @@ func TestLoadingEncryptedWalletWithoutPassphrase(t *testing.T) {
 	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
-	require.ErrorIs(t, err, ErrInvalidPassword)
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath})
+	require.ErrorIs(t, err, wallet.ErrInvalidPassword)
 	require.Nil(t, w)
 }

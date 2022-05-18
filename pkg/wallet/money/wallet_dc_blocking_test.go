@@ -1,20 +1,19 @@
-package wallet
+package money
 
 import (
 	"sync"
 	"testing"
 	"time"
 
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -44,7 +43,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 
 	// when the swap tx with given nonce is received
 	res := createBlockWithSwapTx(dcNonce, k, mockClient.txs)
-	err := w.processBlock(res.Block)
+	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -55,7 +54,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	require.EqualValues(t, b.Id, uint256.NewInt(0).SetBytes(dcNonce))
 
 	// when the block's post processor runs
-	err = w.postProcessBlock(res.Block)
+	err = w.PostProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return
@@ -82,7 +81,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	// when the swap tx with dc bills is received
 	bills, _ := w.db.Do().GetBills()
 	res := createBlockWithSwapTxFromDcBills(dcNonce, k, bills...)
-	err := w.processBlock(res.Block)
+	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -93,7 +92,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	require.EqualValues(t, b.Id, dcNonce)
 
 	// when the block's post processor runs
-	err = w.postProcessBlock(res.Block)
+	err = w.PostProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return
@@ -130,9 +129,9 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	// when group 1 swap is received
 	res1 := createBlockWithSwapTxFromDcBills(dcNonce1, k, b11, b12)
 	res1.Block.BlockNumber = 1
-	err := w.processBlock(res1.Block)
+	err := w.ProcessBlock(res1.Block)
 	require.NoError(t, err)
-	err = w.postProcessBlock(res1.Block)
+	err = w.PostProcessBlock(res1.Block)
 	require.NoError(t, err)
 
 	// then swap waitgroup is decremented
@@ -145,9 +144,9 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	// when the swap tx with dc bills is received
 	res2 := createBlockWithSwapTxFromDcBills(dcNonce2, k, b21, b22, b23)
 	res2.Block.BlockNumber = 2
-	err = w.processBlock(res2.Block)
+	err = w.ProcessBlock(res2.Block)
 	require.NoError(t, err)
-	err = w.postProcessBlock(res2.Block)
+	err = w.PostProcessBlock(res2.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return
@@ -192,7 +191,7 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	return &wg
 }
 
-func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills ...*bill) *alphabill.GetBlockResponse {
+func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey, bills ...*bill) *alphabill.GetBlockResponse {
 	var dcTxs []*transaction.Transaction
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &transaction.Transaction{
@@ -206,7 +205,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 	return createBlockWithSwapTx(dcNonce32[:], k, dcTxs)
 }
 
-func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.Transaction) *alphabill.GetBlockResponse {
+func createBlockWithSwapTx(dcNonce []byte, k *wallet.AccountKey, dcTxs []*transaction.Transaction) *alphabill.GetBlockResponse {
 	return &alphabill.GetBlockResponse{
 		Block: &block.Block{
 			BlockNumber:       1,

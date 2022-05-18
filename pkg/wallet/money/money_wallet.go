@@ -36,6 +36,7 @@ var (
 type Wallet struct {
 	*wallet.Wallet
 
+	config           WalletConfig
 	db               Db
 	dustCollectorJob *cron.Cron
 	dcWg             *dcWaitGroup
@@ -47,6 +48,7 @@ func CreateNewWallet(config WalletConfig) (*Wallet, error) {
 		return nil, err
 	}
 	mw := &Wallet{
+		config:           config,
 		db:               db,
 		dustCollectorJob: cron.New(),
 		dcWg:             newDcWaitGroup(),
@@ -179,6 +181,8 @@ func (w *Wallet) PostProcessBlock(b *block.Block) error {
 
 // Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
 func (w *Wallet) Shutdown() {
+	w.Wallet.Shutdown()
+
 	if w.dustCollectorJob != nil {
 		w.dustCollectorJob.Stop()
 	}

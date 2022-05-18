@@ -54,7 +54,7 @@ func generateKeys(mnemonic string) (*keys, error) {
 	if err != nil {
 		return nil, err
 	}
-	ac, err := newAccountKey(masterKey, derivationPath)
+	ac, err := NewAccountKey(masterKey, derivationPath)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func generateKeys(mnemonic string) (*keys, error) {
 	}, nil
 }
 
-func newAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*AccountKey, error) {
+func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*AccountKey, error) {
 	path, err := accounts.ParseDerivationPath(derivationPath)
 	if err != nil {
 		return nil, err

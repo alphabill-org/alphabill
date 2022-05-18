@@ -1,12 +1,12 @@
-package wallet
+package money
 
 import (
 	"os"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"path"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"github.com/stretchr/testify/require"
@@ -45,7 +45,7 @@ func (c *mockAlphabillClient) IsShutdown() bool {
 
 func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
-	c := Config{DbPath: os.TempDir()}
+	c := WalletConfig{DbPath: os.TempDir()}
 	w, err := CreateNewWallet(c)
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -53,20 +53,20 @@ func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	require.NoError(t, err)
 
 	mockClient := &mockAlphabillClient{}
-	w.alphaBillClient = mockClient
+	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 
 func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir()})
+	w, err := CreateNewWalletFromSeed(testMnemonic, WalletConfig{DbPath: os.TempDir()})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
 
 	mockClient := &mockAlphabillClient{}
-	w.alphaBillClient = mockClient
+	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 

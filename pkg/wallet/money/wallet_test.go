@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"encoding/hex"
@@ -9,6 +9,7 @@ import (
 
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -52,7 +53,7 @@ func TestWalletCanBeCreated(t *testing.T) {
 	ac, err := w.db.Do().GetAccountKey()
 	require.NoError(t, err)
 
-	eac, err := newAccountKey(masterKey, testAccountKeyDerivationPath)
+	eac, err := wallet.NewAccountKey(masterKey, testAccountKeyDerivationPath)
 	require.NoError(t, err)
 	require.NotNil(t, eac)
 	require.EqualValues(t, eac, ac)
@@ -62,7 +63,7 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	walletDbPath, err := CopyWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()
@@ -191,8 +192,8 @@ func TestBlockProcessing(t *testing.T) {
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
-	for _, block := range blocks {
-		err := w.processBlock(block)
+	for _, b := range blocks {
+		err := w.ProcessBlock(b)
 		require.NoError(t, err)
 	}
 
@@ -265,11 +266,12 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 }
 
 func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
+	// TODO fix: databse is created before keys are generated so if key generation fails database remains
 	// create wallet with invalid seed
 	_ = DeleteWalletDb(os.TempDir())
-	c := Config{DbPath: os.TempDir()}
+	c := WalletConfig{DbPath: os.TempDir()}
 	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
-	_, err := CreateWalletFromSeed(invalidSeed, c)
+	_, err := CreateNewWalletFromSeed(invalidSeed, c)
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created

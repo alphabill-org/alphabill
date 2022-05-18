@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"crypto"
@@ -45,7 +45,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs,
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(b)
+	err = w.ProcessBlock(b)
 	require.NoError(t, err)
 
 	// then metadata is updated
@@ -76,7 +76,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 			Transactions:       []*transaction.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
-		err = w.processBlock(b)
+		err = w.ProcessBlock(b)
 		require.NoError(t, err)
 	}
 
@@ -97,7 +97,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs[2:3], // swap tx
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(b)
+	err = w.ProcessBlock(b)
 	require.NoError(t, err)
 
 	// then dc metadata is cleared
@@ -125,7 +125,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.processBlock(b)
+	err = w.ProcessBlock(b)
 	require.NoError(t, err)
 
 	// then swap should be broadcast
@@ -164,7 +164,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.processBlock(b)
+	err := w.ProcessBlock(b)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -198,7 +198,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.processBlock(b)
+	err := w.ProcessBlock(b)
 	require.NoError(t, err)
 
 	// then no tx is broadcast
@@ -266,7 +266,7 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	require.False(t, b3.isExpired(blockHeight))
 
 	// receiving a block should delete expired bills
-	err := w.processBlock(&block.Block{
+	err := w.ProcessBlock(&block.Block{
 		BlockNumber:  blockHeight + 1,
 		Transactions: []*transaction.Transaction{},
 	})

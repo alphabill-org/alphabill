@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"fmt"
@@ -16,6 +16,7 @@ import (
 	testserver "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/server"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -25,10 +26,10 @@ const port = 9111
 func TestSync(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{
+	w, err := CreateNewWallet(WalletConfig{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
 	})
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -115,9 +116,9 @@ func TestSync(t *testing.T) {
 func TestSyncToMaxBlockHeight(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{
+	w, err := CreateNewWallet(WalletConfig{
 		DbPath:                os.TempDir(),
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -159,9 +160,9 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{
+	w, err := CreateNewWallet(WalletConfig{
 		DbPath:                os.TempDir(),
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
 	})
 	t.Cleanup(func() {
 		DeleteWallet(w)

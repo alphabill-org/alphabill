@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"

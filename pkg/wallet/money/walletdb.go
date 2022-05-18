@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
@@ -44,14 +45,13 @@ const walletFileName = "wallet.db"
 type Db interface {
 	Do() TxContext
 	WithTransaction(func(tx TxContext) error) error
-
 	Close()
 	DeleteDb()
 }
 
 type TxContext interface {
-	GetAccountKey() (*accountKey, error)
-	SetAccountKey(key *accountKey) error
+	GetAccountKey() (*wallet.AccountKey, error)
+	SetAccountKey(key *wallet.AccountKey) error
 
 	GetMasterKey() (string, error)
 	SetMasterKey(masterKey string) error
@@ -63,14 +63,15 @@ type TxContext interface {
 	SetEncrypted(encrypted bool) error
 	VerifyPassword() (bool, error)
 
+	GetBlockHeight() (uint64, error)
+	SetBlockHeight(blockHeight uint64) error
+
 	SetBill(bill *bill) error
 	ContainsBill(id *uint256.Int) (bool, error)
 	RemoveBill(id *uint256.Int) error
 	GetBills() ([]*bill, error)
 	GetBillWithMinValue(minVal uint64) (*bill, error)
 	GetBalance() (uint64, error)
-	GetBlockHeight() (uint64, error)
-	SetBlockHeight(blockHeight uint64) error
 
 	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
 	GetDcMetadata(nonce []byte) (*dcMetadata, error)
@@ -88,7 +89,7 @@ type wdbtx struct {
 	tx  *bolt.Tx
 }
 
-func OpenDb(config Config) (*wdb, error) {
+func OpenDb(config WalletConfig) (*wdb, error) {
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func OpenDb(config Config) (*wdb, error) {
 	return openDb(dbFilePath, config.WalletPass, false)
 }
 
-func (w *wdbtx) SetAccountKey(key *accountKey) error {
+func (w *wdbtx) SetAccountKey(key *wallet.AccountKey) error {
 	return w.withTx(w.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
@@ -111,8 +112,8 @@ func (w *wdbtx) SetAccountKey(key *accountKey) error {
 	}, true)
 }
 
-func (w *wdbtx) GetAccountKey() (*accountKey, error) {
-	var key *accountKey
+func (w *wdbtx) GetAccountKey() (*wallet.AccountKey, error) {
+	var key *wallet.AccountKey
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
 		k := tx.Bucket(keysBucket).Get(accountKeyName)
 		if k == nil {
@@ -494,7 +495,7 @@ func openDb(dbFilePath string, walletPass string, create bool) (*wdb, error) {
 	return w, nil
 }
 
-func createNewDb(config Config) (*wdb, error) {
+func createNewDb(config WalletConfig) (*wdb, error) {
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
 		return nil, err

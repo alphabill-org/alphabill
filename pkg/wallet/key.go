@@ -16,10 +16,10 @@ import (
 type keys struct {
 	mnemonic   string
 	masterKey  *hdkeychain.ExtendedKey
-	accountKey *accountKey
+	accountKey *AccountKey
 }
 
-type accountKey struct {
+type AccountKey struct {
 	PubKey           []byte `json:"pubKey"` // compressed secp256k1 key 33 bytes
 	PrivKey          []byte `json:"privKey"`
 	PubKeyHashSha256 []byte `json:"pubKeyHashSha256"`
@@ -65,7 +65,7 @@ func generateKeys(mnemonic string) (*keys, error) {
 	}, nil
 }
 
-func newAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*accountKey, error) {
+func newAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*AccountKey, error) {
 	path, err := accounts.ParseDerivationPath(derivationPath)
 	if err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func newAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*a
 	if err != nil {
 		return nil, err
 	}
-	return &accountKey{
+	return &AccountKey{
 		PubKey:           compressedPubKey,
 		PrivKey:          privateKeyBytes,
 		PubKeyHashSha256: hash.Sum256(compressedPubKey),

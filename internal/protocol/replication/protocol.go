@@ -28,7 +28,7 @@ var (
 )
 
 const (
-	// ProtocolIdLedgerReplication is the protocol.ID of the AlphaBill ledger replication protocol.
+	// ProtocolIdLedgerReplication is the protocol.ID of the Alphabill ledger replication protocol.
 	ProtocolIdLedgerReplication = "/ab/ledger/replication/0.0.1"
 	requestBufferSize           = 20
 )

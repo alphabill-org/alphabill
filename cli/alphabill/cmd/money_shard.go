@@ -20,7 +20,7 @@ import (
 type (
 	moneyShardConfiguration struct {
 		baseNodeConfiguration
-		// The value of initial bill in AlphaBills.
+		// The value of initial bill in Alphabills.
 		InitialBillValue uint64 `validate:"gte=0"`
 		// The initial value of Dust Collector Money supply.
 		DCMoneySupplyValue uint64 `validate:"gte=0"`

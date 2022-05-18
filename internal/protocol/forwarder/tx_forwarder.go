@@ -22,7 +22,7 @@ var (
 )
 
 const (
-	// ProtocolIdTxForwarder is the protocol.ID of the AlphaBill transaction forwarding protocol.
+	// ProtocolIdTxForwarder is the protocol.ID of the Alphabill transaction forwarding protocol.
 	ProtocolIdTxForwarder    = "/ab/pc1-I/0.0.1"
 	DefaultForwardingTimeout = 700 * time.Second
 )

@@ -229,7 +229,7 @@ func TestWalletShutdownTerminatesSync(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		w.Sync()
+		_ = w.Sync()
 		wg.Done()
 	}()
 
@@ -254,7 +254,7 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		w.Sync()
+		_ = w.Sync()
 		wg.Done()
 	}()
 

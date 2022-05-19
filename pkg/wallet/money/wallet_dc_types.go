@@ -67,12 +67,12 @@ func (wg *dcWaitGroup) AddExpectedSwaps(swaps []expectedSwap) {
 }
 
 // DecrementSwaps decrement waitgroup after receiving expected swap bills, or timing out on dc/swap
-func (wg *dcWaitGroup) DecrementSwaps(blockHeight uint64, wdb Db) error {
+func (wg *dcWaitGroup) DecrementSwaps(blockHeight uint64, tx TxContext) error {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 
 	for dcNonce, timeout := range wg.swaps {
-		exists, err := wdb.Do().ContainsBill(&dcNonce)
+		exists, err := tx.ContainsBill(&dcNonce)
 		if err != nil {
 			return err
 		}

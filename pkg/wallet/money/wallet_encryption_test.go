@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +40,7 @@ func TestLoadingEncryptedWalletWrongPassphrase(t *testing.T) {
 	require.NoError(t, err)
 
 	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, WalletPass: "wrong passphrase"})
-	require.ErrorIs(t, err, wallet.ErrInvalidPassword)
+	require.ErrorIs(t, err, ErrInvalidPassword)
 	require.Nil(t, w)
 }
 
@@ -50,6 +49,6 @@ func TestLoadingEncryptedWalletWithoutPassphrase(t *testing.T) {
 	require.NoError(t, err)
 
 	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath})
-	require.ErrorIs(t, err, wallet.ErrInvalidPassword)
+	require.ErrorIs(t, err, ErrInvalidPassword)
 	require.Nil(t, w)
 }

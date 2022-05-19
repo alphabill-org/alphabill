@@ -13,10 +13,10 @@ import (
 	"github.com/tyler-smith/go-bip39"
 )
 
-type keys struct {
-	mnemonic   string
-	masterKey  *hdkeychain.ExtendedKey
-	accountKey *AccountKey
+type Keys struct {
+	Mnemonic   string
+	MasterKey  *hdkeychain.ExtendedKey
+	AccountKey *AccountKey
 }
 
 type AccountKey struct {
@@ -27,7 +27,7 @@ type AccountKey struct {
 	DerivationPath   []byte `json:"derivationPath"`
 }
 
-func generateKeys(mnemonic string) (*keys, error) {
+func generateKeys(mnemonic string) (*Keys, error) {
 	if !bip39.IsMnemonicValid(mnemonic) {
 		return nil, errors.New("invalid mnemonic")
 	}
@@ -58,10 +58,10 @@ func generateKeys(mnemonic string) (*keys, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &keys{
-		mnemonic:   mnemonic,
-		masterKey:  masterKey,
-		accountKey: ac,
+	return &Keys{
+		Mnemonic:   mnemonic,
+		MasterKey:  masterKey,
+		AccountKey: ac,
 	}, nil
 }
 

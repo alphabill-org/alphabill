@@ -61,7 +61,7 @@ func (s *TestAlphabillServiceServer) GetMaxBlockHeight() uint64 {
 	return s.maxBlockHeight
 }
 
-func (s *TestAlphabillServiceServer) SetMaxBlockHeight(maxBlockHeight uint64) {
+func (s *TestAlphabillServiceServer) SetMaxBlockNumber(maxBlockHeight uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.maxBlockHeight = maxBlockHeight

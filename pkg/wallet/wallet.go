@@ -1,7 +1,6 @@
 package wallet
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -18,12 +17,7 @@ const (
 	sleepTimeAtMaxBlockHeightMs = 500
 )
 
-var (
-	ErrInvalidPassword = errors.New("invalid password")
-)
-
 type Wallet struct {
-	storage         Storage
 	blockProcessor  BlockProcessor
 	config          Config
 	AlphabillClient abclient.ABClient
@@ -32,71 +26,62 @@ type Wallet struct {
 
 // NewEmptyWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func NewEmptyWallet(storage Storage, blockProcessor BlockProcessor, config Config) (*Wallet, error) {
+func NewEmptyWallet(blockProcessor BlockProcessor, config Config) (*Wallet, *Keys, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	mnemonic, err := generateMnemonic()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return createWallet(storage, blockProcessor, mnemonic, config)
+	return createWallet(blockProcessor, mnemonic, config)
 }
 
 // NewWalletFromSeed creates a new wallet from given seed mnemonic. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func NewWalletFromSeed(storage Storage, blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, error) {
+func NewWalletFromSeed(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return createWallet(storage, blockProcessor, mnemonic, config)
+	return createWallet(blockProcessor, mnemonic, config)
 }
 
 // NewExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func NewExistingWallet(storage Storage, blockProcessor BlockProcessor, config Config) (*Wallet, error) {
+func NewExistingWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
 	}
-	ok, err := storage.VerifyPassword()
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, ErrInvalidPassword
-	}
-	return newWallet(storage, blockProcessor, config), nil
+	return newWallet(blockProcessor, config), nil
 }
 
-// GetPublicKey returns public key of the wallet (compressed secp256k1 key 33 bytes)
-func (w *Wallet) GetPublicKey() ([]byte, error) {
-	key, err := w.storage.GetAccountKey()
-	if err != nil {
-		return nil, err
+func newWallet(blockProcessor BlockProcessor, config Config) *Wallet {
+	return &Wallet{
+		blockProcessor: blockProcessor,
+		config:         config,
+		AlphabillClient: abclient.New(abclient.AlphabillClientConfig{
+			Uri:              config.AlphabillClientConfig.Uri,
+			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
+		}),
+		syncFlag: newSyncFlagWrapper(),
 	}
-	return key.PubKey, nil
 }
 
-// GetMnemonic returns mnemonic seed of the wallet
-func (w *Wallet) GetMnemonic() (string, error) {
-	return w.storage.GetMnemonic()
-}
-
-// Sync synchronises wallet with given alphabill node.
+// Sync synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks forever or until alphabill connection is terminated.
 // Returns immediately if already synchronizing.
-func (w *Wallet) Sync() {
-	w.syncLedger(true)
+func (w *Wallet) Sync(blockNumber uint64) {
+	w.syncLedger(blockNumber, true)
 }
 
-// SyncToMaxBlockHeight synchronises wallet with given alphabill node.
+// Sync synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
 // Returns immediately if already synchronizing.
-func (w *Wallet) SyncToMaxBlockHeight() {
-	w.syncLedger(false)
+func (w *Wallet) SyncToMaxBlockNumber(blockNumber uint64) {
+	w.syncLedger(blockNumber, false)
 }
 
 // GetMaxBlockNumber queries the node for latest block number
@@ -122,29 +107,10 @@ func (w *Wallet) Shutdown() {
 	if w.AlphabillClient != nil {
 		w.AlphabillClient.Shutdown()
 	}
-	// TODO deleegate shutdown to blockProcessor and walletStorage?
-}
-
-//// DeleteDb deletes the wallet database.
-//func (w *Wallet) DeleteDb() {
-//	// TODO delegate to storage or move function to storage?
-//}
-
-func newWallet(storage Storage, blockProcessor BlockProcessor, config Config) *Wallet {
-	return &Wallet{
-		storage:        storage,
-		blockProcessor: blockProcessor,
-		config:         config,
-		AlphabillClient: abclient.New(abclient.AlphabillClientConfig{
-			Uri:              config.AlphabillClientConfig.Uri,
-			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
-		}),
-		syncFlag: newSyncFlagWrapper(),
-	}
 }
 
 // syncLedger downloads and processes blocks, blocks until error in rpc connection
-func (w *Wallet) syncLedger(syncForever bool) {
+func (w *Wallet) syncLedger(blockNumber uint64, syncForever bool) {
 	if w.syncFlag.isSynchronizing() {
 		log.Warning("wallet is already synchronizing")
 		return
@@ -159,9 +125,9 @@ func (w *Wallet) syncLedger(syncForever bool) {
 	go func() {
 		var err error
 		if syncForever {
-			err = w.fetchBlocksForever(ch)
+			err = w.fetchBlocksForever(blockNumber, ch)
 		} else {
-			err = w.fetchBlocksUntilMaxBlock(ch)
+			err = w.fetchBlocksUntilMaxBlock(blockNumber, ch)
 		}
 		if err != nil {
 			log.Error("error fetching block: ", err)
@@ -185,26 +151,22 @@ func (w *Wallet) syncLedger(syncForever bool) {
 	log.Info("ledger sync finished")
 }
 
-func (w *Wallet) fetchBlocksForever(ch chan<- *block.Block) error {
-	blockNo, err := w.storage.GetBlockHeight()
-	if err != nil {
-		return err
-	}
+func (w *Wallet) fetchBlocksForever(blockNumber uint64, ch chan<- *block.Block) error {
 	for {
 		select {
 		case <-w.syncFlag.cancelSyncCh:
 			return nil
 		default:
-			maxBlockNo, err := w.AlphabillClient.GetMaxBlockNumber()
+			maxBlockNo, err := w.GetMaxBlockNumber()
 			if err != nil {
 				return err
 			}
-			if blockNo == maxBlockNo {
+			if blockNumber == maxBlockNo {
 				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
 				continue
 			}
-			blockNo = blockNo + 1
-			b, err := w.AlphabillClient.GetBlock(blockNo)
+			blockNumber = blockNumber + 1
+			b, err := w.AlphabillClient.GetBlock(blockNumber)
 			if err != nil {
 				return err
 			}
@@ -213,22 +175,18 @@ func (w *Wallet) fetchBlocksForever(ch chan<- *block.Block) error {
 	}
 }
 
-func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *block.Block) error {
-	blockNo, err := w.storage.GetBlockHeight()
-	if err != nil {
-		return err
-	}
+func (w *Wallet) fetchBlocksUntilMaxBlock(blockNumber uint64, ch chan<- *block.Block) error {
 	maxBlockNo, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
-	for blockNo < maxBlockNo {
+	for blockNumber < maxBlockNo {
 		select {
 		case <-w.syncFlag.cancelSyncCh:
 			return nil
 		default:
-			blockNo = blockNo + 1
-			b, err := w.AlphabillClient.GetBlock(blockNo)
+			blockNumber = blockNumber + 1
+			b, err := w.AlphabillClient.GetBlock(blockNumber)
 			if err != nil {
 				return err
 			}
@@ -265,28 +223,12 @@ func (w *Wallet) processBlock(b *block.Block) (err error) {
 	return nil
 }
 
-func createWallet(storage Storage, blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, error) {
+func createWallet(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {
 	k, err := generateKeys(mnemonic)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	err = storage.SetEncrypted(config.WalletPass != "")
-	if err != nil {
-		return nil, err
-	}
-	err = storage.SetMnemonic(mnemonic)
-	if err != nil {
-		return nil, err
-	}
-	err = storage.SetMasterKey(k.masterKey.String())
-	if err != nil {
-		return nil, err
-	}
-	err = storage.SetAccountKey(k.accountKey)
-	if err != nil {
-		return nil, err
-	}
-	return newWallet(storage, blockProcessor, config), nil
+	return newWallet(blockProcessor, config), k, nil
 }
 
 func generateMnemonic() (string, error) {

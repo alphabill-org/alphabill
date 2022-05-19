@@ -143,8 +143,7 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	defer w.Shutdown()
-	w.SyncToMaxBlockHeight()
-	return nil
+	return w.SyncToMaxBlockNumber()
 }
 
 func sendCmd(config *walletConfig) *cobra.Command {

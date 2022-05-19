@@ -30,6 +30,7 @@ var (
 	ErrSwapInProgress      = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
 	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	ErrInvalidPassword     = errors.New("invalid password")
 )
 
 type (
@@ -40,10 +41,11 @@ type (
 		db               Db
 		dustCollectorJob *cron.Cron
 		dcWg             *dcWaitGroup
-		currentBlock     *blockData
+		txBlock          *transactionBlock
 	}
 
-	blockData struct {
+	// transactionBlock helper struct that holds block metadata and db transaction during block processing
+	transactionBlock struct {
 		blockNumber uint64
 		tx          TxContext
 	}
@@ -57,8 +59,7 @@ func CreateNewWallet(config WalletConfig) (*Wallet, error) {
 
 	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
 
-	gw, err := wallet.NewEmptyWallet(
-		nil, // TODO storage
+	gw, keys, err := wallet.NewEmptyWallet(
 		mw,
 		wallet.Config{
 			WalletPass:            config.WalletPass,
@@ -68,6 +69,12 @@ func CreateNewWallet(config WalletConfig) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	err = saveKeys(db, keys, config.WalletPass)
+	if err != nil {
+		return nil, err
+	}
+
 	mw.Wallet = gw
 	return mw, nil
 }
@@ -77,9 +84,10 @@ func CreateNewWalletFromSeed(mnemonic string, config WalletConfig) (*Wallet, err
 	if err != nil {
 		return nil, err
 	}
+
 	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
-	gw, err := wallet.NewWalletFromSeed(
-		nil, // TODO storage
+
+	gw, keys, err := wallet.NewWalletFromSeed(
 		mw,
 		mnemonic,
 		wallet.Config{
@@ -90,6 +98,12 @@ func CreateNewWalletFromSeed(mnemonic string, config WalletConfig) (*Wallet, err
 	if err != nil {
 		return nil, err
 	}
+
+	err = saveKeys(db, keys, config.WalletPass)
+	if err != nil {
+		return nil, err
+	}
+
 	mw.Wallet = gw
 	return mw, nil
 }
@@ -99,9 +113,18 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	ok, err := db.Do().VerifyPassword()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrInvalidPassword
+	}
+
 	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
+
 	gw, err := wallet.NewExistingWallet(
-		nil, // TODO storage
 		mw,
 		wallet.Config{
 			WalletPass:            config.WalletPass,
@@ -111,6 +134,7 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	mw.Wallet = gw
 	return mw, nil
 }
@@ -133,7 +157,7 @@ func (w *Wallet) BeginBlock(blockNumber uint64) error {
 	if err != nil {
 		return err
 	}
-	w.currentBlock = &blockData{blockNumber: blockNumber, tx: tx}
+	w.txBlock = &transactionBlock{blockNumber: blockNumber, tx: tx}
 
 	lastBlockNumber, err := tx.GetBlockNumber()
 	if err != nil {
@@ -143,39 +167,39 @@ func (w *Wallet) BeginBlock(blockNumber uint64) error {
 }
 
 func (w *Wallet) ProcessTx(tx *transaction.Transaction) error {
-	return w.collectBills(w.currentBlock.tx, tx, w.currentBlock.blockNumber)
+	return w.collectBills(w.txBlock.tx, tx, w.txBlock.blockNumber)
 }
 
 func (w *Wallet) EndBlock() error {
 	defer func() {
-		if w.currentBlock != nil {
-			err := w.currentBlock.tx.RollbackTransaction()
+		if w.txBlock != nil {
+			err := w.txBlock.tx.RollbackTransaction()
 			if err != nil {
 				log.Error(err)
 			}
 		}
 	}()
-	err := w.deleteExpiredDcBills(w.currentBlock.tx, w.currentBlock.blockNumber)
+	err := w.deleteExpiredDcBills(w.txBlock.tx, w.txBlock.blockNumber)
 	if err != nil {
 		return err
 	}
-	err = w.currentBlock.tx.SetBlockNumber(w.currentBlock.blockNumber)
+	err = w.txBlock.tx.SetBlockNumber(w.txBlock.blockNumber)
 	if err != nil {
 		return err
 	}
-	err = w.trySwap(w.currentBlock.tx)
+	err = w.trySwap(w.txBlock.tx)
 	if err != nil {
 		return err
 	}
-	err = w.dcWg.DecrementSwaps(w.currentBlock.blockNumber, w.db)
+	err = w.dcWg.DecrementSwaps(w.txBlock.blockNumber, w.txBlock.tx)
 	if err != nil {
 		return err
 	}
-	err = w.currentBlock.tx.CommitTransaction()
+	err = w.txBlock.tx.CommitTransaction()
 	if err != nil {
 		return err
 	}
-	w.currentBlock = nil
+	w.txBlock = nil
 	return nil
 }
 
@@ -220,6 +244,20 @@ func (w *Wallet) GetBalance() (uint64, error) {
 	return w.db.Do().GetBalance()
 }
 
+// GetPublicKey returns public key of the wallet (compressed secp256k1 key 33 bytes)
+func (w *Wallet) GetPublicKey() ([]byte, error) {
+	key, err := w.db.Do().GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+	return key.PubKey, nil
+}
+
+// GetMnemonic returns mnemonic seed of the wallet
+func (w *Wallet) GetMnemonic() (string, error) {
+	return w.db.Do().GetMnemonic()
+}
+
 // Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
 // to the given public key, the public key must be in compressed secp256k1 format.
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
@@ -248,7 +286,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	maxBlockNo, err := w.AlphabillClient.GetMaxBlockNumber()
+	maxBlockNo, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
@@ -272,6 +310,30 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if !res.Ok {
 		return errors.New("payment returned error code: " + res.Message)
 	}
+	return nil
+}
+
+// Sync synchronises wallet from the last known block number with the given alphabill node.
+// The function blocks forever or until alphabill connection is terminated.
+// Returns immediately if already synchronizing.
+func (w *Wallet) Sync() error {
+	blockNumber, err := w.db.Do().GetBlockNumber()
+	if err != nil {
+		return err
+	}
+	w.Wallet.Sync(blockNumber)
+	return nil
+}
+
+// Sync synchronises wallet from the last known block number with the given alphabill node.
+// The function blocks until maximum block height, calculated at the start of the process, is reached.
+// Returns immediately if already synchronizing.
+func (w *Wallet) SyncToMaxBlockNumber() error {
+	blockNumber, err := w.db.Do().GetBlockNumber()
+	if err != nil {
+		return err
+	}
+	w.Wallet.SyncToMaxBlockNumber(blockNumber)
 	return nil
 }
 
@@ -467,7 +529,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 		if err != nil {
 			return err
 		}
-		maxBlockNo, err := w.AlphabillClient.GetMaxBlockNumber()
+		maxBlockNo, err := w.GetMaxBlockNumber()
 		if err != nil {
 			return err
 		}
@@ -656,4 +718,22 @@ func getDb(config WalletConfig, create bool) (Db, error) {
 		return createNewDb(config)
 	}
 	return OpenDb(config)
+}
+
+func saveKeys(db Db, keys *wallet.Keys, walletPass string) error {
+	return db.WithTransaction(func(tx TxContext) error {
+		err := tx.SetEncrypted(walletPass != "")
+		if err != nil {
+			return err
+		}
+		err = tx.SetMnemonic(keys.Mnemonic)
+		if err != nil {
+			return err
+		}
+		err = tx.SetMasterKey(keys.MasterKey.String())
+		if err != nil {
+			return err
+		}
+		return tx.SetAccountKey(keys.AccountKey)
+	})
 }

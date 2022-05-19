@@ -48,7 +48,8 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 			}
 
 			vdClient := vd.New(ctx, &vd.AlphabillClientConfig{
-				Uri: uri,
+				Uri:          uri,
+				WaitForReady: true,
 			})
 
 			if hash != "" {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"strings"
 	"sync"
@@ -19,13 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunVD_UseClientForTx(t *testing.T) {
+func TestVD_UseClientForTx(t *testing.T) {
 	homeDirVD := setupTestHomeDir(t, "vd")
 	keysFileLocation := path.Join(homeDirVD, keysFile)
 	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
 	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
-	testtime.MustRunInTime(t, 5*time.Second, func() {
-		port := "9543"
+	testtime.MustRunInTime(t, 20*time.Second, func() {
+		port := "9544"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
 		dialAddr := "localhost:" + port
 
@@ -69,35 +70,44 @@ func TestRunVD_UseClientForTx(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-
-			cmd = New()
-			args = "vd-node --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation
+			fmt.Println("Starting VD node")
+			cmd := New()
+			args := "vd-node --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-			err = cmd.addAndExecuteCommand(ctx)
+			err := cmd.addAndExecuteCommand(ctx)
 			require.NoError(t, err)
 			appStoppedWg.Done()
 		}()
 
-		// Start VD Client
-		err = sendTxWithClient(dialAddr)
-		require.NoError(t, err)
+		go func() {
+			fmt.Println("Starting VD client 1")
+			// Start VD Client
+			err := sendTxWithClient(ctx, dialAddr)
+			require.NoError(t, err)
+		}()
 
-		// failing case, send same stuff once again
-		err = sendTxWithClient(dialAddr)
-		// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
-		require.NoError(t, err)
+		go func() {
+			fmt.Println("Starting VD client 2")
+			// failing case, send same stuff once again
+			err := sendTxWithClient(ctx, dialAddr)
+			// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
+			require.NoError(t, err)
+		}()
+
+		fmt.Println("Waiting for VD clients")
 
 		// Close the app
 		ctxCancel()
+		fmt.Println("Sent context cancel")
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
 }
 
-func sendTxWithClient(dialAddr string) error {
+func sendTxWithClient(ctx context.Context, dialAddr string) error {
 	cmd := New()
 	args := "vd register --hash " + "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" + " -u " + dialAddr
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	return cmd.addAndExecuteCommand(context.Background())
+	return cmd.addAndExecuteCommand(ctx)
 }

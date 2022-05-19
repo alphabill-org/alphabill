@@ -23,14 +23,16 @@ type (
 	}
 
 	AlphabillClientConfig struct {
-		Uri string
+		Uri          string
+		WaitForReady bool
 	}
 )
 
 func New(_ context.Context, abConf *AlphabillClientConfig) *vdClient {
 	return &vdClient{
 		abClient: abclient.New(abclient.AlphabillClientConfig{
-			Uri: abConf.Uri,
+			Uri:          abConf.Uri,
+			WaitForReady: abConf.WaitForReady,
 		}),
 	}
 }

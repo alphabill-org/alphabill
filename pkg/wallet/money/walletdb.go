@@ -50,9 +50,9 @@ type Db interface {
 }
 
 type TxContext interface {
-	BeginTransaction() error
-	CommitTransaction() error
-	RollbackTransaction() error
+	BeginTx() error
+	CommitTx() error
+	RollbackTx() error
 
 	GetAccountKey() (*wallet.AccountKey, error)
 	SetAccountKey(key *wallet.AccountKey) error
@@ -431,7 +431,7 @@ func (w *wdb) Do() TxContext {
 	return &wdbtx{wdb: w, tx: nil}
 }
 
-func (w *wdbtx) BeginTransaction() error {
+func (w *wdbtx) BeginTx() error {
 	tx, err := w.wdb.db.Begin(true)
 	if err != nil {
 		return err
@@ -440,11 +440,11 @@ func (w *wdbtx) BeginTransaction() error {
 	return nil
 }
 
-func (w *wdbtx) CommitTransaction() error {
+func (w *wdbtx) CommitTx() error {
 	return w.tx.Commit()
 }
 
-func (w *wdbtx) RollbackTransaction() error {
+func (w *wdbtx) RollbackTx() error {
 	return w.tx.Rollback()
 }
 

@@ -200,17 +200,22 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
 		err := w.processBlock(b)
 		if err != nil {
+			errRollback := w.blockProcessor.Rollback()
+			if errRollback != nil {
+				log.Error("error reverting block %v in block processor", errRollback)
+			}
+			return err
+		}
+		err = w.blockProcessor.Commit()
+		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (w *Wallet) processBlock(b *block.Block) (err error) {
-	defer func() {
-		err = w.blockProcessor.EndBlock()
-	}()
-	err = w.blockProcessor.BeginBlock(b.BlockNumber)
+func (w *Wallet) processBlock(b *block.Block) error {
+	err := w.blockProcessor.BeginBlock(b.BlockNumber)
 	if err != nil {
 		return err
 	}
@@ -220,7 +225,7 @@ func (w *Wallet) processBlock(b *block.Block) (err error) {
 			return err
 		}
 	}
-	return nil
+	return w.blockProcessor.EndBlock()
 }
 
 func createWallet(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {

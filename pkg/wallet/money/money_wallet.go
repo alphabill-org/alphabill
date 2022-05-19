@@ -153,7 +153,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 func (w *Wallet) BeginBlock(blockNumber uint64) error {
 	log.Info("processing block: " + strconv.FormatUint(blockNumber, 10))
 	tx := w.db.Do()
-	err := tx.BeginTransaction()
+	err := tx.BeginTx()
 	if err != nil {
 		return err
 	}
@@ -171,14 +171,6 @@ func (w *Wallet) ProcessTx(tx *transaction.Transaction) error {
 }
 
 func (w *Wallet) EndBlock() error {
-	defer func() {
-		if w.txBlock != nil {
-			err := w.txBlock.tx.RollbackTransaction()
-			if err != nil {
-				log.Error(err)
-			}
-		}
-	}()
 	err := w.deleteExpiredDcBills(w.txBlock.tx, w.txBlock.blockNumber)
 	if err != nil {
 		return err
@@ -195,12 +187,15 @@ func (w *Wallet) EndBlock() error {
 	if err != nil {
 		return err
 	}
-	err = w.txBlock.tx.CommitTransaction()
-	if err != nil {
-		return err
-	}
-	w.txBlock = nil
 	return nil
+}
+
+func (w *Wallet) Rollback() error {
+	return w.txBlock.tx.RollbackTx()
+}
+
+func (w *Wallet) Commit() error {
+	return w.txBlock.tx.CommitTx()
 }
 
 // Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.

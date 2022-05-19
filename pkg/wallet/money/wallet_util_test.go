@@ -132,5 +132,9 @@ func processBlock(w *Wallet, b *block.Block) error {
 			return err
 		}
 	}
-	return w.EndBlock()
+	err = w.EndBlock()
+	if err != nil {
+		return err
+	}
+	return w.Commit()
 }

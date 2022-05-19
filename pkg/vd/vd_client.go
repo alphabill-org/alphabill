@@ -72,7 +72,7 @@ func (v *vdClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Response: %s", resp.String())
+	fmt.Printf("Response: %s\n", resp.String())
 	return nil
 }
 

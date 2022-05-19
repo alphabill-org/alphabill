@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"math/rand"
 	"path"
 	"strings"
 	"sync"
@@ -17,16 +16,10 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func TestRunVD(t *testing.T) {
+func TestRunVD_UseClientForTx(t *testing.T) {
 	homeDirVD := setupTestHomeDir(t, "vd")
 	keysFileLocation := path.Join(homeDirVD, keysFile)
 	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
@@ -86,35 +79,25 @@ func TestRunVD(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
-		log.Info("Started vd-node and dialing...")
-		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		// Start VD Client
+		err = sendTxWithClient(dialAddr)
 		require.NoError(t, err)
-		defer conn.Close()
-		rpcClient := alphabill.NewAlphabillServiceClient(conn)
 
-		// Test
-		// green path
-		id := uint256.NewInt(rand.Uint64()).Bytes32()
-		tx := &transaction.Transaction{
-			UnitId:                id[:],
-			TransactionAttributes: new(anypb.Any),
-			Timeout:               10,
-			SystemId:              []byte{0, 0, 0, 1},
-		}
-
-		response, err := rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
+		// failing case, send same stuff once again
+		err = sendTxWithClient(dialAddr)
+		// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
 		require.NoError(t, err)
-		require.True(t, response.Ok, "Successful response ok should be true")
-
-		// failing case
-		tx.SystemId = []byte{0, 0, 0, 0} // incorrect system id
-		response, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
-		require.Error(t, err)
 
 		// Close the app
 		ctxCancel()
 		// Wait for test asserts to be completed
 		appStoppedWg.Wait()
 	})
+}
+
+func sendTxWithClient(dialAddr string) error {
+	cmd := New()
+	args := "vd register --hash " + "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" + " -u " + dialAddr
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	return cmd.addAndExecuteCommand(context.Background())
 }

@@ -50,6 +50,10 @@ type Db interface {
 }
 
 type TxContext interface {
+	BeginTransaction() error
+	CommitTransaction() error
+	RollbackTransaction() error
+
 	GetAccountKey() (*wallet.AccountKey, error)
 	SetAccountKey(key *wallet.AccountKey) error
 
@@ -63,8 +67,8 @@ type TxContext interface {
 	SetEncrypted(encrypted bool) error
 	VerifyPassword() (bool, error)
 
-	GetBlockHeight() (uint64, error)
-	SetBlockHeight(blockHeight uint64) error
+	GetBlockNumber() (uint64, error)
+	SetBlockNumber(blockNumber uint64) error
 
 	SetBill(bill *bill) error
 	ContainsBill(id *uint256.Int) (bool, error)
@@ -332,7 +336,7 @@ func (w *wdbtx) GetBalance() (uint64, error) {
 	return sum, nil
 }
 
-func (w *wdbtx) GetBlockHeight() (uint64, error) {
+func (w *wdbtx) GetBlockNumber() (uint64, error) {
 	var res uint64
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKeyName)
@@ -348,7 +352,7 @@ func (w *wdbtx) GetBlockHeight() (uint64, error) {
 	return res, nil
 }
 
-func (w *wdbtx) SetBlockHeight(blockHeight uint64) error {
+func (w *wdbtx) SetBlockNumber(blockHeight uint64) error {
 	return w.withTx(w.tx, func(tx *bolt.Tx) error {
 		b := make([]byte, 8)
 		binary.BigEndian.PutUint64(b, blockHeight)
@@ -425,6 +429,23 @@ func (w *wdb) WithTransaction(fn func(txc TxContext) error) error {
 
 func (w *wdb) Do() TxContext {
 	return &wdbtx{wdb: w, tx: nil}
+}
+
+func (w *wdbtx) BeginTransaction() error {
+	tx, err := w.wdb.db.Begin(true)
+	if err != nil {
+		return err
+	}
+	w.tx = tx
+	return nil
+}
+
+func (w *wdbtx) CommitTransaction() error {
+	return w.tx.Commit()
+}
+
+func (w *wdbtx) RollbackTransaction() error {
+	return w.tx.Rollback()
 }
 
 func (w *wdb) Path() string {

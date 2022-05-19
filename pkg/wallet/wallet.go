@@ -7,6 +7,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/tyler-smith/go-bip39"
 )
@@ -29,9 +30,9 @@ type Wallet struct {
 	syncFlag        *syncFlagWrapper
 }
 
-// CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
+// NewEmptyWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func CreateNewWallet(storage Storage, blockProcessor BlockProcessor, config Config) (*Wallet, error) {
+func NewEmptyWallet(storage Storage, blockProcessor BlockProcessor, config Config) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
@@ -43,9 +44,9 @@ func CreateNewWallet(storage Storage, blockProcessor BlockProcessor, config Conf
 	return createWallet(storage, blockProcessor, mnemonic, config)
 }
 
-// CreateWalletFromSeed creates a new wallet from given seed mnemonic. To synchronize wallet with a node call Sync.
+// NewWalletFromSeed creates a new wallet from given seed mnemonic. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func CreateWalletFromSeed(storage Storage, blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, error) {
+func NewWalletFromSeed(storage Storage, blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
@@ -53,9 +54,9 @@ func CreateWalletFromSeed(storage Storage, blockProcessor BlockProcessor, mnemon
 	return createWallet(storage, blockProcessor, mnemonic, config)
 }
 
-// LoadExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
+// NewExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func LoadExistingWallet(storage Storage, blockProcessor BlockProcessor, config Config) (*Wallet, error) {
+func NewExistingWallet(storage Storage, blockProcessor BlockProcessor, config Config) (*Wallet, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
@@ -96,6 +97,16 @@ func (w *Wallet) Sync() {
 // Returns immediately if already synchronizing.
 func (w *Wallet) SyncToMaxBlockHeight() {
 	w.syncLedger(false)
+}
+
+// GetMaxBlockNumber queries the node for latest block number
+func (w *Wallet) GetMaxBlockNumber() (uint64, error) {
+	return w.AlphabillClient.GetMaxBlockNumber()
+}
+
+// SendTransaction broadcasts transaction to configured node.
+func (w *Wallet) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+	return w.AlphabillClient.SendTransaction(tx)
 }
 
 // Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
@@ -184,7 +195,7 @@ func (w *Wallet) fetchBlocksForever(ch chan<- *block.Block) error {
 		case <-w.syncFlag.cancelSyncCh:
 			return nil
 		default:
-			maxBlockNo, err := w.AlphabillClient.GetMaxBlockNo()
+			maxBlockNo, err := w.AlphabillClient.GetMaxBlockNumber()
 			if err != nil {
 				return err
 			}
@@ -207,7 +218,7 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *block.Block) error {
 	if err != nil {
 		return err
 	}
-	maxBlockNo, err := w.AlphabillClient.GetMaxBlockNo()
+	maxBlockNo, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
@@ -229,11 +240,24 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ch chan<- *block.Block) error {
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		err := w.blockProcessor.ProcessBlock(b)
+		err := w.processBlock(b)
 		if err != nil {
 			return err
 		}
-		err = w.blockProcessor.PostProcessBlock(b)
+	}
+	return nil
+}
+
+func (w *Wallet) processBlock(b *block.Block) (err error) {
+	defer func() {
+		err = w.blockProcessor.EndBlock()
+	}()
+	err = w.blockProcessor.BeginBlock(b.BlockNumber)
+	if err != nil {
+		return err
+	}
+	for _, tx := range b.Transactions {
+		err = w.blockProcessor.ProcessTx(tx)
 		if err != nil {
 			return err
 		}

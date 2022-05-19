@@ -1,12 +1,13 @@
 package wallet
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 )
 
 type BlockProcessor interface {
-	ProcessBlock(b *block.Block) error
-	PostProcessBlock(b *block.Block) error
+	BeginBlock(blockNumber uint64) error
+	ProcessTx(tx *transaction.Transaction) error
+	EndBlock() error
 }
 
 type Storage interface {

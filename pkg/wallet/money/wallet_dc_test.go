@@ -45,7 +45,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs,
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.ProcessBlock(b)
+	err = processBlock(w, b)
 	require.NoError(t, err)
 
 	// then metadata is updated
@@ -76,7 +76,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 			Transactions:       []*transaction.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
-		err = w.ProcessBlock(b)
+		err = processBlock(w, b)
 		require.NoError(t, err)
 	}
 
@@ -89,7 +89,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 
 	// when swap tx block is received
 	mockClient.maxBlockNo = swapTimeout
-	err = w.db.Do().SetBlockHeight(swapTimeoutBlockCount)
+	err = w.db.Do().SetBlockNumber(swapTimeoutBlockCount)
 	require.NoError(t, err)
 	b = &block.Block{
 		BlockNumber:        swapTimeout,
@@ -97,7 +97,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		Transactions:       mockClient.txs[2:3], // swap tx
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.ProcessBlock(b)
+	err = processBlock(w, b)
 	require.NoError(t, err)
 
 	// then dc metadata is cleared
@@ -117,7 +117,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 
 	// when dcTimeout is reached
 	mockClient.maxBlockNo = dcTimeoutBlockCount
-	err := w.db.Do().SetBlockHeight(dcTimeoutBlockCount - 1)
+	err := w.db.Do().SetBlockNumber(dcTimeoutBlockCount - 1)
 	require.NoError(t, err)
 	b := &block.Block{
 		BlockNumber:        dcTimeoutBlockCount,
@@ -125,7 +125,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err = w.ProcessBlock(b)
+	err = processBlock(w, b)
 	require.NoError(t, err)
 
 	// then swap should be broadcast
@@ -164,7 +164,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.ProcessBlock(b)
+	err := processBlock(w, b)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -198,7 +198,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 		Transactions:       []*transaction.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	err := w.ProcessBlock(b)
+	err := processBlock(w, b)
 	require.NoError(t, err)
 
 	// then no tx is broadcast
@@ -258,7 +258,7 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	_ = w.db.Do().SetBill(b2)
 	_ = w.db.Do().SetBill(b3)
 	blockHeight := uint64(15)
-	_ = w.db.Do().SetBlockHeight(blockHeight)
+	_ = w.db.Do().SetBlockNumber(blockHeight)
 
 	// verify initial bills
 	require.False(t, b1.isExpired(blockHeight))
@@ -266,7 +266,7 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	require.False(t, b3.isExpired(blockHeight))
 
 	// receiving a block should delete expired bills
-	err := w.ProcessBlock(&block.Block{
+	err := processBlock(w, &block.Block{
 		BlockNumber:  blockHeight + 1,
 		Transactions: []*transaction.Transaction{},
 	})
@@ -325,7 +325,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 }
 
 func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
-	actualBlockHeight, _ := w.db.Do().GetBlockHeight()
+	actualBlockHeight, _ := w.db.Do().GetBlockNumber()
 	require.Equal(t, blockHeight, actualBlockHeight)
 }
 
@@ -352,7 +352,7 @@ func setDcMetadata(t *testing.T, w *Wallet, dcNonce []byte, m *dcMetadata) {
 }
 
 func setBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
-	err := w.db.Do().SetBlockHeight(blockHeight)
+	err := w.db.Do().SetBlockNumber(blockHeight)
 	require.NoError(t, err)
 }
 

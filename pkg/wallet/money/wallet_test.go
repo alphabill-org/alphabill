@@ -185,7 +185,7 @@ func TestBlockProcessing(t *testing.T) {
 		},
 	}
 
-	height, err := w.db.Do().GetBlockHeight()
+	height, err := w.db.Do().GetBlockNumber()
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
 	balance, err := w.db.Do().GetBalance()
@@ -193,11 +193,11 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, b := range blocks {
-		err := w.ProcessBlock(b)
+		err = processBlock(w, b)
 		require.NoError(t, err)
 	}
 
-	height, err = w.db.Do().GetBlockHeight()
+	height, err = w.db.Do().GetBlockNumber()
 	require.EqualValues(t, 1, height)
 	require.NoError(t, err)
 	balance, err = w.db.Do().GetBalance()

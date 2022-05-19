@@ -31,7 +31,7 @@ func (c *mockAlphabillClient) GetBlock(uint64) (*block.Block, error) {
 	return nil, nil
 }
 
-func (c *mockAlphabillClient) GetMaxBlockNo() (uint64, error) {
+func (c *mockAlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	return c.maxBlockNo, nil
 }
 
@@ -119,4 +119,18 @@ func copyFile(src string, dst string) error {
 		return err
 	}
 	return nil
+}
+
+func processBlock(w *Wallet, b *block.Block) error {
+	err := w.BeginBlock(b.BlockNumber)
+	if err != nil {
+		return err
+	}
+	for _, tx := range b.Transactions {
+		err = w.ProcessTx(tx)
+		if err != nil {
+			return err
+		}
+	}
+	return w.EndBlock()
 }

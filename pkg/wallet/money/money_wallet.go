@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
@@ -33,28 +32,33 @@ var (
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
 )
 
-type Wallet struct {
-	*wallet.Wallet
+type (
+	Wallet struct {
+		*wallet.Wallet
 
-	config           WalletConfig
-	db               Db
-	dustCollectorJob *cron.Cron
-	dcWg             *dcWaitGroup
-}
+		config           WalletConfig
+		db               Db
+		dustCollectorJob *cron.Cron
+		dcWg             *dcWaitGroup
+		currentBlock     *blockData
+	}
+
+	blockData struct {
+		blockNumber uint64
+		tx          TxContext
+	}
+)
 
 func CreateNewWallet(config WalletConfig) (*Wallet, error) {
 	db, err := getDb(config, true)
 	if err != nil {
 		return nil, err
 	}
-	mw := &Wallet{
-		config:           config,
-		db:               db,
-		dustCollectorJob: cron.New(),
-		dcWg:             newDcWaitGroup(),
-	}
-	gw, err := wallet.CreateNewWallet(
-		db.Do(),
+
+	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
+
+	gw, err := wallet.NewEmptyWallet(
+		nil, // TODO storage
 		mw,
 		wallet.Config{
 			WalletPass:            config.WalletPass,
@@ -73,13 +77,9 @@ func CreateNewWalletFromSeed(mnemonic string, config WalletConfig) (*Wallet, err
 	if err != nil {
 		return nil, err
 	}
-	mw := &Wallet{
-		db:               db,
-		dustCollectorJob: cron.New(),
-		dcWg:             newDcWaitGroup(),
-	}
-	gw, err := wallet.CreateWalletFromSeed(
-		db.Do(),
+	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
+	gw, err := wallet.NewWalletFromSeed(
+		nil, // TODO storage
 		mw,
 		mnemonic,
 		wallet.Config{
@@ -99,13 +99,9 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	mw := &Wallet{
-		db:               db,
-		dustCollectorJob: cron.New(),
-		dcWg:             newDcWaitGroup(),
-	}
-	gw, err := wallet.LoadExistingWallet(
-		db.Do(),
+	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
+	gw, err := wallet.NewExistingWallet(
+		nil, // TODO storage
 		mw,
 		wallet.Config{
 			WalletPass:            config.WalletPass,
@@ -130,53 +126,57 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 	return db.Do().IsEncrypted()
 }
 
-func getDb(config WalletConfig, create bool) (Db, error) {
-	if config.Db != nil {
-		return config.Db, nil
+func (w *Wallet) BeginBlock(blockNumber uint64) error {
+	log.Info("processing block: " + strconv.FormatUint(blockNumber, 10))
+	tx := w.db.Do()
+	err := tx.BeginTransaction()
+	if err != nil {
+		return err
 	}
-	if create {
-		return createNewDb(config)
+	w.currentBlock = &blockData{blockNumber: blockNumber, tx: tx}
+
+	lastBlockNumber, err := tx.GetBlockNumber()
+	if err != nil {
+		return err
 	}
-	return OpenDb(config)
+	return validateBlockNumber(blockNumber, lastBlockNumber)
 }
 
-// TODO add walletdb memory layer: https://guardtime.atlassian.net/browse/AB-100
-func (w *Wallet) ProcessBlock(b *block.Block) error {
-	return w.db.WithTransaction(func(tx TxContext) error {
-		log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10))
-		blockHeight, err := tx.GetBlockHeight()
-		if err != nil {
-			return err
-		}
-		err = validateBlockHeight(b, blockHeight)
-		if err != nil {
-			return err
-		}
-		for _, txPb := range b.Transactions {
-			err = w.collectBills(tx, txPb, blockHeight)
+func (w *Wallet) ProcessTx(tx *transaction.Transaction) error {
+	return w.collectBills(w.currentBlock.tx, tx, w.currentBlock.blockNumber)
+}
+
+func (w *Wallet) EndBlock() error {
+	defer func() {
+		if w.currentBlock != nil {
+			err := w.currentBlock.tx.RollbackTransaction()
 			if err != nil {
-				return err
+				log.Error(err)
 			}
 		}
-		err = w.deleteExpiredDcBills(tx, b.BlockNumber)
-		if err != nil {
-			return err
-		}
-		err = tx.SetBlockHeight(b.BlockNumber)
-		if err != nil {
-			return err
-		}
-		err = w.trySwap(tx)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-// postProcessBlock called after successful commit on block processing
-func (w *Wallet) PostProcessBlock(b *block.Block) error {
-	return w.dcWg.DecrementSwaps(b.BlockNumber, w.db)
+	}()
+	err := w.deleteExpiredDcBills(w.currentBlock.tx, w.currentBlock.blockNumber)
+	if err != nil {
+		return err
+	}
+	err = w.currentBlock.tx.SetBlockNumber(w.currentBlock.blockNumber)
+	if err != nil {
+		return err
+	}
+	err = w.trySwap(w.currentBlock.tx)
+	if err != nil {
+		return err
+	}
+	err = w.dcWg.DecrementSwaps(w.currentBlock.blockNumber, w.db)
+	if err != nil {
+		return err
+	}
+	err = w.currentBlock.tx.CommitTransaction()
+	if err != nil {
+		return err
+	}
+	w.currentBlock = nil
+	return nil
 }
 
 // Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
@@ -248,7 +248,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	maxBlockNo, err := w.AlphabillClient.GetMaxBlockNo()
+	maxBlockNo, err := w.AlphabillClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
@@ -265,7 +265,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if err != nil {
 		return err
 	}
-	res, err := w.AlphabillClient.SendTransaction(tx)
+	res, err := w.SendTransaction(tx)
 	if err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 
 	switch tx := stx.(type) {
 	case money.Transfer:
-		isOwner, err := w.isOwner(dbTx, tx.NewBearer())
+		isOwner, err := verifyOwner(dbTx, tx.NewBearer())
 		if err != nil {
 			return err
 		}
@@ -301,7 +301,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 			}
 		}
 	case money.TransferDC:
-		isOwner, err := w.isOwner(dbTx, tx.TargetBearer())
+		isOwner, err := verifyOwner(dbTx, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 				return err
 			}
 		}
-		isOwner, err := w.isOwner(dbTx, tx.TargetBearer())
+		isOwner, err := verifyOwner(dbTx, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
@@ -356,7 +356,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 			}
 		}
 	case money.Swap:
-		isOwner, err := w.isOwner(dbTx, tx.OwnerCondition())
+		isOwner, err := verifyOwner(dbTx, tx.OwnerCondition())
 		if err != nil {
 			return err
 		}
@@ -394,13 +394,13 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 	return nil
 }
 
-func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockHeight uint64) error {
+func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64) error {
 	bills, err := dbTx.GetBills()
 	if err != nil {
 		return err
 	}
 	for _, b := range bills {
-		if b.isExpired(blockHeight) {
+		if b.isExpired(blockNumber) {
 			err = dbTx.RemoveBill(b.Id)
 			if err != nil {
 				return err
@@ -411,11 +411,11 @@ func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockHeight uint64) error 
 }
 
 func (w *Wallet) trySwap(tx TxContext) error {
-	blockHeight, err := tx.GetBlockHeight()
+	blockHeight, err := tx.GetBlockNumber()
 	if err != nil {
 		return err
 	}
-	maxBlockNo, err := w.AlphabillClient.GetMaxBlockNo()
+	maxBlockNo, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
@@ -463,11 +463,11 @@ func (w *Wallet) trySwap(tx TxContext) error {
 // if blocking is false then the function returns after sending the dc transfers.
 func (w *Wallet) collectDust(blocking bool) error {
 	err := w.db.WithTransaction(func(dbTx TxContext) error {
-		blockHeight, err := dbTx.GetBlockHeight()
+		blockHeight, err := dbTx.GetBlockNumber()
 		if err != nil {
 			return err
 		}
-		maxBlockNo, err := w.AlphabillClient.GetMaxBlockNo()
+		maxBlockNo, err := w.AlphabillClient.GetMaxBlockNumber()
 		if err != nil {
 			return err
 		}
@@ -520,7 +520,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 				}
 
 				log.Info("sending dust transfer tx for bill ", b.Id)
-				res, err := w.AlphabillClient.SendTransaction(tx)
+				res, err := w.SendTransaction(tx)
 				if err != nil {
 					return err
 				}
@@ -553,9 +553,29 @@ func (w *Wallet) collectDust(blocking bool) error {
 	return nil
 }
 
+func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, timeout uint64) error {
+	k, err := tx.GetAccountKey()
+	if err != nil {
+		return err
+	}
+	swap, err := createSwapTx(k, dcBills, dcNonce, timeout)
+	if err != nil {
+		return err
+	}
+	log.Info("sending swap tx")
+	res, err := w.SendTransaction(swap)
+	if err != nil {
+		return err
+	}
+	if !res.Ok {
+		return errors.New("swap tx returned error code: " + res.Message)
+	}
+	return tx.SetDcMetadata(dcNonce, &dcMetadata{SwapTimeout: timeout})
+}
+
 // isSwapInProgress returns true if there's a running dc process managed by the wallet
 func (w *Wallet) isSwapInProgress(dbTx TxContext) (bool, error) {
-	blockHeight, err := dbTx.GetBlockHeight()
+	blockHeight, err := dbTx.GetBlockNumber()
 	if err != nil {
 		return false, err
 	}
@@ -578,67 +598,6 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 			log.Error("error in dust collector job: ", err)
 		}
 	})
-}
-
-func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, timeout uint64) error {
-	k, err := tx.GetAccountKey()
-	if err != nil {
-		return err
-	}
-	swap, err := createSwapTx(k, dcBills, dcNonce, timeout)
-	if err != nil {
-		return err
-	}
-	log.Info("sending swap tx")
-	res, err := w.AlphabillClient.SendTransaction(swap)
-	if err != nil {
-		return err
-	}
-	if !res.Ok {
-		return errors.New("swap tx returned error code: " + res.Message)
-	}
-	return tx.SetDcMetadata(dcNonce, &dcMetadata{SwapTimeout: timeout})
-}
-
-// isOwner checks if given p2pkh bearer predicate contains PartitionWallet's pubKey hash
-func (w *Wallet) isOwner(dbTx TxContext, bp []byte) (bool, error) {
-	// p2pkh predicate: [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 0xac, 0x01]
-	// p2pkh predicate: [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]
-
-	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
-	if len(bp) != 42 && len(bp) != 74 {
-		return false, nil
-	}
-	// 5th byte is PushHash 0x4f
-	if bp[4] != 0x4f {
-		return false, nil
-	}
-	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
-	hashAlgo := bp[5]
-	if hashAlgo == 0x01 {
-		k, err := dbTx.GetAccountKey()
-		if err != nil {
-			return false, err
-		}
-		return bytes.Equal(bp[6:38], k.PubKeyHashSha256), nil
-	} else if hashAlgo == 0x02 {
-		k, err := dbTx.GetAccountKey()
-		if err != nil {
-			return false, err
-		}
-		return bytes.Equal(bp[6:70], k.PubKeyHashSha512), nil
-	}
-	return false, nil
-}
-
-func validateBlockHeight(b *block.Block, blockHeight uint64) error {
-	// verify that we are processing blocks sequentially
-	// TODO verify last prev block hash?
-	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
-	if b.BlockNumber-blockHeight != 1 {
-		return errors.New(fmt.Sprintf("Invalid block height. Received height %d current wallet height %d", b.BlockNumber, blockHeight))
-	}
-	return nil
 }
 
 func calculateDcNonce(bills []*bill) []byte {
@@ -677,4 +636,24 @@ func groupDcBills(bills []*bill) map[uint256.Int]*dcBillGroup {
 		}
 	}
 	return m
+}
+
+func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
+	// verify that we are processing blocks sequentially
+	// TODO verify last prev block hash?
+	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
+	if blockNumber-lastBlockNumber != 1 {
+		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
+	}
+	return nil
+}
+
+func getDb(config WalletConfig, create bool) (Db, error) {
+	if config.Db != nil {
+		return config.Db, nil
+	}
+	if create {
+		return createNewDb(config)
+	}
+	return OpenDb(config)
 }

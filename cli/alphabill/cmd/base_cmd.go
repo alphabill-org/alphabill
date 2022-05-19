@@ -17,17 +17,16 @@ import (
 
 type (
 	alphabillApp struct {
-		baseCmd        *cobra.Command
-		baseConfig     *baseConfiguration
-		opts           interface{}
-		cmdInterceptor func(*cobra.Command)
+		baseCmd    *cobra.Command
+		baseConfig *baseConfiguration
+		opts       interface{}
 	}
 )
 
 // New creates a new Alphabill application
 func New() *alphabillApp {
 	baseCmd, baseConfig := newBaseCmd()
-	return &alphabillApp{baseCmd, baseConfig, nil, nil}
+	return &alphabillApp{baseCmd, baseConfig, nil}
 }
 
 func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
@@ -50,15 +49,7 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newNodeIdentifierCmd(ctx))
 	a.baseCmd.AddCommand(newVDClientCmd(ctx, a.baseConfig))
 
-	if a.cmdInterceptor != nil {
-		a.cmdInterceptor(a.baseCmd)
-	}
 	return a.baseCmd.Execute()
-}
-
-func (a *alphabillApp) withCmdInterceptor(fn func(*cobra.Command)) *alphabillApp {
-	a.cmdInterceptor = fn
-	return a
 }
 
 func newBaseCmd() (*cobra.Command, *baseConfiguration) {

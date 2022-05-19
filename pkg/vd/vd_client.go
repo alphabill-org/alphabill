@@ -67,6 +67,7 @@ func (v *vdClient) RegisterHash(hash string) error {
 
 func (v *vdClient) registerHashTx(hash []byte) error {
 	tx, err := createRegisterDataTx(hash, 100) // TODO make timeout configurable?
+	defer v.abClient.Shutdown()
 	if err != nil {
 		return err
 	}

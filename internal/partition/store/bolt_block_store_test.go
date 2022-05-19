@@ -6,13 +6,13 @@ import (
 	"path"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +93,7 @@ func newDummyBlock(blockNo uint64) *block.Block {
 		SystemIdentifier:   []byte{0},
 		BlockNumber:        blockNo,
 		PreviousBlockHash:  []byte{2},
-		Transactions:       []*transaction.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions:       []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 }

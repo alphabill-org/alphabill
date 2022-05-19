@@ -5,16 +5,15 @@ import (
 	"testing"
 	"time"
 
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -193,9 +192,9 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 }
 
 func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills ...*bill) *alphabill.GetBlockResponse {
-	var dcTxs []*transaction.Transaction
+	var dcTxs []*txsystem.Transaction
 	for _, b := range bills {
-		dcTxs = append(dcTxs, &transaction.Transaction{
+		dcTxs = append(dcTxs, &txsystem.Transaction{
 			UnitId:                b.getId(),
 			TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 			Timeout:               1000,
@@ -206,12 +205,12 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 	return createBlockWithSwapTx(dcNonce32[:], k, dcTxs)
 }
 
-func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*transaction.Transaction) *alphabill.GetBlockResponse {
+func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
 	return &alphabill.GetBlockResponse{
 		Block: &block.Block{
 			BlockNumber:       1,
 			PreviousBlockHash: hash.Sum256([]byte{}),
-			Transactions: []*transaction.Transaction{
+			Transactions: []*txsystem.Transaction{
 				{
 					UnitId:                dcNonce,
 					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHashSha256, dcTxs),
@@ -232,8 +231,8 @@ func waitForExpectedSwap(w *Wallet) {
 	})
 }
 
-func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*transaction.Transaction) *anypb.Any {
-	tx, _ := anypb.New(&billtx.Swap{
+func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*txsystem.Transaction) *anypb.Any {
+	tx, _ := anypb.New(&billtx.SwapOrder{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     dcTxs,

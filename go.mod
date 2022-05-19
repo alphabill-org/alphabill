@@ -4,8 +4,6 @@ go 1.18
 
 replace (
 	github.com/spf13/cobra v0.0.5 => github.com/spf13/cobra v1.4.0
-	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738 => go.etcd.io/etcd/v3 v3.5.3
-	github.com/coreos/etcd => go.etcd.io/etcd/v3 v3.5.3
 	github.com/microcosm-cc/bluemonday v1.0.1 => github.com/microcosm-cc/bluemonday v1.0.18
 	github.com/nats-io/nats-server/v2 v2.1.2 =>  github.com/nats-io/nats-server/v2 v2.8.0
 	github.com/apache/thrift v0.13.0 =>  github.com/apache/thrift v0.16.0

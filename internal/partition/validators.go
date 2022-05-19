@@ -4,16 +4,13 @@ import (
 	"bytes"
 	gocrypto "crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 )
 
 var (
@@ -27,7 +24,7 @@ type (
 	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc.). This validator
 	// should not contain transaction system specific validation logic.
 	TxValidator interface {
-		Validate(tx *transaction.Transaction) error
+		Validate(tx txsystem.GenericTransaction) error
 	}
 
 	// UnicityCertificateValidator is used to validate certificates.UnicityCertificate.
@@ -82,16 +79,16 @@ func NewDefaultTxValidator(systemIdentifier []byte, blockStore store.BlockStore)
 	}, nil
 }
 
-func (dtv *DefaultTxValidator) Validate(tx *transaction.Transaction) error {
-	if !bytes.Equal(dtv.systemIdentifier, tx.SystemId) {
+func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction) error {
+	if !bytes.Equal(dtv.systemIdentifier, tx.SystemID()) {
 		//  transaction was not sent to correct transaction system
-		return errors.Wrapf(ErrInvalidSystemIdentifier, "expected %X, got %X", dtv.systemIdentifier, tx.SystemId)
+		return errors.Wrapf(ErrInvalidSystemIdentifier, "expected %X, got %X", dtv.systemIdentifier, tx.SystemID())
 	}
 
 	block := dtv.blockStore.LatestBlock()
-	if tx.Timeout <= block.BlockNumber {
+	if tx.Timeout() <= block.BlockNumber {
 		// transaction is expired
-		return errors.Wrapf(ErrTransactionExpired, "timeout %v; blockNumber: %v", tx.Timeout, block.BlockNumber)
+		return errors.Wrapf(ErrTransactionExpired, "timeout %v; blockNumber: %v", tx.Timeout(), block.BlockNumber)
 	}
 	return nil
 }

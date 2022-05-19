@@ -1,4 +1,4 @@
-package state
+package rma
 
 import (
 	"crypto"
@@ -81,7 +81,7 @@ func TestCompTreeCert_SummaryValueIsNil(t *testing.T) {
 	require.ErrorIs(t, ErrSummaryValueIsNil, err)
 }
 
-func calculateZ(key *uint256.Int, at *rmaTree) []byte {
+func calculateZ(key *uint256.Int, at *Tree) []byte {
 	content, _ := at.get(key)
 	idBytes := key.Bytes32()
 	hasher := crypto.SHA256.New()
@@ -98,5 +98,5 @@ func calculateZ(key *uint256.Int, at *rmaTree) []byte {
 }
 
 func defaultConfig() *Config {
-	return &Config{HashAlgorithm: crypto.SHA256, TrustBase: []string{"0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"}}
+	return &Config{HashAlgorithm: crypto.SHA256}
 }

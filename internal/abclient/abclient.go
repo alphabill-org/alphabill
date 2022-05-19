@@ -8,7 +8,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -17,7 +17,7 @@ import (
 
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
-	SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error)
+	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(blockNo uint64) (*block.Block, error)
 	GetMaxBlockNo() (uint64, error)
 	Shutdown()
@@ -43,7 +43,7 @@ func New(config AlphabillClientConfig) *AlphabillClient {
 	return &AlphabillClient{config: config}
 }
 
-func (c *AlphabillClient) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	err := c.connect()
 	if err != nil {
 		return nil, err

@@ -1,16 +1,6 @@
 package money
 
-import (
-	"crypto"
-	"testing"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-)
-
+/*
 func TestTransfer(t *testing.T) {
 	tests := []struct {
 		name string
@@ -223,7 +213,7 @@ func TestGenericTxValidation(t *testing.T) {
 			name: "InvalidPredicate",
 			ctx: &txsystem.TxValidationContext{
 				Tx:               newTransferWithTimeout(11),
-				Bd:               &state.Unit{Bearer: []byte{script.StartByte, script.OpPushBool, 0x00}},
+				Bd:               &rma.Unit{Bearer: []byte{script.StartByte, script.OpPushBool, 0x00}},
 				SystemIdentifier: []byte{0},
 				BlockNumber:      10,
 			},
@@ -366,4 +356,4 @@ func newValidSwap() *swap {
 
 func newBillData(v uint64, backlink []byte) *BillData {
 	return &BillData{V: v, Backlink: backlink}
-}
+}*/

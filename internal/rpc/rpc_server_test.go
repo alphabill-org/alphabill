@@ -6,24 +6,21 @@ import (
 	"strings"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-	"google.golang.org/grpc/credentials/insecure"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
-
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 )
 
 var failingTransactionID = uint256.NewInt(5)
@@ -33,15 +30,15 @@ type (
 	MockLedgerService        struct{}
 )
 
-func (mpp *MockTransactionProcessor) Process(gtx transaction.GenericTransaction) error {
+func (mpp *MockTransactionProcessor) Process(gtx txsystem.GenericTransaction) error {
 	if gtx.UnitID().Eq(failingTransactionID) {
 		return errors.New("failed")
 	}
 	return nil
 }
 
-func (mpp *MockTransactionProcessor) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	return billtx.NewMoneyTx(tx)
+func (mpp *MockTransactionProcessor) Convert(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return money.NewMoneyTx(tx)
 }
 
 func (mls *MockLedgerService) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
@@ -116,15 +113,15 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
-func createTransaction(id *uint256.Int) *transaction.Transaction {
+func createTransaction(id *uint256.Int) *txsystem.Transaction {
 	bytes32 := id.Bytes32()
-	tx := &transaction.Transaction{
+	tx := &txsystem.Transaction{
 		UnitId:                bytes32[:],
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               0,
 		OwnerProof:            []byte{1},
 	}
-	bt := &billtx.BillTransfer{
+	bt := &money.TransferOrder{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,

@@ -8,7 +8,7 @@ package blockproposal
 
 import (
 	certificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	transaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	txsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -30,7 +30,7 @@ type BlockProposal struct {
 	SystemIdentifier   []byte                           `protobuf:"bytes,1,opt,name=system_identifier,json=systemIdentifier,proto3" json:"system_identifier,omitempty"`
 	NodeIdentifier     string                           `protobuf:"bytes,2,opt,name=node_identifier,json=nodeIdentifier,proto3" json:"node_identifier,omitempty"`
 	UnicityCertificate *certificates.UnicityCertificate `protobuf:"bytes,3,opt,name=unicity_certificate,json=unicityCertificate,proto3" json:"unicity_certificate,omitempty"`
-	Transactions       []*transaction.Transaction       `protobuf:"bytes,4,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Transactions       []*txsystem.Transaction          `protobuf:"bytes,4,rep,name=transactions,proto3" json:"transactions,omitempty"`
 	Signature          []byte                           `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
 }
 
@@ -87,7 +87,7 @@ func (x *BlockProposal) GetUnicityCertificate() *certificates.UnicityCertificate
 	return nil
 }
 
-func (x *BlockProposal) GetTransactions() []*transaction.Transaction {
+func (x *BlockProposal) GetTransactions() []*txsystem.Transaction {
 	if x != nil {
 		return x.Transactions
 	}
@@ -148,7 +148,7 @@ var file_block_proposal_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_block_proposal_proto_goTypes = []interface{}{
 	(*BlockProposal)(nil),                   // 0: BlockProposal
 	(*certificates.UnicityCertificate)(nil), // 1: UnicityCertificate
-	(*transaction.Transaction)(nil),         // 2: Transaction
+	(*txsystem.Transaction)(nil),            // 2: Transaction
 }
 var file_block_proposal_proto_depIdxs = []int32{
 	1, // 0: BlockProposal.unicity_certificate:type_name -> UnicityCertificate

@@ -3,14 +3,11 @@ package rpc
 import (
 	"context"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 )
 
 type (
@@ -28,8 +25,8 @@ type (
 
 	// TODO remove
 	TransactionsProcessor interface {
-		Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error)
-		Process(gtx transaction.GenericTransaction) error
+		Convert(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+		Process(gtx txsystem.GenericTransaction) error
 	}
 
 	// TODO remove
@@ -61,15 +58,15 @@ func NewRpcServer2(node *partition.Node) (*rpcServer2, error) {
 	}, nil
 }
 
-func (r *rpcServer2) ProcessTransaction(ctx context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (r *rpcServer2) ProcessTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	err := r.node.SubmitTx(tx)
 	if err != nil {
-		return &transaction.TransactionResponse{
+		return &txsystem.TransactionResponse{
 			Ok:      false,
 			Message: err.Error(),
 		}, err
 	}
-	return &transaction.TransactionResponse{
+	return &txsystem.TransactionResponse{
 		Ok:      true,
 		Message: "",
 	}, nil
@@ -88,22 +85,22 @@ func (r *rpcServer2) GetMaxBlockNo(ctx context.Context, req *alphabill.GetMaxBlo
 	return &alphabill.GetMaxBlockNoResponse{BlockNo: maxBlockNr}, nil
 }
 
-func (r *rpcServer) ProcessTransaction(ctx context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (r *rpcServer) ProcessTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	genTx, err := r.processor.Convert(tx)
 	if err != nil {
-		return &transaction.TransactionResponse{
+		return &txsystem.TransactionResponse{
 			Ok:      false,
 			Message: err.Error(),
 		}, err
 	}
 	err = r.processor.Process(genTx)
 	if err != nil {
-		return &transaction.TransactionResponse{
+		return &txsystem.TransactionResponse{
 			Ok:      false,
 			Message: err.Error(),
 		}, err
 	}
-	return &transaction.TransactionResponse{
+	return &txsystem.TransactionResponse{
 		Ok:      true,
 		Message: "",
 	}, nil

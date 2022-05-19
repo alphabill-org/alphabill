@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"google.golang.org/grpc"
@@ -21,7 +22,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
@@ -297,14 +298,14 @@ func TestRunShard_Ok(t *testing.T) {
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	initialBillID := uint256.NewInt(defaultInitialBillId).Bytes32()
 
-	tx := &transaction.Transaction{
+	tx := &txsystem.Transaction{
 		UnitId:                initialBillID[:],
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               1,
 		OwnerProof:            script.PredicateArgumentEmpty(),
-		SystemId:              []byte{0},
+		SystemId:              []byte{0, 0, 0, 0},
 	}
-	bt := &billtx.BillTransfer{
+	bt := &billtx.TransferOrder{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,
@@ -320,14 +321,14 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.AlphabillServiceClient) {
 	wrongBillID := uint256.NewInt(6).Bytes32()
 
-	tx := &transaction.Transaction{
+	tx := &txsystem.Transaction{
 		UnitId:                wrongBillID[:],
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               0,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0},
 	}
-	bt := &billtx.BillTransfer{
+	bt := &billtx.TransferOrder{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,

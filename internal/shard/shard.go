@@ -6,44 +6,43 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 )
 
+// TODO remove after task AB-160 is done
 type (
 	shardNode struct {
-		stateProcessor StateProcessor
-		txConverter    TxConverter
+		stateProcessor txsystem.TransactionSystem
 		blockStore     store.BlockStore
 	}
+
 	StateProcessor interface {
-		// Process validates and processes a transaction order.
-		Process(tx transaction.GenericTransaction) error
-	}
-	TxConverter interface {
-		Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error)
+		// Execute validates and processes a transaction order.
+		Execute(tx txsystem.GenericTransaction) error
+		ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 	}
 )
 
 // New create a new Shard Component.
 // At the moment it only updates the state. In the future it should synchronize with other shards
 // communicate with Core and Blockchain.
-func New(converter TxConverter, stateProcessor StateProcessor, blockStore store.BlockStore) (*shardNode, error) {
+func New(stateProcessor txsystem.TransactionSystem, blockStore store.BlockStore) (*shardNode, error) {
 	if stateProcessor == nil {
 		return nil, errors.Wrapf(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
-	return &shardNode{stateProcessor, converter, blockStore}, nil
+	return &shardNode{stateProcessor, blockStore}, nil
 }
 
-func (n *shardNode) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	return n.txConverter.Convert(tx)
+func (n *shardNode) Convert(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return n.stateProcessor.ConvertTx(tx)
 }
 
-func (n *shardNode) Process(gtx transaction.GenericTransaction) (err error) {
-	stx, ok := gtx.(transaction.GenericTransaction)
+func (n *shardNode) Process(gtx txsystem.GenericTransaction) (err error) {
+	stx, ok := gtx.(txsystem.GenericTransaction)
 	if !ok {
 		return errors.New("the transaction does not confirm to the state GenericTransaction interface")
 	}
-	err = n.stateProcessor.Process(stx)
+	err = n.stateProcessor.Execute(stx)
 	if err != nil {
 		return err
 	}

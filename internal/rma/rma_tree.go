@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package state
+package rma
 
 import (
 	"crypto"
@@ -52,16 +52,14 @@ type (
 
 	Config struct {
 		HashAlgorithm     crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
-		TrustBase         []string    // Mandatory, list of compressed secp256k1 public keys (33 bytes each) in hex format.
 		RecordingDisabled bool        // Optional, set to true, to disable keeping track of changes.
 	}
 
-	// rmaTree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL
+	// Tree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL
 	// tree manner and Merkle proofs can be generated.
-	rmaTree struct {
+	Tree struct {
 		hashAlgorithm    crypto.Hash   // Hash algorithm used for calculating the tree hash root and the proofs.
 		shardId          []byte        // ID of the shard.
-		roundNumber      uint64        // The current round number.
 		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
 		root             *Node         // root is the top node of the tree.
 		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
@@ -106,18 +104,18 @@ type (
 )
 
 // New creates new RMA Tree
-func New(config *Config) (*rmaTree, error) {
+func New(config *Config) (*Tree, error) {
 	if config.HashAlgorithm != crypto.SHA256 && config.HashAlgorithm != crypto.SHA512 {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
-	return &rmaTree{
+	return &Tree{
 		hashAlgorithm:    config.HashAlgorithm,
 		recordingEnabled: !config.RecordingDisabled,
 	}, nil
 }
 
 // AddItem adds new element to the state. Id must not exist in the state.
-func (tree *rmaTree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
+func (tree *Tree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
 	exists := tree.exists(id)
 	if exists {
 		return errors.Errorf("cannot add item that already exists. ID: %d", id)
@@ -127,9 +125,9 @@ func (tree *rmaTree) AddItem(id *uint256.Int, owner Predicate, data UnitData, st
 }
 
 // DeleteItem removes the item from the state
-func (tree *rmaTree) DeleteItem(id *uint256.Int) error {
+func (tree *Tree) DeleteItem(id *uint256.Int) error {
 	exists := tree.exists(id)
-	if exists {
+	if !exists {
 		return errors.Errorf("deleting item that does not exist. ID %d", id)
 	}
 	tree.removeNode(id)
@@ -137,12 +135,12 @@ func (tree *rmaTree) DeleteItem(id *uint256.Int) error {
 }
 
 // SetOwner changes the owner of the item, leaves data as is.
-func (tree *rmaTree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+func (tree *Tree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	return tree.setOwner(id, owner, stateHash)
 }
 
 // UpdateData changes the data of the item, leaves owner as is.
-func (tree *rmaTree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
+func (tree *Tree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
 	node, exists := tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
@@ -152,12 +150,16 @@ func (tree *rmaTree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []b
 	return nil
 }
 
-func (tree *rmaTree) GetUnit(id *uint256.Int) (*Unit, error) {
+func (tree *Tree) GetUnit(id *uint256.Int) (*Unit, error) {
 	return tree.get(id)
 }
 
+func (tree *Tree) ContainsUncommittedChanges() bool {
+	return len(tree.changes) > 0
+}
+
 // GetRootHash starts computation of the tree and returns the root node hash value.
-func (tree *rmaTree) GetRootHash() []byte {
+func (tree *Tree) GetRootHash() []byte {
 	if tree.root == nil {
 		return nil
 	}
@@ -166,7 +168,7 @@ func (tree *rmaTree) GetRootHash() []byte {
 }
 
 // TotalValue starts computation of the tree and returns the SummaryValue of the root node.
-func (tree *rmaTree) TotalValue() SummaryValue {
+func (tree *Tree) TotalValue() SummaryValue {
 	if tree.root == nil {
 		return nil
 	}
@@ -177,12 +179,12 @@ func (tree *rmaTree) TotalValue() SummaryValue {
 // Commit commits the changes, making these not revertible.
 // Changes done before the Commit cannot be reverted anymore.
 // Changes done after the last Commit can be reverted by Revert method.
-func (tree *rmaTree) Commit() {
+func (tree *Tree) Commit() {
 	tree.changes = []interface{}{}
 }
 
 // Revert reverts all changes since the last Commit.
-func (tree *rmaTree) Revert() {
+func (tree *Tree) Revert() {
 	for i := len(tree.changes) - 1; i >= 0; i-- {
 		change := tree.changes[i]
 		switch chg := change.(type) {
@@ -208,14 +210,9 @@ func (tree *rmaTree) Revert() {
 	tree.Commit()
 }
 
-// GetBlockNumber returns the current round number of the RMA tree.
-func (tree *rmaTree) GetBlockNumber() uint64 {
-	return tree.roundNumber
-}
-
 ///////// private methods \\\\\\\\\\\\\
 
-func (tree *rmaTree) get(id *uint256.Int) (unit *Unit, err error) {
+func (tree *Tree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := tree.getNode(id)
 	if !exists {
 		return nil, errors.Errorf(errStrItemDoesntExist, id)
@@ -224,14 +221,14 @@ func (tree *rmaTree) get(id *uint256.Int) (unit *Unit, err error) {
 }
 
 // Set sets the item bearer and data. It's up to the caller to make sure the UnitData implementation supports the all data implementations inserted into the tree.
-func (tree *rmaTree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) {
+func (tree *Tree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) {
 	tree.setNode(id, &Unit{
 		Bearer:    owner,
 		Data:      data,
 		StateHash: stateHash})
 }
 
-func (tree *rmaTree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+func (tree *Tree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	node, exists := tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
@@ -240,7 +237,7 @@ func (tree *rmaTree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte
 	return nil
 }
 
-func (tree *rmaTree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
+func (tree *Tree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
 	node, exists := tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
@@ -249,12 +246,12 @@ func (tree *rmaTree) setData(id *uint256.Int, data UnitData, stateHash []byte) e
 	return nil
 }
 
-func (tree *rmaTree) exists(id *uint256.Int) bool {
+func (tree *Tree) exists(id *uint256.Int) bool {
 	_, exists := tree.getNode(id)
 	return exists
 }
 
-func (tree *rmaTree) recompute(n *Node, hasher hash.Hash) {
+func (tree *Tree) recompute(n *Node, hasher hash.Hash) {
 	if n.recompute {
 		var leftTotalValue SummaryValue
 		var rightTotalValue SummaryValue
@@ -281,12 +278,12 @@ func (tree *rmaTree) recompute(n *Node, hasher hash.Hash) {
 }
 
 // setNode adds a new node to the tree or replaces existing one.
-func (tree *rmaTree) setNode(key *uint256.Int, content *Unit) {
+func (tree *Tree) setNode(key *uint256.Int, content *Unit) {
 	tree.put(key, content, nil, &tree.root)
 }
 
 // put is recursive method, use setNode to add or update a node.
-func (tree *rmaTree) put(key *uint256.Int, content *Unit, p *Node, qp **Node) bool {
+func (tree *Tree) put(key *uint256.Int, content *Unit, p *Node, qp **Node) bool {
 	q := *qp
 	if q == nil {
 		n := &Node{ID: key, Content: content, Parent: p, recompute: true}
@@ -311,7 +308,7 @@ func (tree *rmaTree) put(key *uint256.Int, content *Unit, p *Node, qp **Node) bo
 }
 
 // getNode returns the node with given id
-func (tree *rmaTree) getNode(key *uint256.Int) (*Node, bool) {
+func (tree *Tree) getNode(key *uint256.Int) (*Node, bool) {
 	n := tree.root
 	for n != nil {
 		cmp := compare(key, n.ID)
@@ -328,12 +325,12 @@ func (tree *rmaTree) getNode(key *uint256.Int) (*Node, bool) {
 }
 
 // removeNode will find the node and remove from the tree. In case node does not exist won't do anything.
-func (tree *rmaTree) removeNode(key *uint256.Int) {
+func (tree *Tree) removeNode(key *uint256.Int) {
 	tree.remove(key, &tree.root)
 }
 
 // remove is a recursive function, use removeNode for deleting an item.
-func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
+func (tree *Tree) remove(key *uint256.Int, qp **Node) bool {
 	q := *qp
 	if q == nil {
 		return false
@@ -372,7 +369,7 @@ func (tree *rmaTree) remove(key *uint256.Int, qp **Node) bool {
 	return false
 }
 
-func (tree *rmaTree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) bool {
+func (tree *Tree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) bool {
 	q := *qp
 	if q.Children[0] == nil {
 		tree.assignMinKeyMinVal(minKey, q.ID, minVal, q.Content)
@@ -390,7 +387,7 @@ func (tree *rmaTree) removeMin(qp **Node, minKey **uint256.Int, minVal **Unit) b
 	return false
 }
 
-func (tree *rmaTree) removeFix(c int, t **Node) bool {
+func (tree *Tree) removeFix(c int, t **Node) bool {
 	s := *t
 	if s.balance == 0 {
 		tree.assignBalance(s, c)
@@ -421,7 +418,7 @@ func (tree *rmaTree) removeFix(c int, t **Node) bool {
 	return true
 }
 
-func (tree *rmaTree) putFix(c int, t **Node) bool {
+func (tree *Tree) putFix(c int, t **Node) bool {
 	s := *t
 	if s.balance == 0 {
 		tree.assignBalance(s, c)
@@ -442,14 +439,14 @@ func (tree *rmaTree) putFix(c int, t **Node) bool {
 	return false
 }
 
-func (tree *rmaTree) singlerot(c int, s *Node) *Node {
+func (tree *Tree) singlerot(c int, s *Node) *Node {
 	tree.assignBalance(s, 0)
 	s = tree.rotate(c, s)
 	tree.assignBalance(s, 0)
 	return s
 }
 
-func (tree *rmaTree) doublerot(c int, s *Node) *Node {
+func (tree *Tree) doublerot(c int, s *Node) *Node {
 	a := (c + 1) / 2
 	r := s.Children[a]
 	tree.assignRecompute(s.Children[a], true)
@@ -475,7 +472,7 @@ func (tree *rmaTree) doublerot(c int, s *Node) *Node {
 	return p
 }
 
-func (tree *rmaTree) rotate(c int, s *Node) *Node {
+func (tree *Tree) rotate(c int, s *Node) *Node {
 	a := (c + 1) / 2
 	r := s.Children[a]
 	tree.assignNode(&s.Children[a], r.Children[a^1])
@@ -488,7 +485,7 @@ func (tree *rmaTree) rotate(c int, s *Node) *Node {
 	return r
 }
 
-func (tree *rmaTree) assignNode(target **Node, source *Node) {
+func (tree *Tree) assignNode(target **Node, source *Node) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeNode{
 			targetPointer: target,
@@ -498,7 +495,7 @@ func (tree *rmaTree) assignNode(target **Node, source *Node) {
 	*target = source
 }
 
-func (tree *rmaTree) assignBalance(target *Node, balance int) {
+func (tree *Tree) assignBalance(target *Node, balance int) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeBalance{
 			targetNode: target,
@@ -508,7 +505,7 @@ func (tree *rmaTree) assignBalance(target *Node, balance int) {
 	target.balance = balance
 }
 
-func (tree *rmaTree) assignContent(target *Node, content *Unit) {
+func (tree *Tree) assignContent(target *Node, content *Unit) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeContent{
 			targetNode: target,
@@ -518,7 +515,7 @@ func (tree *rmaTree) assignContent(target *Node, content *Unit) {
 	target.Content = content
 }
 
-func (tree *rmaTree) assignMinKeyMinVal(minKey **uint256.Int, id *uint256.Int, minVal **Unit, content *Unit) {
+func (tree *Tree) assignMinKeyMinVal(minKey **uint256.Int, id *uint256.Int, minVal **Unit, content *Unit) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeMinKeyMinVal{
 			minKey:    minKey,
@@ -531,7 +528,7 @@ func (tree *rmaTree) assignMinKeyMinVal(minKey **uint256.Int, id *uint256.Int, m
 	*minVal = content
 }
 
-func (tree *rmaTree) assignRecompute(target *Node, recompute bool) {
+func (tree *Tree) assignRecompute(target *Node, recompute bool) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeRecompute{
 			targetNode: target,
@@ -541,7 +538,7 @@ func (tree *rmaTree) assignRecompute(target *Node, recompute bool) {
 	target.recompute = recompute
 }
 
-func (tree *rmaTree) assignSummaryValue(target *Node, summary SummaryValue) {
+func (tree *Tree) assignSummaryValue(target *Node, summary SummaryValue) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeSummaryValue{
 			targetNode: target,
@@ -551,7 +548,7 @@ func (tree *rmaTree) assignSummaryValue(target *Node, summary SummaryValue) {
 	target.SummaryValue = summary
 }
 
-func (tree *rmaTree) assignHash(target *Node, hash []byte) {
+func (tree *Tree) assignHash(target *Node, hash []byte) {
 	if tree.recordingEnabled {
 		tree.changes = append(tree.changes, &changeHash{
 			targetNode: target,
@@ -565,8 +562,8 @@ func compare(a, b *uint256.Int) int {
 	return a.Cmp(b)
 }
 
-// print generates a human-readable presentation of the rmaTree.
-func (tree *rmaTree) print() string {
+// print generates a human-readable presentation of the Tree.
+func (tree *Tree) print() string {
 	if tree.root == nil {
 		return "tree is empty"
 	}
@@ -575,8 +572,8 @@ func (tree *rmaTree) print() string {
 	return out
 }
 
-// output is rmaTree inner method for producing debugging
-func (tree *rmaTree) output(node *Node, prefix string, isTail bool, str *string) {
+// output is Tree inner method for producing debugging
+func (tree *Tree) output(node *Node, prefix string, isTail bool, str *string) {
 	if node.Children[1] != nil {
 		newPrefix := prefix
 		if isTail {

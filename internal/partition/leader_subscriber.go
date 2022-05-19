@@ -5,16 +5,11 @@ import (
 	"sync"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
-
-	"github.com/libp2p/go-libp2p-core/peer"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 const defaultCapacity = 10
@@ -114,7 +109,7 @@ func (lh *LeaderSubscriber) handleNewLeaderEvent(event interface{}) {
 	}
 }
 
-func (lh *LeaderSubscriber) processTx(tx *transaction.Transaction) bool {
+func (lh *LeaderSubscriber) processTx(tx *txsystem.Transaction) bool {
 	if lh.self == lh.currentLeader {
 		if err := lh.eb.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: tx}); err != nil {
 			return false

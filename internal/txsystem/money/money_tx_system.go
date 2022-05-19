@@ -4,97 +4,18 @@ import (
 	"crypto"
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	abHasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
-
-	abHasher "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"github.com/holiman/uint256"
 )
 
-// TODO move to the genesis file?
 const dustBillDeletionTimeout uint64 = 300
-
-type (
-	Transfer interface {
-		transaction.GenericTransaction
-		NewBearer() []byte
-		TargetValue() uint64
-		Backlink() []byte
-	}
-
-	TransferDC interface {
-		transaction.GenericTransaction
-		Nonce() []byte
-		TargetBearer() []byte
-		TargetValue() uint64
-		Backlink() []byte
-	}
-
-	Split interface {
-		transaction.GenericTransaction
-		Amount() uint64
-		TargetBearer() []byte
-		RemainingValue() uint64
-		Backlink() []byte
-		HashForIdCalculation(hashFunc crypto.Hash) []byte // Returns hash value for the sameShardId function
-	}
-
-	Swap interface {
-		transaction.GenericTransaction
-		OwnerCondition() []byte
-		BillIdentifiers() []*uint256.Int
-		DCTransfers() []TransferDC
-		Proofs() [][]byte
-		TargetValue() uint64
-	}
-
-	InitialBill struct {
-		ID    *uint256.Int
-		Value uint64
-		Owner state.Predicate
-	}
-
-	BillData struct {
-		V        uint64 // The monetary value of this bill
-		T        uint64 // The round number of the last transaction with the bill
-		Backlink []byte // Backlink (256-bit hash)
-	}
-
-	BillSummary struct {
-		v uint64 // The uint64 value of summary
-	}
-
-	RevertibleState interface {
-		AddItem(id *uint256.Int, owner state.Predicate, data state.UnitData, stateHash []byte) error
-		DeleteItem(id *uint256.Int) error
-		SetOwner(id *uint256.Int, owner state.Predicate, stateHash []byte) error
-		UpdateData(id *uint256.Int, f state.UpdateFunction, stateHash []byte) error
-		GetUnit(id *uint256.Int) (*state.Unit, error)
-		Revert()
-		Commit()
-		GetRootHash() []byte
-		TotalValue() state.SummaryValue
-		GetBlockNumber() uint64
-	}
-
-	moneySchemeState struct {
-		systemIdentifier []byte
-		revertibleState  RevertibleState
-		hashAlgorithm    crypto.Hash // hash function algorithm
-
-		// Contains the bill identifiers transferred to the dust collector. The key of the map is the block number when the
-		// bill is deleted and its value is transferred to the dust collector.
-		dustCollectorBills map[uint64][]*uint256.Int
-	}
-)
 
 var (
 	log = logger.CreateForPackage()
@@ -109,32 +30,91 @@ var (
 	ErrInvalidInitialBillID = errors.New("initial bill ID may not be equal to the DC money supply ID")
 )
 
-func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...Option) (*moneySchemeState, error) {
+type (
+	Transfer interface {
+		txsystem.GenericTransaction
+		NewBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	TransferDC interface {
+		txsystem.GenericTransaction
+		Nonce() []byte
+		TargetBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	Split interface {
+		txsystem.GenericTransaction
+		Amount() uint64
+		TargetBearer() []byte
+		RemainingValue() uint64
+		Backlink() []byte
+		HashForIdCalculation(hashFunc crypto.Hash) []byte // Returns hash value for the sameShardId function
+	}
+
+	Swap interface {
+		txsystem.GenericTransaction
+		OwnerCondition() []byte
+		BillIdentifiers() []*uint256.Int
+		DCTransfers() []TransferDC
+		Proofs() [][]byte
+		TargetValue() uint64
+	}
+
+	InitialBill struct {
+		ID    *uint256.Int
+		Value uint64
+		Owner rma.Predicate
+	}
+
+	BillData struct {
+		V        uint64 // The monetary value of this bill
+		T        uint64 // The round number of the last transaction with the bill
+		Backlink []byte // Backlink (256-bit hash)
+	}
+
+	moneyTxSystem struct {
+		systemIdentifier   []byte
+		revertibleState    *rma.Tree
+		hashAlgorithm      crypto.Hash // hash function algorithm
+		currentBlockNumber uint64
+		// Contains the bill identifiers transferred to the dust collector. The key of the map is the block number when the
+		// bill is deleted and its value is transferred to the dust collector.
+		dustCollectorBills map[uint64][]*uint256.Int
+	}
+)
+
+func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...Option) (*moneyTxSystem, error) {
 	if initialBill == nil {
 		return nil, ErrInitialBillIsNil
 	}
 	if dustCollectorMoneySupplyID.Eq(initialBill.ID) {
 		return nil, ErrInvalidInitialBillID
 	}
-	defaultTree, err := state.New(&state.Config{HashAlgorithm: hashAlgorithm, TrustBase: trustBase})
+	defaultTree, err := rma.New(&rma.Config{HashAlgorithm: hashAlgorithm})
 	if err != nil {
 		return nil, err
 	}
 	options := Options{
-		revertibleState: defaultTree,
+		revertibleState:  defaultTree,
+		systemIdentifier: []byte{0, 0, 0, 0},
 	}
 	for _, o := range customOpts {
 		o(&options)
 	}
 
-	msState := &moneySchemeState{
-		systemIdentifier:   []byte{0}, // TODO AB-178 get system identifier somewhere
+	txs := &moneyTxSystem{
+		systemIdentifier:   options.systemIdentifier,
 		hashAlgorithm:      hashAlgorithm,
 		revertibleState:    options.revertibleState,
 		dustCollectorBills: make(map[uint64][]*uint256.Int),
+		currentBlockNumber: uint64(0),
 	}
 
-	err = msState.revertibleState.AddItem(initialBill.ID, initialBill.Owner, &BillData{
+	err = txs.revertibleState.AddItem(initialBill.ID, initialBill.Owner, &BillData{
 		V:        initialBill.Value,
 		T:        0,
 		Backlink: nil,
@@ -143,7 +123,7 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 		return nil, errors.Wrap(err, "could not set initial bill")
 	}
 
-	err = msState.revertibleState.AddItem(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{
+	err = txs.revertibleState.AddItem(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{
 		V:        dcMoneyAmount,
 		T:        0,
 		Backlink: nil,
@@ -151,12 +131,13 @@ func NewMoneySchemeState(hashAlgorithm crypto.Hash, trustBase []string, initialB
 	if err != nil {
 		return nil, errors.Wrap(err, "could not set DC monet supply")
 	}
-	return msState, nil
+	txs.Commit()
+	return txs, nil
 }
 
-func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
+func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 	bd, _ := m.revertibleState.GetUnit(gtx.UnitID())
-	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: bd, SystemIdentifier: m.systemIdentifier, BlockNumber: m.revertibleState.GetBlockNumber()})
+	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: bd, SystemIdentifier: m.systemIdentifier, BlockNumber: m.currentBlockNumber})
 	if err != nil {
 		return err
 	}
@@ -186,7 +167,7 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		delBlockNr := m.revertibleState.GetBlockNumber() + dustBillDeletionTimeout
+		delBlockNr := m.currentBlockNumber + dustBillDeletionTimeout
 		dustBillsArray := m.dustCollectorBills[delBlockNr]
 		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitID())
 		return nil
@@ -196,7 +177,7 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		err = m.revertibleState.UpdateData(tx.UnitID(), func(data state.UnitData) (newData state.UnitData) {
+		err = m.revertibleState.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				// No change in case of incorrect data type.
@@ -204,7 +185,7 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 			}
 			return &BillData{
 				V:        bd.V - tx.Amount(),
-				T:        m.revertibleState.GetBlockNumber(),
+				T:        m.currentBlockNumber,
 				Backlink: tx.Hash(m.hashAlgorithm),
 			}
 		}, tx.Hash(m.hashAlgorithm))
@@ -215,7 +196,7 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 		newItemId := txutil.SameShardId(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
 		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
 			V:        tx.Amount(),
-			T:        m.revertibleState.GetBlockNumber(),
+			T:        m.currentBlockNumber,
 			Backlink: tx.Hash(m.hashAlgorithm),
 		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
@@ -231,8 +212,10 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 		// set n as the target value
 		n := tx.TargetValue()
 
+		// TODO verify ledger proofs AB-211
+
 		// reduce dc-money supply by n
-		err = m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data state.UnitData) (newData state.UnitData) {
+		err = m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data rma.UnitData) (newData rma.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				return bd
@@ -247,7 +230,7 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 		// create a new bill with value n and owner condition a
 		err = m.revertibleState.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
 			V:        n,
-			T:        m.revertibleState.GetBlockNumber(),
+			T:        m.currentBlockNumber,
 			Backlink: tx.Hash(m.hashAlgorithm),
 		}, tx.Hash(m.hashAlgorithm))
 		if err != nil {
@@ -260,15 +243,40 @@ func (m *moneySchemeState) Process(gtx transaction.GenericTransaction) error {
 	return nil
 }
 
+func (m *moneyTxSystem) State() (txsystem.State, error) {
+	if m.revertibleState.ContainsUncommittedChanges() {
+		return nil, txsystem.ErrStateContainsUncommittedChanges
+	}
+	return txsystem.NewStateSummary(
+		m.revertibleState.GetRootHash(),
+		m.revertibleState.TotalValue().Bytes(),
+	), nil
+}
+
+func (m *moneyTxSystem) BeginBlock(blockNr uint64) {
+	m.currentBlockNumber = blockNr
+}
+
+func (m *moneyTxSystem) Revert() {
+	m.revertibleState.Revert()
+}
+
+func (m *moneyTxSystem) Commit() {
+	m.revertibleState.Commit()
+}
+
+func (m *moneyTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return NewMoneyTx(tx)
+}
+
 // EndBlock deletes dust bills from the state tree.
-// TODO this function must be called by the "blockchain" component: AB-62 (block finalization)
-func (m *moneySchemeState) EndBlock(blockNr uint64) error {
-	dustBills := m.dustCollectorBills[blockNr]
+func (m *moneyTxSystem) EndBlock() (txsystem.State, error) {
+	dustBills := m.dustCollectorBills[m.currentBlockNumber]
 	var valueToTransfer uint64
 	for _, billID := range dustBills {
 		u, err := m.revertibleState.GetUnit(billID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bd, ok := u.Data.(*BillData)
 		if !ok {
@@ -278,11 +286,11 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 		valueToTransfer += bd.V
 		err = m.revertibleState.DeleteItem(billID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if valueToTransfer > 0 {
-		err := m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data state.UnitData) (newData state.UnitData) {
+		err := m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data rma.UnitData) (newData rma.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				return bd
@@ -291,27 +299,30 @@ func (m *moneySchemeState) EndBlock(blockNr uint64) error {
 			return bd
 		}, []byte{})
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	delete(m.dustCollectorBills, blockNr)
-	return nil
+	delete(m.dustCollectorBills, m.currentBlockNumber)
+	return txsystem.NewStateSummary(
+		m.revertibleState.GetRootHash(),
+		m.revertibleState.TotalValue().Bytes(),
+	), nil
 }
 
-func (m *moneySchemeState) updateBillData(tx transaction.GenericTransaction) error {
-	return m.revertibleState.UpdateData(tx.UnitID(), func(data state.UnitData) (newData state.UnitData) {
+func (m *moneyTxSystem) updateBillData(tx txsystem.GenericTransaction) error {
+	return m.revertibleState.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
 		bd, ok := data.(*BillData)
 		if !ok {
 			// No change in case of incorrect data type.
 			return data
 		}
-		bd.T = m.revertibleState.GetBlockNumber()
+		bd.T = m.currentBlockNumber
 		bd.Backlink = tx.Hash(m.hashAlgorithm)
 		return bd
 	}, tx.Hash(m.hashAlgorithm))
 }
 
-func (m *moneySchemeState) validateTransferTx(tx Transfer) error {
+func (m *moneyTxSystem) validateTransferTx(tx Transfer) error {
 	data, err := m.revertibleState.GetUnit(tx.UnitID())
 	if err != nil {
 		return err
@@ -319,7 +330,7 @@ func (m *moneySchemeState) validateTransferTx(tx Transfer) error {
 	return validateTransfer(data.Data, tx)
 }
 
-func (m *moneySchemeState) validateTransferDCTx(tx TransferDC) error {
+func (m *moneyTxSystem) validateTransferDCTx(tx TransferDC) error {
 	data, err := m.revertibleState.GetUnit(tx.UnitID())
 	if err != nil {
 		return err
@@ -327,7 +338,7 @@ func (m *moneySchemeState) validateTransferDCTx(tx TransferDC) error {
 	return validateTransferDC(data.Data, tx)
 }
 
-func (m *moneySchemeState) validateSplitTx(tx Split) error {
+func (m *moneyTxSystem) validateSplitTx(tx Split) error {
 	data, err := m.revertibleState.GetUnit(tx.UnitID())
 	if err != nil {
 		return err
@@ -335,8 +346,8 @@ func (m *moneySchemeState) validateSplitTx(tx Split) error {
 	return validateSplit(data.Data, tx)
 }
 
-func (m *moneySchemeState) validateSwapTx(tx Swap) error {
-	// 2. there is suffiecient DC-money supply
+func (m *moneyTxSystem) validateSwapTx(tx Swap) error {
+	// 2. there is sufficient DC-money supply
 	dcMoneySupply, err := m.revertibleState.GetUnit(dustCollectorMoneySupplyID)
 	if err != nil {
 		return err
@@ -357,43 +368,19 @@ func (m *moneySchemeState) validateSwapTx(tx Swap) error {
 }
 
 // GetRootHash starts root hash value computation and returns it.
-func (m *moneySchemeState) GetRootHash() []byte {
+func (m *moneyTxSystem) GetRootHash() []byte {
 	return m.revertibleState.GetRootHash()
 }
 
 // TotalValue starts tree calculation and returns the root node monetary value.
 // It must remain constant during the lifetime of the state.
-func (m *moneySchemeState) TotalValue() (uint64, error) {
+func (m *moneyTxSystem) TotalValue() (uint64, error) {
 	sum := m.revertibleState.TotalValue()
-	bs, ok := sum.(*BillSummary)
+	bs, ok := sum.(*rma.Uint64SummaryValue)
 	if !ok {
 		return 0, errors.New("summary was not *BillSummary")
 	}
-	return bs.v, nil
-}
-
-func (b *BillSummary) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(b.v))
-}
-
-func (b *BillSummary) Concatenate(left, right state.SummaryValue) state.SummaryValue {
-	var out uint64
-	out += b.v
-	if left != nil {
-		if ls, ok := left.(*BillSummary); ok {
-			out += ls.v
-		}
-	}
-	if right != nil {
-		if rs, ok := right.(*BillSummary); ok {
-			out += rs.v
-		}
-	}
-	return &BillSummary{v: out}
-}
-
-func (b *BillSummary) Bytes() []byte {
-	return util.Uint64ToBytes(b.v)
+	return bs.Value(), nil
 }
 
 func (b *BillData) AddToHasher(hasher hash.Hash) {
@@ -402,6 +389,6 @@ func (b *BillData) AddToHasher(hasher hash.Hash) {
 	hasher.Write(b.Backlink)
 }
 
-func (b *BillData) Value() state.SummaryValue {
-	return &BillSummary{v: b.V}
+func (b *BillData) Value() rma.SummaryValue {
+	return rma.Uint64SummaryValue(b.V)
 }

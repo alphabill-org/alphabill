@@ -1,48 +1,53 @@
-package transaction
+package money
 
 import (
 	"bytes"
 	"crypto"
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
+const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
+
 type (
+	wrapper struct {
+		transaction *txsystem.Transaction
+		hashFunc    crypto.Hash
+		hashValue   []byte
+	}
+
 	transferWrapper struct {
 		wrapper
-		transfer *BillTransfer
+		transfer *TransferOrder
 	}
 
 	transferDCWrapper struct {
 		wrapper
-		transferDC *TransferDC
+		transferDC *TransferDCOrder
 	}
 
 	billSplitWrapper struct {
 		wrapper
-		billSplit *BillSplit
+		billSplit *SplitOrder
 	}
 
 	swapWrapper struct {
 		wrapper
-		swap *Swap
+		swap *SwapOrder
 		// The dust collector transfers, that also exist inside swap as generic Transaction
 		dcTransfers []*transferDCWrapper
 	}
 )
 
 // NewMoneyTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
-func NewMoneyTx(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
+func NewMoneyTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	switch tx.TransactionAttributes.TypeUrl {
-	case protobufTypeUrlPrefix + "BillTransfer":
-		pb := &BillTransfer{}
+	case protobufTypeUrlPrefix + "TransferOrder":
+		pb := &TransferOrder{}
 		// This is slow operation, involves reflection. Would be good to do this only once.
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
@@ -52,8 +57,8 @@ func NewMoneyTx(tx *transaction.Transaction) (transaction.GenericTransaction, er
 			wrapper:  wrapper{transaction: tx},
 			transfer: pb,
 		}, nil
-	case protobufTypeUrlPrefix + "TransferDC":
-		pb := &TransferDC{}
+	case protobufTypeUrlPrefix + "TransferDCOrder":
+		pb := &TransferDCOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
@@ -62,8 +67,8 @@ func NewMoneyTx(tx *transaction.Transaction) (transaction.GenericTransaction, er
 			wrapper:    wrapper{transaction: tx},
 			transferDC: pb,
 		}, nil
-	case protobufTypeUrlPrefix + "BillSplit":
-		pb := &BillSplit{}
+	case protobufTypeUrlPrefix + "SplitOrder":
+		pb := &SplitOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
@@ -72,8 +77,8 @@ func NewMoneyTx(tx *transaction.Transaction) (transaction.GenericTransaction, er
 			wrapper:   wrapper{transaction: tx},
 			billSplit: pb,
 		}, nil
-	case protobufTypeUrlPrefix + "Swap":
-		pb := &Swap{}
+	case protobufTypeUrlPrefix + "SwapOrder":
+		pb := &SwapOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
@@ -227,7 +232,7 @@ func (w *swapWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
-func (x *TransferDC) addFieldsToHasher(hasher hash.Hash) {
+func (x *TransferDCOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
 	hasher.Write(x.TargetBearer)
 	hasher.Write(util.Uint64ToBytes(x.TargetValue))
@@ -261,8 +266,8 @@ func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }
 func (w *swapWrapper) TargetValue() uint64    { return w.swap.TargetValue }
-func (w *swapWrapper) DCTransfers() []money.TransferDC {
-	var sdt []money.TransferDC
+func (w *swapWrapper) DCTransfers() []TransferDC {
+	var sdt []TransferDC
 	for _, dt := range w.dcTransfers {
 		sdt = append(sdt, dt)
 	}
@@ -274,4 +279,41 @@ func (w *swapWrapper) BillIdentifiers() []*uint256.Int {
 		billIds = append(billIds, uint256.NewInt(0).SetBytes(biBytes))
 	}
 	return billIds
+}
+
+func (w *wrapper) UnitID() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(w.transaction.UnitId)
+}
+
+func (w *wrapper) Timeout() uint64 {
+	return w.transaction.Timeout
+}
+
+func (w *wrapper) SystemID() []byte {
+	return w.transaction.SystemId
+}
+
+func (w *wrapper) OwnerProof() []byte {
+	return w.transaction.OwnerProof
+}
+
+func (w *wrapper) ToProtoBuf() *txsystem.Transaction {
+	return w.transaction
+}
+
+func (w *wrapper) sigBytes(b bytes.Buffer) {
+	b.Write(w.transaction.SystemId)
+	b.Write(w.transaction.UnitId)
+	b.Write(util.Uint64ToBytes(w.transaction.Timeout))
+}
+
+func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
+	hasher.Write(w.transaction.SystemId)
+	hasher.Write(w.transaction.UnitId)
+	hasher.Write(w.transaction.OwnerProof)
+	hasher.Write(util.Uint64ToBytes(w.transaction.Timeout))
+}
+
+func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {
+	return w.hashFunc == hashFunc && w.hashValue != nil
 }

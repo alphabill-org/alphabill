@@ -1,7 +1,7 @@
 package wallet
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 )
 
@@ -11,10 +11,10 @@ type bill struct {
 	TxHash []byte       `json:"txHash"`
 
 	// dc bill specific fields
-	IsDcBill  bool                     `json:"dcBill"`
-	DcTx      *transaction.Transaction `json:"dcTx"`
-	DcTimeout uint64                   `json:"dcTimeout"`
-	DcNonce   []byte                   `json:"dcNonce"`
+	IsDcBill  bool                  `json:"dcBill"`
+	DcTx      *txsystem.Transaction `json:"dcTx"`
+	DcTimeout uint64                `json:"dcTimeout"`
+	DcNonce   []byte                `json:"dcNonce"`
 	// DcExpirationTimeout blockHeight when dc bill gets removed from state
 	DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
 }

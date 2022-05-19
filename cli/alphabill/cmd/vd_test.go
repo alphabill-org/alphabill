@@ -9,21 +9,18 @@ import (
 	"testing"
 	"time"
 
-	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestRunVD(t *testing.T) {
@@ -96,9 +93,9 @@ func TestRunVD(t *testing.T) {
 		// Test
 		// green path
 		id := uint256.NewInt(rand.Uint64()).Bytes32()
-		tx := &transaction.Transaction{
+		tx := &txsystem.Transaction{
 			UnitId:                id[:],
-			TransactionAttributes: new(anypb.Any),
+			TransactionAttributes: nil,
 			Timeout:               10,
 			SystemId:              []byte{0, 0, 0, 1},
 		}

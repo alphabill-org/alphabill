@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"google.golang.org/grpc"
 )
 
@@ -17,7 +17,7 @@ type TestAlphabillServiceServer struct {
 	mu             sync.Mutex
 	pubKey         []byte
 	maxBlockHeight uint64
-	processedTxs   []*transaction.Transaction
+	processedTxs   []*txsystem.Transaction
 	blocks         map[uint64]*alphabill.GetBlockResponse
 	alphabill.UnimplementedAlphabillServiceServer
 }
@@ -26,11 +26,11 @@ func NewTestAlphabillServiceServer() *TestAlphabillServiceServer {
 	return &TestAlphabillServiceServer{blocks: make(map[uint64]*alphabill.GetBlockResponse, 100)}
 }
 
-func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.processedTxs = append(s.processedTxs, tx)
-	return &transaction.TransactionResponse{Ok: true}, nil
+	return &txsystem.TransactionResponse{Ok: true}, nil
 }
 
 func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
@@ -67,7 +67,7 @@ func (s *TestAlphabillServiceServer) SetMaxBlockHeight(maxBlockHeight uint64) {
 	s.maxBlockHeight = maxBlockHeight
 }
 
-func (s *TestAlphabillServiceServer) GetProcessedTransactions() []*transaction.Transaction {
+func (s *TestAlphabillServiceServer) GetProcessedTransactions() []*txsystem.Transaction {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.processedTxs

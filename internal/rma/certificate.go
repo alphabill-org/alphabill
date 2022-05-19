@@ -1,4 +1,4 @@
-package state
+package rma
 
 import (
 	"crypto"
@@ -36,7 +36,7 @@ type pathItem struct {
 }
 
 // ExtractCertificate creates a RMA tree certificate.
-func (tree *rmaTree) ExtractCertificate(id *uint256.Int) (*certificate, error) {
+func (tree *Tree) ExtractCertificate(id *uint256.Int) (*certificate, error) {
 	if id == nil {
 		return nil, ErrIdIsNil
 	}

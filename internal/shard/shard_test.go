@@ -2,23 +2,11 @@ package shard
 
 import (
 	"crypto"
-	"fmt"
-	"testing"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 
 	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/shard/mocks"
 )
 
+// TODO remove
 // A type to satisfy transaction.GenericTransaction interface
 type genericTx struct{}
 
@@ -30,6 +18,7 @@ func (g *genericTx) OwnerProof() []byte               { return nil }
 func (g *genericTx) Hash(hashFunc crypto.Hash) []byte { return nil }
 func (g *genericTx) SigBytes() []byte                 { return nil }
 
+/*
 func TestProcessNew_Nil(t *testing.T) {
 	s, err := New(nil, nil, nil)
 	require.Nil(t, s)
@@ -119,4 +108,4 @@ func TestGetMaxBlockNo_Nok(t *testing.T) {
 	b, err := s.GetMaxBlockNo(&alphabill.GetMaxBlockNoRequest{})
 	require.NoError(t, err)
 	require.EqualValues(t, 0, b.BlockNo)
-}
+}*/

@@ -1,4 +1,4 @@
-package state
+package rma
 
 import (
 	"crypto"
@@ -436,7 +436,7 @@ func TestRevert_RemoveNode_TwoNodes_DeleteLeaf(t *testing.T) {
 
 func Test_RemoveNode_BiggerTree(t *testing.T) {
 	maxNrOfNodes := 25
-	createTree := func(nrOfNodes int) *rmaTree {
+	createTree := func(nrOfNodes int) *Tree {
 		at, _ := New(defaultConfig())
 		for i := 0; i < nrOfNodes; i++ {
 			at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
@@ -978,7 +978,7 @@ func newNodeContent(val int) *Unit {
 }
 
 // forceRecomputeFullTree recomputes the full tree and returns the root hash
-func forceRecomputeFullTree(at *rmaTree) []byte {
+func forceRecomputeFullTree(at *Tree) []byte {
 	if at.root != nil {
 		setRecomputeTrue(at.root)
 	}

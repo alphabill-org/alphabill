@@ -4,6 +4,8 @@ import (
 	"context"
 	"net"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
@@ -19,8 +21,8 @@ type baseNodeConfiguration struct {
 	Server *grpcServerConfiguration
 }
 
-func defaultShardRunFunc(ctx context.Context, cfg *baseNodeConfiguration, converter shard.TxConverter, stateProcessor shard.StateProcessor, blockStore store.BlockStore) error {
-	nodeComponent, err := shard.New(converter, stateProcessor, blockStore)
+func defaultShardRunFunc(ctx context.Context, cfg *baseNodeConfiguration, stateProcessor txsystem.TransactionSystem, blockStore store.BlockStore) error {
+	nodeComponent, err := shard.New(stateProcessor, blockStore)
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,6 @@ package testpartition
 import (
 	"encoding/binary"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 )
@@ -27,25 +26,25 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
-func (m *CounterTxSystem) State() txsystem.State {
+func (m *CounterTxSystem) State() (txsystem.State, error) {
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, m.ExecuteCount)
-	return &Summary{root: bytes, summary: util.Uint64ToBytes(m.SummaryValue)}
+	return &Summary{root: bytes, summary: util.Uint64ToBytes(m.SummaryValue)}, nil
 }
 
-func (m *CounterTxSystem) BeginBlock(uint64) {
+func (m *CounterTxSystem) BeginBlock(_ uint64) {
 }
 
 func (m *CounterTxSystem) Revert() {
 }
 
-func (m *CounterTxSystem) EndBlock() txsystem.State {
+func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
 	count := m.ExecuteCount + m.ExecuteDelta
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, count)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
-	}
+	}, nil
 }
 
 func (m *CounterTxSystem) Commit() {
@@ -53,7 +52,11 @@ func (m *CounterTxSystem) Commit() {
 	m.ExecuteDelta = 0
 }
 
-func (m *CounterTxSystem) Execute(_ *transaction.Transaction) error {
+func (m *CounterTxSystem) Execute(_ txsystem.GenericTransaction) error {
 	m.ExecuteDelta++
 	return nil
+}
+
+func (m *CounterTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return txsystem.NewDefaultGenericTransaction(tx)
 }

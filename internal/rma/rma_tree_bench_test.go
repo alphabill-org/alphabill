@@ -1,4 +1,4 @@
-package state
+package rma
 
 import (
 	"crypto"

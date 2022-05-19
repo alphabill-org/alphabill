@@ -6,12 +6,9 @@ import (
 	"os"
 	"path"
 
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
@@ -73,16 +70,13 @@ func newMoneyShardCmd(ctx context.Context, baseConfig *baseConfiguration, shardR
 	return shardCmd
 }
 
-func (r *moneyShardTxConverter) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	return billtx.NewMoneyTx(tx)
-}
-
 func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfiguration) error {
-	billsState, err := money.NewMoneySchemeState(crypto.SHA256, config.UnicityTrustBase, &money.InitialBill{
-		ID:    uint256.NewInt(defaultInitialBillId),
-		Value: config.InitialBillValue,
-		Owner: script.PredicateAlwaysTrue(),
-	}, config.DCMoneySupplyValue)
+	billsState, err := money.NewMoneyTxSystem(crypto.SHA256,
+		&money.InitialBill{
+			ID:    uint256.NewInt(defaultInitialBillId),
+			Value: config.InitialBillValue,
+			Owner: script.PredicateAlwaysTrue(),
+		}, config.DCMoneySupplyValue)
 	if err != nil {
 		return err
 	}
@@ -97,5 +91,5 @@ func defaultMoneyShardRunFunc(ctx context.Context, config *moneyShardConfigurati
 		return err
 	}
 
-	return defaultShardRunFunc(ctx, &config.baseNodeConfiguration, &moneyShardTxConverter{}, billsState, blockStore)
+	return defaultShardRunFunc(ctx, &config.baseNodeConfiguration, billsState, blockStore)
 }

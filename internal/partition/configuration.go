@@ -6,31 +6,19 @@ import (
 	gocrypto "crypto"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
-
-	"github.com/libp2p/go-libp2p-core/peerstore"
-
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/peerstore"
+	"github.com/multiformats/go-multiaddr"
 )
 
 const (
@@ -176,8 +164,12 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 	}
 
 	if c.initDefaultEventProcessors {
-		txForwarder, err := forwarder.New(peer, defaultTxForwardingTimeout, func(tx *transaction.Transaction) {
-			err := c.txBuffer.Add(tx)
+		txForwarder, err := forwarder.New(peer, defaultTxForwardingTimeout, func(tx *txsystem.Transaction) {
+			genTx, err := txs.ConvertTx(tx)
+			if err != nil {
+				logger.Warning("failed to convert tx: %v", err)
+			}
+			err = c.txBuffer.Add(genTx)
 			if err != nil {
 				logger.Warning("Tx forwarding failed: %v", err)
 			}
@@ -272,7 +264,7 @@ func (c *configuration) genesisBlock() *block.Block {
 	return &block.Block{
 		SystemIdentifier:   c.genesis.SystemDescriptionRecord.SystemIdentifier,
 		BlockNumber:        1,
-		Transactions:       []*transaction.Transaction{},
+		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: c.genesis.GetCertificate(),
 	}
 }
@@ -282,7 +274,10 @@ func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
 		logger.Warning("Invalid partition genesis file: %v", err)
 		return errors.Wrap(err, "invalid root partition genesis file")
 	}
-	state := txs.State()
+	state, err := txs.State()
+	if err != nil {
+		return err
+	}
 	txGenesisRoot := state.Root()
 	txSummaryValue := state.Summary()
 	genesisCertificate := c.genesis.Certificate

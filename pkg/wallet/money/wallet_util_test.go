@@ -46,7 +46,7 @@ func (c *mockAlphabillClient) IsShutdown() bool {
 func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
 	c := WalletConfig{DbPath: os.TempDir()}
-	w, err := CreateNewWallet(c)
+	w, err := CreateNewWallet("", c)
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
@@ -59,7 +59,7 @@ func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 
 func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWalletFromSeed(testMnemonic, WalletConfig{DbPath: os.TempDir()})
+	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir()})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})

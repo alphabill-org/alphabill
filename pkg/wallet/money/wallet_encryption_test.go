@@ -11,7 +11,7 @@ const walletPass = "default-wallet-pass"
 
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWalletFromSeed(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass})
+	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})

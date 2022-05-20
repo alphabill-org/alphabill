@@ -26,24 +26,16 @@ type Wallet struct {
 
 // NewEmptyWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func NewEmptyWallet(blockProcessor BlockProcessor, config Config) (*Wallet, *Keys, error) {
+func NewEmptyWallet(blockProcessor BlockProcessor, config Config, mnemonic string) (*Wallet, *Keys, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, nil, err
 	}
-	mnemonic, err := generateMnemonic()
-	if err != nil {
-		return nil, nil, err
-	}
-	return createWallet(blockProcessor, mnemonic, config)
-}
-
-// NewWalletFromSeed creates a new wallet from given seed mnemonic. To synchronize wallet with a node call Sync.
-// Shutdown needs to be called to release resources used by wallet.
-func NewWalletFromSeed(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {
-	err := log.InitDefaultLogger()
-	if err != nil {
-		return nil, nil, err
+	if mnemonic == "" {
+		mnemonic, err = generateMnemonic()
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	return createWallet(blockProcessor, mnemonic, config)
 }

@@ -96,13 +96,8 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password}
 	var w *money.Wallet
-	if mnemonic != "" {
-		fmt.Println("Creating wallet from mnemonic seed...")
-		w, err = money.CreateNewWalletFromSeed(mnemonic, c)
-	} else {
-		fmt.Println("Creating new wallet...")
-		w, err = money.CreateNewWallet(c)
-	}
+	fmt.Println("Creating new wallet...")
+	w, err = money.CreateNewWallet(mnemonic, c)
 	if err != nil {
 		return err
 	}

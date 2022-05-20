@@ -271,7 +271,7 @@ func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
 	c := WalletConfig{DbPath: os.TempDir()}
 	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
-	_, err := CreateNewWalletFromSeed(invalidSeed, c)
+	_, err := CreateNewWallet(invalidSeed, c)
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created

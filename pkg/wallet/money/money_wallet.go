@@ -51,61 +51,15 @@ type (
 	}
 )
 
-func CreateNewWallet(config WalletConfig) (*Wallet, error) {
+// CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
+// Shutdown needs to be called to release resources used by wallet.
+// If mnemonic seed is empty then new mnemonic will ge generated, otherwise wallet is restored using given mnemonic.
+func CreateNewWallet(mnemonic string, config WalletConfig) (*Wallet, error) {
 	db, err := getDb(config, true)
 	if err != nil {
 		return nil, err
 	}
-
-	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
-
-	gw, keys, err := wallet.NewEmptyWallet(
-		mw,
-		wallet.Config{
-			WalletPass:            config.WalletPass,
-			AlphabillClientConfig: config.AlphabillClientConfig,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = saveKeys(db, keys, config.WalletPass)
-	if err != nil {
-		return nil, err
-	}
-
-	mw.Wallet = gw
-	return mw, nil
-}
-
-func CreateNewWalletFromSeed(mnemonic string, config WalletConfig) (*Wallet, error) {
-	db, err := getDb(config, true)
-	if err != nil {
-		return nil, err
-	}
-
-	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
-
-	gw, keys, err := wallet.NewWalletFromSeed(
-		mw,
-		mnemonic,
-		wallet.Config{
-			WalletPass:            config.WalletPass,
-			AlphabillClientConfig: config.AlphabillClientConfig,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = saveKeys(db, keys, config.WalletPass)
-	if err != nil {
-		return nil, err
-	}
-
-	mw.Wallet = gw
-	return mw, nil
+	return createMoneyWallet(config, db, mnemonic)
 }
 
 func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
@@ -655,6 +609,35 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 			log.Error("error in dust collector job: ", err)
 		}
 	})
+}
+
+func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet, err error) {
+	mw = &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
+	defer func() {
+		if err != nil {
+			// delete database if any error occurs after creating it
+			mw.DeleteDb()
+		}
+	}()
+	gw, keys, err := wallet.NewEmptyWallet(
+		mw,
+		wallet.Config{
+			WalletPass:            config.WalletPass,
+			AlphabillClientConfig: config.AlphabillClientConfig,
+		},
+		mnemonic,
+	)
+	if err != nil {
+		return
+	}
+
+	err = saveKeys(db, keys, config.WalletPass)
+	if err != nil {
+		return
+	}
+
+	mw.Wallet = gw
+	return
 }
 
 func calculateDcNonce(bills []*bill) []byte {

@@ -40,13 +40,14 @@ func TestRunVD(t *testing.T) {
 					CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
 					LogCfgFile: defaultLoggerConfigFile,
 				},
-				Server: &grpcServerConfiguration{
-					Address:        defaultServerAddr,
-					MaxRecvMsgSize: defaultMaxRecvMsgSize,
-				},
+			},
+			Node: &startNodeConfiguration{},
+			RPCServer: &grpcServerConfiguration{
+				Address:        defaultServerAddr,
+				MaxRecvMsgSize: defaultMaxRecvMsgSize,
 			},
 		}
-		conf.Server.Address = listenAddr
+		conf.RPCServer.Address = listenAddr
 
 		appStoppedWg := sync.WaitGroup{}
 		ctx, _ := async.WithWaitGroup(context.Background())

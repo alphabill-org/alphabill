@@ -201,7 +201,7 @@ func createBlockWithSwapTx(dcNonce []byte, k *wallet.AccountKey, dcTxs []*transa
 			Transactions: []*transaction.Transaction{
 				{
 					UnitId:                dcNonce,
-					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHashSha256, dcTxs),
+					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHash.Sha256, dcTxs),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},

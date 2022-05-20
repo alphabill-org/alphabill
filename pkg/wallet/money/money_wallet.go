@@ -42,6 +42,7 @@ type (
 		dustCollectorJob *cron.Cron
 		dcWg             *dcWaitGroup
 		txBlock          *transactionBlock
+		accountKey       *wallet.ShaHashes
 	}
 
 	// transactionBlock helper struct that holds block metadata and db transaction during block processing
@@ -89,7 +90,13 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 		return nil, err
 	}
 
+	ac, err := db.Do().GetAccountKey()
+	if err != nil {
+		return nil, err
+	}
+
 	mw.Wallet = gw
+	mw.accountKey = ac.PubKeyHash
 	return mw, nil
 }
 
@@ -121,7 +128,7 @@ func (w *Wallet) BeginBlock(blockNumber uint64) error {
 }
 
 func (w *Wallet) ProcessTx(tx *transaction.Transaction) error {
-	return w.collectBills(w.txBlock.tx, tx, w.txBlock.blockNumber)
+	return w.collectBills(tx)
 }
 
 func (w *Wallet) EndBlock() error {
@@ -286,16 +293,19 @@ func (w *Wallet) SyncToMaxBlockNumber() error {
 	return nil
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blockHeight uint64) error {
+func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
 	gtx, err := billtx.NewMoneyTx(txPb)
 	if err != nil {
 		return err
 	}
 	stx := gtx.(transaction.GenericTransaction)
 
+	dbTx := w.txBlock.tx
+	blockNumber := w.txBlock.blockNumber
+
 	switch tx := stx.(type) {
 	case money.Transfer:
-		isOwner, err := verifyOwner(dbTx, tx.NewBearer())
+		isOwner, err := verifyOwner(w.accountKey, tx.NewBearer())
 		if err != nil {
 			return err
 		}
@@ -312,7 +322,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 			}
 		}
 	case money.TransferDC:
-		isOwner, err := verifyOwner(dbTx, tx.TargetBearer())
+		isOwner, err := verifyOwner(w.accountKey, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
@@ -325,7 +335,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 				DcTx:                txPb,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
-				DcExpirationTimeout: blockHeight + dustBillDeletionTimeout,
+				DcExpirationTimeout: blockNumber + dustBillDeletionTimeout,
 			})
 		} else {
 			err := dbTx.RemoveBill(tx.UnitID())
@@ -352,7 +362,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 				return err
 			}
 		}
-		isOwner, err := verifyOwner(dbTx, tx.TargetBearer())
+		isOwner, err := verifyOwner(w.accountKey, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
@@ -367,7 +377,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blo
 			}
 		}
 	case money.Swap:
-		isOwner, err := verifyOwner(dbTx, tx.OwnerCondition())
+		isOwner, err := verifyOwner(w.accountKey, tx.OwnerCondition())
 		if err != nil {
 			return err
 		}
@@ -637,6 +647,7 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet,
 	}
 
 	mw.Wallet = gw
+	mw.accountKey = keys.AccountKey.PubKeyHash
 	return
 }
 

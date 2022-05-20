@@ -13,19 +13,25 @@ import (
 	"github.com/tyler-smith/go-bip39"
 )
 
-type Keys struct {
-	Mnemonic   string
-	MasterKey  *hdkeychain.ExtendedKey
-	AccountKey *AccountKey
-}
+type (
+	Keys struct {
+		Mnemonic   string
+		MasterKey  *hdkeychain.ExtendedKey
+		AccountKey *AccountKey
+	}
 
-type AccountKey struct {
-	PubKey           []byte `json:"pubKey"` // compressed secp256k1 key 33 bytes
-	PrivKey          []byte `json:"privKey"`
-	PubKeyHashSha256 []byte `json:"pubKeyHashSha256"`
-	PubKeyHashSha512 []byte `json:"pubKeyHashSha512"`
-	DerivationPath   []byte `json:"derivationPath"`
-}
+	AccountKey struct {
+		PubKey         []byte     `json:"pubKey"` // compressed secp256k1 key 33 bytes
+		PrivKey        []byte     `json:"privKey"`
+		PubKeyHash     *ShaHashes `json:"pubKeyHash"`
+		DerivationPath []byte     `json:"derivationPath"`
+	}
+
+	ShaHashes struct {
+		Sha256 []byte `json:"sha256"`
+		Sha512 []byte `json:"sha512"`
+	}
+)
 
 func generateKeys(mnemonic string) (*Keys, error) {
 	if !bip39.IsMnemonicValid(mnemonic) {
@@ -90,12 +96,18 @@ func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*A
 		return nil, err
 	}
 	return &AccountKey{
-		PubKey:           compressedPubKey,
-		PrivKey:          privateKeyBytes,
-		PubKeyHashSha256: hash.Sum256(compressedPubKey),
-		PubKeyHashSha512: hash.Sum512(compressedPubKey),
-		DerivationPath:   []byte(derivationPath),
+		PubKey:         compressedPubKey,
+		PrivKey:        privateKeyBytes,
+		PubKeyHash:     NewPubKeyHash(compressedPubKey),
+		DerivationPath: []byte(derivationPath),
 	}, nil
+}
+
+func NewPubKeyHash(pubKey []byte) *ShaHashes {
+	return &ShaHashes{
+		Sha256: hash.Sum256(pubKey),
+		Sha512: hash.Sum512(pubKey),
+	}
 }
 
 // derivePrivateKey derives the private accountKey of the derivation path.

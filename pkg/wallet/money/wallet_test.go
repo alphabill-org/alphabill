@@ -162,21 +162,21 @@ func TestBlockProcessing(t *testing.T) {
 				// receive transfer of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHashSha256),
+					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive split of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHashSha256, 100, 100),
+					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive swap of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHashSha256),
+					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -290,6 +290,6 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.NoError(t, err)
 	require.Equal(t, testPubKeyHex, hex.EncodeToString(ac.PubKey))
 	require.Equal(t, testPrivKeyHex, hex.EncodeToString(ac.PrivKey))
-	require.Equal(t, testPubKeyHashSha256Hex, hex.EncodeToString(ac.PubKeyHashSha256))
-	require.Equal(t, testPubKeyHashSha512Hex, hex.EncodeToString(ac.PubKeyHashSha512))
+	require.Equal(t, testPubKeyHashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
+	require.Equal(t, testPubKeyHashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
 }

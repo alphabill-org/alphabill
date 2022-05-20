@@ -2,10 +2,12 @@ package money
 
 import (
 	"bytes"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 )
 
 // verifyOwner checks if given p2pkh bearer predicate contains given pubKey hash
-func verifyOwner(dbTx TxContext, bp []byte) (bool, error) {
+func verifyOwner(pubKeyHash *wallet.ShaHashes, bp []byte) (bool, error) {
 	// p2pkh predicate: [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 0xac, 0x01]
 	// p2pkh predicate: [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]
 
@@ -20,17 +22,9 @@ func verifyOwner(dbTx TxContext, bp []byte) (bool, error) {
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
 	hashAlgo := bp[5]
 	if hashAlgo == 0x01 {
-		k, err := dbTx.GetAccountKey() // TODO cache account key, no need to decrypt key for each transaction in block
-		if err != nil {
-			return false, err
-		}
-		return bytes.Equal(bp[6:38], k.PubKeyHashSha256), nil
+		return bytes.Equal(bp[6:38], pubKeyHash.Sha256), nil
 	} else if hashAlgo == 0x02 {
-		k, err := dbTx.GetAccountKey() // TODO cache account key, no need to decrypt key for each transaction in block
-		if err != nil {
-			return false, err
-		}
-		return bytes.Equal(bp[6:70], k.PubKeyHashSha512), nil
+		return bytes.Equal(bp[6:70], pubKeyHash.Sha512), nil
 	}
 	return false, nil
 }

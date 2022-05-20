@@ -80,7 +80,7 @@ func createDustTx(k *wallet.AccountKey, bill *bill, nonce []byte, timeout uint64
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferDC{
 		TargetValue:  bill.Value,
-		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
 		Nonce:        nonce,
 	}, proto.MarshalOptions{})
@@ -117,7 +117,7 @@ func createSwapTx(k *wallet.AccountKey, dcBills []*bill, dcNonce []byte, timeout
 
 	swapTx := createGenericTx(dcNonce, timeout)
 	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &billtx.Swap{
-		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		BillIdentifiers: billIds,
 		DcTransfers:     dustTransferOrders,
 		Proofs:          dustTransferProofs,

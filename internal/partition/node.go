@@ -135,6 +135,7 @@ func New(
 	if err := n.blockStore.Add(genesisBlock); err != nil {
 		return nil, err
 	}
+	txSystem.Commit() // commit everything from the genesis
 	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
 	n.startNewRound(genesisBlock.UnicityCertificate)
 	go n.loop()
@@ -296,7 +297,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	txState, err := n.transactionSystem.State()
 	if err != nil {
 		if err == txsystem.ErrStateContainsUncommittedChanges {
-			return errors.Wrap(err, "invalid tx system state root")
+			return errors.Wrap(err, "tx system contains uncommitted changes")
 		}
 		return err
 	}

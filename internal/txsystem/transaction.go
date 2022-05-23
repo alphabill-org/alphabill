@@ -6,8 +6,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// TODO remove?
-
 // Hash returns the hash value of the transaction.
 func (x *Transaction) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	hasher := hashAlgorithm.New()

@@ -79,7 +79,6 @@ func TestExecute_TransferOk(t *testing.T) {
 	txSystem.GetRootHash()
 	require.NoError(t, err)
 	unit2, data2 := getBill(t, rmaTree, initialBill.ID)
-	// TODO review asserts
 	require.Equal(t, data.Value(), data2.Value())
 	require.NotEqual(t, transferOk.OwnerProof(), unit2.Bearer)
 	require.NotEqual(t, unit.StateHash, unit2.StateHash)
@@ -290,7 +289,6 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 
 	_, dustBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustBill.V)
-	// TODO lisa, et billid on eemaldatud
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {

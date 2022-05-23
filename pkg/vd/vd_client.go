@@ -3,9 +3,12 @@ package verifiable_data
 import (
 	"context"
 	"crypto/sha256"
-	"fmt"
 	"io"
 	"os"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+
+	"github.com/pkg/errors"
 
 	rtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
@@ -28,31 +31,35 @@ type (
 	}
 )
 
-func New(_ context.Context, abConf *AlphabillClientConfig) *vdClient {
+const timeoutDelta = 100 // TODO make timeout configurable?
+
+func New(_ context.Context, abConf *AlphabillClientConfig) (*vdClient, error) {
+	err := log.InitDefaultLogger()
+	if err != nil {
+		return nil, err
+	}
 	return &vdClient{
 		abClient: abclient.New(abclient.AlphabillClientConfig{
 			Uri:          abConf.Uri,
 			WaitForReady: abConf.WaitForReady,
 		}),
-	}
+	}, nil
 }
 
 func (v *vdClient) RegisterFileHash(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		fmt.Println("Failed to open the file: ", err)
-		return err
+		return errors.Wrapf(err, "failed to open the file %s", filePath)
 	}
 	defer func() { _ = file.Close() }()
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
-		fmt.Println("Error reading the file: ", err)
-		return err
+		return errors.Wrapf(err, "failed to read the file %s", filePath)
 	}
 
 	hash := hasher.Sum(nil)
-	fmt.Printf("Hash of file '%s': %x", filePath, hash)
+	log.Debug("Hash of file '", filePath, "': ", hash)
 	return v.registerHashTx(hash)
 }
 
@@ -66,7 +73,11 @@ func (v *vdClient) RegisterHash(hash string) error {
 }
 
 func (v *vdClient) registerHashTx(hash []byte) error {
-	tx, err := createRegisterDataTx(hash, 100) // TODO make timeout configurable?
+	maxBlockNumber, err := v.abClient.GetMaxBlockNo()
+	if err != nil {
+		return err
+	}
+	tx, err := createRegisterDataTx(hash, maxBlockNumber+timeoutDelta)
 	defer v.abClient.Shutdown()
 	if err != nil {
 		return err
@@ -75,7 +86,7 @@ func (v *vdClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Response: %s\n", resp.String())
+	log.Info("Response: ", resp.String())
 	return nil
 }
 

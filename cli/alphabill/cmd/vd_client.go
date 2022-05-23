@@ -47,10 +47,13 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 				return errors.New("'hash' and 'file' flags are mutually exclusive")
 			}
 
-			vdClient := vd.New(ctx, &vd.AlphabillClientConfig{
+			vdClient, err := vd.New(ctx, &vd.AlphabillClientConfig{
 				Uri:          uri,
 				WaitForReady: true,
 			})
+			if err != nil {
+				return err
+			}
 
 			if hash != "" {
 				return vdClient.RegisterHash(hash)

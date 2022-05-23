@@ -23,18 +23,20 @@ type abClientMock struct {
 }
 
 func TestVDClient_Create(t *testing.T) {
-	vdClient := New(context.Background(), &AlphabillClientConfig{Uri: "test"})
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{Uri: "test"})
+	require.NoError(t, err)
 	require.NotNil(t, vdClient)
 	require.NotNil(t, vdClient.abClient)
 }
 
 func TestVdClient_RegisterHash(t *testing.T) {
-	vdClient := New(context.Background(), &AlphabillClientConfig{})
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
-	err := vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(hashHex)
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)
 	dataHash, err := uint256.FromHex(hashHex)
@@ -43,27 +45,30 @@ func TestVdClient_RegisterHash(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
-	vdClient := New(context.Background(), &AlphabillClientConfig{})
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
 
 	hashHex := "67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
-	err := vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(hashHex)
 	require.ErrorContains(t, err, "hex string without 0x prefix")
 }
 
 func TestVdClient_RegisterHash_BadHash(t *testing.T) {
-	vdClient := New(context.Background(), &AlphabillClientConfig{})
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810QQ"
-	err := vdClient.RegisterHash(hashHex)
+	err = vdClient.RegisterHash(hashHex)
 	require.ErrorContains(t, err, "invalid hex string")
 }
 
 func TestVdClient_RegisterFileHash(t *testing.T) {
-	vdClient := New(context.Background(), &AlphabillClientConfig{})
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
 
@@ -73,7 +78,7 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 	hasher.Write([]byte(content))
 	testfile.CreateTempFileWithContent(t, fileName, content)
 
-	err := vdClient.RegisterFileHash(fileName)
+	err = vdClient.RegisterFileHash(fileName)
 
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)

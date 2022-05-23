@@ -30,21 +30,6 @@ func TestVD_UseClientForTx(t *testing.T) {
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
 		dialAddr := "localhost:" + port
 
-		conf := &vdConfiguration{
-			baseNodeConfiguration: baseNodeConfiguration{
-				Base: &baseConfiguration{
-					HomeDir:    alphabillHomeDir(),
-					CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
-					LogCfgFile: defaultLoggerConfigFile,
-				},
-				Server: &grpcServerConfiguration{
-					Address:        defaultServerAddr,
-					MaxRecvMsgSize: defaultMaxRecvMsgSize,
-				},
-			},
-		}
-		conf.Server.Address = listenAddr
-
 		appStoppedWg := sync.WaitGroup{}
 		ctx, _ := async.WithWaitGroup(context.Background())
 		ctx, ctxCancel := context.WithCancel(ctx)
@@ -94,8 +79,6 @@ func TestVD_UseClientForTx(t *testing.T) {
 			// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
 			require.NoError(t, err)
 		}()
-
-		fmt.Println("Waiting for VD clients")
 
 		// Close the app
 		ctxCancel()

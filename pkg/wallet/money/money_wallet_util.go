@@ -7,7 +7,7 @@ import (
 )
 
 // verifyOwner checks if given p2pkh bearer predicate contains given pubKey hash
-func verifyOwner(pubKeyHash *wallet.ShaHashes, bp []byte) (bool, error) {
+func verifyOwner(pubKeyHash *wallet.KeyHashes, bp []byte) (bool, error) {
 	// p2pkh predicate: [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 0xac, 0x01]
 	// p2pkh predicate: [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]
 

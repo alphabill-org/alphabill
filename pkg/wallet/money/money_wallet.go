@@ -42,7 +42,7 @@ type (
 		dustCollectorJob *cron.Cron
 		dcWg             *dcWaitGroup
 		txBlock          *transactionBlock
-		accountKey       *wallet.ShaHashes
+		accountKey       *wallet.KeyHashes
 	}
 
 	// transactionBlock helper struct that holds block metadata and db transaction during block processing

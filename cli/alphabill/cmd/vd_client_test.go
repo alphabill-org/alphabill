@@ -70,8 +70,17 @@ func TestVD_UseClientForTx(t *testing.T) {
 		require.NoError(t, sendTxWithClient(ctx, dialAddr))
 
 		// failing case, send same stuff once again
-		// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
-		require.NoError(t, sendTxWithClient(ctx, dialAddr))
+		err = sendTxWithClient(ctx, dialAddr)
+		// There are two cases, then second 'register tx' gets rejected:
+		if err != nil {
+			// first, when both txs end up in the same block, this error is propagated here:
+			fmt.Println("second tx rejected from the buffer")
+			require.ErrorContains(t, err, "tx already in tx buffer")
+		} else {
+			// second, if the first tx has been processed, the second tx is rejected,
+			// but the error is only printed to the log and not propagated back here (TODO)
+			fmt.Println("second tx rejected, but error not propagated")
+		}
 
 		// Close the app
 		ctxCancel()

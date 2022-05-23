@@ -65,17 +65,13 @@ func TestVD_UseClientForTx(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
-		go func() {
-			fmt.Println("Starting VD clients")
-			// Start VD Client
-			err := sendTxWithClient(ctx, dialAddr)
-			require.NoError(t, err)
+		fmt.Println("Starting VD clients")
+		// Start VD Client
+		require.NoError(t, sendTxWithClient(ctx, dialAddr))
 
-			// failing case, send same stuff once again
-			err = sendTxWithClient(ctx, dialAddr)
-			// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
-			require.NoError(t, err)
-		}()
+		// failing case, send same stuff once again
+		// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
+		require.NoError(t, sendTxWithClient(ctx, dialAddr))
 
 		// Close the app
 		ctxCancel()

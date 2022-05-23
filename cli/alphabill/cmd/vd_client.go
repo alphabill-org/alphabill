@@ -60,7 +60,6 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 			} else if file != "" {
 				err = vdClient.RegisterFileHash(file)
 			}
-			log.Info("Done.")
 			return err
 		},
 	}

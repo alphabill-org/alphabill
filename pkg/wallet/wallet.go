@@ -69,7 +69,7 @@ func (w *Wallet) Sync(blockNumber uint64) {
 	w.syncLedger(blockNumber, true)
 }
 
-// Sync synchronises wallet from the last known block number with the given alphabill node.
+// SyncToMaxBlockNumber synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
 // Returns immediately if already synchronizing.
 func (w *Wallet) SyncToMaxBlockNumber(blockNumber uint64) {
@@ -190,15 +190,15 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(blockNumber uint64, ch chan<- *block.B
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		err := w.processBlock(b)
+		ctx, err := w.processBlock(b)
 		if err != nil {
-			errRollback := w.blockProcessor.Rollback()
+			errRollback := ctx.Rollback()
 			if errRollback != nil {
 				log.Error("error reverting block %v in block processor", errRollback)
 			}
 			return err
 		}
-		err = w.blockProcessor.Commit()
+		err = ctx.Commit()
 		if err != nil {
 			return err
 		}
@@ -206,18 +206,18 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	return nil
 }
 
-func (w *Wallet) processBlock(b *block.Block) error {
-	err := w.blockProcessor.BeginBlock(b.BlockNumber)
+func (w *Wallet) processBlock(b *block.Block) (BlockProcessorContext, error) {
+	ctx, err := w.blockProcessor.BeginBlock(b.BlockNumber)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, tx := range b.Transactions {
-		err = w.blockProcessor.ProcessTx(tx)
+		err = ctx.ProcessTx(tx)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return w.blockProcessor.EndBlock()
+	return ctx, ctx.EndBlock()
 }
 
 func createWallet(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {

@@ -38,6 +38,7 @@ var (
 	errWalletDbDoesNotExists    = errors.New("cannot open wallet db, file does not exits")
 	errKeyNotFound              = errors.New("key not found in wallet")
 	errBillWithMinValueNotFound = errors.New("spendable bill with min value not found")
+	errWalletDbTxAlreadyExists  = errors.New("wallet db transaction already exists")
 )
 
 const walletFileName = "wallet.db"
@@ -432,6 +433,9 @@ func (w *wdb) Do() TxContext {
 }
 
 func (w *wdbtx) BeginTx() error {
+	if w.tx != nil {
+		return errWalletDbTxAlreadyExists
+	}
 	tx, err := w.wdb.db.Begin(true)
 	if err != nil {
 		return err

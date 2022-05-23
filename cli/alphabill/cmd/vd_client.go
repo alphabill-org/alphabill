@@ -56,12 +56,12 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 			}
 
 			if hash != "" {
-				return vdClient.RegisterHash(hash)
+				err = vdClient.RegisterHash(hash)
 			} else if file != "" {
-				return vdClient.RegisterFileHash(file)
+				err = vdClient.RegisterFileHash(file)
 			}
 			log.Info("Done.")
-			return nil
+			return err
 		},
 	}
 	cmd.Flags().StringP("hash", "d", "", "register data hash (hex prefixed with 0x)")

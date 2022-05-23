@@ -66,16 +66,13 @@ func TestVD_UseClientForTx(t *testing.T) {
 		}()
 
 		go func() {
-			fmt.Println("Starting VD client 1")
+			fmt.Println("Starting VD clients")
 			// Start VD Client
 			err := sendTxWithClient(ctx, dialAddr)
 			require.NoError(t, err)
-		}()
 
-		go func() {
-			fmt.Println("Starting VD client 2")
 			// failing case, send same stuff once again
-			err := sendTxWithClient(ctx, dialAddr)
+			err = sendTxWithClient(ctx, dialAddr)
 			// TODO the fact the tx has been rejected is printed in the log, how to verify this in test?
 			require.NoError(t, err)
 		}()

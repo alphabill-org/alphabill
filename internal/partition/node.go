@@ -148,6 +148,7 @@ func (n *Node) Close() {
 	for _, processor := range n.configuration.processors {
 		processor.Close()
 	}
+	n.txBuffer.Close()
 	n.timers.WaitClose()
 	n.ctxCancel()
 }

@@ -109,13 +109,13 @@ func (lh *LeaderSubscriber) handleNewLeaderEvent(event interface{}) {
 	}
 }
 
-func (lh *LeaderSubscriber) processTx(tx *txsystem.Transaction) bool {
+func (lh *LeaderSubscriber) processTx(tx txsystem.GenericTransaction) bool {
 	if lh.self == lh.currentLeader {
-		if err := lh.eb.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: tx}); err != nil {
+		if err := lh.eb.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: tx.ToProtoBuf()}); err != nil {
 			return false
 		}
 	} else {
-		if err := lh.forwarder.Forward(tx, lh.currentLeader); err != nil {
+		if err := lh.forwarder.Forward(tx.ToProtoBuf(), lh.currentLeader); err != nil {
 			return false
 		}
 	}

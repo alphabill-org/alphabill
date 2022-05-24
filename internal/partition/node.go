@@ -213,6 +213,7 @@ func (n *Node) handleTxEvent(event interface{}) {
 		genTx, err := n.transactionSystem.ConvertTx(tx)
 		if err != nil {
 			logger.Warning("Failed to convert tx: %v", err)
+			return
 		}
 		n.process(genTx)
 	default:
@@ -309,7 +310,8 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	for _, tx := range prop.Transactions {
 		genTx, err := n.transactionSystem.ConvertTx(tx)
 		if err != nil {
-			logger.Warning("got transaction is invalid %v", err)
+			logger.Warning("transaction is invalid %v", err)
+			continue
 		}
 		n.process(genTx)
 	}

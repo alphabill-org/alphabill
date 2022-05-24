@@ -27,6 +27,7 @@ func TestNewTxBuffer_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
 	require.NotNil(t, buffer)
+	defer buffer.Close()
 	require.Equal(t, testBufferSize, buffer.maxSize)
 	require.Equal(t, zero, buffer.Count())
 	require.Equal(t, zero, uint32(len(buffer.transactions)))
@@ -35,6 +36,7 @@ func TestNewTxBuffer_Ok(t *testing.T) {
 func TestAddTx_TxIsNil(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 	err = buffer.Add(nil)
 	require.ErrorIs(t, err, ErrTxIsNil)
 }
@@ -42,6 +44,7 @@ func TestAddTx_TxIsNil(t *testing.T) {
 func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 	tx := testtransaction.RandomGenericBillTransfer(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
@@ -55,6 +58,7 @@ func TestAddTx_TxIsAlreadyInTxBuffer(t *testing.T) {
 func TestAddTx_TxBufferFull(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 
 	for i := uint32(0); i < testBufferSize; i++ {
 		err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
@@ -71,6 +75,7 @@ func TestAddTx_TxBufferFull(t *testing.T) {
 func TestAddTx_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
 	require.NoError(t, err)
 	require.Equal(t, one, buffer.Count())
@@ -80,6 +85,7 @@ func TestAddTx_Ok(t *testing.T) {
 func TestCount_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 	for i := uint32(0); i < testBufferSize; i++ {
 		err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
 		require.NoError(t, err)
@@ -88,40 +94,27 @@ func TestCount_Ok(t *testing.T) {
 	require.Equal(t, testBufferSize, uint32(len(buffer.transactions)))
 }
 
-func TestGetAll_Ok(t *testing.T) {
-	buffer, err := New(testBufferSize, gocrypto.SHA256)
-	require.NoError(t, err)
-	for i := uint32(0); i < testBufferSize; i++ {
-		err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
-		require.NoError(t, err)
-	}
-
-	txs := buffer.GetAll()
-	require.Equal(t, testBufferSize, uint32(cap(txs)))
-	require.Equal(t, zero, buffer.Count())
-	require.Equal(t, zero, uint32(len(buffer.transactions)))
-}
-
 func TestRemove_NotFound(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 	tx := testtransaction.RandomGenericBillTransfer(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
-	buffer.Remove("1")
+	buffer.remove("1")
 	require.Equal(t, uint32(1), buffer.Count())
 }
 
 func TestRemove_Ok(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
-
+	defer buffer.Close()
 	tx := testtransaction.RandomGenericBillTransfer(t)
 	err = buffer.Add(tx)
 	require.NoError(t, err)
 
 	hash := tx.Hash(gocrypto.SHA256)
-	buffer.Remove(string(hash))
+	buffer.remove(string(hash))
 	require.Equal(t, zero, buffer.Count())
 	require.Equal(t, zero, uint32(len(buffer.transactions)))
 }
@@ -129,6 +122,7 @@ func TestRemove_Ok(t *testing.T) {
 func TestProcess_ProcessAllTransactions(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
 	require.NoError(t, err)
 	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
@@ -136,7 +130,7 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
 	require.NoError(t, err)
 	var c int
-	go buffer.Process(context.Background(), nil, func(tx *txsystem.Transaction) bool {
+	go buffer.Process(context.Background(), nil, func(tx txsystem.GenericTransaction) bool {
 		c++
 		return true
 	})
@@ -151,6 +145,7 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 func TestProcess_CancelProcess(t *testing.T) {
 	buffer, err := New(testBufferSize, gocrypto.SHA256)
 	require.NoError(t, err)
+	defer buffer.Close()
 	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
 	require.NoError(t, err)
 	context, cancel := context.WithCancel(context.Background())
@@ -159,7 +154,7 @@ func TestProcess_CancelProcess(t *testing.T) {
 	})
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	buffer.Process(context, wg, func(tx *txsystem.Transaction) bool {
+	buffer.Process(context, wg, func(tx txsystem.GenericTransaction) bool {
 		return false
 	})
 	require.Eventually(t, func() bool {

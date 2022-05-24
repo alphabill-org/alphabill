@@ -21,6 +21,7 @@ const testPeerID = peer.ID("test")
 
 func TestNewLeaderHandler_NotOk(t *testing.T) {
 	txBuffer, err := txbuffer.New(10, gocrypto.SHA256)
+	defer txBuffer.Close()
 	require.NoError(t, err)
 	f, err := forwarder.New(testnetwork.CreatePeer(t), 10*time.Millisecond, func(tx *txsystem.Transaction) {
 		require.Fail(t, "")
@@ -118,6 +119,7 @@ func TestNewLeaderHandler_TxForwardingFails(t *testing.T) {
 
 func createLeaderHandler(t *testing.T) (*txbuffer.TxBuffer, *eventbus.EventBus, *LeaderSubscriber) {
 	txBuffer, err := txbuffer.New(10, gocrypto.SHA256)
+	t.Cleanup(txBuffer.Close)
 	require.NoError(t, err)
 	p := testnetwork.CreatePeer(t)
 	f, err := forwarder.New(p, 10*time.Millisecond, func(tx *transaction.Transaction) {

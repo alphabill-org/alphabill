@@ -193,7 +193,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, b := range blocks {
-		err = processBlock(w, b)
+		err = w.ProcessBlock(b)
 		require.NoError(t, err)
 	}
 

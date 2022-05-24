@@ -67,7 +67,7 @@ func (wg *dcWaitGroup) AddExpectedSwaps(swaps []expectedSwap) {
 }
 
 // DecrementSwaps decrement waitgroup after receiving expected swap bills, or timing out on dc/swap
-func (wg *dcWaitGroup) DecrementSwaps(blockHeight uint64, tx TxContext) error {
+func (wg *dcWaitGroup) DecrementSwaps(tx TxContext, blockHeight uint64) error {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 

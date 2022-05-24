@@ -120,21 +120,3 @@ func copyFile(src string, dst string) error {
 	}
 	return nil
 }
-
-func processBlock(w *Wallet, b *block.Block) error {
-	err := w.BeginBlock(b.BlockNumber)
-	if err != nil {
-		return err
-	}
-	for _, tx := range b.Transactions {
-		err = w.ProcessTx(tx)
-		if err != nil {
-			return err
-		}
-	}
-	err = w.EndBlock()
-	if err != nil {
-		return err
-	}
-	return w.Commit()
-}

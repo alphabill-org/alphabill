@@ -190,34 +190,12 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(blockNumber uint64, ch chan<- *block.B
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		err := w.processBlock(b)
-		if err != nil {
-			errRollback := w.blockProcessor.Rollback()
-			if errRollback != nil {
-				log.Error("error reverting block %v in block processor", errRollback)
-			}
-			return err
-		}
-		err = w.blockProcessor.Commit()
+		err := w.blockProcessor.ProcessBlock(b)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func (w *Wallet) processBlock(b *block.Block) error {
-	err := w.blockProcessor.BeginBlock(b.BlockNumber)
-	if err != nil {
-		return err
-	}
-	for _, tx := range b.Transactions {
-		err = w.blockProcessor.ProcessTx(tx)
-		if err != nil {
-			return err
-		}
-	}
-	return w.blockProcessor.EndBlock()
 }
 
 func createWallet(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {

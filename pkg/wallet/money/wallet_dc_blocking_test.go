@@ -43,7 +43,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 
 	// when the swap tx with given nonce is received
 	res := createBlockWithSwapTx(dcNonce, k, mockClient.txs)
-	err := processBlock(w, res.Block)
+	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -77,7 +77,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	// when the swap tx with dc bills is received
 	bills, _ := w.db.Do().GetBills()
 	res := createBlockWithSwapTxFromDcBills(dcNonce, k, bills...)
-	err := processBlock(w, res.Block)
+	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -121,7 +121,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	// when group 1 swap is received
 	res1 := createBlockWithSwapTxFromDcBills(dcNonce1, k, b11, b12)
 	res1.Block.BlockNumber = 1
-	err := processBlock(w, res1.Block)
+	err := w.ProcessBlock(res1.Block)
 	require.NoError(t, err)
 
 	// then swap waitgroup is decremented
@@ -134,7 +134,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	// when the swap tx with dc bills is received
 	res2 := createBlockWithSwapTxFromDcBills(dcNonce2, k, b21, b22, b23)
 	res2.Block.BlockNumber = 2
-	err = processBlock(w, res2.Block)
+	err = w.ProcessBlock(res2.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return

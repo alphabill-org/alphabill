@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
@@ -41,14 +42,7 @@ type (
 		db               Db
 		dustCollectorJob *cron.Cron
 		dcWg             *dcWaitGroup
-		txBlock          *transactionBlock
 		accountKey       *wallet.KeyHashes
-	}
-
-	// transactionBlock helper struct that holds block metadata and db transaction during block processing
-	transactionBlock struct {
-		blockNumber uint64
-		tx          TxContext
 	}
 )
 
@@ -111,52 +105,47 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 	return db.Do().IsEncrypted()
 }
 
-func (w *Wallet) BeginBlock(blockNumber uint64) error {
+func (w *Wallet) ProcessBlock(b *block.Block) error {
+	blockNumber := b.BlockNumber
 	log.Info("processing block: " + strconv.FormatUint(blockNumber, 10))
-	tx := w.db.Do()
-	err := tx.BeginTx()
-	if err != nil {
-		return err
-	}
-	w.txBlock = &transactionBlock{blockNumber: blockNumber, tx: tx}
-
-	lastBlockNumber, err := tx.GetBlockNumber()
-	if err != nil {
-		return err
-	}
-	return validateBlockNumber(blockNumber, lastBlockNumber)
+	return w.db.WithTransaction(func(dbTx TxContext) error {
+		lastBlockNumber, err := w.db.Do().GetBlockNumber()
+		if err != nil {
+			return err
+		}
+		err = validateBlockNumber(blockNumber, lastBlockNumber)
+		if err != nil {
+			return err
+		}
+		for _, pbTx := range b.Transactions {
+			err = w.collectBills(dbTx, blockNumber, pbTx)
+			if err != nil {
+				return err
+			}
+		}
+		return w.endBlock(dbTx, b)
+	})
 }
 
-func (w *Wallet) ProcessTx(tx *transaction.Transaction) error {
-	return w.collectBills(tx)
-}
-
-func (w *Wallet) EndBlock() error {
-	err := w.deleteExpiredDcBills(w.txBlock.tx, w.txBlock.blockNumber)
+func (w *Wallet) endBlock(dbTx TxContext, b *block.Block) error {
+	blockNumber := b.BlockNumber
+	err := w.deleteExpiredDcBills(dbTx, blockNumber)
 	if err != nil {
 		return err
 	}
-	err = w.txBlock.tx.SetBlockNumber(w.txBlock.blockNumber)
+	err = dbTx.SetBlockNumber(blockNumber)
 	if err != nil {
 		return err
 	}
-	err = w.trySwap(w.txBlock.tx)
+	err = w.trySwap(dbTx)
 	if err != nil {
 		return err
 	}
-	err = w.dcWg.DecrementSwaps(w.txBlock.blockNumber, w.txBlock.tx)
+	err = w.dcWg.DecrementSwaps(dbTx, blockNumber)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (w *Wallet) Rollback() error {
-	return w.txBlock.tx.RollbackTx()
-}
-
-func (w *Wallet) Commit() error {
-	return w.txBlock.tx.CommitTx()
 }
 
 // Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
@@ -293,16 +282,12 @@ func (w *Wallet) SyncToMaxBlockNumber() error {
 	return nil
 }
 
-func (w *Wallet) collectBills(txPb *transaction.Transaction) error {
+func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *transaction.Transaction) error {
 	gtx, err := billtx.NewMoneyTx(txPb)
 	if err != nil {
 		return err
 	}
 	stx := gtx.(transaction.GenericTransaction)
-
-	dbTx := w.txBlock.tx
-	blockNumber := w.txBlock.blockNumber
-
 	switch tx := stx.(type) {
 	case money.Transfer:
 		isOwner, err := verifyOwner(w.accountKey, tx.NewBearer())

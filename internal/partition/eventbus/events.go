@@ -4,7 +4,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
@@ -47,7 +47,7 @@ type (
 
 	// TransactionEvent contains a transaction that will be handled by the partition block proposal component.
 	TransactionEvent struct {
-		Transaction *transaction.Transaction
+		Transaction *txsystem.Transaction
 	}
 
 	NewLeaderEvent struct {

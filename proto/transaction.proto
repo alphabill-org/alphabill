@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/any.proto";
 
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction;transaction";
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem;txsystem";
 
 // Transaction is a generic transaction order, same for all transaction systems.
 message Transaction {

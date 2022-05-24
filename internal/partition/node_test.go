@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
@@ -17,9 +15,9 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -384,7 +382,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "r",
 		UnicityCertificate: uc,
-		Transactions:       []*transaction.Transaction{},
+		Transactions:       []*txsystem.Transaction{},
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
@@ -405,7 +403,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "r",
 		UnicityCertificate: uc,
-		Transactions:       []*transaction.Transaction{},
+		Transactions:       []*txsystem.Transaction{},
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
@@ -428,7 +426,7 @@ func TestBlockProposal_TxSystemStateIsDifferent(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "r",
 		UnicityCertificate: uc,
-		Transactions:       []*transaction.Transaction{},
+		Transactions:       []*txsystem.Transaction{},
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)

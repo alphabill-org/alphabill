@@ -5,34 +5,20 @@ import (
 	"context"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 )
 
 const (
@@ -56,7 +42,7 @@ type (
 		roundNumber  uint64
 		prevHash     []byte
 		stateHash    []byte
-		Transactions []*transaction.Transaction
+		Transactions []txsystem.GenericTransaction
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
@@ -66,7 +52,7 @@ type (
 		configuration               *configuration
 		transactionSystem           txsystem.TransactionSystem
 		luc                         *certificates.UnicityCertificate
-		proposal                    []*transaction.Transaction
+		proposal                    []txsystem.GenericTransaction
 		pr                          *pendingProposal
 		timers                      *timer.Timers
 		leaderSelector              LeaderSelector
@@ -149,6 +135,7 @@ func New(
 	if err := n.blockStore.Add(genesisBlock); err != nil {
 		return nil, err
 	}
+	txSystem.Commit() // commit everything from the genesis
 	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
 	n.startNewRound(genesisBlock.UnicityCertificate)
 	go n.loop()
@@ -161,6 +148,7 @@ func (n *Node) Close() {
 	for _, processor := range n.configuration.processors {
 		processor.Close()
 	}
+	n.txBuffer.Close()
 	n.timers.WaitClose()
 	n.ctxCancel()
 }
@@ -221,13 +209,20 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 func (n *Node) handleTxEvent(event interface{}) {
 	switch event.(type) {
 	case eventbus.TransactionEvent:
-		n.process(event.(eventbus.TransactionEvent).Transaction)
+
+		tx := event.(eventbus.TransactionEvent).Transaction
+		genTx, err := n.transactionSystem.ConvertTx(tx)
+		if err != nil {
+			logger.Warning("Failed to convert tx: %v", err)
+			return
+		}
+		n.process(genTx)
 	default:
 		logger.Warning("Invalid event: %v", event)
 	}
 }
 
-func (n *Node) process(tx *transaction.Transaction) {
+func (n *Node) process(tx txsystem.GenericTransaction) {
 	defer trackExecutionTime(time.Now(), "Processing transaction")
 	if err := n.txValidator.Validate(tx); err != nil {
 		logger.Warning("Transaction '%v' is invalid: %v", tx, err)
@@ -301,14 +296,25 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		}
 	}
 	prevHash := uc.InputRecord.Hash
-	txState := n.transactionSystem.State()
+	txState, err := n.transactionSystem.State()
+	if err != nil {
+		if err == txsystem.ErrStateContainsUncommittedChanges {
+			return errors.Wrap(err, "tx system contains uncommitted changes")
+		}
+		return err
+	}
 
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return errors.Errorf("invalid tx system state root. expected: %X, got: %X", txState.Root(), prevHash)
 	}
 	n.transactionSystem.BeginBlock(n.blockStore.LatestBlock().BlockNumber + 1)
 	for _, tx := range prop.Transactions {
-		n.process(tx)
+		genTx, err := n.transactionSystem.ConvertTx(tx)
+		if err != nil {
+			logger.Warning("transaction is invalid %v", err)
+			continue
+		}
+		n.process(genTx)
 	}
 	return n.sendCertificationRequest()
 }
@@ -371,7 +377,10 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 
 	if n.pr == nil {
 		// There is no pending block proposal. Start recovery unless the state is already up-to-date with UC.
-		state := n.transactionSystem.EndBlock()
+		state, err := n.transactionSystem.EndBlock()
+		if err != nil {
+			return errors.Wrap(err, "tx system failed to end block")
+		}
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
 			logger.Warning("Starting recovery")
 			n.status = recovering
@@ -401,16 +410,16 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
-func (n *Node) finalizeBlock(transactions []*transaction.Transaction, uc *certificates.UnicityCertificate) {
+func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) {
 	defer trackExecutionTime(time.Now(), "Block finalization")
 	logger.Info("Finalizing block. TxCount: %v", len(transactions))
-	height, _ := n.blockStore.Height() // TODO handle error
+	height := n.blockStore.LatestBlock().BlockNumber
 	latestBlock := n.blockStore.LatestBlock()
 	b := &block.Block{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
 		BlockNumber:        height + 1,
 		PreviousBlockHash:  latestBlock.Hash(n.configuration.hashAlgorithm),
-		Transactions:       transactions,
+		Transactions:       toProtoBuf(transactions),
 		UnicityCertificate: uc,
 	}
 	// TODO ensure block hash equals to IR hash
@@ -428,6 +437,8 @@ func (n *Node) handleT1TimeoutEvent() {
 		if err := n.sendCertificationRequest(); err != nil {
 			logger.Warning("Failed to send certification request: %v", err)
 		}
+	} else {
+		logger.Debug("Current node is not the leader.")
 	}
 }
 
@@ -439,7 +450,7 @@ func (n *Node) sendBlockProposal() error {
 		SystemIdentifier:   systemIdentifier,
 		NodeIdentifier:     nodeId.String(),
 		UnicityCertificate: n.luc,
-		Transactions:       n.proposal,
+		Transactions:       toProtoBuf(n.proposal),
 	}
 	util.WriteDebugJsonLog(logger, "New BlockProposal created", prop)
 	err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer)
@@ -454,7 +465,10 @@ func (n *Node) sendCertificationRequest() error {
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	nodeId := n.leaderSelector.SelfID()
 	prevHash := n.luc.InputRecord.Hash
-	state := n.transactionSystem.EndBlock()
+	state, err := n.transactionSystem.EndBlock()
+	if err != nil {
+		return errors.Wrap(err, "tx system failed to end block")
+	}
 	stateRoot := state.Root()
 	summary := state.Summary()
 
@@ -480,13 +494,12 @@ func (n *Node) sendCertificationRequest() error {
 	hasher.Write(util.Uint64ToBytes(blockNr))
 	hasher.Write(prevBlockHash)
 
-	// TODO continue implementing after task AB-129
-	/*for _, tx := range b.Transactions {
-		tx.AddToHasher(hasher)
-	}*/
+	for _, tx := range n.pr.Transactions {
+		hasher.Write(tx.Hash(n.configuration.hashAlgorithm))
+	}
 	blockHash := hasher.Sum(nil)
 
-	n.proposal = []*transaction.Transaction{}
+	n.proposal = []txsystem.GenericTransaction{}
 
 	req := &p1.P1Request{
 		SystemIdentifier: systemIdentifier,
@@ -510,12 +523,16 @@ func (n *Node) sendCertificationRequest() error {
 	return n.eventbus.Submit(eventbus.TopicP1, event)
 }
 
-func (n *Node) SubmitTx(tx *transaction.Transaction) error {
-	err := n.txValidator.Validate(tx)
+func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
+	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {
 		return err
 	}
-	return n.txBuffer.Add(tx)
+	err = n.txValidator.Validate(genTx)
+	if err != nil {
+		return err
+	}
+	return n.txBuffer.Add(genTx)
 }
 
 func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
@@ -553,4 +570,12 @@ func convertType[T any](event interface{}) (bool, T) {
 
 func trackExecutionTime(start time.Time, name string) {
 	logger.Debug("%s took %s", name, time.Since(start))
+}
+
+func toProtoBuf(transactions []txsystem.GenericTransaction) []*txsystem.Transaction {
+	protoTransactions := make([]*txsystem.Transaction, len(transactions))
+	for i, tx := range transactions {
+		protoTransactions[i] = tx.ToProtoBuf()
+	}
+	return protoTransactions
 }

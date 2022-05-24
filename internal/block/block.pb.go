@@ -8,7 +8,7 @@ package block
 
 import (
 	certificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	transaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	txsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -30,7 +30,7 @@ type Block struct {
 	SystemIdentifier   []byte                           `protobuf:"bytes,1,opt,name=system_identifier,json=systemIdentifier,proto3" json:"system_identifier,omitempty"`
 	BlockNumber        uint64                           `protobuf:"varint,2,opt,name=block_number,json=blockNumber,proto3" json:"block_number,omitempty"`
 	PreviousBlockHash  []byte                           `protobuf:"bytes,3,opt,name=previous_block_hash,json=previousBlockHash,proto3" json:"previous_block_hash,omitempty"`
-	Transactions       []*transaction.Transaction       `protobuf:"bytes,4,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Transactions       []*txsystem.Transaction          `protobuf:"bytes,4,rep,name=transactions,proto3" json:"transactions,omitempty"`
 	UnicityCertificate *certificates.UnicityCertificate `protobuf:"bytes,5,opt,name=unicity_certificate,json=unicityCertificate,proto3" json:"unicity_certificate,omitempty"`
 }
 
@@ -87,7 +87,7 @@ func (x *Block) GetPreviousBlockHash() []byte {
 	return nil
 }
 
-func (x *Block) GetTransactions() []*transaction.Transaction {
+func (x *Block) GetTransactions() []*txsystem.Transaction {
 	if x != nil {
 		return x.Transactions
 	}
@@ -146,7 +146,7 @@ func file_block_proto_rawDescGZIP() []byte {
 var file_block_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_block_proto_goTypes = []interface{}{
 	(*Block)(nil),                           // 0: Block
-	(*transaction.Transaction)(nil),         // 1: Transaction
+	(*txsystem.Transaction)(nil),            // 1: Transaction
 	(*certificates.UnicityCertificate)(nil), // 2: UnicityCertificate
 }
 var file_block_proto_depIdxs = []int32{

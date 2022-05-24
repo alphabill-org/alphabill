@@ -5,10 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
@@ -19,16 +18,13 @@ import (
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"github.com/stretchr/testify/require"
 )
 
 type AlwaysValidBlockProposalValidator struct{}
 type AlwaysValidTransactionValidator struct{}
 
-func (t *AlwaysValidTransactionValidator) Validate(*transaction.Transaction) error {
+func (t *AlwaysValidTransactionValidator) Validate(_ txsystem.GenericTransaction) error {
 	return nil
 }
 func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, crypto.Verifier) error {
@@ -124,7 +120,7 @@ func (tp *SingleNodePartition) Close() {
 	tp.partition.Close()
 }
 
-func (tp *SingleNodePartition) SubmitTx(tx *transaction.Transaction) error {
+func (tp *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 	return tp.eventBus.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: tx})
 }
 
@@ -140,7 +136,7 @@ func (tp *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 	return tp.eventBus.Submit(eventbus.TopicBlockProposalInput, eventbus.BlockProposalEvent{BlockProposal: prop})
 }
 
-func (tp *SingleNodePartition) GetProposalTxs() []*transaction.Transaction {
+func (tp *SingleNodePartition) GetProposalTxs() []txsystem.GenericTransaction {
 	return tp.partition.proposal
 }
 
@@ -265,10 +261,10 @@ func NextBlockReceived(tp *SingleNodePartition, prevBlock *block.Block) func() b
 	}
 }
 
-func ProposalContains(tp *SingleNodePartition, t *transaction.Transaction) func() bool {
+func ProposalContains(tp *SingleNodePartition, t *txsystem.Transaction) func() bool {
 	return func() bool {
 		for _, tx := range tp.GetProposalTxs() {
-			if reflect.DeepEqual(tx, t) {
+			if reflect.DeepEqual(tx.ToProtoBuf(), t) {
 				return true
 			}
 		}
@@ -276,7 +272,7 @@ func ProposalContains(tp *SingleNodePartition, t *transaction.Transaction) func(
 	}
 }
 
-func ContainsTransaction(block *block.Block, tx *transaction.Transaction) bool {
+func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
 	for _, t := range block.Transactions {
 		if t == tx {
 			return true

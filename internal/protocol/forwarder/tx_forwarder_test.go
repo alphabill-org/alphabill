@@ -5,15 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peerstore"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
-
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	golog "github.com/ipfs/go-log"
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +23,7 @@ func init() {
 }
 
 func TestNew_PeerIsNil(t *testing.T) {
-	_, err := New(nil, DefaultForwardingTimeout, func(tx *transaction.Transaction) {})
+	_, err := New(nil, DefaultForwardingTimeout, func(tx *txsystem.Transaction) {})
 	require.ErrorIs(t, err, ErrPeerIsNil)
 }
 
@@ -50,15 +46,15 @@ func TestTxHandler_ForwardTx(t *testing.T) {
 	peer2.Network().Peerstore().AddAddrs(peer1.ID(), peer1.MultiAddresses(), peerstore.PermanentAddrTTL)
 
 	// init peer1 forwarder
-	var peer1Tx *transaction.Transaction
-	peer1Forwarder, err := New(peer1, DefaultForwardingTimeout, func(tx *transaction.Transaction) {
+	var peer1Tx *txsystem.Transaction
+	peer1Forwarder, err := New(peer1, DefaultForwardingTimeout, func(tx *txsystem.Transaction) {
 		peer1Tx = tx
 	})
 	require.NoError(t, err)
 
 	// init peer2 forwarder
-	var peer2Tx *transaction.Transaction
-	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *transaction.Transaction) {
+	var peer2Tx *txsystem.Transaction
+	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *txsystem.Transaction) {
 		peer2Tx = tx
 	})
 	require.NoError(t, err)
@@ -85,7 +81,7 @@ func TestTxHandler_UnknownPeer(t *testing.T) {
 	defer peer2.Close()
 
 	// init peer2 forwarder
-	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *transaction.Transaction) {})
+	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *txsystem.Transaction) {})
 	require.NoError(t, err)
 	err = peer2Forwarder.Forward(split, peer1.ID())
 	require.Error(t, err)
@@ -107,7 +103,7 @@ func TestTxHandler_PeerIsClosed(t *testing.T) {
 	require.NoError(t, peer1.Close())
 
 	// init peer2 forwarder
-	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *transaction.Transaction) {})
+	peer2Forwarder, err := New(peer2, DefaultForwardingTimeout, func(tx *txsystem.Transaction) {})
 	require.NoError(t, err)
 
 	// peer2 forwards tx to peer1
@@ -130,13 +126,13 @@ func TestTxHandler_Timeout(t *testing.T) {
 	peer2.Network().Peerstore().AddAddrs(peer1.ID(), peer1.MultiAddresses(), peerstore.PermanentAddrTTL)
 
 	// init peer1 forwarder
-	_, err := New(peer1, DefaultForwardingTimeout, func(tx *transaction.Transaction) {
+	_, err := New(peer1, DefaultForwardingTimeout, func(tx *txsystem.Transaction) {
 		time.Sleep(time.Second)
 	})
 	require.NoError(t, err)
 
 	// init peer2 forwarder
-	peer2Forwarder, err := New(peer2, time.Millisecond, func(tx *transaction.Transaction) {
+	peer2Forwarder, err := New(peer2, time.Millisecond, func(tx *txsystem.Transaction) {
 	})
 	require.NoError(t, err)
 

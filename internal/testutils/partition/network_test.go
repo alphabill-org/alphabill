@@ -4,14 +4,9 @@ import (
 	"testing"
 
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/stretchr/testify/require"
 )
 
 var systemIdentifier = []byte{1, 2, 4, 1}
@@ -37,7 +32,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }
 
-func randomTx(systemIdentifier []byte) *transaction.Transaction {
+func randomTx(systemIdentifier []byte) *txsystem.Transaction {
 	tx := testtransaction.RandomBillTransfer()
 	tx.SystemId = systemIdentifier
 	tx.Timeout = 100

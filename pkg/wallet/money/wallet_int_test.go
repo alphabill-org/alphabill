@@ -15,7 +15,7 @@ import (
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testserver "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/server"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -46,7 +46,7 @@ func TestSync(t *testing.T) {
 			Block: &block.Block{
 				BlockNumber:       1,
 				PreviousBlockHash: hash.Sum256([]byte{}),
-				Transactions: []*transaction.Transaction{
+				Transactions: []*txsystem.Transaction{
 					// random dust transfer can be processed
 					{
 						UnitId:                hash.Sum256([]byte{0x00}),
@@ -135,7 +135,7 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 			Block: &block.Block{
 				BlockNumber:        blockNo,
 				PreviousBlockHash:  hash.Sum256([]byte{}),
-				Transactions:       []*transaction.Transaction{},
+				Transactions:       []*txsystem.Transaction{},
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}
@@ -210,7 +210,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 			Block: &block.Block{
 				BlockNumber:        blockNo,
 				PreviousBlockHash:  hash.Sum256([]byte{}),
-				Transactions:       []*transaction.Transaction{},
+				Transactions:       []*txsystem.Transaction{},
 				UnicityCertificate: &certificates.UnicityCertificate{},
 			},
 		}

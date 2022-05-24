@@ -4,14 +4,13 @@ import (
 	"crypto"
 	"testing"
 
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -73,7 +72,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 		b = &block.Block{
 			BlockNumber:        blockHeight,
 			PreviousBlockHash:  hash.Sum256([]byte{}),
-			Transactions:       []*transaction.Transaction{},
+			Transactions:       []*txsystem.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
 		err = w.ProcessBlock(b)
@@ -122,7 +121,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	b := &block.Block{
 		BlockNumber:        dcTimeoutBlockCount,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
-		Transactions:       []*transaction.Transaction{},
+		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err = w.ProcessBlock(b)
@@ -161,7 +160,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	b := &block.Block{
 		BlockNumber:        swapTimeoutBlockCount,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
-		Transactions:       []*transaction.Transaction{},
+		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err := w.ProcessBlock(b)
@@ -195,7 +194,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 	b := &block.Block{
 		BlockNumber:        dcTimeoutBlockCount,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
-		Transactions:       []*transaction.Transaction{},
+		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 	err := w.ProcessBlock(b)
@@ -268,7 +267,7 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	// receiving a block should delete expired bills
 	err := w.ProcessBlock(&block.Block{
 		BlockNumber:  blockHeight + 1,
-		Transactions: []*transaction.Transaction{},
+		Transactions: []*txsystem.Transaction{},
 	})
 	require.NoError(t, err)
 
@@ -362,22 +361,22 @@ func verifyBalance(t *testing.T, w *Wallet, balance uint64) {
 	require.EqualValues(t, balance, actualDcNonce)
 }
 
-func parseBillTransferTx(t *testing.T, tx *transaction.Transaction) *billtx.BillTransfer {
-	btTx := &billtx.BillTransfer{}
+func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferOrder {
+	btTx := &billtx.TransferOrder{}
 	err := tx.TransactionAttributes.UnmarshalTo(btTx)
 	require.NoError(t, err)
 	return btTx
 }
 
-func parseDcTx(t *testing.T, tx *transaction.Transaction) *billtx.TransferDC {
-	dcTx := &billtx.TransferDC{}
+func parseDcTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferDCOrder {
+	dcTx := &billtx.TransferDCOrder{}
 	err := tx.TransactionAttributes.UnmarshalTo(dcTx)
 	require.NoError(t, err)
 	return dcTx
 }
 
-func parseSwapTx(t *testing.T, tx *transaction.Transaction) *billtx.Swap {
-	txSwap := &billtx.Swap{}
+func parseSwapTx(t *testing.T, tx *txsystem.Transaction) *billtx.SwapOrder {
+	txSwap := &billtx.SwapOrder{}
 	err := tx.TransactionAttributes.UnmarshalTo(txSwap)
 	require.NoError(t, err)
 	return txSwap

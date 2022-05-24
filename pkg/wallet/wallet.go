@@ -6,7 +6,10 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/tyler-smith/go-bip39"
 )

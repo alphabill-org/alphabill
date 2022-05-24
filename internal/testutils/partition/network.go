@@ -7,20 +7,15 @@ import (
 	"net"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
-	crypto2 "github.com/libp2p/go-libp2p-core/crypto"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	crypto2 "github.com/libp2p/go-libp2p-core/crypto"
+	"google.golang.org/protobuf/proto"
 )
 
 // AlphabillNetwork for integration tests
@@ -132,7 +127,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 }
 
 // BroadcastTx sends transactions to all nodes.
-func (a *AlphabillNetwork) BroadcastTx(tx *transaction.Transaction) error {
+func (a *AlphabillNetwork) BroadcastTx(tx *txsystem.Transaction) error {
 	for _, n := range a.Nodes {
 		if err := n.SubmitTx(tx); err != nil {
 			return err
@@ -142,7 +137,7 @@ func (a *AlphabillNetwork) BroadcastTx(tx *transaction.Transaction) error {
 }
 
 // SubmitTx sends transactions to the first node.
-func (a *AlphabillNetwork) SubmitTx(tx *transaction.Transaction) error {
+func (a *AlphabillNetwork) SubmitTx(tx *txsystem.Transaction) error {
 	return a.Nodes[0].SubmitTx(tx)
 }
 
@@ -241,7 +236,7 @@ func getFreePort() (int, error) {
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
-func BlockchainContainsTx(tx *transaction.Transaction, network *AlphabillNetwork) func() bool {
+func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillNetwork) func() bool {
 	return func() bool {
 		for _, n := range network.Nodes {
 			height := n.GetLatestBlock().GetBlockNumber()

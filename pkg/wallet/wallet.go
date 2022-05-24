@@ -13,8 +13,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
@@ -471,12 +470,12 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, time
 	return tx.SetDcMetadata(dcNonce, &dcMetadata{SwapTimeout: timeout})
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, txPb *transaction.Transaction, blockHeight uint64) error {
-	gtx, err := billtx.NewMoneyTx(txPb)
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, blockHeight uint64) error {
+	gtx, err := money.NewMoneyTx(txPb)
 	if err != nil {
 		return err
 	}
-	stx := gtx.(transaction.GenericTransaction)
+	stx := gtx.(txsystem.GenericTransaction)
 
 	switch tx := stx.(type) {
 	case money.Transfer:

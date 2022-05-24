@@ -4,21 +4,15 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-
-	testcertificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/certificates"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	testcertificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/certificates"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/stretchr/testify/require"
 )
 
 var systemDescription = &genesis.SystemDescriptionRecord{
@@ -165,7 +159,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
-		Transactions:       []*transaction.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions:       []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
 	}
 	err = bp.Sign(gocrypto.SHA256, nodeSigner)
 	require.NoError(t, err)

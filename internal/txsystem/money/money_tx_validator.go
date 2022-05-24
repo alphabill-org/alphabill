@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 	"github.com/holiman/uint256"
 )
 
@@ -23,15 +24,15 @@ var (
 	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
 )
 
-func validateTransfer(data state.UnitData, tx Transfer) error {
+func validateTransfer(data rma.UnitData, tx Transfer) error {
 	return validateAnyTransfer(data, tx.Backlink(), tx.TargetValue())
 }
 
-func validateTransferDC(data state.UnitData, tx TransferDC) error {
+func validateTransferDC(data rma.UnitData, tx TransferDC) error {
 	return validateAnyTransfer(data, tx.Backlink(), tx.TargetValue())
 }
 
-func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint64) error {
+func validateAnyTransfer(data rma.UnitData, backlink []byte, targetValue uint64) error {
 	bd, ok := data.(*BillData)
 	if !ok {
 		return txsystem.ErrInvalidDataType
@@ -45,7 +46,7 @@ func validateAnyTransfer(data state.UnitData, backlink []byte, targetValue uint6
 	return nil
 }
 
-func validateSplit(data state.UnitData, tx Split) error {
+func validateSplit(data rma.UnitData, tx Split) error {
 	bd, ok := data.(*BillData)
 	if !ok {
 		return txsystem.ErrInvalidDataType
@@ -74,7 +75,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 
 	// 2. there is suffiecient DC-money supply
 	// 3. there exists no bill with identifier
-	// checked in moneySchemeState#validateSwap method
+	// checked in moneyTxSystem#validateSwap method
 
 	// 4. all bill ids in dust transfer orders are elements of bill ids in swap tx
 	for _, dcTx := range tx.DCTransfers() {

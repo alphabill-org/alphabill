@@ -1,73 +1,59 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"strings"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-	"google.golang.org/grpc/credentials/insecure"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
-
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 )
 
-var failingTransactionID = uint256.NewInt(5)
+var failingTransactionID = uint256.NewInt(5).Bytes32()
 
 type (
-	MockTransactionProcessor struct{}
-	MockLedgerService        struct{}
+	MockNode struct{}
 )
 
-func (mpp *MockTransactionProcessor) Process(gtx transaction.GenericTransaction) error {
-	if gtx.UnitID().Eq(failingTransactionID) {
+func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
+	if bytes.Equal(tx.UnitId, failingTransactionID[:]) {
 		return errors.New("failed")
 	}
 	return nil
 }
 
-func (mpp *MockTransactionProcessor) Convert(tx *transaction.Transaction) (transaction.GenericTransaction, error) {
-	return billtx.NewMoneyTx(tx)
+func (mn *MockNode) GetBlock(_ uint64) (*block.Block, error) {
+	return &block.Block{BlockNumber: 1}, nil
 }
 
-func (mls *MockLedgerService) GetBlock(request *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
-	return &alphabill.GetBlockResponse{Block: &block.Block{BlockNumber: 1}}, nil
+func (mn *MockNode) GetLatestBlock() *block.Block {
+	return &block.Block{BlockNumber: 1}
 }
 
-func (mls *MockLedgerService) GetMaxBlockNo(request *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: 100}, nil
-}
-
-func TestNewRpcServer_ProcessorMissing(t *testing.T) {
-	p, err := NewRpcServer(nil, &MockLedgerService{})
-	assert.Nil(t, p)
-	assert.NotNil(t, err)
-	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
-}
-
-func TestNewRpcServer_LedgerServiceMissing(t *testing.T) {
-	p, err := NewRpcServer(&MockTransactionProcessor{}, nil)
+func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
+	p, err := NewRpcServer(nil)
 	assert.Nil(t, p)
 	assert.NotNil(t, err)
 	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
 }
 
 func TestNewRpcServer_Ok(t *testing.T) {
-	p, err := NewRpcServer(&MockTransactionProcessor{}, &MockLedgerService{})
+	p, err := NewRpcServer(&MockNode{})
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 }
@@ -86,7 +72,7 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 	con, client := createRpcClient(t, ctx)
 	defer con.Close()
 
-	req := createTransaction(uint256.NewInt(1))
+	req := createTransaction(uint256.NewInt(1).Bytes32())
 	response, err := client.ProcessTransaction(ctx, req)
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
@@ -95,11 +81,9 @@ func TestRpcServer_ProcessTransaction_Ok(t *testing.T) {
 
 func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alphabill.AlphabillServiceClient) {
 	t.Helper()
-	processor := &MockTransactionProcessor{}
-	LedgerService := &MockLedgerService{}
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
-	rpcServer, _ := NewRpcServer(processor, LedgerService)
+	rpcServer, _ := NewRpcServer(&MockNode{})
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
@@ -116,15 +100,14 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	return conn, alphabill.NewAlphabillServiceClient(conn)
 }
 
-func createTransaction(id *uint256.Int) *transaction.Transaction {
-	bytes32 := id.Bytes32()
-	tx := &transaction.Transaction{
-		UnitId:                bytes32[:],
+func createTransaction(id [32]byte) *txsystem.Transaction {
+	tx := &txsystem.Transaction{
+		UnitId:                id[:],
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               0,
 		OwnerProof:            []byte{1},
 	}
-	bt := &billtx.BillTransfer{
+	bt := &money.TransferOrder{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,

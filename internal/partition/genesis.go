@@ -107,7 +107,10 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	}
 
 	// create the first round of the tx system
-	state := txSystem.State()
+	state, err := txSystem.State()
+	if err != nil {
+		return nil, err
+	}
 	hash := state.Root()
 	summaryValue := state.Summary()
 
@@ -135,7 +138,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 			SummaryValue: summaryValue,
 		},
 	}
-	err := p1Request.Sign(c.signer)
+	err = p1Request.Sign(c.signer)
 	if err != nil {
 		return nil, err
 	}

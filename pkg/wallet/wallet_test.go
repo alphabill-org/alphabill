@@ -7,14 +7,13 @@ import (
 	"sync"
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -98,7 +97,7 @@ func TestWalletSendFunction(t *testing.T) {
 	}
 	err = w.db.Do().SetBill(&b)
 	require.NoError(t, err)
-	mockClient.txResponse = &transaction.TransactionResponse{Ok: false, Message: "some error"}
+	mockClient.txResponse = &txsystem.TransactionResponse{Ok: false, Message: "some error"}
 	err = w.Send(validPubKey, amount)
 	require.ErrorContains(t, err, "payment returned error code: some error")
 	mockClient.txResponse = nil
@@ -150,7 +149,7 @@ func TestBlockProcessing(t *testing.T) {
 		{
 			BlockNumber:       1,
 			PreviousBlockHash: hash.Sum256([]byte{}),
-			Transactions: []*transaction.Transaction{
+			Transactions: []*txsystem.Transaction{
 				// random dust transfer can be processed
 				{
 					UnitId:                hash.Sum256([]byte{0x00}),

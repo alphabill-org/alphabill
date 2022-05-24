@@ -4,20 +4,15 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/stretchr/testify/require"
 )
 
 var systemIdentifier = []byte{0, 0, 0, 1}
@@ -29,7 +24,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		SystemIdentifier   []byte
 		NodeIdentifier     string
 		UnicityCertificate *certificates.UnicityCertificate
-		Transactions       []*transaction.Transaction
+		Transactions       []*txsystem.Transaction
 	}
 	type args struct {
 		nodeSignatureVerifier crypto.Verifier
@@ -50,7 +45,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*transaction.Transaction{},
+				Transactions:     []*txsystem.Transaction{},
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
@@ -66,7 +61,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*transaction.Transaction{},
+				Transactions:     []*txsystem.Transaction{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -82,7 +77,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			fields: fields{
 				SystemIdentifier: systemIdentifier,
 				NodeIdentifier:   "1",
-				Transactions:     []*transaction.Transaction{},
+				Transactions:     []*txsystem.Transaction{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -99,7 +94,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				SystemIdentifier:   systemIdentifier,
 				NodeIdentifier:     "1",
 				UnicityCertificate: nil,
-				Transactions:       []*transaction.Transaction{},
+				Transactions:       []*txsystem.Transaction{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -158,7 +153,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*transaction.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
@@ -193,7 +188,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*transaction.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)

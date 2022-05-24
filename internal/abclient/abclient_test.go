@@ -6,11 +6,12 @@ import (
 	"sync"
 	"testing"
 
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	testserver "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/server"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -43,7 +44,7 @@ func TestRaceConditions(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		abclient.GetMaxBlockNo()
+		abclient.GetMaxBlockNumber()
 		wg.Done()
 	}()
 
@@ -63,7 +64,7 @@ func TestRaceConditions(t *testing.T) {
 }
 
 func createRandomTransfer() *anypb.Any {
-	tx, _ := anypb.New(&billtx.BillTransfer{
+	tx, _ := anypb.New(&billtx.TransferOrder{
 		TargetValue: 100,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(sha256.New().Sum([]byte{0})),
 		Backlink:    hash.Sum256([]byte{}),
@@ -71,8 +72,8 @@ func createRandomTransfer() *anypb.Any {
 	return tx
 }
 
-func createRandomTx() *transaction.Transaction {
-	return &transaction.Transaction{
+func createRandomTx() *txsystem.Transaction {
+	return &txsystem.Transaction{
 		UnitId:                hash.Sum256([]byte{0x00}),
 		TransactionAttributes: createRandomTransfer(),
 		Timeout:               1000,

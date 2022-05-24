@@ -6,13 +6,10 @@ import (
 	"log"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	rtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -79,16 +76,12 @@ func main() {
 	}
 }
 
-func createRegisterDataTx(hash []byte, timeout uint64) (*transaction.Transaction, error) {
-	tx := &transaction.Transaction{
+func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
+	tx := &txsystem.Transaction{
 		UnitId:                hash,
 		SystemId:              []byte{0, 0, 0, 1},
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &rtx.RegisterData{}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
 	}
 	return tx, nil
 }

@@ -3,11 +3,10 @@ package txsystem
 import (
 	"bytes"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/state"
 )
 
 var (
@@ -18,8 +17,8 @@ var (
 )
 
 type TxValidationContext struct {
-	Tx               transaction.GenericTransaction
-	Bd               *state.Unit
+	Tx               GenericTransaction
+	Bd               *rma.Unit
 	SystemIdentifier []byte
 	BlockNumber      uint64
 }

@@ -10,6 +10,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -93,15 +94,10 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	c := wallet.Config{DbPath: config.WalletHomeDir, WalletPass: password}
-	var w *wallet.Wallet
-	if mnemonic != "" {
-		fmt.Println("Creating wallet from mnemonic seed...")
-		w, err = wallet.CreateWalletFromSeed(mnemonic, c)
-	} else {
-		fmt.Println("Creating new wallet...")
-		w, err = wallet.CreateNewWallet(c)
-	}
+	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password}
+	var w *money.Wallet
+	fmt.Println("Creating new wallet...")
+	w, err = money.CreateNewWallet(mnemonic, c)
 	if err != nil {
 		return err
 	}
@@ -142,8 +138,7 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	defer w.Shutdown()
-	w.SyncToMaxBlockHeight()
-	return nil
+	return w.SyncToMaxBlockNumber()
 }
 
 func sendCmd(config *walletConfig) *cobra.Command {
@@ -279,12 +274,12 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wallet.Wallet, error) {
-	config := wallet.Config{
+func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*money.Wallet, error) {
+	config := money.WalletConfig{
 		DbPath:                walletDir,
 		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
 	}
-	isEncrypted, err := wallet.IsEncrypted(config)
+	isEncrypted, err := money.IsEncrypted(config)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +290,7 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*wall
 		}
 		config.WalletPass = walletPass
 	}
-	return wallet.LoadExistingWallet(config)
+	return money.LoadExistingWallet(config)
 }
 
 func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {

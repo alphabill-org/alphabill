@@ -3,6 +3,8 @@ package cmd
 import (
 	"crypto/rand"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
@@ -85,6 +87,21 @@ func LoadKeys(file string, forceGeneration bool) (*Keys, error) {
 	return &Keys{
 		SigningPrivateKey:    signingKey,
 		EncryptionPrivateKey: encryptionKey,
+	}, nil
+}
+
+func (k *Keys) getEncryptionKeyPair() (*network.PeerKeyPair, error) {
+	private, err := k.EncryptionPrivateKey.Raw()
+	if err != nil {
+		return nil, err
+	}
+	public, err := k.EncryptionPrivateKey.GetPublic().Raw()
+	if err != nil {
+		return nil, err
+	}
+	return &network.PeerKeyPair{
+		PublicKey:  public,
+		PrivateKey: private,
 	}, nil
 }
 

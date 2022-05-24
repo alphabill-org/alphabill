@@ -4,10 +4,7 @@ import (
 	"encoding/binary"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
 )
 
 type CounterTxSystem struct {
@@ -35,15 +32,15 @@ func (s *Summary) Summary() []byte {
 	return s.summary
 }
 
-func (m *CounterTxSystem) State() txsystem.State {
+func (m *CounterTxSystem) State() (txsystem.State, error) {
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, m.InitCount)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
-	}
+	}, nil
 }
 
-func (m *CounterTxSystem) BeginBlock(blockNumber uint64) {
+func (m *CounterTxSystem) BeginBlock(_ uint64) {
 	m.BeginBlockCountDelta++
 }
 
@@ -53,13 +50,13 @@ func (m *CounterTxSystem) Revert() {
 	m.RevertCount++
 }
 
-func (m *CounterTxSystem) EndBlock() txsystem.State {
+func (m *CounterTxSystem) EndBlock() (txsystem.State, error) {
 	m.EndBlockCountDelta++
 	bytes := make([]byte, 32)
 	binary.LittleEndian.PutUint64(bytes, m.EndBlockCount+m.EndBlockCountDelta)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
-	}
+	}, nil
 }
 
 func (m *CounterTxSystem) Commit() {
@@ -67,7 +64,11 @@ func (m *CounterTxSystem) Commit() {
 	m.BeginBlockCount += m.BeginBlockCountDelta
 }
 
-func (m *CounterTxSystem) Execute(_ *transaction.Transaction) error {
+func (m *CounterTxSystem) Execute(_ txsystem.GenericTransaction) error {
 	m.ExecuteCount++
 	return nil
+}
+
+func (m *CounterTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return txsystem.NewDefaultGenericTransaction(tx)
 }

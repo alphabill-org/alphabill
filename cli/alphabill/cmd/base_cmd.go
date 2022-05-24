@@ -40,7 +40,8 @@ func (a *alphabillApp) Execute(ctx context.Context) {
 }
 
 func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
-	a.baseCmd.AddCommand(newMoneyShardCmd(ctx, a.baseConfig, convertOptsToRunnable(a.opts)))
+	a.baseCmd.AddCommand(newMoneyNodeCmd(ctx, a.baseConfig, convertOptsToRunnable(a.opts)))
+	a.baseCmd.AddCommand(newMoneyGenesisCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newVDNodeCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newVDGenesisCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newWalletCmd(ctx, a.baseConfig))

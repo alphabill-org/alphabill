@@ -5,30 +5,26 @@ import (
 	"testing"
 	"time"
 
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
-
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	transaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 const testPeerID = peer.ID("test")
 
 func TestNewLeaderHandler_NotOk(t *testing.T) {
 	txBuffer, err := txbuffer.New(10, gocrypto.SHA256)
+	defer txBuffer.Close()
 	require.NoError(t, err)
-	f, err := forwarder.New(testnetwork.CreatePeer(t), 10*time.Millisecond, func(tx *transaction.Transaction) {
-		err := txBuffer.Add(tx)
-		require.NoError(t, err)
+	f, err := forwarder.New(testnetwork.CreatePeer(t), 10*time.Millisecond, func(tx *txsystem.Transaction) {
+		require.Fail(t, "")
 	})
 	require.NoError(t, err)
 	type args struct {
@@ -94,9 +90,9 @@ func TestNewLeaderHandler_SendsTxEvents(t *testing.T) {
 	transactionsCh, err := eb1.Subscribe(eventbus.TopicPartitionTransaction, 10)
 	require.NoError(t, err)
 	require.NoError(t, eb1.Submit(eventbus.TopicLeaders, eventbus.NewLeaderEvent{NewLeader: UnknownLeader}))
-	require.NoError(t, txBuffer1.Add(testtransaction.RandomBillTransfer()))
-	require.NoError(t, txBuffer1.Add(testtransaction.RandomBillTransfer()))
-	require.NoError(t, txBuffer1.Add(testtransaction.RandomBillTransfer()))
+	require.NoError(t, txBuffer1.Add(testtransaction.RandomGenericBillTransfer(t)))
+	require.NoError(t, txBuffer1.Add(testtransaction.RandomGenericBillTransfer(t)))
+	require.NoError(t, txBuffer1.Add(testtransaction.RandomGenericBillTransfer(t)))
 	require.Eventually(t, func() bool { return txBuffer1.Count() == uint32(3) }, test.WaitDuration, test.WaitTick)
 
 	require.NoError(t, eb1.Submit(eventbus.TopicLeaders, eventbus.NewLeaderEvent{NewLeader: lh1.self}))
@@ -115,7 +111,7 @@ func TestNewLeaderHandler_TxForwardingFails(t *testing.T) {
 	txBuffer1, eb1, lh1 := createLeaderHandler(t)
 	require.NoError(t, eb1.Submit(eventbus.TopicLeaders, eventbus.NewLeaderEvent{NewLeader: UnknownLeader}))
 	require.Eventually(t, func() bool { return UnknownLeader == lh1.currentLeader }, test.WaitDuration, test.WaitTick)
-	require.NoError(t, txBuffer1.Add(testtransaction.RandomBillTransfer()))
+	require.NoError(t, txBuffer1.Add(testtransaction.RandomGenericBillTransfer(t)))
 	require.Eventually(t, func() bool { return txBuffer1.Count() == uint32(1) }, test.WaitDuration, test.WaitTick)
 	require.NoError(t, eb1.Submit(eventbus.TopicLeaders, eventbus.NewLeaderEvent{NewLeader: testPeerID}))
 	require.Eventually(t, func() bool { return txBuffer1.Count() == uint32(1) }, test.WaitDuration, test.WaitTick)
@@ -123,6 +119,7 @@ func TestNewLeaderHandler_TxForwardingFails(t *testing.T) {
 
 func createLeaderHandler(t *testing.T) (*txbuffer.TxBuffer, *eventbus.EventBus, *LeaderSubscriber) {
 	txBuffer, err := txbuffer.New(10, gocrypto.SHA256)
+	t.Cleanup(txBuffer.Close)
 	require.NoError(t, err)
 	p := testnetwork.CreatePeer(t)
 	f, err := forwarder.New(p, 10*time.Millisecond, func(tx *transaction.Transaction) {

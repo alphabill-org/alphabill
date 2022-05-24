@@ -5,12 +5,11 @@ import (
 	"io/ioutil"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -22,7 +21,7 @@ var (
 )
 
 const (
-	// ProtocolIdTxForwarder is the protocol.ID of the AlphaBill transaction forwarding protocol.
+	// ProtocolIdTxForwarder is the protocol.ID of the Alphabill transaction forwarding protocol.
 	ProtocolIdTxForwarder    = "/ab/pc1-I/0.0.1"
 	DefaultForwardingTimeout = 700 * time.Second
 )
@@ -36,10 +35,10 @@ type (
 		timeout            time.Duration
 	}
 
-	TxHandler func(tx *transaction.Transaction)
+	TxHandler func(tx *txsystem.Transaction)
 )
 
-func New(self *network.Peer, timeout time.Duration, transactionHandler func(tx *transaction.Transaction)) (*TxForwarder, error) {
+func New(self *network.Peer, timeout time.Duration, transactionHandler func(tx *txsystem.Transaction)) (*TxForwarder, error) {
 	if self == nil {
 		return nil, ErrPeerIsNil
 	}
@@ -52,7 +51,7 @@ func New(self *network.Peer, timeout time.Duration, transactionHandler func(tx *
 }
 
 // Forward sends the transaction to the receiver.
-func (tf *TxForwarder) Forward(req *transaction.Transaction, receiver peer.ID) error {
+func (tf *TxForwarder) Forward(req *txsystem.Transaction, receiver peer.ID) error {
 	if req == nil {
 		return errors.New(errstr.NilArgument)
 	}
@@ -118,7 +117,7 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 		}
 	}()
 
-	req := &transaction.Transaction{}
+	req := &txsystem.Transaction{}
 	err := r.Read(req)
 	if err != nil {
 		logger.Warning("Failed to read the transaction: %v", err)

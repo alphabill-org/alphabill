@@ -13,21 +13,27 @@ import (
 	"github.com/tyler-smith/go-bip39"
 )
 
-type keys struct {
-	mnemonic   string
-	masterKey  *hdkeychain.ExtendedKey
-	accountKey *accountKey
-}
+type (
+	Keys struct {
+		Mnemonic   string
+		MasterKey  *hdkeychain.ExtendedKey
+		AccountKey *AccountKey
+	}
 
-type accountKey struct {
-	PubKey           []byte `json:"pubKey"` // compressed secp256k1 key 33 bytes
-	PrivKey          []byte `json:"privKey"`
-	PubKeyHashSha256 []byte `json:"pubKeyHashSha256"`
-	PubKeyHashSha512 []byte `json:"pubKeyHashSha512"`
-	DerivationPath   []byte `json:"derivationPath"`
-}
+	AccountKey struct {
+		PubKey         []byte     `json:"pubKey"` // compressed secp256k1 key 33 bytes
+		PrivKey        []byte     `json:"privKey"`
+		PubKeyHash     *KeyHashes `json:"pubKeyHash"`
+		DerivationPath []byte     `json:"derivationPath"`
+	}
 
-func generateKeys(mnemonic string) (*keys, error) {
+	KeyHashes struct {
+		Sha256 []byte `json:"sha256"`
+		Sha512 []byte `json:"sha512"`
+	}
+)
+
+func generateKeys(mnemonic string) (*Keys, error) {
 	if !bip39.IsMnemonicValid(mnemonic) {
 		return nil, errors.New("invalid mnemonic")
 	}
@@ -54,18 +60,18 @@ func generateKeys(mnemonic string) (*keys, error) {
 	if err != nil {
 		return nil, err
 	}
-	ac, err := newAccountKey(masterKey, derivationPath)
+	ac, err := NewAccountKey(masterKey, derivationPath)
 	if err != nil {
 		return nil, err
 	}
-	return &keys{
-		mnemonic:   mnemonic,
-		masterKey:  masterKey,
-		accountKey: ac,
+	return &Keys{
+		Mnemonic:   mnemonic,
+		MasterKey:  masterKey,
+		AccountKey: ac,
 	}, nil
 }
 
-func newAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*accountKey, error) {
+func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*AccountKey, error) {
 	path, err := accounts.ParseDerivationPath(derivationPath)
 	if err != nil {
 		return nil, err
@@ -89,13 +95,19 @@ func newAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*a
 	if err != nil {
 		return nil, err
 	}
-	return &accountKey{
-		PubKey:           compressedPubKey,
-		PrivKey:          privateKeyBytes,
-		PubKeyHashSha256: hash.Sum256(compressedPubKey),
-		PubKeyHashSha512: hash.Sum512(compressedPubKey),
-		DerivationPath:   []byte(derivationPath),
+	return &AccountKey{
+		PubKey:         compressedPubKey,
+		PrivKey:        privateKeyBytes,
+		PubKeyHash:     HashPubKey(compressedPubKey),
+		DerivationPath: []byte(derivationPath),
 	}, nil
+}
+
+func HashPubKey(pubKey []byte) *KeyHashes {
+	return &KeyHashes{
+		Sha256: hash.Sum256(pubKey),
+		Sha512: hash.Sum512(pubKey),
+	}
 }
 
 // derivePrivateKey derives the private accountKey of the derivation path.

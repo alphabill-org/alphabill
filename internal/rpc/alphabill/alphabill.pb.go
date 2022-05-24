@@ -8,7 +8,7 @@ package alphabill
 
 import (
 	block "gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	transaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	txsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -275,13 +275,13 @@ func file_alphabill_proto_rawDescGZIP() []byte {
 
 var file_alphabill_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_alphabill_proto_goTypes = []interface{}{
-	(*GetBlockRequest)(nil),                 // 0: abrpc.GetBlockRequest
-	(*GetBlockResponse)(nil),                // 1: abrpc.GetBlockResponse
-	(*GetMaxBlockNoRequest)(nil),            // 2: abrpc.GetMaxBlockNoRequest
-	(*GetMaxBlockNoResponse)(nil),           // 3: abrpc.GetMaxBlockNoResponse
-	(*block.Block)(nil),                     // 4: Block
-	(*transaction.Transaction)(nil),         // 5: Transaction
-	(*transaction.TransactionResponse)(nil), // 6: TransactionResponse
+	(*GetBlockRequest)(nil),              // 0: abrpc.GetBlockRequest
+	(*GetBlockResponse)(nil),             // 1: abrpc.GetBlockResponse
+	(*GetMaxBlockNoRequest)(nil),         // 2: abrpc.GetMaxBlockNoRequest
+	(*GetMaxBlockNoResponse)(nil),        // 3: abrpc.GetMaxBlockNoResponse
+	(*block.Block)(nil),                  // 4: Block
+	(*txsystem.Transaction)(nil),         // 5: Transaction
+	(*txsystem.TransactionResponse)(nil), // 6: TransactionResponse
 }
 var file_alphabill_proto_depIdxs = []int32{
 	4, // 0: abrpc.GetBlockResponse.block:type_name -> Block

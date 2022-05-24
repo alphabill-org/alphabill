@@ -5,12 +5,12 @@ import (
 	"flag"
 	"log"
 
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
@@ -87,15 +87,15 @@ func main() {
 	}
 }
 
-func createTransferTx(pubKey []byte, billId []byte, billValue uint64, timeout uint64) (*transaction.Transaction, error) {
-	tx := &transaction.Transaction{
+func createTransferTx(pubKey []byte, billId []byte, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {
+	tx := &txsystem.Transaction{
 		UnitId:                billId,
 		SystemId:              []byte{0},
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.BillTransfer{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    nil,

@@ -10,12 +10,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	rtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"github.com/holiman/uint256"
 )
@@ -73,7 +69,7 @@ func (v *vdClient) RegisterHash(hash string) error {
 }
 
 func (v *vdClient) registerHashTx(hash []byte) error {
-	maxBlockNumber, err := v.abClient.GetMaxBlockNo()
+	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
@@ -90,16 +86,11 @@ func (v *vdClient) registerHashTx(hash []byte) error {
 	return nil
 }
 
-func createRegisterDataTx(hash []byte, timeout uint64) (*transaction.Transaction, error) {
-	tx := &transaction.Transaction{
-		UnitId:                hash,
-		SystemId:              []byte{0, 0, 0, 1},
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
-	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &rtx.RegisterData{}, proto.MarshalOptions{})
-	if err != nil {
-		return nil, err
+func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
+	tx := &txsystem.Transaction{
+		UnitId:   hash,
+		SystemId: []byte{0, 0, 0, 1},
+		Timeout:  timeout,
 	}
 	return tx, nil
 }

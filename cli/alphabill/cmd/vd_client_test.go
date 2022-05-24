@@ -57,7 +57,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 		go func() {
 			fmt.Println("Starting VD node")
 			cmd := New()
-			args := "vd-node --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
+			args := "vd --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err := cmd.addAndExecuteCommand(ctx)
@@ -92,7 +92,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 
 func sendTxWithClient(ctx context.Context, dialAddr string) error {
 	cmd := New()
-	args := "vd register --hash " + "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" + " -u " + dialAddr
+	args := "vd-client register --hash " + "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD" + " -u " + dialAddr
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	return cmd.addAndExecuteCommand(ctx)
 }

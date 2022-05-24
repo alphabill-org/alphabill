@@ -25,7 +25,7 @@ func newVDNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	}
 
 	var nodeCmd = &cobra.Command{
-		Use:   "vd-node",
+		Use:   "vd",
 		Short: "Starts a Verifiable Data partition's node",
 		Long:  `Starts a Verifiable Data partition's node, binding to the network address provided by configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {

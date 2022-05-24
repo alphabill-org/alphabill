@@ -76,7 +76,7 @@ func TestRunVD(t *testing.T) {
 		go func() {
 
 			cmd = New()
-			args = "vd-node --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
+			args = "vd --home " + homeDirVD + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation + " --server-address " + listenAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
@@ -84,7 +84,7 @@ func TestRunVD(t *testing.T) {
 			appStoppedWg.Done()
 		}()
 
-		log.Info("Started vd-node and dialing...")
+		log.Info("Started vd node and dialing...")
 		// Create the gRPC client
 		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)

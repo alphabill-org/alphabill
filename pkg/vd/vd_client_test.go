@@ -12,14 +12,14 @@ import (
 	"github.com/holiman/uint256"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 
 	"github.com/stretchr/testify/require"
 )
 
 type abClientMock struct {
 	// record most recent transaction
-	tx *transaction.Transaction
+	tx *txsystem.Transaction
 }
 
 func TestVDClient_Create(t *testing.T) {
@@ -83,20 +83,20 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mock.tx)
 	require.EqualValues(t, hasher.Sum(nil), mock.tx.UnitId)
-	require.IsType(t, "type.googleapis.com/rpc.RegisterData", mock.tx.TransactionAttributes.TypeUrl)
+	require.Nil(t, mock.tx.TransactionAttributes)
 }
 
-func (a *abClientMock) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (a *abClientMock) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	fmt.Printf("Recording incoming tx: %s\n", tx)
 	a.tx = tx
 	return nil, nil
 }
 
-func (a *abClientMock) GetBlock(blockNo uint64) (*block.Block, error) {
+func (a *abClientMock) GetBlock(_ uint64) (*block.Block, error) {
 	return nil, nil
 }
 
-func (a *abClientMock) GetMaxBlockNo() (uint64, error) {
+func (a *abClientMock) GetMaxBlockNumber() (uint64, error) {
 	return 0, nil
 }
 

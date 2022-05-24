@@ -12,7 +12,7 @@ import (
 
 func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	var vdCmd = &cobra.Command{
-		Use:   "vd",
+		Use:   "vd-client",
 		Short: "cli for submitting data to Verifiable Data partition",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return initializeConfig(cmd, baseConfig)

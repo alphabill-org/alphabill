@@ -27,6 +27,7 @@ type ABClient interface {
 type AlphabillClientConfig struct {
 	Uri              string
 	RequestTimeoutMs uint64
+	WaitForReady     bool
 }
 
 type AlphabillClient struct {
@@ -54,7 +55,7 @@ func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.T
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	return c.client.ProcessTransaction(ctx, tx)
+	return c.client.ProcessTransaction(ctx, tx, grpc.WaitForReady(c.config.WaitForReady))
 }
 
 func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
@@ -68,7 +69,7 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNo})
+	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNo}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return 0, err
 	}

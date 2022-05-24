@@ -6,10 +6,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/tyler-smith/go-bip39"
 )
@@ -85,7 +82,7 @@ func (w *Wallet) GetMaxBlockNumber() (uint64, error) {
 }
 
 // SendTransaction broadcasts transaction to configured node.
-func (w *Wallet) SendTransaction(tx *transaction.Transaction) (*transaction.TransactionResponse, error) {
+func (w *Wallet) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	return w.AlphabillClient.SendTransaction(tx)
 }
 

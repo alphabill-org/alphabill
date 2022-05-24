@@ -10,9 +10,9 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
@@ -282,12 +282,12 @@ func (w *Wallet) SyncToMaxBlockNumber() error {
 	return nil
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *transaction.Transaction) error {
-	gtx, err := billtx.NewMoneyTx(txPb)
+func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem.Transaction) error {
+	gtx, err := moneytx.NewMoneyTx(txPb)
 	if err != nil {
 		return err
 	}
-	stx := gtx.(transaction.GenericTransaction)
+	stx := gtx.(txsystem.GenericTransaction)
 	switch tx := stx.(type) {
 	case money.Transfer:
 		isOwner, err := verifyOwner(w.accountKey, tx.NewBearer())

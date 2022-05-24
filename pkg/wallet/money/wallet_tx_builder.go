@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"sort"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -32,7 +31,7 @@ func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *bi
 	return tx, nil
 }
 
-func createTransferTx(pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
+func createTransferTx(pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),

@@ -1,23 +1,23 @@
-package wallet
+package money
 
 import (
 	"bytes"
 	"sort"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var alphabillMoneySystemId = []byte{0}
 
-func createTransaction(pubKey []byte, k *accountKey, amount uint64, b *bill, timeout uint64) (*txsystem.Transaction, error) {
+func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *bill, timeout uint64) (*txsystem.Transaction, error) {
 	var err error
 	var tx *txsystem.Transaction
 	if b.Value == amount {
@@ -31,7 +31,7 @@ func createTransaction(pubKey []byte, k *accountKey, amount uint64, b *bill, tim
 	return tx, nil
 }
 
-func createTransferTx(pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
+func createTransferTx(pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
@@ -58,7 +58,7 @@ func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 	}
 }
 
-func createSplitTx(amount uint64, pubKey []byte, k *accountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
+func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
 		Amount:         bill.Value,
@@ -76,11 +76,11 @@ func createSplitTx(amount uint64, pubKey []byte, k *accountKey, bill *bill, time
 	return tx, nil
 }
 
-func createDustTx(k *accountKey, bill *bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
+func createDustTx(k *wallet.AccountKey, bill *bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
 		TargetValue:  bill.Value,
-		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
 		Nonce:        nonce,
 	}, proto.MarshalOptions{})
@@ -94,7 +94,7 @@ func createDustTx(k *accountKey, bill *bill, nonce []byte, timeout uint64) (*txs
 	return tx, nil
 }
 
-func createSwapTx(k *accountKey, dcBills []*bill, dcNonce []byte, timeout uint64) (*txsystem.Transaction, error) {
+func createSwapTx(k *wallet.AccountKey, dcBills []*bill, dcNonce []byte, timeout uint64) (*txsystem.Transaction, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
@@ -117,7 +117,7 @@ func createSwapTx(k *accountKey, dcBills []*bill, dcNonce []byte, timeout uint64
 
 	swapTx := createGenericTx(dcNonce, timeout)
 	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &money.SwapOrder{
-		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHashSha256),
+		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		BillIdentifiers: billIds,
 		DcTransfers:     dustTransferOrders,
 		Proofs:          dustTransferProofs,
@@ -133,7 +133,7 @@ func createSwapTx(k *accountKey, dcBills []*bill, dcNonce []byte, timeout uint64
 	return swapTx, nil
 }
 
-func signTx(tx *txsystem.Transaction, ac *accountKey) error {
+func signTx(tx *txsystem.Transaction, ac *wallet.AccountKey) error {
 	signer, err := crypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
 	if err != nil {
 		return err

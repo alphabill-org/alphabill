@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"os"
@@ -29,7 +29,7 @@ func (c *mockAlphabillClient) GetBlock(uint64) (*block.Block, error) {
 	return nil, nil
 }
 
-func (c *mockAlphabillClient) GetMaxBlockNo() (uint64, error) {
+func (c *mockAlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	return c.maxBlockNo, nil
 }
 
@@ -43,28 +43,28 @@ func (c *mockAlphabillClient) IsShutdown() bool {
 
 func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
-	c := Config{DbPath: os.TempDir()}
-	w, err := CreateNewWallet(c)
+	c := WalletConfig{DbPath: os.TempDir()}
+	w, err := CreateNewWallet("", c)
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
 
 	mockClient := &mockAlphabillClient{}
-	w.alphaBillClient = mockClient
+	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 
 func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir()})
+	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir()})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
 
 	mockClient := &mockAlphabillClient{}
-	w.alphaBillClient = mockClient
+	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 

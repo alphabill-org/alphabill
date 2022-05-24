@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"os"
@@ -11,7 +11,7 @@ const walletPass = "default-wallet-pass"
 
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateWalletFromSeed(testMnemonic, Config{DbPath: os.TempDir(), WalletPass: walletPass})
+	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
@@ -26,7 +26,7 @@ func TestEncryptedWalletCanBeLoaded(t *testing.T) {
 	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: walletPass})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, WalletPass: walletPass})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()
@@ -39,7 +39,7 @@ func TestLoadingEncryptedWalletWrongPassphrase(t *testing.T) {
 	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath, WalletPass: "wrong passphrase"})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, WalletPass: "wrong passphrase"})
 	require.ErrorIs(t, err, ErrInvalidPassword)
 	require.Nil(t, w)
 }
@@ -48,7 +48,7 @@ func TestLoadingEncryptedWalletWithoutPassphrase(t *testing.T) {
 	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath})
 	require.ErrorIs(t, err, ErrInvalidPassword)
 	require.Nil(t, w)
 }

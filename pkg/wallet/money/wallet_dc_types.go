@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"sync"
@@ -41,17 +41,6 @@ type expectedSwap struct {
 	timeout uint64
 }
 
-// syncFlagWrapper wrapper struct with mutex guarding synchronizing flag
-type syncFlagWrapper struct {
-	mu            sync.Mutex
-	synchronizing bool // synchronizing true if wallet is currently synhronizing ledger, false otherwise
-	cancelSyncCh  chan bool
-}
-
-func newSyncFlagWrapper() *syncFlagWrapper {
-	return &syncFlagWrapper{cancelSyncCh: make(chan bool, 1)}
-}
-
 func newDcWaitGroup() *dcWaitGroup {
 	return &dcWaitGroup{swaps: map[uint256.Int]uint64{}}
 }
@@ -78,12 +67,12 @@ func (wg *dcWaitGroup) AddExpectedSwaps(swaps []expectedSwap) {
 }
 
 // DecrementSwaps decrement waitgroup after receiving expected swap bills, or timing out on dc/swap
-func (wg *dcWaitGroup) DecrementSwaps(blockHeight uint64, wdb Db) error {
+func (wg *dcWaitGroup) DecrementSwaps(tx TxContext, blockHeight uint64) error {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 
 	for dcNonce, timeout := range wg.swaps {
-		exists, err := wdb.Do().ContainsBill(&dcNonce)
+		exists, err := tx.ContainsBill(&dcNonce)
 		if err != nil {
 			return err
 		}
@@ -126,16 +115,4 @@ func (wg *dcWaitGroup) ResetWaitGroup() {
 func (wg *dcWaitGroup) addExpectedSwap(swap expectedSwap) {
 	wg.wg.Add(1)
 	wg.swaps[*uint256.NewInt(0).SetBytes(swap.dcNonce)] = swap.timeout
-}
-
-func (w *syncFlagWrapper) setSynchronizing(synchronizing bool) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.synchronizing = synchronizing
-}
-
-func (w *syncFlagWrapper) isSynchronizing() bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.synchronizing
 }

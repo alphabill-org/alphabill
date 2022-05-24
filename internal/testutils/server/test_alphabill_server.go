@@ -61,7 +61,7 @@ func (s *TestAlphabillServiceServer) GetMaxBlockHeight() uint64 {
 	return s.maxBlockHeight
 }
 
-func (s *TestAlphabillServiceServer) SetMaxBlockHeight(maxBlockHeight uint64) {
+func (s *TestAlphabillServiceServer) SetMaxBlockNumber(maxBlockHeight uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.maxBlockHeight = maxBlockHeight
@@ -85,14 +85,14 @@ func (s *TestAlphabillServiceServer) SetBlock(blockNo uint64, block *alphabill.G
 	s.blocks[blockNo] = block
 }
 
-func StartServer(port int, alphaBillService *TestAlphabillServiceServer) *grpc.Server {
+func StartServer(port int, alphabillService *TestAlphabillServiceServer) *grpc.Server {
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	grpcServer := grpc.NewServer()
-	alphabill.RegisterAlphabillServiceServer(grpcServer, alphaBillService)
+	alphabill.RegisterAlphabillServiceServer(grpcServer, alphabillService)
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			defer closeListener(lis)

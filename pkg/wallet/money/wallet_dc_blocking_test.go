@@ -1,11 +1,9 @@
-package wallet
+package money
 
 import (
 	"sync"
 	"testing"
 	"time"
-
-	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -14,6 +12,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 
 	// when the swap tx with given nonce is received
 	res := createBlockWithSwapTx(dcNonce, k, mockClient.txs)
-	err := w.processBlock(res.Block)
+	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -53,11 +53,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	require.EqualValues(t, b.Value, 3)
 	require.EqualValues(t, b.Id, uint256.NewInt(0).SetBytes(dcNonce))
 
-	// when the block's post processor runs
-	err = w.postProcessBlock(res.Block)
-	require.NoError(t, err)
-
-	// then the blocking dc should return
+	// and the blocking dc should return
 	wg.Wait()
 
 	// and expected swap should be cleared
@@ -81,7 +77,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	// when the swap tx with dc bills is received
 	bills, _ := w.db.Do().GetBills()
 	res := createBlockWithSwapTxFromDcBills(dcNonce, k, bills...)
-	err := w.processBlock(res.Block)
+	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
@@ -91,11 +87,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	require.EqualValues(t, b.Value, 3)
 	require.EqualValues(t, b.Id, dcNonce)
 
-	// when the block's post processor runs
-	err = w.postProcessBlock(res.Block)
-	require.NoError(t, err)
-
-	// then the blocking dc should return
+	// and the blocking dc should return
 	wg.Wait()
 
 	// and expected swap should be cleared
@@ -129,9 +121,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	// when group 1 swap is received
 	res1 := createBlockWithSwapTxFromDcBills(dcNonce1, k, b11, b12)
 	res1.Block.BlockNumber = 1
-	err := w.processBlock(res1.Block)
-	require.NoError(t, err)
-	err = w.postProcessBlock(res1.Block)
+	err := w.ProcessBlock(res1.Block)
 	require.NoError(t, err)
 
 	// then swap waitgroup is decremented
@@ -144,9 +134,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	// when the swap tx with dc bills is received
 	res2 := createBlockWithSwapTxFromDcBills(dcNonce2, k, b21, b22, b23)
 	res2.Block.BlockNumber = 2
-	err = w.processBlock(res2.Block)
-	require.NoError(t, err)
-	err = w.postProcessBlock(res2.Block)
+	err = w.ProcessBlock(res2.Block)
 	require.NoError(t, err)
 
 	// then the blocking dc should return
@@ -167,7 +155,7 @@ func TestSendingSwapUpdatesDcWaitGroupTimeout(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2, dcTimeoutBlockCount)
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
-	_ = w.db.Do().SetBlockHeight(dcTimeoutBlockCount)
+	_ = w.db.Do().SetBlockNumber(dcTimeoutBlockCount)
 	mockClient.maxBlockNo = dcTimeoutBlockCount
 	w.dcWg.addExpectedSwap(expectedSwap{dcNonce: nonce32[:], timeout: dcTimeoutBlockCount})
 
@@ -191,7 +179,7 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	return &wg
 }
 
-func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills ...*bill) *alphabill.GetBlockResponse {
+func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey, bills ...*bill) *alphabill.GetBlockResponse {
 	var dcTxs []*txsystem.Transaction
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &txsystem.Transaction{
@@ -205,7 +193,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *accountKey, bills
 	return createBlockWithSwapTx(dcNonce32[:], k, dcTxs)
 }
 
-func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
+func createBlockWithSwapTx(dcNonce []byte, k *wallet.AccountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
 	return &alphabill.GetBlockResponse{
 		Block: &block.Block{
 			BlockNumber:       1,
@@ -213,7 +201,7 @@ func createBlockWithSwapTx(dcNonce []byte, k *accountKey, dcTxs []*txsystem.Tran
 			Transactions: []*txsystem.Transaction{
 				{
 					UnitId:                dcNonce,
-					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHashSha256, dcTxs),
+					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHash.Sha256, dcTxs),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},

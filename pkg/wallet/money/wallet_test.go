@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"encoding/hex"
@@ -15,6 +15,7 @@ import (
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -51,7 +52,7 @@ func TestWalletCanBeCreated(t *testing.T) {
 	ac, err := w.db.Do().GetAccountKey()
 	require.NoError(t, err)
 
-	eac, err := newAccountKey(masterKey, testAccountKeyDerivationPath)
+	eac, err := wallet.NewAccountKey(masterKey, testAccountKeyDerivationPath)
 	require.NoError(t, err)
 	require.NotNil(t, eac)
 	require.EqualValues(t, eac, ac)
@@ -61,7 +62,7 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	walletDbPath, err := CopyWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(Config{DbPath: walletDbPath})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()
@@ -160,21 +161,21 @@ func TestBlockProcessing(t *testing.T) {
 				// receive transfer of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHashSha256),
+					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive split of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHashSha256, 100, 100),
+					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 				// receive swap of 100 bills
 				{
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHashSha256),
+					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -183,19 +184,19 @@ func TestBlockProcessing(t *testing.T) {
 		},
 	}
 
-	height, err := w.db.Do().GetBlockHeight()
+	height, err := w.db.Do().GetBlockNumber()
 	require.EqualValues(t, 0, height)
 	require.NoError(t, err)
 	balance, err := w.db.Do().GetBalance()
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
-	for _, block := range blocks {
-		err := w.processBlock(block)
+	for _, b := range blocks {
+		err = w.ProcessBlock(b)
 		require.NoError(t, err)
 	}
 
-	height, err = w.db.Do().GetBlockHeight()
+	height, err = w.db.Do().GetBlockNumber()
 	require.EqualValues(t, 1, height)
 	require.NoError(t, err)
 	balance, err = w.db.Do().GetBalance()
@@ -227,7 +228,7 @@ func TestWalletShutdownTerminatesSync(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		w.Sync()
+		_ = w.Sync()
 		wg.Done()
 	}()
 
@@ -252,7 +253,7 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		w.Sync()
+		_ = w.Sync()
 		wg.Done()
 	}()
 
@@ -266,9 +267,9 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	// create wallet with invalid seed
 	_ = DeleteWalletDb(os.TempDir())
-	c := Config{DbPath: os.TempDir()}
+	c := WalletConfig{DbPath: os.TempDir()}
 	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
-	_, err := CreateWalletFromSeed(invalidSeed, c)
+	_, err := CreateNewWallet(invalidSeed, c)
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created
@@ -287,6 +288,6 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.NoError(t, err)
 	require.Equal(t, testPubKeyHex, hex.EncodeToString(ac.PubKey))
 	require.Equal(t, testPrivKeyHex, hex.EncodeToString(ac.PrivKey))
-	require.Equal(t, testPubKeyHashSha256Hex, hex.EncodeToString(ac.PubKeyHashSha256))
-	require.Equal(t, testPubKeyHashSha512Hex, hex.EncodeToString(ac.PubKeyHashSha512))
+	require.Equal(t, testPubKeyHashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
+	require.Equal(t, testPubKeyHashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
 }

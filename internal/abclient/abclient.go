@@ -19,7 +19,7 @@ import (
 type ABClient interface {
 	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(blockNo uint64) (*block.Block, error)
-	GetMaxBlockNo() (uint64, error)
+	GetMaxBlockNumber() (uint64, error)
 	Shutdown()
 	IsShutdown() bool
 }
@@ -78,7 +78,7 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 	return res.Block, nil
 }
 
-func (c *AlphabillClient) GetMaxBlockNo() (uint64, error) {
+func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	err := c.connect()
 	if err != nil {
 		return 0, err

@@ -1,4 +1,4 @@
-package wallet
+package money
 
 import (
 	"fmt"
@@ -16,6 +16,7 @@ import (
 	testserver "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/server"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -25,10 +26,10 @@ const port = 9111
 func TestSync(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{
+	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
 	})
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -56,21 +57,21 @@ func TestSync(t *testing.T) {
 					// receive transfer of 100 bills
 					{
 						UnitId:                hash.Sum256([]byte{0x01}),
-						TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHashSha256),
+						TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
 					// receive split of 100 bills
 					{
 						UnitId:                hash.Sum256([]byte{0x02}),
-						TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHashSha256, 100, 100),
+						TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
 					// receive swap of 100 bills
 					{
 						UnitId:                hash.Sum256([]byte{0x03}),
-						TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHashSha256),
+						TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 						Timeout:               1000,
 						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 					},
@@ -79,16 +80,16 @@ func TestSync(t *testing.T) {
 			},
 		},
 	}
-	serviceServer.SetMaxBlockHeight(1)
-	for _, block := range blocks {
-		serviceServer.SetBlock(block.Block.BlockNumber, block)
+	serviceServer.SetMaxBlockNumber(1)
+	for _, b := range blocks {
+		serviceServer.SetBlock(b.Block.BlockNumber, b)
 	}
 	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
 
-	// verify starting block height
-	height, err := w.db.Do().GetBlockHeight()
-	require.EqualValues(t, 0, height)
+	// verify starting block number
+	blockNumber, err := w.db.Do().GetBlockNumber()
+	require.EqualValues(t, 0, blockNumber)
 	require.NoError(t, err)
 
 	// verify starting balance
@@ -97,13 +98,15 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// when wallet is synced with the node
-	go w.Sync()
+	go func() {
+		_ = w.Sync()
+	}()
 
 	// wait for block to be processed
 	require.Eventually(t, func() bool {
-		height, err := w.db.Do().GetBlockHeight()
+		blockNo, err := w.db.Do().GetBlockNumber()
 		require.NoError(t, err)
-		return height == 1
+		return blockNo == 1
 	}, test.WaitDuration, test.WaitTick)
 
 	// then balance is increased
@@ -112,12 +115,12 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSyncToMaxBlockHeight(t *testing.T) {
+func TestSyncToMaxBlockNumber(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{
+	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -126,7 +129,7 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 
 	// start server that sends given blocks to wallet
 	serviceServer := testserver.NewTestAlphabillServiceServer()
-	maxBlockHeight := uint64(3)
+	maxBlockNumber := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
 		b := &alphabill.GetBlockResponse{
 			Block: &block.Block{
@@ -138,30 +141,31 @@ func TestSyncToMaxBlockHeight(t *testing.T) {
 		}
 		serviceServer.SetBlock(blockNo, b)
 	}
-	serviceServer.SetMaxBlockHeight(maxBlockHeight)
+	serviceServer.SetMaxBlockNumber(maxBlockNumber)
 	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
 
-	// verify starting block height
-	height, err := w.db.Do().GetBlockHeight()
-	require.EqualValues(t, 0, height)
+	// verify starting block number
+	blockNumber, err := w.db.Do().GetBlockNumber()
+	require.EqualValues(t, 0, blockNumber)
 	require.NoError(t, err)
 
-	// when wallet is synced to max block height
-	w.SyncToMaxBlockHeight()
+	// when wallet is synced to max block number
+	err = w.SyncToMaxBlockNumber()
+	require.NoError(t, err)
 
-	// then block height is exactly equal to max block height, and further blocks are not processed
-	height, err = w.db.Do().GetBlockHeight()
-	require.EqualValues(t, maxBlockHeight, height)
+	// then block number is exactly equal to max block number, and further blocks are not processed
+	blockNumber, err = w.db.Do().GetBlockNumber()
+	require.EqualValues(t, maxBlockNumber, blockNumber)
 	require.NoError(t, err)
 }
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(Config{
+	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
-		AlphabillClientConfig: AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
+		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
 	})
 	t.Cleanup(func() {
 		DeleteWallet(w)
@@ -200,7 +204,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.EqualValues(t, w.dcWg.swaps[*uint256.NewInt(0).SetBytes(dcNonce)], dcTimeoutBlockCount)
 
 	// when dc timeout is reached
-	serverService.SetMaxBlockHeight(dcTimeoutBlockCount)
+	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &alphabill.GetBlockResponse{
 			Block: &block.Block{

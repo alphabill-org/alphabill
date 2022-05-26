@@ -38,7 +38,7 @@ type rootGenesisConfig struct {
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
 func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig)}
+	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
@@ -46,7 +46,7 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 			return rootGenesisRunFunc(ctx, config)
 		},
 	}
-	config.Keys.addCmdFlags(cmd, defaultRootChainDir)
+	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 

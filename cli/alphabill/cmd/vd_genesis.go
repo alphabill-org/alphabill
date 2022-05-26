@@ -33,7 +33,7 @@ type vdGenesisConfig struct {
 
 // newVDGenesisCmd creates a new cobra command for the vd genesis.
 func newVDGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &vdGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig)}
+	config := &vdGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, vdDir)}
 	var cmd = &cobra.Command{
 		Use:   "vd-genesis",
 		Short: "Generates a genesis file for the Verifiable Data partition",
@@ -44,7 +44,7 @@ func newVDGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultVDSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/vd/node-genesis.json)")
-	config.Keys.addCmdFlags(cmd, vdDir)
+	config.Keys.addCmdFlags(cmd)
 	return cmd
 }
 

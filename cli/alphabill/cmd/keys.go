@@ -50,12 +50,11 @@ type (
 	}
 )
 
-func NewKeysConf(conf *baseConfiguration) *keysConfig {
-	return &keysConfig{HomeDir: &conf.HomeDir}
+func NewKeysConf(conf *baseConfiguration, relativeDir string) *keysConfig {
+	return &keysConfig{HomeDir: &conf.HomeDir, defaultKeysRelativeFilePath: path.Join(relativeDir, defaultKeysFileName)}
 }
 
-func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command, relativeDir string) {
-	keysConf.defaultKeysRelativeFilePath = path.Join(relativeDir, defaultKeysFileName)
+func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&keysConf.GenerateKeys, genKeysCmdFlag, "g", false, "generates new keys if none exist")
 	cmd.Flags().BoolVarP(&keysConf.ForceGeneration, forceKeyGenCmdFlag, "f", false, "forces key generation, overwriting existing keys. Must be used with -g flag")
 	fullKeysFilePath := path.Join("$AB_HOME", keysConf.defaultKeysRelativeFilePath)

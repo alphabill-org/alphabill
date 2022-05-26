@@ -31,7 +31,7 @@ type moneyGenesisConfig struct {
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
 func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &moneyGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig)}
+	config := &moneyGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, moneyPartitionDir)}
 	var cmd = &cobra.Command{
 		Use:   "money-genesis",
 		Short: "Generates a genesis file for the Alphabill Money partition",
@@ -41,7 +41,7 @@ func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	}
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultABMoneySystemIdentifier, "system identifier in HEX format")
-	config.Keys.addCmdFlags(cmd, moneyPartitionDir)
+	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")

@@ -49,7 +49,6 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	config.Keys.addCmdFlags(cmd, defaultRootChainDir)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-	cmd.AddCommand(newGenerateKeyCmd(ctx, config))
 
 	err := cmd.MarkFlagRequired(partitionRecordFile)
 	if err != nil {
@@ -73,6 +72,9 @@ func (c *rootGenesisConfig) getOutputDir() string {
 }
 
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
+	// ensure output dir is present before keys generation
+	_ = config.getOutputDir()
+	// load or generate keys
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.ForceKeyGeneration)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.Keys.GetKeyFileLocation())

@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,6 +36,29 @@ func TestGenerateGenesisFiles(t *testing.T) {
 	expectedPGFile1, _ := ioutil.ReadFile("testdata/expected/partition-genesis-1.json")
 	actualPGFile1, _ := ioutil.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
+}
+
+func TestRootGenesis_KeyFileNotFound(t *testing.T) {
+	homeDir := setupTestDir(t, alphabillDir)
+	cmd := New()
+	args := "root-genesis --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+
+	s := path.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
+	require.ErrorContains(t, err, fmt.Sprintf("failed to read root chain keys from file '%s'", s))
+}
+
+func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
+	homeDir := setupTestHomeDir(t, alphabillDir)
+	cmd := New()
+	args := "root-genesis --force-key-gen --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+
+	kf := path.Join(homeDir, defaultRootChainDir, defaultKeysFileName)
+	require.FileExists(t, kf)
 }
 
 func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {

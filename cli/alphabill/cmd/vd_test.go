@@ -25,7 +25,7 @@ import (
 
 func TestRunVD(t *testing.T) {
 	homeDirVD := setupTestHomeDir(t, "vd")
-	keysFileLocation := path.Join(homeDirVD, keysFile)
+	keysFileLocation := path.Join(homeDirVD, defaultKeysFileName)
 	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
 	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {

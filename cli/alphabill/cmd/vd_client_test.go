@@ -22,7 +22,7 @@ import (
 
 func TestVD_UseClientForTx(t *testing.T) {
 	homeDirVD := setupTestHomeDir(t, "vd")
-	keysFileLocation := path.Join(homeDirVD, keysFile)
+	keysFileLocation := path.Join(homeDirVD, defaultKeysFileName)
 	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
 	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 20*time.Second, func() {

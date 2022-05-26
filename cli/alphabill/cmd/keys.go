@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"crypto/rand"
+	"path"
+
+	"github.com/spf13/cobra"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 
@@ -13,12 +16,25 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 )
 
-const secp256k1 = "secp256k1"
+const (
+	secp256k1 = "secp256k1"
+
+	forceKeyGenCmdFlag  = "force-key-gen"
+	keyFileCmdFlag      = "key-file"
+	defaultKeysFileName = "keys.json"
+)
 
 type (
 	Keys struct {
 		SigningPrivateKey    abcrypto.Signer
 		EncryptionPrivateKey crypto.PrivKey
+	}
+
+	KeysConfig struct {
+		HomeDir                     *string
+		KeyFilePath                 string
+		ForceKeyGeneration          bool
+		defaultKeysRelativeFilePath string
 	}
 
 	keyFile struct {
@@ -31,6 +47,17 @@ type (
 		PrivateKey []byte `json:"privateKey"`
 	}
 )
+
+func NewKeysConf(conf *baseConfiguration) *KeysConfig {
+	return &KeysConfig{HomeDir: &conf.HomeDir}
+}
+
+func (keysConf *KeysConfig) addCmdFlags(cmd *cobra.Command, defaultKeysRelativeFilePath string) {
+	keysConf.defaultKeysRelativeFilePath = defaultKeysRelativeFilePath
+	cmd.Flags().BoolVarP(&keysConf.ForceKeyGeneration, forceKeyGenCmdFlag, "f", false, "generates new keys, overwrites existing keys file")
+	fullKeysFilePath := path.Join("$AB_HOME", defaultKeysRelativeFilePath)
+	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", "path to the keys file (default: "+fullKeysFilePath+"). If key file does not exist and flag -f is present then new keys are generated.")
+}
 
 // GenerateKeys generates a new signing and encryption key.
 func GenerateKeys() (*Keys, error) {
@@ -48,12 +75,16 @@ func GenerateKeys() (*Keys, error) {
 	}, nil
 }
 
+func (keysConf *KeysConfig) GetKeyFileLocation() string {
+	if keysConf.KeyFilePath != "" {
+		return keysConf.KeyFilePath
+	}
+	return path.Join(*keysConf.HomeDir, keysConf.defaultKeysRelativeFilePath)
+}
+
 // LoadKeys loads signing and encryption keys.
 func LoadKeys(file string, forceGeneration bool) (*Keys, error) {
-	if !util.FileExists(file) {
-		if !forceGeneration {
-			return nil, errors.Errorf("keys file %s not found", file)
-		}
+	if forceGeneration {
 		generateKeys, err := GenerateKeys()
 		if err != nil {
 			return nil, err
@@ -63,6 +94,10 @@ func LoadKeys(file string, forceGeneration bool) (*Keys, error) {
 			return nil, err
 		}
 		return generateKeys, nil
+	}
+
+	if !util.FileExists(file) {
+		return nil, errors.Errorf("keys file %s not found", file)
 	}
 	kf, err := util.ReadJsonFile(file, &keyFile{})
 	if err != nil {

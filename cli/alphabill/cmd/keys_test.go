@@ -42,6 +42,16 @@ func TestLoadKeys_ForceGeneration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, keys.SigningPrivateKey, loaded.SigningPrivateKey)
 	require.Equal(t, keys.EncryptionPrivateKey, loaded.EncryptionPrivateKey)
+	// make sure force generation overwrites existing keys
+	overwritten, err := LoadKeys(file, true)
+	require.NoError(t, err)
+	require.NotNil(t, keys)
+	require.NotEqual(t, loaded.SigningPrivateKey, overwritten.SigningPrivateKey)
+	require.NotEqual(t, loaded.EncryptionPrivateKey, overwritten.EncryptionPrivateKey)
+	loadedOverwritten, err := LoadKeys(file, false)
+	require.NoError(t, err)
+	require.Equal(t, overwritten.SigningPrivateKey, loadedOverwritten.SigningPrivateKey)
+	require.Equal(t, overwritten.EncryptionPrivateKey, loadedOverwritten.EncryptionPrivateKey)
 }
 
 func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {

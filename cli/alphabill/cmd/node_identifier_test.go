@@ -12,7 +12,7 @@ import (
 
 func TestIdentifier_KeysNotFound(t *testing.T) {
 	dir := setupTestHomeDir(t, "identifier")
-	file := path.Join(dir, keysFile)
+	file := path.Join(dir, defaultKeysFileName)
 	cmd := New()
 	args := "identifier -k" + file
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
@@ -22,7 +22,7 @@ func TestIdentifier_KeysNotFound(t *testing.T) {
 
 func TestIdentifier_Ok(t *testing.T) {
 	dir := setupTestHomeDir(t, "identifier")
-	file := path.Join(dir, keysFile)
+	file := path.Join(dir, defaultKeysFileName)
 
 	_, err := LoadKeys(file, true)
 	require.NoError(t, err)

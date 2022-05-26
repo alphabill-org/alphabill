@@ -48,12 +48,12 @@ func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 			return defaultRootChainRunFunc(ctx, config)
 		},
 	}
-	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to root chain key file")
+	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root chain key file")
 	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain)")
 	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "rootchain address in libp2p multiaddress-format")
 	cmd.Flags().Uint64Var(&config.T3Timeout, "t3-timeout", 900, "how long root chain nodes wait for message from leader before initiating a new round")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "root chain request buffer capacity")
-	err := cmd.MarkFlagRequired(keyFileCmd)
+	err := cmd.MarkFlagRequired(keyFileCmdFlag)
 	if err != nil {
 		panic(err)
 	}
@@ -66,7 +66,7 @@ func (c *rootChainConfig) getGenesisFilePath() string {
 	if c.GenesisFile != "" {
 		return c.GenesisFile
 	}
-	return path.Join(c.Base.defaultRootGenesisFilePath(), rootGenesisFileName)
+	return path.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
 }
 
 func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error {

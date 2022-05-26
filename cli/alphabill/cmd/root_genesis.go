@@ -51,11 +51,7 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	cmd.AddCommand(newGenerateKeyCmd(ctx, config))
 
-	err := cmd.MarkFlagRequired(keyFileCmdFlag)
-	if err != nil {
-		panic(err)
-	}
-	err = cmd.MarkFlagRequired(partitionRecordFile)
+	err := cmd.MarkFlagRequired(partitionRecordFile)
 	if err != nil {
 		panic(err)
 	}

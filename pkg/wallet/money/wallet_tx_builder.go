@@ -15,7 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-var alphabillMoneySystemId = []byte{0}
+var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
 func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *bill, timeout uint64) (*txsystem.Transaction, error) {
 	var err error
@@ -61,7 +61,7 @@ func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
-		Amount:         bill.Value,
+		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		RemainingValue: bill.Value - amount,
 		Backlink:       bill.TxHash,

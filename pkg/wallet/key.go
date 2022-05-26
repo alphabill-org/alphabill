@@ -33,7 +33,8 @@ type (
 	}
 )
 
-func generateKeys(mnemonic string) (*Keys, error) {
+// NewKeys generates new wallet keys from given mnemonic seed
+func NewKeys(mnemonic string) (*Keys, error) {
 	if !bip39.IsMnemonicValid(mnemonic) {
 		return nil, errors.New("invalid mnemonic")
 	}
@@ -71,6 +72,7 @@ func generateKeys(mnemonic string) (*Keys, error) {
 	}, nil
 }
 
+// NewAccountKey generates new account key from given master key and derivation path
 func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*AccountKey, error) {
 	path, err := accounts.ParseDerivationPath(derivationPath)
 	if err != nil {
@@ -98,12 +100,12 @@ func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*A
 	return &AccountKey{
 		PubKey:         compressedPubKey,
 		PrivKey:        privateKeyBytes,
-		PubKeyHash:     HashPubKey(compressedPubKey),
+		PubKeyHash:     hashPubKey(compressedPubKey),
 		DerivationPath: []byte(derivationPath),
 	}, nil
 }
 
-func HashPubKey(pubKey []byte) *KeyHashes {
+func hashPubKey(pubKey []byte) *KeyHashes {
 	return &KeyHashes{
 		Sha256: hash.Sum256(pubKey),
 		Sha512: hash.Sum512(pubKey),

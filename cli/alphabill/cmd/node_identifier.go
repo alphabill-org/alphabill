@@ -29,7 +29,7 @@ func newNodeIdentifierCmd(ctx context.Context) *cobra.Command {
 }
 
 func identifierRunFun(_ context.Context, file string) error {
-	keys, err := LoadKeys(file, false)
+	keys, err := LoadKeys(file, false, false)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load keys %v", file)
 	}

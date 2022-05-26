@@ -24,7 +24,7 @@ func TestIdentifier_Ok(t *testing.T) {
 	dir := setupTestHomeDir(t, "identifier")
 	file := path.Join(dir, defaultKeysFileName)
 
-	_, err := LoadKeys(file, true)
+	_, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
 	cmd := New()
 	args := "identifier -k" + file

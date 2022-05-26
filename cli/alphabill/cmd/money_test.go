@@ -296,7 +296,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		// generate node genesis
 		cmd := New()
-		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -f -k " + keysFileLocation
+		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
 		require.NoError(t, err)

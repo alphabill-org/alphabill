@@ -30,7 +30,7 @@ func TestMoneyGenesis_KeyFileNotFound(t *testing.T) {
 func TestMoneyGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	cmd := New()
-	args := "money-genesis --force-key-gen --home " + homeDir
+	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New()
-	args := "money-genesis --force-key-gen --home " + homeDir
+	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
@@ -71,7 +71,7 @@ func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New()
-	args := "money-genesis --force-key-gen --home " + homeDir
+	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
 
 	cmd := New()
-	args := "money-genesis --force-key-gen -o " + nodeGenesisFile + " --home " + homeDir
+	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
 
 	cmd := New()
-	args := "money-genesis -f -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
+	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)

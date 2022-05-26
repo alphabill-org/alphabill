@@ -74,7 +74,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	if err != nil {
 		return errors.Wrapf(err, "failed to open root genesis file %s", config.getGenesisFilePath())
 	}
-	rk, err := LoadKeys(config.KeyFile, false)
+	rk, err := LoadKeys(config.KeyFile, false, false)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read keys %s", config.KeyFile)
 	}

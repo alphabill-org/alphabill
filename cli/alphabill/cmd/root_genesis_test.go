@@ -52,7 +52,7 @@ func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	cmd := New()
-	args := "root-genesis --force-key-gen --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	args := "root-genesis --gen-keys --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)

@@ -75,7 +75,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	// ensure output dir is present before keys generation
 	_ = config.getOutputDir()
 	// load or generate keys
-	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.ForceKeyGeneration)
+	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.Keys.GetKeyFileLocation())
 	}

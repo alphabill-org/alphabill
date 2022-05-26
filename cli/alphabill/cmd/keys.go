@@ -19,7 +19,8 @@ import (
 const (
 	secp256k1 = "secp256k1"
 
-	forceKeyGenCmdFlag  = "force-key-gen"
+	genKeysCmdFlag      = "gen-keys"
+	forceKeyGenCmdFlag  = "force"
 	keyFileCmdFlag      = "key-file"
 	defaultKeysFileName = "keys.json"
 )
@@ -33,7 +34,8 @@ type (
 	KeysConfig struct {
 		HomeDir                     *string
 		KeyFilePath                 string
-		ForceKeyGeneration          bool
+		GenerateKeys                bool
+		ForceGeneration             bool
 		defaultKeysRelativeFilePath string
 	}
 
@@ -54,9 +56,10 @@ func NewKeysConf(conf *baseConfiguration) *KeysConfig {
 
 func (keysConf *KeysConfig) addCmdFlags(cmd *cobra.Command, relativeDir string) {
 	keysConf.defaultKeysRelativeFilePath = path.Join(relativeDir, defaultKeysFileName)
-	cmd.Flags().BoolVarP(&keysConf.ForceKeyGeneration, forceKeyGenCmdFlag, "f", false, "generates new keys, overwrites existing keys file")
+	cmd.Flags().BoolVarP(&keysConf.GenerateKeys, genKeysCmdFlag, "g", false, "generates new keys if none exist")
+	cmd.Flags().BoolVarP(&keysConf.ForceGeneration, forceKeyGenCmdFlag, "f", false, "forces key generation, overwriting existing keys. Must be used with -g flag")
 	fullKeysFilePath := path.Join("$AB_HOME", keysConf.defaultKeysRelativeFilePath)
-	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", "path to the keys file (default: "+fullKeysFilePath+"). If key file does not exist and flag -f is present then new keys are generated.")
+	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", "path to the keys file (default: "+fullKeysFilePath+"). If key file does not exist and flag -g is present then new keys are generated.")
 }
 
 // GenerateKeys generates a new signing and encryption key.
@@ -83,8 +86,10 @@ func (keysConf *KeysConfig) GetKeyFileLocation() string {
 }
 
 // LoadKeys loads signing and encryption keys.
-func LoadKeys(file string, forceGeneration bool) (*Keys, error) {
-	if forceGeneration {
+func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, error) {
+	exists := util.FileExists(file)
+
+	if (exists && overwrite) || (!exists && generateNewIfNotExist) {
 		generateKeys, err := GenerateKeys()
 		if err != nil {
 			return nil, err
@@ -99,6 +104,7 @@ func LoadKeys(file string, forceGeneration bool) (*Keys, error) {
 	if !util.FileExists(file) {
 		return nil, errors.Errorf("keys file %s not found", file)
 	}
+
 	kf, err := util.ReadJsonFile(file, &keyFile{})
 	if err != nil {
 		return nil, err

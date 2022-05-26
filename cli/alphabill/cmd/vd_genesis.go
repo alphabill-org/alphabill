@@ -62,7 +62,7 @@ func vdGenesisRunFun(_ context.Context, config *vdGenesisConfig) error {
 		return errors.Errorf("node genesis %s exists", nodeGenesisFile)
 	}
 
-	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.ForceKeyGeneration)
+	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}

@@ -138,7 +138,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 }
 
 func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*partition.Node, error) {
-	keys, err := LoadKeys(cfg.KeyFile, false)
+	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
 		return nil, err
 	}

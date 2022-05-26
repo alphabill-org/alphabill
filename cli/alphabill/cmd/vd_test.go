@@ -55,7 +55,7 @@ func TestRunVD(t *testing.T) {
 
 		// generate node genesis
 		cmd := New()
-		args := "vd-genesis --home " + homeDirVD + " -o " + nodeGenesisFileLocation + " -f -k " + keysFileLocation
+		args := "vd-genesis --home " + homeDirVD + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
 		require.NoError(t, err)

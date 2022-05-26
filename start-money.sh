@@ -8,12 +8,12 @@ nodeAddresses=""
 # Generate node genesis files.
 for i in 1 2 3
 do
-  # "-f" flags also generates keys
-  build/alphabill money-genesis --home testab/money$i -f
+  # "-g" flags also generates keys
+  build/alphabill money-genesis --home testab/money$i -g
 done
 
 # generate rootchain and partition genesis files
-build/alphabill root-genesis --home testab/money-rootchain -p testab/money1/money/node-genesis.json -p testab/money2/money/node-genesis.json -p testab/money3/money/node-genesis.json -k testab/money-rootchain/keys.json -f
+build/alphabill root-genesis --home testab/money-rootchain -p testab/money1/money/node-genesis.json -p testab/money2/money/node-genesis.json -p testab/money3/money/node-genesis.json -k testab/money-rootchain/keys.json -g
 
 #start root chain
 build/alphabill root --home testab/money-rootchain -k testab/money-rootchain/keys.json -g testab/money-rootchain/rootchain/root-genesis.json > testab/money-rootchain/log.log &

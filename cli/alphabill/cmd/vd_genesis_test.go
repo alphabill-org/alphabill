@@ -32,7 +32,7 @@ func TestVDGenesis_KeyFileNotFound(t *testing.T) {
 func TestVDGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, vdGenesisDir)
 	cmd := New()
-	args := "vd-genesis --force-key-gen --home " + homeDir
+	args := "vd-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestVDGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New()
-	args := "vd-genesis --force-key-gen --home " + homeDir
+	args := "vd-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
@@ -73,7 +73,7 @@ func TestVDGGenesis_LoadExistingKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New()
-	args := "vd-genesis --force-key-gen --home " + homeDir
+	args := "vd-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -96,7 +96,7 @@ func TestVDGGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	nodeGenesisFile := path.Join(homeDir, vdDirectory, "n1", nodeGenesisFileName)
 
 	cmd := New()
-	args := "vd-genesis --force-key-gen -o " + nodeGenesisFile + " --home " + homeDir
+	args := "vd-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestVDGGenesis_WithSystemIdentifier(t *testing.T) {
 	nodeGenesisFile := path.Join(homeDir, vdDirectory, "n1", nodeGenesisFileName)
 
 	cmd := New()
-	args := "vd-genesis -f -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
+	args := "vd-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)

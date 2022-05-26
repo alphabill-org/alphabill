@@ -17,7 +17,7 @@ import (
 )
 
 type (
-	vdClient struct {
+	VDClient struct {
 		abClient abclient.ABClient
 	}
 
@@ -29,12 +29,12 @@ type (
 
 const timeoutDelta = 100 // TODO make timeout configurable?
 
-func New(_ context.Context, abConf *AlphabillClientConfig) (*vdClient, error) {
+func New(_ context.Context, abConf *AlphabillClientConfig) (*VDClient, error) {
 	err := log.InitDefaultLogger()
 	if err != nil {
 		return nil, err
 	}
-	return &vdClient{
+	return &VDClient{
 		abClient: abclient.New(abclient.AlphabillClientConfig{
 			Uri:          abConf.Uri,
 			WaitForReady: abConf.WaitForReady,
@@ -42,7 +42,7 @@ func New(_ context.Context, abConf *AlphabillClientConfig) (*vdClient, error) {
 	}, nil
 }
 
-func (v *vdClient) RegisterFileHash(filePath string) error {
+func (v *VDClient) RegisterFileHash(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return errors.Wrapf(err, "failed to open the file %s", filePath)
@@ -59,7 +59,7 @@ func (v *vdClient) RegisterFileHash(filePath string) error {
 	return v.registerHashTx(hash)
 }
 
-func (v *vdClient) RegisterHash(hash string) error {
+func (v *VDClient) RegisterHash(hash string) error {
 	dataHash, err := uint256.FromHex(hash)
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (v *vdClient) RegisterHash(hash string) error {
 	return v.registerHashTx(bytes32[:])
 }
 
-func (v *vdClient) registerHashTx(hash []byte) error {
+func (v *VDClient) registerHashTx(hash []byte) error {
 	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err

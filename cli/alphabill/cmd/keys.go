@@ -31,7 +31,7 @@ type (
 		EncryptionPrivateKey crypto.PrivKey
 	}
 
-	KeysConfig struct {
+	keysConfig struct {
 		HomeDir                     *string
 		KeyFilePath                 string
 		GenerateKeys                bool
@@ -50,11 +50,11 @@ type (
 	}
 )
 
-func NewKeysConf(conf *baseConfiguration) *KeysConfig {
-	return &KeysConfig{HomeDir: &conf.HomeDir}
+func NewKeysConf(conf *baseConfiguration) *keysConfig {
+	return &keysConfig{HomeDir: &conf.HomeDir}
 }
 
-func (keysConf *KeysConfig) addCmdFlags(cmd *cobra.Command, relativeDir string) {
+func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command, relativeDir string) {
 	keysConf.defaultKeysRelativeFilePath = path.Join(relativeDir, defaultKeysFileName)
 	cmd.Flags().BoolVarP(&keysConf.GenerateKeys, genKeysCmdFlag, "g", false, "generates new keys if none exist")
 	cmd.Flags().BoolVarP(&keysConf.ForceGeneration, forceKeyGenCmdFlag, "f", false, "forces key generation, overwriting existing keys. Must be used with -g flag")
@@ -78,7 +78,7 @@ func GenerateKeys() (*Keys, error) {
 	}, nil
 }
 
-func (keysConf *KeysConfig) GetKeyFileLocation() string {
+func (keysConf *keysConfig) GetKeyFileLocation() string {
 	if keysConf.KeyFilePath != "" {
 		return keysConf.KeyFilePath
 	}

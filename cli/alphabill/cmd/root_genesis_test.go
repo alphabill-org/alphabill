@@ -21,7 +21,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		PartitionNodeGenesisFiles: []string{"testdata/partition-node-genesis-1.json"},
-		Keys: &KeysConfig{
+		Keys: &keysConfig{
 			KeyFilePath: "testdata/root-key.json",
 		},
 		OutputDir: outputDir,
@@ -70,7 +70,7 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		PartitionNodeGenesisFiles: []string{"testdata/partition-record-1-invalid-sig.json"},
-		Keys: &KeysConfig{
+		Keys: &keysConfig{
 			KeyFilePath: "testdata/root-key.json",
 		},
 		OutputDir: outputDir,

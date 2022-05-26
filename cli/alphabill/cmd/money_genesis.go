@@ -23,7 +23,7 @@ var defaultABMoneySystemIdentifier = []byte{0, 0, 0, 0}
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
 	SystemIdentifier   []byte
-	Keys               *KeysConfig
+	Keys               *keysConfig
 	Output             string
 	InitialBillValue   uint64 `validate:"gte=0"`
 	DCMoneySupplyValue uint64 `validate:"gte=0"`

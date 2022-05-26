@@ -29,7 +29,7 @@ type rootGenesisConfig struct {
 	// paths to partition record json files
 	PartitionNodeGenesisFiles []string
 
-	Keys *KeysConfig
+	Keys *keysConfig
 
 	// path to output directory where genesis files will be created (default current directory)
 	OutputDir          string

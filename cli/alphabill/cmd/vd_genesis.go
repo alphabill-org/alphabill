@@ -26,7 +26,7 @@ var defaultVDSystemIdentifier = []byte{0, 0, 0, 1}
 
 type vdGenesisConfig struct {
 	Base             *baseConfiguration
-	Keys             *KeysConfig
+	Keys             *keysConfig
 	SystemIdentifier []byte
 	Output           string
 }

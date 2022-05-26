@@ -90,7 +90,7 @@ func main() {
 func createTransferTx(pubKey []byte, billId []byte, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
 		UnitId:                billId,
-		SystemId:              []byte{0},
+		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),

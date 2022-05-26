@@ -22,7 +22,7 @@ import (
 
 func TestVD_UseClientForTx(t *testing.T) {
 	homeDirVD := setupTestHomeDir(t, "vd")
-	keysFileLocation := path.Join(homeDirVD, keysFile)
+	keysFileLocation := path.Join(homeDirVD, defaultKeysFileName)
 	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
 	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 20*time.Second, func() {
@@ -36,7 +36,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 
 		// generate node genesis
 		cmd := New()
-		args := "vd-genesis --home " + homeDirVD + " -o " + nodeGenesisFileLocation + " -f -k " + keysFileLocation
+		args := "vd-genesis --home " + homeDirVD + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
 		require.NoError(t, err)

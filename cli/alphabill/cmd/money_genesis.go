@@ -23,16 +23,15 @@ var defaultABMoneySystemIdentifier = []byte{0, 0, 0, 0}
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
 	SystemIdentifier   []byte
-	KeyFile            string
+	Keys               *keysConfig
 	Output             string
-	ForceKeyGeneration bool
 	InitialBillValue   uint64 `validate:"gte=0"`
 	DCMoneySupplyValue uint64 `validate:"gte=0"`
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
 func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &moneyGenesisConfig{Base: baseConfig}
+	config := &moneyGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, moneyPartitionDir)}
 	var cmd = &cobra.Command{
 		Use:   "money-genesis",
 		Short: "Generates a genesis file for the Alphabill Money partition",
@@ -42,8 +41,7 @@ func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	}
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultABMoneySystemIdentifier, "system identifier in HEX format")
-	cmd.Flags().BoolVarP(&config.ForceKeyGeneration, "force-key-gen", "f", false, "generates new keys for the node if the key-file does not exist")
-	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to the key file (default: $AB_HOME/money/keys.json). If key file does not exist and flag -f is present then new keys are generated.")
+	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
@@ -64,9 +62,9 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return errors.Errorf("node genesis %s exists", nodeGenesisFile)
 	}
 
-	keys, err := LoadKeys(config.getKeyFileLocation(), config.ForceKeyGeneration)
+	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return errors.Wrapf(err, "failed to load keys %v", config.getKeyFileLocation())
+		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}
 	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
 	if err != nil {
@@ -100,13 +98,6 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return err
 	}
 	return util.WriteJsonFile(nodeGenesisFile, nodeGenesis)
-}
-
-func (c *moneyGenesisConfig) getKeyFileLocation() string {
-	if c.KeyFile != "" {
-		return c.KeyFile
-	}
-	return path.Join(c.Base.HomeDir, moneyPartitionDir, keysFileName)
 }
 
 func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {

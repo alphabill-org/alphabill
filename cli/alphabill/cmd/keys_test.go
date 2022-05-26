@@ -20,7 +20,7 @@ func TestGenerateAndLoadKeys(t *testing.T) {
 	require.NoError(t, err)
 	err = keys.WriteTo(file)
 	require.NoError(t, err)
-	loaded, err := LoadKeys(file, false)
+	loaded, err := LoadKeys(file, false, false)
 	require.NoError(t, err)
 	require.Equal(t, keys.SigningPrivateKey, loaded.SigningPrivateKey)
 	require.Equal(t, keys.EncryptionPrivateKey, loaded.EncryptionPrivateKey)
@@ -28,20 +28,30 @@ func TestGenerateAndLoadKeys(t *testing.T) {
 
 func TestLoadKeys_FileNotFound(t *testing.T) {
 	file := path.Join(setupTestDir(t, keysDir), "keys.json")
-	keys, err := LoadKeys(file, false)
+	keys, err := LoadKeys(file, false, false)
 	require.ErrorContains(t, err, fmt.Sprintf("keys file %s not found", file))
 	require.Nil(t, keys)
 }
 
 func TestLoadKeys_ForceGeneration(t *testing.T) {
 	file := path.Join(setupTestDir(t, keysDir), "keys.json")
-	keys, err := LoadKeys(file, true)
+	keys, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
 	require.NotNil(t, keys)
-	loaded, err := LoadKeys(file, false)
+	loaded, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
 	require.Equal(t, keys.SigningPrivateKey, loaded.SigningPrivateKey)
 	require.Equal(t, keys.EncryptionPrivateKey, loaded.EncryptionPrivateKey)
+	// make sure force generation overwrites existing keys
+	overwritten, err := LoadKeys(file, true, true)
+	require.NoError(t, err)
+	require.NotNil(t, keys)
+	require.NotEqual(t, loaded.SigningPrivateKey, overwritten.SigningPrivateKey)
+	require.NotEqual(t, loaded.EncryptionPrivateKey, overwritten.EncryptionPrivateKey)
+	loadedOverwritten, err := LoadKeys(file, true, false)
+	require.NoError(t, err)
+	require.Equal(t, overwritten.SigningPrivateKey, loadedOverwritten.SigningPrivateKey)
+	require.Equal(t, overwritten.EncryptionPrivateKey, loadedOverwritten.EncryptionPrivateKey)
 }
 
 func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {
@@ -54,7 +64,7 @@ func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {
 		EncryptionPrivateKey: key{},
 	}
 	require.NoError(t, util.WriteJsonFile(file, kf))
-	keys, err := LoadKeys(file, false)
+	keys, err := LoadKeys(file, false, false)
 	require.ErrorContains(t, err, "signing key algorithm invalid_algo is not supported")
 	require.Nil(t, keys)
 }
@@ -77,7 +87,7 @@ func TestLoadKeys_InvalidEncryptionKeyAlgorithm(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NoError(t, util.WriteJsonFile(file, kf))
-	keys, err := LoadKeys(file, false)
+	keys, err := LoadKeys(file, false, false)
 	require.ErrorContains(t, err, "encryption key algorithm invalid_algo is not supported")
 	require.Nil(t, keys)
 }
@@ -100,7 +110,7 @@ func TestLoadKeys_InvalidEncryptionKey(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NoError(t, util.WriteJsonFile(file, kf))
-	keys, err := LoadKeys(file, false)
+	keys, err := LoadKeys(file, false, false)
 	require.ErrorContains(t, err, "invalid encryption key")
 	require.Nil(t, keys)
 }
@@ -123,7 +133,7 @@ func TestLoadKeys_InvalidSigningKey(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NoError(t, util.WriteJsonFile(file, kf))
-	keys, err := LoadKeys(file, false)
+	keys, err := LoadKeys(file, false, false)
 	require.ErrorContains(t, err, "invalid signing key")
 	require.Nil(t, keys)
 }

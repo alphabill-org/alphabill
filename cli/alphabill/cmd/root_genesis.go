@@ -21,7 +21,6 @@ import (
 const (
 	partitionRecordFile = "partition-node-genesis-file"
 	rootGenesisFileName = "root-genesis.json"
-	keyFileCmd          = "key-file"
 )
 
 type rootGenesisConfig struct {
@@ -30,8 +29,7 @@ type rootGenesisConfig struct {
 	// paths to partition record json files
 	PartitionNodeGenesisFiles []string
 
-	// path to root chain key file
-	KeyFile string
+	Keys *keysConfig
 
 	// path to output directory where genesis files will be created (default current directory)
 	OutputDir          string
@@ -40,7 +38,7 @@ type rootGenesisConfig struct {
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
 func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &rootGenesisConfig{Base: baseConfig}
+	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
@@ -48,17 +46,11 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 			return rootGenesisRunFunc(ctx, config)
 		},
 	}
-	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmd, "k", "", "path to the key file (default: $AB_HOME/rootchain/keys.json). If key file does not exist and flag -f is present then new keys are generated.")
-	cmd.Flags().BoolVarP(&config.ForceKeyGeneration, "force-key-gen", "f", false, "generates new keys for the root chain node if the key-file does not exist")
+	config.Keys.addCmdFlags(cmd)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-	cmd.AddCommand(newGenerateKeyCmd(ctx, config))
 
-	err := cmd.MarkFlagRequired(keyFileCmd)
-	if err != nil {
-		panic(err)
-	}
-	err = cmd.MarkFlagRequired(partitionRecordFile)
+	err := cmd.MarkFlagRequired(partitionRecordFile)
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +63,7 @@ func (c *rootGenesisConfig) getOutputDir() string {
 	if c.OutputDir != "" {
 		return c.OutputDir
 	}
-	defaultOutputDir := c.Base.defaultRootGenesisFilePath()
+	defaultOutputDir := c.Base.defaultRootGenesisDir()
 	err := os.MkdirAll(defaultOutputDir, 0700) // -rwx------
 	if err != nil {
 		panic(err)
@@ -80,16 +72,19 @@ func (c *rootGenesisConfig) getOutputDir() string {
 }
 
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
-	k, err := LoadKeys(config.KeyFile, config.ForceKeyGeneration)
+	// ensure output dir is present before keys generation
+	_ = config.getOutputDir()
+	// load or generate keys
+	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.KeyFile)
+		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.Keys.GetKeyFileLocation())
 	}
 
 	pr, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
 		return err
 	}
-	privateKeyBytes, err := k.EncryptionPrivateKey.GetPublic().Raw()
+	privateKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
 	if err != nil {
 		return err
 	}
@@ -99,7 +94,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 		return err
 	}
 
-	rg, pg, err := rootchain.NewGenesisFromPartitionNodes(pr, 2500, k.SigningPrivateKey, encVerifier)
+	rg, pg, err := rootchain.NewGenesisFromPartitionNodes(pr, 2500, keys.SigningPrivateKey, encVerifier)
 	if err != nil {
 		return err
 	}

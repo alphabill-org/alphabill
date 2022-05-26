@@ -2,6 +2,10 @@ package cmd
 
 import (
 	"crypto/rand"
+	"fmt"
+	"path"
+
+	"github.com/spf13/cobra"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 
@@ -13,12 +17,27 @@ import (
 	"github.com/libp2p/go-libp2p-core/crypto"
 )
 
-const secp256k1 = "secp256k1"
+const (
+	secp256k1 = "secp256k1"
+
+	genKeysCmdFlag      = "gen-keys"
+	forceKeyGenCmdFlag  = "force"
+	keyFileCmdFlag      = "key-file"
+	defaultKeysFileName = "keys.json"
+)
 
 type (
 	Keys struct {
 		SigningPrivateKey    abcrypto.Signer
 		EncryptionPrivateKey crypto.PrivKey
+	}
+
+	keysConfig struct {
+		HomeDir                     *string
+		KeyFilePath                 string
+		GenerateKeys                bool
+		ForceGeneration             bool
+		defaultKeysRelativeFilePath string
 	}
 
 	keyFile struct {
@@ -31,6 +50,17 @@ type (
 		PrivateKey []byte `json:"privateKey"`
 	}
 )
+
+func NewKeysConf(conf *baseConfiguration, relativeDir string) *keysConfig {
+	return &keysConfig{HomeDir: &conf.HomeDir, defaultKeysRelativeFilePath: path.Join(relativeDir, defaultKeysFileName)}
+}
+
+func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&keysConf.GenerateKeys, genKeysCmdFlag, "g", false, "generates new keys if none exist")
+	cmd.Flags().BoolVarP(&keysConf.ForceGeneration, forceKeyGenCmdFlag, "f", false, "forces key generation, overwriting existing keys. Must be used with -g flag")
+	fullKeysFilePath := path.Join("$AB_HOME", keysConf.defaultKeysRelativeFilePath)
+	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the keys file (default: %s). If key file does not exist and flag -g is present then new keys are generated.", fullKeysFilePath))
+}
 
 // GenerateKeys generates a new signing and encryption key.
 func GenerateKeys() (*Keys, error) {
@@ -48,12 +78,18 @@ func GenerateKeys() (*Keys, error) {
 	}, nil
 }
 
+func (keysConf *keysConfig) GetKeyFileLocation() string {
+	if keysConf.KeyFilePath != "" {
+		return keysConf.KeyFilePath
+	}
+	return path.Join(*keysConf.HomeDir, keysConf.defaultKeysRelativeFilePath)
+}
+
 // LoadKeys loads signing and encryption keys.
-func LoadKeys(file string, forceGeneration bool) (*Keys, error) {
-	if !util.FileExists(file) {
-		if !forceGeneration {
-			return nil, errors.Errorf("keys file %s not found", file)
-		}
+func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, error) {
+	exists := util.FileExists(file)
+
+	if (exists && overwrite) || (!exists && generateNewIfNotExist) {
 		generateKeys, err := GenerateKeys()
 		if err != nil {
 			return nil, err
@@ -64,6 +100,11 @@ func LoadKeys(file string, forceGeneration bool) (*Keys, error) {
 		}
 		return generateKeys, nil
 	}
+
+	if !util.FileExists(file) {
+		return nil, errors.Errorf("keys file %s not found", file)
+	}
+
 	kf, err := util.ReadJsonFile(file, &keyFile{})
 	if err != nil {
 		return nil, err

@@ -20,8 +20,8 @@ func newNodeIdentifierCmd(ctx context.Context) *cobra.Command {
 			return identifierRunFun(ctx, file)
 		},
 	}
-	cmd.Flags().StringVarP(&file, keyFileCmd, "k", "", "path to the key file")
-	err := cmd.MarkFlagRequired(keyFileCmd)
+	cmd.Flags().StringVarP(&file, keyFileCmdFlag, "k", "", "path to the key file")
+	err := cmd.MarkFlagRequired(keyFileCmdFlag)
 	if err != nil {
 		panic(err)
 	}
@@ -29,7 +29,7 @@ func newNodeIdentifierCmd(ctx context.Context) *cobra.Command {
 }
 
 func identifierRunFun(_ context.Context, file string) error {
-	keys, err := LoadKeys(file, false)
+	keys, err := LoadKeys(file, false, false)
 	if err != nil {
 		return errors.Wrapf(err, "failed to load keys %v", file)
 	}

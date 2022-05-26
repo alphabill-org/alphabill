@@ -279,7 +279,7 @@ func envVarsStr(envVars []envVar) (out string) {
 
 func TestRunMoneyNode_Ok(t *testing.T) {
 	homeDirMoney := setupTestHomeDir(t, "money")
-	keysFileLocation := path.Join(homeDirMoney, keysFile)
+	keysFileLocation := path.Join(homeDirMoney, defaultKeysFileName)
 	nodeGenesisFileLocation := path.Join(homeDirMoney, nodeGenesisFileName)
 	partitionGenesisFileLocation := path.Join(homeDirMoney, "partition-genesis.json")
 	test.MustRunInTime(t, 5*time.Second, func() {
@@ -296,7 +296,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		// generate node genesis
 		cmd := New()
-		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -f -k " + keysFileLocation
+		args := "money-genesis --home " + homeDirMoney + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		err := cmd.addAndExecuteCommand(context.Background())
 		require.NoError(t, err)

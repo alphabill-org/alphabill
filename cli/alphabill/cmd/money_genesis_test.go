@@ -23,18 +23,19 @@ func TestMoneyGenesis_KeyFileNotFound(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 
-	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", path.Join(homeDir, moneyGenesisDir, keysFile)))
+	s := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", s))
 }
 
 func TestMoneyGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	cmd := New()
-	args := "money-genesis --force-key-gen --home " + homeDir
+	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, moneyGenesisDir, keysFile)
+	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	gf := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
 	require.FileExists(t, kf)
 	require.FileExists(t, gf)
@@ -50,11 +51,11 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New()
-	args := "money-genesis --force-key-gen --home " + homeDir
+	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
-	kf := path.Join(homeDir, moneyGenesisDir, keysFile)
+	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	require.NoFileExists(t, kf)
 }
 
@@ -62,7 +63,7 @@ func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	err := os.MkdirAll(path.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
-	kf := path.Join(homeDir, moneyGenesisDir, keysFile)
+	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
 	nodeKeys, err := GenerateKeys()
 	require.NoError(t, err)
@@ -70,7 +71,7 @@ func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New()
-	args := "money-genesis --force-key-gen --home " + homeDir
+	args := "money-genesis --gen-keys --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -87,12 +88,12 @@ func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	err = os.MkdirAll(path.Join(homeDir, moneyGenesisDir, "n1"), 0700)
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, moneyGenesisDir, keysFile)
+	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 
 	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
 
 	cmd := New()
-	args := "money-genesis --force-key-gen -o " + nodeGenesisFile + " --home " + homeDir
+	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -109,11 +110,11 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	err = os.MkdirAll(path.Join(homeDir, moneyGenesisDir, "n1"), 0700)
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, moneyGenesisDir, "n1", keysFile)
+	kf := path.Join(homeDir, moneyGenesisDir, "n1", defaultKeysFileName)
 	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
 
 	cmd := New()
-	args := "money-genesis -f -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
+	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)

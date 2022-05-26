@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/rand"
+	"fmt"
 	"path"
 
 	"github.com/spf13/cobra"
@@ -58,7 +59,7 @@ func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&keysConf.GenerateKeys, genKeysCmdFlag, "g", false, "generates new keys if none exist")
 	cmd.Flags().BoolVarP(&keysConf.ForceGeneration, forceKeyGenCmdFlag, "f", false, "forces key generation, overwriting existing keys. Must be used with -g flag")
 	fullKeysFilePath := path.Join("$AB_HOME", keysConf.defaultKeysRelativeFilePath)
-	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", "path to the keys file (default: "+fullKeysFilePath+"). If key file does not exist and flag -g is present then new keys are generated.")
+	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the keys file (default: %s). If key file does not exist and flag -g is present then new keys are generated.", fullKeysFilePath))
 }
 
 // GenerateKeys generates a new signing and encryption key.

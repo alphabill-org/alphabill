@@ -199,7 +199,7 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 }
 
 func createWallet(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {
-	k, err := generateKeys(mnemonic)
+	k, err := NewKeys(mnemonic)
 	if err != nil {
 		return nil, nil, err
 	}

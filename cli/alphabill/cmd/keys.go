@@ -52,10 +52,10 @@ func NewKeysConf(conf *baseConfiguration) *KeysConfig {
 	return &KeysConfig{HomeDir: &conf.HomeDir}
 }
 
-func (keysConf *KeysConfig) addCmdFlags(cmd *cobra.Command, defaultKeysRelativeFilePath string) {
-	keysConf.defaultKeysRelativeFilePath = defaultKeysRelativeFilePath
+func (keysConf *KeysConfig) addCmdFlags(cmd *cobra.Command, relativeDir string) {
+	keysConf.defaultKeysRelativeFilePath = path.Join(relativeDir, defaultKeysFileName)
 	cmd.Flags().BoolVarP(&keysConf.ForceKeyGeneration, forceKeyGenCmdFlag, "f", false, "generates new keys, overwrites existing keys file")
-	fullKeysFilePath := path.Join("$AB_HOME", defaultKeysRelativeFilePath)
+	fullKeysFilePath := path.Join("$AB_HOME", keysConf.defaultKeysRelativeFilePath)
 	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", "path to the keys file (default: "+fullKeysFilePath+"). If key file does not exist and flag -f is present then new keys are generated.")
 }
 

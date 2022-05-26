@@ -44,7 +44,7 @@ func newVDGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultVDSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/vd/node-genesis.json)")
-	config.Keys.addCmdFlags(cmd, path.Join(vdDir, defaultKeysFileName))
+	config.Keys.addCmdFlags(cmd, vdDir)
 	return cmd
 }
 

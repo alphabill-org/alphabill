@@ -46,7 +46,7 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 			return rootGenesisRunFunc(ctx, config)
 		},
 	}
-	config.Keys.addCmdFlags(cmd, path.Join(defaultRootChainDir, rootGenesisFileName))
+	config.Keys.addCmdFlags(cmd, defaultRootChainDir)
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	cmd.AddCommand(newGenerateKeyCmd(ctx, config))

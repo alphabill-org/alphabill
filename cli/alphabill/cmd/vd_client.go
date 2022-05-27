@@ -63,7 +63,7 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringP("hash", "d", "", "register data hash (hex prefixed with 0x)")
+	cmd.Flags().StringP("hash", "d", "", "register data hash (hex with or without 0x prefix)")
 	cmd.Flags().StringP("file", "f", "", "create sha256 hash of the file contents and register data hash")
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	// cmd.MarkFlagsMutuallyExclusive("hash", "file") TODO use once 1.5.0 is released

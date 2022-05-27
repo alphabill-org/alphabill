@@ -3,8 +3,10 @@ package verifiable_data
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"os"
+	"strings"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 
@@ -12,8 +14,6 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
-	"github.com/holiman/uint256"
 )
 
 type (
@@ -60,12 +60,11 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 }
 
 func (v *VDClient) RegisterHash(hash string) error {
-	dataHash, err := uint256.FromHex(hash)
+	bytes, err := hexStringToBytes(hash)
 	if err != nil {
 		return err
 	}
-	bytes32 := dataHash.Bytes32()
-	return v.registerHashTx(bytes32[:])
+	return v.registerHashTx(bytes)
 }
 
 func (v *VDClient) registerHashTx(hash []byte) error {
@@ -93,4 +92,12 @@ func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, e
 		Timeout:  timeout,
 	}
 	return tx, nil
+}
+
+func hexStringToBytes(hexString string) ([]byte, error) {
+	bs, err := hex.DecodeString(strings.TrimPrefix(hexString, "0x"))
+	if err != nil {
+		return nil, err
+	}
+	return bs, nil
 }

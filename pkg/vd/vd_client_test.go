@@ -44,6 +44,22 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	require.EqualValues(t, dataHash.Bytes(), mock.tx.UnitId)
 }
 
+func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
+	mock := &abClientMock{}
+	vdClient.abClient = mock
+
+	hashHex := "0x00508D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
+	err = vdClient.RegisterHash(hashHex)
+	require.NoError(t, err)
+	require.NotNil(t, mock.tx)
+
+	bytes, err := hexStringToBytes(hashHex)
+	require.NoError(t, err)
+	require.EqualValues(t, bytes, mock.tx.UnitId)
+}
+
 func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
 	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
 	require.NoError(t, err)
@@ -52,7 +68,7 @@ func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
 
 	hashHex := "67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
 	err = vdClient.RegisterHash(hashHex)
-	require.ErrorContains(t, err, "hex string without 0x prefix")
+	require.NoError(t, err)
 }
 
 func TestVdClient_RegisterHash_BadHash(t *testing.T) {
@@ -63,7 +79,7 @@ func TestVdClient_RegisterHash_BadHash(t *testing.T) {
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810QQ"
 	err = vdClient.RegisterHash(hashHex)
-	require.ErrorContains(t, err, "invalid hex string")
+	require.ErrorContains(t, err, "invalid byte:")
 }
 
 func TestVdClient_RegisterFileHash(t *testing.T) {

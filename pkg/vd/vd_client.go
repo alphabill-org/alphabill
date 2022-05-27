@@ -24,15 +24,18 @@ type (
 	AlphabillClientConfig struct {
 		Uri          string
 		WaitForReady bool
+		SkipLogger   bool
 	}
 )
 
 const timeoutDelta = 100 // TODO make timeout configurable?
 
 func New(_ context.Context, abConf *AlphabillClientConfig) (*VDClient, error) {
-	err := log.InitDefaultLogger()
-	if err != nil {
-		return nil, err
+	if !abConf.SkipLogger {
+		err := log.InitDefaultLogger()
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &VDClient{
 		abClient: abclient.New(abclient.AlphabillClientConfig{

@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+
 	testfile "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/file"
 
 	"github.com/holiman/uint256"
@@ -42,6 +44,20 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
 	require.EqualValues(t, dataHash.Bytes(), mock.tx.UnitId)
+}
+
+func TestVdClient_RegisterHash_WithLogger(t *testing.T) {
+	log.SetLogger(nil)
+	_, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
+	require.True(t, log.IsSet())
+}
+
+func TestVdClient_RegisterHash_NoLogger(t *testing.T) {
+	log.SetLogger(nil)
+	_, err := New(context.Background(), &AlphabillClientConfig{SkipLogger: true})
+	require.NoError(t, err)
+	require.False(t, log.IsSet())
 }
 
 func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {

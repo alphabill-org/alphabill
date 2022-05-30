@@ -4,14 +4,12 @@ import (
 	"encoding/hex"
 	"os"
 	"path"
-	"sync"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
@@ -218,29 +216,6 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.Len(t, mockClient.txs, 1)
 	btTx := parseBillTransferTx(t, mockClient.txs[0])
 	require.EqualValues(t, 100, btTx.TargetValue)
-}
-
-func TestWalletShutdownTerminatesSync(t *testing.T) {
-	w, _ := CreateTestWallet(t)
-	addBill(t, w, 100)
-
-	// when Sync is called
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		err := w.Sync()
-		require.NoError(t, err)
-		wg.Done()
-	}()
-
-	// and wallet is closed
-	w.Shutdown()
-
-	// then Sync goroutine should end
-	require.Eventually(t, func() bool {
-		wg.Wait()
-		return true
-	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {

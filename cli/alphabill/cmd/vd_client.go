@@ -27,6 +27,7 @@ func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 }
 
 func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
+	var wait bool
 	cmd := &cobra.Command{
 		Use: "register",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,7 +50,7 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 
 			vdClient, err := vd.New(ctx, &vd.AlphabillClientConfig{
 				Uri:          uri,
-				WaitForReady: true,
+				WaitForReady: wait,
 			})
 			if err != nil {
 				return err
@@ -65,8 +66,13 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 	}
 	cmd.Flags().StringP("hash", "d", "", "register data hash (hex prefixed with 0x)")
 	cmd.Flags().StringP("file", "f", "", "create sha256 hash of the file contents and register data hash")
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	// cmd.MarkFlagsMutuallyExclusive("hash", "file") TODO use once 1.5.0 is released
+	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	cmd.Flags().BoolVarP(&wait, "wait", "w", false, "wait until server is available")
+	err := cmd.Flags().MarkHidden("wait")
+	if err != nil {
+		return nil
+	}
 
 	return cmd
 }

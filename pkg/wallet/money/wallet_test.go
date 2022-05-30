@@ -228,7 +228,8 @@ func TestWalletShutdownTerminatesSync(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		_ = w.Sync()
+		err := w.Sync()
+		require.NoError(t, err)
 		wg.Done()
 	}()
 
@@ -250,18 +251,8 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 	w.Shutdown()
 
 	// and Sync is called
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		_ = w.Sync()
-		wg.Done()
-	}()
-
-	// then Sync goroutine should end
-	require.Eventually(t, func() bool {
-		wg.Wait()
-		return true
-	}, test.WaitDuration, test.WaitTick)
+	err := w.Sync()
+	require.ErrorContains(t, err, "database not open")
 }
 
 func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {

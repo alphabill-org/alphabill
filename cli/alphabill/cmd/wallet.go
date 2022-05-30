@@ -139,7 +139,13 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	defer w.Shutdown()
-	return w.SyncToMaxBlockNumber()
+	err = w.SyncToMaxBlockNumber()
+	if err != nil {
+		fmt.Println("Failed to synchronize wallet: " + err.Error())
+		return err
+	}
+	fmt.Println("Wallet synchronized successfully.")
+	return nil
 }
 
 func sendCmd(config *walletConfig) *cobra.Command {

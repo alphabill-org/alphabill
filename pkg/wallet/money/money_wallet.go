@@ -266,8 +266,7 @@ func (w *Wallet) Sync() error {
 	if err != nil {
 		return err
 	}
-	w.Wallet.Sync(blockNumber)
-	return nil
+	return w.Wallet.Sync(blockNumber)
 }
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.
@@ -278,8 +277,7 @@ func (w *Wallet) SyncToMaxBlockNumber() error {
 	if err != nil {
 		return err
 	}
-	w.Wallet.SyncToMaxBlockNumber(blockNumber)
-	return nil
+	return w.Wallet.SyncToMaxBlockNumber(blockNumber)
 }
 
 func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem.Transaction) error {
@@ -677,7 +675,6 @@ func groupDcBills(bills []*bill) map[uint256.Int]*dcBillGroup {
 func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
 	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
-	// TODO will genesis block be height 0 or 1: https://guardtime.atlassian.net/browse/AB-101
 	if blockNumber-lastBlockNumber != 1 {
 		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
 	}

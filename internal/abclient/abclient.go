@@ -9,7 +9,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,7 +19,7 @@ type ABClient interface {
 	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(blockNo uint64) (*block.Block, error)
 	GetMaxBlockNumber() (uint64, error)
-	Shutdown()
+	Shutdown() error
 	IsShutdown() bool
 }
 
@@ -100,17 +99,16 @@ func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	return res.BlockNo, nil
 }
 
-func (c *AlphabillClient) Shutdown() {
+func (c *AlphabillClient) Shutdown() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.isShutdown() {
-		return
+	if !c.isShutdown() {
+		err := c.connection.Close()
+		if err != nil {
+			return errors.Wrap(err, "error shutting down alphabill client")
+		}
 	}
-	log.Info("shutting down alphabill client")
-	err := c.connection.Close()
-	if err != nil {
-		log.Error("error shutting down alphabill client: ", err)
-	}
+	return nil
 }
 
 func (c *AlphabillClient) IsShutdown() bool {

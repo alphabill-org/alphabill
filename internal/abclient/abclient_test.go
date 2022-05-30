@@ -26,7 +26,7 @@ func TestRaceConditions(t *testing.T) {
 
 	// create ab client
 	abclient := New(AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
-	t.Cleanup(abclient.Shutdown)
+	t.Cleanup(func() { abclient.Shutdown() })
 
 	// do async operations on abclient
 	wg := sync.WaitGroup{}

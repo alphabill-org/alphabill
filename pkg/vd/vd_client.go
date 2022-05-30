@@ -3,10 +3,9 @@ package verifiable_data
 import (
 	"context"
 	"crypto/sha256"
+	"fmt"
 	"io"
 	"os"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 
 	"github.com/pkg/errors"
 
@@ -24,19 +23,12 @@ type (
 	AlphabillClientConfig struct {
 		Uri          string
 		WaitForReady bool
-		SkipLogger   bool
 	}
 )
 
 const timeoutDelta = 100 // TODO make timeout configurable?
 
 func New(_ context.Context, abConf *AlphabillClientConfig) (*VDClient, error) {
-	if !abConf.SkipLogger {
-		err := log.InitDefaultLogger()
-		if err != nil {
-			return nil, err
-		}
-	}
 	return &VDClient{
 		abClient: abclient.New(abclient.AlphabillClientConfig{
 			Uri:          abConf.Uri,
@@ -58,7 +50,7 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 	}
 
 	hash := hasher.Sum(nil)
-	log.Debug("Hash of file '", filePath, "': ", hash)
+	fmt.Printf("Hash of file '%x'", hash)
 	return v.registerHashTx(hash)
 }
 
@@ -72,12 +64,17 @@ func (v *VDClient) RegisterHash(hash string) error {
 }
 
 func (v *VDClient) registerHashTx(hash []byte) error {
+	defer func() {
+		err := v.abClient.Shutdown()
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		}
+	}()
 	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
 	tx, err := createRegisterDataTx(hash, maxBlockNumber+timeoutDelta)
-	defer v.abClient.Shutdown()
 	if err != nil {
 		return err
 	}
@@ -85,7 +82,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	log.Info("Response: ", resp.String())
+	fmt.Printf("Response: %s", resp.String())
 	return nil
 }
 

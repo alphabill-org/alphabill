@@ -3,9 +3,10 @@ package verifiable_data
 import (
 	"context"
 	"crypto/sha256"
-	"fmt"
 	"io"
 	"os"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 
 	"github.com/pkg/errors"
 
@@ -50,7 +51,7 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 	}
 
 	hash := hasher.Sum(nil)
-	fmt.Printf("Hash of file '%x'", hash)
+	log.Debug("Hash of file '", filePath, "': ", hash)
 	return v.registerHashTx(hash)
 }
 
@@ -67,7 +68,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	defer func() {
 		err := v.abClient.Shutdown()
 		if err != nil {
-			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+			log.Error(err)
 		}
 	}()
 	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
@@ -82,7 +83,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Response: %s", resp.String())
+	log.Info("Response: ", resp.String())
 	return nil
 }
 

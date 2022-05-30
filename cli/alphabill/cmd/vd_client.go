@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	vd "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/vd"
-
+	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/spf13/cobra"
 )
 
@@ -45,6 +45,11 @@ func regCmd(ctx context.Context, _ *baseConfiguration) *cobra.Command {
 
 			if hash != "" && file != "" {
 				return errors.New("'hash' and 'file' flags are mutually exclusive")
+			}
+
+			err = wlog.InitDefaultLogger()
+			if err != nil {
+				return err
 			}
 
 			vdClient, err := vd.New(ctx, &vd.AlphabillClientConfig{

@@ -191,7 +191,9 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	}()
 
 	// and wallet synchronization is started
-	go w.Sync()
+	go func() {
+		_ = w.Sync()
+	}()
 
 	// then dc transactions are sent
 	waitForExpectedSwap(w)

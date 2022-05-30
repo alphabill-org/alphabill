@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"syscall"
@@ -67,7 +68,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 	walletCmd.AddCommand(getPubKeyCmd(config))
 	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default <wallet location>/wallet.log)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
 	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", fmt.Sprintf("wallet home directory (default $AB_HOME/wallet)"))
 	return walletCmd
@@ -138,7 +139,13 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	defer w.Shutdown()
-	return w.SyncToMaxBlockNumber()
+	err = w.SyncToMaxBlockNumber()
+	if err != nil {
+		fmt.Println("Failed to synchronize wallet: " + err.Error())
+		return err
+	}
+	fmt.Println("Wallet synchronized successfully.")
+	return nil
 }
 
 func sendCmd(config *walletConfig) *cobra.Command {
@@ -307,23 +314,18 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 }
 
 func initWalletLogger(config *walletConfig) error {
-	logFilePath := config.LogFile
-	if logFilePath == "" {
-		logFilePath = config.WalletHomeDir
-		err := os.MkdirAll(logFilePath, 0700) // -rwx------
+	var logWriter io.Writer
+	if config.LogFile != "" {
+		logFile, err := os.OpenFile(config.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
 		if err != nil {
 			return err
 		}
-		logFilePath = path.Join(logFilePath, "wallet.log")
+		logWriter = logFile
+	} else {
+		logWriter = os.Stderr
 	}
-
-	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
-	if err != nil {
-		return err
-	}
-
 	logLevel := wlog.Levels[config.LogLevel]
-	walletLogger, err := wlog.New(logLevel, logFile)
+	walletLogger, err := wlog.New(logLevel, logWriter)
 	if err != nil {
 		return err
 	}

@@ -83,9 +83,9 @@ func TestVD_UseClientForTx(t *testing.T) {
 		}
 
 		// list non-empty blocks
-		cmd = New()
-		cmd.baseCmd.SetArgs(strings.Split("vd-client list-blocks --wait -u "+dialAddr, " "))
-		require.NoError(t, cmd.addAndExecuteCommand(ctx))
+		//cmd = New()
+		//cmd.baseCmd.SetArgs(strings.Split("vd-client list-blocks --wait -u "+dialAddr, " "))
+		//require.NoError(t, cmd.addAndExecuteCommand(ctx))
 
 		// Close the app
 		ctxCancel()

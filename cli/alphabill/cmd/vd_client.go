@@ -23,22 +23,21 @@ func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 	}
 
 	var wait bool
-	var sync bool
 	vdCmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	vdCmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "wait until server is available")
 	err := vdCmd.PersistentFlags().MarkHidden("wait")
 	if err != nil {
 		return nil
 	}
-	vdCmd.PersistentFlags().BoolVarP(&sync, "sync", "s", false, "synchronize ledger until block with given tx")
 
-	vdCmd.AddCommand(regCmd(ctx, baseConfig, &wait, &sync))
-	vdCmd.AddCommand(listBlocksCmd(ctx, baseConfig, &wait, &sync))
+	vdCmd.AddCommand(regCmd(ctx, baseConfig, &wait))
+	vdCmd.AddCommand(listBlocksCmd(ctx, baseConfig, &wait))
 
 	return vdCmd
 }
 
-func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool, sync *bool) *cobra.Command {
+func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Command {
+	var sync bool
 	cmd := &cobra.Command{
 		Use: "register",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -71,15 +70,16 @@ func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool, sync *bool) *
 	cmd.Flags().StringP("hash", "d", "", "register data hash (hex with or without 0x prefix)")
 	cmd.Flags().StringP("file", "f", "", "create sha256 hash of the file contents and register data hash")
 	// cmd.MarkFlagsMutuallyExclusive("hash", "file") TODO use once 1.5.0 is released
+	cmd.Flags().BoolVarP(&sync, "sync", "s", false, "synchronize ledger until block with given tx")
 
 	return cmd
 }
 
-func listBlocksCmd(ctx context.Context, _ *baseConfiguration, wait *bool, sync *bool) *cobra.Command {
+func listBlocksCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "list-blocks",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			vdClient, err := initVDClient(ctx, cmd, wait, sync)
+			vdClient, err := initVDClient(ctx, cmd, wait, false)
 			if err != nil {
 				return err
 			}
@@ -93,7 +93,7 @@ func listBlocksCmd(ctx context.Context, _ *baseConfiguration, wait *bool, sync *
 	return cmd
 }
 
-func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync *bool) (*vd.VDClient, error) {
+func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool) (*vd.VDClient, error) {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync *boo
 	vdClient, err := vd.New(ctx, &vd.AlphabillClientConfig{
 		Uri:          uri,
 		WaitForReady: *wait,
-	}, *sync)
+	}, sync)
 	if err != nil {
 		return nil, err
 	}

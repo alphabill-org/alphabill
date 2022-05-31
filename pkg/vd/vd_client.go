@@ -68,11 +68,11 @@ func (v *VDClient) RegisterHashBytes(bytes []byte) error {
 }
 
 func (v *VDClient) RegisterHash(hash string) error {
-	bytes, err := hexStringToBytes(hash)
+	b, err := hexStringToBytes(hash)
 	if err != nil {
 		return err
 	}
-	return v.registerHashTx(bytes)
+	return v.registerHashTx(b)
 }
 
 func (v *VDClient) ListAllBlocksWithTx() error {
@@ -83,9 +83,6 @@ func (v *VDClient) ListAllBlocksWithTx() error {
 		return err
 	}
 	log.Debug("Max block: #", maxBlockNumber)
-	//if err := v.fetchBlockRange(0, maxBlockNumber); err != nil {
-	//	return err
-	//}
 	if err := v.sync(0, maxBlockNumber, nil); err != nil {
 		return err
 	}
@@ -93,25 +90,6 @@ func (v *VDClient) ListAllBlocksWithTx() error {
 	log.Info("Done.")
 	return nil
 }
-
-//func (v *VDClient) fetchBlockRange(min, max uint64) error {
-//	log.Info("Block number range: [", min, ", ", max, "]")
-//	// i >= 0 for unsigned ints is always true!
-//	_min := new(big.Int).Sub(new(big.Int).SetUint64(min), big.NewInt(1))
-//	log.Info("_min=", _min)
-//	for n := max; n <= max && new(big.Int).SetUint64(n).Cmp(_min) == 1; n-- {
-//		block, err := v.abClient.GetBlock(n)
-//		if err != nil {
-//			return err
-//		}
-//		log.Info("Fetched block #", n, ", tx count: ", len(block.GetTransactions()))
-//		for _, tx := range block.GetTransactions() {
-//			hash := hex.EncodeToString(tx.UnitId)
-//			log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", block.GetBlockNumber(), hash))
-//		}
-//	}
-//	return nil
-//}
 
 func (v *VDClient) registerHashTx(hash []byte) error {
 	defer v.shutdown()
@@ -147,8 +125,11 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 }
 
 func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
+	// hackish a bit, but need to create processor dynamically
 	w, err := wallet.NewExistingWallet(v.prepareProcessor(timeout, hash), wallet.Config{AlphabillClientConfig: wallet.AlphabillClientConfig{}})
+	// set to existing AB Client
 	w.AlphabillClient = v.abClient
+	// needed for shutdown
 	v.wallet = w
 	if err != nil {
 		return err
@@ -172,26 +153,19 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 		}
 		for _, tx := range b.GetTransactions() {
 			if hash != nil {
-
-			}
-			log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(tx.GetUnitId())))
-			if hash != nil && bytes.Equal(hash, tx.GetUnitId()) {
-				v.shutdown()
-				break
+				// if hash is provided, print only the corresponding block
+				if bytes.Equal(hash, tx.GetUnitId()) {
+					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(hash)))
+					v.shutdown()
+					break
+				}
+			} else {
+				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(tx.GetUnitId())))
 			}
 		}
 		return nil
 	}
 }
-
-//func (v *VDClient) ProcessBlock(b *block.Block) error {
-//	log.Info("Fetched block #", b.GetBlockNumber(), ", tx count: ", len(b.GetTransactions()))
-//	for _, tx := range b.GetTransactions() {
-//		hash := hex.EncodeToString(tx.UnitId)
-//		log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hash))
-//	}
-//	return nil
-//}
 
 func (v *VDClient) shutdown() {
 	log.Info("Shutting down")

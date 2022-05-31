@@ -55,6 +55,10 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 	return v.registerHashTx(hash)
 }
 
+func (v *VDClient) RegisterHashBytes(bytes []byte) error {
+	return v.registerHashTx(bytes)
+}
+
 func (v *VDClient) RegisterHash(hash string) error {
 	bytes, err := hexStringToBytes(hash)
 	if err != nil {

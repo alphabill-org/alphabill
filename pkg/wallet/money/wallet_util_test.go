@@ -33,8 +33,9 @@ func (c *mockAlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	return c.maxBlockNo, nil
 }
 
-func (c *mockAlphabillClient) Shutdown() {
+func (c *mockAlphabillClient) Shutdown() error {
 	c.shutdown = true
+	return nil
 }
 
 func (c *mockAlphabillClient) IsShutdown() bool {

@@ -26,25 +26,25 @@ func TestRaceConditions(t *testing.T) {
 
 	// create ab client
 	abclient := New(AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
-	t.Cleanup(abclient.Shutdown)
+	t.Cleanup(func() { _ = abclient.Shutdown() })
 
 	// do async operations on abclient
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		abclient.SendTransaction(createRandomTx())
+		_, _ = abclient.SendTransaction(createRandomTx())
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		abclient.GetBlock(1)
+		_, _ = abclient.GetBlock(1)
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		abclient.GetMaxBlockNumber()
+		_, _ = abclient.GetMaxBlockNumber()
 		wg.Done()
 	}()
 
@@ -56,7 +56,7 @@ func TestRaceConditions(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		abclient.Shutdown()
+		_ = abclient.Shutdown()
 		wg.Done()
 	}()
 

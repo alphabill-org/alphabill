@@ -52,9 +52,9 @@ Wallet logging can be configured only through CLI parameters.
 
 `./alphabill wallet --log-file=<path/to/my/file> --log-level=INFO`
 
-Default log file is `$AB_HOME/wallet/wallet.log`. Default log level is `INFO`
+Default log output is `stderr` and default log level is `INFO`. 
 
-Possible log level values: `NONE, ERROR, WARNING, NOTICE, INFO, DEBUG`
+Possible log level values: `ERROR, WARNING, NOTICE, INFO, DEBUG`
 
 # Set up autocompletion
 

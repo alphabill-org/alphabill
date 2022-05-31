@@ -27,7 +27,8 @@ func (c *DummyAlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	return 10, nil
 }
 
-func (c *DummyAlphabillClient) Shutdown() {
+func (c *DummyAlphabillClient) Shutdown() error {
+	return nil
 }
 
 func (c *DummyAlphabillClient) IsShutdown() bool {

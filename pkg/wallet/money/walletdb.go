@@ -35,7 +35,7 @@ var (
 
 var (
 	errWalletDbAlreadyExists    = errors.New("wallet db already exists")
-	errWalletDbDoesNotExists    = errors.New("cannot open wallet db, file does not exits")
+	errWalletDbDoesNotExists    = errors.New("cannot open wallet db, file does not exist")
 	errKeyNotFound              = errors.New("key not found in wallet")
 	errBillWithMinValueNotFound = errors.New("spendable bill with min value not found")
 )

@@ -7,13 +7,10 @@ import (
 	"os"
 	"testing"
 
-	testfile "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/file"
-
-	"github.com/holiman/uint256"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	testfile "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/file"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 

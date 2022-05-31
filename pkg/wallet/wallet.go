@@ -30,11 +30,8 @@ type Wallet struct {
 // NewEmptyWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
 func NewEmptyWallet(blockProcessor BlockProcessor, config Config, mnemonic string) (*Wallet, *Keys, error) {
-	err := log.InitDefaultLogger()
-	if err != nil {
-		return nil, nil, err
-	}
 	if mnemonic == "" {
+		var err error
 		mnemonic, err = generateMnemonic()
 		if err != nil {
 			return nil, nil, err
@@ -46,10 +43,6 @@ func NewEmptyWallet(blockProcessor BlockProcessor, config Config, mnemonic strin
 // NewExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
 func NewExistingWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
-	err := log.InitDefaultLogger()
-	if err != nil {
-		return nil, err
-	}
 	return newWallet(blockProcessor, config), nil
 }
 

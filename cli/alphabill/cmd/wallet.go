@@ -95,6 +95,9 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	if err := wlog.InitDefaultLogger(); err != nil {
+		return err
+	}
 	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password}
 	var w *money.Wallet
 	fmt.Println("Creating new wallet...")
@@ -296,6 +299,10 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*mone
 			return nil, err
 		}
 		config.WalletPass = walletPass
+	}
+
+	if err := wlog.InitDefaultLogger(); err != nil {
+		return nil, err
 	}
 	return money.LoadExistingWallet(config)
 }

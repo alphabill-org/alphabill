@@ -100,7 +100,8 @@ func (a *abClientMock) GetMaxBlockNumber() (uint64, error) {
 	return 0, nil
 }
 
-func (a *abClientMock) Shutdown() {
+func (a *abClientMock) Shutdown() error {
+	return nil
 }
 
 func (a *abClientMock) IsShutdown() bool {

@@ -97,7 +97,10 @@ func (w *Wallet) Shutdown() {
 	w.syncFlag.ctxCancelFunc()
 
 	if w.AlphabillClient != nil {
-		w.AlphabillClient.Shutdown()
+		err := w.AlphabillClient.Shutdown()
+		if err != nil {
+			log.Error("error shutting down wallet: ", err)
+		}
 	}
 }
 

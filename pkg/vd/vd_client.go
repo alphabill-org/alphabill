@@ -30,10 +30,6 @@ type (
 const timeoutDelta = 100 // TODO make timeout configurable?
 
 func New(_ context.Context, abConf *AlphabillClientConfig) (*VDClient, error) {
-	err := log.InitDefaultLogger()
-	if err != nil {
-		return nil, err
-	}
 	return &VDClient{
 		abClient: abclient.New(abclient.AlphabillClientConfig{
 			Uri:          abConf.Uri,
@@ -69,12 +65,17 @@ func (v *VDClient) RegisterHash(hash string) error {
 }
 
 func (v *VDClient) registerHashTx(hash []byte) error {
+	defer func() {
+		err := v.abClient.Shutdown()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
 	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
 	tx, err := createRegisterDataTx(hash, maxBlockNumber+timeoutDelta)
-	defer v.abClient.Shutdown()
 	if err != nil {
 		return err
 	}

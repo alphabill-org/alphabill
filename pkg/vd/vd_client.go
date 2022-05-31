@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -74,10 +75,15 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 			log.Error(err)
 		}
 	}()
+	if err := validateHash(hash); err != nil {
+		return err
+	}
+
 	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
+
 	tx, err := createRegisterDataTx(hash, maxBlockNumber+timeoutDelta)
 	if err != nil {
 		return err
@@ -86,7 +92,17 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	log.Info("Response: ", resp.String())
+	if !resp.GetOk() {
+		return errors.New(fmt.Sprintf("error while submitting the hash: %s", resp.GetMessage()))
+	}
+	log.Info("Hash successfully submitted")
+	return nil
+}
+
+func validateHash(hash []byte) error {
+	if len(hash) != sha256.Size {
+		return errors.New(fmt.Sprintf("invalid hash length, expected %d bytes, got %d", sha256.Size, len(hash)))
+	}
 	return nil
 }
 

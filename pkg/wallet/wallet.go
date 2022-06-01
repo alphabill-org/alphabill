@@ -17,6 +17,8 @@ const (
 	sleepTimeAtMaxBlockHeightMs = 500
 )
 
+// Wallet To synchronize wallet with a node call Sync.
+// Shutdown needs to be called to release resources used by wallet.
 type Wallet struct {
 	blockProcessor  BlockProcessor
 	config          Config
@@ -25,34 +27,40 @@ type Wallet struct {
 }
 
 type Builder struct {
+	bp      BlockProcessor
+	abcConf client.AlphabillClientConfig
+	// overrides abcConf
+	abc client.ABClient
 }
 
-func (b *Builder) Build() (*Wallet, error) {
-	return &Wallet{}, nil
+func New() *Builder {
+	return &Builder{}
 }
 
-// NewEmptyWallet creates a new wallet. To synchronize wallet with a node call Sync.
-// Shutdown needs to be called to release resources used by wallet.
-func NewEmptyWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
-	return createWallet(blockProcessor, config)
+func (b *Builder) SetBlockProcessor(bp BlockProcessor) *Builder {
+	b.bp = bp
+	return b
 }
 
-// NewExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
-// Shutdown needs to be called to release resources used by wallet.
-func NewExistingWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
-	return newWallet(blockProcessor, config), nil
+func (b *Builder) SetABClientConf(abcConf client.AlphabillClientConfig) *Builder {
+	b.abcConf = abcConf
+	return b
 }
 
-func newWallet(blockProcessor BlockProcessor, config Config) *Wallet {
-	return &Wallet{
-		blockProcessor: blockProcessor,
-		config:         config,
-		AlphabillClient: client.New(client.AlphabillClientConfig{
-			Uri:              config.AlphabillClientConfig.Uri,
-			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
-		}),
-		syncFlag: newSyncFlagWrapper(),
+func (b *Builder) SetABClient(abc client.ABClient) *Builder {
+	b.abc = abc
+	return b
+}
+
+func (b *Builder) Build() *Wallet {
+	w := &Wallet{syncFlag: newSyncFlagWrapper()}
+	w.blockProcessor = b.bp
+	if b.abc != nil {
+		w.AlphabillClient = b.abc
+	} else {
+		w.AlphabillClient = client.New(b.abcConf)
 	}
+	return w
 }
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.
@@ -62,7 +70,7 @@ func (w *Wallet) Sync(blockNumber uint64) error {
 	return w.syncLedger(blockNumber, true)
 }
 
-// Sync synchronises wallet from the last known block number with the given alphabill node.
+// SyncToMaxBlockNumber Sync synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
 // Returns error if wallet is already synchronizing or any error occured during syncrohronization, otherwise returns nil.
 func (w *Wallet) SyncToMaxBlockNumber(blockNumber uint64) error {
@@ -183,8 +191,4 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 		}
 	}
 	return nil
-}
-
-func createWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
-	return newWallet(blockProcessor, config), nil
 }

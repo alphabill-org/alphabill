@@ -115,16 +115,11 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 }
 
 func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
-	// hackish a bit, but need to create processor dynamically
-	w, err := wallet.NewExistingWallet(v.prepareProcessor(timeout, hash), wallet.Config{AlphabillClientConfig: client.AlphabillClientConfig{}})
-	// set to existing AB Client
-	w.AlphabillClient = v.abClient
-	// needed for shutdown
-	v.wallet = w
-	if err != nil {
-		return err
-	}
-	return w.Sync(currentBlock)
+	v.wallet = wallet.New().
+		SetBlockProcessor(v.prepareProcessor(timeout, hash)).
+		SetABClient(v.abClient).
+		Build()
+	return v.wallet.Sync(currentBlock)
 }
 
 type VDBlockProcessor func(b *block.Block) error

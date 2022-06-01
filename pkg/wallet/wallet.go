@@ -4,14 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/tyler-smith/go-bip39"
-	"golang.org/x/sync/errgroup"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/tyler-smith/go-bip39"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -23,7 +22,7 @@ const (
 type Wallet struct {
 	blockProcessor  BlockProcessor
 	config          Config
-	AlphabillClient abclient.ABClient
+	AlphabillClient client.ABClient
 	syncFlag        *syncFlagWrapper
 }
 
@@ -57,7 +56,7 @@ func newWallet(blockProcessor BlockProcessor, config Config) *Wallet {
 	return &Wallet{
 		blockProcessor: blockProcessor,
 		config:         config,
-		AlphabillClient: abclient.New(abclient.AlphabillClientConfig{
+		AlphabillClient: client.New(client.AlphabillClientConfig{
 			Uri:              config.AlphabillClientConfig.Uri,
 			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
 		}),

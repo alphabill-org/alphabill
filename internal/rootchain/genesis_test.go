@@ -82,7 +82,7 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
 	require.NoError(t, err)
-	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2}, 2500, rootChainSigner, rootChainVerifier)
+	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2}, rootChainSigner, rootChainVerifier)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 2, len(rg.Partitions[0].Nodes))
@@ -118,6 +118,9 @@ func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, p
 		SigningPublicKey:    pubKey,
 		EncryptionPublicKey: pubKey,
 		P1Request:           p1Req,
+		T2Timeout:           2500,
+		InitialBillValue:    1000000,
+		DcMoneySupplyValue:  1000000,
 	}
 
 }

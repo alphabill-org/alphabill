@@ -134,6 +134,7 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 		WithSystemIdentifier(systemIdentifier),
 		WithSigningKey(nodeSigningKey),
 		WithEncryptionPubKey(encPubKeyBytes),
+		WithT2Timeout(2500),
 	)
 	require.NoError(t, err)
 	return pn

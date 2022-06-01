@@ -26,6 +26,9 @@ type (
 		hashAlgorithm         gocrypto.Hash
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
+		t2Timeout             uint32
+		initialBillValue      uint64
+		dcMoneySupplyValue    uint64
 	}
 
 	GenesisOption func(c *genesisConf)
@@ -74,6 +77,24 @@ func WithSigningKey(signer crypto.Signer) GenesisOption {
 func WithEncryptionPubKey(encryptionPubKey []byte) GenesisOption {
 	return func(c *genesisConf) {
 		c.encryptionPubKeyBytes = encryptionPubKey
+	}
+}
+
+func WithT2Timeout(t2Timeout uint32) GenesisOption {
+	return func(c *genesisConf) {
+		c.t2Timeout = t2Timeout
+	}
+}
+
+func WithInitialBillValue(initialBillValue uint64) GenesisOption {
+	return func(c *genesisConf) {
+		c.initialBillValue = initialBillValue
+	}
+}
+
+func WithDCMoneySupplyValue(dcMoneySupplyValue uint64) GenesisOption {
+	return func(c *genesisConf) {
+		c.dcMoneySupplyValue = dcMoneySupplyValue
 	}
 }
 
@@ -166,6 +187,9 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 		SigningPublicKey:    signingPubKey,
 		EncryptionPublicKey: c.encryptionPubKeyBytes,
 		P1Request:           p1Request,
+		T2Timeout:           c.t2Timeout,
+		InitialBillValue:    c.initialBillValue,
+		DcMoneySupplyValue:  c.dcMoneySupplyValue,
 	}
 	if err := node.IsValid(); err != nil {
 		return nil, err

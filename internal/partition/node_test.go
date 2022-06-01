@@ -486,14 +486,16 @@ func initPartitionGenesis(t *testing.T, p *network.Peer, systemIdentifier []byte
 	require.NoError(t, err)
 
 	pn, err := NewNodeGenesis(
-		system, WithPeerID(p.ID()),
+		system,
+		WithPeerID(p.ID()),
 		WithSystemIdentifier(systemIdentifier),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(pubKeyBytes),
+		WithT2Timeout(2500),
 	)
 	require.NoError(t, err)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	rootGenesis, pss, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, 2500, rootSigner, encPubKey)
+	rootGenesis, pss, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, rootSigner, encPubKey)
 	require.NoError(t, err)
 
 	return rootGenesis, pss[0], nodeSigner, rootSigner

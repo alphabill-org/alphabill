@@ -92,15 +92,6 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				}
 				return sc
 			}(),
-		},
-		// Money tx system configuration from flags
-		{
-			args: "money --initial-bill-value=555",
-			expectedConfig: func() *moneyNodeConfiguration {
-				sc := defaultMoneyNodeConfiguration()
-				sc.InitialBillValue = 555
-				return sc
-			}(),
 		}, {
 			args: "money --server-address=srv:1234 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
 			expectedConfig: func() *moneyNodeConfiguration {
@@ -118,24 +109,20 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 		{
 			args: "money",
 			envVars: []envVar{
-				{"AB_INITIAL_BILL_VALUE", "555"},
 				{"AB_SERVER_ADDRESS", "srv:1234"},
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.InitialBillValue = 555
 				sc.RPCServer.Address = "srv:1234"
 				return sc
 			}(),
 		}, {
-			args: "money --initial-bill-value=666 --server-address=srv:666",
+			args: "money --server-address=srv:666",
 			envVars: []envVar{
-				{"AB_INITIAL_BILL_VALUE", "555"},
 				{"AB_SERVER_ADDRESS", "srv:1234"},
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.InitialBillValue = 666
 				sc.RPCServer.Address = "srv:666"
 				return sc
 			}(),
@@ -199,7 +186,6 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 
 func TestMoneyNodeConfig_ConfigFile(t *testing.T) {
 	configFileContents := `
-initial-bill-value=666
 server-address=srv:1234
 server-max-recv-msg-size=9999
 logger-config=custom-log-conf.yaml
@@ -221,7 +207,6 @@ logger-config=custom-log-conf.yaml
 	expectedConfig := defaultMoneyNodeConfiguration()
 	expectedConfig.Base.CfgFile = f.Name()
 	expectedConfig.Base.LogCfgFile = "custom-log-conf.yaml"
-	expectedConfig.InitialBillValue = 666
 	expectedConfig.RPCServer.Address = "srv:1234"
 	expectedConfig.RPCServer.MaxRecvMsgSize = 9999
 
@@ -257,8 +242,6 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			Address:        defaultServerAddr,
 			MaxRecvMsgSize: defaultMaxRecvMsgSize,
 		},
-		InitialBillValue:   defaultInitialBillValue,
-		DCMoneySupplyValue: defaultDCMoneySupplyValue,
 	}
 }
 
@@ -306,7 +289,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 
 		// use same keys for signing and communication encryption.
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
-		_, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, 2500, rootSigner, verifier)
+		_, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, rootSigner, verifier)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
@@ -315,7 +298,6 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
-
 			cmd = New()
 			args = "money --home " + homeDirMoney + " -g " + partitionGenesisFileLocation + " -k " + keysFileLocation
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))

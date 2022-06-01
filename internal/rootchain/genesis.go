@@ -9,7 +9,7 @@ import (
 )
 
 // NewGenesisFromPartitionNodes creates a new genesis for the root chain and partitions.
-func NewGenesisFromPartitionNodes(nodes []*genesis.PartitionNode, t2Timeout uint32, rootSigner crypto.Signer, encPubKey crypto.Verifier) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
+func NewGenesisFromPartitionNodes(nodes []*genesis.PartitionNode, rootSigner crypto.Signer, encPubKey crypto.Verifier) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	var partitionNodesMap = make(map[string][]*genesis.PartitionNode)
 	for _, n := range nodes {
 		if err := n.IsValid(); err != nil {
@@ -20,8 +20,8 @@ func NewGenesisFromPartitionNodes(nodes []*genesis.PartitionNode, t2Timeout uint
 	}
 
 	var partitionRecords []*genesis.PartitionRecord
-	for _, nodes := range partitionNodesMap {
-		pr, err := newPartitionRecord(nodes, t2Timeout)
+	for _, partitionNodes := range partitionNodesMap {
+		pr, err := newPartitionRecord(partitionNodes)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -85,6 +85,8 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 			TrustBase:               rootPublicKey,
 			EncryptionKey:           encPubKeyBytes,
 			Keys:                    keys,
+			InitialBillValue:        p.Validators[0].InitialBillValue,
+			DcMoneySupplyValue:      p.Validators[0].DcMoneySupplyValue,
 		}
 	}
 
@@ -99,7 +101,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 	return rootGenesis, partitionGenesis, nil
 }
 
-func newPartitionRecord(nodes []*genesis.PartitionNode, t2Timeout uint32) (*genesis.PartitionRecord, error) {
+func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecord, error) {
 	// validate nodes
 	for _, n := range nodes {
 		if err := n.IsValid(); err != nil {
@@ -110,7 +112,7 @@ func newPartitionRecord(nodes []*genesis.PartitionNode, t2Timeout uint32) (*gene
 	pr := &genesis.PartitionRecord{
 		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
 			SystemIdentifier: nodes[0].P1Request.SystemIdentifier,
-			T2Timeout:        t2Timeout,
+			T2Timeout:        nodes[0].T2Timeout,
 		},
 		Validators: nodes,
 	}

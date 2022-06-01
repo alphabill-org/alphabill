@@ -16,7 +16,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const moneyPartitionDir = "money"
+const (
+	moneyPartitionDir         = "money"
+	defaultInitialBillId      = 1
+	defaultInitialBillValue   = 1000000
+	defaultDCMoneySupplyValue = 1000000
+	defaultT2Timeout          = 2500
+)
 
 var defaultABMoneySystemIdentifier = []byte{0, 0, 0, 0}
 
@@ -27,6 +33,7 @@ type moneyGenesisConfig struct {
 	Output             string
 	InitialBillValue   uint64 `validate:"gte=0"`
 	DCMoneySupplyValue uint64 `validate:"gte=0"`
+	T2Timeout          uint32 `validate:"gte=0"`
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
@@ -45,13 +52,14 @@ func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/money/node-genesis.json)")
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
+	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	return cmd
 }
 
 func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	moneyPartitionHomePath := path.Join(config.Base.HomeDir, moneyPartitionDir)
 	if !util.FileExists(moneyPartitionHomePath) {
-		err := os.MkdirAll(moneyPartitionHomePath, 0700) // -rwe------
+		err := os.MkdirAll(moneyPartitionHomePath, 0700) // -rwx------
 		if err != nil {
 			return err
 		}
@@ -93,6 +101,9 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
 		partition.WithSystemIdentifier(config.SystemIdentifier),
+		partition.WithT2Timeout(config.T2Timeout),
+		partition.WithInitialBillValue(config.InitialBillValue),
+		partition.WithDCMoneySupplyValue(config.DCMoneySupplyValue),
 	)
 	if err != nil {
 		return err

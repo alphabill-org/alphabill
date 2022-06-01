@@ -23,6 +23,8 @@ message PartitionGenesis {
   bytes trust_base = 3;
   bytes encryption_key = 4;
   repeated PublicKeyInfo keys = 5;
+  uint64 initial_bill_value = 6;
+  uint64 dc_money_supply_value = 7;
 }
 
 message PublicKeyInfo {
@@ -46,4 +48,7 @@ message PartitionNode  {
   bytes signing_public_key = 2;
   bytes encryption_public_key = 3;
   P1Request p1_request = 4;
+  uint32 t2timeout = 5;
+  uint64 initial_bill_value = 6;
+  uint64 dc_money_supply_value = 7;
 }

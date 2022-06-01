@@ -20,9 +20,9 @@ Node configuration files are located in `testab` directory.
 
 It's possible to define the configuration values from (in the order of precedence):
 
-* Command line flags (e.g. `--initial-bill-value=1000`)
-* Environment (Prefix 'AB' must be used. E.g. `AB_INITIAL_BILL_VALUE=1000`)
-* Configuration file (properties file) (E.g. `initial-bill-value=1000`)
+* Command line flags (e.g. `--address="/ip4/127.0.0.1/tcp/26652"`)
+* Environment (Prefix 'AB' must be used. E.g. `AB_ADDRESS="/ip4/127.0.0.1/tcp/26652"`)
+* Configuration file (properties file) (E.g. `address="/ip4/127.0.0.1/tcp/26652"`)
 * Default values
 
 The default location of configuration file is `$AB_HOME/config.props`

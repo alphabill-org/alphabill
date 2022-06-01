@@ -9,13 +9,11 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
-	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	prefetchBlockCount          = 10
-	mnemonicEntropyBitSize      = 128
 	sleepTimeAtMaxBlockHeightMs = 500
 )
 
@@ -26,17 +24,17 @@ type Wallet struct {
 	syncFlag        *syncFlagWrapper
 }
 
+type Builder struct {
+}
+
+func (b *Builder) Build() (*Wallet, error) {
+	return &Wallet{}, nil
+}
+
 // NewEmptyWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
-func NewEmptyWallet(blockProcessor BlockProcessor, config Config, mnemonic string) (*Wallet, *Keys, error) {
-	if mnemonic == "" {
-		var err error
-		mnemonic, err = generateMnemonic()
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	return createWallet(blockProcessor, mnemonic, config)
+func NewEmptyWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
+	return createWallet(blockProcessor, config)
 }
 
 // NewExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
@@ -187,18 +185,6 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	return nil
 }
 
-func createWallet(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {
-	k, err := NewKeys(mnemonic)
-	if err != nil {
-		return nil, nil, err
-	}
-	return newWallet(blockProcessor, config), k, nil
-}
-
-func generateMnemonic() (string, error) {
-	entropy, err := bip39.NewEntropy(mnemonicEntropyBitSize)
-	if err != nil {
-		return "", err
-	}
-	return bip39.NewMnemonic(entropy)
+func createWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
+	return newWallet(blockProcessor, config), nil
 }

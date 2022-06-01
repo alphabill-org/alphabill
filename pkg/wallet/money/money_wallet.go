@@ -76,7 +76,6 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 	gw, err := wallet.NewExistingWallet(
 		mw,
 		wallet.Config{
-			WalletPass:            config.WalletPass,
 			AlphabillClientConfig: config.AlphabillClientConfig,
 		},
 	)
@@ -612,13 +611,17 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet,
 			mw.DeleteDb()
 		}
 	}()
-	gw, keys, err := wallet.NewEmptyWallet(
+
+	keys, err := wallet.NewKeys(mnemonic)
+	if err != nil {
+		return
+	}
+
+	gw, err := wallet.NewEmptyWallet(
 		mw,
 		wallet.Config{
-			WalletPass:            config.WalletPass,
 			AlphabillClientConfig: config.AlphabillClientConfig,
 		},
-		mnemonic,
 	)
 	if err != nil {
 		return

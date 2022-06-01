@@ -11,18 +11,16 @@ import (
 	"strings"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
-
 	"github.com/pkg/errors"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 )
 
 type (
 	VDClient struct {
-		abClient abclient.ABClient
+		abClient client.ABClient
 		wallet   *wallet.Wallet
 		// synchronizes with ledger until the block is found where tx has been added to
 		syncToBlock bool
@@ -38,7 +36,7 @@ const timeoutDelta = 100 // TODO make timeout configurable?
 
 func New(_ context.Context, abConf *AlphabillClientConfig, waitBlock bool) (*VDClient, error) {
 	return &VDClient{
-		abClient: abclient.New(abclient.AlphabillClientConfig{
+		abClient: client.New(client.AlphabillClientConfig{
 			Uri:          abConf.Uri,
 			WaitForReady: abConf.WaitForReady,
 		}),

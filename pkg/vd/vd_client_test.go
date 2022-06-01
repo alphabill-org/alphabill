@@ -16,7 +16,9 @@ import (
 
 type abClientMock struct {
 	// record most recent transaction
-	tx *txsystem.Transaction
+	tx       *txsystem.Transaction
+	fail     bool
+	shutdown bool
 }
 
 func TestVDClient_Create(t *testing.T) {
@@ -41,6 +43,46 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	require.EqualValues(t, dataHash.Bytes(), mock.tx.UnitId)
 }
 
+func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
+	mock := &abClientMock{}
+	vdClient.abClient = mock
+
+	hashHex := "0x00508D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
+	err = vdClient.RegisterHash(hashHex)
+	require.NoError(t, err)
+	require.NotNil(t, mock.tx)
+
+	bytes, err := hexStringToBytes(hashHex)
+	require.NoError(t, err)
+	require.EqualValues(t, bytes, mock.tx.UnitId)
+}
+
+func TestVdClient_RegisterHash_TooShort(t *testing.T) {
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
+	mock := &abClientMock{}
+	vdClient.abClient = mock
+
+	hashHex := "0x00508D4D37BF6F4D6C63CE4B"
+	err = vdClient.RegisterHash(hashHex)
+	require.ErrorContains(t, err, "invalid hash length, expected 32 bytes, got 12")
+	require.True(t, mock.IsShutdown())
+}
+
+func TestVdClient_RegisterHash_TooLong(t *testing.T) {
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
+	mock := &abClientMock{}
+	vdClient.abClient = mock
+
+	hashHex := "0x0067588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
+	err = vdClient.RegisterHash(hashHex)
+	require.ErrorContains(t, err, "invalid hash length, expected 32 bytes, got 33")
+	require.True(t, mock.IsShutdown())
+}
+
 func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
 	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
 	require.NoError(t, err)
@@ -49,7 +91,7 @@ func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
 
 	hashHex := "67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
 	err = vdClient.RegisterHash(hashHex)
-	require.ErrorContains(t, err, "hex string without 0x prefix")
+	require.NoError(t, err)
 }
 
 func TestVdClient_RegisterHash_BadHash(t *testing.T) {
@@ -60,7 +102,18 @@ func TestVdClient_RegisterHash_BadHash(t *testing.T) {
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810QQ"
 	err = vdClient.RegisterHash(hashHex)
-	require.ErrorContains(t, err, "invalid hex string")
+	require.ErrorContains(t, err, "invalid byte:")
+}
+
+func TestVdClient_RegisterHash_BadResponse(t *testing.T) {
+	vdClient, err := New(context.Background(), &AlphabillClientConfig{})
+	require.NoError(t, err)
+	mock := &abClientMock{fail: true}
+	vdClient.abClient = mock
+
+	hashHex := "67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
+	err = vdClient.RegisterHash(hashHex)
+	require.ErrorContains(t, err, "error while submitting the hash: boom")
 }
 
 func TestVdClient_RegisterFileHash(t *testing.T) {
@@ -86,7 +139,19 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 func (a *abClientMock) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	fmt.Printf("Recording incoming tx: %s\n", tx)
 	a.tx = tx
-	return nil, nil
+	var resp txsystem.TransactionResponse
+	if a.fail {
+		resp = txsystem.TransactionResponse{
+			Ok:      false,
+			Message: "boom",
+		}
+	} else {
+		resp = txsystem.TransactionResponse{
+			Ok:      true,
+			Message: "",
+		}
+	}
+	return &resp, nil
 }
 
 func (a *abClientMock) GetBlock(_ uint64) (*block.Block, error) {
@@ -98,9 +163,10 @@ func (a *abClientMock) GetMaxBlockNumber() (uint64, error) {
 }
 
 func (a *abClientMock) Shutdown() error {
+	a.shutdown = true
 	return nil
 }
 
 func (a *abClientMock) IsShutdown() bool {
-	return false
+	return a.shutdown
 }

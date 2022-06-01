@@ -3,13 +3,15 @@ package verifiable_data
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
 )
 
@@ -52,13 +54,16 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 	return v.registerHashTx(hash)
 }
 
+func (v *VDClient) RegisterHashBytes(bytes []byte) error {
+	return v.registerHashTx(bytes)
+}
+
 func (v *VDClient) RegisterHash(hash string) error {
-	dataHash, err := uint256.FromHex(hash)
+	bytes, err := hexStringToBytes(hash)
 	if err != nil {
 		return err
 	}
-	bytes32 := dataHash.Bytes32()
-	return v.registerHashTx(bytes32[:])
+	return v.registerHashTx(bytes)
 }
 
 func (v *VDClient) registerHashTx(hash []byte) error {
@@ -68,10 +73,15 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 			log.Error(err)
 		}
 	}()
+	if err := validateHash(hash); err != nil {
+		return err
+	}
+
 	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
+
 	tx, err := createRegisterDataTx(hash, maxBlockNumber+timeoutDelta)
 	if err != nil {
 		return err
@@ -80,7 +90,17 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	log.Info("Response: ", resp.String())
+	if !resp.GetOk() {
+		return errors.New(fmt.Sprintf("error while submitting the hash: %s", resp.GetMessage()))
+	}
+	log.Info("Hash successfully submitted")
+	return nil
+}
+
+func validateHash(hash []byte) error {
+	if len(hash) != sha256.Size {
+		return errors.New(fmt.Sprintf("invalid hash length, expected %d bytes, got %d", sha256.Size, len(hash)))
+	}
 	return nil
 }
 
@@ -91,4 +111,12 @@ func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, e
 		Timeout:  timeout,
 	}
 	return tx, nil
+}
+
+func hexStringToBytes(hexString string) ([]byte, error) {
+	bs, err := hex.DecodeString(strings.TrimPrefix(hexString, "0x"))
+	if err != nil {
+		return nil, err
+	}
+	return bs, nil
 }

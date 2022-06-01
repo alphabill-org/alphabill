@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+
 	vd "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/vd"
 	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/spf13/cobra"
@@ -104,7 +106,7 @@ func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool
 		return nil, err
 	}
 
-	vdClient, err := vd.New(ctx, &vd.AlphabillClientConfig{
+	vdClient, err := vd.New(ctx, &client.AlphabillClientConfig{
 		Uri:          uri,
 		WaitForReady: *wait,
 	}, sync)

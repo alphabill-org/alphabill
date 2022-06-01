@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	testfile "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/file"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
@@ -22,14 +24,14 @@ type abClientMock struct {
 }
 
 func TestVDClient_Create(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{Uri: "test"}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{Uri: "test"}, false)
 	require.NoError(t, err)
 	require.NotNil(t, vdClient)
 	require.NotNil(t, vdClient.abClient)
 }
 
 func TestVdClient_RegisterHash(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
@@ -44,7 +46,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
@@ -60,7 +62,7 @@ func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_TooShort(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
@@ -72,7 +74,7 @@ func TestVdClient_RegisterHash_TooShort(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_TooLong(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
@@ -84,7 +86,7 @@ func TestVdClient_RegisterHash_TooLong(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
@@ -95,7 +97,7 @@ func TestVdClient_RegisterHash_NoPrefix(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_BadHash(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock
@@ -106,7 +108,7 @@ func TestVdClient_RegisterHash_BadHash(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_BadResponse(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{fail: true}
 	vdClient.abClient = mock
@@ -117,7 +119,7 @@ func TestVdClient_RegisterHash_BadResponse(t *testing.T) {
 }
 
 func TestVdClient_RegisterFileHash(t *testing.T) {
-	vdClient, err := New(context.Background(), &AlphabillClientConfig{}, false)
+	vdClient, err := New(context.Background(), &client.AlphabillClientConfig{}, false)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	vdClient.abClient = mock

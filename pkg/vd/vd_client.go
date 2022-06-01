@@ -25,21 +25,13 @@ type (
 		// synchronizes with ledger until the block is found where tx has been added to
 		syncToBlock bool
 	}
-
-	AlphabillClientConfig struct {
-		Uri          string
-		WaitForReady bool
-	}
 )
 
 const timeoutDelta = 100 // TODO make timeout configurable?
 
-func New(_ context.Context, abConf *AlphabillClientConfig, waitBlock bool) (*VDClient, error) {
+func New(_ context.Context, abConf *client.AlphabillClientConfig, waitBlock bool) (*VDClient, error) {
 	return &VDClient{
-		abClient: client.New(client.AlphabillClientConfig{
-			Uri:          abConf.Uri,
-			WaitForReady: abConf.WaitForReady,
-		}),
+		abClient:    client.New(*abConf),
 		syncToBlock: waitBlock,
 	}, nil
 }
@@ -124,7 +116,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 
 func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
 	// hackish a bit, but need to create processor dynamically
-	w, err := wallet.NewExistingWallet(v.prepareProcessor(timeout, hash), wallet.Config{AlphabillClientConfig: wallet.AlphabillClientConfig{}})
+	w, err := wallet.NewExistingWallet(v.prepareProcessor(timeout, hash), wallet.Config{AlphabillClientConfig: client.AlphabillClientConfig{}})
 	// set to existing AB Client
 	w.AlphabillClient = v.abClient
 	// needed for shutdown

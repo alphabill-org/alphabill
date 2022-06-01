@@ -177,9 +177,11 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, blockNumber uint6
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		err := w.blockProcessor.ProcessBlock(b)
-		if err != nil {
-			return err
+		if w.blockProcessor != nil {
+			err := w.blockProcessor.ProcessBlock(b)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

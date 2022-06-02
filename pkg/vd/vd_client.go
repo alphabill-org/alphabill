@@ -23,16 +23,22 @@ type (
 		abClient client.ABClient
 		wallet   *wallet.Wallet
 		// synchronizes with ledger until the block is found where tx has been added to
-		syncToBlock bool
+		syncToBlock  bool
+		timeoutDelta uint64
+	}
+
+	VDClientConfig struct {
+		AbConf       *client.AlphabillClientConfig
+		WaitBlock    bool
+		BlockTimeout int
 	}
 )
 
-const timeoutDelta = 100 // TODO make timeout configurable?
-
-func New(_ context.Context, abConf *client.AlphabillClientConfig, waitBlock bool) (*VDClient, error) {
+func New(_ context.Context, conf *VDClientConfig) (*VDClient, error) {
 	return &VDClient{
-		abClient:    client.New(*abConf),
-		syncToBlock: waitBlock,
+		abClient:     client.New(*conf.AbConf),
+		syncToBlock:  conf.WaitBlock,
+		timeoutDelta: uint64(conf.BlockTimeout),
 	}, nil
 }
 
@@ -94,7 +100,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	}
 
 	log.Info("Current block #: ", currentBlockNumber)
-	timeout := currentBlockNumber + timeoutDelta
+	timeout := currentBlockNumber + v.timeoutDelta
 	tx, err := createRegisterDataTx(hash, timeout)
 	if err != nil {
 		return err

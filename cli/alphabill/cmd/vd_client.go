@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const timeoutDelta = 100 // TODO make timeout configurable?
+
 func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	var vdCmd = &cobra.Command{
 		Use:   "vd-client",
@@ -106,10 +108,13 @@ func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool
 		return nil, err
 	}
 
-	vdClient, err := vd.New(ctx, &client.AlphabillClientConfig{
-		Uri:          uri,
-		WaitForReady: *wait,
-	}, sync)
+	vdClient, err := vd.New(ctx, &vd.VDClientConfig{
+		AbConf: &client.AlphabillClientConfig{
+			Uri:          uri,
+			WaitForReady: *wait,
+		},
+		WaitBlock:    sync,
+		BlockTimeout: timeoutDelta})
 	if err != nil {
 		return nil, err
 	}

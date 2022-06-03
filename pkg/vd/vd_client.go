@@ -9,17 +9,15 @@ import (
 	"os"
 	"strings"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
-
-	"github.com/pkg/errors"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/abclient"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/pkg/errors"
 )
 
 type (
 	VDClient struct {
-		abClient abclient.ABClient
+		abClient client.ABClient
 	}
 
 	AlphabillClientConfig struct {
@@ -32,7 +30,7 @@ const timeoutDelta = 100 // TODO make timeout configurable?
 
 func New(_ context.Context, abConf *AlphabillClientConfig) (*VDClient, error) {
 	return &VDClient{
-		abClient: abclient.New(abclient.AlphabillClientConfig{
+		abClient: client.New(client.AlphabillClientConfig{
 			Uri:          abConf.Uri,
 			WaitForReady: abConf.WaitForReady,
 		}),

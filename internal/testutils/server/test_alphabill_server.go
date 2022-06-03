@@ -18,12 +18,12 @@ type TestAlphabillServiceServer struct {
 	pubKey         []byte
 	maxBlockHeight uint64
 	processedTxs   []*txsystem.Transaction
-	blocks         map[uint64]*alphabill.GetBlockResponse
+	blocks         map[uint64]func() *alphabill.GetBlockResponse
 	alphabill.UnimplementedAlphabillServiceServer
 }
 
 func NewTestAlphabillServiceServer() *TestAlphabillServiceServer {
-	return &TestAlphabillServiceServer{blocks: make(map[uint64]*alphabill.GetBlockResponse, 100)}
+	return &TestAlphabillServiceServer{blocks: make(map[uint64]func() *alphabill.GetBlockResponse, 100)}
 }
 
 func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
@@ -36,11 +36,11 @@ func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *t
 func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	res, f := s.blocks[req.BlockNo]
+	blockFunc, f := s.blocks[req.BlockNo]
 	if !f {
 		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
 	}
-	return res, nil
+	return blockFunc(), nil
 }
 
 func (s *TestAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
@@ -73,7 +73,7 @@ func (s *TestAlphabillServiceServer) GetProcessedTransactions() []*txsystem.Tran
 	return s.processedTxs
 }
 
-func (s *TestAlphabillServiceServer) GetBlocks() map[uint64]*alphabill.GetBlockResponse {
+func (s *TestAlphabillServiceServer) GetBlocks() map[uint64]func() *alphabill.GetBlockResponse {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.blocks
@@ -82,7 +82,15 @@ func (s *TestAlphabillServiceServer) GetBlocks() map[uint64]*alphabill.GetBlockR
 func (s *TestAlphabillServiceServer) SetBlock(blockNo uint64, block *alphabill.GetBlockResponse) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.blocks[blockNo] = block
+	s.blocks[blockNo] = func() *alphabill.GetBlockResponse {
+		return block
+	}
+}
+
+func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func() *alphabill.GetBlockResponse) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.blocks[blockNo] = blockFunc
 }
 
 func StartServer(port int, alphabillService *TestAlphabillServiceServer) *grpc.Server {

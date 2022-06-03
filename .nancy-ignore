@@ -3,3 +3,30 @@ CVE-2020-26160
 
 # We are not using gogo/protobuf, it's transitive from go-ethereum
 CVE-2021-3121
+
+# We are not using AWS
+CVE-2020-8911
+CVE-2020-8912
+sonatype-2020-1759
+
+We are not using HashiCorp Consul API
+CVE-2022-29153
+CVE-2022-24687
+
+# We are not using github.com/nats-io/nats-server
+CVE-2022-29946
+
+# We are not using github.com/nats-io/nats-server/v2
+CVE-2020-26892
+CVE-2020-26521
+
+# We are not using github.com/nats-io/jwt
+CVE-2021-3127
+
+# We are using go-ethereum, but not for sending transactions
+CVE-2022-23328
+sonatype-2021-0076
+
+# We are not using influxdata, it's transitive from go-ethereum
+sonatype-2021-4764
+sonatype-2019-0772

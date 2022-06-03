@@ -2,6 +2,7 @@ package money
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
 )
@@ -28,7 +30,8 @@ const (
 )
 
 var (
-	ErrSwapInProgress      = errors.New("swap is in progress, please wait for swap process to be completed before attempting to send transactions")
+	ErrSwapInProgress      = errors.New("swap is in progress, syncrhonize your wallet to complete the process")
+	ErrSwapNotEnoughBills  = errors.New("need to have more than 1 bill to perform swap")
 	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
 	ErrInvalidPassword     = errors.New("invalid password")
@@ -169,10 +172,10 @@ func (w *Wallet) DeleteDb() {
 }
 
 // CollectDust starts the dust collector process.
-// PartitionWallet needs to be synchronizing using Sync or SyncToMaxBlockHeight in order to receive transactions and finish the process.
+// Wallet needs to be synchronizing using Sync or SyncToMaxBlockHeight in order to receive transactions and finish the process.
 // The function blocks until dust collector process is finished or timed out.
-func (w *Wallet) CollectDust() error {
-	return w.collectDust(true)
+func (w *Wallet) CollectDust(ctx context.Context) error {
+	return w.collectDust(ctx, true)
 }
 
 // StartDustCollectorJob starts the dust collector background process that runs every hour until wallet is shut down.
@@ -261,23 +264,23 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 // Sync synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks forever or until alphabill connection is terminated.
 // Returns immediately if already synchronizing.
-func (w *Wallet) Sync() error {
+func (w *Wallet) Sync(ctx context.Context) error {
 	blockNumber, err := w.db.Do().GetBlockNumber()
 	if err != nil {
 		return err
 	}
-	return w.Wallet.Sync(blockNumber)
+	return w.Wallet.Sync(ctx, blockNumber)
 }
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
-// Returns immediately if already synchronizing.
-func (w *Wallet) SyncToMaxBlockNumber() error {
+// Returns immediately with ErrWalletAlreadySynchronizing if already synchronizing.
+func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 	blockNumber, err := w.db.Do().GetBlockNumber()
 	if err != nil {
 		return err
 	}
-	return w.Wallet.SyncToMaxBlockNumber(blockNumber)
+	return w.Wallet.SyncToMaxBlockNumber(ctx, blockNumber)
 }
 
 func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem.Transaction) error {
@@ -293,6 +296,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 			return err
 		}
 		if isOwner {
+			log.Info("received transfer order")
 			err = dbTx.SetBill(&bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
@@ -310,6 +314,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 			return err
 		}
 		if isOwner {
+			log.Info("received TransferDC order")
 			err = dbTx.SetBill(&bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
@@ -336,6 +341,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 			return err
 		}
 		if containsBill {
+			log.Info("received split order (existing bill)")
 			err := dbTx.SetBill(&bill{
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
@@ -350,6 +356,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 			return err
 		}
 		if isOwner {
+			log.Info("received split order (new bill)")
 			err := dbTx.SetBill(&bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
@@ -365,6 +372,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 			return err
 		}
 		if isOwner {
+			log.Info("received swap order")
 			err = dbTx.SetBill(&bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
@@ -393,7 +401,8 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 			}
 		}
 	default:
-		panic(fmt.Sprintf("received unknown transaction: %s", tx))
+		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", tx))
+		return nil
 	}
 	return nil
 }
@@ -405,6 +414,7 @@ func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64) error 
 	}
 	for _, b := range bills {
 		if b.isExpired(blockNumber) {
+			log.Info(fmt.Sprintf("deleting expired dc bill: value=%d id=%s", b.Value, b.Id.String()))
 			err = dbTx.RemoveBill(b.Id)
 			if err != nil {
 				return err
@@ -465,7 +475,7 @@ func (w *Wallet) trySwap(tx TxContext) error {
 // Once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared.
 // If blocking is true then the function blocks until swap has been completed or timed out,
 // if blocking is false then the function returns after sending the dc transfers.
-func (w *Wallet) collectDust(blocking bool) error {
+func (w *Wallet) collectDust(ctx context.Context, blocking bool) error {
 	err := w.db.WithTransaction(func(dbTx TxContext) error {
 		blockHeight, err := dbTx.GetBlockNumber()
 		if err != nil {
@@ -480,7 +490,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 			return err
 		}
 		if len(bills) < 2 {
-			return nil
+			return ErrSwapNotEnoughBills
 		}
 		var expectedSwaps []expectedSwap
 		dcBillGroups := groupDcBills(bills)
@@ -504,8 +514,7 @@ func (w *Wallet) collectDust(blocking bool) error {
 				return err
 			}
 			if swapInProgress {
-				log.Warning("cannot start dust collection while previous collection round is still in progress")
-				return nil
+				return ErrSwapInProgress
 			}
 
 			k, err := dbTx.GetAccountKey()
@@ -550,8 +559,21 @@ func (w *Wallet) collectDust(blocking bool) error {
 		return err
 	}
 	if blocking {
-		log.Info("waiting for blocking collect dust")
-		w.dcWg.wg.Wait()
+		log.Info("waiting for blocking collect dust (wallet needs to be synchronizing to finish this process)")
+
+		// wrap wg.Wait() as channel
+		done := make(chan struct{})
+		go func() {
+			w.dcWg.wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-ctx.Done():
+			// context canceled externally
+		case <-done:
+			// dust collection finished (swap received or timed out)
+		}
 		log.Info("finished waiting for blocking collect dust")
 	}
 	return nil
@@ -566,7 +588,7 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, time
 	if err != nil {
 		return err
 	}
-	log.Info("sending swap tx")
+	log.Info(fmt.Sprintf("sending swap tx: nonce=%s timeout=%d", hexutil.Encode(dcNonce), timeout))
 	res, err := w.SendTransaction(swap)
 	if err != nil {
 		return err
@@ -597,7 +619,7 @@ func (w *Wallet) isSwapInProgress(dbTx TxContext) (bool, error) {
 
 func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	return w.dustCollectorJob.AddFunc("@hourly", func() {
-		err := w.collectDust(false)
+		err := w.collectDust(context.Background(), false)
 		if err != nil {
 			log.Error("error in dust collector job: ", err)
 		}

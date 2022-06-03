@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"encoding/hex"
 	"os"
 	"path"
@@ -226,7 +227,7 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 	w.Shutdown()
 
 	// and Sync is called
-	err := w.Sync()
+	err := w.Sync(context.Background())
 	require.ErrorContains(t, err, "database not open")
 }
 

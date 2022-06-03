@@ -30,7 +30,7 @@ type (
 	VDClientConfig struct {
 		AbConf       *client.AlphabillClientConfig
 		WaitBlock    bool
-		BlockTimeout int
+		BlockTimeout uint64
 	}
 )
 
@@ -38,7 +38,7 @@ func New(_ context.Context, conf *VDClientConfig) (*VDClient, error) {
 	return &VDClient{
 		abClient:     client.New(*conf.AbConf),
 		syncToBlock:  conf.WaitBlock,
-		timeoutDelta: uint64(conf.BlockTimeout),
+		timeoutDelta: conf.BlockTimeout,
 	}, nil
 }
 

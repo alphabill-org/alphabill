@@ -82,11 +82,6 @@ func TestVD_UseClientForTx(t *testing.T) {
 			fmt.Println("second tx rejected, but error not propagated")
 		}
 
-		// list non-empty blocks
-		//cmd = New()
-		//cmd.baseCmd.SetArgs(strings.Split("vd-client list-blocks --wait -u "+dialAddr, " "))
-		//require.NoError(t, cmd.addAndExecuteCommand(ctx))
-
 		// Close the app
 		ctxCancel()
 		fmt.Println("Sent context cancel")

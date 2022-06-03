@@ -144,6 +144,7 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	fmt.Println("Starting wallet synchronization...")
 	err = w.SyncToMaxBlockNumber(ctx)
 	if err != nil {
 		fmt.Println("Failed to synchronize wallet: " + err.Error())
@@ -299,6 +300,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	})
 	err = group.Wait()
 	if err != nil {
+		fmt.Println("Failed to collect dust: " + err.Error())
 		return err
 	}
 	fmt.Println("Dust collection finished successfully.")

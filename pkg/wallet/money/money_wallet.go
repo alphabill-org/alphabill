@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	ErrSwapInProgress      = errors.New("swap is in progress, syncrhonize your wallet to complete the process")
+	ErrSwapInProgress      = errors.New("swap is in progress, synchronize your wallet to complete the process")
 	ErrSwapNotEnoughBills  = errors.New("need to have more than 1 bill to perform swap")
 	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")

@@ -48,7 +48,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 		Use:   "wallet",
 		Short: "cli for managing alphabill wallet",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// initalize config so that baseConfig.HomeDir gets configured
+			// initialize config so that baseConfig.HomeDir gets configured
 			err := initializeConfig(cmd, baseConfig)
 			if err != nil {
 				return err
@@ -94,9 +94,6 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	password, err := createPassphrase(cmd)
 	if err != nil {
-		return err
-	}
-	if err := wlog.InitDefaultLogger(); err != nil {
 		return err
 	}
 	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password}
@@ -300,10 +297,6 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*mone
 			return nil, err
 		}
 		config.WalletPass = walletPass
-	}
-
-	if err := wlog.InitDefaultLogger(); err != nil {
-		return nil, err
 	}
 	return money.LoadExistingWallet(config)
 }

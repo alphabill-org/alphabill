@@ -63,7 +63,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
-	require.NoError(t, log.InitDefaultLogger())
+	require.NoError(t, log.InitStdoutLogger())
 	conf := testConf()
 	conf.WaitBlock = true
 	conf.BlockTimeout = 1
@@ -190,7 +190,7 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 }
 
 func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
-	require.NoError(t, log.InitDefaultLogger())
+	require.NoError(t, log.InitStdoutLogger())
 	conf := testConf()
 	conf.WaitBlock = true
 	vdClient, err := New(context.Background(), conf)

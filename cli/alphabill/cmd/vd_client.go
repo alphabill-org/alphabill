@@ -103,7 +103,7 @@ func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool
 		return nil, err
 	}
 
-	err = wlog.InitDefaultLogger()
+	err = wlog.InitStdoutLogger()
 	if err != nil {
 		return nil, err
 	}

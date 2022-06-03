@@ -71,6 +71,7 @@ func (v *VDClient) RegisterHash(hash string) error {
 	return v.registerHashTx(b)
 }
 
+// ListAllBlocksWithTx prints all non-empty blocks from genesis up to the latest block
 func (v *VDClient) ListAllBlocksWithTx() error {
 	defer v.shutdown()
 	log.Info("Fetching blocks...")

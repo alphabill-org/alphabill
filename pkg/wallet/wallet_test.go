@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestWalletShutdownTerminatesSync(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err := w.Sync(0)
+		err := w.Sync(context.Background(), 0)
 		require.NoError(t, err)
 		wg.Done()
 	}()

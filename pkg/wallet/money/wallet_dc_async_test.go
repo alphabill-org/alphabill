@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"testing"
 
 	"github.com/holiman/uint256"
@@ -17,7 +18,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
-	err := w.collectDust(false)
+	err := w.collectDust(context.Background(), false)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -48,7 +49,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
-	err := w.collectDust(false)
+	err := w.collectDust(context.Background(), false)
 	require.NoError(t, err)
 
 	// then swap tx is sent for the timed out dc bill
@@ -76,7 +77,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
-	err := w.collectDust(false)
+	err := w.collectDust(context.Background(), false)
 	require.NoError(t, err)
 
 	// then dust txs are broadcast
@@ -99,7 +100,7 @@ func TestDcJobDoesNotSendSwapIfDcBillTimeoutHasNotBeenReached(t *testing.T) {
 	setBlockHeight(t, w, 5)
 
 	// when dust collector runs
-	err := w.collectDust(false)
+	err := w.collectDust(context.Background(), false)
 	require.NoError(t, err)
 
 	// then swap must not be broadcast
@@ -117,7 +118,7 @@ func TestDcJobSendsMultipleSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	mockClient.maxBlockNo = 10
 
 	// when dust collector runs
-	err := w.collectDust(false)
+	err := w.collectDust(context.Background(), false)
 	require.NoError(t, err)
 
 	// then 2 swap txs must be broadcast
@@ -134,19 +135,16 @@ func TestDcJobSendsMultipleSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 }
 
 func TestConcurrentDcJobCannotBeStarted(t *testing.T) {
-	// wallet contains 2 normal bills and metadata that dc process was started
-	w, mockClient := CreateTestWallet(t)
+	// wallet contains 2 normal bills and dc metadata as if dc process was started
+	w, _ := CreateTestWallet(t)
 	addBills(t, w)
 	dcNonce := calculateExpectedDcNonce(t, w)
 	setDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount})
 
 	// when dust collector runs
-	err := w.collectDust(false)
-	require.NoError(t, err)
+	err := w.collectDust(context.Background(), false)
+	require.ErrorIs(t, err, ErrSwapInProgress)
 
-	// then no tx must not be broadcast
-	require.Len(t, mockClient.txs, 0)
-
-	// and metadata is the same
+	// then metadata is the same
 	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount})
 }

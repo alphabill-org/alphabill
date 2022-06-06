@@ -14,6 +14,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 )
 
@@ -139,7 +140,12 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	defer w.Shutdown()
-	err = w.SyncToMaxBlockNumber()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fmt.Println("Starting wallet synchronization...")
+	err = w.SyncToMaxBlockNumber(ctx)
 	if err != nil {
 		fmt.Println("Failed to synchronize wallet: " + err.Error())
 		return err
@@ -248,7 +254,8 @@ func execGetPubKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 func collectDustCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "collect-dust",
-		Short: "consolidates bills",
+		Short: "consolidates bills and synchronizes wallet",
+		Long:  "consolidates all bills into a single bill and synchronizes wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},
@@ -272,12 +279,31 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	fmt.Println("starting dust collection, this may take a while...")
-	err = w.CollectDust()
+	fmt.Println("Starting dust collection, this may take a while...")
+	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
+	// any error from CollectDust or Sync causes either goroutine to terminate
+	// if collect dust returns without error we signal Sync to cancel manually
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		err := w.CollectDust(ctx)
+		if err == nil {
+			defer cancel() // signal Sync to cancel
+		}
+		return err
+	})
+	group.Go(func() error {
+		return w.Sync(ctx)
+	})
+	err = group.Wait()
 	if err != nil {
+		fmt.Println("Failed to collect dust: " + err.Error())
 		return err
 	}
-	fmt.Println("dust collection finished")
+	fmt.Println("Dust collection finished successfully.")
 	return nil
 }
 

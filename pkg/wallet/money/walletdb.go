@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -246,6 +247,7 @@ func (w *wdbtx) SetBill(bill *bill) error {
 		if err != nil {
 			return err
 		}
+		log.Info(fmt.Sprintf("adding bill: value=%d id=%s", bill.Value, bill.Id.String()))
 		return tx.Bucket(billsBucket).Put(bill.getId(), val)
 	}, true)
 }

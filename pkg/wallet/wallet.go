@@ -19,6 +19,10 @@ const (
 	sleepTimeAtMaxBlockHeightMs = 500
 )
 
+var (
+	ErrWalletAlreadySynchronizing = errors.New("wallet is already synchronizing")
+)
+
 type Wallet struct {
 	blockProcessor  BlockProcessor
 	config          Config
@@ -67,15 +71,15 @@ func newWallet(blockProcessor BlockProcessor, config Config) *Wallet {
 // Sync synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks forever or until alphabill connection is terminated.
 // Returns error if wallet is already synchronizing or any error occured during syncrohronization, otherwise returns nil.
-func (w *Wallet) Sync(blockNumber uint64) error {
-	return w.syncLedger(blockNumber, true)
+func (w *Wallet) Sync(ctx context.Context, blockNumber uint64) error {
+	return w.syncLedger(ctx, blockNumber, true)
 }
 
-// Sync synchronises wallet from the last known block number with the given alphabill node.
+// SyncToMaxBlockNumber synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
 // Returns error if wallet is already synchronizing or any error occured during syncrohronization, otherwise returns nil.
-func (w *Wallet) SyncToMaxBlockNumber(blockNumber uint64) error {
-	return w.syncLedger(blockNumber, false)
+func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context, blockNumber uint64) error {
+	return w.syncLedger(ctx, blockNumber, false)
 }
 
 // GetMaxBlockNumber queries the node for latest block number
@@ -92,8 +96,13 @@ func (w *Wallet) SendTransaction(tx *txsystem.Transaction) (*txsystem.Transactio
 func (w *Wallet) Shutdown() {
 	log.Info("shutting down wallet")
 
-	// cancel synchronization process
-	w.syncFlag.ctxCancelFunc()
+	// send cancel signal only if channel is not full
+	// this check is needed in case Shutdown is called multiple times
+	// alternatively we can prohibit reusing wallet that has been shut down
+	select {
+	case w.syncFlag.cancelSyncCh <- true:
+	default:
+	}
 
 	if w.AlphabillClient != nil {
 		err := w.AlphabillClient.Shutdown()
@@ -104,16 +113,17 @@ func (w *Wallet) Shutdown() {
 }
 
 // syncLedger downloads and processes blocks, blocks until error in rpc connection
-func (w *Wallet) syncLedger(blockNumber uint64, syncForever bool) error {
+func (w *Wallet) syncLedger(ctx context.Context, blockNumber uint64, syncForever bool) error {
 	if w.syncFlag.isSynchronizing() {
-		return errors.New("wallet is already synchronizing")
+		return ErrWalletAlreadySynchronizing
 	}
 	log.Info("starting ledger synchronization process")
 	w.syncFlag.setSynchronizing(true)
 	defer w.syncFlag.setSynchronizing(false)
 
 	ch := make(chan *block.Block, prefetchBlockCount)
-	errGroup, ctx := errgroup.WithContext(w.syncFlag.ctx)
+
+	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
 		var err error
 		if syncForever {
@@ -140,7 +150,9 @@ func (w *Wallet) syncLedger(blockNumber uint64, syncForever bool) error {
 func (w *Wallet) fetchBlocksForever(ctx context.Context, blockNumber uint64, ch chan<- *block.Block) error {
 	for {
 		select {
-		case <-ctx.Done(): // context is cancelled from shutdown or error in block receiver
+		case <-w.syncFlag.cancelSyncCh: // canceled from shutdown
+			return nil
+		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
 			maxBlockNo, err := w.GetMaxBlockNumber()
@@ -168,7 +180,9 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, blockNumber uint6
 	}
 	for blockNumber < maxBlockNo {
 		select {
-		case <-ctx.Done(): // context is cancelled from shutdown or error in block receiver
+		case <-w.syncFlag.cancelSyncCh: // canceled from shutdown
+			return nil
+		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
 			blockNumber = blockNumber + 1

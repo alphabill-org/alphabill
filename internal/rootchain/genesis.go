@@ -85,8 +85,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 			TrustBase:               rootPublicKey,
 			EncryptionKey:           encPubKeyBytes,
 			Keys:                    keys,
-			InitialBillValue:        p.Validators[0].InitialBillValue,
-			DcMoneySupplyValue:      p.Validators[0].DcMoneySupplyValue,
+			Params:                  p.Validators[0].Params,
 		}
 	}
 

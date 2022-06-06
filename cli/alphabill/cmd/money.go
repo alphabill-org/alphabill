@@ -5,12 +5,11 @@ import (
 	"crypto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -66,16 +65,22 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return errors.Wrapf(err, "failed to read genesis file %s", cfg.Node.Genesis)
 	}
 
+	params := &genesis.MoneyPartitionParams{}
+	err = pg.Params.UnmarshalTo(params)
+	if err != nil {
+		return err
+	}
+
 	ib := &money.InitialBill{
 		ID:    uint256.NewInt(defaultInitialBillId),
-		Value: pg.InitialBillValue,
+		Value: params.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 
 	txs, err := money.NewMoneyTxSystem(
 		crypto.SHA256,
 		ib,
-		pg.DcMoneySupplyValue,
+		params.DcMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(pg.GetSystemDescriptionRecord().GetSystemIdentifier()),
 	)
 	if err != nil {

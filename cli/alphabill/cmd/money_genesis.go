@@ -8,12 +8,14 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -95,6 +97,10 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		config.DCMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(config.SystemIdentifier),
 	)
+	params, err := config.getPartitionParams()
+	if err != nil {
+		return err
+	}
 	nodeGenesis, err := partition.NewNodeGenesis(
 		txSystem,
 		partition.WithPeerID(peerID),
@@ -102,8 +108,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
 		partition.WithSystemIdentifier(config.SystemIdentifier),
 		partition.WithT2Timeout(config.T2Timeout),
-		partition.WithInitialBillValue(config.InitialBillValue),
-		partition.WithDCMoneySupplyValue(config.DCMoneySupplyValue),
+		partition.WithParams(params),
 	)
 	if err != nil {
 		return err
@@ -116,4 +121,17 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 		return c.Output
 	}
 	return path.Join(home, vdGenesisFileName)
+}
+
+func (c *moneyGenesisConfig) getPartitionParams() (*anypb.Any, error) {
+	dst := new(anypb.Any)
+	src := &genesis.MoneyPartitionParams{
+		InitialBillValue:   c.InitialBillValue,
+		DcMoneySupplyValue: c.DCMoneySupplyValue,
+	}
+	err := dst.MarshalFrom(src)
+	if err != nil {
+		return nil, err
+	}
+	return dst, nil
 }

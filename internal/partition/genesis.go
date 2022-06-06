@@ -3,16 +3,15 @@ package partition
 import (
 	gocrypto "crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var ErrSignerIsNil = errors.New("signer is nil")
@@ -27,14 +26,13 @@ type (
 		signer                crypto.Signer
 		encryptionPubKeyBytes []byte
 		t2Timeout             uint32
-		initialBillValue      uint64
-		dcMoneySupplyValue    uint64
+		params                *anypb.Any
 	}
 
 	GenesisOption func(c *genesisConf)
 )
 
-func (c genesisConf) isValid() error {
+func (c *genesisConf) isValid() error {
 	if c.peerID == "" {
 		return genesis.ErrNodeIdentifierIsEmpty
 	}
@@ -86,15 +84,9 @@ func WithT2Timeout(t2Timeout uint32) GenesisOption {
 	}
 }
 
-func WithInitialBillValue(initialBillValue uint64) GenesisOption {
+func WithParams(params *anypb.Any) GenesisOption {
 	return func(c *genesisConf) {
-		c.initialBillValue = initialBillValue
-	}
-}
-
-func WithDCMoneySupplyValue(dcMoneySupplyValue uint64) GenesisOption {
-	return func(c *genesisConf) {
-		c.dcMoneySupplyValue = dcMoneySupplyValue
+		c.params = params
 	}
 }
 
@@ -188,8 +180,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 		EncryptionPublicKey: c.encryptionPubKeyBytes,
 		P1Request:           p1Request,
 		T2Timeout:           c.t2Timeout,
-		InitialBillValue:    c.initialBillValue,
-		DcMoneySupplyValue:  c.dcMoneySupplyValue,
+		Params:              c.params,
 	}
 	if err := node.IsValid(); err != nil {
 		return nil, err

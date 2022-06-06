@@ -4,17 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewGenesis_Ok(t *testing.T) {
@@ -119,10 +114,7 @@ func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, p
 		EncryptionPublicKey: pubKey,
 		P1Request:           p1Req,
 		T2Timeout:           2500,
-		InitialBillValue:    1000000,
-		DcMoneySupplyValue:  1000000,
 	}
-
 }
 
 func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *p1.P1Request {

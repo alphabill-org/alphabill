@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -172,7 +173,7 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		dcErr := w.collectDust(true)
+		dcErr := w.collectDust(context.Background(), true)
 		require.NoError(t, dcErr)
 		wg.Done()
 	}()

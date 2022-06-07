@@ -1,7 +1,6 @@
 package wallet
 
 import (
-	"context"
 	"sync"
 )
 
@@ -9,13 +8,11 @@ import (
 type syncFlagWrapper struct {
 	mu            sync.Mutex
 	synchronizing bool // synchronizing true if wallet is currently synhronizing ledger, false otherwise
-	ctx           context.Context
-	ctxCancelFunc func()
+	cancelSyncCh  chan bool
 }
 
 func newSyncFlagWrapper() *syncFlagWrapper {
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	return &syncFlagWrapper{ctx: ctx, ctxCancelFunc: cancelFunc}
+	return &syncFlagWrapper{cancelSyncCh: make(chan bool, 1)}
 }
 
 func (w *syncFlagWrapper) setSynchronizing(synchronizing bool) {

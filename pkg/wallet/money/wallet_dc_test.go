@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"crypto"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	addBills(t, w)
 
 	// when dc runs
-	err := w.collectDust(false)
+	err := w.collectDust(context.Background(), false)
 	require.NoError(t, err)
 
 	// then metadata is updated

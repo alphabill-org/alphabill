@@ -1,6 +1,7 @@
 package money
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -100,7 +101,7 @@ func TestSync(t *testing.T) {
 
 	// when wallet is synced with the node
 	go func() {
-		_ = w.Sync()
+		_ = w.Sync(context.Background())
 	}()
 
 	// wait for block to be processed
@@ -152,7 +153,7 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	require.NoError(t, err)
 
 	// when wallet is synced to max block number
-	err = w.SyncToMaxBlockNumber()
+	err = w.SyncToMaxBlockNumber(context.Background())
 	require.NoError(t, err)
 
 	// then block number is exactly equal to max block number, and further blocks are not processed
@@ -184,7 +185,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = w.CollectDust()
+		err = w.CollectDust(context.Background())
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -193,7 +194,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// and wallet synchronization is started
 	go func() {
-		_ = w.Sync()
+		_ = w.Sync(context.Background())
 	}()
 
 	// then dc transactions are sent

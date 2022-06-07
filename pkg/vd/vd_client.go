@@ -25,6 +25,7 @@ type (
 		// synchronizes with ledger until the block is found where tx has been added to
 		syncToBlock  bool
 		timeoutDelta uint64
+		ctx          context.Context
 	}
 
 	VDClientConfig struct {
@@ -34,8 +35,9 @@ type (
 	}
 )
 
-func New(_ context.Context, conf *VDClientConfig) (*VDClient, error) {
+func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 	return &VDClient{
+		ctx:          ctx,
 		abClient:     client.New(*conf.AbConf),
 		syncToBlock:  conf.WaitBlock,
 		timeoutDelta: conf.BlockTimeout,
@@ -126,7 +128,7 @@ func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error 
 		SetBlockProcessor(v.prepareProcessor(timeout, hash)).
 		SetABClient(v.abClient).
 		Build()
-	return v.wallet.Sync(currentBlock)
+	return v.wallet.Sync(v.ctx, currentBlock)
 }
 
 type VDBlockProcessor func(b *block.Block) error

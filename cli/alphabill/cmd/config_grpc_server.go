@@ -38,6 +38,18 @@ func (c *grpcServerConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&c.MaxRecvMsgSize, "server-max-recv-msg-size", defaultMaxRecvMsgSize, "Maximum number of bytes the incoming message may be.")
 	cmd.Flags().Int64Var(&c.MaxConnectionAgeMs, "server-max-connection-age-ms", 0, "a duration for the maximum amount of time a connection may exist before it will be closed by sending a GoAway in milliseconds. 0 means forever.")
 	cmd.Flags().Int64Var(&c.MaxConnectionAgeGraceMs, "server-max-connection-age-grace-ms", 0, "is an additive period after MaxConnectionAgeMs after which the connection will be forcibly closed in milliseconds. 0 means no grace period.")
+	err := cmd.Flags().MarkHidden("server-max-recv-msg-size")
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.Flags().MarkHidden("server-max-connection-age-ms")
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.Flags().MarkHidden("server-max-connection-age-grace-ms")
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (c *grpcServerConfiguration) GrpcKeepAliveServerParameters() grpckeepalive.ServerParameters {

@@ -28,7 +28,7 @@ func TestVDPartition_Ok(t *testing.T) {
 	}
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 2*test.WaitDuration, test.WaitTick)
 
 	tx = &txsystem.Transaction{
 		SystemId:   systemIdentifier,
@@ -38,5 +38,5 @@ func TestVDPartition_Ok(t *testing.T) {
 	}
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 2*test.WaitDuration, test.WaitTick)
 }

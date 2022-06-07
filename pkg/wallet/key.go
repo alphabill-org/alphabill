@@ -33,8 +33,18 @@ type (
 	}
 )
 
-// NewKeys generates new wallet keys from given mnemonic seed
+const mnemonicEntropyBitSize = 128
+
+// NewKeys generates new wallet keys from given mnemonic seed, or generates mnemonic first if empty string is provided
 func NewKeys(mnemonic string) (*Keys, error) {
+	if mnemonic == "" {
+		var err error
+		mnemonic, err = generateMnemonic()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if !bip39.IsMnemonicValid(mnemonic) {
 		return nil, errors.New("invalid mnemonic")
 	}
@@ -103,6 +113,14 @@ func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*A
 		PubKeyHash:     hashPubKey(compressedPubKey),
 		DerivationPath: []byte(derivationPath),
 	}, nil
+}
+
+func generateMnemonic() (string, error) {
+	entropy, err := bip39.NewEntropy(mnemonicEntropyBitSize)
+	if err != nil {
+		return "", err
+	}
+	return bip39.NewMnemonic(entropy)
 }
 
 func hashPubKey(pubKey []byte) *KeyHashes {

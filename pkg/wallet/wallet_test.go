@@ -10,8 +10,7 @@ import (
 )
 
 func TestWalletShutdownTerminatesSync(t *testing.T) {
-	w := newWallet(DummyBlockProcessor{}, Config{})
-	w.AlphabillClient = &DummyAlphabillClient{}
+	w := New().SetBlockProcessor(DummyBlockProcessor{}).SetABClient(&DummyAlphabillClient{}).Build()
 
 	// when Sync is called
 	wg := sync.WaitGroup{}

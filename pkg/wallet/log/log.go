@@ -40,11 +40,7 @@ func SetLogger(l Logger) {
 	logger = l
 }
 
-func IsSet() bool {
-	return logger != nil
-}
-
-func InitDefaultLogger() error {
+func InitStdoutLogger() error {
 	if logger == nil {
 		l, err := New(INFO, os.Stdout)
 		if err != nil {

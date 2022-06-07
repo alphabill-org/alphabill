@@ -9,7 +9,8 @@ import (
 	"path"
 	"syscall"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+
 	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -48,7 +49,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 		Use:   "wallet",
 		Short: "cli for managing alphabill wallet",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// initalize config so that baseConfig.HomeDir gets configured
+			// initialize config so that baseConfig.HomeDir gets configured
 			err := initializeConfig(cmd, baseConfig)
 			if err != nil {
 				return err
@@ -310,7 +311,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*money.Wallet, error) {
 	config := money.WalletConfig{
 		DbPath:                walletDir,
-		AlphabillClientConfig: wallet.AlphabillClientConfig{Uri: uri},
+		AlphabillClientConfig: client.AlphabillClientConfig{Uri: uri},
 	}
 	isEncrypted, err := money.IsEncrypted(config)
 	if err != nil {

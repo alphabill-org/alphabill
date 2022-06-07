@@ -5,6 +5,8 @@ import (
 	"crypto"
 	"hash"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	hasherUtil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
@@ -18,8 +20,8 @@ const zeroSummaryValue = rma.Uint64SummaryValue(0)
 
 var (
 	ErrOwnerProofPresent = errors.New("'register data' transaction cannot have an owner proof")
-
-	zeroRootHash = make([]byte, 32)
+	log                  = logger.CreateForPackage()
+	zeroRootHash         = make([]byte, 32)
 )
 
 type (
@@ -80,6 +82,7 @@ func (d *txSystem) Commit() {
 }
 
 func (d *txSystem) Execute(tx txsystem.GenericTransaction) error {
+	log.Debug("Processing register data tx: '%v', UnitID=%x", tx, tx.UnitID())
 	if len(tx.OwnerProof()) > 0 {
 		return ErrOwnerProofPresent
 	}

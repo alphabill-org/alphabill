@@ -9,13 +9,11 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
-	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	prefetchBlockCount          = 10
-	mnemonicEntropyBitSize      = 128
 	sleepTimeAtMaxBlockHeightMs = 500
 )
 
@@ -23,6 +21,8 @@ var (
 	ErrWalletAlreadySynchronizing = errors.New("wallet is already synchronizing")
 )
 
+// Wallet To synchronize wallet with a node call Sync.
+// Shutdown needs to be called to release resources used by wallet.
 type Wallet struct {
 	blockProcessor  BlockProcessor
 	config          Config
@@ -30,42 +30,41 @@ type Wallet struct {
 	syncFlag        *syncFlagWrapper
 }
 
-// NewEmptyWallet creates a new wallet. To synchronize wallet with a node call Sync.
-// Shutdown needs to be called to release resources used by wallet.
-func NewEmptyWallet(blockProcessor BlockProcessor, config Config, mnemonic string) (*Wallet, *Keys, error) {
-	err := log.InitDefaultLogger()
-	if err != nil {
-		return nil, nil, err
-	}
-	if mnemonic == "" {
-		mnemonic, err = generateMnemonic()
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	return createWallet(blockProcessor, mnemonic, config)
+type Builder struct {
+	bp      BlockProcessor
+	abcConf client.AlphabillClientConfig
+	// overrides abcConf
+	abc client.ABClient
 }
 
-// NewExistingWallet loads an existing wallet. To synchronize wallet with a node call Sync.
-// Shutdown needs to be called to release resources used by wallet.
-func NewExistingWallet(blockProcessor BlockProcessor, config Config) (*Wallet, error) {
-	err := log.InitDefaultLogger()
-	if err != nil {
-		return nil, err
-	}
-	return newWallet(blockProcessor, config), nil
+func New() *Builder {
+	return &Builder{}
 }
 
-func newWallet(blockProcessor BlockProcessor, config Config) *Wallet {
-	return &Wallet{
-		blockProcessor: blockProcessor,
-		config:         config,
-		AlphabillClient: client.New(client.AlphabillClientConfig{
-			Uri:              config.AlphabillClientConfig.Uri,
-			RequestTimeoutMs: config.AlphabillClientConfig.RequestTimeoutMs,
-		}),
-		syncFlag: newSyncFlagWrapper(),
+func (b *Builder) SetBlockProcessor(bp BlockProcessor) *Builder {
+	b.bp = bp
+	return b
+}
+
+func (b *Builder) SetABClientConf(abcConf client.AlphabillClientConfig) *Builder {
+	b.abcConf = abcConf
+	return b
+}
+
+func (b *Builder) SetABClient(abc client.ABClient) *Builder {
+	b.abc = abc
+	return b
+}
+
+func (b *Builder) Build() *Wallet {
+	w := &Wallet{syncFlag: newSyncFlagWrapper()}
+	w.blockProcessor = b.bp
+	if b.abc != nil {
+		w.AlphabillClient = b.abc
+	} else {
+		w.AlphabillClient = client.New(b.abcConf)
 	}
+	return w
 }
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.
@@ -198,26 +197,12 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, blockNumber uint6
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		err := w.blockProcessor.ProcessBlock(b)
-		if err != nil {
-			return err
+		if w.blockProcessor != nil {
+			err := w.blockProcessor.ProcessBlock(b)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
-}
-
-func createWallet(blockProcessor BlockProcessor, mnemonic string, config Config) (*Wallet, *Keys, error) {
-	k, err := NewKeys(mnemonic)
-	if err != nil {
-		return nil, nil, err
-	}
-	return newWallet(blockProcessor, config), k, nil
-}
-
-func generateMnemonic() (string, error) {
-	entropy, err := bip39.NewEntropy(mnemonicEntropyBitSize)
-	if err != nil {
-		return "", err
-	}
-	return bip39.NewMnemonic(entropy)
 }

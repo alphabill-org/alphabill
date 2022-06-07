@@ -76,23 +76,16 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 
 	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
 
-	gw, err := wallet.NewExistingWallet(
-		mw,
-		wallet.Config{
-			WalletPass:            config.WalletPass,
-			AlphabillClientConfig: config.AlphabillClientConfig,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
+	mw.Wallet = wallet.New().
+		SetBlockProcessor(mw).
+		SetABClientConf(config.AlphabillClientConfig).
+		Build()
 
 	ac, err := db.Do().GetAccountKey()
 	if err != nil {
 		return nil, err
 	}
 
-	mw.Wallet = gw
 	mw.accountKey = ac.PubKeyHash
 	return mw, nil
 }
@@ -634,24 +627,22 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet,
 			mw.DeleteDb()
 		}
 	}()
-	gw, keys, err := wallet.NewEmptyWallet(
-		mw,
-		wallet.Config{
-			WalletPass:            config.WalletPass,
-			AlphabillClientConfig: config.AlphabillClientConfig,
-		},
-		mnemonic,
-	)
+
+	keys, err := wallet.NewKeys(mnemonic)
 	if err != nil {
 		return
 	}
+
+	mw.Wallet = wallet.New().
+		SetBlockProcessor(mw).
+		SetABClientConf(config.AlphabillClientConfig).
+		Build()
 
 	err = saveKeys(db, keys, config.WalletPass)
 	if err != nil {
 		return
 	}
 
-	mw.Wallet = gw
 	mw.accountKey = keys.AccountKey.PubKeyHash
 	return
 }

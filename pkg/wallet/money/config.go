@@ -4,7 +4,7 @@ import (
 	"os"
 	"path"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
 )
 
 type WalletConfig struct {
@@ -20,7 +20,7 @@ type WalletConfig struct {
 	WalletPass string
 
 	// Configuration options for connecting to alphabill nodes.
-	AlphabillClientConfig wallet.AlphabillClientConfig
+	AlphabillClientConfig client.AlphabillClientConfig
 }
 
 // GetWalletDir returns wallet directory,

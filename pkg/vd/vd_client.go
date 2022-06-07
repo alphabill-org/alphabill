@@ -1,6 +1,7 @@
 package verifiable_data
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,8 +10,10 @@ import (
 	"os"
 	"strings"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
 	"github.com/pkg/errors"
 )
@@ -18,22 +21,26 @@ import (
 type (
 	VDClient struct {
 		abClient client.ABClient
+		wallet   *wallet.Wallet
+		// synchronizes with ledger until the block is found where tx has been added to
+		syncToBlock  bool
+		timeoutDelta uint64
+		ctx          context.Context
 	}
 
-	AlphabillClientConfig struct {
-		Uri          string
-		WaitForReady bool
+	VDClientConfig struct {
+		AbConf       *client.AlphabillClientConfig
+		WaitBlock    bool
+		BlockTimeout uint64
 	}
 )
 
-const timeoutDelta = 100 // TODO make timeout configurable?
-
-func New(_ context.Context, abConf *AlphabillClientConfig) (*VDClient, error) {
+func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 	return &VDClient{
-		abClient: client.New(client.AlphabillClientConfig{
-			Uri:          abConf.Uri,
-			WaitForReady: abConf.WaitForReady,
-		}),
+		ctx:          ctx,
+		abClient:     client.New(*conf.AbConf),
+		syncToBlock:  conf.WaitBlock,
+		timeoutDelta: conf.BlockTimeout,
 	}, nil
 }
 
@@ -59,30 +66,45 @@ func (v *VDClient) RegisterHashBytes(bytes []byte) error {
 }
 
 func (v *VDClient) RegisterHash(hash string) error {
-	bytes, err := hexStringToBytes(hash)
+	b, err := hexStringToBytes(hash)
 	if err != nil {
 		return err
 	}
-	return v.registerHashTx(bytes)
+	return v.registerHashTx(b)
 }
 
-func (v *VDClient) registerHashTx(hash []byte) error {
-	defer func() {
-		err := v.abClient.Shutdown()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
-	if err := validateHash(hash); err != nil {
-		return err
-	}
-
+// ListAllBlocksWithTx prints all non-empty blocks from genesis up to the latest block
+func (v *VDClient) ListAllBlocksWithTx() error {
+	defer v.shutdown()
+	log.Info("Fetching blocks...")
 	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
+	log.Debug("Max block: #", maxBlockNumber)
+	if err := v.sync(0, maxBlockNumber, nil); err != nil {
+		return err
+	}
 
-	tx, err := createRegisterDataTx(hash, maxBlockNumber+timeoutDelta)
+	log.Info("Done.")
+	return nil
+}
+
+func (v *VDClient) registerHashTx(hash []byte) error {
+	defer v.shutdown()
+
+	if err := validateHash(hash); err != nil {
+		return err
+	}
+
+	currentBlockNumber, err := v.abClient.GetMaxBlockNumber()
+	if err != nil {
+		return err
+	}
+
+	log.Info("Current block #: ", currentBlockNumber)
+	timeout := currentBlockNumber + v.timeoutDelta
+	tx, err := createRegisterDataTx(hash, timeout)
 	if err != nil {
 		return err
 	}
@@ -93,8 +115,61 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	if !resp.GetOk() {
 		return errors.New(fmt.Sprintf("error while submitting the hash: %s", resp.GetMessage()))
 	}
-	log.Info("Hash successfully submitted")
+	log.Info("Hash successfully submitted, timeout block: ", timeout)
+
+	if v.syncToBlock {
+		return v.sync(currentBlockNumber, timeout, hash)
+	}
 	return nil
+}
+
+func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
+	v.wallet = wallet.New().
+		SetBlockProcessor(v.prepareProcessor(timeout, hash)).
+		SetABClient(v.abClient).
+		Build()
+	return v.wallet.Sync(v.ctx, currentBlock)
+}
+
+type VDBlockProcessor func(b *block.Block) error
+
+func (p VDBlockProcessor) ProcessBlock(b *block.Block) error {
+	return p(b)
+}
+
+func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcessor {
+	return func(b *block.Block) error {
+		log.Debug("Fetched block #", b.GetBlockNumber(), ", tx count: ", len(b.GetTransactions()))
+		if b.GetBlockNumber() > timeout {
+			log.Info("Block timeout reached")
+			v.shutdown()
+			return nil
+		}
+		for _, tx := range b.GetTransactions() {
+			if hash != nil {
+				// if hash is provided, print only the corresponding block
+				if bytes.Equal(hash, tx.GetUnitId()) {
+					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(hash)))
+					v.shutdown()
+					break
+				}
+			} else {
+				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(tx.GetUnitId())))
+			}
+		}
+		return nil
+	}
+}
+
+func (v *VDClient) shutdown() {
+	log.Info("Shutting down")
+	if v.wallet != nil {
+		v.wallet.Shutdown()
+	}
+	err := v.abClient.Shutdown()
+	if err != nil {
+		log.Error(err)
+	}
 }
 
 func validateHash(hash []byte) error {

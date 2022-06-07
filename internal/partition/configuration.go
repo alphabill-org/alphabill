@@ -215,6 +215,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		c.eventbus = eventbus.New()
 	}
 	if c.blockStore == nil {
+		logger.Debug("Using InMemoryBlockStore")
 		c.blockStore = store.NewInMemoryBlockStore()
 	}
 

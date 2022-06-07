@@ -29,6 +29,7 @@ type vdGenesisConfig struct {
 	Keys             *keysConfig
 	SystemIdentifier []byte
 	Output           string
+	T2Timeout        uint32
 }
 
 // newVDGenesisCmd creates a new cobra command for the vd genesis.
@@ -44,6 +45,7 @@ func newVDGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", defaultVDSystemIdentifier, "system identifier in HEX format")
 	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/vd/node-genesis.json)")
+	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
 	return cmd
 }
@@ -51,7 +53,7 @@ func newVDGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 func vdGenesisRunFun(_ context.Context, config *vdGenesisConfig) error {
 	vdHomePath := path.Join(config.Base.HomeDir, vdDir)
 	if !util.FileExists(vdHomePath) {
-		err := os.MkdirAll(vdHomePath, 0700) // -rwe------)
+		err := os.MkdirAll(vdHomePath, 0700) // -rwx------)
 		if err != nil {
 			return err
 		}
@@ -86,6 +88,7 @@ func vdGenesisRunFun(_ context.Context, config *vdGenesisConfig) error {
 		partition.WithSigningKey(keys.SigningPrivateKey),
 		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
 		partition.WithSystemIdentifier(config.SystemIdentifier),
+		partition.WithT2Timeout(config.T2Timeout),
 	)
 	if err != nil {
 		return err

@@ -126,3 +126,45 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte{1, 1, 1, 1}, pn.P1Request.SystemIdentifier)
 }
+
+func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
+	homeDir := setupTestHomeDir(t, alphabillDir)
+	cmd := New()
+	args := "money-genesis --gen-keys --home " + homeDir
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+
+	gf := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
+	require.NoError(t, err)
+	require.NotNil(t, pg)
+
+	params := &genesis.MoneyPartitionParams{}
+	err = pg.Params.UnmarshalTo(params)
+	require.NoError(t, err)
+
+	require.EqualValues(t, defaultInitialBillValue, params.InitialBillValue)
+	require.EqualValues(t, defaultDCMoneySupplyValue, params.DcMoneySupplyValue)
+}
+
+func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
+	homeDir := setupTestHomeDir(t, alphabillDir)
+	cmd := New()
+	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d", homeDir, 1, 2)
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+
+	gf := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
+	require.NoError(t, err)
+	require.NotNil(t, pg)
+
+	params := &genesis.MoneyPartitionParams{}
+	err = pg.Params.UnmarshalTo(params)
+	require.NoError(t, err)
+
+	require.EqualValues(t, 1, params.InitialBillValue)
+	require.EqualValues(t, 2, params.DcMoneySupplyValue)
+}

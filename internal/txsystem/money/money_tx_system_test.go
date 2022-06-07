@@ -71,7 +71,7 @@ func TestExecute_TransferOk(t *testing.T) {
 	rmaTree, txSystem := createRMATreeAndTxSystem(t)
 	unit, data := getBill(t, rmaTree, initialBill.ID)
 
-	transferOk, err := NewMoneyTx(createBillTransfer(initialBill.ID, initialBill.Value, nil))
+	transferOk, err := NewMoneyTx(createBillTransfer(initialBill.ID, initialBill.Value, script.PredicateAlwaysTrue(), nil))
 	require.NoError(t, err)
 	roundNumber := uint64(1)
 	txSystem.BeginBlock(roundNumber)
@@ -382,10 +382,10 @@ func getBill(t *testing.T, rmaTree *rma.Tree, billID *uint256.Int) (*rma.Unit, *
 	return ib, ib.Data.(*BillData)
 }
 
-func createBillTransfer(fromID *uint256.Int, value uint64, backlink []byte) *txsystem.Transaction {
+func createBillTransfer(fromID *uint256.Int, value uint64, bearer []byte, backlink []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
 	bt := &TransferOrder{
-		NewBearer: script.PredicateAlwaysTrue(),
+		NewBearer: bearer,
 		// #nosec G404
 		TargetValue: value,
 		Backlink:    backlink,
@@ -469,9 +469,10 @@ func createSplit(fromID *uint256.Int, amount uint64, remainingValue uint64, targ
 }
 
 func createTx(fromID *uint256.Int) *txsystem.Transaction {
+	unitId32 := fromID.Bytes32()
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
-		UnitId:                fromID.Bytes(),
+		UnitId:                unitId32[:],
 		Timeout:               20,
 		TransactionAttributes: &anypb.Any{},
 		OwnerProof:            script.PredicateArgumentEmpty(),

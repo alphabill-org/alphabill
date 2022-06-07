@@ -94,7 +94,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 		return err
 	}
 
-	rg, pg, err := rootchain.NewGenesisFromPartitionNodes(pr, 2500, keys.SigningPrivateKey, encVerifier)
+	rg, pg, err := rootchain.NewGenesisFromPartitionNodes(pr, keys.SigningPrivateKey, encVerifier)
 	if err != nil {
 		return err
 	}

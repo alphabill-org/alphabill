@@ -53,6 +53,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 			partition.WithSigningKey(signers[i]),
 			partition.WithEncryptionPubKey(nodePeers[i].Configuration().KeyPair.PublicKey),
 			partition.WithSystemIdentifier(systemIdentifier),
+			partition.WithT2Timeout(2500),
 		)
 		if err != nil {
 			return nil, err
@@ -83,7 +84,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	if err != nil {
 		return nil, err
 	}
-	rootGenesis, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes(nodeGenesisFiles, 2500, rootSigner, verifier)
+	rootGenesis, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes(nodeGenesisFiles, rootSigner, verifier)
 	if err != nil {
 		return nil, err
 	}

@@ -57,7 +57,9 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	nodeGenesis, err := NewNodeGenesis(txSystem, WithPeerID("1"),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(pubKeyBytes),
-		WithSystemIdentifier(systemId))
+		WithSystemIdentifier(systemId),
+		WithT2Timeout(2500),
+	)
 	if err != nil {
 		t.Error(err)
 	}
@@ -66,7 +68,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 
-	rootGenesis, partitionGenesis, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{nodeGenesis}, 2500, rootSigner, encPubKey)
+	rootGenesis, partitionGenesis, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{nodeGenesis}, rootSigner, encPubKey)
 	if err != nil {
 		t.Error(err)
 	}

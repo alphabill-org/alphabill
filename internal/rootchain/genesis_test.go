@@ -4,17 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
-	"github.com/stretchr/testify/require"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewGenesis_Ok(t *testing.T) {
@@ -82,7 +77,7 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
 	require.NoError(t, err)
-	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2}, 2500, rootChainSigner, rootChainVerifier)
+	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2}, rootChainSigner, rootChainVerifier)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 2, len(rg.Partitions[0].Nodes))
@@ -118,8 +113,8 @@ func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, p
 		SigningPublicKey:    pubKey,
 		EncryptionPublicKey: pubKey,
 		P1Request:           p1Req,
+		T2Timeout:           2500,
 	}
-
 }
 
 func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *p1.P1Request {

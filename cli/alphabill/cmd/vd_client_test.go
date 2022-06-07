@@ -46,7 +46,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 
 		// use same keys for signing and communication encryption.
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
-		_, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, 2500, rootSigner, verifier)
+		_, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, rootSigner, verifier)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])

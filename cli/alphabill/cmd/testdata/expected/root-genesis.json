@@ -17,7 +17,8 @@
               "summary_value": "AAAAAAAAAAA="
             },
             "signature": "eG91SWtOvIvqSJYuOV0Jv4hcbO2YEHBz3rC5k2mppaRsg6VRZnw4pd+TOazKaGxejeE5DtiBzFSJkuIZ0iQiJwA="
-          }
+          },
+          "t2timeout": 2500
         }
       ],
       "certificate": {

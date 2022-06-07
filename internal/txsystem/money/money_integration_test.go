@@ -44,13 +44,13 @@ func TestPartition_Ok(t *testing.T) {
 	transferInitialBillTx := createBillTransfer(uint256.NewInt(1), 10000, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), nil)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), 2*test.WaitDuration, test.WaitTick)
 
 	// split initial bill from pubKey1 to pubKey2
 	tx := createSplitTx(transferInitialBillTx)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 2*test.WaitDuration, test.WaitTick)
 }
 
 func createSplitTx(prevTx *txsystem.Transaction) *txsystem.Transaction {

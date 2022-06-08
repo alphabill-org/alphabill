@@ -30,6 +30,9 @@ build:
   stage: build
   script:
     - make build
+  artifacts:
+    paths:
+      - build/alphabill
 
 gosec:
   stage: test

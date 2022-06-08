@@ -1,0 +1,10 @@
+---
+- name: Check if variable file exists
+  stat:
+    path: "{{ variable_file }}"
+  register: variable_file_stat_result
+
+- name: Register variable file
+  set_fact:
+    var_file_arguments: "{{ var_file_arguments + [ '-var-file=' + variable_file_stat_result.stat.path ] }}"
+  when: variable_file_stat_result.stat.exists

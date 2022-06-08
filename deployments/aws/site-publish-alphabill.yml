@@ -1,0 +1,37 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars_files:
+    - jobs/variables.yml
+    - "{{ gt_environment }}/variables.yml"
+    - "{{ gt_environment }}/vault_variables.yml"
+  vars:
+    alphabill_path: ../../build/alphabill
+
+  pre_tasks:
+    - name: Assert that variables are defined
+      assert:
+        that:
+          - gt_environment is defined
+          - alphabill_version is defined
+
+  tasks:
+    - name: Create archived artifact
+      archive:
+        path: "{{ alphabill_path }}"
+        dest: "{{ alphabill_version }}.tar.gz"
+        format: gz
+        force_archive: yes
+
+    - name: Upload artifact to repository
+      uri:
+        url: "{{ nexus_url }}/repository/{{ nexus_repository }}/{{ alphabill_version }}.tar.gz"
+        method: PUT
+        src: "{{ alphabill_version }}.tar.gz"
+        force_basic_auth: yes
+        user: "{{ nexus_user }}"
+        password: "{{ nexus_password }}"
+        status_code: 201
+        headers:
+          Content-Type: application/octet-stream
+      changed_when: True

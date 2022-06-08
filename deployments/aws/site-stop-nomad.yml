@@ -1,0 +1,23 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars_files:
+    - jobs/variables.yml
+    - "{{ gt_environment }}/variables.yml"
+    - "{{ gt_environment }}/vault_variables.yml"
+
+  pre_tasks:
+    - name: Assert that variables are defined
+      assert:
+        that:
+          - gt_environment is defined
+
+  tasks:
+    - name: Stop Nomad jobs
+      uri:
+        url: "{{ nomad_url }}/v1/job/{{ gt_environment }}-{{ item }}"
+        method: DELETE
+        headers:
+          X-Nomad-Token: "{{ nomad_token }}"
+      changed_when: True
+      with_items: "{{ nomad_jobs }}"

@@ -1,0 +1,79 @@
+---
+- hosts: localhost
+  gather_facts: no
+  vars_files:
+    - jobs/variables.yml
+    - "{{ gt_environment }}/variables.yml"
+    - "{{ gt_environment }}/vault_variables.yml"
+  vars:
+    alphabill_path: ../../build/alphabill
+    output_dir: "{{ gt_environment }}/generated"
+    output_dir_money: "{{ output_dir }}/money"
+    output_dir_rootchain: "{{ output_dir }}/money-rootchain"
+
+  pre_tasks:
+    - name: Assert that variables are defined
+      assert:
+        that:
+          - gt_environment is defined
+
+  tasks:
+    - name: Check if files are already generated
+      stat:
+        path: "{{ output_dir }}"
+      register: stat_output
+
+    - block:
+        - name: Generate node genesis files
+          command: "{{ alphabill_path }} money-genesis \
+            --home {{ output_dir_money }}{{ idx }} -g"
+          with_items: "{{ ab_money_partition_ips }}"
+          loop_control:
+            index_var: idx
+
+        - name: Construct partition genesis argument list
+          set_fact:
+            __partition_genesis_args: "{{__partition_genesis_args | default('') + ' -p ' + output_dir_money + (idx | string) + '/money/node-genesis.json' }}"
+          with_items: "{{ ab_money_partition_ips }}"
+          loop_control:
+            index_var: idx
+
+        - name: Generate rootchain and partition genesis files
+          command: "{{ alphabill_path }} root-genesis \
+            --home {{ output_dir_rootchain }} \
+            {{ __partition_genesis_args }} \
+            -g"
+      when: not stat_output.stat.exists
+
+    - name: Deploy generated files to consul
+      command: "./fs2consulkv.py --skip-prompt \
+        --fs-kv-path {{ output_dir }} \
+        --consul-kv-root {{ gt_environment }} \
+        --consul-url {{ consul_url }} \
+        --consul-acl-token {{ consul_token }}"
+
+    - name: Generate peer identifiers
+      command: "{{ alphabill_path }} identifier -k {{ output_dir_money }}{{ idx }}/money/keys.json"
+      register: peers
+      with_items: "{{ ab_money_partition_ips }}"
+      loop_control:
+        index_var: idx
+
+    - name: Construct peers list
+      set_fact:
+        ab_money_partition_peers: "{{ ab_money_partition_peers | default ([]) + [ (item.stdout_lines[1] + '=/ip4/' + ab_money_partition_ips[idx] + '/tcp/' + (ab_money_partition_raft_port | string)) ] }}"
+      with_items: "{{ peers.results }}"
+      loop_control:
+        index_var: idx
+
+    - name: Create/Update K/V
+      uri:
+        url: "{{ consul_url }}/v1/kv/{{ consul_kv_key }}"
+        method: PUT
+        headers:
+          X-Consul-Token: "{{ consul_token }}"
+        body: "{{ consul_kv_value }}"
+      changed_when: True
+      vars:
+        consul_kv_key: "{{ gt_environment }}/peers.txt"
+        consul_kv_value: "{{ ab_money_partition_peers | join(',') }}"

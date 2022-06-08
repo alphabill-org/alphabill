@@ -1,0 +1,16 @@
+---
+- block:
+    - name: Create temporary variables file
+      tempfile:
+        state: file
+        suffix: .json
+      register: temp_variables
+
+    - name: Copy variables to temporary file
+      template:
+        src: vars.json.j2
+        dest: "{{ temp_variables.path }}"
+        mode: "0644"
+
+  delegate_to: localhost
+  check_mode: no

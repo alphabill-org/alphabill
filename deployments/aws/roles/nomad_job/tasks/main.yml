@@ -1,0 +1,11 @@
+---
+- import_tasks: assert.yml
+- import_tasks: variables.yml
+
+- include_tasks: nomad_api.yml
+  vars:
+    levant_extra_var_files:
+      - "{{ temp_variables.path }}"
+    levant_input_template: "{{ item }}.hcl"
+  loop: "{{ nomad_jobs }}"
+  when: job is not defined or (job is defined and item == job)

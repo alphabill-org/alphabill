@@ -1,0 +1,4 @@
+---
+ab_money_partition_port: 26766
+ab_money_partition_raft_port: 26666
+ab_rootchain_port: 26662

@@ -1,0 +1,40 @@
+---
+- block:
+    - name: Initialize variable list
+      set_fact:
+        var_file_arguments: []
+
+    - name: Populate variable arguments list
+      include_tasks: include_variables.yml
+      with_items:
+        - "{{ nomad_job_levant_folder }}/{{ item }}.yaml"
+        - "{{ nomad_job_folder }}/levant.yaml"
+        - "{{ nomad_job_folder }}/{{ item }}.yaml"
+      loop_control:
+        loop_var: variable_file
+
+    - name: Add additional variable arguments to list
+      include_tasks: include_variables.yml
+      with_items: "{{ levant_extra_var_files }}"
+      loop_control:
+        loop_var: variable_file
+      when: levant_extra_var_files is defined
+
+    - name: Show used variables
+      debug:
+        var: var_file_arguments
+
+    - name: Create HCL job file from Levant template
+      command: "{{ cmd }}"
+      with_items:
+        - levant render {{ var_file_arguments | join(' ') }} -out={{ output_file }} {{ input_file }}
+        - levant render {{ var_file_arguments | join(' ') }} -out={{ output_file }} {{ output_file }}
+        - levant render {{ var_file_arguments | join(' ') }} -out={{ output_file }} {{ output_file }}
+        - levant render {{ var_file_arguments | join(' ') }} -out={{ output_file }} {{ output_file }}
+      loop_control:
+        loop_var: cmd
+      vars:
+        input_file: "{{ nomad_job_levant_folder }}/{{ levant_input_template }}"
+        output_file: "{{ nomad_job_folder }}/{{ item }}.hcl"
+  delegate_to: localhost
+  check_mode: no

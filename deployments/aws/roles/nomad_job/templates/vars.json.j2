@@ -1,0 +1,8 @@
+{% set templated_variables = {} %}
+{% for var in (vars | dict2items) %}
+{% set value = lookup('vars', var.key, default='__default__') %}
+{% if value != '__default__' %}
+{% set _ = templated_variables.update({ var.key: lookup('vars', var.key, default='') }) %}
+{% endif %}
+{% endfor %}
+{{ templated_variables | to_nice_json }}

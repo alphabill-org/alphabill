@@ -1,0 +1,6 @@
+---
+nomad_job_api: "https://{{ ansible_host }}:4646/v1"
+nomad_token: ""
+
+nomad_job_levant_render: true
+nomad_job_levant_folder: backend-jobs

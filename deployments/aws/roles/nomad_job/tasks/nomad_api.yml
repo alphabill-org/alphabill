@@ -1,0 +1,65 @@
+---
+- include_tasks: levant/render.yml
+  when: nomad_job_levant_render
+
+- block:
+    - name: Parse job
+      uri:
+        url: "{{ nomad_job_api }}/jobs/parse"
+        validate_certs: no
+        headers:
+          X-Nomad-Token: "{{ lookup('env', 'NOMAD_TOKEN') | default(nomad_token, True) }}"
+        method: POST
+        body: "{{ body_content | to_json }}"
+        body_format: json
+      vars:
+        body_content:
+          JobHCL: "{{ lookup('file', nomad_job_folder + '/' + item + '.hcl') }}"
+          Canonicalize: true
+      register: job_json
+  check_mode: no
+
+- block:
+    - name: Create job plan
+      uri:
+        url: "{{ nomad_job_api }}/job/{{ job_json.json.ID }}/plan"
+        validate_certs: no
+        headers:
+          X-Nomad-Token: "{{ lookup('env', 'NOMAD_TOKEN') | default(nomad_token, True) }}"
+        method: POST
+        body: "{{ body_content | to_json }}"
+        body_format: json
+      vars:
+        body_content:
+          Job: "{{ job_json.json }}"
+          Diff: true
+      register: __status
+
+    - name: Show diff
+      debug:
+        msg: "{{ __status.json.Diff }}"
+
+    - name: Show summary
+      debug:
+        msg: "{{ __status.json.Annotations.DesiredTGUpdates }}"
+  check_mode: no
+
+- block:
+    - name: Create/Update existing job
+      uri:
+        url: "{{ nomad_job_api }}/job/{{ job_json.json.ID }}"
+        validate_certs: no
+        headers:
+          X-Nomad-Token: "{{ lookup('env', 'NOMAD_TOKEN') | default(nomad_token, True) }}"
+        method: POST
+        body: "{{ body_content | to_json }}"
+        body_format: json
+      vars:
+        body_content:
+          Job: "{{ job_json.json }}"
+      register: __status
+
+    - name: Show result
+      debug:
+        msg: "{{ __status.json }}"
+  when: not ansible_check_mode

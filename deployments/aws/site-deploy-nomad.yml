@@ -1,0 +1,19 @@
+---
+- hosts: localhost
+  gather_facts: no
+  roles:
+    - nomad_job
+  vars_files:
+    - jobs/variables.yml
+    - "{{ gt_environment }}/variables.yml"
+    - "{{ gt_environment }}/vault_variables.yml"
+  vars:
+    nomad_job_folder: "{{ gt_environment }}"
+    nomad_job_levant_folder: jobs
+    nomad_job_api: "{{ nomad_url }}/v1"
+
+  pre_tasks:
+    - name: Assert that variables are defined
+      assert:
+        that:
+          - gt_environment is defined

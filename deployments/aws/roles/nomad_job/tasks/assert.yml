@@ -1,0 +1,4 @@
+---
+- name: Variables are defined
+  assert:
+    that: nomad_jobs is defined

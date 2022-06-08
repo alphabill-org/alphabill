@@ -81,10 +81,10 @@ trivy:
       - trivy-report.html
     when: always
 
-nancy:
-  stage: analyze
-  script:
-    - go list -json -m all | nancy sleuth
+#nancy:
+#  stage: analyze
+#  script:
+#    - go list -json -m all | nancy sleuth
 
 publish-alphabill-dev:
   stage: publish

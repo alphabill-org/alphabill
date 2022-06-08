@@ -1,0 +1,15 @@
+---
+gt_domain: abdev1.guardtime.com
+nomad_datacenter: dev-1
+
+ab_money_partition_ips:
+  - 172.30.2.180
+  - 172.30.18.178
+  - 172.30.41.220
+#ab_vd_count: 0
+
+ab_rootchain_ip: 172.30.0.218
+
+nomad_jobs:
+  - ab-root
+  - ab-money

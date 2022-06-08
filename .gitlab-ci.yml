@@ -3,6 +3,8 @@ stages:
   - test
   - build
   - analyze
+  - publish
+  - deploy
 
 image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20220425
 
@@ -83,3 +85,35 @@ nancy:
   stage: analyze
   script:
     - go list -json -m all | nancy sleuth
+
+publish-alphabill-dev:
+  stage: publish
+  variables:
+    ENVIRONMENT: dev
+    ALPHABILL_VERSION: ${CI_COMMIT_SHA}
+  script:
+    - ansible-playbook deployments/aws/site-publish-alphabill.yml -e gt_environment=${ENVIRONMENT} -e alphabill_version=${ALPHABILL_VERSION}
+
+deploy-alphabill-dev:
+  stage: deploy
+  environment:
+    name: dev
+    url: https://nomad-dev-1.abdev1.guardtime.com/
+    on_stop: stop-alphabill-dev
+  variables:
+    ENVIRONMENT: ${CI_ENVIRONMENT_NAME}
+    ALPHABILL_VERSION: ${CI_COMMIT_SHA}
+  script:
+    - ansible-playbook deployments/aws/site-deploy-nomad.yml -e gt_environment=${ENVIRONMENT} -e alphabill_version=${ALPHABILL_VERSION}
+  when: manual
+
+stop-alphabill-dev:
+  stage: deploy
+  environment:
+    name: dev
+    action: stop
+  variables:
+    ENVIRONMENT: ${CI_ENVIRONMENT_NAME}
+  script:
+    - ansible-playbook deployments/aws/site-stop-nomad.yml -e gt_environment=${ENVIRONMENT}
+  when: manual

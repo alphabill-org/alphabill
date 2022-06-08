@@ -1,6 +1,7 @@
 package verifiable_data
 
 import (
+	"fmt"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
@@ -26,9 +27,10 @@ func TestVDPartition_Ok(t *testing.T) {
 		Timeout:    100,
 		OwnerProof: nil,
 	}
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 3*test.WaitDuration, test.WaitTick)
 
 	tx = &txsystem.Transaction{
 		SystemId:   systemIdentifier,
@@ -36,7 +38,8 @@ func TestVDPartition_Ok(t *testing.T) {
 		Timeout:    100,
 		OwnerProof: nil,
 	}
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 3*test.WaitDuration, test.WaitTick)
 }

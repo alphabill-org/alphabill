@@ -2,6 +2,7 @@ package money
 
 import (
 	"crypto"
+	"fmt"
 	"testing"
 
 	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
@@ -42,15 +43,17 @@ func TestPartition_Ok(t *testing.T) {
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx := createBillTransfer(uint256.NewInt(1), 10000, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), nil)
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", transferInitialBillTx, transferInitialBillTx.UnitId)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), 3*test.WaitDuration, test.WaitTick)
 
 	// split initial bill from pubKey1 to pubKey2
 	tx := createSplitTx(transferInitialBillTx)
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 2*test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), 3*test.WaitDuration, test.WaitTick)
 }
 
 func createSplitTx(prevTx *txsystem.Transaction) *txsystem.Transaction {

@@ -29,6 +29,12 @@ RUN yum install -y git
 # The access token is defined in https://gitdc.ee.guardtime.com/alphabill/alphabill/-/settings/ci_cd under Variables
 RUN git config --global url."https://token:glpat-ERLQPJ5LG11pfJcychvP@gitdc.ee.guardtime.com/alphabill/alphabill".insteadOf "https://gitdc.ee.guardtime.com/alphabill/alphabill"
 
+# Install Hashicorp Levant
+RUN yum -y install unzip
+RUN curl -L https://releases.hashicorp.com/levant/0.3.0/levant_0.3.0_linux_amd64.zip -o /tmp/levant.zip
+RUN unzip -d /usr/bin/ /tmp/levant.zip
+RUN chmod +x /usr/bin/levant
+RUN rm /tmp/levant.zip
 
 # Post-install cleanup
 RUN yum clean all

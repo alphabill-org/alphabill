@@ -36,6 +36,11 @@ RUN unzip -d /usr/bin/ /tmp/levant.zip
 RUN chmod +x /usr/bin/levant
 RUN rm /tmp/levant.zip
 
+# Install python requirements
+COPY deployments/gitlab/python-requirements.txt /tmp/python-requirements.txt
+RUN python3 -m pip install -r /tmp/python-requirements.txt
+RUN rm /tmp/python-requirements.txt
+
 # Post-install cleanup
 RUN yum clean all
 RUN rm -rf /var/cache/yum

@@ -1,3 +1,11 @@
+variables:
+  ACTION:
+    value: ""
+    description: "Possible actions: 'reset'."
+  TARGET_ENVIRONMENT:
+    value: ""
+    description: "The deployment target: 'dev'."
+
 stages:
   - init
   - test
@@ -5,6 +13,7 @@ stages:
   - analyze
   - publish
   - deploy
+  - reset
 
 image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20220608
 
@@ -119,4 +128,15 @@ stop-alphabill-dev:
     ENVIRONMENT: ${CI_ENVIRONMENT_NAME}
   script:
     - ansible-playbook deployments/aws/site-stop-nomad.yml -e gt_environment=${ENVIRONMENT}
-  when: manual
+  rules:
+    - if: $ACTION =~ /reset/ && $TARGET_ENVIRONMENT == $ENVIRONMENT
+    - when: manual
+
+reset-alphabill-dev:
+  stage: reset
+  variables:
+    ENVIRONMENT: dev
+  script:
+    - ansible-playbook deployments/aws/site-deploy-consul.yml -e gt_environment=${ENVIRONMENT}
+  rules:
+    - if: $ACTION =~ /reset/ && $TARGET_ENVIRONMENT == $ENVIRONMENT

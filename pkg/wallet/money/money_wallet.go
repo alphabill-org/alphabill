@@ -199,8 +199,9 @@ func (w *Wallet) GetMnemonic() (string, error) {
 	return w.db.Do().GetMnemonic()
 }
 
-// Send creates, signs and broadcasts a transaction of the given amount (in the smallest denomination of alphabills)
+// Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
+// Sends one transaction per bill, prioritzing larger bills.
 func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
@@ -222,11 +223,6 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return ErrInsufficientBalance
 	}
 
-	b, err := w.db.Do().GetBillWithMinValue(amount)
-	if err != nil {
-		return err
-	}
-
 	maxBlockNo, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
@@ -240,16 +236,24 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 	if err != nil {
 		return err
 	}
-	tx, err := createTransaction(pubKey, k, amount, b, timeout)
+
+	bills, err := w.db.Do().GetBills()
 	if err != nil {
 		return err
 	}
-	res, err := w.SendTransaction(tx)
+
+	txs, err := createTransactions(pubKey, amount, bills, k, timeout)
 	if err != nil {
 		return err
 	}
-	if !res.Ok {
-		return errors.New("payment returned error code: " + res.Message)
+	for _, tx := range txs {
+		res, err := w.SendTransaction(tx)
+		if err != nil {
+			return err
+		}
+		if !res.Ok {
+			return errors.New("payment returned error code: " + res.Message)
+		}
 	}
 	return nil
 }

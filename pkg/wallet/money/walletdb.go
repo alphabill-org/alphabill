@@ -71,7 +71,6 @@ type TxContext interface {
 	ContainsBill(id *uint256.Int) (bool, error)
 	RemoveBill(id *uint256.Int) error
 	GetBills() ([]*bill, error)
-	GetBillWithMinValue(minVal uint64) (*bill, error)
 	GetBalance() (uint64, error)
 
 	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
@@ -290,29 +289,6 @@ func (w *wdbtx) RemoveBill(id *uint256.Int) error {
 		bytes32 := id.Bytes32()
 		return tx.Bucket(billsBucket).Delete(bytes32[:])
 	}, true)
-}
-
-func (w *wdbtx) GetBillWithMinValue(minVal uint64) (*bill, error) {
-	var res *bill
-	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		c := tx.Bucket(billsBucket).Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var b *bill
-			err := json.Unmarshal(v, &b)
-			if err != nil {
-				return err
-			}
-			if b.Value >= minVal {
-				res = b
-				return nil
-			}
-		}
-		return errBillWithMinValueNotFound
-	}, false)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
 }
 
 func (w *wdbtx) GetBalance() (uint64, error) {

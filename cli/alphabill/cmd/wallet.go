@@ -196,7 +196,7 @@ func execSendCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("successfully sent transaction")
+	fmt.Println("successfully sent transaction(s)")
 	return nil
 }
 

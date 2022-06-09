@@ -7,7 +7,7 @@ import (
 
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,10 +18,10 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	type fields struct {
-		NodeIdentifier      string
-		SigningPublicKey    []byte
-		EncryptionPublicKey []byte
-		P1Request           *p1.P1Request
+		NodeIdentifier                   string
+		SigningPublicKey                 []byte
+		EncryptionPublicKey              []byte
+		BlockCertificationRequestRequest *certification.BlockCertificationRequest
 	}
 
 	tests := []struct {
@@ -74,21 +74,21 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		{
 			name: "invalid p1 request",
 			fields: fields{
-				NodeIdentifier:      nodeIdentifier,
-				SigningPublicKey:    pubKey,
-				EncryptionPublicKey: pubKey,
-				P1Request:           nil,
+				NodeIdentifier:                   nodeIdentifier,
+				SigningPublicKey:                 pubKey,
+				EncryptionPublicKey:              pubKey,
+				BlockCertificationRequestRequest: nil,
 			},
-			wantErr: p1.ErrP1RequestIsNil,
+			wantErr: certification.ErrBlockCertificationRequestIsNil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &PartitionNode{
-				NodeIdentifier:      tt.fields.NodeIdentifier,
-				SigningPublicKey:    tt.fields.SigningPublicKey,
-				EncryptionPublicKey: tt.fields.EncryptionPublicKey,
-				P1Request:           tt.fields.P1Request,
+				NodeIdentifier:            tt.fields.NodeIdentifier,
+				SigningPublicKey:          tt.fields.SigningPublicKey,
+				EncryptionPublicKey:       tt.fields.EncryptionPublicKey,
+				BlockCertificationRequest: tt.fields.BlockCertificationRequestRequest,
 			}
 			err := x.IsValid()
 			if tt.wantErr != nil {
@@ -104,7 +104,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	p1 := &p1.P1Request{
+	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeIdentifier,
 		RootRoundNumber:  1,
@@ -115,12 +115,12 @@ func TestPartitionNodeIsValid(t *testing.T) {
 			SummaryValue: make([]byte, 32),
 		},
 	}
-	require.NoError(t, p1.Sign(signer))
+	require.NoError(t, req.Sign(signer))
 	pn := &PartitionNode{
-		NodeIdentifier:      nodeIdentifier,
-		SigningPublicKey:    pubKey,
-		EncryptionPublicKey: pubKey,
-		P1Request:           p1,
+		NodeIdentifier:            nodeIdentifier,
+		SigningPublicKey:          pubKey,
+		EncryptionPublicKey:       pubKey,
+		BlockCertificationRequest: req,
 	}
 	require.NoError(t, pn.IsValid())
 }

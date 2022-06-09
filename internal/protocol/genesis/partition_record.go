@@ -24,8 +24,8 @@ func (x *PartitionRecord) IsValid() error {
 		if err := node.IsValid(); err != nil {
 			return err
 		}
-		if !bytes.Equal(id, node.P1Request.SystemIdentifier) {
-			return errors.Errorf("invalid system id: expected %X, got %X", id, node.P1Request.SystemIdentifier)
+		if !bytes.Equal(id, node.BlockCertificationRequest.SystemIdentifier) {
+			return errors.Errorf("invalid system id: expected %X, got %X", id, node.BlockCertificationRequest.SystemIdentifier)
 		}
 	}
 	if err := nodesUnique(x.Validators); err != nil {

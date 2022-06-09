@@ -5,78 +5,97 @@ import (
 	"sync"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
-
-	"github.com/libp2p/go-libp2p-core/peer"
-
-	"github.com/hashicorp/go-multierror"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol"
+	"github.com/hashicorp/go-multierror"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"google.golang.org/protobuf/proto"
 )
 
-const ProtocolBlockProposal = "/ab/root/pc1-O/1.0.0"
+const ProtocolBlockProposal = "/ab/block-proposal/0.0.1"
 
 var (
-	ErrPeerIsNil           = errors.New("self is nil")
-	ErrRequestHandlerIsNil = errors.New("block proposal request handler is nil")
-	ErrRequestIsNil        = errors.New("block proposal request is nil")
-	ErrTimout              = errors.New("timeout")
+	ErrPeerIsNil     = errors.New("self is nil")
+	ErrOutputChIsNil = errors.New("output channel is nil")
+	ErrRequestIsNil  = errors.New("block proposal request is nil")
+	ErrTimout        = errors.New("timeout")
 )
 
 // Protocol is a block proposal protocol (a.k.a. PC1-O protocol). It is used by leader to send and receive block
 // proposals from the network. See Alphabill yellowpaper for more information.
-type (
-	Protocol struct {
-		self           *network.Peer
-		timeout        time.Duration
-		requestHandler ProtocolHandler
-	}
-
-	ProtocolHandler func(req *BlockProposal)
-)
+type Protocol struct {
+	self    *network.Peer
+	timeout time.Duration
+	outCh   chan<- network.ReceivedMessage
+}
 
 // New creates an instance of block proposal protocol. See Alphabill yellowpaper for more information.
-func New(self *network.Peer, timeout time.Duration, requestHandler ProtocolHandler) (*Protocol, error) {
+func New(self *network.Peer, timeout time.Duration, outCh chan<- network.ReceivedMessage) (*Protocol, error) {
 	if self == nil {
 		return nil, ErrPeerIsNil
 	}
-	if requestHandler == nil {
-		return nil, ErrRequestHandlerIsNil
+	if outCh == nil {
+		return nil, ErrOutputChIsNil
 	}
 	bp := &Protocol{
-		self:           self,
-		timeout:        timeout,
-		requestHandler: requestHandler,
+		self:    self,
+		timeout: timeout,
+		outCh:   outCh,
 	}
-	self.RegisterProtocolHandler(ProtocolBlockProposal, bp.handleStream)
+	self.RegisterProtocolHandler(ProtocolBlockProposal, bp.HandleStream)
 	return bp, nil
+}
+
+func (p *Protocol) ID() string {
+	return ProtocolBlockProposal
+}
+
+func (p *Protocol) Send(m proto.Message, receiver peer.ID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+	defer cancel()
+	s, err := p.self.CreateStream(ctx, receiver, ProtocolBlockProposal)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = s.Close()
+		if err != nil {
+			logger.Warning("Failed to close stream: %v", err)
+		}
+	}()
+	w := protocol.NewProtoBufWriter(s)
+	if err := w.Write(m); err != nil {
+		_ = s.Reset()
+		return err
+	}
+	return nil
 }
 
 // Publish sends BlockProposal to all validator nodes in the network. NB! This method blocks until a response is received
 // from all validators.
-func (bp *Protocol) Publish(req *BlockProposal) error {
+func (p *Protocol) Publish(req *BlockProposal) error {
 	if req == nil {
 		return ErrRequestIsNil
 	}
-	persistentPeers := bp.self.Configuration().PersistentPeers
+	persistentPeers := p.self.Configuration().PersistentPeers
 	wg := &sync.WaitGroup{}
 	responses := make(chan error, len(persistentPeers))
 
 	var err error
-	for _, p := range persistentPeers {
-		id, e := p.GetID()
+	for _, peer := range persistentPeers {
+		id, e := peer.GetID()
 		if e != nil {
 			err = multierror.Append(err, e)
 			continue
 		}
-		if id == bp.self.ID() {
+		if id == p.self.ID() {
 			continue
 		}
 		logger.Debug("Sending proposal to peer %v", id)
 		wg.Add(1)
-		go bp.send(req, id, responses, wg)
+		go p.send(req, id, responses, wg)
 	}
 	// wait all responses
 	wg.Wait()
@@ -92,14 +111,14 @@ func (bp *Protocol) Publish(req *BlockProposal) error {
 	return err
 }
 
-func (bp *Protocol) send(req *BlockProposal, peerID peer.ID, responses chan error, wg *sync.WaitGroup) {
-	ctx, cancel := context.WithTimeout(context.Background(), bp.timeout)
+func (p *Protocol) send(req *BlockProposal, peerID peer.ID, responses chan error, wg *sync.WaitGroup) {
+	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	responseCh := make(chan error, 1)
 
 	go func() {
 		defer close(responseCh)
 		defer cancel()
-		s, err := bp.self.CreateStream(ctx, peerID, ProtocolBlockProposal)
+		s, err := p.self.CreateStream(ctx, peerID, ProtocolBlockProposal)
 		if err != nil {
 			responseCh <- errors.Wrapf(err, "failed to open stream for peer %v", peerID)
 			return
@@ -113,20 +132,23 @@ func (bp *Protocol) send(req *BlockProposal, peerID peer.ID, responses chan erro
 			responseCh <- errors.Errorf("failed to send block proposal %v", err)
 			return
 		}
+		responseCh <- nil
 	}()
 
 	select {
 	case <-ctx.Done():
-		logger.Info("Block proposal timeout: receiver: %v, sender %v", peerID, bp.self.ID())
+		logger.Info("Block proposal timeout: receiver: %v, sender %v", peerID, p.self.ID())
 		responses <- ErrTimout
 		wg.Done()
 	case err := <-responseCh:
-		responses <- err
+		if err != nil {
+			responses <- err
+		}
 		wg.Done()
 	}
 }
 
-func (bp *Protocol) handleStream(s libp2pNetwork.Stream) {
+func (p *Protocol) HandleStream(s libp2pNetwork.Stream) {
 	r := protocol.NewProtoBufReader(s)
 	defer func() {
 		err := r.Close()
@@ -135,15 +157,19 @@ func (bp *Protocol) handleStream(s libp2pNetwork.Stream) {
 		}
 	}()
 
-	req := &BlockProposal{}
-	err := r.Read(req)
+	proposal := &BlockProposal{}
+	err := r.Read(proposal)
 	if err != nil {
 		logger.Warning("Failed to read the block proposal request: %v", err)
 		return
 	}
-	bp.requestHandler(req)
+	p.outCh <- network.ReceivedMessage{
+		From:     s.Conn().RemotePeer(),
+		Protocol: ProtocolBlockProposal,
+		Message:  proposal,
+	}
 }
 
-func (bp *Protocol) Close() {
-	bp.self.RemoveProtocolHandler(ProtocolBlockProposal)
+func (p *Protocol) Close() {
+	p.self.RemoveProtocolHandler(ProtocolBlockProposal)
 }

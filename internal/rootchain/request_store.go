@@ -5,13 +5,13 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 )
 
 // requestStore keeps track of received consensus requests.
 type requestStore struct {
-	requests   map[string]*p1.RequestEvent // all received requests. key is node identifier
-	hashCounts map[string]uint             // counts of requests with matching State. key is IR hash string.
+	requests   map[string]*certification.BlockCertificationRequest // all received requests. key is node identifier
+	hashCounts map[string]uint                                     // counts of requests with matching State. key is IR hash string.
 }
 
 // newRequestStore creates a new empty requestStore.
@@ -22,18 +22,18 @@ func newRequestStore() *requestStore {
 }
 
 // Add stores a new input record received from the node.
-func (rs *requestStore) add(nodeId string, e *p1.RequestEvent) {
+func (rs *requestStore) add(nodeId string, req *certification.BlockCertificationRequest) {
 	if _, f := rs.requests[nodeId]; f {
 		rs.remove(nodeId)
 	}
-	hashString := string(e.Req.InputRecord.Hash)
-	rs.requests[nodeId] = e
+	hashString := string(req.InputRecord.Hash)
+	rs.requests[nodeId] = req
 	count := rs.hashCounts[hashString]
 	rs.hashCounts[hashString] = count + 1
 }
 
 func (rs *requestStore) reset() {
-	rs.requests = make(map[string]*p1.RequestEvent)
+	rs.requests = make(map[string]*certification.BlockCertificationRequest)
 	rs.hashCounts = make(map[string]uint)
 }
 
@@ -54,9 +54,9 @@ func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputR
 	needed := float64(nrOfNodes) / float64(2)
 	if float64(c) > needed {
 		// consensus received
-		for _, event := range rs.requests {
-			if bytes.Equal(h, event.Req.InputRecord.Hash) {
-				return event.Req.InputRecord, true
+		for _, req := range rs.requests {
+			if bytes.Equal(h, req.InputRecord.Hash) {
+				return req.InputRecord, true
 			}
 		}
 	} else if float64(uint(nrOfNodes)-uint(len(rs.requests))+c) <= needed {
@@ -72,7 +72,7 @@ func (rs *requestStore) remove(nodeId string) {
 	if !f {
 		return
 	}
-	hashString := string(oldReq.Req.InputRecord.Hash)
+	hashString := string(oldReq.InputRecord.Hash)
 	rs.hashCounts[hashString] = rs.hashCounts[hashString] - 1
 	delete(rs.requests, nodeId)
 }

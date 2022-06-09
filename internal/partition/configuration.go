@@ -10,9 +10,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
@@ -55,17 +53,16 @@ type (
 		leaderSelector              LeaderSelector
 		blockStore                  store.BlockStore
 		txBuffer                    *txbuffer.TxBuffer
-		processors                  []EventProcessor
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
 		peer                        *network.Peer
 		signer                      crypto.Signer
-		eventbus                    *eventbus.EventBus
 		genesis                     *genesis.PartitionGenesis
 		trustBase                   crypto.Verifier
 		initDefaultEventProcessors  bool
 		rootChainAddress            multiaddr.Multiaddr
 		rootChainID                 peer.ID
+		network                     network.Net
 	}
 
 	NodeOption func(c *configuration)
@@ -74,12 +71,6 @@ type (
 func WithContext(context context.Context) NodeOption {
 	return func(c *configuration) {
 		c.context = context
-	}
-}
-
-func WithEventBus(eb *eventbus.EventBus) NodeOption {
-	return func(c *configuration) {
-		c.eventbus = eb
 	}
 }
 
@@ -119,12 +110,6 @@ func WithT1Timeout(t1Timeout time.Duration) NodeOption {
 	}
 }
 
-func WithDefaultEventProcessors(b bool) NodeOption {
-	return func(c *configuration) {
-		c.initDefaultEventProcessors = b
-	}
-}
-
 func WithRootAddressAndIdentifier(address multiaddr.Multiaddr, id peer.ID) NodeOption {
 	return func(c *configuration) {
 		c.rootChainAddress = address
@@ -132,7 +117,7 @@ func WithRootAddressAndIdentifier(address multiaddr.Multiaddr, id peer.ID) NodeO
 	}
 }
 
-func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, nodeOptions ...NodeOption) (*configuration, error) {
+func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net network.Net, nodeOptions ...NodeOption) (*configuration, error) {
 	if peer == nil {
 		return nil, ErrPeerIsNil
 	}
@@ -144,6 +129,9 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 	}
 	if txs == nil {
 		return nil, ErrTxSystemIsNil
+	}
+	if net == nil {
+		return nil, errors.New("network is nil")
 	}
 	c := &configuration{
 		peer:          peer,
@@ -162,44 +150,6 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 	if err := c.isGenesisValid(txs); err != nil {
 		return nil, err
 	}
-
-	if c.initDefaultEventProcessors {
-		txForwarder, err := forwarder.New(peer, defaultTxForwardingTimeout, func(tx *txsystem.Transaction) {
-			genTx, err := txs.ConvertTx(tx)
-			if err != nil {
-				logger.Warning("failed to convert tx: %v", err)
-			}
-			err = c.txBuffer.Add(genTx)
-			if err != nil {
-				logger.Warning("Tx forwarding failed: %v", err)
-			}
-		})
-		if err != nil {
-			return nil, err
-		}
-		ls, err := NewLeaderSubscriber(peer.ID(), c.eventbus, c.txBuffer, txForwarder)
-		if err != nil {
-			return nil, err
-		}
-		c.processors = append(c.processors, ls)
-
-		bcs, err := NewBlockCertificationSubscriber(peer, c.rootChainID, defaultSubscriberCapacity, c.eventbus)
-		if err != nil {
-			return nil, err
-		}
-		c.processors = append(c.processors, bcs)
-
-		bps, err := NewBlockProposalSubscriber(peer, defaultSubscriberCapacity, defaultBlockProposalTimeout, c.eventbus)
-		if err != nil {
-			return nil, err
-		}
-		c.processors = append(c.processors, bps)
-
-		for _, p := range c.processors {
-			go p.Run()
-		}
-	}
-
 	return c, err
 }
 
@@ -210,9 +160,6 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 	}
 	if c.t1Timeout == 0 {
 		c.t1Timeout = DefaultT1Timeout
-	}
-	if c.eventbus == nil {
-		c.eventbus = eventbus.New()
 	}
 	if c.blockStore == nil {
 		c.blockStore = store.NewInMemoryBlockStore()
@@ -225,7 +172,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 	}
 
 	if c.leaderSelector == nil {
-		c.leaderSelector, err = NewDefaultLeaderSelector(peer, c.eventbus)
+		c.leaderSelector, err = NewDefaultLeaderSelector(peer)
 		if err != nil {
 			return err
 		}
@@ -254,7 +201,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		}
 	}
 	if c.rootChainAddress != nil {
-		// add rootchain address to the peerstore. this enables us to send messages to the rootchain.
+		// add rootchain address to the peerstore. this enables us to send receivedMessages to the rootchain.
 		c.peer.Network().Peerstore().AddAddr(c.rootChainID, c.rootChainAddress, peerstore.PermanentAddrTTL)
 	}
 	return nil

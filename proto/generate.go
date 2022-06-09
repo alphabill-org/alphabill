@@ -10,7 +10,7 @@ package proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/block/. block.proto
 
-//go:generate protoc -I=. --go_out=paths=source_relative:../internal/protocol/p1/. p1.proto
+//go:generate protoc -I=. --go_out=paths=source_relative:../internal/protocol/certification/. certification.proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/protocol/replication/. ledger_replication.proto
 

@@ -14,7 +14,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	crypto2 "github.com/libp2p/go-libp2p-core/crypto"
+	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -101,13 +101,17 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 			return nil, err
 		}
 		peer := nodePeers[i]
+		pn, err := partition.NewPartitionNetwork(peer, partition.DefaultPartitionNetOptions)
+		if err != nil {
+			return nil, err
+		}
 		n, err := partition.New(
 			peer,
 			signers[i],
 			txSystemProvider(),
 			partitionGenesis,
+			pn,
 			partition.WithContext(ctx),
-			partition.WithDefaultEventProcessors(true),
 			partition.WithRootAddressAndIdentifier(rootPeer.MultiAddresses()[0], rootPeer.ID()),
 		)
 		if err != nil {
@@ -202,7 +206,7 @@ func createNetworkPeers(count int) ([]*network.Peer, error) {
 func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 	var keyPairs = make([]*network.PeerKeyPair, count)
 	for i := 0; i < count; i++ {
-		privateKey, publicKey, err := crypto2.GenerateSecp256k1Key(rand.Reader)
+		privateKey, publicKey, err := libp2pcrypto.GenerateSecp256k1Key(rand.Reader)
 		privateKeyBytes, err := privateKey.Raw()
 		if err != nil {
 			return nil, err

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 
@@ -143,7 +143,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey crypto.Signer, 
 	encryptionPubKeyBytes, err := encryptionPubKey.MarshalPublicKey()
 	require.NoError(t, err)
 
-	p1Request := &p1.P1Request{
+	request := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeID,
 		RootRoundNumber:  1,
@@ -154,12 +154,12 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey crypto.Signer, 
 			SummaryValue: make([]byte, 32),
 		},
 	}
-	require.NoError(t, p1Request.Sign(signingKey))
+	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{
-		NodeIdentifier:      nodeID,
-		SigningPublicKey:    node1VerifierPubKey,
-		EncryptionPublicKey: encryptionPubKeyBytes,
-		P1Request:           p1Request,
+		NodeIdentifier:            nodeID,
+		SigningPublicKey:          node1VerifierPubKey,
+		EncryptionPublicKey:       encryptionPubKeyBytes,
+		BlockCertificationRequest: request,
 	}
 	return pr
 }

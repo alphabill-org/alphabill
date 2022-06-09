@@ -164,14 +164,18 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	if err != nil {
 		return nil, err
 	}
+	n, err := partition.NewPartitionNetwork(p, partition.DefaultPartitionNetOptions)
+	if err != nil {
+		return nil, err
+	}
 	// TODO use boltDB block store after node recovery is implemented
 	node, err := partition.New(
 		p,
 		keys.SigningPrivateKey,
 		txs,
 		pg,
+		n,
 		partition.WithContext(ctx),
-		partition.WithDefaultEventProcessors(true),
 		partition.WithRootAddressAndIdentifier(newMultiAddr, rootID),
 	)
 	if err != nil {

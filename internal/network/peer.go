@@ -6,10 +6,6 @@ import (
 	mrand "math/rand"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peerstore"
-
-	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"github.com/hashicorp/go-multierror"
@@ -18,7 +14,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-libp2p-core/peerstore"
+	libp2pprotocol "github.com/libp2p/go-libp2p-core/protocol"
+	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -58,8 +56,9 @@ type (
 
 	// Peer represents a single node in p2p network. It is a wrapper around the libp2p host.Host.
 	Peer struct {
-		host host.Host
-		conf *PeerConfiguration
+		host       host.Host
+		conf       *PeerConfiguration
+		validators []peer.ID
 	}
 )
 
@@ -94,11 +93,30 @@ func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 	}
 
 	// create a new libp2p Host
-	h, err := libp2p.New(libp2p.ListenAddrStrings(address), libp2p.Identity(privateKey), libp2p.Peerstore(peerStore))
+	h, err := libp2p.New(
+		libp2p.ListenAddrStrings(address),
+		libp2p.Identity(privateKey),
+		libp2p.Peerstore(peerStore),
+		libp2p.Ping(true), // make sure ping service is enabled
+	)
 	if err != nil {
 		return nil, err
 	}
 	p := &Peer{host: h, conf: conf}
+
+	// validator identifiers
+	peers := conf.PersistentPeers
+	for _, peer := range peers {
+		valID, err := peer.GetID()
+		if err != nil {
+			return nil, err
+		}
+		if valID == id {
+			continue
+		}
+		p.validators = append(p.validators, valID)
+	}
+
 	logger.Debug("Host ID=%v, addresses=%v", h.ID(), h.Addrs())
 
 	return p, nil
@@ -107,6 +125,10 @@ func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 // ID returns the identifier associated with this Peer.
 func (p *Peer) ID() peer.ID {
 	return p.host.ID()
+}
+
+func (p *Peer) Validators() []peer.ID {
+	return p.validators
 }
 
 // PublicKey returns the public key of the peer.
@@ -126,17 +148,17 @@ func (p *Peer) Network() network.Network {
 
 // RegisterProtocolHandler sets the protocol stream handler for given protocol.
 func (p *Peer) RegisterProtocolHandler(protocolID string, handler network.StreamHandler) {
-	p.host.SetStreamHandler(protocol.ID(protocolID), handler)
+	p.host.SetStreamHandler(libp2pprotocol.ID(protocolID), handler)
 }
 
 // RemoveProtocolHandler removes the given protocol handler.
 func (p *Peer) RemoveProtocolHandler(protocolID string) {
-	p.host.RemoveStreamHandler(protocol.ID(protocolID))
+	p.host.RemoveStreamHandler(libp2pprotocol.ID(protocolID))
 }
 
 // CreateStream opens a new stream to given peer p, and writes a libp2p protocol header with given ProtocolID.
 func (p *Peer) CreateStream(ctx context.Context, peerID peer.ID, protocolID string) (network.Stream, error) {
-	return p.host.NewStream(ctx, peerID, protocol.ID(protocolID))
+	return p.host.NewStream(ctx, peerID, libp2pprotocol.ID(protocolID))
 }
 
 // Configuration returns peer configuration

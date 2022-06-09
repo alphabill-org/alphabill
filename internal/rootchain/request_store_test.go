@@ -7,19 +7,15 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 )
 
-var req1 = &p1.RequestEvent{
-	Req: &p1.P1Request{
-		InputRecord: &certificates.InputRecord{Hash: []byte{1}},
-	},
+var req1 = &certification.BlockCertificationRequest{
+	InputRecord: &certificates.InputRecord{Hash: []byte{1}},
 }
 
-var req2 = &p1.RequestEvent{
-	Req: &p1.P1Request{
-		InputRecord: &certificates.InputRecord{Hash: []byte{2}},
-	},
+var req2 = &certification.BlockCertificationRequest{
+	InputRecord: &certificates.InputRecord{Hash: []byte{2}},
 }
 
 func Test_requestStore_add(t *testing.T) {
@@ -44,7 +40,7 @@ func TestRequestStore_isConsensusReceived_SingleNode(t *testing.T) {
 	rs.add("1", req1)
 	ir, possible := rs.isConsensusReceived(1)
 	require.True(t, possible)
-	require.Equal(t, req1.Req.InputRecord, ir)
+	require.Equal(t, req1.InputRecord, ir)
 }
 
 func TestRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
@@ -57,7 +53,7 @@ func TestRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	rs.add("2", req1)
 	ir, possible := rs.isConsensusReceived(2)
 	require.True(t, possible)
-	require.Equal(t, req1.Req.InputRecord, ir)
+	require.Equal(t, req1.InputRecord, ir)
 }
 
 func TestRequestStore_isConsensusReceived_FiveNodes(t *testing.T) {
@@ -75,7 +71,7 @@ func TestRequestStore_isConsensusReceived_FiveNodes(t *testing.T) {
 	rs.add("3", req1)
 	ir, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
-	require.Equal(t, req1.Req.InputRecord, ir)
+	require.Equal(t, req1.InputRecord, ir)
 
 	rs.add("3", req2)
 	ir, possible = rs.isConsensusReceived(5)

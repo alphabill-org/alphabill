@@ -7,8 +7,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -91,7 +91,7 @@ func WithParams(params *anypb.Any) GenesisOption {
 }
 
 // NewNodeGenesis creates a new genesis.PartitionNode from the given inputs. This function creates the first
-// p1.P1Request by calling the TransactionSystem.EndBlock function. Must contain PeerID, signer, and system identifier
+// certification.P1Request by calling the TransactionSystem.EndBlock function. Must contain PeerID, signer, and system identifier
 // and public encryption key configuration:
 //
 //    pn, err := NewNodeGenesis(
@@ -138,9 +138,9 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	}
 	blockHash := b.Hash(c.hashAlgorithm)
 
-	// P1 request
+	// Protocol request
 	id := c.peerID.String()
-	p1Request := &p1.P1Request{
+	blockCertificationRequest := &certification.BlockCertificationRequest{
 		SystemIdentifier: c.systemIdentifier,
 		NodeIdentifier:   id,
 		RootRoundNumber:  1,
@@ -151,7 +151,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 			SummaryValue: summaryValue,
 		},
 	}
-	err = p1Request.Sign(c.signer)
+	err = blockCertificationRequest.Sign(c.signer)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 		return nil, err
 	}
 
-	if err := p1Request.IsValid(verifier); err != nil {
+	if err := blockCertificationRequest.IsValid(verifier); err != nil {
 		return nil, err
 	}
 	if err != nil {
@@ -175,12 +175,12 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 
 	// partition node
 	node := &genesis.PartitionNode{
-		NodeIdentifier:      id,
-		SigningPublicKey:    signingPubKey,
-		EncryptionPublicKey: c.encryptionPubKeyBytes,
-		P1Request:           p1Request,
-		T2Timeout:           c.t2Timeout,
-		Params:              c.params,
+		NodeIdentifier:            id,
+		SigningPublicKey:          signingPubKey,
+		EncryptionPublicKey:       c.encryptionPubKeyBytes,
+		BlockCertificationRequest: blockCertificationRequest,
+		T2Timeout:                 c.t2Timeout,
+		Params:                    c.params,
 	}
 	if err := node.IsValid(); err != nil {
 		return nil, err

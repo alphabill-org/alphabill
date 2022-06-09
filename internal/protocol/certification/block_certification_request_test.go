@@ -1,4 +1,4 @@
-package p1
+package certification
 
 import (
 	"strings"
@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestP1Request_IsValid_P1IsNil(t *testing.T) {
-	var p1 *P1Request
-	require.ErrorIs(t, p1.IsValid(nil), ErrP1RequestIsNil)
+func TestBlockCertificationRequest_IsValid_BlockCertificationRequestIsNil(t *testing.T) {
+	var p1 *BlockCertificationRequest
+	require.ErrorIs(t, p1.IsValid(nil), ErrBlockCertificationRequestIsNil)
 }
 
-func TestP1Request_IsValid_VerifierIsNil(t *testing.T) {
-	p1 := &P1Request{
+func TestBlockCertificationRequest_IsValid_VerifierIsNil(t *testing.T) {
+	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
 		RootRoundNumber:  0,
@@ -26,9 +26,9 @@ func TestP1Request_IsValid_VerifierIsNil(t *testing.T) {
 	require.ErrorIs(t, p1.IsValid(nil), ErrVerifierIsNil)
 }
 
-func TestP1Request_IsValid_InvalidSystemIdentifier(t *testing.T) {
+func TestBlockCertificationRequest_IsValid_InvalidSystemIdentifier(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &P1Request{
+	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0},
 		NodeIdentifier:   "11",
 		RootRoundNumber:  0,
@@ -37,9 +37,9 @@ func TestP1Request_IsValid_InvalidSystemIdentifier(t *testing.T) {
 	require.ErrorIs(t, p1.IsValid(verifier), ErrInvalidSystemIdentifierLength)
 }
 
-func TestP1Request_IsValid_EmptyNodeIdentifier(t *testing.T) {
+func TestBlockCertificationRequest_IsValid_EmptyNodeIdentifier(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &P1Request{
+	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "",
 		RootRoundNumber:  0,
@@ -48,9 +48,9 @@ func TestP1Request_IsValid_EmptyNodeIdentifier(t *testing.T) {
 	require.ErrorIs(t, p1.IsValid(verifier), ErrEmptyNodeIdentifier)
 }
 
-func TestP1Request_IsValid_InvalidInputRecord(t *testing.T) {
+func TestBlockCertificationRequest_IsValid_InvalidInputRecord(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &P1Request{
+	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
 		RootRoundNumber:  0,
@@ -59,9 +59,9 @@ func TestP1Request_IsValid_InvalidInputRecord(t *testing.T) {
 	require.ErrorIs(t, p1.IsValid(verifier), certificates.ErrInputRecordIsNil)
 }
 
-func TestP1Request_IsValid_InvalidSignature(t *testing.T) {
+func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &P1Request{
+	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
 		RootRoundNumber:  0,
@@ -78,9 +78,9 @@ func TestP1Request_IsValid_InvalidSignature(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "signature verify failed"))
 }
 
-func TestP1Request_ValidRequest(t *testing.T) {
+func TestBlockCertificationRequest_ValidRequest(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	p1 := &P1Request{
+	p1 := &BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   "1",
 		RootRoundNumber:  0,

@@ -33,7 +33,7 @@ func (x *PartitionNode) IsValid() error {
 	if err != nil {
 		return err
 	}
-	if err := x.P1Request.IsValid(signingPubKey); err != nil {
+	if err := x.BlockCertificationRequest.IsValid(signingPubKey); err != nil {
 		return err
 	}
 	return nil

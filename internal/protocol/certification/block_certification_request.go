@@ -1,4 +1,4 @@
-package p1
+package certification
 
 import (
 	"bytes"
@@ -9,15 +9,15 @@ import (
 )
 
 var (
-	ErrP1RequestIsNil                = errors.New("node P1 request is nil")
-	ErrInvalidSystemIdentifierLength = errors.New("invalid system identifier length")
-	ErrVerifierIsNil                 = errors.New("verifier is nil")
-	ErrEmptyNodeIdentifier           = errors.New("node identifier is empty")
+	ErrBlockCertificationRequestIsNil = errors.New("block certification request is nil")
+	ErrInvalidSystemIdentifierLength  = errors.New("invalid system identifier length")
+	ErrVerifierIsNil                  = errors.New("verifier is nil")
+	ErrEmptyNodeIdentifier            = errors.New("node identifier is empty")
 )
 
-func (x *P1Request) IsValid(v crypto.Verifier) error {
+func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if x == nil {
-		return ErrP1RequestIsNil
+		return ErrBlockCertificationRequestIsNil
 	}
 	if v == nil {
 		return ErrVerifierIsNil
@@ -37,9 +37,9 @@ func (x *P1Request) IsValid(v crypto.Verifier) error {
 	return nil
 }
 
-func (x *P1Request) Sign(signer crypto.Signer) error {
+func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 	if signer == nil {
-		return ErrSignerIsNil
+		return errors.New("signer is nil")
 	}
 	signature, err := signer.SignBytes(x.Bytes())
 	if err != nil {
@@ -49,7 +49,7 @@ func (x *P1Request) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *P1Request) Bytes() []byte {
+func (x *BlockCertificationRequest) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemIdentifier)
 	b.WriteString(x.NodeIdentifier)

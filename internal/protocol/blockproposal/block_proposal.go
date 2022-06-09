@@ -4,11 +4,9 @@ import (
 	"bytes"
 	gocrypto "crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 )
 
 var (
@@ -29,7 +27,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 		return ErrTrustBaseIsNil
 	}
 	if !bytes.Equal(systemIdentifier, x.SystemIdentifier) {
-		return errors.Wrapf(p1.ErrInvalidSystemIdentifier, "expected %X, got %X", systemIdentifier, x.SystemIdentifier)
+		return errors.Wrapf(certification.ErrInvalidSystemIdentifier, "expected %X, got %X", systemIdentifier, x.SystemIdentifier)
 	}
 	if err := x.UnicityCertificate.IsValid(ucTrustBase, algorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return err

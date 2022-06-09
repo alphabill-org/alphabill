@@ -124,7 +124,7 @@ func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 
 	pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{})
 	require.NoError(t, err)
-	require.Equal(t, []byte{1, 1, 1, 1}, pn.P1Request.SystemIdentifier)
+	require.Equal(t, []byte{1, 1, 1, 1}, pn.BlockCertificationRequest.SystemIdentifier)
 }
 
 func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {

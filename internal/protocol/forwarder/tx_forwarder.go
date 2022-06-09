@@ -2,8 +2,9 @@ package forwarder
 
 import (
 	"context"
-	"io/ioutil"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
@@ -15,15 +16,14 @@ import (
 )
 
 var (
-	ErrPeerIsNil      = errors.New("peer is nil")
-	ErrTxHandlerIsNil = errors.New("tx handler is nil")
-	ErrTimout         = errors.New("forwarding timeout")
+	ErrPeerIsNil              = errors.New("peer is nil")
+	ErrReceivedMessageChIsNil = errors.New("received message channel is nil")
+	ErrTimout                 = errors.New("forwarding timeout")
 )
 
 const (
-	// ProtocolIdTxForwarder is the protocol.ID of the Alphabill transaction forwarding protocol.
-	ProtocolIdTxForwarder    = "/ab/pc1-I/0.0.1"
-	DefaultForwardingTimeout = 700 * time.Second
+	// ProtocolInputForward is the protocol.ID of the Alphabill input forwarding protocol.
+	ProtocolInputForward = "/ab/input-forward/0.0.1"
 )
 
 type (
@@ -31,23 +31,37 @@ type (
 	// TxForwarder sends transactions to the expected leader.
 	TxForwarder struct {
 		self               *network.Peer
-		transactionHandler TxHandler
+		receivedMessagesCh chan<- network.ReceivedMessage
 		timeout            time.Duration
 	}
 
 	TxHandler func(tx *txsystem.Transaction)
 )
 
-func New(self *network.Peer, timeout time.Duration, transactionHandler func(tx *txsystem.Transaction)) (*TxForwarder, error) {
+func New(self *network.Peer, timeout time.Duration, receivedMessagesCh chan<- network.ReceivedMessage) (*TxForwarder, error) {
+	//protocol.NewSendProtocol(self, ProtocolInputForward, timeout)
+
 	if self == nil {
 		return nil, ErrPeerIsNil
 	}
-	if transactionHandler == nil {
-		return nil, ErrTxHandlerIsNil
+	if receivedMessagesCh == nil {
+		return nil, ErrReceivedMessageChIsNil
 	}
-	t := &TxForwarder{self: self, transactionHandler: transactionHandler, timeout: timeout}
-	self.RegisterProtocolHandler(ProtocolIdTxForwarder, t.handleStream)
+	t := &TxForwarder{self: self, receivedMessagesCh: receivedMessagesCh, timeout: timeout}
+	self.RegisterProtocolHandler(ProtocolInputForward, t.HandleStream)
 	return t, nil
+}
+
+func (tf *TxForwarder) ID() string {
+	return ProtocolInputForward
+}
+
+func (tf *TxForwarder) Send(message proto.Message, receiverID peer.ID) error {
+	m, f := message.(*txsystem.Transaction)
+	if !f {
+		return errors.Errorf("invalid message type. expected: %T, got %T", &txsystem.Transaction{}, message)
+	}
+	return tf.Forward(m, receiverID)
 }
 
 // Forward sends the transaction to the receiver.
@@ -61,7 +75,7 @@ func (tf *TxForwarder) Forward(req *txsystem.Transaction, receiver peer.ID) erro
 	go func() {
 		defer close(responseCh)
 		defer cancel()
-		s, err := tf.self.CreateStream(ctx, receiver, ProtocolIdTxForwarder)
+		s, err := tf.self.CreateStream(ctx, receiver, ProtocolInputForward)
 		if err != nil {
 			responseCh <- errors.Wrap(err, "failed to open stream")
 			return
@@ -84,17 +98,6 @@ func (tf *TxForwarder) Forward(req *txsystem.Transaction, receiver peer.ID) erro
 			responseCh <- errors.Errorf("failed to forward transaction, %v", err)
 			return
 		}
-
-		response, err := ioutil.ReadAll(s)
-		if err != nil {
-			responseCh <- errors.Errorf("failed to read response, %v", err)
-			return
-		}
-		if string(response) != "received" {
-			responseCh <- errors.Errorf("invalid response from peer %v. response: %v", receiver, string(response))
-			return
-		}
-		logger.Debug("forwarded tx to peer %v", receiver)
 		responseCh <- nil
 	}()
 
@@ -107,8 +110,8 @@ func (tf *TxForwarder) Forward(req *txsystem.Transaction, receiver peer.ID) erro
 	}
 }
 
-// handleStream receives incoming transactions from other peers in the network.
-func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
+// HandleStream receives incoming transactions from other peers in the network.
+func (tf *TxForwarder) HandleStream(s libp2pNetwork.Stream) {
 	r := protocol.NewProtoBufReader(s)
 	defer func() {
 		err := s.Close()
@@ -123,9 +126,9 @@ func (tf *TxForwarder) handleStream(s libp2pNetwork.Stream) {
 		logger.Warning("Failed to read the transaction: %v", err)
 		return
 	}
-	tf.transactionHandler(req)
-	_, err = s.Write([]byte("received"))
-	if err != nil {
-		logger.Warning("Failed to write response: %v", err)
+	tf.receivedMessagesCh <- network.ReceivedMessage{
+		From:     s.Conn().RemotePeer(),
+		Protocol: ProtocolInputForward,
+		Message:  req,
 	}
 }

@@ -1,23 +1,22 @@
 package rootchain
 
 import (
-	"context"
-	gocrypto "crypto"
+	"bytes"
 	"testing"
 	"time"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	certificates2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certificates"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"github.com/stretchr/testify/require"
-
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 var partitionID = []byte{0, 0xFF, 0, 1}
@@ -26,6 +25,12 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+}
+
+type node struct {
+	signingKey       crypto.Signer
+	signingPublicKey crypto.Verifier
+	peer             *network.Peer
 }
 
 func TestNewRootChain_Ok(t *testing.T) {
@@ -45,71 +50,126 @@ func TestNewRootChain_LoadUsingOptions(t *testing.T) {
 	require.NotNil(t, peer)
 }
 
-func TestRootChain_SendMultipleRequests(t *testing.T) {
-	client, partition, rootVerifier := initRootChainForSendMultipleRequestsTest(t)
-
-	response, err := client.SendSync(context.Background(), []byte{0, 0, 0, 2}, []byte{0, 0, 1, 1}, []byte{0, 0, 1, 3})
+func TestPartitionReceivesUnicityCertificates(t *testing.T) {
+	partitionNodes, partitionRecord := createPartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	rootNode := createNode(t)
+	verifier, err := crypto.NewVerifierSecp256k1(rootNode.GetEncryptionPublicKeyBytes(t))
 	require.NoError(t, err)
-	uc1 := response.Message
-	require.NoError(t, uc1.IsValid(rootVerifier, gocrypto.SHA256, partitionID, partition.SystemDescriptionRecord.Hash(gocrypto.SHA256)))
 
-	response2, err := client.SendSync(context.Background(), []byte{0, 0, 0, uint8(5)}, []byte{0, 0, 1, uint8(5)}, []byte{0, 0, 1, 3})
-	uc2 := response2.Message
+	rootGenesis, _, err := NewGenesis([]*genesis.PartitionRecord{partitionRecord}, rootNode.signingKey, verifier)
 	require.NoError(t, err)
-	require.NoError(t, uc2.IsValid(rootVerifier, gocrypto.SHA256, partitionID, partition.SystemDescriptionRecord.Hash(gocrypto.SHA256)))
 
-	require.Equal(t, uc1.UnicitySeal.Hash, uc2.UnicitySeal.PreviousHash)
-	require.Equal(t, uc1.UnicitySeal.RootChainRoundNumber+1, uc2.UnicitySeal.RootChainRoundNumber)
+	mockNet := testnetwork.NewMockNetwork()
+	rc, err := NewRootChain(rootNode.peer, rootGenesis, rootNode.signingKey, mockNet)
+	defer rc.Close()
+	require.NoError(t, err)
+
+	newHash := test.RandomBytes(32)
+	blockHash := test.RandomBytes(32)
+	mockNet.Receive(network.ReceivedMessage{
+		From:     partitionNodes[0].peer.ID(),
+		Protocol: certification.ProtocolBlockCertification,
+		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[0], newHash, blockHash, partitionNodes[0]),
+	})
+
+	mockNet.Receive(network.ReceivedMessage{
+		From:     partitionNodes[1].peer.ID(),
+		Protocol: certification.ProtocolBlockCertification,
+		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[1], newHash, blockHash, partitionNodes[1]),
+	})
+	require.Eventually(t, func() bool {
+		messages := mockNet.SentMessages[certificates2.ProtocolReceiveUnicityCertificate]
+		if len(messages) > 0 {
+			m := messages[0]
+			uc := m.Message.(*certificates.UnicityCertificate)
+			return bytes.Equal(uc.InputRecord.Hash, newHash) && bytes.Equal(uc.InputRecord.BlockHash, blockHash)
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+}
+
+func createBlockCertificationRequest(t *testing.T, pn *genesis.PartitionNode, newHash []byte, blockHash []byte, partitionNode *node) *certification.BlockCertificationRequest {
+	t.Helper()
+	r1 := &certification.BlockCertificationRequest{
+		SystemIdentifier: partitionID,
+		NodeIdentifier:   pn.BlockCertificationRequest.NodeIdentifier,
+		RootRoundNumber:  1,
+		InputRecord: &certificates.InputRecord{
+			PreviousHash: pn.BlockCertificationRequest.InputRecord.Hash,
+			Hash:         newHash,
+			BlockHash:    blockHash,
+			SummaryValue: pn.BlockCertificationRequest.InputRecord.SummaryValue,
+		},
+	}
+	require.NoError(t, r1.Sign(partitionNode.signingKey))
+	return r1
+}
+
+func (n *node) GetEncryptionPublicKeyBytes(t *testing.T) []byte {
+	pk, err := n.peer.PublicKey()
+	require.NoError(t, err)
+	bytes, err := pk.Raw()
+	require.NoError(t, err)
+	return bytes
+}
+
+func createPartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID []byte, nrOfValidators int) (partitionNodes []*node, record *genesis.PartitionRecord) {
+	record = &genesis.PartitionRecord{
+		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+			SystemIdentifier: systemID,
+			T2Timeout:        2500,
+		},
+		Validators: []*genesis.PartitionNode{},
+	}
+	for i := 0; i < nrOfValidators; i++ {
+		partitionNode := createNode(t)
+
+		encPubKey, err := partitionNode.peer.PublicKey()
+		require.NoError(t, err)
+		rawEncPubKey, err := encPubKey.Raw()
+		require.NoError(t, err)
+
+		rawSigningPubKey, err := partitionNode.signingPublicKey.MarshalPublicKey()
+		require.NoError(t, err)
+
+		req := &certification.BlockCertificationRequest{
+			SystemIdentifier: systemID,
+			NodeIdentifier:   peer.Encode(partitionNode.peer.ID()),
+			RootRoundNumber:  1,
+			InputRecord:      ir,
+		}
+		err = req.Sign(partitionNode.signingKey)
+		require.NoError(t, err)
+
+		record.Validators = append(record.Validators, &genesis.PartitionNode{
+			NodeIdentifier:            peer.Encode(partitionNode.peer.ID()),
+			SigningPublicKey:          rawSigningPubKey,
+			EncryptionPublicKey:       rawEncPubKey,
+			BlockCertificationRequest: req,
+		})
+
+		partitionNodes = append(partitionNodes, partitionNode)
+	}
+	return partitionNodes, record
+}
+
+func createNode(t *testing.T) *node {
+	t.Helper()
+	partitionNode := &node{peer: testnetwork.CreatePeer(t)}
+	partitionNode.signingKey, partitionNode.signingPublicKey = testsig.CreateSignerAndVerifier(t)
+	return partitionNode
 }
 
 func initRootChain(t *testing.T, opts ...Option) (*RootChain, *network.Peer, crypto.Signer) {
+	t.Helper()
 	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	peer := testnetwork.CreatePeer(t)
-	_, _, partition := createPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	_, _, partition, _ := createPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootGenesis, _, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner, encPubKey)
 	require.NoError(t, err)
-	rc, err := NewRootChain(peer, rootGenesis, rootSigner, opts...)
+	rc, err := NewRootChain(peer, rootGenesis, rootSigner, testnetwork.NewMockNetwork(), opts...)
 	require.NoError(t, err)
 	return rc, peer, rootSigner
-}
-
-func initRootChainForSendMultipleRequestsTest(t *testing.T) (*p1.Client, *genesis.PartitionRecord, crypto.Verifier) {
-	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-
-	rootVerifier, err := rootSigner.Verifier()
-	require.NoError(t, err)
-
-	rootPeer := testnetwork.CreatePeer(t)
-	partitionsSigners, _, partition := createPartitionRecord(t, partitionInputRecord, partitionID, 1)
-	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	rootGenesis, pgs, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner, encPubKey)
-	require.NoError(t, err)
-	rc, err := NewRootChain(rootPeer, rootGenesis, rootSigner)
-	t.Cleanup(func() {
-		rc.Close()
-	})
-	require.NoError(t, err)
-	clientPeer := testnetwork.CreatePeer(t)
-
-	clientConf := p1.ClientConfiguration{
-		Signer:                      partitionsSigners[0],
-		NodeIdentifier:              "0",
-		SystemIdentifier:            pgs[0].SystemDescriptionRecord.SystemIdentifier,
-		SystemDescriptionRecordHash: pgs[0].SystemDescriptionRecord.Hash(gocrypto.SHA256),
-		HashAlgorithm:               gocrypto.SHA256,
-		RootChainRoundNumber:        pgs[0].Certificate.UnicitySeal.RootChainRoundNumber,
-		PreviousHash:                pgs[0].Certificate.InputRecord.Hash,
-	}
-
-	serverConf := p1.ServerConfiguration{
-		RootChainID:     rootPeer.ID(),
-		ServerAddresses: rootPeer.MultiAddresses(),
-		RootVerifier:    rootVerifier,
-	}
-
-	client, err := p1.NewClient(clientPeer, clientConf, serverConf)
-	return client, partition, rootVerifier
 }

@@ -7,7 +7,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
@@ -86,7 +86,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				systemIdentifier:      []byte{0, 0, 0, 2},
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: p1.ErrInvalidSystemIdentifier,
+			wantErr: certification.ErrInvalidSystemIdentifier,
 		},
 		{
 			name: "uc is nil",

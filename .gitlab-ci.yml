@@ -29,16 +29,18 @@ build:
   script:
     - make build
 
-#gosec:
-#  stage: test
-#  script:
-#    - make gosec
-#  artifacts:
-#    paths:
-#      - gosec_report.json
+gosec:
+  stage: test
+  when: manual
+  script:
+    - make gosec
+  artifacts:
+    paths:
+      - gosec_report.json
 
 sonarqube-check:
   stage: analyze
+  when: manual
   image:
     name: sonarsource/sonar-scanner-cli:latest
     entrypoint: [ "" ]

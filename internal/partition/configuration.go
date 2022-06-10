@@ -22,10 +22,6 @@ import (
 const (
 	DefaultT1Timeout    = 750 * time.Millisecond
 	DefaultTxBufferSize = 1000
-
-	defaultSubscriberCapacity   = 10
-	defaultTxForwardingTimeout  = 200 * time.Millisecond
-	defaultBlockProposalTimeout = 200 * time.Millisecond
 )
 
 var (

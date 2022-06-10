@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 )

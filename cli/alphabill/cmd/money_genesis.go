@@ -6,9 +6,8 @@ import (
 	"os"
 	"path"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"

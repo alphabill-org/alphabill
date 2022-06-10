@@ -3,9 +3,8 @@ package rootchain
 import (
 	"bytes"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
 )
 
 // requestStore keeps track of received consensus requests.

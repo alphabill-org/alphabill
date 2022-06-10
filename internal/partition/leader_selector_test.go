@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
-
 	"github.com/stretchr/testify/require"
 )
 

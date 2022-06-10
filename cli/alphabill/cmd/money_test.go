@@ -9,18 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	billtx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

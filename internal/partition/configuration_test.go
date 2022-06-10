@@ -6,16 +6,14 @@ import (
 	"testing"
 	"time"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"

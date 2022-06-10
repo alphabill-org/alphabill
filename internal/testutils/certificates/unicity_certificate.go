@@ -4,11 +4,9 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
 )
 

@@ -3,7 +3,7 @@ package partition
 import (
 	"bytes"
 	"context"
-	crypto2 "crypto"
+	gocrypto "crypto"
 	"sync"
 	"time"
 
@@ -223,7 +223,7 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 		return true
 	}
 
-	logger.Info("Forwarding tx %X to %v", tx.Hash(crypto2.SHA256), leader)
+	logger.Info("Forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader)
 	err := n.network.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolInputForward,

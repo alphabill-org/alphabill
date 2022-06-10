@@ -4,23 +4,15 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	genesis2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
-	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"github.com/btcsuite/btcutil/base58"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
-	"github.com/stretchr/testify/require"
-
+	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 var zeroHash = make([]byte, 32)
@@ -91,7 +83,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 					WithPeerID(""),
 				},
 			},
-			wantErr: genesis2.ErrNodeIdentifierIsEmpty,
+			wantErr: genesis.ErrNodeIdentifierIsEmpty,
 		},
 	}
 	for _, tt := range tests {
@@ -123,7 +115,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
-func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis2.PartitionNode {
+func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPublicKey crypto.Verifier, systemIdentifier []byte, nodeIdentifier peer.ID) *genesis.PartitionNode {
 	t.Helper()
 	txSystem := &testtxsystem.CounterTxSystem{}
 	encPubKeyBytes, err := nodeEncryptionPublicKey.MarshalPublicKey()

@@ -3,12 +3,9 @@ package genesis
 import (
 	"testing"
 
-	certification2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +19,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		NodeIdentifier                   string
 		SigningPublicKey                 []byte
 		EncryptionPublicKey              []byte
-		BlockCertificationRequestRequest *certification2.BlockCertificationRequest
+		BlockCertificationRequestRequest *certification.BlockCertificationRequest
 	}
 
 	tests := []struct {
@@ -80,7 +77,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 				EncryptionPublicKey:              pubKey,
 				BlockCertificationRequestRequest: nil,
 			},
-			wantErr: certification2.ErrBlockCertificationRequestIsNil,
+			wantErr: certification.ErrBlockCertificationRequestIsNil,
 		},
 	}
 	for _, tt := range tests {
@@ -105,7 +102,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	req := &certification2.BlockCertificationRequest{
+	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeIdentifier,
 		RootRoundNumber:  1,

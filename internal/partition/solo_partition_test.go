@@ -7,20 +7,18 @@ import (
 	"testing"
 	"time"
 
-	blockproposal "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
-	certification2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -201,7 +199,7 @@ func (sn *SingleNodePartition) CreateBlock() error {
 	if len(certificationRequests) != 1 {
 		return errors.New("block certification request not found")
 	}
-	req := certificationRequests[0].Message.(*certification2.BlockCertificationRequest)
+	req := certificationRequests[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.SentMessages[network.ProtocolBlockCertification] = []testnetwork.PeerMessage{}
 	_, err := sn.rootState.HandleBlockCertificationRequest(req)
 	if err != nil {

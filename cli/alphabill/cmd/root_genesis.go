@@ -7,15 +7,11 @@ import (
 	"os"
 	"path"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
 	"github.com/spf13/cobra"
 )
 

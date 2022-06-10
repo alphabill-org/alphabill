@@ -9,15 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
-	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"github.com/stretchr/testify/require"
 )
 

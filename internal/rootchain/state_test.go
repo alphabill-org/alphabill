@@ -5,20 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
 	"github.com/stretchr/testify/require"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 )
 
 var partition1ID = []byte{0, 0, 0, 1}

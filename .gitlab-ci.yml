@@ -29,13 +29,13 @@ build:
   script:
     - make build
 
-gosec:
-  stage: test
-  script:
-    - make gosec
-  artifacts:
-    paths:
-      - gosec_report.json
+#gosec:
+#  stage: test
+#  script:
+#    - make gosec
+#  artifacts:
+#    paths:
+#      - gosec_report.json
 
 sonarqube-check:
   stage: analyze

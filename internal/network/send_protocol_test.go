@@ -1,7 +1,6 @@
 package network
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -86,7 +85,7 @@ func TestSend_ConnectionRefused(t *testing.T) {
 
 	err = peer2Protocol.Send(testtransaction.RandomBillTransfer(), peer1.ID())
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "connection refused"))
+	require.ErrorContains(t, err, "connection refused")
 }
 
 func TestSend_Ok(t *testing.T) {

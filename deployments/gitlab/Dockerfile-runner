@@ -9,7 +9,7 @@ RUN yum install -y make
 
 # Install go (gcc needed for some go libraries)
 RUN yum install -y tar gcc
-RUN curl -SL https://golang.org/dl/go1.18.1.linux-amd64.tar.gz | tar -xzC /usr/local
+RUN curl -SL https://golang.org/dl/go1.18.3.linux-amd64.tar.gz | tar -xzC /usr/local
 ENV PATH=/usr/local/go/bin:$PATH
 
 # Install trivy

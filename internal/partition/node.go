@@ -45,10 +45,7 @@ type (
 
 	// Net provides an interface for sending messages to and receiving messages from other nodes in the network.
 	Net interface {
-		// Send sends the message to receivers.
 		Send(msg network.OutputMessage, receivers []peer.ID) error
-
-		// ReceivedChannel returns a channel to witch Net writes all the received messages.
 		ReceivedChannel() <-chan network.ReceivedMessage
 	}
 

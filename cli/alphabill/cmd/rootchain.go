@@ -18,6 +18,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const defaultSendCertificateTimeout = 300 * time.Millisecond
+
 type rootChainConfig struct {
 	Base *baseConfiguration
 
@@ -84,8 +86,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 		return errors.Wrap(err, "peer creation failed")
 	}
 
-	// TODO configuration parameters?
-	net, err := network.NewLibP2PRootChainNetwork(peer, 100, 300*time.Millisecond)
+	net, err := network.NewLibP2PRootChainNetwork(peer, config.MaxRequests, defaultSendCertificateTimeout)
 	if err != nil {
 		return nil
 	}

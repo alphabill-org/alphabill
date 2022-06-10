@@ -202,8 +202,8 @@ func (w *Wallet) GetMnemonic() (string, error) {
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritzing larger bills.
-func (w *Wallet) Send(pubKey []byte, amount uint64) error {
-	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+func (w *Wallet) Send(receiverPubKey []byte, amount uint64) error {
+	if len(receiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
 	}
 
@@ -242,7 +242,7 @@ func (w *Wallet) Send(pubKey []byte, amount uint64) error {
 		return err
 	}
 
-	txs, err := createTransactions(pubKey, amount, bills, k, timeout)
+	txs, err := createTransactions(receiverPubKey, amount, bills, k, timeout)
 	if err != nil {
 		return err
 	}

@@ -19,33 +19,32 @@ var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
 func createTransactions(pubKey []byte, amount uint64, bills []*bill, k *wallet.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
 	var txs []*txsystem.Transaction
-	var sum uint64
-
+	var accumulatedSum uint64
 	// sort bills by value in descending order
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].Value > bills[j].Value
 	})
-
 	for _, b := range bills {
-		sum += b.Value
-		tx, err := createTransaction(sum, pubKey, k, amount, b, timeout)
+		remainingAmount := amount - accumulatedSum
+		tx, err := createTransaction(pubKey, k, remainingAmount, b, timeout)
 		if err != nil {
 			return nil, err
 		}
 		txs = append(txs, tx)
-		if sum >= amount {
+		accumulatedSum += b.Value
+		if accumulatedSum >= amount {
 			return txs, nil
 		}
 	}
 	return nil, ErrInsufficientBalance
+
 }
 
-func createTransaction(sum uint64, pubKey []byte, k *wallet.AccountKey, amount uint64, b *bill, timeout uint64) (*txsystem.Transaction, error) {
-	if sum > amount {
-		// subtract the amount over target from bill value
-		return createSplitTx(b.Value-(sum-amount), pubKey, k, b, timeout)
+func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *bill, timeout uint64) (*txsystem.Transaction, error) {
+	if b.Value <= amount {
+		return createTransferTx(pubKey, k, b, timeout)
 	}
-	return createTransferTx(pubKey, k, b, timeout)
+	return createSplitTx(amount, pubKey, k, b, timeout)
 }
 
 func createTransferTx(pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {

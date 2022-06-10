@@ -15,7 +15,6 @@ require (
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/holiman/uint256 v1.2.0
-	github.com/ipfs/go-log v1.0.5
 	github.com/libp2p/go-libp2p v0.20.0
 	github.com/libp2p/go-libp2p-core v0.16.1
 	github.com/libp2p/go-libp2p-peerstore v0.6.0

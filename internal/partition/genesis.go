@@ -3,12 +3,13 @@ package partition
 import (
 	gocrypto "crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	genesis2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -34,7 +35,7 @@ type (
 
 func (c *genesisConf) isValid() error {
 	if c.peerID == "" {
-		return genesis.ErrNodeIdentifierIsEmpty
+		return genesis2.ErrNodeIdentifierIsEmpty
 	}
 	if c.signer == nil {
 		return ErrSignerIsNil
@@ -103,7 +104,7 @@ func WithParams(params *anypb.Any) GenesisOption {
 //				)
 //
 // This function must be called by all partition nodes in the network.
-func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) (*genesis.PartitionNode, error) {
+func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) (*genesis2.PartitionNode, error) {
 	if txSystem == nil {
 		return nil, ErrTxSystemIsNil
 	}
@@ -174,7 +175,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	}
 
 	// partition node
-	node := &genesis.PartitionNode{
+	node := &genesis2.PartitionNode{
 		NodeIdentifier:            id,
 		SigningPublicKey:          signingPubKey,
 		EncryptionPublicKey:       c.encryptionPubKeyBytes,

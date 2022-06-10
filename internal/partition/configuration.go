@@ -10,8 +10,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -62,7 +62,7 @@ type (
 		initDefaultEventProcessors  bool
 		rootChainAddress            multiaddr.Multiaddr
 		rootChainID                 peer.ID
-		network                     network.Net
+		network                     Net
 	}
 
 	NodeOption func(c *configuration)
@@ -117,7 +117,7 @@ func WithRootAddressAndIdentifier(address multiaddr.Multiaddr, id peer.ID) NodeO
 	}
 }
 
-func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net network.Net, nodeOptions ...NodeOption) (*configuration, error) {
+func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, genesis *genesis.PartitionGenesis, txs txsystem.TransactionSystem, net Net, nodeOptions ...NodeOption) (*configuration, error) {
 	if peer == nil {
 		return nil, ErrPeerIsNil
 	}

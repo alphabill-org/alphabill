@@ -1,24 +1,15 @@
-package protocol
+package network
 
 import (
 	"context"
 	"testing"
 
-	"github.com/libp2p/go-libp2p-core/peerstore"
-
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-
-	"google.golang.org/protobuf/proto"
-
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
+	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/stretchr/testify/require"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"google.golang.org/protobuf/proto"
 )
 
 const testProtocolID = "/ab/test/0.0.1"
@@ -26,13 +17,13 @@ const testProtocolID = "/ab/test/0.0.1"
 var testTypeFn = func() *txsystem.Transaction { return &txsystem.Transaction{} }
 
 func TestNewReceiverProtocol_Ok(t *testing.T) {
-	sender := testnetwork.CreatePeer(t)
+	sender := createPeer(t)
 	defer sender.Close()
-	receiver := testnetwork.CreatePeer(t)
+	receiver := createPeer(t)
 	defer receiver.Close()
 	sender.Network().Peerstore().AddAddrs(receiver.ID(), receiver.MultiAddresses(), peerstore.PermanentAddrTTL)
 
-	ch := make(chan network.ReceivedMessage, 1)
+	ch := make(chan ReceivedMessage, 1)
 	defer close(ch)
 
 	p, err := NewReceiverProtocol[*txsystem.Transaction](receiver, testProtocolID, ch, testTypeFn)
@@ -58,12 +49,12 @@ func TestNewReceiverProtocol_Ok(t *testing.T) {
 }
 
 func TestNewReceiverProtocol_NotOk(t *testing.T) {
-	ch := make(chan network.ReceivedMessage, 1)
+	ch := make(chan ReceivedMessage, 1)
 	defer close(ch)
 	type args struct {
-		self       *network.Peer
+		self       *Peer
 		protocolID string
-		outCh      chan<- network.ReceivedMessage
+		outCh      chan<- ReceivedMessage
 		typeFunc   TypeFunc[*txsystem.Transaction]
 	}
 
@@ -85,7 +76,7 @@ func TestNewReceiverProtocol_NotOk(t *testing.T) {
 		{
 			name: "protocol ID is empty",
 			args: args{
-				self:       testnetwork.CreatePeer(t),
+				self:       createPeer(t),
 				protocolID: "",
 				outCh:      ch,
 				typeFunc:   testTypeFn,
@@ -95,7 +86,7 @@ func TestNewReceiverProtocol_NotOk(t *testing.T) {
 		{
 			name: "out channel is nil",
 			args: args{
-				self:       testnetwork.CreatePeer(t),
+				self:       createPeer(t),
 				protocolID: testProtocolID,
 				outCh:      nil,
 				typeFunc:   testTypeFn,
@@ -105,7 +96,7 @@ func TestNewReceiverProtocol_NotOk(t *testing.T) {
 		{
 			name: "type function is nil",
 			args: args{
-				self:       testnetwork.CreatePeer(t),
+				self:       createPeer(t),
 				protocolID: testProtocolID,
 				outCh:      ch,
 				typeFunc:   nil,

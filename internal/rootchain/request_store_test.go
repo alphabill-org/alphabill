@@ -3,11 +3,11 @@ package rootchain
 import (
 	"testing"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+
 	"github.com/stretchr/testify/require"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 )
 
 var req1 = &certification.BlockCertificationRequest{

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -29,8 +28,6 @@ const (
 
 var (
 	ErrPeerConfigurationIsNil = errors.New("peer configuration is nil")
-
-	logger = log.CreateForPackage()
 )
 
 type (

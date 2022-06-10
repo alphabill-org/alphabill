@@ -5,9 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
 
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 
@@ -16,8 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 )
 
 var partition1ID = []byte{0, 0, 0, 1}
@@ -334,7 +335,7 @@ func createPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID 
 	}
 
 	for i := 0; i < nrOfValidators; i++ {
-		partitionNodePeer := testnetwork.CreatePeer(t)
+		partitionNodePeer := peer.CreatePeer(t)
 		partition1Signer, verifier := testsig.CreateSignerAndVerifier(t)
 
 		encPubKey, err := partitionNodePeer.PublicKey()

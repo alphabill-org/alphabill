@@ -5,15 +5,14 @@ import (
 	"testing"
 	"time"
 
-	certificates2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certificates"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	testpeer "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
@@ -68,17 +67,17 @@ func TestPartitionReceivesUnicityCertificates(t *testing.T) {
 	blockHash := test.RandomBytes(32)
 	mockNet.Receive(network.ReceivedMessage{
 		From:     partitionNodes[0].peer.ID(),
-		Protocol: certification.ProtocolBlockCertification,
+		Protocol: network.ProtocolBlockCertification,
 		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[0], newHash, blockHash, partitionNodes[0]),
 	})
 
 	mockNet.Receive(network.ReceivedMessage{
 		From:     partitionNodes[1].peer.ID(),
-		Protocol: certification.ProtocolBlockCertification,
+		Protocol: network.ProtocolBlockCertification,
 		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[1], newHash, blockHash, partitionNodes[1]),
 	})
 	require.Eventually(t, func() bool {
-		messages := mockNet.SentMessages[certificates2.ProtocolReceiveUnicityCertificate]
+		messages := mockNet.SentMessages[network.ProtocolUnicityCertificates]
 		if len(messages) > 0 {
 			m := messages[0]
 			uc := m.Message.(*certificates.UnicityCertificate)
@@ -155,7 +154,7 @@ func createPartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.Input
 
 func createNode(t *testing.T) *node {
 	t.Helper()
-	partitionNode := &node{peer: testnetwork.CreatePeer(t)}
+	partitionNode := &node{peer: testpeer.CreatePeer(t)}
 	partitionNode.signingKey, partitionNode.signingPublicKey = testsig.CreateSignerAndVerifier(t)
 	return partitionNode
 }
@@ -164,7 +163,7 @@ func initRootChain(t *testing.T, opts ...Option) (*RootChain, *network.Peer, cry
 	t.Helper()
 	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	peer := testnetwork.CreatePeer(t)
+	peer := testpeer.CreatePeer(t)
 	_, _, partition, _ := createPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootGenesis, _, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner, encPubKey)

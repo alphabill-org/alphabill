@@ -1,28 +1,12 @@
-package protocol
+package network
 
 import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
 	"google.golang.org/protobuf/proto"
 )
 
-const ErrStrTypeFuncIsNil = "type func is nil"
-
-type (
-
-	// ReceiveProtocol is used to receive protobuf messages from other peers in the network.
-	ReceiveProtocol[T proto.Message] struct {
-		*protocol
-		outCh    chan<- network.ReceivedMessage
-		typeFunc TypeFunc[T]
-	}
-
-	// TypeFunc creates a new instance of protobuf message.
-	TypeFunc[T proto.Message] func() T
-)
-
-func NewReceiverProtocol[T proto.Message](self *network.Peer, protocolID string, outCh chan<- network.ReceivedMessage, typeFunc TypeFunc[T]) (*ReceiveProtocol[T], error) {
+func NewReceiverProtocol[T proto.Message](self *Peer, protocolID string, outCh chan<- ReceivedMessage, typeFunc TypeFunc[T]) (*ReceiveProtocol[T], error) {
 	if self == nil {
 		return nil, errors.New(ErrStrPeerIsNil)
 	}
@@ -62,7 +46,7 @@ func (p *ReceiveProtocol[T]) HandleStream(s libp2pNetwork.Stream) {
 		logger.Warning("Failed to read message: %v", err)
 		return
 	}
-	p.outCh <- network.ReceivedMessage{
+	p.outCh <- ReceivedMessage{
 		From:     s.Conn().RemotePeer(),
 		Protocol: p.protocolID,
 		Message:  t,

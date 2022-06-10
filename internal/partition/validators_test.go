@@ -4,10 +4,11 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	blockproposal2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
+	genesis2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	testcertificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/certificates"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
@@ -15,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var systemDescription = &genesis.SystemDescriptionRecord{
+var systemDescription = &genesis2.SystemDescriptionRecord{
 	SystemIdentifier: []byte{0, 0, 0, 0},
 	T2Timeout:        2500,
 }
@@ -23,7 +24,7 @@ var systemDescription = &genesis.SystemDescriptionRecord{
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
+		systemDescription *genesis2.SystemDescriptionRecord
 		trustBase         crypto.Verifier
 		algorithm         gocrypto.Hash
 	}
@@ -39,7 +40,7 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 				trustBase:         v,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: genesis2.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",
@@ -91,7 +92,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *genesis.SystemDescriptionRecord
+		systemDescription *genesis2.SystemDescriptionRecord
 		trustBase         crypto.Verifier
 		algorithm         gocrypto.Hash
 	}
@@ -107,7 +108,7 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 				trustBase:         v,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrSystemDescriptionIsNil,
+			wantErr: genesis2.ErrSystemDescriptionIsNil,
 		},
 		{
 			name: "trust base is nil",
@@ -132,7 +133,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateNotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	v, err := NewDefaultBlockProposalValidator(systemDescription, verifier, gocrypto.SHA256)
 	require.NoError(t, err)
-	require.ErrorIs(t, v.Validate(nil, nil), blockproposal.ErrBlockProposalIsNil)
+	require.ErrorIs(t, v.Validate(nil, nil), blockproposal2.ErrBlockProposalIsNil)
 }
 
 func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
@@ -155,7 +156,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		make([]byte, 32),
 	)
 
-	bp := &blockproposal.BlockProposal{
+	bp := &blockproposal2.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,

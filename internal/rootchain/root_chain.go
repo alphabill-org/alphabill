@@ -8,9 +8,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -25,10 +24,18 @@ const (
 )
 
 type (
+	Net interface {
+		// Send sends the message to receivers.
+		Send(msg network.OutputMessage, receivers []peer.ID) error
+
+		// ReceivedChannel returns a channel to witch Net writes all the received messages.
+		ReceivedChannel() <-chan network.ReceivedMessage
+	}
+
 	RootChain struct {
 		ctx       context.Context
 		ctxCancel context.CancelFunc
-		net       network.Net
+		net       Net
 		peer      *network.Peer // p2p network
 		state     *State        // state of the root chain. keeps everything needed for consensus.
 		timers    *timer.Timers // keeps track of T2 and T3 timers
@@ -62,7 +69,7 @@ func WithUnicityCertificateProtocolTimeout(timeout time.Duration) Option {
 }
 
 // NewRootChain creates a new instance of the root chain.
-func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypto.Signer, net network.Net, opts ...Option) (*RootChain, error) {
+func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypto.Signer, net Net, opts ...Option) (*RootChain, error) {
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
@@ -120,7 +127,7 @@ func (rc *RootChain) loop() {
 			return
 		case m := <-rc.net.ReceivedChannel():
 			switch m.Protocol {
-			case certification.ProtocolBlockCertification:
+			case network.ProtocolBlockCertification:
 				req, correctType := m.Message.(*certification.BlockCertificationRequest)
 				if !correctType {
 					logger.Warning("Type %T not supported", m.Message)
@@ -141,7 +148,7 @@ func (rc *RootChain) loop() {
 					}
 					rc.net.Send(
 						network.OutputMessage{
-							Protocol: certificates.ProtocolReceiveUnicityCertificate,
+							Protocol: network.ProtocolUnicityCertificates,
 							Message:  uc,
 						},
 						[]peer.ID{peerID},
@@ -203,7 +210,7 @@ func (rc *RootChain) sendUC(identifiers []string) {
 
 		err := rc.net.Send(
 			network.OutputMessage{
-				Protocol: certificates.ProtocolReceiveUnicityCertificate,
+				Protocol: network.ProtocolUnicityCertificates,
 				Message:  uc,
 			},
 			ids,

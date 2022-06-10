@@ -5,6 +5,9 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -14,10 +17,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 )
 
 // State holds the State of the root chain.

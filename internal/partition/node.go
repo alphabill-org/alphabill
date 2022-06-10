@@ -7,25 +7,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
-
-	receive_certificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 const (
@@ -167,12 +162,12 @@ func (n *Node) loop() {
 			return
 		case m := <-n.network.ReceivedChannel():
 			switch m.Protocol {
-			case forwarder.ProtocolInputForward:
+			case network.ProtocolInputForward:
 				err := n.handleTxMessage(m)
 				if err != nil {
 					logger.Warning("Invalid transaction: %v", err)
 				}
-			case receive_certificates.ProtocolReceiveUnicityCertificate:
+			case network.ProtocolUnicityCertificates:
 				success, uc := convertType[*certificates.UnicityCertificate](m.Message)
 				if !success {
 					logger.Warning("Invalid unicity certificate type: %T", m.Message)
@@ -182,7 +177,7 @@ func (n *Node) loop() {
 				if err != nil {
 					logger.Warning("Unicity Certificate processing failed: %v", err)
 				}
-			case blockproposal.ProtocolBlockProposal:
+			case network.ProtocolBlockProposal:
 				success, bp := convertType[*blockproposal.BlockProposal](m.Message)
 				if !success {
 					logger.Warning("Invalid block proposal type: %T", m.Message)
@@ -234,7 +229,7 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 	logger.Info("Forwarding tx %X to %v", tx.Hash(crypto2.SHA256), leader)
 	err := n.network.Send(
 		network.OutputMessage{
-			Protocol: forwarder.ProtocolInputForward,
+			Protocol: network.ProtocolInputForward,
 			Message:  tx.ToProtoBuf(),
 		},
 		[]peer.ID{leader},
@@ -470,7 +465,7 @@ func (n *Node) sendBlockProposal() error {
 	}
 
 	return n.network.Send(network.OutputMessage{
-		Protocol: blockproposal.ProtocolBlockProposal,
+		Protocol: network.ProtocolBlockProposal,
 		Message:  prop,
 	}, n.configuration.peer.Validators())
 }
@@ -534,7 +529,7 @@ func (n *Node) sendCertificationRequest() error {
 	util.WriteDebugJsonLog(logger, "Sending block certification request to root chain", req)
 
 	return n.network.Send(network.OutputMessage{
-		Protocol: certification.ProtocolBlockCertification,
+		Protocol: network.ProtocolBlockCertification,
 		Message:  req,
 	}, []peer.ID{n.configuration.rootChainID})
 }

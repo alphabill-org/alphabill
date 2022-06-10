@@ -3,7 +3,7 @@ syntax = "proto3";
 import "certification.proto";
 import "certificates.proto";
 import "google/protobuf/any.proto";
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis/;genesis";
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis/;genesis";
 
 message RootGenesis {
   repeated GenesisPartitionRecord partitions = 1;

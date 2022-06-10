@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"

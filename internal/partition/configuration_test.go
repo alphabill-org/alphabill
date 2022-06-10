@@ -6,11 +6,14 @@ import (
 	"testing"
 	"time"
 
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
+
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
@@ -23,7 +26,7 @@ import (
 var systemID = []byte{1, 0, 0, 1}
 
 func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	type args struct {
 		peer    *network.Peer
@@ -81,7 +84,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 }
 
 func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
@@ -102,7 +105,7 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 }
 
 func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	blockStore := &store.InMemoryBlockStore{}
 	selector := &mockLeaderSelector{}
@@ -134,7 +137,7 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 }
 
 func Test_isGenesisValid_NotOk(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := test.CreatePeer(t)
 	nodeSigner, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
@@ -203,7 +206,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 }
 
 func TestGetPublicKey_Ok(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
@@ -214,7 +217,7 @@ func TestGetPublicKey_Ok(t *testing.T) {
 }
 
 func TestGetPublicKey_NotFound(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
@@ -224,7 +227,7 @@ func TestGetPublicKey_NotFound(t *testing.T) {
 }
 
 func TestGetGenesisBlock(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pg := createPartitionGenesis(t, signer, verifier, nil, p)
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())

@@ -7,28 +7,29 @@ import (
 	"net"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"google.golang.org/protobuf/proto"
 )
 
-// AlphabillNetwork for integration tests
-type AlphabillNetwork struct {
+// AlphabillPartition for integration tests
+type AlphabillPartition struct {
 	RootChain *rootchain.RootChain
 	Nodes     []*partition.Node
 	ctxCancel context.CancelFunc
 	ctx       context.Context
 }
 
-// NewNetwork creates the AlphabillNetwork for integration tests. It starts partition nodes with given
+// NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
 // transaction system and a root chain.
-func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.TransactionSystem, systemIdentifier []byte) (*AlphabillNetwork, error) {
+func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.TransactionSystem, systemIdentifier []byte) (*AlphabillPartition, error) {
 	if partitionNodes < 1 {
 		return nil, errors.New("invalid count of partition Nodes")
 	}
@@ -90,7 +91,11 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	}
 
 	// start root chain
-	root, err := rootchain.NewRootChain(rootPeer, rootGenesis, rootSigner, rootchain.WithT3Timeout(900*time.Millisecond))
+	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond)
+	if err != nil {
+		return nil, err
+	}
+	root, err := rootchain.NewRootChain(rootPeer, rootGenesis, rootSigner, rootNet, rootchain.WithT3Timeout(900*time.Millisecond))
 
 	partitionGenesis := partitionGenesisFiles[0]
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -101,7 +106,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 			return nil, err
 		}
 		peer := nodePeers[i]
-		pn, err := partition.NewPartitionNetwork(peer, partition.DefaultPartitionNetOptions)
+		pn, err := network.NewLibP2PValidatorNetwork(peer, network.DefaultValidatorNetOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +128,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	if err != nil {
 		return nil, err
 	}
-	return &AlphabillNetwork{
+	return &AlphabillPartition{
 		RootChain: root,
 		Nodes:     nodes,
 		ctx:       ctx,
@@ -132,7 +137,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 }
 
 // BroadcastTx sends transactions to all nodes.
-func (a *AlphabillNetwork) BroadcastTx(tx *txsystem.Transaction) error {
+func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
 	for _, n := range a.Nodes {
 		if err := n.SubmitTx(tx); err != nil {
 			return err
@@ -142,11 +147,11 @@ func (a *AlphabillNetwork) BroadcastTx(tx *txsystem.Transaction) error {
 }
 
 // SubmitTx sends transactions to the first node.
-func (a *AlphabillNetwork) SubmitTx(tx *txsystem.Transaction) error {
+func (a *AlphabillPartition) SubmitTx(tx *txsystem.Transaction) error {
 	return a.Nodes[0].SubmitTx(tx)
 }
 
-func (a *AlphabillNetwork) Close() error {
+func (a *AlphabillPartition) Close() error {
 	a.ctxCancel()
 	a.RootChain.Close()
 	for _, node := range a.Nodes {
@@ -241,7 +246,7 @@ func getFreePort() (int, error) {
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
-func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillNetwork) func() bool {
+func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
 	return func() bool {
 		for _, n := range network.Nodes {
 			height := n.GetLatestBlock().GetBlockNumber()

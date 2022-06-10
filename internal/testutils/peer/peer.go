@@ -1,4 +1,4 @@
-package testnetwork
+package peer
 
 import (
 	"fmt"

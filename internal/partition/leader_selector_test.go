@@ -3,7 +3,7 @@ package partition
 import (
 	"testing"
 
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/peer"
 
 	"github.com/stretchr/testify/require"
 )
@@ -15,14 +15,14 @@ func TestNewLeaderSelector_PeerIsNil(t *testing.T) {
 }
 
 func TestNewLeaderSelector_Ok(t *testing.T) {
-	ls, err := NewDefaultLeaderSelector(testnetwork.CreatePeer(t))
+	ls, err := NewDefaultLeaderSelector(peer.CreatePeer(t))
 	require.NoError(t, err)
 	require.NotNil(t, ls)
 	require.Equal(t, UnknownLeader, ls.leader.String())
 }
 
 func TestLeaderSelector_SelfID(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := peer.CreatePeer(t)
 	ls, err := NewDefaultLeaderSelector(p)
 	require.NoError(t, err)
 	require.NotNil(t, ls)
@@ -30,7 +30,7 @@ func TestLeaderSelector_SelfID(t *testing.T) {
 }
 
 func TestLeaderSelector_IsCurrentNodeLeader(t *testing.T) {
-	p := testnetwork.CreatePeer(t)
+	p := peer.CreatePeer(t)
 	ls, err := NewDefaultLeaderSelector(p)
 	require.NoError(t, err)
 	require.NotNil(t, ls)

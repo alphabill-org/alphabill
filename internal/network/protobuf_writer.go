@@ -1,11 +1,10 @@
-package protocol
+package network
 
 import (
 	"encoding/binary"
 	"io"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-
 	"google.golang.org/protobuf/proto"
 )
 

@@ -1,28 +1,41 @@
 package network
 
-/*
-func TestNewNetwork(t *testing.T) {
-	conf := &PeerConfiguration{}
-	conf.Address = "/ip4/127.0.0.1/tcp/0"
-	peer, err := NewPeer(conf)
-	require.NoError(t, err)
+import (
+	"testing"
+	"time"
 
-	pubKey, err := peer.PublicKey()
-	require.NoError(t, err)
+	"github.com/stretchr/testify/require"
+)
 
-	pubKeyBytes, err := pubKey.Raw()
+func TestNewLibP2PNetwork_Ok(t *testing.T) {
+	net, err := NewLibP2PNetwork(createPeer(t), 10)
 	require.NoError(t, err)
+	defer net.Close()
+	require.Equal(t, cap(net.ReceivedChannel()), 10)
+	require.Equal(t, 0, len(net.sendProtocols))
+	require.Equal(t, 0, len(net.receiveProtocols))
+}
 
-	conf.PersistentPeers = []*PeerInfo{{
-		Address:   fmt.Sprintf("%v", peer.MultiAddresses()),
-		PublicKey: pubKeyBytes,
-	}}
+func TestNewLibP2PNetwork_PeerIsNil(t *testing.T) {
+	net, err := NewLibP2PNetwork(nil, 10)
+	require.ErrorContains(t, err, ErrStrPeerIsNil)
+	require.Nil(t, net)
+}
 
-	ctx := context.Background()
-	txForwarder, err := forwarder.New(peer, 2*time.Second, func(tx *txsystem.Transaction) {})
+func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
+	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetOptions)
 	require.NoError(t, err)
-	outProtocols := []OutProtocol{
-		txForwarder,
-	}
-	NewLibP2PNetwork(ctx, peer, nil, outProtocols)
-}*/
+	defer net.Close()
+	require.Equal(t, cap(net.ReceivedChannel()), 1000)
+	require.Equal(t, 3, len(net.sendProtocols))
+	require.Equal(t, 3, len(net.receiveProtocols))
+}
+
+func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
+	net, err := NewLibP2PRootChainNetwork(createPeer(t), 1000, time.Second)
+	require.NoError(t, err)
+	defer net.Close()
+	require.Equal(t, cap(net.ReceivedChannel()), 1000)
+	require.Equal(t, 1, len(net.sendProtocols))
+	require.Equal(t, 1, len(net.receiveProtocols))
+}

@@ -1,22 +1,15 @@
-package protocol
+package network
 
 import (
 	"context"
 	"time"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/proto"
 )
 
-// SendProtocol is used to send protobuf messages to other peers in the network.
-type SendProtocol struct {
-	*protocol
-	timeout time.Duration
-}
-
-func NewSendProtocol(self *network.Peer, protocolID string, timeout time.Duration) (*SendProtocol, error) {
+func NewSendProtocol(self *Peer, protocolID string, timeout time.Duration) (*SendProtocol, error) {
 	if self == nil {
 		return nil, errors.New(ErrStrPeerIsNil)
 	}
@@ -66,7 +59,6 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 				"protocol: %s, receiver peerID: %v, sender peerID: %v", err, p.protocolID, receiverID, p.self.ID())
 		}
 		doneCh <- nil
-
 	}()
 
 	select {
@@ -74,10 +66,11 @@ func (p *SendProtocol) Send(m proto.Message, receiverID peer.ID) error {
 		return errors.Errorf("timeout: protocol: %v, receiver peerID: %v, sender peerID: %v\"",
 			p.protocolID, receiverID, p.self.ID())
 	case err := <-doneCh:
-		logger.Warning("sending message failed: %v, protocol: %s, receiver peerID: %v, sender peerID: %v",
-			err, p.protocolID, receiverID, p.self.ID())
-
-		return err
+		if err != nil {
+			logger.Warning("sending message failed: %v, protocol: %s, receiver peerID: %v, sender peerID: %v",
+				err, p.protocolID, receiverID, p.self.ID())
+			return errors.Wrapf(err, "message sending failed: protocol %s, receiver peer ID: %v", p.protocolID, receiverID)
+		}
+		return nil
 	}
-	return nil
 }

@@ -3,9 +3,10 @@ package rootchain
 import (
 	gocrypto "crypto"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 )
 
 // NewGenesisFromPartitionNodes creates a new genesis for the root chain and partitions.

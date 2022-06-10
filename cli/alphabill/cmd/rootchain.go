@@ -5,11 +5,12 @@ import (
 	"path"
 	"time"
 
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async/future"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
@@ -81,6 +82,12 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	peer, err := createPeer(config, rk.EncryptionPrivateKey)
 	if err != nil {
 		return errors.Wrap(err, "peer creation failed")
+	}
+
+	// TODO configuration parameters?
+	net, err := network.NewLibP2PRootChainNetwork(peer, 100, 300*time.Millisecond)
+	if err != nil {
+		return nil
 	}
 	rc, err := rootchain.NewRootChain(
 		peer,

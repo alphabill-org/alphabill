@@ -7,9 +7,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
@@ -56,7 +54,7 @@ func TestNode_HandleInvalidTxEvent(t *testing.T) {
 	defer pn.Close()
 	message := network.ReceivedMessage{
 		From:     "test-from",
-		Protocol: forwarder.ProtocolInputForward,
+		Protocol: network.ProtocolInputForward,
 		Message:  &anypb.Any{},
 	}
 	err := pn.partition.handleTxMessage(message)
@@ -70,7 +68,7 @@ func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 	defer pn.Close()
 	message := network.ReceivedMessage{
 		From:     "test-from",
-		Protocol: forwarder.ProtocolInputForward,
+		Protocol: network.ProtocolInputForward,
 		Message:  testtransaction.RandomBillTransfer(),
 	}
 	err := pn.partition.handleTxMessage(message)
@@ -318,7 +316,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
 	err = tp.HandleBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})
-	require.ErrorIs(t, err, certification.ErrInvalidSystemIdentifier)
+	require.ErrorContains(t, err, "invalid system identifier")
 }
 
 func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {

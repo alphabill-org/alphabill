@@ -7,21 +7,18 @@ import (
 	"testing"
 	"time"
 
+	blockproposal "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
+	certification2 "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
-
-	receive_certificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certificates"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/certification"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/forwarder"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
@@ -121,7 +118,7 @@ func (sn *SingleNodePartition) Close() {
 func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
-		Protocol: forwarder.ProtocolInputForward,
+		Protocol: network.ProtocolInputForward,
 		Message:  tx,
 	})
 	return nil
@@ -138,7 +135,7 @@ func (sn *SingleNodePartition) HandleBlockProposal(prop *blockproposal.BlockProp
 func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
-		Protocol: blockproposal.ProtocolBlockProposal,
+		Protocol: network.ProtocolBlockProposal,
 		Message:  prop,
 	})
 	return nil
@@ -200,12 +197,12 @@ func (sn *SingleNodePartition) GetLatestBlock() *block.Block {
 func (sn *SingleNodePartition) CreateBlock() error {
 	sn.partition.handleT1TimeoutEvent()
 
-	certificationRequests := sn.mockNet.SentMessages[certification.ProtocolBlockCertification]
+	certificationRequests := sn.mockNet.SentMessages[network.ProtocolBlockCertification]
 	if len(certificationRequests) != 1 {
 		return errors.New("block certification request not found")
 	}
-	req := certificationRequests[0].Message.(*certification.BlockCertificationRequest)
-	sn.mockNet.SentMessages[certification.ProtocolBlockCertification] = []testnetwork.PeerMessage{}
+	req := certificationRequests[0].Message.(*certification2.BlockCertificationRequest)
+	sn.mockNet.SentMessages[network.ProtocolBlockCertification] = []testnetwork.PeerMessage{}
 	_, err := sn.rootState.HandleBlockCertificationRequest(req)
 	if err != nil {
 		return err
@@ -220,7 +217,7 @@ func (sn *SingleNodePartition) CreateBlock() error {
 	uc := sn.rootState.GetLatestUnicityCertificate(systemIds[0])
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
-		Protocol: receive_certificates.ProtocolReceiveUnicityCertificate,
+		Protocol: network.ProtocolUnicityCertificates,
 		Message:  uc,
 	})
 	return nil
@@ -313,7 +310,7 @@ func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
 
 func CertificationRequestReceived(tp *SingleNodePartition) func() bool {
 	return func() bool {
-		messages := tp.mockNet.SentMessages[certification.ProtocolBlockCertification]
+		messages := tp.mockNet.SentMessages[network.ProtocolBlockCertification]
 		return len(messages) > 0
 	}
 }

@@ -1,22 +1,21 @@
-package protocol
+package network
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestNewSendProtocol_NotOk(t *testing.T) {
 	type args struct {
-		self       *network.Peer
+		self       *Peer
 		protocolID string
 		timeout    time.Duration
 	}
@@ -37,7 +36,7 @@ func TestNewSendProtocol_NotOk(t *testing.T) {
 		{
 			name: "protocol ID is empty",
 			args: args{
-				self:       testnetwork.CreatePeer(t),
+				self:       createPeer(t),
 				protocolID: "",
 				timeout:    time.Second,
 			},
@@ -54,9 +53,9 @@ func TestNewSendProtocol_NotOk(t *testing.T) {
 }
 
 func TestSend_UnknownPeer(t *testing.T) {
-	peer1 := testnetwork.CreatePeer(t)
+	peer1 := createPeer(t)
 	defer peer1.Close()
-	peer2 := testnetwork.CreatePeer(t)
+	peer2 := createPeer(t)
 	defer peer2.Close()
 
 	peer2Protocol, err := NewSendProtocol(peer2, testProtocolID, time.Second)
@@ -69,11 +68,11 @@ func TestSend_UnknownPeer(t *testing.T) {
 
 func TestSend_ConnectionRefused(t *testing.T) {
 	// init peer1
-	peer1 := testnetwork.CreatePeer(t)
+	peer1 := createPeer(t)
 	defer peer1.Close()
 
 	// init peer1
-	peer2 := testnetwork.CreatePeer(t)
+	peer2 := createPeer(t)
 	defer peer2.Close()
 
 	// init peerstores
@@ -90,13 +89,13 @@ func TestSend_ConnectionRefused(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "connection refused"))
 }
 
-func TestSend_Timeout(t *testing.T) {
+func TestSend_Ok(t *testing.T) {
 	// init peer1
-	peer1 := testnetwork.CreatePeer(t)
+	peer1 := createPeer(t)
 	defer peer1.Close()
 
 	// init peer2
-	peer2 := testnetwork.CreatePeer(t)
+	peer2 := createPeer(t)
 	defer peer2.Close()
 
 	// init peerstores
@@ -107,18 +106,24 @@ func TestSend_Timeout(t *testing.T) {
 	p, err := NewSendProtocol(peer2, testProtocolID, 40*time.Millisecond)
 	require.NoError(t, err)
 
-	ch := make(chan network.ReceivedMessage, 1)
+	ch := make(chan ReceivedMessage)
 	defer close(ch)
 
 	// init receive protocol
 	receive, err := NewReceiverProtocol[*txsystem.Transaction](peer1, testProtocolID, ch, func() *txsystem.Transaction {
-		time.Sleep(100 * time.Millisecond)
 		return &txsystem.Transaction{}
 	})
 	require.NoError(t, err)
 	defer receive.Close()
 
 	// peer2 forwards tx to peer1
-	err = p.Send(testtransaction.RandomBillTransfer(), peer1.ID())
-	require.ErrorContains(t, err, fmt.Sprintf("timeout: protocol: %s", testProtocolID))
+	transfer := testtransaction.RandomBillTransfer()
+	err = p.Send(transfer, peer1.ID())
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		m := <-ch
+		require.Equal(t, testProtocolID, m.Protocol)
+		require.True(t, proto.Equal(transfer, m.Message))
+		return true
+	}, test.WaitDuration, test.WaitTick)
 }

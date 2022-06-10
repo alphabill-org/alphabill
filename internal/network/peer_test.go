@@ -114,7 +114,7 @@ func createPeers(t *testing.T, nrOfPeers int) []*Peer {
 }
 
 func createPeer(t *testing.T) *Peer {
-	p, err := NewPeer(&PeerConfiguration{})
+	p, err := NewPeer(&PeerConfiguration{Address: "/ip4/127.0.0.1/tcp/0"})
 	require.NoError(t, err)
 	return p
 }

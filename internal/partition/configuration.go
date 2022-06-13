@@ -25,7 +25,6 @@ const (
 )
 
 var (
-	ErrEventBusIsNil       = errors.New("event bus is nil")
 	ErrTxSystemIsNil       = errors.New("transaction system is nil")
 	ErrPeerIsNil           = errors.New("peer is nil")
 	ErrGenesisIsNil        = errors.New("genesis is nil")
@@ -34,13 +33,6 @@ var (
 )
 
 type (
-
-	// EventProcessor handles partition noe events.
-	EventProcessor interface {
-		Run()
-		Close()
-	}
-
 	configuration struct {
 		context                     context.Context
 		txValidator                 TxValidator

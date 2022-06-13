@@ -31,6 +31,7 @@ build:
 
 gosec:
   stage: test
+  # remove the following line after issue https://github.com/golang/go/issues/51629 is released
   when: manual
   script:
     - make gosec
@@ -40,6 +41,7 @@ gosec:
 
 sonarqube-check:
   stage: analyze
+  # remove the following line after issue https://github.com/golang/go/issues/51629 is released
   when: manual
   image:
     name: sonarsource/sonar-scanner-cli:latest

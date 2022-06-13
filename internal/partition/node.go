@@ -68,10 +68,9 @@ type (
 		ctx                         context.Context
 		ctxCancel                   context.CancelFunc
 		network                     Net
-
-		txCtx       context.Context
-		txCancel    context.CancelFunc
-		txWaitGroup *sync.WaitGroup
+		txCtx                       context.Context
+		txCancel                    context.CancelFunc
+		txWaitGroup                 *sync.WaitGroup
 	}
 
 	status int
@@ -217,7 +216,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
-	leader := n.leaderSelector.GetLeader()
+	leader := n.leaderSelector.GetLeaderID()
 	if leader == n.leaderSelector.SelfID() {
 		n.process(tx)
 		return true
@@ -562,7 +561,7 @@ func (n *Node) stopForwardingOrHandlingTransactions() {
 
 func (n *Node) startHandleOrForwardTransactions() {
 	n.stopForwardingOrHandlingTransactions()
-	leader := n.leaderSelector.GetLeader()
+	leader := n.leaderSelector.GetLeaderID()
 	if leader == UnknownLeader {
 		return
 	}

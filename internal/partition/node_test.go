@@ -17,13 +17,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-var (
-	certificateValidator = &AlwaysValidCertificateValidator{}
-	txValidator          = &AlwaysValidTransactionValidator{}
-
-	testSystemIdentifier = []byte{1, 2, 3, 4}
-)
-
 type AlwaysValidCertificateValidator struct{}
 
 type convertTxFailsTxSystem struct {

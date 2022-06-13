@@ -247,7 +247,7 @@ func (m mockLeaderSelector) IsCurrentNodeLeader() bool {
 	return true
 }
 
-func (m mockLeaderSelector) GetLeader() peer.ID {
+func (m mockLeaderSelector) GetLeaderID() peer.ID {
 	return ""
 }
 

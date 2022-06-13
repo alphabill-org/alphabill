@@ -93,11 +93,8 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 		peer,
 		rootGenesis,
 		rk.SigningPrivateKey,
-
 		net,
-
 		rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
-		rootchain.WithRequestChCapacity(config.MaxRequests),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)

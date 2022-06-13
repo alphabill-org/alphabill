@@ -126,6 +126,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	}
 
 	if err != nil {
+		ctxCancel()
 		return nil, err
 	}
 	return &AlphabillPartition{

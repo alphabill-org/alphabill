@@ -103,8 +103,8 @@ func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 
 	// validator identifiers
 	peers := conf.PersistentPeers
-	for _, peer := range peers {
-		valID, err := peer.GetID()
+	for _, pi := range peers {
+		valID, err := pi.GetID()
 		if err != nil {
 			return nil, err
 		}

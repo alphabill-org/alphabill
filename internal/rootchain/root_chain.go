@@ -15,12 +15,9 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-const t3TimerID = "t3timer"
-
 const (
-	defaultT3Timeout                         = 900 * time.Millisecond
-	defaultRequestChCapacity                 = 1000
-	defaultUnicityCertificateProtocolTimeout = 500 * time.Millisecond
+	defaultT3Timeout = 900 * time.Millisecond
+	t3TimerID        = "t3timer"
 )
 
 type (
@@ -40,9 +37,7 @@ type (
 	}
 
 	rootChainConf struct {
-		t3Timeout                         time.Duration
-		unicityCertificateProtocolTimeout time.Duration
-		requestChCapacity                 uint
+		t3Timeout time.Duration
 	}
 
 	Option func(c *rootChainConf)
@@ -51,18 +46,6 @@ type (
 func WithT3Timeout(timeout time.Duration) Option {
 	return func(c *rootChainConf) {
 		c.t3Timeout = timeout
-	}
-}
-
-func WithRequestChCapacity(capacity uint) Option {
-	return func(c *rootChainConf) {
-		c.requestChCapacity = capacity
-	}
-}
-
-func WithUnicityCertificateProtocolTimeout(timeout time.Duration) Option {
-	return func(c *rootChainConf) {
-		c.unicityCertificateProtocolTimeout = timeout
 	}
 }
 
@@ -144,13 +127,16 @@ func (rc *RootChain) loop() {
 						logger.Warning("Invalid node identifier: '%s'", req.NodeIdentifier)
 						continue
 					}
-					rc.net.Send(
+					err = rc.net.Send(
 						network.OutputMessage{
 							Protocol: network.ProtocolUnicityCertificates,
 							Message:  uc,
 						},
 						[]peer.ID{peerID},
 					)
+					if err != nil {
+						logger.Warning("Failed to send unicity certificate: %v", err)
+					}
 				}
 			default:
 				logger.Warning("Protocol %s not supported.", m.Protocol)
@@ -221,9 +207,7 @@ func (rc *RootChain) sendUC(identifiers []string) {
 
 func loadConf(opts []Option) *rootChainConf {
 	conf := &rootChainConf{
-		t3Timeout:                         defaultT3Timeout,
-		requestChCapacity:                 defaultRequestChCapacity,
-		unicityCertificateProtocolTimeout: defaultUnicityCertificateProtocolTimeout,
+		t3Timeout: defaultT3Timeout,
 	}
 	for _, opt := range opts {
 		if opt == nil {

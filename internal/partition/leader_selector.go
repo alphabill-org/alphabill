@@ -15,7 +15,7 @@ type (
 		UpdateLeader(seal *certificates.UnicitySeal)
 		LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID
 		IsCurrentNodeLeader() bool
-		GetLeader() peer.ID
+		GetLeaderID() peer.ID
 		SelfID() peer.ID
 	}
 
@@ -46,7 +46,7 @@ func (l *DefaultLeaderSelector) IsCurrentNodeLeader() bool {
 	return l.leader == l.self.ID()
 }
 
-func (l *DefaultLeaderSelector) GetLeader() peer.ID {
+func (l *DefaultLeaderSelector) GetLeaderID() peer.ID {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	return l.leader

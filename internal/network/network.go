@@ -138,7 +138,7 @@ func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout
 
 func (n *LibP2PNetwork) Close() {
 	close(n.ReceivedMsgCh)
-	for s, _ := range n.receiveProtocols {
+	for s := range n.receiveProtocols {
 		n.self.RemoveProtocolHandler(s)
 	}
 }

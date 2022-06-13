@@ -244,7 +244,7 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	return
 }
 
-func (l *TestLeaderSelector) GetLeader() peer.ID {
+func (l *TestLeaderSelector) GetLeaderID() peer.ID {
 	return l.leader
 }
 

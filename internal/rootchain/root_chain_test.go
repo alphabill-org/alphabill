@@ -42,7 +42,7 @@ func TestNewRootChain_Ok(t *testing.T) {
 
 func TestNewRootChain_LoadUsingOptions(t *testing.T) {
 	duration := 2000 * time.Second
-	rc, peer, signer := initRootChain(t, WithRequestChCapacity(10), WithT3Timeout(duration))
+	rc, peer, signer := initRootChain(t, WithT3Timeout(duration))
 	defer rc.Close()
 	require.NotNil(t, signer)
 	require.NotNil(t, rc)

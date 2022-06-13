@@ -412,12 +412,12 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) {
 	defer trackExecutionTime(time.Now(), "Block finalization")
-	logger.Info("Finalizing block. TxCount: %v", len(transactions))
-	height := n.blockStore.LatestBlock().BlockNumber
 	latestBlock := n.blockStore.LatestBlock()
+	newHeight := latestBlock.BlockNumber + 1
+	logger.Info("Finalizing block #%v. TxCount: %v", newHeight, len(transactions))
 	b := &block.Block{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
-		BlockNumber:        height + 1,
+		BlockNumber:        newHeight,
 		PreviousBlockHash:  latestBlock.Hash(n.configuration.hashAlgorithm),
 		Transactions:       toProtoBuf(transactions),
 		UnicityCertificate: uc,

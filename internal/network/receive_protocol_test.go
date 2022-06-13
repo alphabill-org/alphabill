@@ -18,9 +18,9 @@ var testTypeFn = func() *txsystem.Transaction { return &txsystem.Transaction{} }
 
 func TestNewReceiverProtocol_Ok(t *testing.T) {
 	sender := createPeer(t)
-	defer sender.Close()
+	defer func() { require.NoError(t, sender.Close()) }()
 	receiver := createPeer(t)
-	defer receiver.Close()
+	defer func() { require.NoError(t, receiver.Close()) }()
 	sender.Network().Peerstore().AddAddrs(receiver.ID(), receiver.MultiAddresses(), peerstore.PermanentAddrTTL)
 
 	ch := make(chan ReceivedMessage, 1)
@@ -32,8 +32,7 @@ func TestNewReceiverProtocol_Ok(t *testing.T) {
 
 	s, err := sender.CreateStream(context.Background(), receiver.ID(), testProtocolID)
 	require.NoError(t, err)
-
-	defer s.Close()
+	defer func() { require.NoError(t, s.Close()) }()
 
 	w := NewProtoBufWriter(s)
 	tx := testtransaction.RandomBillTransfer()
@@ -45,7 +44,6 @@ func TestNewReceiverProtocol_Ok(t *testing.T) {
 		require.True(t, proto.Equal(tx, m.Message))
 		return true
 	}, test.WaitDuration, test.WaitTick)
-
 }
 
 func TestNewReceiverProtocol_NotOk(t *testing.T) {

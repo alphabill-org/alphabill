@@ -46,7 +46,7 @@ func TestGetCertificate_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cert)
 	require.Equal(t, key, cert.SystemIdentifier)
-	require.Equal(t, systemIdentifierLength*8-1, len(cert.SiblingHashes))
+	require.Equal(t, systemIdentifierLength*8, len(cert.SiblingHashes))
 
 	hasher := crypto.SHA256.New()
 	data[0].AddToHasher(hasher)

@@ -23,7 +23,7 @@ func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash
 		return errors.Errorf("invalid system description hash: expected %X, got %X", systemDescriptionHash, x.SystemDescriptionHash)
 	}
 
-	siblingHashesLength := len(systemIdentifier)*8 - 1 // bits in system identifier; sibling hashes does not contain leaf hash.
+	siblingHashesLength := len(systemIdentifier) * 8 // bits in system identifier
 	if c := len(x.SiblingHashes); c != siblingHashesLength {
 		return errors.Errorf("invalid count of sibling hashes: expected %v, got %v", siblingHashesLength, c)
 	}

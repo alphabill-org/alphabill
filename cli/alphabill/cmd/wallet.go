@@ -180,6 +180,7 @@ func execSendCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	defer w.Shutdown()
 	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
 		return err

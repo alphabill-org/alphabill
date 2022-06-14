@@ -14,7 +14,7 @@ var uct = &UnicityTreeCertificate{
 		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash,
 		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash,
 		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash,
-		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash},
+		zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash, zeroHash},
 	SystemDescriptionHash: zeroHash,
 }
 

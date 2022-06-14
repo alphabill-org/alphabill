@@ -58,12 +58,10 @@ func (s *SMT) GetAuthPath(key []byte) ([][]byte, Data, error) {
 	if len(key) != s.keyLength {
 		return nil, nil, ErrInvalidKeyLength
 	}
-	treeHeight := s.keyLength * 8
-	proofLength := treeHeight - 1
+	proofLength := s.keyLength * 8
 	result := make([][]byte, proofLength)
 	node := s.root
-	// skips leaf
-	for i := 0; i < treeHeight-1; i++ {
+	for i := 0; i < proofLength; i++ {
 		if node == nil {
 			result[proofLength-i-1] = s.zeroHash
 			continue
@@ -96,7 +94,7 @@ func CalculatePathRoot(path [][]byte, leafHash []byte, key []byte, hashAlgorithm
 	if key == nil {
 		return nil, ErrInvalidKeyLength
 	}
-	if len(path) != len(key)*8-1 {
+	if len(path) != len(key)*8 {
 		return nil, errors.Errorf("invalid path/key combination: path length=%v, key length=%v", len(path), len(key))
 	}
 	if len(leafHash) != hashAlgorithm.Size() {
@@ -164,7 +162,7 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 		p.hash = zeroHash
 		return p, nil
 	}
-	if position == maxPositionSize-1 {
+	if position == maxPositionSize {
 		// leaf
 		d := data[0]
 		d.AddToHasher(hasher)

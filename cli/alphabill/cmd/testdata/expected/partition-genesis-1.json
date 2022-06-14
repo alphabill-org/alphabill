@@ -43,6 +43,7 @@
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
       ],
       "system_description_hash": "7ZSAu8ahWCpF6gGd0zsIa7hd0uGE1nb7l4dnFzCvCGI="
@@ -50,8 +51,8 @@
     "unicity_seal": {
       "root_chain_round_number": 1,
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      "hash": "CByocPfTj1MlRBhdNn/StWQsGqVguCtQE4QULlcdiFI=",
-      "signature": "h3biiy0JHO1gAx80nrQOeaVE+6KnFXBti1XZ1zErI/QqoO6/84ObWS/1Ul9VxyEvKNO85NgU/7Di89Y1ekjawQA="
+      "hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA=",
+      "signature": "k4fL/IUVBwM0s1ee0Ab5q8N6Beiq3ryDs9f8dBEjLKxwn8tFSienUlFtJWSisxYm72YWRrgop4sRp5c7RHI1XwE="
     }
   },
   "trust_base": "AnJdIK9EqWwNh0SDxe5q9QxLjoi3lWVNWsizhywCppBA",

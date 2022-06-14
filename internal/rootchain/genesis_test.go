@@ -1,6 +1,7 @@
 package rootchain
 
 import (
+	gocrypto "crypto"
 	"strings"
 	"testing"
 
@@ -84,7 +85,32 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	require.Equal(t, 1, len(pgs))
 }
 
-func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *genesis.PartitionRecord {
+func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
+	systemIdentifier1 := []byte{0, 0, 0, 0}
+	systemIdentifier2 := []byte{0, 0, 0, 1}
+	systemIdentifier3 := []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	partitionSigner, _ := testsig.CreateSignerAndVerifier(t)
+	partitionSigner2, _ := testsig.CreateSignerAndVerifier(t)
+	partitionSigner3, _ := testsig.CreateSignerAndVerifier(t)
+
+	pn1 := createPartitionNode(t, systemIdentifier1, "1", partitionSigner)
+	pn2 := createPartitionNode(t, systemIdentifier2, "2", partitionSigner2)
+	pn3 := createPartitionNode(t, systemIdentifier3, "3", partitionSigner3)
+	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	rootChainVerifier, err := rootChainSigner.Verifier()
+	require.NoError(t, err)
+	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2, pn3}, rootChainSigner, rootChainVerifier)
+	require.NoError(t, err)
+	require.NotNil(t, rg)
+	require.Equal(t, 1, len(rg.Partitions[0].Nodes))
+	require.Equal(t, 3, len(pgs))
+	for _, pg := range pgs {
+		require.NoError(t, pg.IsValid(rootChainVerifier, gocrypto.SHA256))
+	}
+}
+
+func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
@@ -103,7 +129,7 @@ func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, parti
 	}
 }
 
-func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
@@ -117,7 +143,7 @@ func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, p
 	}
 }
 
-func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *certification.BlockCertificationRequest {
+func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeID,

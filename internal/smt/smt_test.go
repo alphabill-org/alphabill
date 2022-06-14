@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"hash"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,7 +47,7 @@ func TestNewSMTWithData(t *testing.T) {
 	valueHash := hasher.Sum(nil)
 	zeroHash := make([]byte, hasher.Size())
 	hasher.Reset()
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 8; i++ {
 		hasher.Write(zeroHash)
 		hasher.Write(valueHash)
 		valueHash = hasher.Sum(nil)
@@ -63,22 +62,51 @@ func TestNewSMTWithData(t *testing.T) {
 	require.Equal(t, valueHash, smt.root.hash)
 }
 
+func TestBuildSMTAndGetAllAuthPaths(t *testing.T) {
+	var values []Data
+	for i := uint8(0); i < 255; i++ {
+		values = append(values, &TestData{[]byte{i}})
+	}
+	values = append(values, &TestData{[]byte{0xFF}})
+	smt, err := New(sha256.New(), 1, values)
+	require.NoError(t, err)
+	smtRoot := smt.GetRootHash()
+	hasher := sha256.New()
+	for _, v := range values {
+		path, data, err := smt.GetAuthPath(v.Key())
+		require.NoError(t, err)
+		require.Equal(t, v, data)
+		require.NotNil(t, path)
+		v.AddToHasher(hasher)
+		leaf := hasher.Sum(nil)
+		hasher.Reset()
+		pathRoot, err := CalculatePathRoot(path, leaf, v.Key(), crypto.SHA256)
+		require.Equal(t, smtRoot, pathRoot)
+	}
+}
+
 func TestGetAuthPath(t *testing.T) {
-	key := []byte{0x45, 0x32, 0x45, 0x32}
-	key2 := []byte{0x00, 0xA2, 0x45, 0x32}
+	key := []byte{0x00, 0x00, 0x00, 0x00}
+	key2 := []byte{0x00, 0x00, 0x00, 0x01}
 	values := []Data{&TestData{value: key}, &TestData{value: key2}}
 	smt, err := New(sha256.New(), 4, values)
 	require.NoError(t, err)
+
+	// key 1
 	path, data, err := smt.GetAuthPath(key)
 	require.NoError(t, err)
 	require.NotNil(t, data)
 	require.NotNil(t, path)
-	require.Equal(t, len(key)*8-1, len(path))
-	hasher := sha256.New()
-	data.AddToHasher(hasher)
-	leaf := hasher.Sum(nil)
-	smt.GetAuthPath([]byte{0, 0, 0, 1})
-	root, err := CalculatePathRoot(path, leaf, key, crypto.SHA256)
+	require.Equal(t, len(key)*8, len(path))
+	require.Equal(t, values[0], data)
+	root, err := CalculatePathRoot(path, dataHash(values[0]), key, crypto.SHA256)
+	require.NoError(t, err)
+	require.Equal(t, smt.root.hash, root)
+
+	// key2
+	path, data, err = smt.GetAuthPath(key2)
+	require.NoError(t, err)
+	root, err = CalculatePathRoot(path, dataHash(data), key2, crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, smt.root.hash, root)
 }
@@ -92,16 +120,16 @@ func TestPrettyPrint(t *testing.T) {
 }
 
 func TestCalculateRoot_InvalidPathKeyCombination(t *testing.T) {
-	_, err := CalculatePathRoot(nil, nil, []byte{}, crypto.SHA256)
+	_, err := CalculatePathRoot(nil, nil, []byte{0x00}, crypto.SHA256)
 	require.NotNil(t, err)
-	require.True(t, strings.Contains(err.Error(), "invalid path/key combination"))
+	require.ErrorContains(t, err, "invalid path/key combination")
 }
 
 func TestCalculateRoot_InvalidLeafHash(t *testing.T) {
 	_, err := CalculatePathRoot([][]byte{
-		{0}, {0}, {0}, {0}, {0}, {0}, {0},
+		{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0},
 	}, []byte{}, []byte{0}, crypto.SHA256)
-	require.True(t, strings.Contains(err.Error(), "invalid leaf hash length"))
+	require.ErrorContains(t, err, "invalid leaf hash length")
 }
 
 func TestCalculateRoot_KeyIsNil(t *testing.T) {
@@ -118,4 +146,10 @@ func TestGetAuthPath_DataNotPresent(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, data)
 	require.NotNil(t, path)
+}
+
+func dataHash(d Data) []byte {
+	hasher := sha256.New()
+	d.AddToHasher(hasher)
+	return hasher.Sum(nil)
 }

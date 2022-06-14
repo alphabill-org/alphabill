@@ -3,9 +3,9 @@ package rootchain
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"github.com/stretchr/testify/require"
 )
 
 var id1 = []byte{0, 0, 0, 1}

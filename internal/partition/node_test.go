@@ -2,39 +2,35 @@ package partition
 
 import (
 	gocrypto "crypto"
-	"fmt"
-	"strings"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-)
-
-var (
-	certificateValidator = &AlwaysValidCertificateValidator{}
-	txValidator          = &AlwaysValidTransactionValidator{}
-
-	testSystemIdentifier = []byte{1, 2, 3, 4}
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type AlwaysValidCertificateValidator struct{}
 
+type convertTxFailsTxSystem struct {
+	testtxsystem.CounterTxSystem
+}
+
+func (c *convertTxFailsTxSystem) ConvertTx(*txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return nil, errors.New("invalid tx")
+}
+
 func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
-	p, _ := createNodeWithTxSystem(t, testSystemIdentifier, s)
+	p := NewSingleNodePartition(t, s)
+	defer p.Close()
 	ucr := &certificates.UnicityCertificate{
 		UnicitySeal: &certificates.UnicitySeal{
 			RootChainRoundNumber: 0,
@@ -42,84 +38,40 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 			Hash:                 nil,
 		},
 	}
-	p.startNewRound(ucr)
+	p.partition.startNewRound(ucr)
 	require.Equal(t, uint64(2), s.BeginBlockCountDelta)
 }
 
-func TestNew_StartsMainLoop(t *testing.T) {
-	_, eventBus := createNodeWithTxSystem(t, testSystemIdentifier, &testtxsystem.CounterTxSystem{})
-
-	proposal, err := eventBus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
-	require.NoError(t, err)
-
-	p1, err := eventBus.Subscribe(eventbus.TopicP1, 10)
-	require.NoError(t, err)
-
-	eventBus.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: testtransaction.RandomBillTransfer()})
-
-	require.Eventually(t, func() bool { <-proposal; return true }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { <-p1; return true }, test.WaitDuration, test.WaitTick)
-}
-
 func TestNode_HandleInvalidTxEvent(t *testing.T) {
-	system := &testtxsystem.CounterTxSystem{}
-	p, eventBus := createNodeWithTxSystem(t, testSystemIdentifier, system)
-	proposal, err := eventBus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
-	require.NoError(t, err)
-
-	p1, err := eventBus.Subscribe(eventbus.TopicP1, 10)
-
-	require.NoError(t, err)
-	require.NoError(t, eventBus.Submit(eventbus.TopicPartitionTransaction, "invalid tx"))
-
-	require.Eventually(t, func() bool { <-proposal; return true }, test.WaitDuration, test.WaitTick)
-	require.Eventually(t, func() bool { <-p1; return true }, test.WaitDuration, test.WaitTick)
-	require.Equal(t, 0, len(p.proposal))
-	require.Equal(t, 0, len(p.pr.Transactions))
+	pn := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer pn.Close()
+	message := network.ReceivedMessage{
+		From:     "test-from",
+		Protocol: network.ProtocolInputForward,
+		Message:  &anypb.Any{},
+	}
+	err := pn.partition.handleTxMessage(message)
+	require.ErrorContains(t, err, "unsupported type")
+	require.Equal(t, 0, len(pn.partition.proposal))
 }
 
-func TestNode_HandleUnicityCertificateRecordEvent(t *testing.T) {
-	system := &testtxsystem.CounterTxSystem{}
-	p, eventBus := createNodeWithTxSystem(t, testSystemIdentifier, system)
-	proposal, err := eventBus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
-	require.NoError(t, err)
-
-	p1, err := eventBus.Subscribe(eventbus.TopicP1, 10)
-	require.NoError(t, err)
-
-	err = eventBus.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: testtransaction.RandomBillTransfer()})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool { <-proposal; return true }, test.WaitDuration, test.WaitTick)
-	var p1Event eventbus.BlockCertificationEvent
-	require.Eventually(t, func() bool { e := <-p1; p1Event = e.(eventbus.BlockCertificationEvent); return true }, test.WaitDuration, test.WaitTick)
-	err = eventBus.Submit(eventbus.TopicPartitionUnicityCertificate, eventbus.UnicityCertificateEvent{
-		Certificate: &certificates.UnicityCertificate{
-			InputRecord: p1Event.Req.InputRecord,
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
-				SystemIdentifier: []byte{0, 0, 0, 1},
-			},
-			UnicitySeal: &certificates.UnicitySeal{
-				RootChainRoundNumber: 2,
-				PreviousHash:         nil,
-				Hash:                 nil,
-			},
-		}},
-	)
-
-	require.NoError(t, err)
-	require.Eventually(t, func() bool { <-p1; return true }, test.WaitDuration, test.WaitTick)
-	height, err := p.blockStore.Height()
-	require.NoError(t, err)
-	require.Equal(t, uint64(2), height)
-
-	latestBlock := p.blockStore.LatestBlock()
-	require.Equal(t, uint64(2), latestBlock.BlockNumber)
-	require.Equal(t, 1, len(latestBlock.Transactions))
+func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
+	system := &convertTxFailsTxSystem{}
+	pn := NewSingleNodePartition(t, system)
+	defer pn.Close()
+	message := network.ReceivedMessage{
+		From:     "test-from",
+		Protocol: network.ProtocolInputForward,
+		Message:  testtransaction.RandomBillTransfer(),
+	}
+	err := pn.partition.handleTxMessage(message)
+	require.ErrorContains(t, err, "invalid tx")
+	require.Equal(t, 0, len(pn.partition.proposal))
 }
 
 func TestNode_CreateBlocks(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	transfer := testtransaction.RandomBillTransfer()
 
 	block1 := tp.GetLatestBlock()
@@ -127,6 +79,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.Eventually(t, ProposalContains(tp, transfer), test.WaitDuration, test.WaitTick)
 
 	require.NoError(t, tp.CreateBlock())
+
 	require.Eventually(t, NextBlockReceived(tp, block1), test.WaitDuration, test.WaitTick)
 
 	block2 := tp.GetLatestBlock()
@@ -149,13 +102,15 @@ func TestNode_CreateBlocks(t *testing.T) {
 
 func TestNode_HandleNilUnicityCertificate(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	err := tp.SubmitUnicityCertificate(nil)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "invalid unicity certificate: unicity certificate is nil"))
+	require.ErrorContains(t, err, "invalid unicity certificate: unicity certificate is nil")
 }
 
 func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	transfer := testtransaction.RandomBillTransfer()
 
@@ -165,12 +120,13 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 
 	err := tp.SubmitUnicityCertificate(block.UnicityCertificate)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "received UC is older than LUC. uc round 1, luc round 2"))
+	require.ErrorContains(t, err, "received UC is older than LUC. uc round 1, luc round 2")
 }
 
 func TestNode_CreateEmptyBlock(t *testing.T) {
 	txSystem := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, txSystem)
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	txSystem.EndBlockCount-- // revert the state of the tx system
 	require.NoError(t, tp.CreateBlock())
@@ -195,6 +151,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	require.NoError(t, tp.CreateBlock())
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
@@ -208,11 +165,12 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 
 	err = tp.SubmitUnicityCertificate(equivocatingUC)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "equivocating certificates: round number"))
+	require.ErrorContains(t, err, "equivocating certificates: round number")
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	require.NoError(t, tp.CreateBlock())
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
@@ -230,12 +188,13 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 
 	err = tp.SubmitUnicityCertificate(equivocatingUC)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "equivocating certificates. previous IR hash "))
+	require.ErrorContains(t, err, "equivocating certificates. previous IR hash ")
 }
 
 func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 	txSystem := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, txSystem)
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 
 	txSystem.EndBlockCount = 10000
@@ -258,16 +217,15 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 
 	transfer := testtransaction.RandomBillTransfer()
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, ProposalContains(tp, transfer), test.WaitDuration, test.WaitTick)
 
-	// create block proposal and drain channels
+	// create block proposal
 	tp.partition.handleT1TimeoutEvent()
-	<-tp.p1Channel
-	<-tp.blockProposalChannel
 	require.Equal(t, uint64(0), system.RevertCount)
 
 	// send repeat UC
@@ -288,6 +246,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	transfer := testtransaction.RandomBillTransfer()
 
@@ -296,8 +255,6 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 
 	// prepare proposal
 	tp.partition.handleT1TimeoutEvent()
-	<-tp.p1Channel
-	<-tp.blockProposalChannel
 	require.Equal(t, uint64(0), system.RevertCount)
 	// send UC with different IR hash
 	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
@@ -319,12 +276,14 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	err := tp.HandleBlockProposal(nil)
 	require.ErrorIs(t, err, blockproposal.ErrBlockProposalIsNil)
 }
 
 func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	transfer := testtransaction.RandomBillTransfer()
 
@@ -333,11 +292,12 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 	err := tp.HandleBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "1", UnicityCertificate: block.UnicityCertificate})
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "public key with node id 1 not found"))
+	require.ErrorContains(t, err, "public key with node id 1 not found")
 }
 
 func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	transfer := testtransaction.RandomBillTransfer()
 
@@ -349,11 +309,12 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
 	err = tp.HandleBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})
-	require.ErrorIs(t, err, p1.ErrInvalidSystemIdentifier)
+	require.ErrorContains(t, err, "invalid system identifier")
 }
 
 func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	transfer := testtransaction.RandomBillTransfer()
 
@@ -362,11 +323,12 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
 	err := tp.HandleBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
-	require.True(t, strings.Contains(err.Error(), "received UC is older than LUC. uc round 1, luc round 2"))
+	require.ErrorContains(t, err, "received UC is older than LUC. uc round 1, luc round 2")
 }
 
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
@@ -387,7 +349,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
 	err = tp.HandleBlockProposal(bp)
-	require.True(t, strings.Contains(err.Error(), "invalid node identifier. leader from UC:"))
+	require.ErrorContains(t, err, "invalid node identifier. leader from UC:")
 }
 
 func TestBlockProposal_Ok(t *testing.T) {
@@ -415,6 +377,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 func TestBlockProposal_TxSystemStateIsDifferent(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
+	defer tp.Close()
 	block := tp.GetLatestBlock()
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
@@ -432,73 +395,7 @@ func TestBlockProposal_TxSystemStateIsDifferent(t *testing.T) {
 	require.NoError(t, err)
 	system.InitCount = 10000
 	err = tp.HandleBlockProposal(bp)
-	require.True(t, strings.Contains(err.Error(), "invalid tx system state root. expected"))
-}
-
-func createPeer(t *testing.T) *network.Peer {
-	conf := &network.PeerConfiguration{}
-	peer, err := network.NewPeer(conf)
-	require.NoError(t, err)
-
-	pubKey, err := peer.PublicKey()
-	require.NoError(t, err)
-
-	pubKeyBytes, err := pubKey.Raw()
-	require.NoError(t, err)
-
-	conf.PersistentPeers = []*network.PeerInfo{{
-		Address:   fmt.Sprintf("%v", peer.MultiAddresses()[0]),
-		PublicKey: pubKeyBytes,
-	}}
-	return peer
-}
-
-func createNodeWithTxSystem(t *testing.T, systemIdentifier []byte, system txsystem.TransactionSystem) (*Node, *eventbus.EventBus) {
-	t.Helper()
-	peer := createPeer(t)
-	_, pg, signer, _ := initPartitionGenesis(t, peer, systemIdentifier, system)
-	p, err := New(
-		peer,
-		signer,
-		system,
-		pg,
-		WithUnicityCertificateValidator(certificateValidator),
-		WithTxValidator(txValidator),
-	)
-	require.NoError(t, err)
-	require.Equal(t, idle, p.status)
-	t.Cleanup(p.Close)
-	return p, p.eventbus
-}
-
-func initPartitionGenesis(t *testing.T, p *network.Peer, systemIdentifier []byte, system txsystem.TransactionSystem) (*genesis.RootGenesis, *genesis.PartitionGenesis, crypto.Signer, crypto.Signer) {
-	t.Helper()
-	nodeSigner, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-
-	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-
-	pubKey, err := p.PublicKey()
-	require.NoError(t, err)
-
-	pubKeyBytes, err := pubKey.Raw()
-	require.NoError(t, err)
-
-	pn, err := NewNodeGenesis(
-		system,
-		WithPeerID(p.ID()),
-		WithSystemIdentifier(systemIdentifier),
-		WithSigningKey(nodeSigner),
-		WithEncryptionPubKey(pubKeyBytes),
-		WithT2Timeout(2500),
-	)
-	require.NoError(t, err)
-	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	rootGenesis, pss, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, rootSigner, encPubKey)
-	require.NoError(t, err)
-
-	return rootGenesis, pss[0], nodeSigner, rootSigner
+	require.ErrorContains(t, err, "invalid tx system state root. expected")
 }
 
 func (c *AlwaysValidCertificateValidator) Validate(_ *certificates.UnicityCertificate) error {

@@ -27,7 +27,7 @@ func TestNewPeer_NewPeerCanBeCreated(t *testing.T) {
 }
 
 func TestNewPeer_WithPersistentPeers(t *testing.T) {
-	peers, err := createPeers(4)
+	peers := createPeers(t, 4)
 	defer func() {
 		for _, peer := range peers {
 			if peer != nil {
@@ -35,7 +35,6 @@ func TestNewPeer_WithPersistentPeers(t *testing.T) {
 			}
 		}
 	}()
-	require.NoError(t, err)
 	pis := make([]*PeerInfo, len(peers))
 	for i, peer := range peers {
 		pubKey, err := peer.PublicKey()
@@ -106,14 +105,16 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 	require.Equal(t, pubKeyBytes, raw)
 }
 
-func createPeers(nrOfPeers int) ([]*Peer, error) {
+func createPeers(t *testing.T, nrOfPeers int) []*Peer {
 	peers := make([]*Peer, nrOfPeers)
 	for i := 0; i < nrOfPeers; i++ {
-		p, err := NewPeer(&PeerConfiguration{})
-		if err != nil {
-			return peers, err
-		}
-		peers[i] = p
+		peers[i] = createPeer(t)
 	}
-	return peers, nil
+	return peers
+}
+
+func createPeer(t *testing.T) *Peer {
+	p, err := NewPeer(&PeerConfiguration{Address: "/ip4/127.0.0.1/tcp/0"})
+	require.NoError(t, err)
+	return p
 }

@@ -3,6 +3,8 @@ package partition
 import (
 	"bytes"
 	"context"
+	gocrypto "crypto"
+	"sync"
 	"time"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
@@ -10,27 +12,23 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 const (
 	idle status = iota
 	recovering
-	closing
 )
 
-const (
-	t1TimerName          = "t1"
-	defaultTopicCapacity = 100
-)
+const t1TimerName = "t1"
 
 var (
 	ErrNodeDoesNotHaveLatestBlock = errors.New("node does not have the latest block")
@@ -43,6 +41,12 @@ type (
 		prevHash     []byte
 		stateHash    []byte
 		Transactions []txsystem.GenericTransaction
+	}
+
+	// Net provides an interface for sending messages to and receiving messages from other nodes in the network.
+	Net interface {
+		Send(msg network.OutputMessage, receivers []peer.ID) error
+		ReceivedChannel() <-chan network.ReceivedMessage
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
@@ -61,13 +65,12 @@ type (
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  store.BlockStore
 		txBuffer                    *txbuffer.TxBuffer
-
-		unicityCertificatesCh <-chan interface{}
-		transactionsCh        <-chan interface{}
-		blockProposalsCh      <-chan interface{}
-		eventbus              *eventbus.EventBus
-		ctx                   context.Context
-		ctxCancel             context.CancelFunc
+		ctx                         context.Context
+		ctxCancel                   context.CancelFunc
+		network                     Net
+		txCtx                       context.Context
+		txCancel                    context.CancelFunc
+		txWaitGroup                 *sync.WaitGroup
 	}
 
 	status int
@@ -81,6 +84,7 @@ type (
 // 		signer,
 //		txSystem,
 //		genesis,
+// 		net,
 // 		WithContext(context.Background()),
 // 		WithTxValidator(myTxValidator)),
 // 		WithUnicityCertificateValidator(ucValidator),
@@ -98,10 +102,11 @@ func New(
 	signer crypto.Signer, // used to sign block proposals and block certification requests
 	txSystem txsystem.TransactionSystem, // used transaction system
 	genesis *genesis.PartitionGenesis, // partition genesis file. created by rootchain.
+	net Net, // network layer of the node
 	nodeOptions ...NodeOption, // additional optional configuration parameters
 ) (*Node, error) {
 	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(peer, signer, genesis, txSystem, nodeOptions...)
+	conf, err := loadAndValidateConfiguration(peer, signer, genesis, txSystem, net, nodeOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,15 +121,10 @@ func New(
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
 		txBuffer:                    conf.txBuffer,
-		eventbus:                    conf.eventbus,
+		network:                     net,
+		txWaitGroup:                 &sync.WaitGroup{},
 	}
 	n.ctx, n.ctxCancel = context.WithCancel(conf.context)
-
-	// subscribe topics
-	n.unicityCertificatesCh, n.transactionsCh, n.blockProposalsCh, err = subscribeTopics(conf.eventbus)
-	if err != nil {
-		return nil, err
-	}
 
 	// init timer
 	n.timers = timer.NewTimers()
@@ -144,57 +144,65 @@ func New(
 
 // Close shuts down the Node component.
 func (n *Node) Close() {
-	n.status = closing
-	for _, processor := range n.configuration.processors {
-		processor.Close()
-	}
-	n.txBuffer.Close()
-	n.timers.WaitClose()
 	n.ctxCancel()
+	n.timers.WaitClose()
+	n.txBuffer.Close()
 }
 
-// loop handles messages from different goroutines.
+// loop handles receivedMessages from different goroutines.
 func (n *Node) loop() {
 	for {
 		select {
 		case <-n.ctx.Done():
 			logger.Info("Exiting partition node component main loop")
 			return
-		case tx := <-n.transactionsCh:
-			if n.status == closing {
-				continue
-			}
-			util.WriteDebugJsonLog(logger, "Handling tx event", tx)
-			n.handleTxEvent(tx)
-		case e := <-n.unicityCertificatesCh:
-			if n.status == closing {
-				continue
-			}
-
-			util.WriteDebugJsonLog(logger, "Handling unicity certificate", e)
-			n.handleUnicityCertificateEvent(e)
-		case e := <-n.blockProposalsCh:
-			if n.status == closing {
-				continue
-			}
-			util.WriteDebugJsonLog(logger, "Handling block proposal", e)
-			success, proposalEvent := convertType[eventbus.BlockProposalEvent](e)
-			if !success {
-				logger.Warning("Invalid Block proposal event type: %v", e)
-				continue
-			}
-			err := n.handleBlockProposal(proposalEvent.BlockProposal)
-			if err != nil {
-				logger.Warning("Block proposal processing failed: %v", err)
+		case m := <-n.network.ReceivedChannel():
+			switch m.Protocol {
+			case network.ProtocolInputForward:
+				err := n.handleTxMessage(m)
+				if err != nil {
+					logger.Warning("Invalid transaction: %v", err)
+				}
+			case network.ProtocolUnicityCertificates:
+				success, uc := convertType[*certificates.UnicityCertificate](m.Message)
+				if !success {
+					logger.Warning("Invalid unicity certificate type: %T", m.Message)
+					continue
+				}
+				err := n.handleUnicityCertificate(uc)
+				if err != nil {
+					logger.Warning("Unicity Certificate processing failed: %v", err)
+				}
+			case network.ProtocolBlockProposal:
+				success, bp := convertType[*blockproposal.BlockProposal](m.Message)
+				if !success {
+					logger.Warning("Invalid block proposal type: %T", m.Message)
+					continue
+				}
+				err := n.handleBlockProposal(bp)
+				if err != nil {
+					logger.Warning("Block proposal processing failed by node %v: %v", n.configuration.peer.ID(), err)
+				}
+			default:
+				logger.Warning("Unknown network protocol: %s", m.Protocol)
 			}
 		case <-n.timers.C:
-			if n.status == closing {
-				continue
-			}
 			logger.Info("Handling T1 timeout")
 			n.handleT1TimeoutEvent()
 		}
 	}
+}
+
+func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
+	success, tx := convertType[*txsystem.Transaction](m.Message)
+	if !success {
+		return errors.Errorf("unsupported type: %T", m.Message)
+	}
+	genTx, err := n.transactionSystem.ConvertTx(tx)
+	if err != nil {
+		return err
+	}
+	return n.txBuffer.Add(genTx)
 }
 
 func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
@@ -202,24 +210,27 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	n.proposal = nil
 	n.pr = nil
 	n.leaderSelector.UpdateLeader(uc.UnicitySeal)
+	n.startHandleOrForwardTransactions()
 	n.luc = uc
 	n.timers.Restart(t1TimerName)
 }
 
-func (n *Node) handleTxEvent(event interface{}) {
-	switch event.(type) {
-	case eventbus.TransactionEvent:
-
-		tx := event.(eventbus.TransactionEvent).Transaction
-		genTx, err := n.transactionSystem.ConvertTx(tx)
-		if err != nil {
-			logger.Warning("Failed to convert tx: %v", err)
-			return
-		}
-		n.process(genTx)
-	default:
-		logger.Warning("Invalid event: %v", event)
+func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
+	leader := n.leaderSelector.GetLeaderID()
+	if leader == n.leaderSelector.SelfID() {
+		n.process(tx)
+		return true
 	}
+
+	logger.Info("Forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader)
+	err := n.network.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolInputForward,
+			Message:  tx.ToProtoBuf(),
+		},
+		[]peer.ID{leader},
+	)
+	return err == nil
 }
 
 func (n *Node) process(tx txsystem.GenericTransaction) {
@@ -233,19 +244,7 @@ func (n *Node) process(tx txsystem.GenericTransaction) {
 		return
 	}
 	n.proposal = append(n.proposal, tx)
-	logger.Debug("Transaction processed. Proposal size: %v", len(n.proposal))
-}
-
-func (n *Node) handleUnicityCertificateEvent(event interface{}) {
-	switch event.(type) {
-	case eventbus.UnicityCertificateEvent:
-		err := n.handleUnicityCertificate(event.(eventbus.UnicityCertificateEvent).Certificate)
-		if err != nil {
-			logger.Warning("Unicity Certificate processing failed: %v", err)
-		}
-	default:
-		logger.Warning("Invalid unicity certificate event: %v", event)
-	}
+	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposal))
 }
 
 // handleBlockProposal processes a block proposals. Performs the following steps:
@@ -261,7 +260,7 @@ func (n *Node) handleUnicityCertificateEvent(event interface{}) {
 //     aborted.
 //  5. Transaction orders are executed by applying them to the transaction system.
 //  6. Pending unicity certificate request data structure is created and persisted.
-//  7. Certificate Request query (protocol P1 query) is assembled and sent to the Root Chain.
+//  7. Certificate Request query is assembled and sent to the Root Chain.
 func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	defer trackExecutionTime(time.Now(), "Handling BlockProposal")
 	if prop == nil {
@@ -428,10 +427,13 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 }
 
 func (n *Node) handleT1TimeoutEvent() {
-	defer n.leaderSelector.UpdateLeader(nil)
+	defer func() {
+		n.leaderSelector.UpdateLeader(nil)
+		n.stopForwardingOrHandlingTransactions()
+	}()
 	if n.leaderSelector.IsCurrentNodeLeader() {
 		if err := n.sendBlockProposal(); err != nil {
-			logger.Warning("Failed to send BlockProposal event: %v", err)
+			logger.Warning("Failed to send BlockProposal: %v", err)
 			return
 		}
 		if err := n.sendCertificationRequest(); err != nil {
@@ -452,12 +454,16 @@ func (n *Node) sendBlockProposal() error {
 		UnicityCertificate: n.luc,
 		Transactions:       toProtoBuf(n.proposal),
 	}
-	util.WriteDebugJsonLog(logger, "New BlockProposal created", prop)
+	util.WriteDebugJsonLog(logger, "BlockProposal created", prop)
 	err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer)
 	if err != nil {
 		return err
 	}
-	return n.eventbus.Submit(eventbus.TopicBlockProposalOutput, eventbus.BlockProposalEvent{BlockProposal: prop})
+
+	return n.network.Send(network.OutputMessage{
+		Protocol: network.ProtocolBlockProposal,
+		Message:  prop,
+	}, n.configuration.peer.Validators())
 }
 
 func (n *Node) sendCertificationRequest() error {
@@ -501,7 +507,7 @@ func (n *Node) sendCertificationRequest() error {
 
 	n.proposal = []txsystem.GenericTransaction{}
 
-	req := &p1.P1Request{
+	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeId.String(),
 		RootRoundNumber:  n.pr.roundNumber,
@@ -517,10 +523,11 @@ func (n *Node) sendCertificationRequest() error {
 		return err
 	}
 	util.WriteDebugJsonLog(logger, "Sending block certification request to root chain", req)
-	event := eventbus.BlockCertificationEvent{
-		Req: req,
-	}
-	return n.eventbus.Submit(eventbus.TopicP1, event)
+
+	return n.network.Send(network.OutputMessage{
+		Protocol: network.ProtocolBlockCertification,
+		Message:  req,
+	}, []peer.ID{n.configuration.rootChainID})
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
@@ -543,20 +550,24 @@ func (n *Node) GetLatestBlock() *block.Block {
 	return n.blockStore.LatestBlock()
 }
 
-func subscribeTopics(eb *eventbus.EventBus) (<-chan interface{}, <-chan interface{}, <-chan interface{}, error) {
-	unicityCertificatesCh, err := eb.Subscribe(eventbus.TopicPartitionUnicityCertificate, defaultTopicCapacity)
-	if err != nil {
-		return nil, nil, nil, err
+func (n *Node) stopForwardingOrHandlingTransactions() {
+	if n.txCtx != nil {
+		n.txCancel()
+		n.txWaitGroup.Wait()
+		n.txCtx = nil
+		n.txCancel = nil
 	}
-	transactionsCh, err := eb.Subscribe(eventbus.TopicPartitionTransaction, defaultTopicCapacity)
-	if err != nil {
-		return nil, nil, nil, err
+}
+
+func (n *Node) startHandleOrForwardTransactions() {
+	n.stopForwardingOrHandlingTransactions()
+	leader := n.leaderSelector.GetLeaderID()
+	if leader == UnknownLeader {
+		return
 	}
-	blockProposalsCh, err := eb.Subscribe(eventbus.TopicBlockProposalInput, defaultTopicCapacity)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return unicityCertificatesCh, transactionsCh, blockProposalsCh, nil
+	n.txCtx, n.txCancel = context.WithCancel(context.Background())
+	n.txWaitGroup.Add(1)
+	go n.txBuffer.Process(n.txCtx, n.txWaitGroup, n.handleOrForwardTransaction)
 }
 
 func convertType[T any](event interface{}) (bool, T) {

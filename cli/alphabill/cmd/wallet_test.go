@@ -118,8 +118,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
-	// TODO AB-278 fix for running single node partition
-	network, err := testpartition.NewNetwork(2, func() txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(1, func() txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,

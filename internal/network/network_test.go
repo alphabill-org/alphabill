@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,6 +30,18 @@ func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
 	require.Equal(t, 3, len(net.sendProtocols))
 	require.Equal(t, 3, len(net.receiveProtocols))
+}
+
+func TestNetworkSendFunctionReturnsNilIfNoPeers(t *testing.T) {
+	net, err := NewLibP2PValidatorNetwork(createPeer(t), DefaultValidatorNetOptions)
+	require.NoError(t, err)
+	defer net.Close()
+
+	err = net.Send(OutputMessage{
+		Protocol: ProtocolBlockProposal,
+		Message:  nil,
+	}, []peer.ID{})
+	require.NoError(t, err)
 }
 
 func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {

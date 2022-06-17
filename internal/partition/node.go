@@ -28,6 +28,14 @@ const (
 	recovering
 )
 
+const (
+	EventTypeError EventType = iota
+	EventTypeTransactionProcessed
+	EventTypeNewRoundStarted
+	EventTypeUnicityCertificateHandled
+	EventTypeBlockFinalized
+)
+
 const t1TimerName = "t1"
 
 var (
@@ -71,7 +79,19 @@ type (
 		txCtx                       context.Context
 		txCancel                    context.CancelFunc
 		txWaitGroup                 *sync.WaitGroup
+		txCh                        chan txsystem.GenericTransaction
+		eventCh                     chan Event
+		eventHandler                EventHandler
 	}
+
+	Event struct {
+		EventType EventType
+		Content   any
+	}
+
+	EventType int
+
+	EventHandler func(e Event)
 
 	status int
 )
@@ -121,6 +141,7 @@ func New(
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
 		txBuffer:                    conf.txBuffer,
+		eventHandler:                conf.eventHandler,
 		network:                     net,
 		txWaitGroup:                 &sync.WaitGroup{},
 	}
@@ -129,6 +150,11 @@ func New(
 	// init timer
 	n.timers = timer.NewTimers()
 	n.timers.Start(t1TimerName, conf.t1Timeout)
+	n.txCh = make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity())
+	if n.eventHandler != nil {
+		n.eventCh = make(chan Event, conf.eventChCapacity)
+		go n.eventHandlerLoop()
+	}
 
 	// get genesis block from the genesis
 	genesisBlock := conf.genesisBlock()
@@ -156,12 +182,15 @@ func (n *Node) loop() {
 		case <-n.ctx.Done():
 			logger.Info("Exiting partition node component main loop")
 			return
+		case tx := <-n.txCh:
+			n.process(tx)
 		case m := <-n.network.ReceivedChannel():
 			switch m.Protocol {
 			case network.ProtocolInputForward:
 				err := n.handleTxMessage(m)
 				if err != nil {
 					logger.Warning("Invalid transaction: %v", err)
+					n.sendEvent(EventTypeError, err)
 				}
 			case network.ProtocolUnicityCertificates:
 				success, uc := convertType[*certificates.UnicityCertificate](m.Message)
@@ -172,7 +201,10 @@ func (n *Node) loop() {
 				err := n.handleUnicityCertificate(uc)
 				if err != nil {
 					logger.Warning("Unicity Certificate processing failed: %v", err)
+					n.sendEvent(EventTypeError, err)
+					continue
 				}
+				n.sendEvent(EventTypeUnicityCertificateHandled, uc)
 			case network.ProtocolBlockProposal:
 				success, bp := convertType[*blockproposal.BlockProposal](m.Message)
 				if !success {
@@ -182,6 +214,8 @@ func (n *Node) loop() {
 				err := n.handleBlockProposal(bp)
 				if err != nil {
 					logger.Warning("Block proposal processing failed by node %v: %v", n.configuration.peer.ID(), err)
+					n.sendEvent(EventTypeError, err)
+					continue
 				}
 			default:
 				logger.Warning("Unknown network protocol: %s", m.Protocol)
@@ -189,6 +223,25 @@ func (n *Node) loop() {
 		case <-n.timers.C:
 			logger.Info("Handling T1 timeout")
 			n.handleT1TimeoutEvent()
+		}
+	}
+}
+
+func (n *Node) sendEvent(eventType EventType, content any) {
+	if n.eventHandler != nil {
+		n.eventCh <- Event{
+			EventType: eventType,
+			Content:   content,
+		}
+	}
+}
+
+// eventHandlerLoop forwards events produced by a node to the configured eventHandler.
+func (n *Node) eventHandlerLoop() {
+	for {
+		select {
+		case e := <-n.eventCh:
+			n.eventHandler(e)
 		}
 	}
 }
@@ -206,19 +259,21 @@ func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
 }
 
 func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
-	n.transactionSystem.BeginBlock(n.blockStore.LatestBlock().BlockNumber + 1)
+	newBlockNr := n.blockStore.LatestBlock().BlockNumber + 1
+	n.transactionSystem.BeginBlock(newBlockNr)
 	n.proposal = nil
 	n.pr = nil
 	n.leaderSelector.UpdateLeader(uc.UnicitySeal)
 	n.startHandleOrForwardTransactions()
 	n.luc = uc
 	n.timers.Restart(t1TimerName)
+	n.sendEvent(EventTypeNewRoundStarted, newBlockNr)
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 	leader := n.leaderSelector.GetLeaderID()
 	if leader == n.leaderSelector.SelfID() {
-		n.process(tx)
+		n.txCh <- tx
 		return true
 	}
 
@@ -244,6 +299,7 @@ func (n *Node) process(tx txsystem.GenericTransaction) {
 		return
 	}
 	n.proposal = append(n.proposal, tx)
+	n.sendEvent(EventTypeTransactionProcessed, tx)
 	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposal))
 }
 
@@ -306,7 +362,8 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if !bytes.Equal(prevHash, txState.Root()) {
 		return errors.Errorf("invalid tx system state root. expected: %X, got: %X", txState.Root(), prevHash)
 	}
-	n.transactionSystem.BeginBlock(n.blockStore.LatestBlock().BlockNumber + 1)
+	blockNr := n.blockStore.LatestBlock().BlockNumber + 1
+	n.transactionSystem.BeginBlock(blockNr)
 	for _, tx := range prop.Transactions {
 		genTx, err := n.transactionSystem.ConvertTx(tx)
 		if err != nil {
@@ -424,6 +481,7 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 	// TODO ensure block hash equals to IR hash
 	_ = n.blockStore.Add(b) // TODO handle error
 	n.transactionSystem.Commit()
+	n.sendEvent(EventTypeBlockFinalized, b)
 }
 
 func (n *Node) handleT1TimeoutEvent() {

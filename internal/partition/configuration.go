@@ -47,10 +47,11 @@ type (
 		signer                      crypto.Signer
 		genesis                     *genesis.PartitionGenesis
 		trustBase                   crypto.Verifier
-		initDefaultEventProcessors  bool
 		rootChainAddress            multiaddr.Multiaddr
 		rootChainID                 peer.ID
 		network                     Net
+		eventHandler                EventHandler
+		eventChCapacity             int
 	}
 
 	NodeOption func(c *configuration)
@@ -102,6 +103,13 @@ func WithRootAddressAndIdentifier(address multiaddr.Multiaddr, id peer.ID) NodeO
 	return func(c *configuration) {
 		c.rootChainAddress = address
 		c.rootChainID = id
+	}
+}
+
+func WithEventHandler(eh EventHandler, eventChCapacity int) NodeOption {
+	return func(c *configuration) {
+		c.eventHandler = eh
+		c.eventChCapacity = eventChCapacity
 	}
 }
 

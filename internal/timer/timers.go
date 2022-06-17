@@ -1,7 +1,6 @@
 package timer
 
 import (
-	"sync"
 	"time"
 
 	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
@@ -13,7 +12,6 @@ type (
 	// Timers keeps track of multiple Task instances.
 	// When one of the Task expires then it will be sent on C.
 	Timers struct {
-		wg     *sync.WaitGroup
 		timers map[string]*Task
 		C      chan *Task
 	}
@@ -35,24 +33,22 @@ func (t *Task) Duration() time.Duration {
 	return t.duration
 }
 
-func (t *Task) run(respChan chan<- *Task, wg *sync.WaitGroup) {
+func (t *Task) run(respChan chan<- *Task) {
 	select {
 	case <-t.timer.C:
 		respChan <- t
-		wg.Done()
+
 	case <-t.cancelCh:
 		if !t.timer.Stop() {
 			// drain the channel
 			<-t.timer.C
 		}
 		t.timer.Reset(t.duration)
-		wg.Done()
 	}
 }
 
 func NewTimers() *Timers {
 	return &Timers{
-		wg:     &sync.WaitGroup{},
 		timers: make(map[string]*Task),
 		C:      make(chan *Task),
 	}
@@ -66,8 +62,7 @@ func (t *Timers) Start(name string, d time.Duration) {
 		cancelCh: make(chan interface{}, 1),
 	}
 	t.timers[name] = nt
-	t.wg.Add(1)
-	go nt.run(t.C, t.wg)
+	go nt.run(t.C)
 }
 
 func (t *Timers) Restart(name string) {
@@ -85,15 +80,12 @@ func (t *Timers) Restart(name string) {
 	}
 
 	nt.timer.Reset(nt.duration)
-	t.wg.Add(1)
-	go nt.run(t.C, t.wg)
+	go nt.run(t.C)
 }
 
 func (t *Timers) WaitClose() {
 	for _, timer := range t.timers {
 		timer.cancelCh <- true
 	}
-	// ensure we have closed all Timers
-	t.wg.Wait()
 	close(t.C)
 }

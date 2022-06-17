@@ -4,6 +4,7 @@ import (
 	"context"
 	gocrypto "crypto"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -129,13 +130,15 @@ func TestProcess_ProcessAllTransactions(t *testing.T) {
 	require.NoError(t, err)
 	err = buffer.Add(testtransaction.RandomGenericBillTransfer(t))
 	require.NoError(t, err)
-	var c int
+
+	var c uint32
 	go buffer.Process(context.Background(), nil, func(tx txsystem.GenericTransaction) bool {
-		c++
+		atomic.AddUint32(&c, 1)
 		return true
 	})
+
 	require.Eventually(t, func() bool {
-		return c == 3
+		return atomic.LoadUint32(&c) == 3
 	}, test.WaitDuration, test.WaitTick)
 	require.Eventually(t, func() bool {
 		return uint32(0) == buffer.Count()

@@ -51,6 +51,10 @@ func (t *TxBuffer) Close() {
 	close(t.transactionsCh)
 }
 
+func (t *TxBuffer) Capacity() uint32 {
+	return t.maxSize
+}
+
 // Add adds the given transaction to the transaction buffer. Returns an error if the transaction isn't valid, is
 // already present in the TxBuffer, or TxBuffer is full.
 func (t *TxBuffer) Add(tx txsystem.GenericTransaction) error {

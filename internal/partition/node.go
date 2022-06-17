@@ -81,6 +81,7 @@ type (
 		txWaitGroup                 *sync.WaitGroup
 		txCh                        chan txsystem.GenericTransaction
 		eventCh                     chan Event
+		eventChCancel               chan bool
 		eventHandler                EventHandler
 	}
 
@@ -153,6 +154,7 @@ func New(
 	n.txCh = make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity())
 	if n.eventHandler != nil {
 		n.eventCh = make(chan Event, conf.eventChCapacity)
+		n.eventChCancel = make(chan bool)
 		go n.eventHandlerLoop()
 	}
 
@@ -173,6 +175,10 @@ func (n *Node) Close() {
 	n.ctxCancel()
 	n.timers.WaitClose()
 	n.txBuffer.Close()
+	close(n.txCh)
+	if n.eventHandler != nil {
+		n.eventChCancel <- true
+	}
 }
 
 // loop handles receivedMessages from different goroutines.
@@ -240,6 +246,8 @@ func (n *Node) sendEvent(eventType EventType, content any) {
 func (n *Node) eventHandlerLoop() {
 	for {
 		select {
+		case <-n.eventChCancel:
+			return
 		case e := <-n.eventCh:
 			n.eventHandler(e)
 		}

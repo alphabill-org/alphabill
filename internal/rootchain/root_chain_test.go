@@ -77,7 +77,7 @@ func TestPartitionReceivesUnicityCertificates(t *testing.T) {
 		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[1], newHash, blockHash, partitionNodes[1]),
 	})
 	require.Eventually(t, func() bool {
-		messages := mockNet.SentMessages[network.ProtocolUnicityCertificates]
+		messages := mockNet.SentMessages(network.ProtocolUnicityCertificates)
 		if len(messages) > 0 {
 			m := messages[0]
 			uc := m.Message.(*certificates.UnicityCertificate)

@@ -3,7 +3,8 @@ package partition
 import (
 	gocrypto "crypto"
 	"fmt"
-	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,8 +19,10 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
@@ -35,6 +38,30 @@ type SingleNodePartition struct {
 	rootState  *rootchain.State
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
+	eh         *eventHandler
+}
+
+type eventHandler struct {
+	mutex  sync.Mutex
+	events []Event
+}
+
+func (eh *eventHandler) handleEvent(e Event) {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	eh.events = append(eh.events, e)
+}
+
+func (eh *eventHandler) GetEvents() []Event {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	return eh.events
+}
+
+func (eh *eventHandler) Reset() {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	eh.events = []Event{}
 }
 
 func (t *AlwaysValidTransactionValidator) Validate(_ txsystem.GenericTransaction) error {
@@ -80,6 +107,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
+	eh := &eventHandler{}
 	// partition
 	n, err := New(
 		p,
@@ -93,6 +121,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 			currentNode: "1",
 		}),
 		WithTxValidator(&AlwaysValidTransactionValidator{}),
+		WithEventHandler(eh.handleEvent, 100),
 	)
 	require.NoError(t, err)
 	n.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
@@ -104,6 +133,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 		store:      n.blockStore,
 		rootSigner: rootSigner,
 		mockNet:    net,
+		eh:         eh,
 	}
 	return partition
 }
@@ -119,15 +149,17 @@ func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 		Protocol: network.ProtocolInputForward,
 		Message:  tx,
 	})
+
 	return nil
 }
 
-func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) error {
-	return sn.partition.handleUnicityCertificate(uc)
-}
+func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) {
+	sn.mockNet.Receive(network.ReceivedMessage{
+		From:     "from-test",
+		Protocol: network.ProtocolUnicityCertificates,
+		Message:  uc,
+	})
 
-func (sn *SingleNodePartition) HandleBlockProposal(prop *blockproposal.BlockProposal) error {
-	return sn.partition.handleBlockProposal(prop)
 }
 
 func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
@@ -137,10 +169,6 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 		Message:  prop,
 	})
 	return nil
-}
-
-func (sn *SingleNodePartition) GetProposalTxs() []txsystem.GenericTransaction {
-	return sn.partition.proposal
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
@@ -192,15 +220,10 @@ func (sn *SingleNodePartition) GetLatestBlock() *block.Block {
 	return sn.store.LatestBlock()
 }
 
-func (sn *SingleNodePartition) CreateBlock() error {
-	sn.partition.handleT1TimeoutEvent()
-
-	certificationRequests := sn.mockNet.SentMessages[network.ProtocolBlockCertification]
-	if len(certificationRequests) != 1 {
-		return errors.New("block certification request not found")
-	}
-	req := certificationRequests[0].Message.(*certification.BlockCertificationRequest)
-	sn.mockNet.SentMessages[network.ProtocolBlockCertification] = []testnetwork.PeerMessage{}
+func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
+	sn.SubmitT1Timeout(t)
+	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
+	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
 	_, err := sn.rootState.HandleBlockCertificationRequest(req)
 	if err != nil {
 		return err
@@ -213,20 +236,43 @@ func (sn *SingleNodePartition) CreateBlock() error {
 		return errors.New("uc not created")
 	}
 	uc := sn.rootState.GetLatestUnicityCertificate(systemIds[0])
+	sn.eh.Reset()
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolUnicityCertificates,
 		Message:  uc,
 	})
+	require.Eventually(t, func() bool {
+		events := sn.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == EventTypeBlockFinalized {
+				return true
+			}
+		}
+		return false
+
+	}, test.WaitDuration, test.WaitTick)
+	sn.eh.Reset()
 	return nil
+}
+
+func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
+	sn.eh.Reset()
+	sn.partition.timers.C <- &timer.Task{}
+	require.Eventually(t, func() bool {
+		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
+	}, test.WaitDuration, test.WaitTick, "block certification request not found")
 }
 
 type TestLeaderSelector struct {
 	leader      peer.ID
 	currentNode peer.ID
+	mutex       sync.Mutex
 }
 
 func (l *TestLeaderSelector) SelfID() peer.ID {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	return l.currentNode
 }
 
@@ -236,6 +282,8 @@ func (l *TestLeaderSelector) IsCurrentNodeLeader() bool {
 }
 
 func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	if seal == nil {
 		l.leader = ""
 		return
@@ -245,6 +293,8 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 }
 
 func (l *TestLeaderSelector) GetLeaderID() peer.ID {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	return l.leader
 }
 
@@ -273,27 +323,10 @@ func createPeer(t *testing.T) *network.Peer {
 	return peer
 }
 
-func ProposalSize(tp *SingleNodePartition, i int) func() bool {
-	return func() bool {
-		return len(tp.GetProposalTxs()) == i
-	}
-}
-
 func NextBlockReceived(tp *SingleNodePartition, prevBlock *block.Block) func() bool {
 	return func() bool {
 		b := tp.GetLatestBlock()
 		return b.UnicityCertificate.UnicitySeal.RootChainRoundNumber == prevBlock.UnicityCertificate.UnicitySeal.GetRootChainRoundNumber()+1
-	}
-}
-
-func ProposalContains(tp *SingleNodePartition, t *txsystem.Transaction) func() bool {
-	return func() bool {
-		for _, tx := range tp.GetProposalTxs() {
-			if reflect.DeepEqual(tx.ToProtoBuf(), t) {
-				return true
-			}
-		}
-		return false
 	}
 }
 
@@ -308,7 +341,19 @@ func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
 
 func CertificationRequestReceived(tp *SingleNodePartition) func() bool {
 	return func() bool {
-		messages := tp.mockNet.SentMessages[network.ProtocolBlockCertification]
+		messages := tp.mockNet.SentMessages(network.ProtocolBlockCertification)
 		return len(messages) > 0
 	}
+}
+
+func ContainsError(t *testing.T, tp *SingleNodePartition, errStr string) {
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == EventTypeError && strings.Contains(e.Content.(error).Error(), errStr) {
+				return true
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
 }

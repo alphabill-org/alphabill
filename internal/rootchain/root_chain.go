@@ -5,42 +5,39 @@ import (
 	"fmt"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-const t3TimerID = "t3timer"
-
-var ErrPeerIsNil = errors.New("peer is nil")
-
 const (
-	defaultT3Timeout         = 900 * time.Millisecond
-	defaultRequestChCapacity = 1000
+	defaultT3Timeout = 900 * time.Millisecond
+	t3TimerID        = "t3timer"
 )
 
 type (
+	// Net provides an interface for sending messages to and receiving messages from other nodes in the network.
+	Net interface {
+		Send(msg network.OutputMessage, receivers []peer.ID) error
+		ReceivedChannel() <-chan network.ReceivedMessage
+	}
+
 	RootChain struct {
-		ctx        context.Context
-		ctxCancel  context.CancelFunc
-		peer       *network.Peer         // p2p network
-		p1Protocol *p1.P1                // P1 protocol handler
-		state      *State                // state of the root chain. keeps everything needed for consensus.
-		timers     *timer.Timers         // keeps track of T2 and T3 timers
-		requestsCh chan *p1.RequestEvent // incoming P1 requests channel
+		ctx       context.Context
+		ctxCancel context.CancelFunc
+		net       Net
+		peer      *network.Peer // p2p network
+		state     *State        // state of the root chain. keeps everything needed for consensus.
+		timers    *timer.Timers // keeps track of T2 and T3 timers
 	}
 
 	rootChainConf struct {
-		t3Timeout         time.Duration
-		requestChCapacity uint
+		t3Timeout time.Duration
 	}
 
 	Option func(c *rootChainConf)
@@ -52,16 +49,13 @@ func WithT3Timeout(timeout time.Duration) Option {
 	}
 }
 
-func WithRequestChCapacity(capacity uint) Option {
-	return func(c *rootChainConf) {
-		c.requestChCapacity = capacity
-	}
-}
-
 // NewRootChain creates a new instance of the root chain.
-func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypto.Signer, opts ...Option) (*RootChain, error) {
+func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypto.Signer, net Net, opts ...Option) (*RootChain, error) {
 	if peer == nil {
-		return nil, ErrPeerIsNil
+		return nil, errors.New("peer is nil")
+	}
+	if net == nil {
+		return nil, errors.New("network is nil")
 	}
 	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
 	s, err := NewStateFromGenesis(genesis, signer)
@@ -70,9 +64,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	}
 
 	conf := loadConf(opts)
-	requestsCh := make(chan *p1.RequestEvent, conf.requestChCapacity)
 
-	protocol, err := p1.NewRootChainCertificationProtocol(peer, requestsCh)
 	if err != nil {
 		return nil, err
 	}
@@ -82,17 +74,20 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	for _, p := range genesis.Partitions {
 		for _, validator := range p.Nodes {
 			duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
-			timers.Start(string(validator.P1Request.SystemIdentifier), duration)
+			timers.Start(string(validator.BlockCertificationRequest.SystemIdentifier), duration)
 			break
 		}
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
 	rc := &RootChain{
-		peer:       peer,
-		state:      s,
-		p1Protocol: protocol,
-		timers:     timers,
-		requestsCh: requestsCh,
+		net:    net,
+		peer:   peer,
+		state:  s,
+		timers: timers,
 	}
 	rc.ctx, rc.ctxCancel = context.WithCancel(context.Background())
 	go rc.loop()
@@ -101,12 +96,6 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 
 func (rc *RootChain) Close() {
 	rc.timers.WaitClose()
-	if rc.requestsCh != nil {
-		close(rc.requestsCh)
-	}
-	if rc.p1Protocol != nil {
-		rc.p1Protocol.Close()
-	}
 	rc.ctxCancel()
 }
 
@@ -117,12 +106,41 @@ func (rc *RootChain) loop() {
 		case <-rc.ctx.Done():
 			logger.Info("Exiting root chain main loop")
 			return
-		case e := <-rc.requestsCh:
-			if e == nil {
-				continue
+		case m := <-rc.net.ReceivedChannel():
+			switch m.Protocol {
+			case network.ProtocolBlockCertification:
+				req, correctType := m.Message.(*certification.BlockCertificationRequest)
+				if !correctType {
+					logger.Warning("Type %T not supported", m.Message)
+					continue
+				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from peer %s", req.NodeIdentifier), req)
+				uc, err := rc.state.HandleBlockCertificationRequest(req)
+				if err != nil {
+					logger.Warning("invalid block certification request: %v", err)
+				}
+				// state.HandleBlockCertificationRequest function may return both error and uc (e.g. if partition node
+				// does not have the latest unicity certificate)
+				if uc != nil {
+					peerID, err := peer.Decode(req.NodeIdentifier)
+					if err != nil {
+						logger.Warning("Invalid node identifier: '%s'", req.NodeIdentifier)
+						continue
+					}
+					err = rc.net.Send(
+						network.OutputMessage{
+							Protocol: network.ProtocolUnicityCertificates,
+							Message:  uc,
+						},
+						[]peer.ID{peerID},
+					)
+					if err != nil {
+						logger.Warning("Failed to send unicity certificate: %v", err)
+					}
+				}
+			default:
+				logger.Warning("Protocol %s not supported.", m.Protocol)
 			}
-			util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from peer %s", e.Req.NodeIdentifier), e.Req)
-			rc.state.HandleInputRequestEvent(e)
 		case nt := <-rc.timers.C:
 			if nt == nil {
 				continue
@@ -130,13 +148,13 @@ func (rc *RootChain) loop() {
 			timerName := nt.Name()
 			if timerName == t3TimerID {
 				logger.Debug("Handling T3 timeout")
-				identifiers, err := rc.state.CreateUnicityCertificates()
+				partitionIdentifiers, err := rc.state.CreateUnicityCertificates()
 				if err != nil {
 					logger.Warning("Round %v failed: %v", rc.state.roundNumber, err)
 				}
+				rc.sendUC(partitionIdentifiers)
 				rc.timers.Restart(t3TimerID)
-
-				for _, identifier := range identifiers {
+				for _, identifier := range partitionIdentifiers {
 					logger.Debug("Restarting T2 timer: %X", []byte(identifier))
 					rc.timers.Restart(identifier)
 				}
@@ -149,10 +167,47 @@ func (rc *RootChain) loop() {
 	}
 }
 
+func (rc *RootChain) sendUC(identifiers []string) {
+	for _, identifier := range identifiers {
+		uc := rc.state.latestUnicityCertificates.get(identifier)
+		if uc == nil {
+			// we don't have uc; continue with the next identifier
+			logger.Warning("Latest UC does not exist for partition: %v", identifier)
+			continue
+		}
+
+		partition := rc.state.partitionStore.get(identifier)
+		if partition == nil {
+			// we don't have the partition information; continue with the next identifier
+			logger.Warning("Partition information does not exist for partition: %v", identifier)
+			continue
+		}
+		var ids []peer.ID
+		for _, v := range partition.Validators {
+			nodeID, err := peer.Decode(v.NodeIdentifier)
+			if err != nil {
+				logger.Warning("Invalid validator ID %v: %v", v.NodeIdentifier, err)
+				continue
+			}
+			ids = append(ids, nodeID)
+		}
+
+		err := rc.net.Send(
+			network.OutputMessage{
+				Protocol: network.ProtocolUnicityCertificates,
+				Message:  uc,
+			},
+			ids,
+		)
+		if err != nil {
+			logger.Warning("Failed to send unicity certificates to all or some peers in the network: %v", err)
+		}
+	}
+}
+
 func loadConf(opts []Option) *rootChainConf {
 	conf := &rootChainConf{
-		t3Timeout:         defaultT3Timeout,
-		requestChCapacity: defaultRequestChCapacity,
+		t3Timeout: defaultT3Timeout,
 	}
 	for _, opt := range opts {
 		if opt == nil {

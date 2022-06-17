@@ -2,19 +2,23 @@ package partition
 
 import (
 	gocrypto "crypto"
+	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/eventbus"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain/unicitytree"
+	testnetwork "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/network"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -24,6 +28,15 @@ import (
 type AlwaysValidBlockProposalValidator struct{}
 type AlwaysValidTransactionValidator struct{}
 
+type SingleNodePartition struct {
+	nodeConf   *configuration
+	store      store.BlockStore
+	partition  *Node
+	rootState  *rootchain.State
+	rootSigner crypto.Signer
+	mockNet    *testnetwork.MockNet
+}
+
 func (t *AlwaysValidTransactionValidator) Validate(_ txsystem.GenericTransaction) error {
 	return nil
 }
@@ -31,20 +44,8 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 	return nil
 }
 
-type SingleNodePartition struct {
-	nodeConf             *configuration
-	eventBus             *eventbus.EventBus
-	store                store.BlockStore
-	partition            *Node
-	p1Channel            <-chan interface{}
-	blockProposalChannel <-chan interface{}
-	rootState            *rootchain.State
-	rootSigner           crypto.Signer
-}
-
 func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
 	p := createPeer(t)
-
 	key, err := p.PublicKey()
 	require.NoError(t, err)
 	pubKeyBytes, err := key.Raw()
@@ -54,15 +55,15 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 
 	systemId := []byte{1, 1, 1, 1}
-	nodeGenesis, err := NewNodeGenesis(txSystem, WithPeerID("1"),
+	nodeGenesis, err := NewNodeGenesis(
+		txSystem,
+		WithPeerID("1"),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(pubKeyBytes),
 		WithSystemIdentifier(systemId),
 		WithT2Timeout(2500),
 	)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	// root genesis
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
@@ -72,83 +73,83 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 	if err != nil {
 		t.Error(err)
 	}
+	require.NoError(t, err)
 
 	// root chain
 	rc, err := rootchain.NewStateFromGenesis(rootGenesis, rootSigner)
-	if err != nil {
-		t.Error(err)
-	}
-	leaderSelector := &TestLeaderSelector{
-		leader:      peer.ID("1"),
-		currentNode: peer.ID("1"),
-	}
-	// partition
+	require.NoError(t, err)
 
+	net := testnetwork.NewMockNetwork()
+	// partition
 	n, err := New(
 		p,
 		nodeSigner,
 		txSystem,
 		partitionGenesis[0],
-		WithLeaderSelector(leaderSelector),
+		net,
+		WithT1Timeout(100*time.Minute),
+		WithLeaderSelector(&TestLeaderSelector{
+			leader:      "1",
+			currentNode: "1",
+		}),
 		WithTxValidator(&AlwaysValidTransactionValidator{}),
 	)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 	n.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
-	p1Channel, err := n.eventbus.Subscribe(eventbus.TopicP1, 10)
-	if err != nil {
-		t.Error(err)
-	}
-	blockProposalChannel, err := n.eventbus.Subscribe(eventbus.TopicBlockProposalOutput, 10)
-	if err != nil {
-		t.Error(err)
-	}
+
 	partition := &SingleNodePartition{
-		eventBus:             n.eventbus,
-		p1Channel:            p1Channel,
-		blockProposalChannel: blockProposalChannel,
-		partition:            n,
-		rootState:            rc,
-		nodeConf:             n.configuration,
-		store:                n.blockStore,
-		rootSigner:           rootSigner,
+		partition:  n,
+		rootState:  rc,
+		nodeConf:   n.configuration,
+		store:      n.blockStore,
+		rootSigner: rootSigner,
+		mockNet:    net,
 	}
-	t.Cleanup(partition.Close)
 	return partition
 }
 
-func (tp *SingleNodePartition) Close() {
-	tp.partition.Close()
+func (sn *SingleNodePartition) Close() {
+	sn.partition.Close()
+	close(sn.mockNet.MessageCh)
 }
 
-func (tp *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
-	return tp.eventBus.Submit(eventbus.TopicPartitionTransaction, eventbus.TransactionEvent{Transaction: tx})
+func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
+	sn.mockNet.Receive(network.ReceivedMessage{
+		From:     "from-test",
+		Protocol: network.ProtocolInputForward,
+		Message:  tx,
+	})
+	return nil
 }
 
-func (tp *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) error {
-	return tp.partition.handleUnicityCertificate(uc)
+func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) error {
+	return sn.partition.handleUnicityCertificate(uc)
 }
 
-func (tp *SingleNodePartition) HandleBlockProposal(prop *blockproposal.BlockProposal) error {
-	return tp.partition.handleBlockProposal(prop)
+func (sn *SingleNodePartition) HandleBlockProposal(prop *blockproposal.BlockProposal) error {
+	return sn.partition.handleBlockProposal(prop)
 }
 
-func (tp *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
-	return tp.eventBus.Submit(eventbus.TopicBlockProposalInput, eventbus.BlockProposalEvent{BlockProposal: prop})
+func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
+	sn.mockNet.Receive(network.ReceivedMessage{
+		From:     "from-test",
+		Protocol: network.ProtocolBlockProposal,
+		Message:  prop,
+	})
+	return nil
 }
 
-func (tp *SingleNodePartition) GetProposalTxs() []txsystem.GenericTransaction {
-	return tp.partition.proposal
+func (sn *SingleNodePartition) GetProposalTxs() []txsystem.GenericTransaction {
+	return sn.partition.proposal
 }
 
-func (tp *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
-	id := tp.nodeConf.GetSystemIdentifier()
-	sdrhash := tp.nodeConf.genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
+func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
+	id := sn.nodeConf.GetSystemIdentifier()
+	sdrHash := sn.nodeConf.genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
 	data := []*unicitytree.Data{{
 		SystemIdentifier:            id,
 		InputRecord:                 ir,
-		SystemDescriptionRecordHash: sdrhash,
+		SystemDescriptionRecordHash: sdrHash,
 	},
 	}
 	ut, err := unicitytree.New(gocrypto.SHA256.New(), data)
@@ -156,7 +157,7 @@ func (tp *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 		return nil, err
 	}
 	rootHash := ut.GetRootHash()
-	unicitySeal, err := tp.createUnicitySeal(roundNumber, previousRoundRootHash, rootHash)
+	unicitySeal, err := sn.createUnicitySeal(roundNumber, previousRoundRootHash, rootHash)
 	if err != nil {
 		return nil, err
 	}
@@ -172,52 +173,52 @@ func (tp *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
 			SystemIdentifier:      cert.SystemIdentifier,
 			SiblingHashes:         cert.SiblingHashes,
-			SystemDescriptionHash: sdrhash,
+			SystemDescriptionHash: sdrHash,
 		},
 		UnicitySeal: unicitySeal,
 	}, nil
 }
 
-func (tp *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRoundRootHash, rootHash []byte) (*certificates.UnicitySeal, error) {
+func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRoundRootHash, rootHash []byte) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
 		RootChainRoundNumber: roundNumber,
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}
-	return u, u.Sign(tp.rootSigner)
+	return u, u.Sign(sn.rootSigner)
 }
 
-func (tp *SingleNodePartition) GetLatestBlock() *block.Block {
-	return tp.store.LatestBlock()
+func (sn *SingleNodePartition) GetLatestBlock() *block.Block {
+	return sn.store.LatestBlock()
 }
 
-func (tp *SingleNodePartition) CreateBlock() error {
-	tp.partition.handleT1TimeoutEvent()
-	e := <-tp.p1Channel
-	p1E := e.(eventbus.BlockCertificationEvent)
+func (sn *SingleNodePartition) CreateBlock() error {
+	sn.partition.handleT1TimeoutEvent()
 
-	req := &p1.P1Request{
-		SystemIdentifier: p1E.Req.SystemIdentifier,
-		NodeIdentifier:   p1E.Req.NodeIdentifier,
-		RootRoundNumber:  p1E.Req.RootRoundNumber,
-		InputRecord:      p1E.Req.InputRecord,
+	certificationRequests := sn.mockNet.SentMessages[network.ProtocolBlockCertification]
+	if len(certificationRequests) != 1 {
+		return errors.New("block certification request not found")
 	}
-	err := req.Sign(tp.nodeConf.signer)
+	req := certificationRequests[0].Message.(*certification.BlockCertificationRequest)
+	sn.mockNet.SentMessages[network.ProtocolBlockCertification] = []testnetwork.PeerMessage{}
+	_, err := sn.rootState.HandleBlockCertificationRequest(req)
 	if err != nil {
 		return err
 	}
-	respCh := make(chan *p1.P1Response, 1)
-	tp.rootState.HandleInputRequestEvent(&p1.RequestEvent{
-		Req:        p1E.Req,
-		ResponseCh: respCh,
+	systemIds, err := sn.rootState.CreateUnicityCertificates()
+	if err != nil {
+		return err
+	}
+	if len(systemIds) != 1 {
+		return errors.New("uc not created")
+	}
+	uc := sn.rootState.GetLatestUnicityCertificate(systemIds[0])
+	sn.mockNet.Receive(network.ReceivedMessage{
+		From:     "from-test",
+		Protocol: network.ProtocolUnicityCertificates,
+		Message:  uc,
 	})
-
-	_, err = tp.rootState.CreateUnicityCertificates()
-	if err != nil {
-		return err
-	}
-	uc := <-respCh
-	return tp.eventBus.Submit(eventbus.TopicPartitionUnicityCertificate, eventbus.UnicityCertificateEvent{Certificate: uc.Message})
+	return nil
 }
 
 type TestLeaderSelector struct {
@@ -243,11 +244,33 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	return
 }
 
+func (l *TestLeaderSelector) GetLeaderID() peer.ID {
+	return l.leader
+}
+
 func (l *TestLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {
 	if seal == nil {
 		return ""
 	}
 	return l.currentNode
+}
+
+func createPeer(t *testing.T) *network.Peer {
+	conf := &network.PeerConfiguration{}
+	peer, err := network.NewPeer(conf)
+	require.NoError(t, err)
+
+	pubKey, err := peer.PublicKey()
+	require.NoError(t, err)
+
+	pubKeyBytes, err := pubKey.Raw()
+	require.NoError(t, err)
+
+	conf.PersistentPeers = []*network.PeerInfo{{
+		Address:   fmt.Sprintf("%v", peer.MultiAddresses()[0]),
+		PublicKey: pubKeyBytes,
+	}}
+	return peer
 }
 
 func ProposalSize(tp *SingleNodePartition, i int) func() bool {
@@ -285,7 +308,7 @@ func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
 
 func CertificationRequestReceived(tp *SingleNodePartition) func() bool {
 	return func() bool {
-		e := <-tp.p1Channel
-		return e != nil
+		messages := tp.mockNet.SentMessages[network.ProtocolBlockCertification]
+		return len(messages) > 0
 	}
 }

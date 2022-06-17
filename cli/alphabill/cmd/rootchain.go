@@ -9,13 +9,15 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async/future"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rootchain"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/starter"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/spf13/cobra"
 )
+
+const defaultSendCertificateTimeout = 300 * time.Millisecond
 
 type rootChainConfig struct {
 	Base *baseConfiguration
@@ -82,12 +84,17 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	if err != nil {
 		return errors.Wrap(err, "peer creation failed")
 	}
+
+	net, err := network.NewLibP2PRootChainNetwork(peer, config.MaxRequests, defaultSendCertificateTimeout)
+	if err != nil {
+		return nil
+	}
 	rc, err := rootchain.NewRootChain(
 		peer,
 		rootGenesis,
 		rk.SigningPrivateKey,
+		net,
 		rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
-		rootchain.WithRequestChCapacity(config.MaxRequests),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)

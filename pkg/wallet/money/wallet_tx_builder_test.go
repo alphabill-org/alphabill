@@ -5,12 +5,16 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
+
+var receiverPubKey, _ = hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
+var accountKey, _ = wallet.NewKeys(testMnemonic)
 
 func TestSplitTransactionAmount(t *testing.T) {
 	receiverPubKey, _ := hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
@@ -43,4 +47,96 @@ func TestSplitTransactionAmount(t *testing.T) {
 	require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash), so.TargetBearer)
 	require.EqualValues(t, 350, so.RemainingValue)
 	require.EqualValues(t, b.TxHash, so.Backlink)
+}
+
+func TestCreateTransactions(t *testing.T) {
+	tests := []struct {
+		name        string
+		bills       []*bill
+		amount      uint64
+		txCount     int
+		verify      func(t *testing.T, txs []*txsystem.Transaction)
+		expectedErr error
+	}{
+		{
+			name:   "have more bills than target amount",
+			bills:  []*bill{createBill(5), createBill(3), createBill(1)},
+			amount: uint64(7),
+			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+				// verify tx count
+				require.Len(t, txs, 2)
+
+				// verify first tx is transfer order of bill no1
+				tx, _ := moneytx.NewMoneyTx(txs[0])
+				transferTx, ok := tx.(moneytx.Transfer)
+				require.True(t, ok)
+				require.EqualValues(t, 5, transferTx.TargetValue())
+
+				// verify second tx is split order of bill no2
+				tx, _ = moneytx.NewMoneyTx(txs[1])
+				splitTx, ok := tx.(moneytx.Split)
+				require.True(t, ok)
+				require.EqualValues(t, 2, splitTx.Amount())
+			},
+		}, {
+			name:   "have less bills than target amount",
+			bills:  []*bill{createBill(5), createBill(1)},
+			amount: uint64(7),
+			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+				require.Empty(t, txs)
+			},
+			expectedErr: ErrInsufficientBalance,
+		}, {
+			name:   "have exact amount of bills than target amount",
+			bills:  []*bill{createBill(5), createBill(5)},
+			amount: uint64(10),
+			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+				// verify tx count
+				require.Len(t, txs, 2)
+
+				// verify both bills are transfer orders
+				for _, tx := range txs {
+					mtx, _ := moneytx.NewMoneyTx(tx)
+					transferTx, ok := mtx.(moneytx.Transfer)
+					require.True(t, ok)
+					require.EqualValues(t, 5, transferTx.TargetValue())
+				}
+			},
+		}, {
+			name:   "have exactly one bill with equal target amount",
+			bills:  []*bill{createBill(5)},
+			amount: uint64(5),
+			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+				// verify tx count
+				require.Len(t, txs, 1)
+
+				// verify transfer tx
+				mtx, _ := moneytx.NewMoneyTx(txs[0])
+				transferTx, ok := mtx.(moneytx.Transfer)
+				require.True(t, ok)
+				require.EqualValues(t, 5, transferTx.TargetValue())
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			txs, err := createTransactions(receiverPubKey, tt.amount, tt.bills, accountKey.AccountKey, 100)
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+				require.Nil(t, txs)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, txs)
+			}
+			tt.verify(t, txs)
+		})
+	}
+}
+
+func createBill(value uint64) *bill {
+	return &bill{
+		Value:  value,
+		Id:     uint256.NewInt(0),
+		TxHash: []byte{},
+	}
 }

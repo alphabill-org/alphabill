@@ -48,6 +48,8 @@ func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.T
 	if err != nil {
 		return nil, err
 	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	ctx := context.Background()
 	if c.config.RequestTimeoutMs > 0 {
 		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
@@ -62,6 +64,8 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	ctx := context.Background()
 	if c.config.RequestTimeoutMs > 0 {
 		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
@@ -83,6 +87,8 @@ func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	ctx := context.Background()
 	if c.config.RequestTimeoutMs > 0 {
 		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)

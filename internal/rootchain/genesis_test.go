@@ -1,13 +1,14 @@
 package rootchain
 
 import (
+	gocrypto "crypto"
 	"strings"
 	"testing"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/p1"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
@@ -49,10 +50,10 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
 	pr := &genesis.PartitionNode{
-		NodeIdentifier:      "2",
-		SigningPublicKey:    pubKey,
-		EncryptionPublicKey: pubKey,
-		P1Request:           req,
+		NodeIdentifier:            "2",
+		SigningPublicKey:          pubKey,
+		EncryptionPublicKey:       pubKey,
+		BlockCertificationRequest: req,
 	}
 	partition.Validators = append(partition.Validators, pr)
 
@@ -84,8 +85,33 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	require.Equal(t, 1, len(pgs))
 }
 
-func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *genesis.PartitionRecord {
-	p1Req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
+func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
+	systemIdentifier1 := []byte{0, 0, 0, 0}
+	systemIdentifier2 := []byte{0, 0, 0, 1}
+	systemIdentifier3 := []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	partitionSigner, _ := testsig.CreateSignerAndVerifier(t)
+	partitionSigner2, _ := testsig.CreateSignerAndVerifier(t)
+	partitionSigner3, _ := testsig.CreateSignerAndVerifier(t)
+
+	pn1 := createPartitionNode(t, systemIdentifier1, "1", partitionSigner)
+	pn2 := createPartitionNode(t, systemIdentifier2, "2", partitionSigner2)
+	pn3 := createPartitionNode(t, systemIdentifier3, "3", partitionSigner3)
+	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	rootChainVerifier, err := rootChainSigner.Verifier()
+	require.NoError(t, err)
+	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2, pn3}, rootChainSigner, rootChainVerifier)
+	require.NoError(t, err)
+	require.NotNil(t, rg)
+	require.Equal(t, 1, len(rg.Partitions[0].Nodes))
+	require.Equal(t, 3, len(pgs))
+	for _, pg := range pgs {
+		require.NoError(t, pg.IsValid(rootChainVerifier, gocrypto.SHA256))
+	}
+}
+
+func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
+	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
@@ -95,30 +121,30 @@ func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, parti
 			T2Timeout:        2500,
 		},
 		Validators: []*genesis.PartitionNode{{
-			NodeIdentifier:      nodeID,
-			SigningPublicKey:    pubKey,
-			EncryptionPublicKey: pubKey,
-			P1Request:           p1Req,
+			NodeIdentifier:            nodeID,
+			SigningPublicKey:          pubKey,
+			EncryptionPublicKey:       pubKey,
+			BlockCertificationRequest: req,
 		}},
 	}
 }
 
-func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *genesis.PartitionNode {
-	p1Req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
+func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
+	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	return &genesis.PartitionNode{
-		NodeIdentifier:      nodeID,
-		SigningPublicKey:    pubKey,
-		EncryptionPublicKey: pubKey,
-		P1Request:           p1Req,
-		T2Timeout:           2500,
+		NodeIdentifier:            nodeID,
+		SigningPublicKey:          pubKey,
+		EncryptionPublicKey:       pubKey,
+		BlockCertificationRequest: req,
+		T2Timeout:                 2500,
 	}
 }
 
-func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner *crypto.InMemorySecp256K1Signer) *p1.P1Request {
-	p1Req := &p1.P1Request{
+func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
+	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeID,
 		RootRoundNumber:  0,
@@ -130,7 +156,7 @@ func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, pa
 		},
 	}
 
-	err := p1Req.Sign(partitionSigner)
+	err := req.Sign(partitionSigner)
 	require.NoError(t, err)
-	return p1Req
+	return req
 }

@@ -129,7 +129,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 		Backlink: nil,
 	}, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not set DC monet supply")
+		return nil, errors.Wrap(err, "could not set DC money supply")
 	}
 	txs.Commit()
 	return txs, nil

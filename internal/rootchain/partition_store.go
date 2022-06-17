@@ -1,6 +1,8 @@
 package rootchain
 
-import "gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+)
 
 // partitionStore stores partition related information. key of the map is system identifier.
 type partitionStore map[string]*genesis.PartitionRecord

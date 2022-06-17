@@ -83,7 +83,7 @@ func main() {
 	if txResponse.Ok {
 		log.Println("successfully sent transaction")
 	} else {
-		log.Fatalf("faild to send transaction %v", txResponse.Message)
+		log.Fatalf("failed to send transaction %v", txResponse.Message)
 	}
 }
 

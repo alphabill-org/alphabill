@@ -5,7 +5,7 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
 )
 
 // NewGenesisFromPartitionNodes creates a new genesis for the root chain and partitions.
@@ -15,7 +15,7 @@ func NewGenesisFromPartitionNodes(nodes []*genesis.PartitionNode, rootSigner cry
 		if err := n.IsValid(); err != nil {
 			return nil, nil, err
 		}
-		si := string(n.GetP1Request().GetSystemIdentifier())
+		si := string(n.GetBlockCertificationRequest().GetSystemIdentifier())
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
 	}
 
@@ -110,7 +110,7 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 	// create partition record
 	pr := &genesis.PartitionRecord{
 		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-			SystemIdentifier: nodes[0].P1Request.SystemIdentifier,
+			SystemIdentifier: nodes[0].BlockCertificationRequest.SystemIdentifier,
 			T2Timeout:        nodes[0].T2Timeout,
 		},
 		Validators: nodes,

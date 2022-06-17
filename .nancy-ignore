@@ -9,7 +9,7 @@ CVE-2020-8911
 CVE-2020-8912
 sonatype-2020-1759
 
-We are not using HashiCorp Consul API
+# We are not using HashiCorp Consul API
 CVE-2022-29153
 CVE-2022-24687
 

@@ -3,6 +3,7 @@ package txsystem
 import (
 	"bytes"
 	"crypto"
+	"sync"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 
@@ -29,6 +30,7 @@ type (
 		transaction *Transaction
 		hashFunc    crypto.Hash
 		hashValue   []byte
+		mutex       sync.Mutex
 	}
 )
 
@@ -68,6 +70,8 @@ func (d *DefaultGenericTransaction) Hash(hashFunc crypto.Hash) []byte {
 	if d.hashFunc == hashFunc && d.hashValue != nil {
 		return d.hashValue
 	}
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
 	hasher := hashFunc.New()
 	hasher.Write(d.SigBytes())
 	hasher.Write(d.transaction.OwnerProof)

@@ -171,7 +171,7 @@ func (n *LibP2PNetwork) registerSendProtocol(sendProtocol *SendProtocol) error {
 
 func (n *LibP2PNetwork) Send(out OutputMessage, receivers []peer.ID) error {
 	if len(receivers) == 0 {
-		return errors.New("at least one receiver must be present")
+		return nil // no one to send message in single-node partition
 	}
 	p, f := n.sendProtocols[out.Protocol]
 	if !f {

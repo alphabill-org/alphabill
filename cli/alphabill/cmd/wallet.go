@@ -61,7 +61,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 			return initWalletLogger(config)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Error: must specify a subcommand like create, sync, send etc")
+			consoleWriter.Println("Error: must specify a subcommand like create, sync, send etc")
 		},
 	}
 	walletCmd.AddCommand(createCmd(config))
@@ -99,13 +99,13 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password}
 	var w *money.Wallet
-	fmt.Println("Creating new wallet...")
+	consoleWriter.Println("Creating new wallet...")
 	w, err = money.CreateNewWallet(mnemonic, c)
 	if err != nil {
 		return err
 	}
 	defer w.Shutdown()
-	fmt.Println("Wallet created successfully.")
+	consoleWriter.Println("Wallet created successfully.")
 
 	// print mnemonic if new wallet was created
 	if mnemonic == "" {
@@ -113,8 +113,8 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
-		fmt.Println("mnemonic key: " + mnemonicSeed)
+		consoleWriter.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
+		consoleWriter.Println("mnemonic key: " + mnemonicSeed)
 	}
 	return nil
 }
@@ -145,13 +145,13 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fmt.Println("Starting wallet synchronization...")
+	consoleWriter.Println("Starting wallet synchronization...")
 	err = w.SyncToMaxBlockNumber(ctx)
 	if err != nil {
-		fmt.Println("Failed to synchronize wallet: " + err.Error())
+		consoleWriter.Println("Failed to synchronize wallet: " + err.Error())
 		return err
 	}
-	fmt.Println("Wallet synchronized successfully.")
+	consoleWriter.Println("Wallet synchronized successfully.")
 	return nil
 }
 
@@ -197,7 +197,7 @@ func execSendCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("successfully sent transaction(s)")
+	consoleWriter.Println("Successfully sent transaction(s)")
 	return nil
 }
 
@@ -223,7 +223,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(balance)
+	consoleWriter.Println(balance)
 	return nil
 }
 
@@ -249,7 +249,7 @@ func execGetPubKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(hexutil.Encode(pubKey))
+	consoleWriter.Println(hexutil.Encode(pubKey))
 	return nil
 }
 
@@ -281,7 +281,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	fmt.Println("Starting dust collection, this may take a while...")
+	consoleWriter.Println("Starting dust collection, this may take a while...")
 	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
 	// any error from CollectDust or Sync causes either goroutine to terminate
 	// if collect dust returns without error we signal Sync to cancel manually
@@ -302,10 +302,10 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	})
 	err = group.Wait()
 	if err != nil {
-		fmt.Println("Failed to collect dust: " + err.Error())
+		consoleWriter.Println("Failed to collect dust: " + err.Error())
 		return err
 	}
-	fmt.Println("Dust collection finished successfully.")
+	consoleWriter.Println("Dust collection finished successfully.")
 	return nil
 }
 
@@ -402,12 +402,12 @@ func getPassphrase(cmd *cobra.Command, promptMessage string) (string, error) {
 }
 
 func readPassword(promptMessage string) (string, error) {
-	fmt.Print(promptMessage)
+	consoleWriter.Print(promptMessage)
 	passwordBytes, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
 		return "", err
 	}
-	fmt.Println() // line break after reading password
+	consoleWriter.Println("") // line break after reading password
 	return string(passwordBytes), nil
 }
 

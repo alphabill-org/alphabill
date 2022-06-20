@@ -4,12 +4,14 @@ import (
 	"sync"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
 
 // InMemoryBlockStore is an in-memory implementation of BlockStore interface.
 type InMemoryBlockStore struct {
-	mu     sync.RWMutex
-	blocks map[uint64]*block.Block
+	mu                   sync.RWMutex
+	blocks               map[uint64]*block.Block
+	pendingBlockProposal *block.PendingBlockProposal
 }
 
 func NewInMemoryBlockStore() *InMemoryBlockStore {
@@ -39,4 +41,20 @@ func (bs *InMemoryBlockStore) LatestBlock() *block.Block {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
 	return bs.blocks[uint64(len(bs.blocks))]
+}
+
+func (bs *InMemoryBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
+	bs.pendingBlockProposal = proposal
+	return nil
+}
+
+func (bs *InMemoryBlockStore) GetPendingProposal() (*block.PendingBlockProposal, error) {
+	bs.mu.RLock()
+	defer bs.mu.RUnlock()
+	if bs.pendingBlockProposal == nil {
+		return nil, errors.New(ErrStrPendingBlockProposalNotFound)
+	}
+	return bs.pendingBlockProposal, nil
 }

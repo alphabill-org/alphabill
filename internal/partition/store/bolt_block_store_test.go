@@ -6,14 +6,11 @@ import (
 	"path"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,6 +67,26 @@ func TestPersistentBlockStore_EmptyStore(t *testing.T) {
 	b := bs.LatestBlock()
 	require.NoError(t, err)
 	require.Nil(t, b)
+}
+
+func TestPersistentPendingBlockProposal(t *testing.T) {
+	bs, _ := createTestBlockStore(t)
+	prop := &block.PendingBlockProposal{
+		RoundNumber: 1,
+		PrevHash:    test.RandomBytes(32),
+		StateHash:   test.RandomBytes(32),
+	}
+	require.NoError(t, bs.AddPendingProposal(prop))
+	p, err := bs.GetPendingProposal()
+	require.NoError(t, err)
+	require.Equal(t, prop, p)
+}
+
+func TestPersistentGetPendingBlockProposal_NotFound(t *testing.T) {
+	bs, _ := createTestBlockStore(t)
+	p, err := bs.GetPendingProposal()
+	require.ErrorContains(t, err, ErrStrPendingBlockProposalNotFound)
+	require.Nil(t, p)
 }
 
 func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {

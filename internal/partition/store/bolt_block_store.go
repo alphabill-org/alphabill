@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	bolt "go.etcd.io/bbolt"
 )
@@ -13,11 +12,14 @@ import (
 const BoltBlockStoreFileName = "blocks.db"
 
 var (
-	blocksBucket = []byte("blocksBucket")
-	metaBucket   = []byte("metaBucket")
+	blocksBucket        = []byte("blocksBucket")
+	metaBucket          = []byte("metaBucket")
+	blockProposalBucket = []byte("blockProposalBucket")
 )
-
-var latestBlockNoKey = []byte("latestBlockNo")
+var (
+	latestBlockNoKey       = []byte("latestBlockNo")
+	blockProposalBucketKey = []byte("latestBlockNo")
+)
 
 var errInvalidBlockNo = errors.New("invalid block number")
 
@@ -102,6 +104,28 @@ func (bs *BoltBlockStore) LatestBlock() *block.Block {
 	return bs.latestBlock
 }
 
+func (bs *BoltBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {
+	return bs.db.Update(func(tx *bolt.Tx) error {
+		val, err := json.Marshal(proposal)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(blockProposalBucket).Put(blockProposalBucketKey, val)
+	})
+}
+
+func (bs *BoltBlockStore) GetPendingProposal() (*block.PendingBlockProposal, error) {
+	var bp *block.PendingBlockProposal
+	err := bs.db.View(func(tx *bolt.Tx) error {
+		blockJson := tx.Bucket(blockProposalBucket).Get(blockProposalBucketKey)
+		if blockJson == nil {
+			return errors.New(ErrStrPendingBlockProposalNotFound)
+		}
+		return json.Unmarshal(blockJson, &bp)
+	})
+	return bp, err
+}
+
 func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 	latestBlockNo := bs.getLatestBlockNo(tx)
 	if latestBlockNo+1 != b.BlockNumber {
@@ -121,6 +145,10 @@ func (bs *BoltBlockStore) createBuckets() error {
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists(metaBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(blockProposalBucket)
 		if err != nil {
 			return err
 		}

@@ -279,6 +279,10 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
+	if err := n.txValidator.Validate(tx); err != nil {
+		logger.Warning("Received invalid transaction: %v", err)
+		return true
+	}
 	leader := n.leaderSelector.GetLeaderID()
 	if leader == n.leaderSelector.SelfID() {
 		n.txCh <- tx

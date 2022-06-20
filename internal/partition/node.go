@@ -399,6 +399,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 //  8. New round is started.
 func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
+	util.WriteDebugJsonLog(logger, "Received Unicity Certificate", uc)
 	// UC is validated cryptographically
 	if err := n.unicityCertificateValidator.Validate(uc); err != nil {
 		logger.Warning("Invalid UnicityCertificate: %v", err)

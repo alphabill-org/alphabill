@@ -1,14 +1,22 @@
 package partition
 
 import (
+	"crypto"
 	"sync"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
-const UnknownLeader = ""
+const (
+	UnknownLeader = ""
+
+	ErrStrSystemIdentifierIsNil = "system identifier is nil"
+)
 
 type (
 	LeaderSelector interface {
@@ -21,17 +29,21 @@ type (
 
 	// DefaultLeaderSelector is used to select a leader from the validator pool.
 	DefaultLeaderSelector struct {
-		mutex  sync.Mutex
-		leader peer.ID // current leader ID
-		self   *network.Peer
+		mutex            sync.Mutex
+		leader           peer.ID // current leader ID
+		systemIdentifier []byte
+		self             *network.Peer
 	}
 )
 
-func NewDefaultLeaderSelector(self *network.Peer) (*DefaultLeaderSelector, error) {
+func NewDefaultLeaderSelector(self *network.Peer, systemIdentifier []byte) (*DefaultLeaderSelector, error) {
 	if self == nil {
 		return nil, ErrPeerIsNil
 	}
-	return &DefaultLeaderSelector{self: self, leader: UnknownLeader}, nil
+	if systemIdentifier == nil {
+		return nil, errors.New(ErrStrSystemIdentifierIsNil)
+	}
+	return &DefaultLeaderSelector{self: self, leader: UnknownLeader, systemIdentifier: systemIdentifier}, nil
 }
 
 func (l *DefaultLeaderSelector) SelfID() peer.ID {
@@ -66,7 +78,16 @@ func (l *DefaultLeaderSelector) LeaderFromUnicitySeal(seal *certificates.Unicity
 		return UnknownLeader
 	}
 	peerCount := uint64(len(l.self.Configuration().PersistentPeers))
-	index := seal.RootChainRoundNumber % peerCount
+	hasher := crypto.SHA256.New()
+	hasher.Write(util.Uint64ToBytes(seal.RootChainRoundNumber))
+	hasher.Write(seal.PreviousHash)
+	hasher.Write(seal.Hash)
+	hasher.Write(l.systemIdentifier)
+	hash := hasher.Sum(nil)
+	x := uint256.NewInt(0).SetBytes(hash)
+	i := uint256.NewInt(0)
+	i.Mod(x, uint256.NewInt(peerCount))
+	index := i.Uint64()
 	if index > peerCount {
 		logger.Warning("Invalid leader index.")
 		return UnknownLeader

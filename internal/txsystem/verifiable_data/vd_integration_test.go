@@ -22,7 +22,7 @@ func TestVDPartition_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	tx := createVDTransaction()
-    fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
@@ -43,7 +43,7 @@ func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
 	network.Nodes[1].Close() // shut down the node
 
 	tx := createVDTransaction()
-    fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)

@@ -4,6 +4,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 )
 
+var ErrStrPendingBlockProposalNotFound = "pending block proposal not found"
+
 // BlockStore provides methods to store and query blockchain blocks.
 type BlockStore interface {
 	// Add adds the new block to the blockchain.
@@ -14,4 +16,8 @@ type BlockStore interface {
 	Height() (uint64, error)
 	// LatestBlock returns the latest committed block.
 	LatestBlock() *block.Block
+	// AddPendingProposal stores the pending block proposal.
+	AddPendingProposal(proposal *block.PendingBlockProposal) error
+	// GetPendingProposal returns the pending block proposal.
+	GetPendingProposal() (*block.PendingBlockProposal, error)
 }

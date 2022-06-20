@@ -44,12 +44,6 @@ var (
 )
 
 type (
-	pendingProposal struct {
-		roundNumber  uint64
-		prevHash     []byte
-		stateHash    []byte
-		Transactions []txsystem.GenericTransaction
-	}
 
 	// Net provides an interface for sending messages to and receiving messages from other nodes in the network.
 	Net interface {
@@ -65,7 +59,7 @@ type (
 		transactionSystem           txsystem.TransactionSystem
 		luc                         *certificates.UnicityCertificate
 		proposal                    []txsystem.GenericTransaction
-		pr                          *pendingProposal
+		pr                          *block.PendingBlockProposal
 		timers                      *timer.Timers
 		leaderSelector              LeaderSelector
 		txValidator                 TxValidator
@@ -452,12 +446,12 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			// TODO start recovery (AB-41)
 			return ErrNodeDoesNotHaveLatestBlock
 		}
-	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.stateHash) {
+	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.StateHash) {
 		// UC certifies pending block proposal
 		n.finalizeBlock(n.pr.Transactions, uc)
-	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.prevHash) {
+	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.PrevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pr.prevHash)
+		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pr.PrevHash)
 		n.transactionSystem.Revert()
 		n.startNewRound(uc)
 		return ErrStateReverted
@@ -554,14 +548,18 @@ func (n *Node) sendCertificationRequest() error {
 	latestBlock := n.blockStore.LatestBlock()
 	prevBlockHash := latestBlock.Hash(n.configuration.hashAlgorithm)
 
-	n.pr = &pendingProposal{
-		roundNumber:  n.luc.UnicitySeal.RootChainRoundNumber,
-		prevHash:     prevHash,
-		stateHash:    stateRoot,
+	pendingProposal := &block.PendingBlockProposal{
+		RoundNumber:  n.luc.UnicitySeal.RootChainRoundNumber,
+		PrevHash:     prevHash,
+		StateHash:    stateRoot,
 		Transactions: n.proposal,
 	}
-	// TODO store pending block proposal (AB-132)
 
+	err = n.blockStore.AddPendingProposal(pendingProposal)
+	if err != nil {
+		return errors.Wrap(err, "failed to store pending block proposal")
+	}
+	n.pr = pendingProposal
 	hasher := n.configuration.hashAlgorithm.New()
 	hasher.Write(n.configuration.GetSystemIdentifier())
 	hasher.Write(util.Uint64ToBytes(blockNr))
@@ -577,7 +575,7 @@ func (n *Node) sendCertificationRequest() error {
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeId.String(),
-		RootRoundNumber:  n.pr.roundNumber,
+		RootRoundNumber:  n.pr.RoundNumber,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: prevHash,
 			Hash:         stateRoot,

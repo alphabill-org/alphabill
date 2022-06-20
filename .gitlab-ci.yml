@@ -28,6 +28,9 @@ build:
   stage: build
   script:
     - make build
+  artifacts:
+    paths:
+      - build
 
 gosec:
   stage: test

@@ -13,6 +13,7 @@ test:
 
 build:
 	go build -o build/alphabill cli/alphabill/main.go
+	go build -o build/alphabill-spend-initial-bill scripts/money/spend_initial_bill.go
 
 gosec:
 	gosec -fmt=sonarqube -out gosec_report.json -no-fail ./...

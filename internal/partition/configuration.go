@@ -169,7 +169,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 	}
 
 	if c.leaderSelector == nil {
-		c.leaderSelector, err = NewDefaultLeaderSelector(peer)
+		c.leaderSelector, err = NewDefaultLeaderSelector(peer, c.GetSystemIdentifier())
 		if err != nil {
 			return err
 		}

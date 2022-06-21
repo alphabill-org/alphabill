@@ -7,11 +7,12 @@ import (
 )
 
 const (
-	ProtocolBlockProposal       = "/ab/block-proposal/0.0.1"
-	ProtocolUnicityCertificates = "/ab/certificates/0.0.1"
-	ProtocolBlockCertification  = "/ab/block-certification/0.0.1"
-	ProtocolInputForward        = "/ab/input-forward/0.0.1"
-	//ProtocolLedgerReplication   = "/ab/replication/0.0.1"
+	ProtocolBlockProposal         = "/ab/block-proposal/0.0.1"
+	ProtocolUnicityCertificates   = "/ab/certificates/0.0.1"
+	ProtocolBlockCertification    = "/ab/block-certification/0.0.1"
+	ProtocolInputForward          = "/ab/input-forward/0.0.1"
+	ProtocolLedgerReplicationReq  = "/ab/replication-req/0.0.1"
+	ProtocolLedgerReplicationResp = "/ab/replication-resp/0.0.1"
 
 	ErrStrPeerIsNil       = "peer is nil"
 	ErrStrProtocolIDEmpty = "protocol ID is empty"

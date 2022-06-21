@@ -1,6 +1,7 @@
 package network
 
 import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/replication"
 	"time"
 
 	uc "gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -14,10 +15,11 @@ import (
 )
 
 var DefaultValidatorNetOptions = ValidatorNetOptions{
-	ResponseChannelCapacity:   1000,
-	ForwarderTimeout:          300 * time.Millisecond,
-	BlockCertificationTimeout: 300 * time.Millisecond,
-	BlockProposalTimeout:      300 * time.Millisecond,
+	ResponseChannelCapacity:         1000,
+	ForwarderTimeout:                300 * time.Millisecond,
+	BlockCertificationTimeout:       300 * time.Millisecond,
+	BlockProposalTimeout:            300 * time.Millisecond,
+	LedgerReplicationRequestTimeout: 300 * time.Millisecond,
 }
 
 type (
@@ -36,10 +38,11 @@ type (
 	}
 
 	ValidatorNetOptions struct {
-		ResponseChannelCapacity   uint
-		ForwarderTimeout          time.Duration
-		BlockCertificationTimeout time.Duration
-		BlockProposalTimeout      time.Duration
+		ResponseChannelCapacity         uint
+		ForwarderTimeout                time.Duration
+		BlockCertificationTimeout       time.Duration
+		BlockProposalTimeout            time.Duration
+		LedgerReplicationRequestTimeout time.Duration
 	}
 
 	sendProtocolDescription struct {
@@ -85,6 +88,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 		{protocolID: ProtocolBlockProposal, timeout: opts.BlockProposalTimeout},
 		{protocolID: ProtocolBlockCertification, timeout: opts.BlockCertificationTimeout},
 		{protocolID: ProtocolInputForward, timeout: opts.ForwarderTimeout},
+		{protocolID: ProtocolLedgerReplicationReq, timeout: opts.LedgerReplicationRequestTimeout},
 	}
 	err = initSendProtocols(self, sendProtocolDescriptions, n)
 	if err != nil {
@@ -102,6 +106,10 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 		{
 			protocolID: ProtocolUnicityCertificates,
 			typeFn:     func() proto.Message { return &uc.UnicityCertificate{} },
+		},
+		{
+			protocolID: ProtocolLedgerReplicationResp,
+			typeFn:     func() proto.Message { return &replication.LedgerReplicationResponse{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)

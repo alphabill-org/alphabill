@@ -3,6 +3,13 @@ syntax = "proto3";
 import "block.proto";
 option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/replication;replication";
 
+message LedgerReplicationRequest {
+  bytes system_identifier = 1;
+  string node_identifier = 2;
+  uint64 begin_block_number = 3;
+  uint64 end_block_number = 4;
+}
+
 message LedgerReplicationResponse {
   enum Status {
     OK = 0;

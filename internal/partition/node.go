@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	gocrypto "crypto"
+	"fmt"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/replication"
 	"sync"
 	"time"
 
@@ -34,6 +36,7 @@ const (
 	EventTypeNewRoundStarted
 	EventTypeUnicityCertificateHandled
 	EventTypeBlockFinalized
+	EventTypeRecoveryStarted
 )
 
 const t1TimerName = "t1"
@@ -217,6 +220,24 @@ func (n *Node) loop() {
 					n.sendEvent(EventTypeError, err)
 					continue
 				}
+			case network.ProtocolLedgerReplicationReq:
+				success, lr := convertType[*replication.LedgerReplicationRequest](m.Message)
+				if !success {
+					logger.Warning("Invalid ledger replication request type: %T", m.Message)
+					continue
+				}
+				if err := n.handleLedgerReplicationRequest(lr); err != nil {
+					logger.Warning("Ledger replication failed by node %v: %v", n.configuration.peer.ID(), err)
+				}
+			case network.ProtocolLedgerReplicationResp:
+				success, lr := convertType[*replication.LedgerReplicationResponse](m.Message)
+				if !success {
+					logger.Warning("Invalid ledger replication response type: %T", m.Message)
+					continue
+				}
+				if err := n.handleLedgerReplicationResponse(lr); err != nil {
+					logger.Warning("Ledger replication failed by node %v: %v", n.configuration.peer.ID(), err)
+				}
 			default:
 				logger.Warning("Unknown network protocol: %s", m.Protocol)
 			}
@@ -287,22 +308,30 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 		},
 		[]peer.ID{leader},
 	)
+	// TODO unreported error?
 	return err == nil
 }
 
 func (n *Node) process(tx txsystem.GenericTransaction) {
 	defer trackExecutionTime(time.Now(), "Processing transaction")
-	if err := n.txValidator.Validate(tx); err != nil {
-		logger.Warning("Transaction '%v' is invalid: %v", tx, err)
-		return
-	}
-	if err := n.transactionSystem.Execute(tx); err != nil {
-		logger.Warning("TxSystem was unable to process transaction '%v': %v", tx, err)
+	if err := n.validateAndExecuteTx(tx); err != nil {
 		return
 	}
 	n.proposal = append(n.proposal, tx)
 	n.sendEvent(EventTypeTransactionProcessed, tx)
 	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposal))
+}
+
+func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction) error {
+	if err := n.txValidator.Validate(tx); err != nil {
+		logger.Warning("Transaction '%v' is invalid: %v", tx, err)
+		return err
+	}
+	if err := n.transactionSystem.Execute(tx); err != nil {
+		logger.Warning("TxSystem was unable to process transaction '%v': %v", tx, err)
+		return err
+	}
+	return nil
 }
 
 // handleBlockProposal processes a block proposals. Performs the following steps:
@@ -441,10 +470,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			return errors.Wrap(err, "tx system failed to end block")
 		}
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
-			logger.Warning("Starting recovery")
-			n.status = recovering
-			// TODO start recovery (AB-41)
-			return ErrNodeDoesNotHaveLatestBlock
+			return n.startRecovery(uc)
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.StateHash) {
 		// UC certifies pending block proposal
@@ -459,10 +485,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 		logger.Warning("Reverting state tree.")
 		n.transactionSystem.Revert()
-		logger.Warning("Starting recovery.")
-		n.status = recovering
-		// TODO start recovery (AB-41)
-		return ErrNodeDoesNotHaveLatestBlock
+		return n.startRecovery(uc)
 	}
 	n.startNewRound(uc)
 	return nil
@@ -503,6 +526,150 @@ func (n *Node) handleT1TimeoutEvent() {
 	} else {
 		logger.Debug("Current node is not the leader.")
 	}
+}
+
+func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationRequest) error {
+	util.WriteDebugJsonLog(logger, "Ledger replication request received", lr)
+
+	recoveringNodeID, err := peer.Decode(lr.NodeIdentifier)
+	if err != nil {
+		return errors.Errorf("failed to decode Peer ID: %s", lr.NodeIdentifier)
+	}
+
+	// TODO check recoveringNodeID is among known validators
+	// n.configuration.peer.Validators()
+
+	maxBlock, err := n.blockStore.Height()
+	if err != nil {
+		return errors.Wrap(err, "unable to fetch block height from the block store")
+	}
+
+	resp := &replication.LedgerReplicationResponse{}
+
+	if !bytes.Equal(lr.GetSystemIdentifier(), n.configuration.GetSystemIdentifier()) {
+		resp.Status = replication.LedgerReplicationResponse_UNKNOWN_SYSTEM_IDENTIFIER
+		resp.Message = fmt.Sprintf("Unknown system identifier: %v", lr.GetSystemIdentifier())
+	}
+
+	if maxBlock < lr.GetBeginBlockNumber() {
+		// nothing to recover, just return
+		return nil
+	} else if lr.GetEndBlockNumber() > lr.GetBeginBlockNumber() {
+		maxBlock = lr.GetEndBlockNumber()
+	}
+
+	go func() {
+		for i := lr.GetBeginBlockNumber(); i <= maxBlock; i++ {
+			b, _ := n.blockStore.Get(i)
+			resp.Blocks = []*block.Block{b} // TODO batch
+			err := n.network.Send(network.OutputMessage{
+				Protocol: network.ProtocolLedgerReplicationResp,
+				Message:  resp,
+			}, []peer.ID{recoveringNodeID})
+			if err != nil {
+				logger.Error("Problem sending ledger replication response, block #%d: %s", b.GetBlockNumber(), err)
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplicationResponse) error {
+	util.WriteDebugJsonLog(logger, "Ledger replication response received", lr)
+
+	if n.status == recovering {
+		if lr.GetStatus() != replication.LedgerReplicationResponse_OK {
+			return errors.Errorf("got erroneous Ledger Replication response, status=%v, message='%s'", lr.GetStatus(), lr.GetMessage())
+		}
+		blocks := lr.GetBlocks()
+		for _, b := range blocks {
+			if !bytes.Equal(b.GetSystemIdentifier(), n.configuration.GetSystemIdentifier()) {
+				return errors.Errorf("recovery failed: block %v contains invalid System ID: %x", b.GetBlockNumber(), b.GetSystemIdentifier())
+			}
+			uc := b.GetUnicityCertificate()
+
+			n.transactionSystem.BeginBlock(b.GetBlockNumber())
+			for _, tx := range b.GetTransactions() {
+				gtx, err := n.transactionSystem.ConvertTx(tx)
+				if err != nil {
+					return err
+				}
+				if err = n.validateAndExecuteTx(gtx); err != nil {
+					return err
+				}
+			}
+			state, err := n.transactionSystem.EndBlock()
+			if err != nil {
+				return errors.Wrapf(err, "recovery failed")
+			}
+			if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
+				return errors.Errorf("recovery failed: IR's hash is not equal to state's hash (%X vs %X)", uc.InputRecord.Hash, state.Root())
+			} else if !bytes.Equal(uc.InputRecord.SummaryValue, state.Summary()) {
+				return errors.Errorf("recovery failed: IR's summary value is not equal to tx system summary value (%X vs %X)", uc.InputRecord.SummaryValue, state.Summary())
+			}
+			n.transactionSystem.Commit()
+			if err = n.blockStore.Add(b); err != nil {
+				return err
+			}
+		}
+	} else {
+		logger.Warning("Unexpected Ledger Replication response, node is not recovering", lr)
+		// TODO ignore or fail?
+	}
+	return nil
+}
+
+func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
+	if n.status == recovering {
+		// already recovering
+		return nil
+	}
+	logger.Warning("Starting recovery")
+	n.status = recovering
+	n.stopForwardingOrHandlingTransactions()
+	n.luc = uc // recover up to this UC
+	lb := n.blockStore.LatestBlock()
+	n.sendEvent(EventTypeRecoveryStarted, lb.BlockNumber)
+	// TODO start recovery (AB-41)
+	go func() {
+		err := n.sendLedgerReplicationRequest(lb.BlockNumber)
+		if err != nil {
+			logger.Warning("Error sending ledger replication request: %s", err)
+		}
+	}()
+	return ErrNodeDoesNotHaveLatestBlock
+}
+
+func (n *Node) sendLedgerReplicationRequest(latestBlockNr uint64) error {
+	req := &replication.LedgerReplicationRequest{
+		SystemIdentifier: n.configuration.GetSystemIdentifier(),
+		NodeIdentifier:   n.leaderSelector.SelfID().String(),
+		BeginBlockNumber: latestBlockNr,
+	}
+
+	util.WriteDebugJsonLog(logger, "Ledger replication request created", req)
+
+	peers := n.configuration.peer.Validators()
+	if len(peers) == 0 {
+		return errors.Errorf("unable to send ledger replication request, no peers")
+	}
+
+	var err error
+	// send Ledger Replication request to a first alive randomly chosen node
+	for _, p := range util.ShuffleSliceCopy(peers) {
+		logger.Debug("Sending ledger replication request to peer '%v'", p)
+		err = n.network.Send(network.OutputMessage{
+			Protocol: network.ProtocolLedgerReplicationReq,
+			Message:  req,
+		}, []peer.ID{p})
+
+		if err == nil {
+			break
+		}
+	}
+
+	return err
 }
 
 func (n *Node) sendBlockProposal() error {

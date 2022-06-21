@@ -281,7 +281,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 }
 
 func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem.Transaction) error {
-	gtx, err := moneytx.NewMoneyTx(txPb)
+	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
 	}

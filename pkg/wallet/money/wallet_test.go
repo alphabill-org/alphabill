@@ -152,6 +152,7 @@ func TestBlockProcessing(t *testing.T) {
 			Transactions: []*txsystem.Transaction{
 				// random dust transfer can be processed
 				{
+					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x00}),
 					TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 					Timeout:               1000,
@@ -159,6 +160,7 @@ func TestBlockProcessing(t *testing.T) {
 				},
 				// receive transfer of 100 bills
 				{
+					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x01}),
 					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
@@ -166,6 +168,7 @@ func TestBlockProcessing(t *testing.T) {
 				},
 				// receive split of 100 bills
 				{
+					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x02}),
 					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
@@ -173,6 +176,7 @@ func TestBlockProcessing(t *testing.T) {
 				},
 				// receive swap of 100 bills
 				{
+					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x03}),
 					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,

@@ -154,7 +154,7 @@ func signTx(tx *txsystem.Transaction, ac *wallet.AccountKey) error {
 	if err != nil {
 		return err
 	}
-	gtx, err := money.NewMoneyTx(tx)
+	gtx, err := money.NewMoneyTx(alphabillMoneySystemId, tx)
 	if err != nil {
 		return err
 	}

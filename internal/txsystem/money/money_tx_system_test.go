@@ -71,7 +71,7 @@ func TestExecute_TransferOk(t *testing.T) {
 	rmaTree, txSystem := createRMATreeAndTxSystem(t)
 	unit, data := getBill(t, rmaTree, initialBill.ID)
 
-	transferOk, err := NewMoneyTx(createBillTransfer(initialBill.ID, initialBill.Value, script.PredicateAlwaysTrue(), nil))
+	transferOk, err := NewMoneyTx(systemIdentifier, createBillTransfer(initialBill.ID, initialBill.Value, script.PredicateAlwaysTrue(), nil))
 	require.NoError(t, err)
 	roundNumber := uint64(1)
 	txSystem.BeginBlock(roundNumber)
@@ -92,7 +92,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	initBill, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, err := NewMoneyTx(createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
+	splitOk, err := NewMoneyTx(systemIdentifier, createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
 	require.NoError(t, err)
 	roundNumber := uint64(1)
 	txSystem.BeginBlock(roundNumber)
@@ -126,7 +126,7 @@ func TestExecute_TransferDCOk(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, err := NewMoneyTx(createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
+	splitOk, err := NewMoneyTx(systemIdentifier, createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
 	require.NoError(t, err)
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
@@ -135,7 +135,7 @@ func TestExecute_TransferDCOk(t *testing.T) {
 	splitWrapper := splitOk.(*billSplitWrapper)
 	billID := txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 	_, splitBillData := getBill(t, rmaTree, billID)
-	transferDCOk, err := NewMoneyTx(createDCTransfer(billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32)))
+	transferDCOk, err := NewMoneyTx(systemIdentifier, createDCTransfer(billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32)))
 	require.NoError(t, err)
 
 	err = txSystem.Execute(transferDCOk)
@@ -153,7 +153,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
-	splitOk, err := NewMoneyTx(createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
+	splitOk, err := NewMoneyTx(systemIdentifier, createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
 	require.NoError(t, err)
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
@@ -165,13 +165,13 @@ func TestExecute_SwapOk(t *testing.T) {
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree)
 
 	for _, dcTransfer := range dcTransfers {
-		tx, err := NewMoneyTx(dcTransfer)
+		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
 		require.NoError(t, err)
 		err = txSystem.Execute(tx)
 		require.NoError(t, err)
 	}
 	rmaTree.GetRootHash()
-	swap, err := NewMoneyTx(swapTx)
+	swap, err := NewMoneyTx(systemIdentifier, swapTx)
 	err = txSystem.Execute(swap)
 	require.NoError(t, err)
 	_, newBillData := getBill(t, rmaTree, swap.UnitID())
@@ -248,7 +248,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	backlink := initBillData.Backlink
 	for i := 0; i < 10; i++ {
 		remaining--
-		splitOk, err := NewMoneyTx(createSplit(initialBill.ID, 1, remaining, script.PredicateAlwaysTrue(), backlink))
+		splitOk, err := NewMoneyTx(systemIdentifier, createSplit(initialBill.ID, 1, remaining, script.PredicateAlwaysTrue(), backlink))
 
 		require.NoError(t, err)
 		roundNumber := uint64(10)
@@ -265,13 +265,13 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, rmaTree)
 
 	for _, dcTransfer := range dcTransfers {
-		tx, err := NewMoneyTx(dcTransfer)
+		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
 		require.NoError(t, err)
 		err = txSystem.Execute(tx)
 		require.NoError(t, err)
 	}
 	rmaTree.GetRootHash()
-	swap, err := NewMoneyTx(swapTx)
+	swap, err := NewMoneyTx(systemIdentifier, swapTx)
 	err = txSystem.Execute(swap)
 	require.NoError(t, err)
 	_, newBillData := getBill(t, rmaTree, swap.UnitID())
@@ -298,12 +298,12 @@ func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{initialBill.ID}, rmaTree)
 
 	for _, dcTransfer := range dcTransfers {
-		tx, err := NewMoneyTx(dcTransfer)
+		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
 		require.NoError(t, err)
 		err = txSystem.Execute(tx)
 		require.NoError(t, err)
 	}
-	tx, err := NewMoneyTx(swapTx)
+	tx, err := NewMoneyTx(systemIdentifier, swapTx)
 	require.NoError(t, err)
 	err = txSystem.Execute(tx)
 	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
@@ -317,7 +317,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
-	splitOk, err := NewMoneyTx(createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
+	splitOk, err := NewMoneyTx(systemIdentifier, createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
 	require.NoError(t, err)
 	txSystem.BeginBlock(roundNumber)
 	err = txSystem.Execute(splitOk)
@@ -330,12 +330,12 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	err = rmaTree.AddItem(uint256.NewInt(0).SetBytes(swapTx.UnitId), script.PredicateAlwaysTrue(), &BillData{}, []byte{})
 	require.NoError(t, err)
 	for _, dcTransfer := range dcTransfers {
-		tx, err := NewMoneyTx(dcTransfer)
+		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
 		require.NoError(t, err)
 		err = txSystem.Execute(tx)
 		require.NoError(t, err)
 	}
-	tx, err := NewMoneyTx(swapTx)
+	tx, err := NewMoneyTx(systemIdentifier, swapTx)
 	require.NoError(t, err)
 	err = txSystem.Execute(tx)
 	require.ErrorIs(t, err, ErrSwapBillAlreadyExists)
@@ -350,7 +350,7 @@ func TestRegisterData_Revert(t *testing.T) {
 
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	splitOk, err := NewMoneyTx(createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
+	splitOk, err := NewMoneyTx(systemIdentifier, createSplit(initialBill.ID, amount, remaining, script.PredicateAlwaysTrue(), initBillData.Backlink))
 	require.NoError(t, err)
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
@@ -478,6 +478,17 @@ func createTx(fromID *uint256.Int) *txsystem.Transaction {
 		OwnerProof:            script.PredicateArgumentEmpty(),
 	}
 	return tx
+}
+
+func createNonMoneyTx() *txsystem.Transaction {
+	hasher := crypto.SHA256.New()
+	hasher.Write(test.RandomBytes(32))
+	id := hasher.Sum(nil)
+	return &txsystem.Transaction{
+		SystemId: []byte{0, 0, 0, 1},
+		UnitId:   id,
+		Timeout:  2,
+	}
 }
 
 func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem) {

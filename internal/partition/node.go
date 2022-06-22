@@ -191,6 +191,10 @@ func (n *Node) loop() {
 		case tx := <-n.txCh:
 			n.process(tx)
 		case m := <-n.network.ReceivedChannel():
+			if m.Message == nil {
+				logger.Warning("Received network message is nil")
+				continue
+			}
 			switch m.Protocol {
 			case network.ProtocolInputForward:
 				err := n.handleTxMessage(m)

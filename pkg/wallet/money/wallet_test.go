@@ -147,6 +147,7 @@ func TestBlockProcessing(t *testing.T) {
 
 	blocks := []*block.Block{
 		{
+			SystemIdentifier:  alphabillMoneySystemId,
 			BlockNumber:       1,
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
@@ -205,6 +206,21 @@ func TestBlockProcessing(t *testing.T) {
 	balance, err = w.db.Do().GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
+}
+
+func TestBlockProcessing_InvalidSystemID(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+
+	b := &block.Block{
+		SystemIdentifier:   []byte{0, 0, 0, 1},
+		BlockNumber:        1,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
+		Transactions:       []*txsystem.Transaction{},
+		UnicityCertificate: &certificates.UnicityCertificate{},
+	}
+
+	err := w.ProcessBlock(b)
+	require.ErrorContains(t, err, "invalid system identifier")
 }
 
 func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {

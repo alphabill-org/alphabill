@@ -40,6 +40,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	swapTimeout := uint64(swapTimeoutBlockCount + 1)
 	mockClient.maxBlockNo = 1
 	b := &block.Block{
+		SystemIdentifier:   alphabillMoneySystemId,
 		BlockNumber:        1,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs,
@@ -71,6 +72,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	mockClient.maxBlockNo = dcTimeoutBlockCount
 	for blockHeight := uint64(2); blockHeight <= dcTimeoutBlockCount; blockHeight++ {
 		b = &block.Block{
+			SystemIdentifier:   alphabillMoneySystemId,
 			BlockNumber:        blockHeight,
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
@@ -92,6 +94,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	err = w.db.Do().SetBlockNumber(swapTimeoutBlockCount)
 	require.NoError(t, err)
 	b = &block.Block{
+		SystemIdentifier:   alphabillMoneySystemId,
 		BlockNumber:        swapTimeout,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       mockClient.txs[2:3], // swap tx
@@ -120,6 +123,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	err := w.db.Do().SetBlockNumber(dcTimeoutBlockCount - 1)
 	require.NoError(t, err)
 	b := &block.Block{
+		SystemIdentifier:   alphabillMoneySystemId,
 		BlockNumber:        dcTimeoutBlockCount,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
@@ -159,6 +163,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 
 	// when swap timeout is reached
 	b := &block.Block{
+		SystemIdentifier:   alphabillMoneySystemId,
 		BlockNumber:        swapTimeoutBlockCount,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
@@ -193,6 +198,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 
 	// when dc timeout is reached
 	b := &block.Block{
+		SystemIdentifier:   alphabillMoneySystemId,
 		BlockNumber:        dcTimeoutBlockCount,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
@@ -267,8 +273,9 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 
 	// receiving a block should delete expired bills
 	err := w.ProcessBlock(&block.Block{
-		BlockNumber:  blockHeight + 1,
-		Transactions: []*txsystem.Transaction{},
+		SystemIdentifier: alphabillMoneySystemId,
+		BlockNumber:      blockHeight + 1,
+		Transactions:     []*txsystem.Transaction{},
 	})
 	require.NoError(t, err)
 

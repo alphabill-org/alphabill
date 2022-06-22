@@ -166,6 +166,7 @@ func New(
 
 // Close shuts down the Node component.
 func (n *Node) Close() {
+	logger.Info("Shutting down node '%v'", n.configuration.peer.ID())
 	n.ctxCancel()
 	n.timers.WaitClose()
 	n.txBuffer.Close()

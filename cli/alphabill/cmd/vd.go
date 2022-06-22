@@ -45,7 +45,11 @@ func newVDNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 }
 
 func runVDNode(ctx context.Context, cfg *vdConfiguration) error {
-	txs, err := verifiable_data.New()
+	pg, err := loadPartitionGenesis(cfg.Node.Genesis)
+	if err != nil {
+		return err
+	}
+	txs, err := verifiable_data.New(pg.SystemDescriptionRecord.GetSystemIdentifier())
 	if err != nil {
 		return err
 	}

@@ -32,6 +32,7 @@ type (
 	}
 
 	txSystem struct {
+		systemIdentifier   []byte
 		stateTree          *rma.Tree
 		hashAlgorithm      crypto.Hash
 		currentBlockNumber uint64
@@ -43,7 +44,7 @@ type (
 	}
 )
 
-func New() (*txSystem, error) {
+func New(systemId []byte) (*txSystem, error) {
 	conf := &rma.Config{HashAlgorithm: crypto.SHA256}
 	s, err := rma.New(conf)
 	if err != nil {
@@ -51,8 +52,9 @@ func New() (*txSystem, error) {
 	}
 
 	vdTxSystem := &txSystem{
-		stateTree:     s,
-		hashAlgorithm: conf.HashAlgorithm,
+		systemIdentifier: systemId,
+		stateTree:        s,
+		hashAlgorithm:    conf.HashAlgorithm,
 	}
 
 	return vdTxSystem, nil
@@ -103,6 +105,9 @@ func (d *txSystem) Execute(tx txsystem.GenericTransaction) error {
 }
 
 func (d *txSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	if !bytes.Equal(d.systemIdentifier, tx.GetSystemId()) {
+		return nil, errors.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), d.systemIdentifier)
+	}
 	if tx.TransactionAttributes != nil {
 		return nil, errors.New("invalid vd transaction: transactionAttributes present")
 	}

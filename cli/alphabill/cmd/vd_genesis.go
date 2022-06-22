@@ -69,7 +69,7 @@ func vdGenesisRunFun(_ context.Context, config *vdGenesisConfig) error {
 		return errors.Wrapf(err, "failed to load keys %v", config.Keys.GetKeyFileLocation())
 	}
 
-	txSystem, err := verifiable_data.New()
+	txSystem, err := verifiable_data.New(config.SystemIdentifier)
 	if err != nil {
 		return err
 	}

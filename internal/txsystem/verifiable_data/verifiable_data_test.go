@@ -73,7 +73,7 @@ func createTx(t *testing.T) txsystem.GenericTransaction {
 }
 
 func createVD(t *testing.T) *txSystem {
-	vd, err := New()
+	vd, err := New(vdSystemIdentifier)
 	require.NoError(t, err)
 	return vd
 }

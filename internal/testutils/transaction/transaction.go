@@ -14,6 +14,8 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+var moneySystemId = []byte{0, 0, 0, 0}
+
 func RandomGenericBillTransfer(t *testing.T) txsystem.GenericTransaction {
 	tx := randomTx()
 
@@ -25,7 +27,7 @@ func RandomGenericBillTransfer(t *testing.T) txsystem.GenericTransaction {
 	}
 	// #nosec G104
 	tx.TransactionAttributes.MarshalFrom(bt)
-	genTx, err := moneytx.NewMoneyTx(tx)
+	genTx, err := moneytx.NewMoneyTx(moneySystemId, tx)
 	require.NoError(t, err)
 	return genTx
 }
@@ -62,6 +64,7 @@ func RandomBillSplit() *txsystem.Transaction {
 
 func randomTx() *txsystem.Transaction {
 	return &txsystem.Transaction{
+		SystemId:              moneySystemId,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                randomBytes(3),
 		Timeout:               0,
@@ -100,6 +103,7 @@ func CreateBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) 
 
 func CreateRandomDcTx() *txsystem.Transaction {
 	return &txsystem.Transaction{
+		SystemId:              moneySystemId,
 		UnitId:                hash.Sum256([]byte{0x00}),
 		TransactionAttributes: CreateRandomDustTransferTx(),
 		Timeout:               1000,

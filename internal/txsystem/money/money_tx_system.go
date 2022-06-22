@@ -266,7 +266,7 @@ func (m *moneyTxSystem) Commit() {
 }
 
 func (m *moneyTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	return NewMoneyTx(tx)
+	return NewMoneyTx(m.systemIdentifier, tx)
 }
 
 // EndBlock deletes dust bills from the state tree.

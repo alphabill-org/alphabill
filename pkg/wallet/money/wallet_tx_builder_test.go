@@ -67,13 +67,13 @@ func TestCreateTransactions(t *testing.T) {
 				require.Len(t, txs, 2)
 
 				// verify first tx is transfer order of bill no1
-				tx, _ := moneytx.NewMoneyTx(txs[0])
+				tx, _ := moneytx.NewMoneyTx(alphabillMoneySystemId, txs[0])
 				transferTx, ok := tx.(moneytx.Transfer)
 				require.True(t, ok)
 				require.EqualValues(t, 5, transferTx.TargetValue())
 
 				// verify second tx is split order of bill no2
-				tx, _ = moneytx.NewMoneyTx(txs[1])
+				tx, _ = moneytx.NewMoneyTx(alphabillMoneySystemId, txs[1])
 				splitTx, ok := tx.(moneytx.Split)
 				require.True(t, ok)
 				require.EqualValues(t, 2, splitTx.Amount())
@@ -96,7 +96,7 @@ func TestCreateTransactions(t *testing.T) {
 
 				// verify both bills are transfer orders
 				for _, tx := range txs {
-					mtx, _ := moneytx.NewMoneyTx(tx)
+					mtx, _ := moneytx.NewMoneyTx(alphabillMoneySystemId, tx)
 					transferTx, ok := mtx.(moneytx.Transfer)
 					require.True(t, ok)
 					require.EqualValues(t, 5, transferTx.TargetValue())
@@ -111,7 +111,7 @@ func TestCreateTransactions(t *testing.T) {
 				require.Len(t, txs, 1)
 
 				// verify transfer tx
-				mtx, _ := moneytx.NewMoneyTx(txs[0])
+				mtx, _ := moneytx.NewMoneyTx(alphabillMoneySystemId, txs[0])
 				transferTx, ok := mtx.(moneytx.Transfer)
 				require.True(t, ok)
 				require.EqualValues(t, 5, transferTx.TargetValue())

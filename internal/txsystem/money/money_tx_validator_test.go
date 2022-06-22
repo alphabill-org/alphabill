@@ -186,7 +186,7 @@ func TestSwap(t *testing.T) {
 }
 
 func newTransfer(t *testing.T, v uint64, backlink []byte) *transferWrapper {
-	tx, err := NewMoneyTx(newPBTransactionOrder([]byte{1}, []byte{3}, 2, &TransferOrder{
+	tx, err := NewMoneyTx(systemIdentifier, newPBTransactionOrder([]byte{1}, []byte{3}, 2, &TransferOrder{
 		NewBearer:   []byte{4},
 		TargetValue: v,
 		Backlink:    backlink,
@@ -203,8 +203,8 @@ func newTransferDC(t *testing.T, v uint64, backlink []byte, unitID []byte, nonce
 		TargetValue:  v,
 		Backlink:     backlink,
 	})
-	order.SystemId = []byte{0}
-	tx, err := NewMoneyTx(order)
+	order.SystemId = systemIdentifier
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &transferDCWrapper{})
 	return tx.(*transferDCWrapper)
@@ -217,8 +217,8 @@ func newSplit(t *testing.T, amount uint64, remainingValue uint64, backlink []byt
 		RemainingValue: remainingValue,
 		Backlink:       backlink,
 	})
-	order.SystemId = []byte{0}
-	tx, err := NewMoneyTx(order)
+	order.SystemId = systemIdentifier
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &billSplitWrapper{})
 	return tx.(*billSplitWrapper)
@@ -235,8 +235,8 @@ func newInvalidTargetValueSwap(t *testing.T) *swapWrapper {
 		Proofs:          [][]byte{{9}, {10}},
 		TargetValue:     dcTransfer.TargetValue() - 1,
 	})
-	order.SystemId = []byte{0}
-	tx, err := NewMoneyTx(order)
+	order.SystemId = systemIdentifier
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
@@ -247,7 +247,7 @@ func newInvalidBillIdentifierSwap(t *testing.T) *swapWrapper {
 	transferId, swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, test.RandomBytes(3), swapId)
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
-	tx, err := NewMoneyTx(order)
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
@@ -258,8 +258,8 @@ func newInvalidBillIdSwap(t *testing.T) *swapWrapper {
 	transferId, swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
 	order := newPBTransactionOrder([]byte{0}, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
-	order.SystemId = []byte{0}
-	tx, err := NewMoneyTx(order)
+	order.SystemId = systemIdentifier
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
@@ -270,7 +270,7 @@ func newInvalidNonceSwap(t *testing.T) *swapWrapper {
 	transferId, swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, []byte{0})
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
-	tx, err := NewMoneyTx(order)
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
@@ -287,7 +287,7 @@ func newInvalidTargetBearerSwap(t *testing.T) *swapWrapper {
 		Proofs:          [][]byte{{9}, {10}},
 		TargetValue:     dcTransfer.TargetValue(),
 	})
-	tx, err := NewMoneyTx(order)
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
@@ -298,7 +298,7 @@ func newValidSwap(t *testing.T) *swapWrapper {
 	transferId, swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
-	tx, err := NewMoneyTx(order)
+	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)

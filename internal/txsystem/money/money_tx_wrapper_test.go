@@ -19,7 +19,7 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), 100, test.RandomBytes(32))
 		pbTransaction  = newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, pbBillTransfer)
 	)
-	genericTx, err := NewMoneyTx(pbTransaction)
+	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
 
 	hashValue1 := genericTx.Hash(crypto.SHA256)
@@ -47,7 +47,7 @@ func TestWrapper_Transfer(t *testing.T) {
 		pbBillTransfer = newPBBillTransfer(test.RandomBytes(10), 100, test.RandomBytes(32))
 		pbTransaction  = newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, pbBillTransfer)
 	)
-	genericTx, err := NewMoneyTx(pbTransaction)
+	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
 	transfer, ok := genericTx.(Transfer)
 	require.True(t, ok)
@@ -70,7 +70,7 @@ func TestWrapper_TransferDC(t *testing.T) {
 		pbTransferDC  = newPBTransferDC(test.RandomBytes(32), test.RandomBytes(32), 777, test.RandomBytes(32))
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbTransferDC)
 	)
-	genericTx, err := NewMoneyTx(pbTransaction)
+	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
 	transfer, ok := genericTx.(TransferDC)
 	require.True(t, ok)
@@ -86,7 +86,7 @@ func TestWrapper_Split(t *testing.T) {
 		pbSplit       = newPBBillSplit(777, test.RandomBytes(32), 888, test.RandomBytes(32))
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbSplit)
 	)
-	genericTx, err := NewMoneyTx(pbTransaction)
+	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
 	split, ok := genericTx.(Split)
 	require.True(t, ok)
@@ -133,7 +133,7 @@ func TestWrapper_Swap(t *testing.T) {
 			777)
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbSwap)
 	)
-	genericTx, err := NewMoneyTx(pbTransaction)
+	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
 	swap, ok := genericTx.(Swap)
 	require.True(t, ok)
@@ -154,6 +154,11 @@ func TestWrapper_Swap(t *testing.T) {
 	assert.Equal(t, pbSwap.TargetValue, swap.TargetValue())
 
 	require.NotEmpty(t, swap.SigBytes())
+}
+
+func TestWrapper_DifferentPartitionTx(t *testing.T) {
+	_, err := NewMoneyTx(systemIdentifier, createNonMoneyTx())
+	require.ErrorContains(t, err, "transaction has invalid system identifier")
 }
 
 func TestUint256Hashing(t *testing.T) {
@@ -210,7 +215,7 @@ func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDCOrder, pbTran
 
 func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *txsystem.Transaction {
 	to := &txsystem.Transaction{
-		SystemId:              test.RandomBytes(4),
+		SystemId:              systemIdentifier,
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,

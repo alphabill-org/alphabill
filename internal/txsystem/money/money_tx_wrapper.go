@@ -44,7 +44,11 @@ type (
 )
 
 // NewMoneyTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
-func NewMoneyTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	if !bytes.Equal(systemID, tx.GetSystemId()) {
+		return nil, errors.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), systemID)
+	}
+
 	switch tx.TransactionAttributes.TypeUrl {
 	case protobufTypeUrlPrefix + "TransferOrder":
 		pb := &TransferOrder{}
@@ -88,7 +92,7 @@ func NewMoneyTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 			swap:    pb,
 		}
 		for _, dtTx := range pb.DcTransfers {
-			dt, err := NewMoneyTx(dtTx)
+			dt, err := NewMoneyTx(systemID, dtTx)
 			if err != nil {
 				return nil, errors.Wrap(err, "transfer DC wrapping failed")
 			}

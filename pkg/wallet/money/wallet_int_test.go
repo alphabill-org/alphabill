@@ -46,6 +46,7 @@ func TestSync(t *testing.T) {
 	blocks := []*alphabill.GetBlockResponse{
 		{
 			Block: &block.Block{
+				SystemIdentifier:  alphabillMoneySystemId,
 				BlockNumber:       1,
 				PreviousBlockHash: hash.Sum256([]byte{}),
 				Transactions: []*txsystem.Transaction{
@@ -139,6 +140,7 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
 		b := &alphabill.GetBlockResponse{
 			Block: &block.Block{
+				SystemIdentifier:   alphabillMoneySystemId,
 				BlockNumber:        blockNo,
 				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*txsystem.Transaction{},
@@ -216,6 +218,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &alphabill.GetBlockResponse{
 			Block: &block.Block{
+				SystemIdentifier:   alphabillMoneySystemId,
 				BlockNumber:        blockNo,
 				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*txsystem.Transaction{},

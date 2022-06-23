@@ -88,6 +88,5 @@ trivy:
 
 nancy:
   stage: analyze
-  when: manual
   script:
     - go list -json -m all | nancy sleuth

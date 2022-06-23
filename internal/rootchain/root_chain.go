@@ -107,6 +107,10 @@ func (rc *RootChain) loop() {
 			logger.Info("Exiting root chain main loop")
 			return
 		case m := <-rc.net.ReceivedChannel():
+			if m.Message == nil {
+				logger.Warning("Received network message is nil")
+				continue
+			}
 			switch m.Protocol {
 			case network.ProtocolBlockCertification:
 				req, correctType := m.Message.(*certification.BlockCertificationRequest)

@@ -186,6 +186,10 @@ func (n *Node) loop() {
 		case tx := <-n.txCh:
 			n.process(tx)
 		case m := <-n.network.ReceivedChannel():
+			if m.Message == nil {
+				logger.Warning("Received network message is nil")
+				continue
+			}
 			switch m.Protocol {
 			case network.ProtocolInputForward:
 				err := n.handleTxMessage(m)
@@ -274,6 +278,10 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
+	if err := n.txValidator.Validate(tx); err != nil {
+		logger.Warning("Received invalid transaction: %v", err)
+		return true
+	}
 	leader := n.leaderSelector.GetLeaderID()
 	if leader == n.leaderSelector.SelfID() {
 		n.txCh <- tx

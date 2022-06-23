@@ -1,6 +1,7 @@
 package testpartition
 
 import (
+	"fmt"
 	"testing"
 
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
@@ -24,10 +25,12 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.Equal(t, 3, len(network.Nodes))
 
 	tx := randomTx(systemIdentifier)
+	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	require.NoError(t, network.SubmitTx(tx))
 	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 
 	tx = randomTx(systemIdentifier)
+	fmt.Printf("Broadcasting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.BroadcastTx(tx)
 	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }

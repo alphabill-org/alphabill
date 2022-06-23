@@ -17,6 +17,7 @@ var (
 	ErrSystemIdentifierIsNil = errors.New("System identifier is nil")
 	ErrBlockStoreIsNil       = errors.New("block store is nil")
 	ErrTransactionExpired    = errors.New("transaction timeout must be greater than current block height")
+	ErrStrTxIsNil            = "transaction is nil"
 )
 
 type (
@@ -80,6 +81,9 @@ func NewDefaultTxValidator(systemIdentifier []byte, blockStore store.BlockStore)
 }
 
 func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction) error {
+	if tx == nil {
+		return errors.New(ErrStrTxIsNil)
+	}
 	if !bytes.Equal(dtv.systemIdentifier, tx.SystemID()) {
 		//  transaction was not sent to correct transaction system
 		return errors.Wrapf(ErrInvalidSystemIdentifier, "expected %X, got %X", dtv.systemIdentifier, tx.SystemID())

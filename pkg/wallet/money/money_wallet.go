@@ -30,11 +30,12 @@ const (
 )
 
 var (
-	ErrSwapInProgress      = errors.New("swap is in progress, synchronize your wallet to complete the process")
-	ErrSwapNotEnoughBills  = errors.New("need to have more than 1 bill to perform swap")
-	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
-	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	ErrInvalidPassword     = errors.New("invalid password")
+	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
+	ErrSwapNotEnoughBills   = errors.New("need to have more than 1 bill to perform swap")
+	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
+	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	ErrInvalidPassword      = errors.New("invalid password")
+	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
 )
 
 type (
@@ -104,6 +105,10 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 func (w *Wallet) ProcessBlock(b *block.Block) error {
 	blockNumber := b.BlockNumber
 	log.Info("processing block: " + strconv.FormatUint(blockNumber, 10))
+	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
+		return ErrInvalidBlockSystemID
+	}
+
 	return w.db.WithTransaction(func(dbTx TxContext) error {
 		lastBlockNumber, err := w.db.Do().GetBlockNumber()
 		if err != nil {
@@ -281,7 +286,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 }
 
 func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem.Transaction) error {
-	gtx, err := moneytx.NewMoneyTx(txPb)
+	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
 	}

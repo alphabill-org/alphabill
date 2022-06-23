@@ -184,6 +184,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 	var dcTxs []*txsystem.Transaction
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &txsystem.Transaction{
+			SystemId:              alphabillMoneySystemId,
 			UnitId:                b.getId(),
 			TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 			Timeout:               1000,
@@ -197,10 +198,12 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 func createBlockWithSwapTx(dcNonce []byte, k *wallet.AccountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
 	return &alphabill.GetBlockResponse{
 		Block: &block.Block{
+			SystemIdentifier:  alphabillMoneySystemId,
 			BlockNumber:       1,
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
 				{
+					SystemId:              alphabillMoneySystemId,
 					UnitId:                dcNonce,
 					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHash.Sha256, dcTxs),
 					Timeout:               1000,

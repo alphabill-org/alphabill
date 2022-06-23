@@ -46,11 +46,13 @@ func TestSync(t *testing.T) {
 	blocks := []*alphabill.GetBlockResponse{
 		{
 			Block: &block.Block{
+				SystemIdentifier:  alphabillMoneySystemId,
 				BlockNumber:       1,
 				PreviousBlockHash: hash.Sum256([]byte{}),
 				Transactions: []*txsystem.Transaction{
 					// random dust transfer can be processed
 					{
+						SystemId:              alphabillMoneySystemId,
 						UnitId:                hash.Sum256([]byte{0x00}),
 						TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 						Timeout:               1000,
@@ -58,6 +60,7 @@ func TestSync(t *testing.T) {
 					},
 					// receive transfer of 100 bills
 					{
+						SystemId:              alphabillMoneySystemId,
 						UnitId:                hash.Sum256([]byte{0x01}),
 						TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
 						Timeout:               1000,
@@ -65,6 +68,7 @@ func TestSync(t *testing.T) {
 					},
 					// receive split of 100 bills
 					{
+						SystemId:              alphabillMoneySystemId,
 						UnitId:                hash.Sum256([]byte{0x02}),
 						TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 						Timeout:               1000,
@@ -72,6 +76,7 @@ func TestSync(t *testing.T) {
 					},
 					// receive swap of 100 bills
 					{
+						SystemId:              alphabillMoneySystemId,
 						UnitId:                hash.Sum256([]byte{0x03}),
 						TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 						Timeout:               1000,
@@ -135,6 +140,7 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
 		b := &alphabill.GetBlockResponse{
 			Block: &block.Block{
+				SystemIdentifier:   alphabillMoneySystemId,
 				BlockNumber:        blockNo,
 				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*txsystem.Transaction{},
@@ -212,6 +218,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &alphabill.GetBlockResponse{
 			Block: &block.Block{
+				SystemIdentifier:   alphabillMoneySystemId,
 				BlockNumber:        blockNo,
 				PreviousBlockHash:  hash.Sum256([]byte{}),
 				Transactions:       []*txsystem.Transaction{},

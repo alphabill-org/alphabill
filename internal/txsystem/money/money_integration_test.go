@@ -51,14 +51,20 @@ func TestPartition_Ok(t *testing.T) {
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+
+	// wrong partition tx
+	tx = createNonMoneyTx()
+	err = network.SubmitTx(tx)
+	require.Error(t, err)
+	require.Never(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }
 
 func createSplitTx(prevTx *txsystem.Transaction) *txsystem.Transaction {
-	backlinkTx, _ := NewMoneyTx(prevTx)
+	backlinkTx, _ := NewMoneyTx(systemIdentifier, prevTx)
 	backlink := backlinkTx.Hash(crypto.SHA256)
 
 	tx := createSplit(uint256.NewInt(1), 1000, 9000, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey2)), backlink)
-	gtx, _ := NewMoneyTx(tx)
+	gtx, _ := NewMoneyTx(systemIdentifier, tx)
 	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
 	sig, _ := signer.SignBytes(gtx.SigBytes())
 	tx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey1))

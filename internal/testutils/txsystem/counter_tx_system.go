@@ -34,7 +34,7 @@ func (s *Summary) Summary() []byte {
 
 func (m *CounterTxSystem) State() (txsystem.State, error) {
 	bytes := make([]byte, 32)
-	binary.LittleEndian.PutUint64(bytes, m.InitCount)
+	binary.LittleEndian.PutUint64(bytes, m.InitCount+m.ExecuteCount)
 	return &Summary{
 		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil

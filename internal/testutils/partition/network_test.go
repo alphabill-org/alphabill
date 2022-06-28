@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
+
 	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
@@ -14,7 +16,7 @@ var systemIdentifier = []byte{1, 2, 4, 1}
 
 func TestNewNetwork_Ok(t *testing.T) {
 	network, err := NewNetwork(3, func() txsystem.TransactionSystem {
-		return &CounterTxSystem{}
+		return &testtxsystem.CounterTxSystem{}
 	}, systemIdentifier)
 	require.NoError(t, err)
 	defer func() {

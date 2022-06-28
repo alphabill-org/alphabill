@@ -188,7 +188,11 @@ func (n *Node) loop() {
 			return
 		case tx := <-n.txCh:
 			n.process(tx)
-		case m := <-n.network.ReceivedChannel():
+		case m, ok := <-n.network.ReceivedChannel():
+			if !ok {
+				logger.Warning("Received channel closed, exiting main loop")
+				return
+			}
 			if m.Message == nil {
 				logger.Warning("Received network message is nil")
 				continue

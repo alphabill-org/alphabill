@@ -106,7 +106,11 @@ func (rc *RootChain) loop() {
 		case <-rc.ctx.Done():
 			logger.Info("Exiting root chain main loop")
 			return
-		case m := <-rc.net.ReceivedChannel():
+		case m, ok := <-rc.net.ReceivedChannel():
+			if !ok {
+				logger.Warning("Received channel closed, exiting root chain main loop")
+				return
+			}
 			if m.Message == nil {
 				logger.Warning("Received network message is nil")
 				continue

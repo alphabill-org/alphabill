@@ -76,6 +76,8 @@ func (t *Timers) Restart(name string) {
 		select {
 		// drain the cancel channel if the timer is already executed
 		case <-nt.cancelCh:
+		default:
+			// if nothing to drain (task#run received the signal)
 		}
 	}
 

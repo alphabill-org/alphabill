@@ -43,6 +43,28 @@ func TestRestartRunningTimer(t *testing.T) {
 	}, test.WaitDuration, 1)
 }
 
+func TestRestartRunningTimer_MultipleTimes(t *testing.T) {
+	timers := NewTimers()
+	timers.Start("1", 100*time.Millisecond)
+	timers.Restart("1")
+	timers.Restart("1")
+	timers.Restart("1")
+	timers.Restart("1")
+	require.Eventually(t, func() bool {
+		nt := <-timers.C
+		require.Equal(t, "1", nt.Name())
+		return true
+	}, test.WaitDuration, 1)
+	require.Never(t, func() bool {
+		<-timers.C
+		return false
+	}, 100, 1)
+	require.Eventually(t, func() bool {
+		timers.WaitClose()
+		return true
+	}, test.WaitDuration, 1)
+}
+
 func TestStartMultipleTimers(t *testing.T) {
 	timers := NewTimers()
 	timers.Start("1", 500*time.Millisecond)

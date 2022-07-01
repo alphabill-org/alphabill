@@ -201,7 +201,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 		}
 		s.latestUnicityCertificates.put(identifier, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("New uncity certificate for partition %X is", d.SystemIdentifier), certificate)
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
 	}
 	// send responses
 	for key, store := range s.incomingRequests {

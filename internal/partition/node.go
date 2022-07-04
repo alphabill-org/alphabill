@@ -5,24 +5,25 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/replication"
-	"sync"
-	"time"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/replication"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition/store"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txbuffer"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"sync"
+	"time"
 )
 
 const (
@@ -128,6 +129,8 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+
+	log.SetContext(log.KeyNodeID, conf.peer.ID().String())
 
 	n := &Node{
 		status:                      idle,

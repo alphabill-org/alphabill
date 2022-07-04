@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
@@ -54,6 +56,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
+	log.SetContext(log.KeyNodeID, peer.ID().String())
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}

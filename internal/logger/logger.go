@@ -35,6 +35,7 @@ func loadGlobalConfigFromFile(fileName string) (GlobalConfig, error) {
 			ShowCaller      bool              `yaml:"showCaller"`
 			TimeLocation    string            `yaml:"timeLocation"`
 			ShowGoroutineID bool              `yaml:"showGoroutineID"`
+			ShowNodeID      bool              `yaml:"showNodeID"`
 		}
 	)
 
@@ -61,6 +62,7 @@ func loadGlobalConfigFromFile(fileName string) (GlobalConfig, error) {
 		ShowCaller:      config.ShowCaller,
 		TimeLocation:    config.TimeLocation,
 		ShowGoroutineID: config.ShowGoroutineID,
+		ShowNodeID:      config.ShowNodeID,
 	}
 	// Output writer
 	if config.OutputPath != "" {

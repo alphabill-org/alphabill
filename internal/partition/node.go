@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	gocrypto "crypto"
-	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"sync"
 	"time"
 
@@ -12,6 +11,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
@@ -576,9 +577,19 @@ func (n *Node) sendCertificationRequest() error {
 	hasher.Write(n.configuration.GetSystemIdentifier())
 	hasher.Write(util.Uint64ToBytes(blockNr))
 	hasher.Write(prevBlockHash)
-
-	for _, tx := range n.pr.Transactions {
-		hasher.Write(tx.Hash(n.configuration.hashAlgorithm))
+	if len(n.pr.Transactions) > 0 {
+		// cast transactions to mt.Data type
+		txs := make([]mt.Data, len(n.pr.Transactions))
+		for i, tx := range n.pr.Transactions {
+			txs[i] = tx
+		}
+		// build merkle tree of transactions
+		merkleTree, err := mt.New(n.configuration.hashAlgorithm, txs)
+		if err != nil {
+			return err
+		}
+		// add merkle tree root hash to block hasher
+		hasher.Write(merkleTree.GetRootHash())
 	}
 	blockHash := hasher.Sum(nil)
 

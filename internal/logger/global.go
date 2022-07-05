@@ -129,6 +129,7 @@ func (gf *globalFactory) updateFromConfig(config GlobalConfig) {
 	gf.config.ConsoleFormat = config.ConsoleFormat
 	gf.config.ShowCaller = config.ShowCaller
 	gf.config.ShowGoroutineID = config.ShowGoroutineID
+	gf.config.ShowNodeID = config.ShowNodeID
 
 	if updateOutputFormat {
 		gf.updateOutputFormat()
@@ -176,7 +177,7 @@ func (gf *globalFactory) updateOutputFormat() {
 
 func (gf *globalFactory) updateAllLoggers() {
 	for name, logger := range gf.loggers {
-		logger.update(gf.loggerLevel(name), gf.context, gf.config.ShowGoroutineID)
+		logger.update(gf.loggerLevel(name), gf.context, gf.config.ShowGoroutineID, gf.config.ShowNodeID)
 	}
 }
 
@@ -190,7 +191,7 @@ func (gf *globalFactory) create(name string) Logger {
 	}
 	// Idea is that application/logging configuration can specify the log levels based on logger names.
 	// These are arbitrary names, but it's expected each package will create on named after the package name.
-	cl := newContextLogger(gf.loggerLevel(normName), gf.context, gf.config.ShowGoroutineID)
+	cl := newContextLogger(gf.loggerLevel(normName), gf.context, gf.config.ShowGoroutineID, gf.config.ShowNodeID)
 	gf.loggers[normName] = cl
 	return cl
 }

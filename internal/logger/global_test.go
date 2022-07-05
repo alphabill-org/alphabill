@@ -237,6 +237,7 @@ func (s *GlobalLoggerTestSuite) TestGoroutineId() {
 
 	logConf.DefaultLevel = WARNING
 	logConf.ShowGoroutineID = true
+	logConf.ShowNodeID = true
 	UpdateGlobalConfig(logConf)
 	log.Warning("my message 1")
 	line = s.readLogLine()

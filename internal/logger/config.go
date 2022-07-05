@@ -13,6 +13,7 @@ type GlobalConfig struct {
 	ShowCaller      bool      // set to true to show caller in the log message. By default, true.
 	TimeLocation    string    // the location for displaying time, by default OS local time.
 	ShowGoroutineID bool      // set to true to add goroutine id to the messages. By default, false.
+	ShowNodeID      bool      // set to true to add node id to the messages. By default, false.
 }
 
 const (
@@ -30,6 +31,7 @@ func defaultConfiguration() GlobalConfig {
 		ShowCaller:      true,
 		TimeLocation:    defaultTimeLocation,
 		ShowGoroutineID: false,
+		ShowNodeID:      false,
 	}
 	return conf
 }
@@ -44,6 +46,7 @@ func developerConfiguration() GlobalConfig {
 		ShowCaller:      true,
 		TimeLocation:    TimeLocationLocal,
 		ShowGoroutineID: true,
+		ShowNodeID:      true,
 	}
 	return conf
 }

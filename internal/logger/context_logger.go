@@ -13,29 +13,33 @@ type (
 		level           LogLevel
 		context         Context
 		showGoroutineID bool
+		showNodeID      bool
 	}
 
 	Context map[string]interface{}
 )
 
+const KeyNodeID = "NodeID"
+
 // newContextLogger creates the logger, but doesn't initialize it yet.
 // This is needed, so loggers could be created in var phase. But the global log configuration added later.
-func newContextLogger(level LogLevel, context Context, showGoroutineID bool) *ContextLogger {
+func newContextLogger(level LogLevel, context Context, showGoroutineID bool, showNodeID bool) *ContextLogger {
 	return &ContextLogger{
 		zeroLogger:      nil,
 		level:           level,
 		context:         context,
 		showGoroutineID: showGoroutineID,
+		showNodeID:      showNodeID,
 	}
 }
 
 // init creates the zerologger instance with attributes set in the constructor.
 func (c *ContextLogger) init() {
-	c.update(c.level, c.context, c.showGoroutineID)
+	c.update(c.level, c.context, c.showGoroutineID, c.showNodeID)
 	InitializeGlobalLogger()
 }
 
-func (c *ContextLogger) update(level LogLevel, context Context, showGoroutineID bool) {
+func (c *ContextLogger) update(level LogLevel, context Context, showGoroutineID bool, showNodeID bool) {
 	c.level = level
 	c.showGoroutineID = showGoroutineID
 
@@ -45,6 +49,13 @@ func (c *ContextLogger) update(level LogLevel, context Context, showGoroutineID 
 	}
 	if showGoroutineID {
 		zeroLogger = zeroLogger.Hook(goRoutineIDHook{})
+	}
+	if showNodeID {
+		if v, found := context[KeyNodeID]; found {
+			if id, ok := v.(string); ok {
+				zeroLogger = zeroLogger.Hook(nodeIDHook{id: id})
+			}
+		}
 	}
 	c.zeroLogger = &zeroLogger
 }
@@ -112,6 +123,14 @@ type goRoutineIDHook struct{}
 
 func (h goRoutineIDHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	e.Uint64("GoID", goroutineID())
+}
+
+type nodeIDHook struct {
+	id string
+}
+
+func (h nodeIDHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
+	e.Str(KeyNodeID, h.id)
 }
 
 func toZeroLevel(lvl LogLevel) zerolog.Level {

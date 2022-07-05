@@ -8,6 +8,8 @@ showCaller: true
 timeLocation: UTC
 # Controls if goroutine ID is added to log.
 showGoroutineID: true
+# Controls if Node ID is added to log.
+showNodeID: true
 # The default log level for all loggers
 # Possible levels: NONE; ERROR; WARNING; INFO; DEBUG; TRACE
 defaultLevel: DEBUG

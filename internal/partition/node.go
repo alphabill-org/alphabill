@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	gocrypto "crypto"
+	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"sync"
 	"time"
 
@@ -125,6 +126,8 @@ func New(
 	if err != nil {
 		return nil, err
 	}
+
+	log.SetContext(log.KeyNodeID, conf.peer.ID().String())
 
 	n := &Node{
 		status:                      idle,

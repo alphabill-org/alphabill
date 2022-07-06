@@ -564,13 +564,9 @@ func (n *Node) sendCertificationRequest() error {
 	}
 	n.pr = pendingProposal
 
-	prevBlockHash := n.blockStore.LatestBlock().UnicityCertificate.InputRecord.BlockHash
-	height, err := n.blockStore.Height()
-	if err != nil {
-		return err
-	}
-	blockNumber := height + 1
-	blockHash, err := n.hashProposedBlock(prevBlockHash, blockNumber)
+	latestBlock := n.blockStore.LatestBlock()
+	latestBlockHash := latestBlock.UnicityCertificate.InputRecord.BlockHash
+	blockHash, err := n.hashProposedBlock(latestBlockHash, latestBlock.BlockNumber+1)
 	if err != nil {
 		return err
 	}

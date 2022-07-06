@@ -564,7 +564,13 @@ func (n *Node) sendCertificationRequest() error {
 	}
 	n.pr = pendingProposal
 
-	blockHash, err := n.hashProposedBlock()
+	prevBlockHash := n.blockStore.LatestBlock().UnicityCertificate.InputRecord.BlockHash
+	height, err := n.blockStore.Height()
+	if err != nil {
+		return err
+	}
+	blockNumber := height + 1
+	blockHash, err := n.hashProposedBlock(prevBlockHash, blockNumber)
 	if err != nil {
 		return err
 	}
@@ -633,19 +639,10 @@ func (n *Node) startHandleOrForwardTransactions() {
 	go n.txBuffer.Process(n.txCtx, n.txWaitGroup, n.handleOrForwardTransaction)
 }
 
-func (n *Node) hashProposedBlock() ([]byte, error) {
-	height, err := n.blockStore.Height()
-	if err != nil {
-		return nil, err
-	}
-	blockNr := height + 1
-
-	latestBlock := n.blockStore.LatestBlock()
-	prevBlockHash := latestBlock.Hash(n.configuration.hashAlgorithm)
-
+func (n *Node) hashProposedBlock(prevBlockHash []byte, blockNumber uint64) ([]byte, error) {
 	hasher := n.configuration.hashAlgorithm.New()
 	hasher.Write(n.configuration.GetSystemIdentifier())
-	hasher.Write(util.Uint64ToBytes(blockNr))
+	hasher.Write(util.Uint64ToBytes(blockNumber))
 	hasher.Write(prevBlockHash)
 	if len(n.pr.Transactions) > 0 {
 		// cast transactions to mt.Data type

@@ -7,7 +7,7 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 )
 
-var ErrNilData = errors.New("Merkle Tree input data is nil")
+var ErrNilData = errors.New("merkle tree input data is nil")
 
 type (
 	MerkleTree struct {
@@ -97,15 +97,14 @@ func (s *MerkleTree) output(node *node, prefix string, isTail bool, str *string)
 
 // hibit floating-point-free equivalent of 2**math.floor(math.log(m, 2)),
 // could be preferred for larger values of m to avoid rounding errors
-func hibit(m int) int {
-	if m < 0 {
+func hibit(n int) int {
+	if n < 0 {
 		panic("hibit function input cannot be negative (merkle tree input data length cannot be zero)")
 	}
-	n := 1
-	for ; n <= m; n *= 2 {
-		if n < 1 {
-			panic("integer overflow")
-		}
-	}
-	return n / 2
+	n |= n >> 1
+	n |= n >> 2
+	n |= n >> 4
+	n |= n >> 8
+	n |= n >> 16
+	return n - (n >> 1)
 }

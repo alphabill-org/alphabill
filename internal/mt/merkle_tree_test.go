@@ -82,6 +82,11 @@ func TestHibitFunction_NormalInput(t *testing.T) {
 			m:    25,
 			n:    16,
 		},
+		{
+			name: "input positive 1337",
+			m:    1337,
+			n:    1024,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,16 +96,15 @@ func TestHibitFunction_NormalInput(t *testing.T) {
 	}
 }
 
-func TestHibitFunction_IntegerOverflow(t *testing.T) {
-	require.Panics(t, func() {
-		hibit(math.MaxInt)
-	}, "integer overflow")
+func TestHibitFunction_NegativeInput(t *testing.T) {
+	require.PanicsWithValue(t, "hibit function input cannot be negative (merkle tree input data length cannot be zero)", func() {
+		hibit(-1)
+	})
 }
 
-func TestHibitFunction_NegativeInput(t *testing.T) {
-	require.Panics(t, func() {
-		hibit(math.MaxInt)
-	}, "hibit function input cannot be negative (merkle tree input data length cannot be zero)")
+func TestHibitFunction_MaxIntDoesNotOverflow(t *testing.T) {
+	n := hibit(math.MaxInt)
+	require.True(t, n > 1)
 }
 
 func makeData(firstByte byte) []byte {

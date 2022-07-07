@@ -8,14 +8,22 @@ import (
 )
 
 var ErrNilData = errors.New("merkle tree input data is nil")
+var ErrIndexOutOfBounds = errors.New("merkle tree data index out of bounds")
 
 type (
 	MerkleTree struct {
-		root *node
+		root       *node
+		dataLength int // number of leaves
 	}
 
 	Data interface {
 		Hash(hashAlgorithm crypto.Hash) []byte
+	}
+
+	// PathItem helper struct for proof extraction, contains Hash and Direction of parent node
+	PathItem struct {
+		Hash      []byte
+		Direction byte // 0 - left from parent, 1 - right from parent
 	}
 
 	node struct {
@@ -30,15 +38,65 @@ func New(hashAlgorithm crypto.Hash, data []Data) (*MerkleTree, error) {
 	if data == nil {
 		return nil, ErrNilData
 	}
-	return &MerkleTree{root: createMerkleTree(data, hashAlgorithm)}, nil
+	return &MerkleTree{root: createMerkleTree(data, hashAlgorithm), dataLength: len(data)}, nil
 }
 
-// GetRootHash returns the root hash of the Merkle Tree.
+// EvalMerklePath returns root hash calculated from the given leaf and path items
+func EvalMerklePath(merklePath []*PathItem, leaf Data, hashAlgorithm crypto.Hash) []byte {
+	hasher := hashAlgorithm.New()
+	h := leaf.Hash(hashAlgorithm)
+	for _, item := range merklePath {
+		if item.Direction == 0 {
+			hasher.Write(h)
+			hasher.Write(item.Hash)
+		} else {
+			hasher.Write(item.Hash)
+			hasher.Write(h)
+		}
+		h = hasher.Sum(nil)
+		hasher.Reset()
+	}
+	return h
+}
+
+// GetRootHash returns the root Hash of the Merkle Tree.
 func (s *MerkleTree) GetRootHash() []byte {
 	if s.root == nil {
 		return nil
 	}
 	return s.root.hash
+}
+
+// GetMerklePath extracts the merkle path from the given leaf to root.
+func (s *MerkleTree) GetMerklePath(leafIdx int) ([]*PathItem, error) {
+	if leafIdx < 0 || leafIdx >= s.dataLength {
+		return nil, ErrIndexOutOfBounds
+	}
+
+	proofLength := hibit(s.dataLength-1) - 1
+	z := make([]*PathItem, proofLength)
+
+	pathIdx := proofLength - 1
+	curr := s.root
+	b := 0
+	m := s.dataLength
+
+	// iteratively descending the tree
+	for m > 1 {
+		n := hibit(m - 1)
+		if leafIdx < b+n { // target in the left sub-tree
+			z[pathIdx] = &PathItem{Hash: curr.right.hash, Direction: 0}
+			curr = curr.left
+			m = n
+		} else { // target in the right sub-tree
+			z[pathIdx] = &PathItem{Hash: curr.left.hash, Direction: 1}
+			curr = curr.right
+			b = b + n
+			m = m - n
+		}
+		pathIdx--
+	}
+	return z, nil
 }
 
 // PrettyPrint returns human readable string representation of the Merkle Tree.
@@ -49,22 +107,6 @@ func (s *MerkleTree) PrettyPrint() string {
 	out := ""
 	s.output(s.root, "", false, &out)
 	return out
-}
-
-func createMerkleTree(data []Data, hashAlgorithm crypto.Hash) *node {
-	if len(data) == 0 {
-		return nil
-	}
-	if len(data) == 1 {
-		return &node{hash: data[0].Hash(hashAlgorithm)}
-	}
-	n := hibit(len(data) - 1)
-	hasher := hashAlgorithm.New()
-	left := createMerkleTree(data[:n], hashAlgorithm)
-	right := createMerkleTree(data[n:], hashAlgorithm)
-	hasher.Write(left.hash)
-	hasher.Write(right.hash)
-	return &node{left: left, right: right, hash: hasher.Sum(nil)}
 }
 
 func (s *MerkleTree) output(node *node, prefix string, isTail bool, str *string) {
@@ -93,6 +135,22 @@ func (s *MerkleTree) output(node *node, prefix string, isTail bool, str *string)
 		}
 		s.output(node.left, newPrefix, true, str)
 	}
+}
+
+func createMerkleTree(data []Data, hashAlgorithm crypto.Hash) *node {
+	if len(data) == 0 {
+		return nil
+	}
+	if len(data) == 1 {
+		return &node{hash: data[0].Hash(hashAlgorithm)}
+	}
+	n := hibit(len(data) - 1)
+	hasher := hashAlgorithm.New()
+	left := createMerkleTree(data[:n], hashAlgorithm)
+	right := createMerkleTree(data[n:], hashAlgorithm)
+	hasher.Write(left.hash)
+	hasher.Write(right.hash)
+	return &node{left: left, right: right, hash: hasher.Sum(nil)}
 }
 
 // hibit floating-point-free equivalent of 2**math.floor(math.log(m, 2)),

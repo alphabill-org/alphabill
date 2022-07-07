@@ -256,35 +256,6 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	require.Equal(t, uint64(1), system.RevertCount)
 }
 
-func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
-	system := &testtxsystem.CounterTxSystem{}
-	tp := NewSingleNodePartition(t, system)
-	defer tp.Close()
-	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer()
-	require.NoError(t, tp.SubmitTx(transfer))
-
-	// prepare proposal
-	tp.SubmitT1Timeout(t)
-	require.Equal(t, uint64(0), system.RevertCount)
-	// send UC with different IR hash
-	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
-	ir.Hash = test.RandomBytes(32)
-
-	repeatUC, err := tp.CreateUnicityCertificate(
-		ir,
-		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		block.UnicityCertificate.UnicitySeal.PreviousHash,
-	)
-	require.NoError(t, err)
-
-	tp.SubmitUnicityCertificate(repeatUC)
-
-	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
-	require.Equal(t, uint64(1), system.RevertCount)
-	require.Equal(t, recovering, tp.partition.status)
-}
-
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
@@ -382,8 +353,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 	}
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
-	err = tp.SubmitBlockProposal(bp)
-	require.NoError(t, err)
+	tp.SubmitBlockProposal(bp)
 	require.Eventually(t, CertificationRequestReceived(tp), test.WaitDuration, test.WaitTick)
 }
 

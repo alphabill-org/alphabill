@@ -2,11 +2,14 @@ package partition
 
 import (
 	gocrypto "crypto"
+	"crypto/rand"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
@@ -162,13 +165,12 @@ func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.Unicity
 
 }
 
-func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
+func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolBlockProposal,
 		Message:  prop,
 	})
-	return nil
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
@@ -307,6 +309,15 @@ func (l *TestLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySea
 
 func createPeer(t *testing.T) *network.Peer {
 	conf := &network.PeerConfiguration{}
+	// fake validator, so that network 'send' requests don't fail
+	_, validatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	validatorPubKeyBytes, _ := validatorPubKey.Raw()
+
+	conf.PersistentPeers = []*network.PeerInfo{{
+		Address:   "/ip4/1.2.3.4/tcp/80",
+		PublicKey: validatorPubKeyBytes,
+	}}
+	//
 	peer, err := network.NewPeer(conf)
 	require.NoError(t, err)
 

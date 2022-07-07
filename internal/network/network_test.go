@@ -28,8 +28,8 @@ func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 	require.NoError(t, err)
 	defer net.Close()
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
-	require.Equal(t, 3, len(net.sendProtocols))
-	require.Equal(t, 3, len(net.receiveProtocols))
+	require.Equal(t, 4, len(net.sendProtocols))
+	require.Equal(t, 4, len(net.receiveProtocols))
 }
 
 func TestNetworkSendFunctionReturnsNilIfNoPeers(t *testing.T) {

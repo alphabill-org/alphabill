@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	gocrypto "crypto"
-	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
 	"sync"
 	"time"
 
@@ -12,6 +11,8 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
@@ -551,37 +552,24 @@ func (n *Node) sendCertificationRequest() error {
 	stateRoot := state.Root()
 	summary := state.Summary()
 
-	height, err := n.blockStore.Height()
-	if err != nil {
-		return err
-	}
-	blockNr := height + 1
-
-	latestBlock := n.blockStore.LatestBlock()
-	prevBlockHash := latestBlock.Hash(n.configuration.hashAlgorithm)
-
 	pendingProposal := &block.PendingBlockProposal{
 		RoundNumber:  n.luc.UnicitySeal.RootChainRoundNumber,
 		PrevHash:     prevHash,
 		StateHash:    stateRoot,
 		Transactions: n.proposal,
 	}
-
 	err = n.blockStore.AddPendingProposal(pendingProposal)
 	if err != nil {
 		return errors.Wrap(err, "failed to store pending block proposal")
 	}
 	n.pr = pendingProposal
-	hasher := n.configuration.hashAlgorithm.New()
-	hasher.Write(n.configuration.GetSystemIdentifier())
-	hasher.Write(util.Uint64ToBytes(blockNr))
-	hasher.Write(prevBlockHash)
 
-	for _, tx := range n.pr.Transactions {
-		hasher.Write(tx.Hash(n.configuration.hashAlgorithm))
+	latestBlock := n.blockStore.LatestBlock()
+	latestBlockHash := latestBlock.UnicityCertificate.InputRecord.BlockHash
+	blockHash, err := n.hashProposedBlock(latestBlockHash, latestBlock.BlockNumber+1)
+	if err != nil {
+		return err
 	}
-	blockHash := hasher.Sum(nil)
-
 	n.proposal = []txsystem.GenericTransaction{}
 
 	req := &certification.BlockCertificationRequest{
@@ -645,6 +633,28 @@ func (n *Node) startHandleOrForwardTransactions() {
 	n.txCtx, n.txCancel = context.WithCancel(context.Background())
 	n.txWaitGroup.Add(1)
 	go n.txBuffer.Process(n.txCtx, n.txWaitGroup, n.handleOrForwardTransaction)
+}
+
+func (n *Node) hashProposedBlock(prevBlockHash []byte, blockNumber uint64) ([]byte, error) {
+	hasher := n.configuration.hashAlgorithm.New()
+	hasher.Write(n.configuration.GetSystemIdentifier())
+	hasher.Write(util.Uint64ToBytes(blockNumber))
+	hasher.Write(prevBlockHash)
+	if len(n.pr.Transactions) > 0 {
+		// cast transactions to mt.Data type
+		txs := make([]mt.Data, len(n.pr.Transactions))
+		for i, tx := range n.pr.Transactions {
+			txs[i] = tx
+		}
+		// build merkle tree of transactions
+		merkleTree, err := mt.New(n.configuration.hashAlgorithm, txs)
+		if err != nil {
+			return nil, err
+		}
+		// add merkle tree root hash to block hasher
+		hasher.Write(merkleTree.GetRootHash())
+	}
+	return hasher.Sum(nil), nil
 }
 
 func convertType[T any](event interface{}) (bool, T) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/proof"
 )
 
 var ErrNilData = errors.New("merkle tree input data is nil")
@@ -73,10 +74,7 @@ func (s *MerkleTree) GetMerklePath(leafIdx int) ([]*PathItem, error) {
 		return nil, ErrIndexOutOfBounds
 	}
 
-	proofLength := hibit(s.dataLength-1) - 1
-	z := make([]*PathItem, proofLength)
-
-	pathIdx := proofLength - 1
+	var z []*PathItem
 	curr := s.root
 	b := 0
 	m := s.dataLength
@@ -85,16 +83,15 @@ func (s *MerkleTree) GetMerklePath(leafIdx int) ([]*PathItem, error) {
 	for m > 1 {
 		n := hibit(m - 1)
 		if leafIdx < b+n { // target in the left sub-tree
-			z[pathIdx] = &PathItem{Hash: curr.right.hash, Direction: 0}
+			z = append([]*PathItem{{Hash: curr.right.hash, Direction: 0}}, z...)
 			curr = curr.left
 			m = n
 		} else { // target in the right sub-tree
-			z[pathIdx] = &PathItem{Hash: curr.left.hash, Direction: 1}
+			z = append([]*PathItem{{Hash: curr.left.hash, Direction: 1}}, z...)
 			curr = curr.right
 			b = b + n
 			m = m - n
 		}
-		pathIdx--
 	}
 	return z, nil
 }

@@ -157,6 +157,16 @@ func TestMerklePathEval(t *testing.T) {
 			dataLength:      8,
 			dataIdxToVerify: 4,
 		},
+		{
+			name:            "verify leftmost node (odd tree height)",
+			dataLength:      4,
+			dataIdxToVerify: 0,
+		},
+		{
+			name:            "verify rightmost node (odd tree height)",
+			dataLength:      4,
+			dataIdxToVerify: 3,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

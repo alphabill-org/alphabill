@@ -31,6 +31,7 @@ func defaultConfiguration() GlobalConfig {
 		ShowCaller:      true,
 		TimeLocation:    defaultTimeLocation,
 		ShowGoroutineID: false,
+		ShowNodeID:      false,
 	}
 	return conf
 }

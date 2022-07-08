@@ -129,6 +129,7 @@ func (gf *globalFactory) updateFromConfig(config GlobalConfig) {
 	gf.config.ConsoleFormat = config.ConsoleFormat
 	gf.config.ShowCaller = config.ShowCaller
 	gf.config.ShowGoroutineID = config.ShowGoroutineID
+	gf.config.ShowNodeID = config.ShowNodeID
 
 	if updateOutputFormat {
 		gf.updateOutputFormat()

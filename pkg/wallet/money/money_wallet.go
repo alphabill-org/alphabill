@@ -103,8 +103,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	blockNumber := b.BlockNumber
-	log.Info("processing block: " + strconv.FormatUint(blockNumber, 10))
+	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10) + ", prev hash: " + fmt.Sprintf("%X", b.PreviousBlockHash))
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -114,12 +113,12 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		err = validateBlockNumber(blockNumber, lastBlockNumber)
+		err = validateBlockNumber(b.BlockNumber, lastBlockNumber)
 		if err != nil {
 			return err
 		}
-		for _, pbTx := range b.Transactions {
-			err = w.collectBills(dbTx, blockNumber, pbTx)
+		for i, pbTx := range b.Transactions {
+			err = w.collectBills(dbTx, pbTx, b, i)
 			if err != nil {
 				return err
 			}
@@ -285,7 +284,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 	return w.Wallet.SyncToMaxBlockNumber(ctx, blockNumber)
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem.Transaction) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, txIdx int) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -299,11 +298,19 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received transfer order")
+			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+			if err != nil {
+				return err
+			}
 			err = dbTx.SetBill(&bill{
-				Id:     tx.UnitID(),
-				Value:  tx.TargetValue(),
-				TxHash: tx.Hash(crypto.SHA256),
+				Id:         tx.UnitID(),
+				Value:      tx.TargetValue(),
+				TxHash:     tx.Hash(crypto.SHA256),
+				BlockProof: blockProof,
 			})
+			if err != nil {
+				return err
+			}
 		} else {
 			err := dbTx.RemoveBill(tx.UnitID())
 			if err != nil {
@@ -317,6 +324,10 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received TransferDC order")
+			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+			if err != nil {
+				return err
+			}
 			err = dbTx.SetBill(&bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
@@ -325,8 +336,12 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 				DcTx:                txPb,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
-				DcExpirationTimeout: blockNumber + dustBillDeletionTimeout,
+				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
+				BlockProof:          blockProof,
 			})
+			if err != nil {
+				return err
+			}
 		} else {
 			err := dbTx.RemoveBill(tx.UnitID())
 			if err != nil {
@@ -344,10 +359,15 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if containsBill {
 			log.Info("received split order (existing bill)")
-			err := dbTx.SetBill(&bill{
-				Id:     tx.UnitID(),
-				Value:  tx.RemainingValue(),
-				TxHash: tx.Hash(crypto.SHA256),
+			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+			if err != nil {
+				return err
+			}
+			err = dbTx.SetBill(&bill{
+				Id:         tx.UnitID(),
+				Value:      tx.RemainingValue(),
+				TxHash:     tx.Hash(crypto.SHA256),
+				BlockProof: blockProof,
 			})
 			if err != nil {
 				return err
@@ -359,10 +379,15 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received split order (new bill)")
-			err := dbTx.SetBill(&bill{
-				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
-				Value:  tx.Amount(),
-				TxHash: tx.Hash(crypto.SHA256),
+			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+			if err != nil {
+				return err
+			}
+			err = dbTx.SetBill(&bill{
+				Id:         util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
+				Value:      tx.Amount(),
+				TxHash:     tx.Hash(crypto.SHA256),
+				BlockProof: blockProof,
 			})
 			if err != nil {
 				return err
@@ -375,10 +400,15 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received swap order")
+			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+			if err != nil {
+				return err
+			}
 			err = dbTx.SetBill(&bill{
-				Id:     tx.UnitID(),
-				Value:  tx.TargetValue(),
-				TxHash: tx.Hash(crypto.SHA256),
+				Id:         tx.UnitID(),
+				Value:      tx.TargetValue(),
+				TxHash:     tx.Hash(crypto.SHA256),
+				BlockProof: blockProof,
 			})
 			if err != nil {
 				return err

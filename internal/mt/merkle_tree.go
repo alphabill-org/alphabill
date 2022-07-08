@@ -60,6 +60,32 @@ func EvalMerklePath(merklePath []*PathItem, leaf Data, hashAlgorithm crypto.Hash
 	return h
 }
 
+// ToProtobuf utility function that converts []mt.PathItem to proof.BlockMerkleProof
+func ToProtobuf(path []*PathItem) *proof.BlockMerkleProof {
+	direction := make([]byte, len(path))
+	pathItems := make([][]byte, len(path))
+	for i, pathItem := range path {
+		direction[i] = pathItem.Direction
+		pathItems[i] = pathItem.Hash
+	}
+	return &proof.BlockMerkleProof{
+		Direction: direction,
+		PathItems: pathItems,
+	}
+}
+
+// FromProtobuf utility function that converts proof.BlockMerkleProof to []mt.PathItem
+func FromProtobuf(proof *proof.BlockMerkleProof) []*PathItem {
+	pathItems := make([]*PathItem, len(proof.PathItems))
+	for i := 0; i < len(pathItems); i++ {
+		pathItems[i] = &PathItem{
+			Direction: proof.Direction[i],
+			Hash:      proof.PathItems[i],
+		}
+	}
+	return pathItems
+}
+
 // GetRootHash returns the root Hash of the Merkle Tree.
 func (s *MerkleTree) GetRootHash() []byte {
 	if s.root == nil {

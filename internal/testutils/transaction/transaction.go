@@ -91,6 +91,15 @@ func CreateBillTransferTx(pubKeyHash []byte) *anypb.Any {
 	return tx
 }
 
+func CreateDustTransferTx(pubKeyHash []byte) *anypb.Any {
+	tx, _ := anypb.New(&moneytx.TransferDCOrder{
+		TargetValue:  100,
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		Backlink:     hash.Sum256([]byte{}),
+	})
+	return tx
+}
+
 func CreateBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) *anypb.Any {
 	tx, _ := anypb.New(&moneytx.SplitOrder{
 		Amount:         amount,

@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+import "certificates.proto";
+
+option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/proof;proof";
+
+message BlockProof {
+  bytes block_header_hash = 1;
+  BlockMerkleProof merkle_proof = 2;
+  UnicityCertificate unicity_certificate = 3;
+}
+
+message BlockMerkleProof {
+  bytes direction = 1;
+  repeated bytes path_items = 2;
+}

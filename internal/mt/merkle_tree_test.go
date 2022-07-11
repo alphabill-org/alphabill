@@ -2,11 +2,11 @@ package mt
 
 import (
 	"crypto"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,6 +62,14 @@ func TestNewMTWithEvenNumberOfLeaves(t *testing.T) {
 	require.EqualValues(t, "89A0F1577268CC19B0A39C7A69F804FD140640C699585EB635EBB03C06154CCE", fmt.Sprintf("%X", mt.GetRootHash()))
 }
 
+func TestSingleNodeTreeMerklePath(t *testing.T) {
+	data := []Data{&TestData{hash: make([]byte, 32)}}
+	mt, _ := New(crypto.SHA256, data)
+	path, err := mt.GetMerklePath(0)
+	require.NoError(t, err)
+	require.Nil(t, path)
+}
+
 func TestMerklePath(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -98,6 +106,14 @@ func TestMerklePath(t *testing.T) {
 				{Direction: 0, Hash: decodeHex("0500000000000000000000000000000000000000000000000000000000000000")},
 				{Direction: 0, Hash: decodeHex("FA670379E5C2212ED93FF09769622F81F98A91E1EC8FB114D607DD25220B9088")},
 				{Direction: 1, Hash: decodeHex("BA94FFE7EDABF26EF12736F8EB5CE74D15BEDB6AF61444AE2906E926B1A95084")},
+			},
+		},
+		{
+			name:            "verify two node merkle path",
+			dataLength:      2,
+			dataIdxToVerify: 0,
+			path: []*PathItem{
+				{Direction: 0, Hash: decodeHex("0100000000000000000000000000000000000000000000000000000000000000")},
 			},
 		},
 		{
@@ -166,6 +182,16 @@ func TestMerklePathEval(t *testing.T) {
 			name:            "verify rightmost node (odd tree height)",
 			dataLength:      4,
 			dataIdxToVerify: 3,
+		},
+		{
+			name:            "verify single node tree",
+			dataLength:      1,
+			dataIdxToVerify: 0,
+		},
+		{
+			name:            "verify two node tree",
+			dataLength:      2,
+			dataIdxToVerify: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -236,6 +262,6 @@ func makeData(firstByte byte) []byte {
 }
 
 func decodeHex(s string) []byte {
-	decode, _ := hexutil.Decode("0x" + s)
+	decode, _ := hex.DecodeString(s)
 	return decode
 }

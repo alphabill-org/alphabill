@@ -1,6 +1,7 @@
 package money
 
 import (
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/proof"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 )
@@ -17,6 +18,9 @@ type bill struct {
 	DcNonce   []byte                `json:"dcNonce"`
 	// DcExpirationTimeout blockHeight when dc bill gets removed from state
 	DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
+
+	// block-proofs
+	BlockProof *proof.BlockProof `json:"blockProof"`
 }
 
 // getId returns bill id in 32-byte big endian array

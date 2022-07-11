@@ -2,6 +2,7 @@ package block
 
 import (
 	"crypto"
+	"hash"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
@@ -32,6 +33,20 @@ func (x *Block) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	hasher.Write(merkleTree.GetRootHash())
 
 	return hasher.Sum(nil), nil
+}
+
+func (x *Block) HashHeader(hashAlgorithm crypto.Hash) []byte {
+	hasher := hashAlgorithm.New()
+	x.AddHeaderToHasher(hasher)
+	return hasher.Sum(nil)
+}
+
+func (x *Block) AddHeaderToHasher(hasher hash.Hash) {
+	hasher.Write(x.SystemIdentifier)
+	// TODO add shard id to block header hash
+	//hasher.Write(b.ShardIdentifier)
+	hasher.Write(util.Uint64ToBytes(x.BlockNumber))
+	hasher.Write(x.PreviousBlockHash)
 }
 
 // byteHasher helper struct to satisfy mt.Data interface

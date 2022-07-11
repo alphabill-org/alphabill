@@ -6,6 +6,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,6 +62,127 @@ func TestNewMTWithEvenNumberOfLeaves(t *testing.T) {
 	require.EqualValues(t, "89A0F1577268CC19B0A39C7A69F804FD140640C699585EB635EBB03C06154CCE", fmt.Sprintf("%X", mt.GetRootHash()))
 }
 
+func TestMerklePath(t *testing.T) {
+	tests := []struct {
+		name            string
+		dataLength      int
+		dataIdxToVerify int
+		path            []*PathItem
+		wantErr         error
+	}{
+		{
+			name:            "verify leftmost node merkle path",
+			dataLength:      8,
+			dataIdxToVerify: 0,
+			path: []*PathItem{
+				{Direction: 0, Hash: decodeHex("0100000000000000000000000000000000000000000000000000000000000000")},
+				{Direction: 0, Hash: decodeHex("0094579CFC7B716038D416A311465309BEA202BAA922B224A7B08F01599642FB")},
+				{Direction: 0, Hash: decodeHex("633B26EE8A5D96D49A4861E9A5720492F0DB5B6AF305C0B5CFCC6A7EC9B676D4")},
+			},
+		},
+		{
+			name:            "verify rightmost node merkle path",
+			dataLength:      8,
+			dataIdxToVerify: 7,
+			path: []*PathItem{
+				{Direction: 1, Hash: decodeHex("0600000000000000000000000000000000000000000000000000000000000000")},
+				{Direction: 1, Hash: decodeHex("BD50456D5AD175AE99A1612A53CA229124B65D3EAABD9FF9C7AB979A385CF6B3")},
+				{Direction: 1, Hash: decodeHex("BA94FFE7EDABF26EF12736F8EB5CE74D15BEDB6AF61444AE2906E926B1A95084")},
+			},
+		},
+		{
+			name:            "verify middle node merkle path",
+			dataLength:      8,
+			dataIdxToVerify: 4,
+			path: []*PathItem{
+				{Direction: 0, Hash: decodeHex("0500000000000000000000000000000000000000000000000000000000000000")},
+				{Direction: 0, Hash: decodeHex("FA670379E5C2212ED93FF09769622F81F98A91E1EC8FB114D607DD25220B9088")},
+				{Direction: 1, Hash: decodeHex("BA94FFE7EDABF26EF12736F8EB5CE74D15BEDB6AF61444AE2906E926B1A95084")},
+			},
+		},
+		{
+			name:            "verify data index out of lower bound",
+			dataLength:      8,
+			dataIdxToVerify: -1,
+			wantErr:         ErrIndexOutOfBounds,
+		},
+		{
+			name:            "verify data index out of upper bound",
+			dataLength:      8,
+			dataIdxToVerify: 8,
+			wantErr:         ErrIndexOutOfBounds,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var data = make([]Data, tt.dataLength)
+			for i := 0; i < len(data); i++ {
+				data[i] = &TestData{hash: makeData(byte(i))}
+			}
+			mt, _ := New(crypto.SHA256, data)
+			merklePath, err := mt.GetMerklePath(tt.dataIdxToVerify)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, merklePath)
+				require.Equal(t, len(tt.path), len(merklePath))
+				for i := 0; i < len(tt.path); i++ {
+					require.EqualValues(t, tt.path[i].Direction, merklePath[i].Direction)
+					require.EqualValues(t, tt.path[i].Hash, merklePath[i].Hash)
+				}
+			}
+		})
+	}
+}
+
+func TestMerklePathEval(t *testing.T) {
+	tests := []struct {
+		name            string
+		dataLength      int
+		dataIdxToVerify int
+	}{
+		{
+			name:            "verify leftmost node",
+			dataLength:      8,
+			dataIdxToVerify: 0,
+		},
+		{
+			name:            "verify rightmost node",
+			dataLength:      8,
+			dataIdxToVerify: 7,
+		},
+		{
+			name:            "verify middle node",
+			dataLength:      8,
+			dataIdxToVerify: 4,
+		},
+		{
+			name:            "verify leftmost node (odd tree height)",
+			dataLength:      4,
+			dataIdxToVerify: 0,
+		},
+		{
+			name:            "verify rightmost node (odd tree height)",
+			dataLength:      4,
+			dataIdxToVerify: 3,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var data = make([]Data, tt.dataLength)
+			for i := 0; i < len(data); i++ {
+				data[i] = &TestData{hash: makeData(byte(i))}
+			}
+			mt, _ := New(crypto.SHA256, data)
+			merklePath, err := mt.GetMerklePath(tt.dataIdxToVerify)
+			require.NoError(t, err)
+			rootHash := EvalMerklePath(merklePath, data[tt.dataIdxToVerify], crypto.SHA256)
+			require.Equal(t, mt.GetRootHash(), rootHash)
+		})
+	}
+}
+
 func TestHibitFunction_NormalInput(t *testing.T) {
 	tests := []struct {
 		name string
@@ -111,4 +233,9 @@ func makeData(firstByte byte) []byte {
 	data := make([]byte, 32)
 	data[0] = firstByte
 	return data
+}
+
+func decodeHex(s string) []byte {
+	decode, _ := hexutil.Decode("0x" + s)
+	return decode
 }

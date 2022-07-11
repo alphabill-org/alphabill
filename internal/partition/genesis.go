@@ -133,10 +133,13 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	b := &block.Block{
 		SystemIdentifier:  c.systemIdentifier,
 		BlockNumber:       1,
-		PreviousBlockHash: zeroHash,
+		PreviousBlockHash: nil,
 		Transactions:      nil,
 	}
-	blockHash := b.Hash(c.hashAlgorithm)
+	blockHash, err := b.Hash(c.hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
 
 	// Protocol request
 	id := c.peerID.String()

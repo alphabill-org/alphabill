@@ -37,27 +37,26 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 }
 
 func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
+	// TODO refactor duplicate code
 	hasher := algorithm.New()
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write([]byte(x.NodeIdentifier))
 	x.UnicityCertificate.AddToHasher(hasher)
-	if len(x.Transactions) > 0 {
-		txs := make([]mt.Data, len(x.Transactions))
-		for i, tx := range x.Transactions {
-			txBytes, err := tx.Bytes()
-			if err != nil {
-				return nil, err
-			}
-			txs[i] = &byteHasher{val: txBytes}
-		}
-		// build merkle tree of transactions
-		merkleTree, err := mt.New(algorithm, txs)
+	txs := make([]mt.Data, len(x.Transactions))
+	for i, tx := range x.Transactions {
+		txBytes, err := tx.Bytes()
 		if err != nil {
 			return nil, err
 		}
-		// add merkle tree root hash to block hasher
-		hasher.Write(merkleTree.GetRootHash())
+		txs[i] = &byteHasher{val: txBytes}
 	}
+	// build merkle tree of transactions
+	merkleTree, err := mt.New(algorithm, txs)
+	if err != nil {
+		return nil, err
+	}
+	// add merkle tree root hash to block hasher
+	hasher.Write(merkleTree.GetRootHash())
 	return hasher.Sum(nil), nil
 }
 

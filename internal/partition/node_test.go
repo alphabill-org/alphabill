@@ -145,15 +145,16 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	txSystem := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, txSystem)
 	defer tp.Close()
-	block := tp.GetLatestBlock()
-	txSystem.EndBlockCount-- // revert the state of the tx system
+	block := tp.GetLatestBlock() // genesis block
+	txSystem.EndBlockCount--     // revert the state of the tx system
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
+	blockHash, _ := block.Hash(gocrypto.SHA256)
 	block2 := tp.GetLatestBlock()
 	require.Equal(t, block.BlockNumber+1, block2.BlockNumber)
 	require.Equal(t, block.SystemIdentifier, block2.SystemIdentifier)
-	require.Equal(t, block.Hash(gocrypto.SHA256), block2.PreviousBlockHash)
+	require.Equal(t, blockHash, block2.PreviousBlockHash)
 	uc1 := block.UnicityCertificate
 	uc2 := block2.UnicityCertificate
 	require.Equal(t, uc1.InputRecord.Hash, uc2.InputRecord.Hash)

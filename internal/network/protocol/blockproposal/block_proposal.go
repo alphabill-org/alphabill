@@ -6,7 +6,6 @@ import (
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
 )
 
 var (
@@ -37,26 +36,17 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBa
 }
 
 func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
-	// TODO refactor duplicate code
 	hasher := algorithm.New()
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write([]byte(x.NodeIdentifier))
 	x.UnicityCertificate.AddToHasher(hasher)
-	txs := make([]mt.Data, len(x.Transactions))
-	for i, tx := range x.Transactions {
+	for _, tx := range x.Transactions {
 		txBytes, err := tx.Bytes()
 		if err != nil {
 			return nil, err
 		}
-		txs[i] = &byteHasher{val: txBytes}
+		hasher.Write(txBytes)
 	}
-	// build merkle tree of transactions
-	merkleTree, err := mt.New(algorithm, txs)
-	if err != nil {
-		return nil, err
-	}
-	// add merkle tree root hash to block hasher
-	hasher.Write(merkleTree.GetRootHash())
 	return hasher.Sum(nil), nil
 }
 

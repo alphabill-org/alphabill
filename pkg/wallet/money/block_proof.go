@@ -11,11 +11,7 @@ import (
 func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*proof.BlockProof, error) {
 	mtTxs := make([]mt.Data, len(b.Transactions))
 	for i, txb := range b.Transactions {
-		txBytes, err := txb.Bytes()
-		if err != nil {
-			return nil, err
-		}
-		mtTxs[i] = &mt.ByteHasher{Val: txBytes}
+		mtTxs[i] = &mt.ByteHasher{Val: txb.Bytes()}
 	}
 
 	merkleTree, err := mt.New(hashAlgorithm, mtTxs)

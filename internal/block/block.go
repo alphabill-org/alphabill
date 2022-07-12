@@ -17,11 +17,7 @@ func (x *Block) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 
 	txs := make([]mt.Data, len(x.Transactions))
 	for i, tx := range x.Transactions {
-		txBytes, err := tx.Bytes()
-		if err != nil {
-			return nil, err
-		}
-		txs[i] = &mt.ByteHasher{Val: txBytes}
+		txs[i] = &mt.ByteHasher{Val: tx.Bytes()}
 	}
 	// build merkle tree of transactions
 	merkleTree, err := mt.New(hashAlgorithm, txs)

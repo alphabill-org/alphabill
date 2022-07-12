@@ -73,8 +73,7 @@ func (d *DefaultGenericTransaction) Hash(hashFunc crypto.Hash) []byte {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	hasher := hashFunc.New()
-	hasher.Write(d.SigBytes())
-	hasher.Write(d.transaction.OwnerProof)
+	hasher.Write(d.transaction.Bytes())
 	d.hashValue = hasher.Sum(nil)
 	return d.hashValue
 }
@@ -85,8 +84,6 @@ func (d *DefaultGenericTransaction) ToProtoBuf() *Transaction {
 
 func (d *DefaultGenericTransaction) SigBytes() []byte {
 	var b bytes.Buffer
-	b.Write(d.transaction.SystemId)
-	b.Write(d.transaction.UnitId)
-	b.Write(util.Uint64ToBytes(d.transaction.Timeout))
+	d.sigBytes(b)
 	return b.Bytes()
 }

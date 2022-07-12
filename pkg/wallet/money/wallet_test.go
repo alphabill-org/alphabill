@@ -293,7 +293,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 		var txBytes []byte
 		for _, tbTx := range testBlock.Transactions {
 			if uint256.NewInt(0).SetBytes(tbTx.UnitId).Eq(b.Id) {
-				txBytes, _ = tbTx.Bytes()
+				txBytes = tbTx.Bytes()
 			}
 		}
 		// verify block proofs
@@ -365,8 +365,7 @@ func createMerkleTree(blockTxs []*txsystem.Transaction) (*mt.MerkleTree, error) 
 	// create merkle tree from testBlock transactions
 	txs := make([]mt.Data, len(blockTxs))
 	for i, tx := range blockTxs {
-		txBytes, _ := tx.Bytes()
-		txs[i] = &mt.ByteHasher{Val: txBytes}
+		txs[i] = &mt.ByteHasher{Val: tx.Bytes()}
 	}
 	return mt.New(crypto.SHA256, txs)
 }

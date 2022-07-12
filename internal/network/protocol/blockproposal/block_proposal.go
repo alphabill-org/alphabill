@@ -41,11 +41,7 @@ func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
 	hasher.Write([]byte(x.NodeIdentifier))
 	x.UnicityCertificate.AddToHasher(hasher)
 	for _, tx := range x.Transactions {
-		txBytes, err := tx.Bytes()
-		if err != nil {
-			return nil, err
-		}
-		hasher.Write(txBytes)
+		hasher.Write(tx.Bytes())
 	}
 	return hasher.Sum(nil), nil
 }

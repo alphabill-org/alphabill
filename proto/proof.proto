@@ -11,6 +11,12 @@ message BlockProof {
 }
 
 message BlockMerkleProof {
-  bytes direction = 1;
-  repeated bytes path_items = 2;
+  repeated MerklePathItem path_items = 1;
 }
+message MerklePathItem {
+  // DirectionLeft direction from parent node; left=true right=false
+  bool direction_left = 1;
+  // PathItem Hash of Merkle Tree node
+  bytes path_item = 2;
+}
+

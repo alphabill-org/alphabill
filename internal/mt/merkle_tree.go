@@ -23,8 +23,8 @@ type (
 
 	// PathItem helper struct for proof extraction, contains Hash and Direction of parent node
 	PathItem struct {
-		Hash      []byte
-		Direction byte // 0 - left from parent, 1 - right from parent
+		Hash          []byte
+		DirectionLeft bool // true - left from parent, false - right from parent
 	}
 
 	node struct {
@@ -47,7 +47,7 @@ func EvalMerklePath(merklePath []*PathItem, leaf Data, hashAlgorithm crypto.Hash
 	hasher := hashAlgorithm.New()
 	h := leaf.Hash(hashAlgorithm)
 	for _, item := range merklePath {
-		if item.Direction == 0 {
+		if item.DirectionLeft {
 			hasher.Write(h)
 			hasher.Write(item.Hash)
 		} else {
@@ -61,29 +61,29 @@ func EvalMerklePath(merklePath []*PathItem, leaf Data, hashAlgorithm crypto.Hash
 }
 
 // ToProtobuf utility function that converts []mt.PathItem to proof.BlockMerkleProof
-func ToProtobuf(path []*PathItem) *proof.BlockMerkleProof {
-	direction := make([]byte, len(path))
-	pathItems := make([][]byte, len(path))
-	for i, pathItem := range path {
-		direction[i] = pathItem.Direction
-		pathItems[i] = pathItem.Hash
+func ToProtobuf(srcPathItmes []*PathItem) *proof.BlockMerkleProof {
+	dstPathItems := make([]*proof.MerklePathItem, len(srcPathItmes))
+	for i, srcPathItem := range srcPathItmes {
+		dstPathItems[i] = &proof.MerklePathItem{
+			DirectionLeft: srcPathItem.DirectionLeft,
+			PathItem:      srcPathItem.Hash,
+		}
 	}
 	return &proof.BlockMerkleProof{
-		Direction: direction,
-		PathItems: pathItems,
+		PathItems: dstPathItems,
 	}
 }
 
 // FromProtobuf utility function that converts proof.BlockMerkleProof to []mt.PathItem
 func FromProtobuf(proof *proof.BlockMerkleProof) []*PathItem {
-	pathItems := make([]*PathItem, len(proof.PathItems))
-	for i := 0; i < len(pathItems); i++ {
-		pathItems[i] = &PathItem{
-			Direction: proof.Direction[i],
-			Hash:      proof.PathItems[i],
+	dstPathItems := make([]*PathItem, len(proof.PathItems))
+	for i, srcPathItem := range proof.PathItems {
+		dstPathItems[i] = &PathItem{
+			Hash:          srcPathItem.PathItem,
+			DirectionLeft: srcPathItem.DirectionLeft,
 		}
 	}
-	return pathItems
+	return dstPathItems
 }
 
 // GetRootHash returns the root Hash of the Merkle Tree.
@@ -109,11 +109,11 @@ func (s *MerkleTree) GetMerklePath(leafIdx int) ([]*PathItem, error) {
 	for m > 1 {
 		n := hibit(m - 1)
 		if leafIdx < b+n { // target in the left sub-tree
-			z = append([]*PathItem{{Hash: curr.right.hash, Direction: 0}}, z...)
+			z = append([]*PathItem{{Hash: curr.right.hash, DirectionLeft: true}}, z...)
 			curr = curr.left
 			m = n
 		} else { // target in the right sub-tree
-			z = append([]*PathItem{{Hash: curr.left.hash, Direction: 1}}, z...)
+			z = append([]*PathItem{{Hash: curr.left.hash, DirectionLeft: false}}, z...)
 			curr = curr.right
 			b = b + n
 			m = m - n

@@ -75,14 +75,3 @@ func (x *BlockProposal) Verify(algorithm gocrypto.Hash, nodeSignatureVerifier cr
 	}
 	return nodeSignatureVerifier.VerifyHash(x.Signature, hash)
 }
-
-// byteHasher helper struct to satisfy mt.Data interface
-type byteHasher struct {
-	val []byte
-}
-
-func (h *byteHasher) Hash(hashAlgorithm gocrypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(h.val)
-	return hasher.Sum(nil)
-}

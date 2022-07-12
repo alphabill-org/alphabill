@@ -299,7 +299,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 		// verify block proofs
 		require.NotNil(t, b.BlockProof)
 		merklePath := mt.FromProtobuf(b.BlockProof.MerkleProof)
-		rootHash := mt.EvalMerklePath(merklePath, &byteHasher{val: txBytes}, crypto.SHA256)
+		rootHash := mt.EvalMerklePath(merklePath, &mt.ByteHasher{Val: txBytes}, crypto.SHA256)
 		require.NotNil(t, rootHash)
 		require.EqualValues(t, merkleTree.GetRootHash(), rootHash)
 	}
@@ -366,7 +366,7 @@ func createMerkleTree(blockTxs []*txsystem.Transaction) (*mt.MerkleTree, error) 
 	txs := make([]mt.Data, len(blockTxs))
 	for i, tx := range blockTxs {
 		txBytes, _ := tx.Bytes()
-		txs[i] = &byteHasher{val: txBytes}
+		txs[i] = &mt.ByteHasher{Val: txBytes}
 	}
 	return mt.New(crypto.SHA256, txs)
 }

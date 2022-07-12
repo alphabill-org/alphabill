@@ -21,7 +21,7 @@ func (x *Block) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		txs[i] = &byteHasher{val: txBytes}
+		txs[i] = &mt.ByteHasher{Val: txBytes}
 	}
 	// build merkle tree of transactions
 	merkleTree, err := mt.New(hashAlgorithm, txs)
@@ -46,15 +46,4 @@ func (x *Block) AddHeaderToHasher(hasher hash.Hash) {
 	//hasher.Write(b.ShardIdentifier)
 	hasher.Write(util.Uint64ToBytes(x.BlockNumber))
 	hasher.Write(x.PreviousBlockHash)
-}
-
-// byteHasher helper struct to satisfy mt.Data interface
-type byteHasher struct {
-	val []byte
-}
-
-func (h *byteHasher) Hash(hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(h.val)
-	return hasher.Sum(nil)
 }

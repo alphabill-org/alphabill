@@ -15,7 +15,7 @@ func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*p
 		if err != nil {
 			return nil, err
 		}
-		mtTxs[i] = &byteHasher{val: txBytes}
+		mtTxs[i] = &mt.ByteHasher{Val: txBytes}
 	}
 
 	merkleTree, err := mt.New(hashAlgorithm, mtTxs)
@@ -33,15 +33,4 @@ func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*p
 		MerkleProof:        mt.ToProtobuf(path),
 		UnicityCertificate: b.UnicityCertificate,
 	}, nil
-}
-
-// byteHasher helper struct to satisfy mt.Data interface
-type byteHasher struct {
-	val []byte
-}
-
-func (h *byteHasher) Hash(hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(h.val)
-	return hasher.Sum(nil)
 }

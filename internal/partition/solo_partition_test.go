@@ -74,7 +74,7 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 	return nil
 }
 
-func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
+func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
 	p := createPeer(t)
 	key, err := p.PublicKey()
 	require.NoError(t, err)
@@ -118,16 +118,18 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 		txSystem,
 		partitionGenesis[0],
 		net,
-		WithT1Timeout(100*time.Minute),
-		WithLeaderSelector(&TestLeaderSelector{
-			leader:      "1",
-			currentNode: "1",
-		}),
-		WithTxValidator(&AlwaysValidTransactionValidator{}),
-		WithEventHandler(eh.handleEvent, 100),
+		append([]NodeOption{
+			WithT1Timeout(100 * time.Minute),
+			WithLeaderSelector(&TestLeaderSelector{
+				leader:      "1",
+				currentNode: "1",
+			}),
+			WithTxValidator(&AlwaysValidTransactionValidator{}),
+			WithEventHandler(eh.handleEvent, 100),
+			WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
+		}, nodeOptions...)...,
 	)
 	require.NoError(t, err)
-	n.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
 
 	partition := &SingleNodePartition{
 		partition:  n,

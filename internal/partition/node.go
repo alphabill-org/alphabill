@@ -39,6 +39,7 @@ const (
 	EventTypeUnicityCertificateHandled
 	EventTypeBlockFinalized
 	EventTypeRecoveryStarted
+	EventTypeRecoveryFinished
 )
 
 const t1TimerName = "t1"
@@ -487,6 +488,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			return errors.Wrap(err, "tx system failed to end block")
 		}
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
+			logger.Warning("UC's IR hash is different from state's root ('%X' vs '%X'", uc.InputRecord.Hash, state.Root())
 			return n.startRecovery(uc)
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.StateHash) {
@@ -594,6 +596,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 
 func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplicationResponse) error {
 	util.WriteDebugJsonLog(logger, "Ledger replication response received", lr)
+	logger.Debug("Recovery: latest node's block: #%v", n.GetLatestBlock().GetBlockNumber())
 
 	if n.status == recovering {
 		if lr.GetStatus() != replication.LedgerReplicationResponse_OK {
@@ -601,10 +604,11 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 		}
 		blocks := lr.GetBlocks()
 		for _, b := range blocks {
+			logger.Debug("Recovering block #%v", b.GetBlockNumber())
 			if !bytes.Equal(b.GetSystemIdentifier(), n.configuration.GetSystemIdentifier()) {
 				return errors.Errorf("recovery failed: block %v contains invalid System ID: %x", b.GetBlockNumber(), b.GetSystemIdentifier())
 			}
-			uc := b.GetUnicityCertificate()
+			//uc := b.GetUnicityCertificate()
 
 			n.transactionSystem.BeginBlock(b.GetBlockNumber())
 			for _, tx := range b.GetTransactions() {
@@ -616,15 +620,18 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 					return err
 				}
 			}
-			state, err := n.transactionSystem.EndBlock()
+
+			// TODO
+			_, err := n.transactionSystem.EndBlock()
 			if err != nil {
 				return errors.Wrapf(err, "recovery failed")
 			}
-			if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
-				return errors.Errorf("recovery failed: IR's hash is not equal to state's hash (%X vs %X)", uc.InputRecord.Hash, state.Root())
-			} else if !bytes.Equal(uc.InputRecord.SummaryValue, state.Summary()) {
-				return errors.Errorf("recovery failed: IR's summary value is not equal to tx system summary value (%X vs %X)", uc.InputRecord.SummaryValue, state.Summary())
-			}
+
+			//if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
+			//	return errors.Errorf("recovery failed: IR's hash is not equal to state's hash (%X vs %X)", uc.InputRecord.Hash, state.Root())
+			//} else if !bytes.Equal(uc.InputRecord.SummaryValue, state.Summary()) {
+			//	return errors.Errorf("recovery failed: IR's summary value is not equal to tx system summary value (%X vs %X)", uc.InputRecord.SummaryValue, state.Summary())
+			//}
 			n.transactionSystem.Commit()
 			if err = n.blockStore.Add(b); err != nil {
 				return err
@@ -633,6 +640,18 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	} else {
 		logger.Warning("Unexpected Ledger Replication response, node is not recovering", lr)
 		// TODO ignore or fail?
+	}
+
+	// check if recovery is complete
+	latestBlock := n.GetLatestBlock()
+	logger.Debug("Checking if recovery is complete, latest block: #%v", latestBlock.GetBlockNumber())
+	if latestBlock.GetUnicityCertificate().GetUnicitySeal().GetRootChainRoundNumber() == n.luc.GetUnicitySeal().GetRootChainRoundNumber() {
+		//&&
+		//	bytes.Equal(latestBlock.GetUnicityCertificate().GetUnicitySeal().GetHash(), n.luc.GetUnicitySeal().GetHash()) {
+		logger.Info("Node is recovered until the given LUC, block '%X', root round: %v ", n.luc.GetInputRecord().GetBlockHash(), n.luc.GetUnicitySeal().GetRootChainRoundNumber())
+		n.status = idle
+		n.sendEvent(EventTypeRecoveryFinished, latestBlock.GetBlockNumber())
+		//return n.handleUnicityCertificate(n.luc) TODO ?
 	}
 	return nil
 }
@@ -646,11 +665,10 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
 	n.status = recovering
 	n.stopForwardingOrHandlingTransactions()
 	n.luc = uc // recover up to this UC
-	lb := n.blockStore.LatestBlock()
-	n.sendEvent(EventTypeRecoveryStarted, lb.BlockNumber)
-	// TODO start recovery (AB-41)
+	fromBlockNr := n.blockStore.LatestBlock().GetBlockNumber() + 1
+	n.sendEvent(EventTypeRecoveryStarted, fromBlockNr)
 	go func() {
-		err := n.sendLedgerReplicationRequest(lb.BlockNumber)
+		err := n.sendLedgerReplicationRequest(fromBlockNr)
 		if err != nil {
 			logger.Warning("Error sending ledger replication request: %s", err)
 		}
@@ -658,11 +676,11 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
 	return ErrNodeDoesNotHaveLatestBlock
 }
 
-func (n *Node) sendLedgerReplicationRequest(latestBlockNr uint64) error {
+func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) error {
 	req := &replication.LedgerReplicationRequest{
 		SystemIdentifier: n.configuration.GetSystemIdentifier(),
 		NodeIdentifier:   n.leaderSelector.SelfID().String(),
-		BeginBlockNumber: latestBlockNr,
+		BeginBlockNumber: startingBlockNr,
 	}
 
 	util.WriteDebugJsonLog(logger, "Ledger replication request created", req)

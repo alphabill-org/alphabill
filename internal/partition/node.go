@@ -12,7 +12,6 @@ import (
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
 	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
@@ -650,27 +649,13 @@ func (n *Node) startHandleOrForwardTransactions() {
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, blockNumber uint64) ([]byte, error) {
-	// TODO refactor duplicate code
-	hasher := n.configuration.hashAlgorithm.New()
-	hasher.Write(n.configuration.GetSystemIdentifier())
-	hasher.Write(util.Uint64ToBytes(blockNumber))
-	hasher.Write(prevBlockHash)
-	txs := make([]mt.Data, len(n.pr.Transactions))
-	for i, tx := range toProtoBuf(n.pr.Transactions) {
-		txBytes, err := tx.Bytes()
-		if err != nil {
-			return nil, err
-		}
-		txs[i] = &byteHasher{val: txBytes}
+	b := block.Block{
+		SystemIdentifier:  n.configuration.GetSystemIdentifier(),
+		BlockNumber:       blockNumber,
+		PreviousBlockHash: prevBlockHash,
+		Transactions:      toProtoBuf(n.pr.Transactions),
 	}
-	// build merkle tree of transactions
-	merkleTree, err := mt.New(n.configuration.hashAlgorithm, txs)
-	if err != nil {
-		return nil, err
-	}
-	// add merkle tree root hash to block hasher
-	hasher.Write(merkleTree.GetRootHash())
-	return hasher.Sum(nil), nil
+	return b.Hash(n.configuration.hashAlgorithm)
 }
 
 func convertType[T any](event interface{}) (bool, T) {
@@ -692,15 +677,4 @@ func toProtoBuf(transactions []txsystem.GenericTransaction) []*txsystem.Transact
 		protoTransactions[i] = tx.ToProtoBuf()
 	}
 	return protoTransactions
-}
-
-// byteHasher helper struct to satisfy mt.Data interface
-type byteHasher struct {
-	val []byte
-}
-
-func (h *byteHasher) Hash(hashAlgorithm gocrypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(h.val)
-	return hasher.Sum(nil)
 }

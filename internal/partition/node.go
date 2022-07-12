@@ -492,7 +492,7 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 	b := &block.Block{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
 		BlockNumber:        newHeight,
-		PreviousBlockHash:  latestBlock.UnicityCertificate.InputRecord.GetBlockHash(),
+		PreviousBlockHash:  latestBlock.UnicityCertificate.InputRecord.BlockHash,
 		Transactions:       toProtoBuf(transactions),
 		UnicityCertificate: uc,
 	}

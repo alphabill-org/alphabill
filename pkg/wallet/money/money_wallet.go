@@ -298,15 +298,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if isOwner {
 			log.Info("received transfer order")
-			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
-			if err != nil {
-				return err
-			}
-			err = dbTx.SetBill(&bill{
-				Id:         tx.UnitID(),
-				Value:      tx.TargetValue(),
-				TxHash:     tx.Hash(crypto.SHA256),
-				BlockProof: blockProof,
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+				Id:     tx.UnitID(),
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
@@ -324,11 +319,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if isOwner {
 			log.Info("received TransferDC order")
-			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
-			if err != nil {
-				return err
-			}
-			err = dbTx.SetBill(&bill{
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
 				TxHash:              tx.Hash(crypto.SHA256),
@@ -337,7 +328,6 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
 				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
-				BlockProof:          blockProof,
 			})
 			if err != nil {
 				return err
@@ -359,15 +349,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if containsBill {
 			log.Info("received split order (existing bill)")
-			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
-			if err != nil {
-				return err
-			}
-			err = dbTx.SetBill(&bill{
-				Id:         tx.UnitID(),
-				Value:      tx.RemainingValue(),
-				TxHash:     tx.Hash(crypto.SHA256),
-				BlockProof: blockProof,
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+				Id:     tx.UnitID(),
+				Value:  tx.RemainingValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
@@ -379,15 +364,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if isOwner {
 			log.Info("received split order (new bill)")
-			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
-			if err != nil {
-				return err
-			}
-			err = dbTx.SetBill(&bill{
-				Id:         util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
-				Value:      tx.Amount(),
-				TxHash:     tx.Hash(crypto.SHA256),
-				BlockProof: blockProof,
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
+				Value:  tx.Amount(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
@@ -400,26 +380,19 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if isOwner {
 			log.Info("received swap order")
-			blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
-			if err != nil {
-				return err
-			}
-			err = dbTx.SetBill(&bill{
-				Id:         tx.UnitID(),
-				Value:      tx.TargetValue(),
-				TxHash:     tx.Hash(crypto.SHA256),
-				BlockProof: blockProof,
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+				Id:     tx.UnitID(),
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
 			}
-
 			// clear dc metadata
 			err = dbTx.SetDcMetadata(txPb.UnitId, nil)
 			if err != nil {
 				return err
 			}
-
 			for _, dustTransfer := range tx.DCTransfers() {
 				err := dbTx.RemoveBill(dustTransfer.UnitID())
 				if err != nil {
@@ -437,6 +410,15 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		return nil
 	}
 	return nil
+}
+
+func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill) error {
+	blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+	if err != nil {
+		return err
+	}
+	bill.BlockProof = blockProof
+	return dbTx.SetBill(bill)
 }
 
 func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64) error {

@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/verifiable_data"
+	"github.com/alphabill-org/alphabill/internal/txsystem/verifiable_data"
 	"github.com/spf13/cobra"
 )
 

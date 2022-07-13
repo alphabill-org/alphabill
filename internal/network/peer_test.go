@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/stretchr/testify/require"
 )

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

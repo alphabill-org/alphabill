@@ -1,7 +1,7 @@
 package store
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/block"
 )
 
 var ErrStrPendingBlockProposalNotFound = "pending block proposal not found"

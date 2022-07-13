@@ -4,9 +4,9 @@ import (
 	"bytes"
 	gocrypto "crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/mt"
 )
 
 var (

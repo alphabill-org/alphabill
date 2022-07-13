@@ -9,10 +9,10 @@ import (
 	"path"
 	"syscall"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/client"
 
-	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/money"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"

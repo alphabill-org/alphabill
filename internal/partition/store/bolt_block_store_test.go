@@ -6,11 +6,11 @@ import (
 	"path"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

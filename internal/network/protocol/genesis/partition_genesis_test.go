@@ -4,15 +4,15 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	"github.com/stretchr/testify/require"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 )
 
 func TestPartitionGenesis_IsValid(t *testing.T) {

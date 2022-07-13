@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 
 	"github.com/stretchr/testify/require"
 )

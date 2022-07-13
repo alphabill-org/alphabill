@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testpartition "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/partition"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

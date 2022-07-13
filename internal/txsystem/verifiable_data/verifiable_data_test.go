@@ -4,9 +4,9 @@ import (
 	"crypto"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

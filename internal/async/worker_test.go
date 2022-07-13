@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async/future"
-	testtime "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/internal/async/future"
+	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 
 	"github.com/stretchr/testify/require"
 )

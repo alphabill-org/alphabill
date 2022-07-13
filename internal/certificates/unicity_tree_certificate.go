@@ -5,9 +5,9 @@ import (
 	gocrypto "crypto"
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
+	"github.com/alphabill-org/alphabill/internal/smt"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var ErrUnicityTreeCertificateIsNil = errors.New("unicity tree certificate is nil")

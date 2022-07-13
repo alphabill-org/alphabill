@@ -4,8 +4,8 @@ import (
 	"crypto/ecdsa"
 	"errors"
 
-	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/accounts"

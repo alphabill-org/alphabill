@@ -6,7 +6,7 @@ import (
 	mrand "math/rand"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"

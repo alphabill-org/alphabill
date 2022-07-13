@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"gopkg.in/yaml.v3"
 )
 

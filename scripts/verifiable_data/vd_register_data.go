@@ -5,8 +5,8 @@ import (
 	"flag"
 	"log"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

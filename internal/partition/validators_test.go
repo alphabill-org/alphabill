@@ -4,14 +4,14 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-	testcertificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/certificates"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

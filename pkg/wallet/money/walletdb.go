@@ -10,11 +10,11 @@ import (
 	"path"
 	"strings"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
 )

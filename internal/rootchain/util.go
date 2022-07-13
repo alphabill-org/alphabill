@@ -1,8 +1,8 @@
 package rootchain
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var ErrSignerIsNil = errors.New("signer is nil")

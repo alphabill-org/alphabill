@@ -4,9 +4,9 @@ import (
 	gocrypto "crypto"
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const systemIdentifierLength = 4

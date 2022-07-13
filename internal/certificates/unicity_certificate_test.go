@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	"github.com/stretchr/testify/require"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 )
 
 func TestUnicityCertificate_IsValid(t *testing.T) {

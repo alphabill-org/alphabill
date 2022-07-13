@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
 )
 

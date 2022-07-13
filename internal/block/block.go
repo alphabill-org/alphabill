@@ -3,7 +3,7 @@ package block
 import (
 	"crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 //Hash returns the hash of the block.

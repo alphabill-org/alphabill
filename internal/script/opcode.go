@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/hash"
 )
 
 type opCode struct {

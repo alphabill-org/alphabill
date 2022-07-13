@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates;certificates";
+option go_package = "github.com/alphabill-org/alphabill/internal/certificates;certificates";
 
 message UnicityCertificate {
   InputRecord input_record = 1;

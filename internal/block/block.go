@@ -11,9 +11,7 @@ import (
 // Hash returns the hash of the block.
 func (x *Block) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	hasher := hashAlgorithm.New()
-	hasher.Write(x.SystemIdentifier)
-	hasher.Write(util.Uint64ToBytes(x.BlockNumber))
-	hasher.Write(x.PreviousBlockHash)
+	x.AddHeaderToHasher(hasher)
 
 	txs := make([]mt.Data, len(x.Transactions))
 	for i, tx := range x.Transactions {

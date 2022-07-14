@@ -17,7 +17,7 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	txutil "github.com/alphabill-org/alphabill/alphabill/internal/txsystem/util"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/btcsuite/btcutil/hdkeychain"

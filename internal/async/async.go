@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async/future"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/internal/async/future"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/logger"
 )
 
 var log = logger.CreateForPackage()

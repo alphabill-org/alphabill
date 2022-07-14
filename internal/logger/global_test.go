@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 )
 
 type logLine struct {

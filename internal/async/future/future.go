@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 type (

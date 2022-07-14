@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/client"
 
-	vd "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/vd"
-	wlog "gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	vd "github.com/alphabill-org/alphabill/pkg/vd"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/spf13/cobra"
 )
 

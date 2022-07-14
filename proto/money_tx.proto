@@ -3,7 +3,7 @@ package rpc;
 
 import "transaction.proto";
 
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money/;money";
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/money/;money";
 
 message TransferOrder {
   bytes new_bearer = 1;

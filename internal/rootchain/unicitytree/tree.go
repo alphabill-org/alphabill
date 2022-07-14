@@ -3,11 +3,11 @@ package unicitytree
 import (
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
+	"github.com/alphabill-org/alphabill/internal/smt"
 )
 
 const systemIdentifierLength = 4

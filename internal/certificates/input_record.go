@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var (

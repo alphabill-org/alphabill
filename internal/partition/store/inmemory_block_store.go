@@ -3,8 +3,8 @@ package store
 import (
 	"sync"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 // InMemoryBlockStore is an in-memory implementation of BlockStore interface.

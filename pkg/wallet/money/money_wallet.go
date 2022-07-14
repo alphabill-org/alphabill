@@ -9,14 +9,14 @@ import (
 	"sort"
 	"strconv"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
@@ -103,8 +103,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	blockNumber := b.BlockNumber
-	log.Info("processing block: " + strconv.FormatUint(blockNumber, 10))
+	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10) + ", prev hash: " + fmt.Sprintf("%X", b.PreviousBlockHash))
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -114,12 +113,12 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		err = validateBlockNumber(blockNumber, lastBlockNumber)
+		err = validateBlockNumber(b.BlockNumber, lastBlockNumber)
 		if err != nil {
 			return err
 		}
-		for _, pbTx := range b.Transactions {
-			err = w.collectBills(dbTx, blockNumber, pbTx)
+		for i, pbTx := range b.Transactions {
+			err = w.collectBills(dbTx, pbTx, b, i)
 			if err != nil {
 				return err
 			}
@@ -285,7 +284,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 	return w.Wallet.SyncToMaxBlockNumber(ctx, blockNumber)
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem.Transaction) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, txIdx int) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -299,11 +298,14 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received transfer order")
-			err = dbTx.SetBill(&bill{
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
 			})
+			if err != nil {
+				return err
+			}
 		} else {
 			err := dbTx.RemoveBill(tx.UnitID())
 			if err != nil {
@@ -317,7 +319,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received TransferDC order")
-			err = dbTx.SetBill(&bill{
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
 				TxHash:              tx.Hash(crypto.SHA256),
@@ -325,8 +327,11 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 				DcTx:                txPb,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
-				DcExpirationTimeout: blockNumber + dustBillDeletionTimeout,
+				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
 			})
+			if err != nil {
+				return err
+			}
 		} else {
 			err := dbTx.RemoveBill(tx.UnitID())
 			if err != nil {
@@ -344,7 +349,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if containsBill {
 			log.Info("received split order (existing bill)")
-			err := dbTx.SetBill(&bill{
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
 				TxHash: tx.Hash(crypto.SHA256),
@@ -359,7 +364,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received split order (new bill)")
-			err := dbTx.SetBill(&bill{
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
@@ -375,7 +380,7 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		}
 		if isOwner {
 			log.Info("received swap order")
-			err = dbTx.SetBill(&bill{
+			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
@@ -383,13 +388,11 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 			if err != nil {
 				return err
 			}
-
 			// clear dc metadata
 			err = dbTx.SetDcMetadata(txPb.UnitId, nil)
 			if err != nil {
 				return err
 			}
-
 			for _, dustTransfer := range tx.DCTransfers() {
 				err := dbTx.RemoveBill(dustTransfer.UnitID())
 				if err != nil {
@@ -407,6 +410,15 @@ func (w *Wallet) collectBills(dbTx TxContext, blockNumber uint64, txPb *txsystem
 		return nil
 	}
 	return nil
+}
+
+func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill) error {
+	blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+	if err != nil {
+		return err
+	}
+	bill.BlockProof = blockProof
+	return dbTx.SetBill(bill)
 }
 
 func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64) error {

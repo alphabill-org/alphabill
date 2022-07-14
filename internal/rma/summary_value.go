@@ -3,7 +3,7 @@ package rma
 import (
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (

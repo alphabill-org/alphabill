@@ -6,11 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -87,6 +87,15 @@ func CreateBillTransferTx(pubKeyHash []byte) *anypb.Any {
 		TargetValue: 100,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		Backlink:    hash.Sum256([]byte{}),
+	})
+	return tx
+}
+
+func CreateDustTransferTx(pubKeyHash []byte) *anypb.Any {
+	tx, _ := anypb.New(&moneytx.TransferDCOrder{
+		TargetValue:  100,
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
+		Backlink:     hash.Sum256([]byte{}),
 	})
 	return tx
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/stretchr/testify/require"
 )
 

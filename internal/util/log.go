@@ -3,7 +3,7 @@ package util
 import (
 	"encoding/json"
 
-	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	log "github.com/alphabill-org/alphabill/internal/logger"
 )
 
 func WriteDebugJsonLog(l log.Logger, m string, arg interface{}) {

@@ -164,12 +164,12 @@ func TestSwap(t *testing.T) {
 		},
 		{
 			name: "DustTransfersInDescBillIdOrder",
-			tx:   newSwapOrderWithInvalidDustTransferBillOrder1(t),
+			tx:   newSwapWithDescBillOrder(t),
 			res:  ErrSwapDustTransfersInvalidOrder,
 		},
 		{
 			name: "DustTransfersInEqualBillIdOrder",
-			tx:   newSwapOrderWithInvalidDustTransferBillOrder2(t),
+			tx:   newSwapOrderWithEqualBillIds(t),
 			res:  ErrSwapDustTransfersInvalidOrder,
 		},
 		{
@@ -294,7 +294,7 @@ func newInvalidNonceSwap(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
-func newSwapOrderWithInvalidDustTransferBillOrder1(t *testing.T) *swapWrapper {
+func newSwapWithDescBillOrder(t *testing.T) *swapWrapper {
 	// create swap tx with two dust transfers in descending order of bill ids
 	billIds := []*uint256.Int{uint256.NewInt(2), uint256.NewInt(1)}
 	swapId := calculateSwapID(billIds...)
@@ -313,7 +313,7 @@ func newSwapOrderWithInvalidDustTransferBillOrder1(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
-func newSwapOrderWithInvalidDustTransferBillOrder2(t *testing.T) *swapWrapper {
+func newSwapOrderWithEqualBillIds(t *testing.T) *swapWrapper {
 	// create swap tx with two dust transfers with equal bill ids
 	billIds := []*uint256.Int{uint256.NewInt(1), uint256.NewInt(1)}
 	swapId := calculateSwapID(billIds...)

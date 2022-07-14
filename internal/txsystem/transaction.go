@@ -3,7 +3,7 @@ package txsystem
 import (
 	"bytes"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 // Bytes serializes the generic transaction order fields.

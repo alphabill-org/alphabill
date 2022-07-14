@@ -3,7 +3,7 @@ package money
 import (
 	"bytes"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 // verifyOwner checks if given p2pkh bearer predicate contains given pubKey hash

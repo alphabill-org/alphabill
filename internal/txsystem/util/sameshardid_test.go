@@ -3,7 +3,7 @@ package util
 import (
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"

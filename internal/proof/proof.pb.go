@@ -7,7 +7,7 @@
 package proof
 
 import (
-	certificates "gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	certificates "github.com/alphabill-org/alphabill/internal/certificates"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

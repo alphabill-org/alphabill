@@ -3,7 +3,7 @@ package rootchain
 import (
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 
 	"github.com/stretchr/testify/require"
 )

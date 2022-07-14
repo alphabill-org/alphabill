@@ -5,9 +5,9 @@ import (
 	"crypto"
 	"sync"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 
 	"github.com/holiman/uint256"
 )

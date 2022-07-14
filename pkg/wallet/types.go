@@ -1,7 +1,7 @@
 package wallet
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/block"
 )
 
 type BlockProcessor interface {

@@ -1,7 +1,7 @@
 package rootchain
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 )
 
 // unicityCertificatesStore keeps track of latest unicity certificates.

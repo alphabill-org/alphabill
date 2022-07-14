@@ -2,9 +2,9 @@ package canonicalizer
 
 import (
 	"encoding/binary"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/log"
 	"reflect"
 )

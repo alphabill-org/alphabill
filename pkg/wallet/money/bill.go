@@ -1,8 +1,8 @@
 package money
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/proof"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/proof"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 )
 

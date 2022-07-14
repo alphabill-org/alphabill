@@ -27,7 +27,7 @@ func TestErrors_WithStacks(t *testing.T) {
 			err:  New("test error"),
 			expectedLinePatterns: []string{
 				`test error`,
-				`at gitdc\.ee\.guardtime\.com\/alphabill\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
+				`at github\.com\/alphabill-org\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
 			},
 		},
 		{
@@ -35,7 +35,7 @@ func TestErrors_WithStacks(t *testing.T) {
 			err:  Errorf("test error with code %d", 5),
 			expectedLinePatterns: []string{
 				`test error with code 5`,
-				`at gitdc\.ee\.guardtime\.com\/alphabill\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
+				`at github\.com\/alphabill-org\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
 			},
 		},
 		{
@@ -43,7 +43,7 @@ func TestErrors_WithStacks(t *testing.T) {
 			err:  Wrap(nil, "parent error"),
 			expectedLinePatterns: []string{
 				`parent error`,
-				`at gitdc\.ee\.guardtime\.com\/alphabill\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
+				`at github\.com\/alphabill-org\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
 			},
 		},
 		{
@@ -51,10 +51,10 @@ func TestErrors_WithStacks(t *testing.T) {
 			err:  Wrapf(causedError, "parent error with code %d", 10),
 			expectedLinePatterns: []string{
 				`parent error with code 10`,
-				`at gitdc\.ee\.guardtime\.com\/alphabill\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
+				`at github\.com\/alphabill-org\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
 				`Cause: cause`,
-				`at gitdc\.ee\.guardtime\.com\/alphabill\/alphabill\/internal\/errors\.createCauseError\(.*internal.errors.errors_test\.go:\d+\)`,
-				`at gitdc\.ee\.guardtime\.com\/alphabill\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
+				`at github\.com\/alphabill-org\/alphabill\/internal\/errors\.createCauseError\(.*internal.errors.errors_test\.go:\d+\)`,
+				`at github\.com\/alphabill-org\/alphabill\/internal\/errors\.TestErrors_WithStacks\(.*internal.errors.errors_test\.go:\d+\)`,
 			},
 		},
 	}

@@ -7,8 +7,8 @@ import (
 	"net"
 	"sync"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"google.golang.org/grpc"
 )
 

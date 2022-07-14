@@ -3,8 +3,8 @@ package testtxsystem
 import (
 	"encoding/binary"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type CounterTxSystem struct {

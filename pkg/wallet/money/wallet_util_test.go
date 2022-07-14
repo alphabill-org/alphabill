@@ -5,8 +5,8 @@ import (
 	"path"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 

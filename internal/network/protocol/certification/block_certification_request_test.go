@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
 	"github.com/stretchr/testify/require"
 )

@@ -10,11 +10,11 @@ import (
 	"os"
 	"strings"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/pkg/errors"
 )
 

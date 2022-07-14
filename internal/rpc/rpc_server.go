@@ -3,12 +3,12 @@ package rpc
 import (
 	"context"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/block"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rpc/alphabill"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
 type (

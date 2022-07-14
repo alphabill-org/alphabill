@@ -3,9 +3,9 @@ package money
 import (
 	"crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/proof"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/mt"
+	"github.com/alphabill-org/alphabill/internal/proof"
 )
 
 func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*proof.BlockProof, error) {

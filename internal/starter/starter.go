@@ -7,9 +7,9 @@ import (
 	"syscall"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/internal/async"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/logger"
 )
 
 type (

@@ -4,17 +4,17 @@ import (
 	"crypto"
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 
-	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )

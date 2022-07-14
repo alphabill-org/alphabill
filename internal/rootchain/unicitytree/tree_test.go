@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/smt"
+	"github.com/alphabill-org/alphabill/internal/smt"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
 	"github.com/stretchr/testify/require"
 )

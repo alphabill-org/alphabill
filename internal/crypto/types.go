@@ -3,7 +3,7 @@ package crypto
 import (
 	"crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
+	"github.com/alphabill-org/alphabill/internal/crypto/canonicalizer"
 )
 
 type (

@@ -3,7 +3,7 @@ package script
 import (
 	"testing"
 
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 

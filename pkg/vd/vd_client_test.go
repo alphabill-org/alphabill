@@ -8,15 +8,15 @@ import (
 	"sync"
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/client"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	testfile "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/file"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/block"
+	testfile "github.com/alphabill-org/alphabill/internal/testutils/file"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )

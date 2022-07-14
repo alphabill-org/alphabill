@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 
 	"github.com/stretchr/testify/require"
 )

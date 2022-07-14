@@ -7,7 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"golang.org/x/crypto/pbkdf2"
 	"strings"
 )

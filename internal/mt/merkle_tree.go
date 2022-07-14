@@ -4,8 +4,8 @@ import (
 	"crypto"
 	"fmt"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/proof"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/proof"
 )
 
 var ErrNilData = errors.New("merkle tree input data is nil")

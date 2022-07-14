@@ -4,8 +4,8 @@ import (
 	"crypto"
 	"hash"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/mt"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 // Hash returns the hash of the block.

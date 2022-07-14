@@ -1,4 +1,4 @@
-module gitdc.ee.guardtime.com/alphabill/alphabill
+module github.com/alphabill-org/alphabill
 
 go 1.18
 

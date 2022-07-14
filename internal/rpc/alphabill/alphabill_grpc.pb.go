@@ -8,7 +8,7 @@ package alphabill
 
 import (
 	context "context"
-	txsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	txsystem "github.com/alphabill-org/alphabill/internal/txsystem"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"

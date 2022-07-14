@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/time"
+	"github.com/alphabill-org/alphabill/internal/async"
+	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 )
 
 func TestStartAndWait(t *testing.T) {

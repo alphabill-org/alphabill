@@ -2,28 +2,18 @@ package money
 
 import (
 	"crypto"
+	"sort"
 	"testing"
-
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
-
-	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
-
-	"google.golang.org/protobuf/types/known/anypb"
 
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
 	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
+	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	addItemId                = 0
-	addItemOwner             = 1
-	addItemData              = 2
-	updateDataUpdateFunction = 1
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var initialBill = &InitialBill{ID: uint256.NewInt(77), Value: 110, Owner: script.PredicateAlwaysTrue()}
@@ -262,6 +252,9 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		backlink = data.Backlink
 	}
 
+	sort.Slice(splitBillIDs, func(i, j int) bool {
+		return splitBillIDs[i].Lt(splitBillIDs[j])
+	})
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, rmaTree)
 
 	for _, dcTransfer := range dcTransfers {

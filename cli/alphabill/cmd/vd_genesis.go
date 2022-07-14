@@ -5,14 +5,14 @@ import (
 	"os"
 	"path"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/partition"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/verifiable_data"
+	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/txsystem/verifiable_data"
 
 	"github.com/spf13/cobra"
 )

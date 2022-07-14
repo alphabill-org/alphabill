@@ -7,8 +7,8 @@ import (
 	"path"
 	"strings"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/logger"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"

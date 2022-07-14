@@ -3,13 +3,13 @@ package partition
 import (
 	gocrypto "crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -133,10 +133,13 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	b := &block.Block{
 		SystemIdentifier:  c.systemIdentifier,
 		BlockNumber:       1,
-		PreviousBlockHash: zeroHash,
+		PreviousBlockHash: nil,
 		Transactions:      nil,
 	}
-	blockHash := b.Hash(c.hashAlgorithm)
+	blockHash, err := b.Hash(c.hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
 
 	// Protocol request
 	id := c.peerID.String()

@@ -4,7 +4,7 @@ import (
 	"os"
 	"path"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/client"
 )
 
 type WalletConfig struct {

@@ -3,7 +3,7 @@ package timer
 import (
 	"time"
 
-	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	log "github.com/alphabill-org/alphabill/internal/logger"
 )
 
 var logger = log.CreateForPackage()

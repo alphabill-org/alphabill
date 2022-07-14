@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (

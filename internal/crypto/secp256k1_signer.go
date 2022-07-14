@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto/canonicalizer"
+	"github.com/alphabill-org/alphabill/internal/crypto/canonicalizer"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/hash"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"

@@ -4,14 +4,14 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	testtransaction "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/transaction"
-	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -145,15 +145,16 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	txSystem := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, txSystem)
 	defer tp.Close()
-	block := tp.GetLatestBlock()
-	txSystem.EndBlockCount-- // revert the state of the tx system
+	block := tp.GetLatestBlock() // genesis block
+	txSystem.EndBlockCount--     // revert the state of the tx system
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
+	blockHash, _ := block.Hash(gocrypto.SHA256)
 	block2 := tp.GetLatestBlock()
 	require.Equal(t, block.BlockNumber+1, block2.BlockNumber)
 	require.Equal(t, block.SystemIdentifier, block2.SystemIdentifier)
-	require.Equal(t, block.Hash(gocrypto.SHA256), block2.PreviousBlockHash)
+	require.Equal(t, blockHash, block2.PreviousBlockHash)
 	uc1 := block.UnicityCertificate
 	uc2 := block2.UnicityCertificate
 	require.Equal(t, uc1.InputRecord.Hash, uc2.InputRecord.Hash)

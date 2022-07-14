@@ -4,8 +4,8 @@ import (
 	"crypto"
 	"testing"
 
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )

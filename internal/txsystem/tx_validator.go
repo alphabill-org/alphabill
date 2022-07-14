@@ -3,10 +3,10 @@ package txsystem
 import (
 	"bytes"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/rma"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/script"
 )
 
 var (

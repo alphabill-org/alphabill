@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/async"
+	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/stretchr/testify/require"
 )
 

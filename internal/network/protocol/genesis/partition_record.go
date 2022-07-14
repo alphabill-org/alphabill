@@ -3,7 +3,7 @@ package genesis
 import (
 	"bytes"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var ErrPartitionRecordIsNil = errors.New("partition record is nil")

@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+	log "github.com/alphabill-org/alphabill/internal/logger"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/timer"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/timer"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 

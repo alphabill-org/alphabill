@@ -4,7 +4,7 @@ package abrpc;
 import "transaction.proto";
 import "block.proto";
 
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/alphabill/alphabill;alphabill";
+option go_package = "github.com/alphabill-org/alphabill/internal/alphabill/alphabill;alphabill";
 
 service AlphabillService {
   rpc ProcessTransaction(Transaction) returns (TransactionResponse) {};

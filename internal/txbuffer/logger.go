@@ -1,5 +1,5 @@
 package txbuffer
 
-import log "gitdc.ee.guardtime.com/alphabill/alphabill/internal/logger"
+import log "github.com/alphabill-org/alphabill/internal/logger"
 
 var logger = log.CreateForPackage()

@@ -1,7 +1,7 @@
 package canonicalizer
 
 import (
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"reflect"
 	"strconv"
 	"strings"

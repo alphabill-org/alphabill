@@ -9,14 +9,14 @@ import (
 	"sort"
 	"strconv"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/block"
-	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-	moneytx "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/money"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
@@ -103,7 +103,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10) + ", prev hash: " + fmt.Sprintf("%X", b.PreviousBlockHash))
+	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10))
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}

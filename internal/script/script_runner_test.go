@@ -4,8 +4,8 @@ package script
 import (
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/hash"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 

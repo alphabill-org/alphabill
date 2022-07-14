@@ -1,6 +1,6 @@
 package money
 
-import "gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
+import "github.com/alphabill-org/alphabill/internal/rma"
 
 type (
 	Options struct {

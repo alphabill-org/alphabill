@@ -2,15 +2,14 @@ package money
 
 import (
 	"crypto"
-	"sort"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/rma"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/script"
-	test "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	txutil "gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem/util"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"

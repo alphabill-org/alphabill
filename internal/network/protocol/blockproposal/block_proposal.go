@@ -4,9 +4,8 @@ import (
 	"bytes"
 	gocrypto "crypto"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/mt"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var (
@@ -41,22 +40,8 @@ func (x *BlockProposal) Hash(algorithm gocrypto.Hash) ([]byte, error) {
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write([]byte(x.NodeIdentifier))
 	x.UnicityCertificate.AddToHasher(hasher)
-	if len(x.Transactions) > 0 {
-		txs := make([]mt.Data, len(x.Transactions))
-		for i, tx := range x.Transactions {
-			txBytes, err := tx.Bytes()
-			if err != nil {
-				return nil, err
-			}
-			txs[i] = &byteHasher{val: txBytes}
-		}
-		// build merkle tree of transactions
-		merkleTree, err := mt.New(algorithm, txs)
-		if err != nil {
-			return nil, err
-		}
-		// add merkle tree root hash to block hasher
-		hasher.Write(merkleTree.GetRootHash())
+	for _, tx := range x.Transactions {
+		hasher.Write(tx.Bytes())
 	}
 	return hasher.Sum(nil), nil
 }
@@ -85,15 +70,4 @@ func (x *BlockProposal) Verify(algorithm gocrypto.Hash, nodeSignatureVerifier cr
 		return err
 	}
 	return nodeSignatureVerifier.VerifyHash(x.Signature, hash)
-}
-
-// byteHasher helper struct to satisfy mt.Data interface
-type byteHasher struct {
-	val []byte
-}
-
-func (h *byteHasher) Hash(hashAlgorithm gocrypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(h.val)
-	return hasher.Sum(nil)
 }

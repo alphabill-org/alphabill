@@ -3,12 +3,12 @@ package network
 import (
 	"time"
 
-	uc "gitdc.ee.guardtime.com/alphabill/alphabill/internal/certificates"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors/errstr"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/blockproposal"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/certification"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
+	uc "github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/proto"
 )

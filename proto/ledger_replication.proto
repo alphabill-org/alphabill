@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 import "block.proto";
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/replication;replication";
+option go_package = "github.com/alphabill-org/alphabill/internal/network/protocol/replication;replication";
 
 message LedgerReplicationResponse {
   enum Status {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -19,7 +19,7 @@ func initializeGlobalFactory() {
 		context:                 make(Context),
 		consoleTimeFormat:       "15:04:05.000000",
 		callerSkipFrames:        4, // This depends on the logger code, not meant to be changed by callers.
-		packageNameResolver:     &PackageNameResolver{BasePackage: "alphabill/alphabill"},
+		packageNameResolver:     &PackageNameResolver{BasePackage: "alphabill-org/alphabill"},
 		nonAlphaNumericRegex:    regexp.MustCompile(`[^a-zA-Z0-9]`),
 		globalLoggerInitialized: false,
 	}

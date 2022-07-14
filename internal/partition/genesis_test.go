@@ -4,12 +4,12 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network/protocol/genesis"
-	testsig "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/sig"
-	testtxsystem "gitdc.ee.guardtime.com/alphabill/alphabill/internal/testutils/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/txsystem"
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
@@ -111,7 +111,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	ir := blockCertificationRequestRequest.InputRecord
 	expectedHash := make([]byte, 32)
 	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, calculateBlockHash(1, systemIdentifier, zeroHash), ir.BlockHash)
+	require.Equal(t, calculateBlockHash(1, systemIdentifier, nil), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 

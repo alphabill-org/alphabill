@@ -3,7 +3,7 @@ syntax = "proto3";
 import "transaction.proto";
 import "certificates.proto";
 
-option go_package = "gitdc.ee.guardtime.com/alphabill/alphabill/internal/block;block";
+option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
 
 message Block {
   bytes system_identifier = 1;

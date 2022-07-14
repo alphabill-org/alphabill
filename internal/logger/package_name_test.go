@@ -7,7 +7,7 @@ import (
 )
 
 func TestPackageName(t *testing.T) {
-	pnr := &PackageNameResolver{BasePackage: "alphabill/alphabill", Depth: 1}
+	pnr := &PackageNameResolver{BasePackage: "alphabill-org/alphabill", Depth: 1}
 	assert.Equal(t, "internal/logger", pnr.PackageName())
 }
 

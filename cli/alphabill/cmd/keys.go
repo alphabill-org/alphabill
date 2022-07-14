@@ -7,13 +7,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/errors"
 
-	"gitdc.ee.guardtime.com/alphabill/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 
-	abcrypto "gitdc.ee.guardtime.com/alphabill/alphabill/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/libp2p/go-libp2p-core/crypto"
 )
 

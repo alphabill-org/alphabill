@@ -2,6 +2,7 @@ package money
 
 import (
 	"context"
+	"crypto"
 	"encoding/hex"
 	"os"
 	"path"
@@ -10,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -188,21 +190,28 @@ func TestBlockProcessing(t *testing.T) {
 		},
 	}
 
-	height, err := w.db.Do().GetBlockNumber()
-	require.EqualValues(t, 0, height)
+	// verify block number 0 before processing
+	blockNumber, err := w.db.Do().GetBlockNumber()
+	require.EqualValues(t, 0, blockNumber)
 	require.NoError(t, err)
+
+	// verify balance 0 before processing
 	balance, err := w.db.Do().GetBalance()
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
+	// process blocks
 	for _, b := range blocks {
 		err = w.ProcessBlock(b)
 		require.NoError(t, err)
 	}
 
-	height, err = w.db.Do().GetBlockNumber()
-	require.EqualValues(t, 1, height)
+	// verify block number after block processing
+	blockNumber, err = w.db.Do().GetBlockNumber()
+	require.EqualValues(t, 1, blockNumber)
 	require.NoError(t, err)
+
+	// verify balance after block processing
 	balance, err = w.db.Do().GetBalance()
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
@@ -221,6 +230,79 @@ func TestBlockProcessing_InvalidSystemID(t *testing.T) {
 
 	err := w.ProcessBlock(b)
 	require.ErrorContains(t, err, "invalid system identifier")
+}
+
+func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	k, _ := w.db.Do().GetAccountKey()
+
+	testBlock := &block.Block{
+		SystemIdentifier:  alphabillMoneySystemId,
+		BlockNumber:       1,
+		PreviousBlockHash: hash.Sum256([]byte{}),
+		Transactions: []*txsystem.Transaction{
+			// receive transfer of 100 bills
+			{
+				SystemId:              alphabillMoneySystemId,
+				UnitId:                hash.Sum256([]byte{0x00}),
+				TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			},
+			// receive dc transfer of 100 bills
+			{
+				SystemId:              alphabillMoneySystemId,
+				UnitId:                hash.Sum256([]byte{0x01}),
+				TransactionAttributes: testtransaction.CreateDustTransferTx(k.PubKeyHash.Sha256),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			},
+			// TODO AB-292 split is hashed differently using HashForIdCalculation function
+			//// receive split of 100 bills
+			//{
+			//	SystemId:              alphabillMoneySystemId,
+			//	UnitId:                hash.Sum256([]byte{0x02}),
+			//	TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+			//	Timeout:               1000,
+			//	OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			//},
+			// receive swap of 100 bills
+			{
+				SystemId:              alphabillMoneySystemId,
+				UnitId:                hash.Sum256([]byte{0x03}),
+				TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			},
+		},
+		UnicityCertificate: &certificates.UnicityCertificate{},
+	}
+
+	err := w.ProcessBlock(testBlock)
+	require.NoError(t, err)
+
+	merkleTree, err := createMerkleTree(testBlock.Transactions)
+	require.NoError(t, err)
+
+	bills, err := w.db.Do().GetBills()
+	require.NoError(t, err)
+	require.Len(t, bills, 3)
+
+	for _, b := range bills {
+		// serialize transaction corresponding to given bill
+		var txBytes []byte
+		for _, tbTx := range testBlock.Transactions {
+			if uint256.NewInt(0).SetBytes(tbTx.UnitId).Eq(b.Id) {
+				txBytes, _ = tbTx.Bytes()
+			}
+		}
+		// verify block proofs
+		require.NotNil(t, b.BlockProof)
+		merklePath := mt.FromProtobuf(b.BlockProof.MerkleProof)
+		rootHash := mt.EvalMerklePath(merklePath, &byteHasher{val: txBytes}, crypto.SHA256)
+		require.NotNil(t, rootHash)
+		require.EqualValues(t, merkleTree.GetRootHash(), rootHash)
+	}
 }
 
 func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
@@ -277,4 +359,14 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.Equal(t, testPrivKeyHex, hex.EncodeToString(ac.PrivKey))
 	require.Equal(t, testPubKeyHashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
 	require.Equal(t, testPubKeyHashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
+}
+
+func createMerkleTree(blockTxs []*txsystem.Transaction) (*mt.MerkleTree, error) {
+	// create merkle tree from testBlock transactions
+	txs := make([]mt.Data, len(blockTxs))
+	for i, tx := range blockTxs {
+		txBytes, _ := tx.Bytes()
+		txs[i] = &byteHasher{val: txBytes}
+	}
+	return mt.New(crypto.SHA256, txs)
 }

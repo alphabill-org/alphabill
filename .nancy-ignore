@@ -30,3 +30,6 @@ sonatype-2021-0076
 # We are not using influxdata, it's transitive from go-ethereum
 sonatype-2021-4764
 sonatype-2019-0772
+
+# We are not using quic-go, it's transitive from libp2p
+CVE-2022-30591

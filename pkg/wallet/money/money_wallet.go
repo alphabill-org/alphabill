@@ -103,7 +103,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10) + ", prev hash: " + fmt.Sprintf("%X", b.PreviousBlockHash))
+	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10))
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}

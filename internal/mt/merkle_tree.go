@@ -21,7 +21,7 @@ type (
 		Hash(hashAlgorithm crypto.Hash) []byte
 	}
 
-	// PathItem helper struct for proof extraction, contains Hash and Direction of parent node
+	// PathItem helper struct for proof extraction, contains Hash and Direction from parent node
 	PathItem struct {
 		Hash          []byte
 		DirectionLeft bool // true - left from parent, false - right from parent
@@ -31,6 +31,11 @@ type (
 		left  *node
 		right *node
 		hash  []byte
+	}
+
+	// ByteHasher helper struct to satisfy Data interface
+	ByteHasher struct {
+		Val []byte
 	}
 )
 
@@ -188,4 +193,10 @@ func hibit(n int) int {
 	n |= n >> 8
 	n |= n >> 16
 	return n - (n >> 1)
+}
+
+func (h *ByteHasher) Hash(hashAlgorithm crypto.Hash) []byte {
+	hasher := hashAlgorithm.New()
+	hasher.Write(h.Val)
+	return hasher.Sum(nil)
 }

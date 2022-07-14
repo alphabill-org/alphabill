@@ -111,7 +111,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	ir := blockCertificationRequestRequest.InputRecord
 	expectedHash := make([]byte, 32)
 	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, calculateBlockHash(1, systemIdentifier, zeroHash), ir.BlockHash)
+	require.Equal(t, calculateBlockHash(1, systemIdentifier, nil), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 

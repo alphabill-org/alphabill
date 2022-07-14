@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
-	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -461,7 +460,10 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.StateHash) {
 		// UC certifies pending block proposal
-		n.finalizeBlock(n.pr.Transactions, uc)
+		err := n.finalizeBlock(n.pr.Transactions, uc)
+		if err != nil {
+			return errors.Wrap(err, "block finalization failed")
+		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pr.PrevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pr.PrevHash)
@@ -482,7 +484,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
-func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) {
+func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Block finalization")
 	latestBlock := n.blockStore.LatestBlock()
 	newHeight := latestBlock.BlockNumber + 1
@@ -490,14 +492,25 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 	b := &block.Block{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
 		BlockNumber:        newHeight,
-		PreviousBlockHash:  latestBlock.Hash(n.configuration.hashAlgorithm),
+		PreviousBlockHash:  latestBlock.UnicityCertificate.InputRecord.BlockHash,
 		Transactions:       toProtoBuf(transactions),
 		UnicityCertificate: uc,
 	}
-	// TODO ensure block hash equals to IR hash
-	_ = n.blockStore.Add(b) // TODO handle error
+	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(blockHash, uc.InputRecord.BlockHash) {
+		return errors.Errorf("finalized block hash not equal to IR block hash. IR hash %X, finalized block hash %X",
+			uc.InputRecord.BlockHash, blockHash)
+	}
+	err = n.blockStore.Add(b)
+	if err != nil {
+		return err
+	}
 	n.transactionSystem.Commit()
 	n.sendEvent(EventTypeBlockFinalized, b)
+	return nil
 }
 
 func (n *Node) handleT1TimeoutEvent() {
@@ -636,25 +649,13 @@ func (n *Node) startHandleOrForwardTransactions() {
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, blockNumber uint64) ([]byte, error) {
-	hasher := n.configuration.hashAlgorithm.New()
-	hasher.Write(n.configuration.GetSystemIdentifier())
-	hasher.Write(util.Uint64ToBytes(blockNumber))
-	hasher.Write(prevBlockHash)
-	if len(n.pr.Transactions) > 0 {
-		// cast transactions to mt.Data type
-		txs := make([]mt.Data, len(n.pr.Transactions))
-		for i, tx := range n.pr.Transactions {
-			txs[i] = tx
-		}
-		// build merkle tree of transactions
-		merkleTree, err := mt.New(n.configuration.hashAlgorithm, txs)
-		if err != nil {
-			return nil, err
-		}
-		// add merkle tree root hash to block hasher
-		hasher.Write(merkleTree.GetRootHash())
+	b := block.Block{
+		SystemIdentifier:  n.configuration.GetSystemIdentifier(),
+		BlockNumber:       blockNumber,
+		PreviousBlockHash: prevBlockHash,
+		Transactions:      toProtoBuf(n.pr.Transactions),
 	}
-	return hasher.Sum(nil), nil
+	return b.Hash(n.configuration.hashAlgorithm)
 }
 
 func convertType[T any](event interface{}) (bool, T) {

@@ -4,18 +4,28 @@ import (
 	"crypto"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-//Hash returns the hash of the block.
-func (x *Block) Hash(hashAlgorithm crypto.Hash) []byte {
+// Hash returns the hash of the block.
+func (x *Block) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	hasher := hashAlgorithm.New()
 	x.AddHeaderToHasher(hasher)
-	// TODO continue implementing after task AB-129
-	/*for _, tx := range b.Transactions {
-		tx.AddToHasher(hasher)
-	}*/
-	return hasher.Sum(nil)
+
+	txs := make([]mt.Data, len(x.Transactions))
+	for i, tx := range x.Transactions {
+		txs[i] = &mt.ByteHasher{Val: tx.Bytes()}
+	}
+	// build merkle tree of transactions
+	merkleTree, err := mt.New(hashAlgorithm, txs)
+	if err != nil {
+		return nil, err
+	}
+	// add merkle tree root hash to block hasher
+	hasher.Write(merkleTree.GetRootHash())
+
+	return hasher.Sum(nil), nil
 }
 
 func (x *Block) HashHeader(hashAlgorithm crypto.Hash) []byte {

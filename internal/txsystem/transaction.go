@@ -1,18 +1,17 @@
 package txsystem
 
 import (
-	"google.golang.org/protobuf/proto"
+	"bytes"
+
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-func (x *Transaction) Bytes() ([]byte, error) {
-	x.unknownFields = []byte{}
-	// Setting "Deterministic" option guarantees that repeated serialization of
-	// the same message will return the same bytes, and that different
-	// processes of the same binary (which may be executing on different
-	// machines) will serialize equal messages to the same bytes.
-	//
-	// NB! Note that the deterministic serialization is NOT canonical across
-	// languages!
-	// TODO implement a better transaction serialization.
-	return proto.MarshalOptions{Deterministic: true}.Marshal(x)
+// Bytes serializes the generic transaction order fields.
+func (x *Transaction) Bytes() []byte {
+	var b bytes.Buffer
+	b.Write(x.SystemId)
+	b.Write(x.UnitId)
+	b.Write(util.Uint64ToBytes(x.Timeout))
+	b.Write(x.OwnerProof)
+	return b.Bytes()
 }

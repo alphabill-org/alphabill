@@ -1,6 +1,7 @@
 package money
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"encoding/hex"
@@ -15,6 +16,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/btcsuite/btcutil/hdkeychain"
@@ -257,15 +260,14 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
-			// TODO AB-292 split is hashed differently using HashForIdCalculation function
-			//// receive split of 100 bills
-			//{
-			//	SystemId:              alphabillMoneySystemId,
-			//	UnitId:                hash.Sum256([]byte{0x02}),
-			//	TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
-			//	Timeout:               1000,
-			//	OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-			//},
+			// receive split of 100 bills
+			{
+				SystemId:              alphabillMoneySystemId,
+				UnitId:                hash.Sum256([]byte{0x02}),
+				TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			},
 			// receive swap of 100 bills
 			{
 				SystemId:              alphabillMoneySystemId,
@@ -286,23 +288,36 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 
 	bills, err := w.db.Do().GetBills()
 	require.NoError(t, err)
-	require.Len(t, bills, 3)
+	require.Len(t, bills, 4)
 
 	for _, b := range bills {
-		// serialize transaction corresponding to given bill
-		var txBytes []byte
-		for _, tbTx := range testBlock.Transactions {
-			if uint256.NewInt(0).SetBytes(tbTx.UnitId).Eq(b.Id) {
-				txBytes, _ = tbTx.Bytes()
-			}
-		}
 		// verify block proofs
 		require.NotNil(t, b.BlockProof)
 		merklePath := mt.FromProtobuf(b.BlockProof.MerkleProof)
-		rootHash := mt.EvalMerklePath(merklePath, &byteHasher{val: txBytes}, crypto.SHA256)
+		rootHash := mt.EvalMerklePath(merklePath, &mt.ByteHasher{Val: getMatchingTxForBill(b, testBlock).Bytes()}, crypto.SHA256)
 		require.NotNil(t, rootHash)
 		require.EqualValues(t, merkleTree.GetRootHash(), rootHash)
 	}
+}
+
+func getMatchingTxForBill(bill *bill, block *block.Block) *txsystem.Transaction {
+	billId := bill.getId()
+	for _, tx := range block.Transactions {
+		if bytes.Equal(tx.UnitId, billId) {
+			return tx
+		}
+
+		// split can create a new bill id that is not equal tx.unit_id
+		moneyTx, _ := moneytx.NewMoneyTx(alphabillMoneySystemId, tx)
+		switch mtx := moneyTx.(type) {
+		case moneytx.Split:
+			splitBillId := txutil.SameShardId(mtx.UnitID(), mtx.HashForIdCalculation(crypto.SHA256)).Bytes32()
+			if bytes.Equal(splitBillId[:], billId) {
+				return tx
+			}
+		}
+	}
+	return nil
 }
 
 func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
@@ -365,8 +380,7 @@ func createMerkleTree(blockTxs []*txsystem.Transaction) (*mt.MerkleTree, error) 
 	// create merkle tree from testBlock transactions
 	txs := make([]mt.Data, len(blockTxs))
 	for i, tx := range blockTxs {
-		txBytes, _ := tx.Bytes()
-		txs[i] = &byteHasher{val: txBytes}
+		txs[i] = &mt.ByteHasher{Val: tx.Bytes()}
 	}
 	return mt.New(crypto.SHA256, txs)
 }

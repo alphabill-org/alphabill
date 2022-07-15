@@ -2,7 +2,7 @@
 
 nodeAddresses=""
 
-port=26666
+port=27666
 # partition node addresses
 for i in 1 2 3
 do
@@ -14,8 +14,8 @@ done
 
 nodeAddresses="${nodeAddresses:1}"
 
-port=26666
-grpcPort=26766
+port=27666
+grpcPort=27766
 #start partition nodes
 for i in 1 2 3
 do

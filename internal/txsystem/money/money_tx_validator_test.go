@@ -163,6 +163,16 @@ func TestSwap(t *testing.T) {
 			res:  ErrSwapInvalidBillId,
 		},
 		{
+			name: "DustTransfersInDescBillIdOrder",
+			tx:   newSwapWithDescBillOrder(t),
+			res:  ErrSwapDustTransfersInvalidOrder,
+		},
+		{
+			name: "DustTransfersInEqualBillIdOrder",
+			tx:   newSwapOrderWithEqualBillIds(t),
+			res:  ErrSwapDustTransfersInvalidOrder,
+		},
+		{
 			name: "InvalidNonce",
 			tx:   newInvalidNonceSwap(t),
 			res:  ErrSwapInvalidNonce,
@@ -226,11 +236,13 @@ func newSplit(t *testing.T, amount uint64, remainingValue uint64, backlink []byt
 
 func newInvalidTargetValueSwap(t *testing.T) *swapWrapper {
 	id := uint256.NewInt(1)
-	transferDCID, swapId := calculateSwapID(id)
-	dcTransfer := newTransferDC(t, 100, []byte{6}, transferDCID, swapId)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
+	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, &SwapOrder{
 		OwnerCondition:  dcTransfer.TargetBearer(),
-		BillIdentifiers: [][]byte{transferDCID},
+		BillIdentifiers: [][]byte{transferId},
 		DcTransfers:     []*txsystem.Transaction{dcTransfer.transaction},
 		Proofs:          [][]byte{{9}, {10}},
 		TargetValue:     dcTransfer.TargetValue() - 1,
@@ -244,7 +256,9 @@ func newInvalidTargetValueSwap(t *testing.T) *swapWrapper {
 
 func newInvalidBillIdentifierSwap(t *testing.T) *swapWrapper {
 	id := uint256.NewInt(1)
-	transferId, swapId := calculateSwapID(id)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, test.RandomBytes(3), swapId)
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
 	tx, err := NewMoneyTx(systemIdentifier, order)
@@ -255,7 +269,9 @@ func newInvalidBillIdentifierSwap(t *testing.T) *swapWrapper {
 
 func newInvalidBillIdSwap(t *testing.T) *swapWrapper {
 	id := uint256.NewInt(1)
-	transferId, swapId := calculateSwapID(id)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
 	order := newPBTransactionOrder([]byte{0}, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
 	order.SystemId = systemIdentifier
@@ -267,7 +283,9 @@ func newInvalidBillIdSwap(t *testing.T) *swapWrapper {
 
 func newInvalidNonceSwap(t *testing.T) *swapWrapper {
 	id := uint256.NewInt(1)
-	transferId, swapId := calculateSwapID(id)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, []byte{0})
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
 	tx, err := NewMoneyTx(systemIdentifier, order)
@@ -276,9 +294,49 @@ func newInvalidNonceSwap(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
+func newSwapWithDescBillOrder(t *testing.T) *swapWrapper {
+	// create swap tx with two dust transfers in descending order of bill ids
+	billIds := []*uint256.Int{uint256.NewInt(2), uint256.NewInt(1)}
+	swapId := calculateSwapID(billIds...)
+	dcTransfers := make([]*transferDCWrapper, len(billIds))
+	transferIds := make([][]byte, len(billIds))
+	for i := 0; i < len(billIds); i++ {
+		bytes32 := billIds[i].Bytes32()
+		transferIds[i] = bytes32[:]
+		dcTransfers[i] = newTransferDC(t, 100, []byte{6}, bytes32[:], swapId)
+	}
+	swapTx := newSwapOrderWithDCTransfers([]byte{4}, 200, dcTransfers, transferIds)
+	swapTxProto := newPBTransactionOrder(swapId, []byte{4}, 2, swapTx)
+	tx, err := NewMoneyTx(systemIdentifier, swapTxProto)
+	require.NoError(t, err)
+	require.IsType(t, tx, &swapWrapper{})
+	return tx.(*swapWrapper)
+}
+
+func newSwapOrderWithEqualBillIds(t *testing.T) *swapWrapper {
+	// create swap tx with two dust transfers with equal bill ids
+	billIds := []*uint256.Int{uint256.NewInt(1), uint256.NewInt(1)}
+	swapId := calculateSwapID(billIds...)
+	dcTransfers := make([]*transferDCWrapper, len(billIds))
+	transferIds := make([][]byte, len(billIds))
+	for i := 0; i < len(billIds); i++ {
+		bytes32 := billIds[i].Bytes32()
+		transferIds[i] = bytes32[:]
+		dcTransfers[i] = newTransferDC(t, 100, []byte{6}, bytes32[:], swapId)
+	}
+	swapTx := newSwapOrderWithDCTransfers([]byte{4}, 200, dcTransfers, transferIds)
+	swapTxProto := newPBTransactionOrder(swapId, []byte{4}, 2, swapTx)
+	tx, err := NewMoneyTx(systemIdentifier, swapTxProto)
+	require.NoError(t, err)
+	require.IsType(t, tx, &swapWrapper{})
+	return tx.(*swapWrapper)
+}
+
 func newInvalidTargetBearerSwap(t *testing.T) *swapWrapper {
 	id := uint256.NewInt(1)
-	transferId, swapId := calculateSwapID(id)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, &SwapOrder{
 		OwnerCondition:  test.RandomBytes(32),
@@ -295,7 +353,9 @@ func newInvalidTargetBearerSwap(t *testing.T) *swapWrapper {
 
 func newValidSwap(t *testing.T) *swapWrapper {
 	id := uint256.NewInt(1)
-	transferId, swapId := calculateSwapID(id)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
 	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
 	tx, err := NewMoneyTx(systemIdentifier, order)
@@ -314,12 +374,27 @@ func newSwapOrder(dcTransfer *transferDCWrapper, transferDCID []byte) *SwapOrder
 	}
 }
 
-func calculateSwapID(id *uint256.Int) ([]byte, []byte) {
+func newSwapOrderWithDCTransfers(ownerCondition []byte, targetValue uint64, dcTransfers []*transferDCWrapper, transferDCIDs [][]byte) *SwapOrder {
+	wrappedDcTransfers := make([]*txsystem.Transaction, len(dcTransfers))
+	for i, dcTransfer := range dcTransfers {
+		wrappedDcTransfers[i] = dcTransfer.transaction
+	}
+	return &SwapOrder{
+		OwnerCondition:  ownerCondition,
+		BillIdentifiers: transferDCIDs,
+		DcTransfers:     wrappedDcTransfers,
+		Proofs:          [][]byte{{9}, {10}},
+		TargetValue:     targetValue,
+	}
+}
+
+func calculateSwapID(ids ...*uint256.Int) []byte {
 	hasher := crypto.SHA256.New()
-	bytes32 := id.Bytes32()
-	hasher.Write(bytes32[:])
-	swapId := hasher.Sum(nil)
-	return bytes32[:], swapId
+	for _, id := range ids {
+		bytes32 := id.Bytes32()
+		hasher.Write(bytes32[:])
+	}
+	return hasher.Sum(nil)
 }
 
 func newBillData(v uint64, backlink []byte) *BillData {

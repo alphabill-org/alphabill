@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/internal/rma"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 )
@@ -20,6 +19,7 @@ var (
 	ErrSwapBillAlreadyExists         = errors.New("swapped bill id already exists")
 	ErrSwapInvalidBillIdentifiers    = errors.New("all bill identifiers in dust transfer orders must exist in transaction bill identifiers")
 	ErrSwapInvalidBillId             = errors.New("bill id is not properly computed")
+	ErrSwapDustTransfersInvalidOrder = errors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
 	ErrSwapInvalidNonce              = errors.New("dust transfer orders do not contain proper nonce")
 	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
 )
@@ -95,21 +95,30 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash) error {
 	// 6. bills were transfered to DC (validate dc transfer type)
 	// already checked on language/protobuf level
 
-	// 7. bill transfer orders contain proper nonce
-	// 8. bill transfer orders contain proper target bearer
-	for _, dcTx := range tx.DCTransfers() {
+	// 7. bill transfer orders are listed in strictly increasing order of bill identifiers
+	// (in particular, this ensures that no bill can be included multiple times)
+	// 8. bill transfer orders contain proper nonce
+	// 9. bill transfer orders contain proper target bearer
+	var prevDcTx TransferDC
+	for i, dcTx := range tx.DCTransfers() {
+		if i > 0 {
+			if !dcTx.UnitID().Gt(prevDcTx.UnitID()) {
+				return ErrSwapDustTransfersInvalidOrder
+			}
+		}
 		if !bytes.Equal(dcTx.Nonce(), unitIdBytes[:]) {
 			return ErrSwapInvalidNonce
 		}
 		if !bytes.Equal(dcTx.TargetBearer(), tx.OwnerCondition()) {
 			return ErrSwapInvalidTargetBearer
 		}
+		prevDcTx = dcTx
 	}
 
-	// 9. verify owner
+	// 10. verify owner
 	// done in validateGenericTransaction function
 
-	// TODO 10. verify ledger proof https://guardtime.atlassian.net/browse/AB-50
+	// TODO 11. verify ledger proof https://guardtime.atlassian.net/browse/AB-50
 
 	return nil
 }

@@ -20,7 +20,7 @@ import (
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"

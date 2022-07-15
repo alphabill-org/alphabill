@@ -10,7 +10,7 @@ import (
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/btcsuite/btcutil/base58"
+	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,6 @@ import (
 var zeroHash = make([]byte, 32)
 var systemIdentifier = []byte{0, 0, 0, 1}
 var nodeID peer.ID = "test"
-var nodeID2 peer.ID = "test2"
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)

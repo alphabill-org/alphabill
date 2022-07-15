@@ -2,12 +2,15 @@ package canonicalizer
 
 import (
 	"encoding/binary"
+	"reflect"
+
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/ethereum/go-ethereum/log"
-	"reflect"
 )
+
+var log = logger.CreateForPackage()
 
 type (
 	// Canonicalizer Interface for serializing data structures into deterministic hash-format.

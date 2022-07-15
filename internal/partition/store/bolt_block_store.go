@@ -46,6 +46,15 @@ func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 	if err != nil {
 		return nil, err
 	}
+	height, err := bs.Height()
+	if err != nil {
+		return nil, err
+	}
+	bs.latestBlock, err = bs.Get(height)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Bolt DB initialised")
 	return bs, nil
 }
 

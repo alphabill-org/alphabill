@@ -159,16 +159,65 @@ func New(
 		go n.eventHandlerLoop()
 	}
 
-	// get genesis block from the genesis
-	genesisBlock := conf.genesisBlock()
-	if err := n.blockStore.Add(genesisBlock); err != nil {
+	uc, err := initState(n)
+	if err != nil {
 		return nil, err
 	}
-	txSystem.Commit() // commit everything from the genesis
 	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
-	n.startNewRound(genesisBlock.UnicityCertificate)
+	n.startNewRound(uc)
 	go n.loop()
 	return n, nil
+}
+
+func initState(n *Node) (*certificates.UnicityCertificate, error) {
+	// get genesis block from the genesis
+	genesisBlock := n.configuration.genesisBlock()
+	// latest block from the store
+	latestPersistedBlock := n.blockStore.LatestBlock()
+	var uc *certificates.UnicityCertificate
+	if latestPersistedBlock != nil && latestPersistedBlock.BlockNumber > genesisBlock.BlockNumber {
+		// restore from store
+		prevBlock := genesisBlock
+		for i := genesisBlock.BlockNumber + 1; i <= latestPersistedBlock.BlockNumber; i++ {
+			bl, err := n.blockStore.Get(i)
+			if err != nil {
+				return nil, err
+			}
+			if !bytes.Equal(prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.PreviousBlockHash) {
+				return nil, errors.Errorf("state init failed, invalid blockchain (previous block #%v hash='%X', current block #%v backlink='%X')", prevBlock.BlockNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.BlockNumber, bl.PreviousBlockHash)
+			}
+			n.transactionSystem.BeginBlock(i)
+			for _, tx := range bl.Transactions {
+				gtx, err := n.transactionSystem.ConvertTx(tx)
+				if err != nil {
+					return nil, err
+				}
+				if err = n.validateAndExecuteTx(gtx); err != nil {
+					return nil, err
+				}
+			}
+
+			state, err := n.transactionSystem.EndBlock()
+			if err != nil {
+				return nil, err
+			}
+			uc = bl.UnicityCertificate
+			if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
+				return nil, errors.Errorf("invalid tx system state root of block #%v. expected: %X, got: %X", bl.BlockNumber, uc.InputRecord.Hash, state.Root())
+			}
+			n.transactionSystem.Commit()
+			prevBlock = bl
+		}
+		logger.Info("State initialised from persistent store up to block #%v", prevBlock.BlockNumber)
+	} else {
+		if err := n.blockStore.Add(genesisBlock); err != nil {
+			return nil, err
+		}
+		n.transactionSystem.Commit() // commit everything from the genesis
+		uc = genesisBlock.UnicityCertificate
+		logger.Info("State initialised from the genesis block")
+	}
+	return uc, nil
 }
 
 // Close shuts down the Node component.

@@ -52,7 +52,7 @@ func TestNode_HandleInvalidTxEvent(t *testing.T) {
 	}
 	err := pn.partition.handleTxMessage(message)
 	require.ErrorContains(t, err, "unsupported type")
-	require.Equal(t, 0, len(pn.partition.proposal))
+	require.Equal(t, 0, len(pn.partition.proposedTransactions))
 }
 
 func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
@@ -66,7 +66,7 @@ func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 	}
 	err := pn.partition.handleTxMessage(message)
 	require.ErrorContains(t, err, "invalid tx")
-	require.Equal(t, 0, len(pn.partition.proposal))
+	require.Equal(t, 0, len(pn.partition.proposedTransactions))
 }
 
 func TestNode_CreateBlocks(t *testing.T) {

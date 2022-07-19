@@ -18,7 +18,7 @@ var (
 )
 var (
 	latestBlockNoKey       = []byte("latestBlockNo")
-	blockProposalBucketKey = []byte("latestBlockNo")
+	blockProposalBucketKey = []byte("blockProposal")
 )
 
 var errInvalidBlockNo = errors.New("invalid block number")
@@ -83,18 +83,18 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 }
 
 func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
-	var block *block.Block
+	var b *block.Block
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		blockJson := tx.Bucket(blocksBucket).Get(serializeUint64(blockNumber))
 		if blockJson != nil {
-			return json.Unmarshal(blockJson, &block)
+			return json.Unmarshal(blockJson, &b)
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return block, nil
+	return b, nil
 }
 
 func (bs *BoltBlockStore) Height() (uint64, error) {

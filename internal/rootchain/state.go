@@ -113,10 +113,11 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 	systemIdentifier := string(req.SystemIdentifier)
 	latestUnicityCertificate := s.latestUnicityCertificates.get(systemIdentifier)
 	seal := latestUnicityCertificate.UnicitySeal
-	if req.RootRoundNumber < seal.RootChainRoundNumber {
-		// Older UC, return current.
-		return latestUnicityCertificate, errors.Errorf("old request: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
-	} else if req.RootRoundNumber > seal.RootChainRoundNumber {
+	//if req.RootRoundNumber < seal.RootChainRoundNumber { // TODO AB-301
+	//	// Older UC, return current.
+	//	return latestUnicityCertificate, errors.Errorf("old request: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
+	//} else
+	if req.RootRoundNumber > seal.RootChainRoundNumber {
 		// should not happen, partition has newer UC
 		return latestUnicityCertificate, errors.Errorf("partition has never unicity certificate: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
 	} else if !bytes.Equal(req.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {

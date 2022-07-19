@@ -138,6 +138,7 @@ func (bs *BoltBlockStore) GetPendingProposal() (*block.PendingBlockProposal, err
 func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 	latestBlockNo := bs.getLatestBlockNo(tx)
 	if latestBlockNo+1 != b.BlockNumber {
+		logger.Warning("Block verification failed: latest block #%v, current block #%v", latestBlockNo, b.BlockNumber)
 		return errInvalidBlockNo
 	}
 	return nil

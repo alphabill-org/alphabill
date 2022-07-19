@@ -579,7 +579,7 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 		return err
 	}
 	if !bytes.Equal(blockHash, uc.InputRecord.BlockHash) {
-		return errors.Errorf("finalized block hash not equal to IR block hash. IR hash %X, finalized block hash %X",
+		return errors.Errorf("finalized block hash not equal to IR block hash. IR block hash %X, finalized block hash %X",
 			uc.InputRecord.BlockHash, blockHash)
 	}
 	err = n.blockStore.Add(b)

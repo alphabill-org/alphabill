@@ -1,4 +1,4 @@
-all: clean tools generate test build gosec
+all: clean tools generate test build build_scripts gosec
 
 clean:
 	rm -rf build/
@@ -13,6 +13,8 @@ test:
 
 build:
 	go build -o build/alphabill cli/alphabill/main.go
+
+build_scripts:
 	go build -o build/alphabill-spend-initial-bill scripts/money/spend_initial_bill.go
 
 gosec:

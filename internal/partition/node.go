@@ -206,6 +206,7 @@ func (n *Node) loop() {
 					logger.Warning("Invalid unicity certificate type: %T", m.Message)
 					continue
 				}
+				logger.Info("Received Unicity Certificate, IR Hash: %X, Block hash: %X", uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 				err := n.handleUnicityCertificate(uc)
 				if err != nil {
 					logger.Warning("Unicity Certificate processing failed: %v", err)
@@ -219,6 +220,7 @@ func (n *Node) loop() {
 					logger.Warning("Invalid block proposal type: %T", m.Message)
 					continue
 				}
+				logger.Info("Received Block Proposal, IR Hash: %X, Block hash: %X", bp.UnicityCertificate.InputRecord.Hash, bp.UnicityCertificate.InputRecord.BlockHash)
 				err := n.handleBlockProposal(bp)
 				if err != nil {
 					logger.Warning("Block proposal processing failed by node %v: %v", n.configuration.peer.ID(), err)
@@ -333,6 +335,7 @@ func (n *Node) process(tx txsystem.GenericTransaction) {
 //  7. Certificate Request query is assembled and sent to the Root Chain.
 func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	defer trackExecutionTime(time.Now(), "Handling BlockProposal")
+	logger.Debug("Handling block proposal, IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
@@ -358,6 +361,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		return errors.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
 
+	logger.Debug("Proposal's UC root nr: %v vs LUC root nr: %v", uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
 	if uc.UnicitySeal.RootChainRoundNumber > n.luc.UnicitySeal.RootChainRoundNumber {
 		err := n.handleUnicityCertificate(uc)
 		if err != nil && err != ErrStateReverted {
@@ -405,7 +409,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 //  8. New round is started.
 func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
-	util.WriteDebugJsonLog(logger, "Received Unicity Certificate", uc)
+	util.WriteDebugJsonLog(logger, "Handle Unicity Certificate", uc)
 	// UC is validated cryptographically
 	if err := n.unicityCertificateValidator.Validate(uc); err != nil {
 		logger.Warning("Invalid UnicityCertificate: %v", err)
@@ -600,6 +604,7 @@ func (n *Node) sendCertificationRequest() error {
 	if err != nil {
 		return err
 	}
+	logger.Info("Sending block #%v certification request to root chain, IR hash %X, Block Hash %X, rc nr: %v", latestBlock.BlockNumber+1, stateRoot, blockHash, req.RootRoundNumber)
 	util.WriteDebugJsonLog(logger, "Sending block certification request to root chain", req)
 
 	return n.network.Send(network.OutputMessage{

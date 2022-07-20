@@ -165,7 +165,19 @@ func New(
 	n.luc = genesisBlock.UnicityCertificate
 
 	go n.loop()
+
+	// TODO for some weird reason if nodes start behind the root chain, they do not start communicating until something is sent from the partition node side
+	go n.greetRootChain()
+
 	return n, nil
+}
+
+func (n *Node) greetRootChain() {
+	logger.Debug("Sending handshake to root chain")
+	_ = n.network.Send(network.OutputMessage{
+		Protocol: network.ProtocolHandshake,
+		Message:  nil,
+	}, []peer.ID{n.configuration.rootChainID})
 }
 
 // Close shuts down the Node component.

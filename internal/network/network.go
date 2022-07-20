@@ -85,6 +85,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 		{protocolID: ProtocolBlockProposal, timeout: opts.BlockProposalTimeout},
 		{protocolID: ProtocolBlockCertification, timeout: opts.BlockCertificationTimeout},
 		{protocolID: ProtocolInputForward, timeout: opts.ForwarderTimeout},
+		{protocolID: ProtocolHandshake, timeout: 300 * time.Millisecond},
 	}
 	err = initSendProtocols(self, sendProtocolDescriptions, n)
 	if err != nil {

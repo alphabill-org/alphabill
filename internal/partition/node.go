@@ -161,8 +161,9 @@ func New(
 		return nil, err
 	}
 	txSystem.Commit() // commit everything from the genesis
-	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
-	n.startNewRound(genesisBlock.UnicityCertificate)
+
+	n.luc = genesisBlock.UnicityCertificate
+
 	go n.loop()
 	return n, nil
 }

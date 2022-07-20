@@ -219,7 +219,6 @@ func (n *Node) loop() {
 					logger.Warning("Invalid unicity certificate type: %T", m.Message)
 					continue
 				}
-				logger.Info("Received Unicity Certificate, IR Hash: %X, Block hash: %X", uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 				err := n.handleUnicityCertificate(uc)
 				if err != nil {
 					logger.Warning("Unicity Certificate processing failed: %v", err)
@@ -233,7 +232,6 @@ func (n *Node) loop() {
 					logger.Warning("Invalid block proposal type: %T", m.Message)
 					continue
 				}
-				logger.Info("Received Block Proposal, IR Hash: %X, Block hash: %X", bp.UnicityCertificate.InputRecord.Hash, bp.UnicityCertificate.InputRecord.BlockHash)
 				err := n.handleBlockProposal(bp)
 				if err != nil {
 					logger.Warning("Block proposal processing failed by node %v: %v", n.configuration.peer.ID(), err)
@@ -348,10 +346,10 @@ func (n *Node) process(tx txsystem.GenericTransaction) {
 //  7. Certificate Request query is assembled and sent to the Root Chain.
 func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	defer trackExecutionTime(time.Now(), "Handling BlockProposal")
-	logger.Debug("Handling block proposal, IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
+	logger.Debug("Handling block proposal, IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	nodeSignatureVerifier, err := n.configuration.GetSigningPublicKey(prop.NodeIdentifier)
 	if err != nil {
 		return err
@@ -428,6 +426,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		logger.Warning("Invalid UnicityCertificate: %v", err)
 		return errors.Errorf("invalid unicity certificate: %v", err)
 	}
+	logger.Info("Received Unicity Certificate, IR Hash: %X, Block hash: %X", uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 	// UC must be newer than the last one seen
 	if uc.UnicitySeal.RootChainRoundNumber < n.luc.UnicitySeal.RootChainRoundNumber {
 		logger.Warning("Received UC is older than LUC. UC round Number:  %v, LUC round number: %v",

@@ -39,7 +39,7 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 		},
 	}
 	p.partition.startNewRound(ucr)
-	require.Equal(t, uint64(2), s.BeginBlockCountDelta)
+	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 
 func TestNode_HandleInvalidTxEvent(t *testing.T) {
@@ -72,6 +72,7 @@ func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 func TestNode_CreateBlocks(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
+	tp.partition.startNewRound(tp.partition.luc)
 	transfer := testtransaction.RandomBillTransfer()
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, func() bool {

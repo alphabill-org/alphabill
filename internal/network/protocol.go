@@ -11,6 +11,7 @@ const (
 	ProtocolUnicityCertificates = "/ab/certificates/0.0.1"
 	ProtocolBlockCertification  = "/ab/block-certification/0.0.1"
 	ProtocolInputForward        = "/ab/input-forward/0.0.1"
+	ProtocolHandshake           = "/ab/handshake/0.0.1"
 	//ProtocolLedgerReplication   = "/ab/replication/0.0.1"
 
 	ErrStrPeerIsNil       = "peer is nil"

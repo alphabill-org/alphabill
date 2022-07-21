@@ -122,6 +122,7 @@ func (rc *RootChain) loop() {
 					continue
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from peer %s", req.NodeIdentifier), req)
+				logger.Debug("Handling Block Certification Request from peer %s, IR hash %X, Block Hash %X", req.NodeIdentifier, req.InputRecord.Hash, req.InputRecord.BlockHash)
 				uc, err := rc.state.HandleBlockCertificationRequest(req)
 				if err != nil {
 					logger.Warning("invalid block certification request: %v", err)
@@ -134,6 +135,7 @@ func (rc *RootChain) loop() {
 						logger.Warning("Invalid node identifier: '%s'", req.NodeIdentifier)
 						continue
 					}
+					logger.Info("Sending unicity certificate to '%s', IR Hash: %X, Block Hash: %X", req.NodeIdentifier, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 					err = rc.net.Send(
 						network.OutputMessage{
 							Protocol: network.ProtocolUnicityCertificates,

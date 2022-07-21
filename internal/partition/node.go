@@ -161,10 +161,23 @@ func New(
 		return nil, err
 	}
 	txSystem.Commit() // commit everything from the genesis
-	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
-	n.startNewRound(genesisBlock.UnicityCertificate)
+
+	n.luc = genesisBlock.UnicityCertificate
+
 	go n.loop()
+
+	// TODO for some weird reason if nodes start behind the root chain, they do not start communicating until something is sent from the partition node side
+	go n.greetRootChain()
+
 	return n, nil
+}
+
+func (n *Node) greetRootChain() {
+	logger.Debug("Sending handshake to root chain")
+	_ = n.network.Send(network.OutputMessage{
+		Protocol: network.ProtocolHandshake,
+		Message:  nil,
+	}, []peer.ID{n.configuration.rootChainID})
 }
 
 // Close shuts down the Node component.
@@ -336,6 +349,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
+	logger.Debug("Handling block proposal, IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	nodeSignatureVerifier, err := n.configuration.GetSigningPublicKey(prop.NodeIdentifier)
 	if err != nil {
 		return err
@@ -358,6 +372,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		return errors.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
 
+	logger.Debug("Proposal's UC root nr: %v vs LUC root nr: %v", uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
 	if uc.UnicitySeal.RootChainRoundNumber > n.luc.UnicitySeal.RootChainRoundNumber {
 		err := n.handleUnicityCertificate(uc)
 		if err != nil && err != ErrStateReverted {
@@ -405,11 +420,16 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 //  8. New round is started.
 func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
-	util.WriteDebugJsonLog(logger, "Received Unicity Certificate", uc)
+	util.WriteDebugJsonLog(logger, "Handle Unicity Certificate", uc)
 	// UC is validated cryptographically
 	if err := n.unicityCertificateValidator.Validate(uc); err != nil {
 		logger.Warning("Invalid UnicityCertificate: %v", err)
 		return errors.Errorf("invalid unicity certificate: %v", err)
+	}
+	logger.Debug("Received Unicity Certificate: \nIR Hash: \t\t%X, \nIR Prev Hash: \t%X, \nBlock hash: \t%X", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash)
+	logger.Debug("LUC:                          \nIR Hash: \t\t%X, \nIR Prev Hash: \t%X, \nBlock hash: \t%X", n.luc.InputRecord.Hash, n.luc.InputRecord.PreviousHash, n.luc.InputRecord.BlockHash)
+	if n.pr != nil {
+		logger.Debug("Pending proposal: \nstate hash:\t%X, \nprev hash: \t%X, \nroot round: %v, tx count: %v", n.pr.StateHash, n.pr.PrevHash, n.pr.RoundNumber, len(n.pr.Transactions))
 	}
 	// UC must be newer than the last one seen
 	if uc.UnicitySeal.RootChainRoundNumber < n.luc.UnicitySeal.RootChainRoundNumber {
@@ -453,6 +473,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			return errors.Wrap(err, "tx system failed to end block")
 		}
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
+			logger.Debug("UC IR hash not equal to state's hash: '%X' vs '%X'", uc.InputRecord.Hash, state.Root())
 			logger.Warning("Starting recovery")
 			n.status = recovering
 			// TODO start recovery (AB-41)
@@ -600,12 +621,17 @@ func (n *Node) sendCertificationRequest() error {
 	if err != nil {
 		return err
 	}
+	logger.Info("Sending block #%v certification request to root chain, IR hash %X, Block Hash %X, rc nr: %v", latestBlock.BlockNumber+1, stateRoot, blockHash, req.RootRoundNumber)
 	util.WriteDebugJsonLog(logger, "Sending block certification request to root chain", req)
 
 	return n.network.Send(network.OutputMessage{
 		Protocol: network.ProtocolBlockCertification,
 		Message:  req,
 	}, []peer.ID{n.configuration.rootChainID})
+}
+
+func (n *Node) StartRound() {
+	n.startNewRound(n.luc)
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {

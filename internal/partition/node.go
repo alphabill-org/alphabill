@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	gocrypto "crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"sync"
 	"time"
 
@@ -176,7 +177,10 @@ func (n *Node) greetRootChain() {
 	logger.Debug("Sending handshake to root chain")
 	_ = n.network.Send(network.OutputMessage{
 		Protocol: network.ProtocolHandshake,
-		Message:  nil,
+		Message: &handshake.Handshake{
+			SystemIdentifier: n.configuration.GetSystemIdentifier(),
+			NodeIdentifier:   n.leaderSelector.SelfID().String(),
+		},
 	}, []peer.ID{n.configuration.rootChainID})
 }
 

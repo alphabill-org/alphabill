@@ -426,7 +426,11 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		logger.Warning("Invalid UnicityCertificate: %v", err)
 		return errors.Errorf("invalid unicity certificate: %v", err)
 	}
-	logger.Info("Received Unicity Certificate, IR Hash: %X, Block hash: %X", uc.InputRecord.Hash, uc.InputRecord.BlockHash)
+	logger.Debug("Received Unicity Certificate: \nIR Hash: \t\t%X, \nIR Prev Hash: \t%X, \nBlock hash: \t%X", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash)
+	logger.Debug("LUC:                          \nIR Hash: \t\t%X, \nIR Prev Hash: \t%X, \nBlock hash: \t%X", n.luc.InputRecord.Hash, n.luc.InputRecord.PreviousHash, n.luc.InputRecord.BlockHash)
+	if n.pr != nil {
+		logger.Debug("Pending proposal: \nstate hash:\t%X, \nprev hash: \t%X, \nroot round: %v, tx count: %v", n.pr.StateHash, n.pr.PrevHash, n.pr.RoundNumber, len(n.pr.Transactions))
+	}
 	// UC must be newer than the last one seen
 	if uc.UnicitySeal.RootChainRoundNumber < n.luc.UnicitySeal.RootChainRoundNumber {
 		logger.Warning("Received UC is older than LUC. UC round Number:  %v, LUC round number: %v",
@@ -469,6 +473,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			return errors.Wrap(err, "tx system failed to end block")
 		}
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
+			logger.Debug("UC IR hash not equal to state's hash: '%X' vs '%X'", uc.InputRecord.Hash, state.Root())
 			logger.Warning("Starting recovery")
 			n.status = recovering
 			// TODO start recovery (AB-41)
@@ -623,6 +628,10 @@ func (n *Node) sendCertificationRequest() error {
 		Protocol: network.ProtocolBlockCertification,
 		Message:  req,
 	}, []peer.ID{n.configuration.rootChainID})
+}
+
+func (n *Node) StartRound() {
+	n.startNewRound(n.luc)
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -14,7 +16,7 @@ var systemIdentifier = []byte{1, 2, 4, 1}
 
 func TestNewNetwork_Ok(t *testing.T) {
 	network, err := NewNetwork(3, func() txsystem.TransactionSystem {
-		return &CounterTxSystem{}
+		return &testtxsystem.CounterTxSystem{}
 	}, systemIdentifier)
 	require.NoError(t, err)
 	defer func() {

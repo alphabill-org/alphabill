@@ -142,12 +142,11 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	ContainsError(t, tp, "received UC is older than LUC. uc round 1, luc round 2")
 }
 
-func TestNode_StartNodeBehindRootchain(t *testing.T) {
-	t.SkipNow()
+func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	systemIdentifier := string(tp.nodeConf.GetSystemIdentifier())
-	// produce some rounds
+	// produce some root chain rounds
 	tp.rootState.CopyOldInputRecords(systemIdentifier)
 	_, err := tp.rootState.CreateUnicityCertificates()
 	require.NoError(t, err)
@@ -155,15 +154,19 @@ func TestNode_StartNodeBehindRootchain(t *testing.T) {
 	_, err = tp.rootState.CreateUnicityCertificates()
 	require.NoError(t, err)
 
-	//block := tp.GetLatestBlock()
-	//transfer := testtransaction.RandomBillTransfer()
-	//
-	//require.NoError(t, tp.SubmitTx(transfer))
-	//require.NoError(t, tp.CreateBlock(t))
-	//require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
-	//
+	tp.eh.Reset()
 	tp.SubmitUnicityCertificate(tp.rootState.GetLatestUnicityCertificate(systemIdentifier))
-	ContainsError(t, tp, "received UC is older than LUC. uc round 1, luc round 2")
+
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == EventTypeNewRoundStarted {
+				return true
+			}
+		}
+		return false
+
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_CreateEmptyBlock(t *testing.T) {

@@ -9,17 +9,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"google.golang.org/protobuf/proto"
 )
 
 var DefaultValidatorNetOptions = ValidatorNetOptions{
-	ResponseChannelCapacity:   1000,
-	ForwarderTimeout:          300 * time.Millisecond,
-	BlockCertificationTimeout: 300 * time.Millisecond,
-	BlockProposalTimeout:      300 * time.Millisecond,
-	HandshakeTimeout:          300 * time.Millisecond,
+	ResponseChannelCapacity:         1000,
+	ForwarderTimeout:                300 * time.Millisecond,
+	BlockCertificationTimeout:       300 * time.Millisecond,
+	BlockProposalTimeout:            300 * time.Millisecond,
+	LedgerReplicationRequestTimeout: 300 * time.Millisecond,
+	HandshakeTimeout:                300 * time.Millisecond,
 }
 
 type (
@@ -38,11 +40,12 @@ type (
 	}
 
 	ValidatorNetOptions struct {
-		ResponseChannelCapacity   uint
-		ForwarderTimeout          time.Duration
-		BlockCertificationTimeout time.Duration
-		BlockProposalTimeout      time.Duration
-		HandshakeTimeout          time.Duration
+		ResponseChannelCapacity         uint
+		ForwarderTimeout                time.Duration
+		BlockCertificationTimeout       time.Duration
+		BlockProposalTimeout            time.Duration
+		LedgerReplicationRequestTimeout time.Duration
+		HandshakeTimeout                time.Duration
 	}
 
 	sendProtocolDescription struct {
@@ -88,6 +91,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 		{protocolID: ProtocolBlockProposal, timeout: opts.BlockProposalTimeout},
 		{protocolID: ProtocolBlockCertification, timeout: opts.BlockCertificationTimeout},
 		{protocolID: ProtocolInputForward, timeout: opts.ForwarderTimeout},
+		{protocolID: ProtocolLedgerReplicationReq, timeout: opts.LedgerReplicationRequestTimeout},
 		{protocolID: ProtocolHandshake, timeout: opts.HandshakeTimeout},
 	}
 	err = initSendProtocols(self, sendProtocolDescriptions, n)
@@ -106,6 +110,10 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 		{
 			protocolID: ProtocolUnicityCertificates,
 			typeFn:     func() proto.Message { return &uc.UnicityCertificate{} },
+		},
+		{
+			protocolID: ProtocolLedgerReplicationResp,
+			typeFn:     func() proto.Message { return &replication.LedgerReplicationResponse{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)

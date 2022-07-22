@@ -2,6 +2,7 @@ package partition
 
 import (
 	gocrypto "crypto"
+	"crypto/rand"
 	"fmt"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -71,7 +73,7 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 	return nil
 }
 
-func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *SingleNodePartition {
+func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
 	p := createPeer(t)
 	key, err := p.PublicKey()
 	require.NoError(t, err)
@@ -115,16 +117,18 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem) *
 		txSystem,
 		partitionGenesis[0],
 		net,
-		WithT1Timeout(100*time.Minute),
-		WithLeaderSelector(&TestLeaderSelector{
-			leader:      "1",
-			currentNode: "1",
-		}),
-		WithTxValidator(&AlwaysValidTransactionValidator{}),
-		WithEventHandler(eh.handleEvent, 100),
+		append([]NodeOption{
+			WithT1Timeout(100 * time.Minute),
+			WithLeaderSelector(&TestLeaderSelector{
+				leader:      "1",
+				currentNode: "1",
+			}),
+			WithTxValidator(&AlwaysValidTransactionValidator{}),
+			WithEventHandler(eh.handleEvent, 100),
+			WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
+		}, nodeOptions...)...,
 	)
 	require.NoError(t, err)
-	n.blockProposalValidator = &AlwaysValidBlockProposalValidator{}
 
 	partition := &SingleNodePartition{
 		partition:  n,
@@ -162,13 +166,12 @@ func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.Unicity
 
 }
 
-func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) error {
+func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProposal) {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolBlockProposal,
 		Message:  prop,
 	})
-	return nil
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
@@ -307,6 +310,15 @@ func (l *TestLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySea
 
 func createPeer(t *testing.T) *network.Peer {
 	conf := &network.PeerConfiguration{}
+	// fake validator, so that network 'send' requests don't fail
+	_, validatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	validatorPubKeyBytes, _ := validatorPubKey.Raw()
+
+	conf.PersistentPeers = []*network.PeerInfo{{
+		Address:   "/ip4/1.2.3.4/tcp/80",
+		PublicKey: validatorPubKeyBytes,
+	}}
+	//
 	peer, err := network.NewPeer(conf)
 	require.NoError(t, err)
 

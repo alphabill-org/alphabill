@@ -18,7 +18,7 @@ var (
 )
 var (
 	latestBlockNoKey       = []byte("latestBlockNo")
-	blockProposalBucketKey = []byte("latestBlockNo")
+	blockProposalBucketKey = []byte("blockProposal")
 )
 
 var errInvalidBlockNo = errors.New("invalid block number")
@@ -46,6 +46,15 @@ func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 	if err != nil {
 		return nil, err
 	}
+	height, err := bs.Height()
+	if err != nil {
+		return nil, err
+	}
+	bs.latestBlock, err = bs.Get(height)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Bolt DB initialised")
 	return bs, nil
 }
 
@@ -74,18 +83,18 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 }
 
 func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
-	var block *block.Block
+	var b *block.Block
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		blockJson := tx.Bucket(blocksBucket).Get(serializeUint64(blockNumber))
 		if blockJson != nil {
-			return json.Unmarshal(blockJson, &block)
+			return json.Unmarshal(blockJson, &b)
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return block, nil
+	return b, nil
 }
 
 func (bs *BoltBlockStore) Height() (uint64, error) {
@@ -129,6 +138,7 @@ func (bs *BoltBlockStore) GetPendingProposal() (*block.PendingBlockProposal, err
 func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 	latestBlockNo := bs.getLatestBlockNo(tx)
 	if latestBlockNo+1 != b.BlockNumber {
+		logger.Warning("Block verification failed: latest block #%v, current block #%v", latestBlockNo, b.BlockNumber)
 		return errInvalidBlockNo
 	}
 	return nil

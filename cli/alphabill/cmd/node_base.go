@@ -6,6 +6,8 @@ import (
 	"net"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/partition/store"
+
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -35,6 +37,7 @@ type startNodeConfiguration struct {
 	Genesis          string
 	KeyFile          string
 	RootChainAddress string
+	DbFile           string
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration) error {
@@ -168,7 +171,10 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	if err != nil {
 		return nil, err
 	}
-	// TODO use boltDB block store after node recovery is implemented
+	blockStore, err := initBlockStore(cfg.DbFile)
+	if err != nil {
+		return nil, err
+	}
 	node, err := partition.New(
 		p,
 		keys.SigningPrivateKey,
@@ -177,11 +183,20 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		n,
 		partition.WithContext(ctx),
 		partition.WithRootAddressAndIdentifier(newMultiAddr, rootID),
+		partition.WithBlockStore(blockStore),
 	)
 	if err != nil {
 		return nil, err
 	}
 	return node, nil
+}
+
+func initBlockStore(dbFile string) (store.BlockStore, error) {
+	if dbFile != "" {
+		return store.NewBoltBlockStore(dbFile)
+	} else {
+		return store.NewInMemoryBlockStore(), nil
+	}
 }
 
 func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error) {

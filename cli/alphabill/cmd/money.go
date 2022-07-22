@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
@@ -53,6 +54,7 @@ func newMoneyNodeCmd(ctx context.Context, baseConfig *baseConfiguration, nodeRun
 	nodeCmd.Flags().StringVarP(&config.Node.RootChainAddress, "rootchain", "r", "/ip4/127.0.0.1/tcp/26662", "root chain address in libp2p multiaddress-format")
 	nodeCmd.Flags().StringToStringVarP(&config.Node.Peers, "peers", "p", nil, "a map of partition peer identifiers and addresses. must contain all genesis validator addresses")
 	nodeCmd.Flags().StringVarP(&config.Node.KeyFile, keyFileCmdFlag, "k", "", "path to the key file (default: $AB_HOME/money/keys.json)")
+	nodeCmd.Flags().StringVarP(&config.Node.DbFile, "db", "f", "", "path to the database file (default: $AB_HOME/money/"+store.BoltBlockStoreFileName+")")
 	nodeCmd.Flags().StringVarP(&config.Node.Genesis, "genesis", "g", "", "path to the partition genesis file : $AB_HOME/money/partition-genesis.json)")
 
 	config.RPCServer.addConfigurationFlags(nodeCmd)

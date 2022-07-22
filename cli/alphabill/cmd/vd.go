@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 
+	"github.com/alphabill-org/alphabill/internal/partition/store"
+
 	"github.com/alphabill-org/alphabill/internal/txsystem/verifiable_data"
 	"github.com/spf13/cobra"
 )
@@ -38,6 +40,7 @@ func newVDNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	nodeCmd.Flags().StringToStringVarP(&config.Node.Peers, "peers", "p", nil, "a map of partition peer identifiers and addresses. must contain all genesis validator addresses")
 	nodeCmd.Flags().StringVarP(&config.Node.KeyFile, keyFileCmdFlag, "k", "", "path to the key file (default: $AB_HOME/vd/keys.json)")
 	nodeCmd.Flags().StringVarP(&config.Node.Genesis, "genesis", "g", "", "path to the partition genesis file : $AB_HOME/vd/partition-genesis.json)")
+	nodeCmd.Flags().StringVarP(&config.Node.DbFile, "db", "f", "", "path to the database file (default: $AB_HOME/vd/"+store.BoltBlockStoreFileName+")")
 
 	config.RPCServer.addConfigurationFlags(nodeCmd)
 

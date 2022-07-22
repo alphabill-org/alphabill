@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
+
 	log "github.com/alphabill-org/alphabill/internal/logger"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -126,6 +128,7 @@ func (rc *RootChain) loop() {
 					continue
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from peer %s", req.NodeIdentifier), req)
+				logger.Debug("Handling Block Certification Request from peer %s, IR hash %X, Block Hash %X", req.NodeIdentifier, req.InputRecord.Hash, req.InputRecord.BlockHash)
 				uc, err := rc.state.HandleBlockCertificationRequest(req)
 				if err != nil {
 					logger.Warning("invalid block certification request: %v", err)
@@ -138,6 +141,7 @@ func (rc *RootChain) loop() {
 						logger.Warning("Invalid node identifier: '%s'", req.NodeIdentifier)
 						continue
 					}
+					logger.Info("Sending unicity certificate to '%s', IR Hash: %X, Block Hash: %X", req.NodeIdentifier, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 					err = rc.net.Send(
 						network.OutputMessage{
 							Protocol: network.ProtocolUnicityCertificates,
@@ -149,6 +153,13 @@ func (rc *RootChain) loop() {
 						logger.Warning("Failed to send unicity certificate: %v", err)
 					}
 				}
+			case network.ProtocolHandshake:
+				req, correctType := m.Message.(*handshake.Handshake)
+				if !correctType {
+					logger.Warning("Type %T not supported", m.Message)
+					continue
+				}
+				util.WriteDebugJsonLog(logger, "Received handshake", req)
 			default:
 				logger.Warning("Protocol %s not supported.", m.Protocol)
 			}

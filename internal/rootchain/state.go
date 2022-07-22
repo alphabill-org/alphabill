@@ -143,10 +143,10 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 
 func (s *State) checkConsensus(identifier string) bool {
 	rs := s.incomingRequests[identifier]
-	hash, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(identifier))
-	if hash != nil {
-		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(identifier), hash.Hash)
-		s.inputRecords[identifier] = hash
+	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(identifier))
+	if inputRecord != nil {
+		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(identifier), inputRecord.Hash)
+		s.inputRecords[identifier] = inputRecord
 		return true
 	} else if !consensusPossible {
 		logger.Debug("Consensus not possible for partition %X.", []byte(identifier))

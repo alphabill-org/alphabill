@@ -1,6 +1,7 @@
 package network
 
 import (
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"time"
 
 	uc "github.com/alphabill-org/alphabill/internal/certificates"
@@ -20,6 +21,7 @@ var DefaultValidatorNetOptions = ValidatorNetOptions{
 	BlockCertificationTimeout:       300 * time.Millisecond,
 	BlockProposalTimeout:            300 * time.Millisecond,
 	LedgerReplicationRequestTimeout: 300 * time.Millisecond,
+	HandshakeTimeout:                300 * time.Millisecond,
 }
 
 type (
@@ -43,6 +45,7 @@ type (
 		BlockCertificationTimeout       time.Duration
 		BlockProposalTimeout            time.Duration
 		LedgerReplicationRequestTimeout time.Duration
+		HandshakeTimeout                time.Duration
 	}
 
 	sendProtocolDescription struct {
@@ -89,6 +92,7 @@ func NewLibP2PValidatorNetwork(self *Peer, opts ValidatorNetOptions) (*LibP2PNet
 		{protocolID: ProtocolBlockCertification, timeout: opts.BlockCertificationTimeout},
 		{protocolID: ProtocolInputForward, timeout: opts.ForwarderTimeout},
 		{protocolID: ProtocolLedgerReplicationReq, timeout: opts.LedgerReplicationRequestTimeout},
+		{protocolID: ProtocolHandshake, timeout: opts.HandshakeTimeout},
 	}
 	err = initSendProtocols(self, sendProtocolDescriptions, n)
 	if err != nil {
@@ -135,6 +139,10 @@ func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout
 		{
 			protocolID: ProtocolBlockCertification,
 			typeFn:     func() proto.Message { return &certification.BlockCertificationRequest{} },
+		},
+		{
+			protocolID: ProtocolHandshake,
+			typeFn:     func() proto.Message { return &handshake.Handshake{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)

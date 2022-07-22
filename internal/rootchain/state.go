@@ -113,11 +113,10 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 	systemIdentifier := string(req.SystemIdentifier)
 	latestUnicityCertificate := s.latestUnicityCertificates.get(systemIdentifier)
 	seal := latestUnicityCertificate.UnicitySeal
-	//if req.RootRoundNumber < seal.RootChainRoundNumber { // TODO AB-301
-	//	// Older UC, return current.
-	//	return latestUnicityCertificate, errors.Errorf("old request: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
-	//} else
-	if req.RootRoundNumber > seal.RootChainRoundNumber {
+	if req.RootRoundNumber < seal.RootChainRoundNumber {
+		// Older UC, return current.
+		return latestUnicityCertificate, errors.Errorf("old request: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
+	} else if req.RootRoundNumber > seal.RootChainRoundNumber {
 		// should not happen, partition has newer UC
 		return latestUnicityCertificate, errors.Errorf("partition has never unicity certificate: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
 	} else if !bytes.Equal(req.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
@@ -144,10 +143,10 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 
 func (s *State) checkConsensus(identifier string) bool {
 	rs := s.incomingRequests[identifier]
-	hash, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(identifier))
-	if hash != nil {
-		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(identifier), hash.Hash)
-		s.inputRecords[identifier] = hash
+	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(identifier))
+	if inputRecord != nil {
+		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(identifier), inputRecord.Hash)
+		s.inputRecords[identifier] = inputRecord
 		return true
 	} else if !consensusPossible {
 		logger.Debug("Consensus not possible for partition %X.", []byte(identifier))

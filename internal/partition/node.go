@@ -5,6 +5,7 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"sync"
 	"time"
 
@@ -159,17 +160,30 @@ func New(
 		go n.eventHandlerLoop()
 	}
 
-	uc, err := initState(n)
-	if err != nil {
+	if err = initState(n); err != nil {
 		return nil, err
 	}
-	// start a new round. if the node is behind then recovery will be started when a new UC arrives.
-	n.startNewRound(uc)
+
 	go n.loop()
+
+	// TODO for some weird reason if nodes start behind the root chain, they do not start communicating until something is sent from the partition node side
+	go n.greetRootChain()
+
 	return n, nil
 }
 
-func initState(n *Node) (*certificates.UnicityCertificate, error) {
+func (n *Node) greetRootChain() {
+	logger.Debug("Sending handshake to root chain")
+	_ = n.network.Send(network.OutputMessage{
+		Protocol: network.ProtocolHandshake,
+		Message: &handshake.Handshake{
+			SystemIdentifier: n.configuration.GetSystemIdentifier(),
+			NodeIdentifier:   n.leaderSelector.SelfID().String(),
+		},
+	}, []peer.ID{n.configuration.rootChainID})
+}
+
+func initState(n *Node) error {
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	// latest block from the store
@@ -181,29 +195,29 @@ func initState(n *Node) (*certificates.UnicityCertificate, error) {
 		for i := genesisBlock.BlockNumber + 1; i <= latestPersistedBlock.BlockNumber; i++ {
 			bl, err := n.blockStore.Get(i)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			if !bytes.Equal(prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.PreviousBlockHash) {
-				return nil, errors.Errorf("state init failed, invalid blockchain (previous block #%v hash='%X', current block #%v backlink='%X')", prevBlock.BlockNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.BlockNumber, bl.PreviousBlockHash)
+				return errors.Errorf("state init failed, invalid blockchain (previous block #%v hash='%X', current block #%v backlink='%X')", prevBlock.BlockNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.BlockNumber, bl.PreviousBlockHash)
 			}
 			n.transactionSystem.BeginBlock(i)
 			for _, tx := range bl.Transactions {
 				gtx, err := n.transactionSystem.ConvertTx(tx)
 				if err != nil {
-					return nil, err
+					return err
 				}
 				if err = n.validateAndExecuteTx(gtx); err != nil {
-					return nil, err
+					return err
 				}
 			}
 
 			state, err := n.transactionSystem.EndBlock()
 			if err != nil {
-				return nil, err
+				return err
 			}
 			uc = bl.UnicityCertificate
 			if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
-				return nil, errors.Errorf("invalid tx system state root of block #%v. expected: %X, got: %X", bl.BlockNumber, uc.InputRecord.Hash, state.Root())
+				return errors.Errorf("invalid tx system state root of block #%v. expected: %X, got: %X", bl.BlockNumber, uc.InputRecord.Hash, state.Root())
 			}
 			n.transactionSystem.Commit()
 			prevBlock = bl
@@ -211,13 +225,14 @@ func initState(n *Node) (*certificates.UnicityCertificate, error) {
 		logger.Info("State initialised from persistent store up to block #%v", prevBlock.BlockNumber)
 	} else {
 		if err := n.blockStore.Add(genesisBlock); err != nil {
-			return nil, err
+			return err
 		}
 		n.transactionSystem.Commit() // commit everything from the genesis
 		uc = genesisBlock.UnicityCertificate
 		logger.Info("State initialised from the genesis block")
 	}
-	return uc, nil
+	n.luc = uc
+	return nil
 }
 
 // Close shuts down the Node component.
@@ -419,6 +434,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
+	logger.Debug("Handling block proposal, IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	nodeSignatureVerifier, err := n.configuration.GetSigningPublicKey(prop.NodeIdentifier)
 	if err != nil {
 		return err
@@ -441,6 +457,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		return errors.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
 
+	logger.Debug("Proposal's UC root nr: %v vs LUC root nr: %v", uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
 	if uc.UnicitySeal.RootChainRoundNumber > n.luc.UnicitySeal.RootChainRoundNumber {
 		err := n.handleUnicityCertificate(uc)
 		if err != nil && err != ErrStateReverted {
@@ -488,11 +505,17 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 //  8. New round is started.
 func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
-	util.WriteDebugJsonLog(logger, "Received Unicity Certificate", uc)
+	util.WriteDebugJsonLog(logger, "Handle Unicity Certificate", uc)
 	// UC is validated cryptographically
 	if err := n.unicityCertificateValidator.Validate(uc); err != nil {
 		logger.Warning("Invalid UnicityCertificate: %v", err)
 		return errors.Errorf("invalid unicity certificate: %v", err)
+	}
+	logger.Debug("Received Unicity Certificate: \nIR Hash: \t\t%X, \nIR Prev Hash: \t%X, \nBlock hash: \t%X", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash)
+	logger.Debug("LUC:                          \nIR Hash: \t\t%X, \nIR Prev Hash: \t%X, \nBlock hash: \t%X", n.luc.InputRecord.Hash, n.luc.InputRecord.PreviousHash, n.luc.InputRecord.BlockHash)
+	if n.pendingBlockProposal != nil {
+		pr := n.pendingBlockProposal
+		logger.Debug("Pending proposal: \nstate hash:\t%X, \nprev hash: \t%X, \nroot round: %v, tx count: %v", pr.StateHash, pr.PrevHash, pr.RoundNumber, len(pr.Transactions))
 	}
 	// UC must be newer than the last one seen
 	if uc.UnicitySeal.RootChainRoundNumber < n.luc.UnicitySeal.RootChainRoundNumber {
@@ -536,7 +559,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			return errors.Wrap(err, "tx system failed to end block")
 		}
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
-			logger.Warning("UC's IR hash is different from state's root ('%X' vs '%X'", uc.InputRecord.Hash, state.Root())
+			logger.Warning("UC IR hash not equal to state's hash: '%X' vs '%X'", uc.InputRecord.Hash, state.Root())
 			return n.startRecovery(uc)
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) {
@@ -838,12 +861,17 @@ func (n *Node) sendCertificationRequest() error {
 	if err != nil {
 		return err
 	}
+	logger.Info("Sending block #%v certification request to root chain, IR hash %X, Block Hash %X, rc nr: %v", latestBlock.BlockNumber+1, stateHash, blockHash, req.RootRoundNumber)
 	util.WriteDebugJsonLog(logger, "Sending block certification request to root chain", req)
 
 	return n.network.Send(network.OutputMessage{
 		Protocol: network.ProtocolBlockCertification,
 		Message:  req,
 	}, []peer.ID{n.configuration.rootChainID})
+}
+
+func (n *Node) StartRound() {
+	n.startNewRound(n.luc)
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {

@@ -13,6 +13,7 @@ const (
 	ProtocolInputForward          = "/ab/input-forward/0.0.1"
 	ProtocolLedgerReplicationReq  = "/ab/replication-req/0.0.1"
 	ProtocolLedgerReplicationResp = "/ab/replication-resp/0.0.1"
+	ProtocolHandshake             = "/ab/handshake/0.0.1"
 
 	ErrStrPeerIsNil       = "peer is nil"
 	ErrStrProtocolIDEmpty = "protocol ID is empty"

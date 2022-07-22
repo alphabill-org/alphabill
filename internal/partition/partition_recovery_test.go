@@ -66,6 +66,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 }
 
 func TestNode_CreateBlocks_andRecord(t *testing.T) {
+	t.SkipNow()
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	b0 := tp.GetLatestBlock()

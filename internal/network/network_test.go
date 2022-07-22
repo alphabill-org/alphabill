@@ -28,7 +28,7 @@ func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 	require.NoError(t, err)
 	defer net.Close()
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
-	require.Equal(t, 4, len(net.sendProtocols))
+	require.Equal(t, 5, len(net.sendProtocols))
 	require.Equal(t, 4, len(net.receiveProtocols))
 }
 
@@ -50,5 +50,5 @@ func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
 	defer net.Close()
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
 	require.Equal(t, 1, len(net.sendProtocols))
-	require.Equal(t, 1, len(net.receiveProtocols))
+	require.Equal(t, 2, len(net.receiveProtocols))
 }

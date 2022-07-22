@@ -29,6 +29,7 @@ func (rs *requestStore) add(nodeId string, req *certification.BlockCertification
 	rs.requests[nodeId] = req
 	count := rs.hashCounts[hashString]
 	rs.hashCounts[hashString] = count + 1
+	logger.Debug("Added new IR hash: %X, block hash: %X", req.InputRecord.Hash, req.InputRecord.BlockHash)
 }
 
 func (rs *requestStore) reset() {
@@ -72,6 +73,7 @@ func (rs *requestStore) remove(nodeId string) {
 		return
 	}
 	hashString := string(oldReq.InputRecord.Hash)
+	logger.Debug("Removing old IR hash: %X, block hash: %X", oldReq.InputRecord.Hash, oldReq.InputRecord.BlockHash)
 	rs.hashCounts[hashString] = rs.hashCounts[hashString] - 1
 	delete(rs.requests, nodeId)
 }

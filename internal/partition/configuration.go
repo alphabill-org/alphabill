@@ -158,7 +158,6 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		c.t1Timeout = DefaultT1Timeout
 	}
 	if c.blockStore == nil {
-		logger.Debug("Using InMemoryBlockStore")
 		c.blockStore = store.NewInMemoryBlockStore()
 	}
 

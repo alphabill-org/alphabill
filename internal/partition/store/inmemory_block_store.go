@@ -15,6 +15,7 @@ type InMemoryBlockStore struct {
 }
 
 func NewInMemoryBlockStore() *InMemoryBlockStore {
+	logger.Info("Creating InMemoryBlockStore")
 	return &InMemoryBlockStore{blocks: map[uint64]*block.Block{}}
 }
 

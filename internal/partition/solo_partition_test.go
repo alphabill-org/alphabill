@@ -245,16 +245,8 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 		Protocol: network.ProtocolUnicityCertificates,
 		Message:  uc,
 	})
-	require.Eventually(t, func() bool {
-		events := sn.eh.GetEvents()
-		for _, e := range events {
-			if e.EventType == EventTypeBlockFinalized {
-				return true
-			}
-		}
-		return false
+	ContainsEvent(t, sn, EventTypeBlockFinalized)
 
-	}, test.WaitDuration, test.WaitTick)
 	sn.eh.Reset()
 	return nil
 }
@@ -367,5 +359,18 @@ func ContainsError(t *testing.T, tp *SingleNodePartition, errStr string) {
 			}
 		}
 		return false
+	}, test.WaitDuration, test.WaitTick)
+}
+
+func ContainsEvent(t *testing.T, tp *SingleNodePartition, et EventType) {
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == et {
+				return true
+			}
+		}
+		return false
+
 	}, test.WaitDuration, test.WaitTick)
 }

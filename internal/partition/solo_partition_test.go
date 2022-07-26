@@ -66,9 +66,10 @@ func (eh *eventHandler) Reset() {
 	eh.events = []Event{}
 }
 
-func (t *AlwaysValidTransactionValidator) Validate(_ txsystem.GenericTransaction) error {
+func (t *AlwaysValidTransactionValidator) Validate(txsystem.GenericTransaction, uint64) error {
 	return nil
 }
+
 func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, crypto.Verifier) error {
 	return nil
 }

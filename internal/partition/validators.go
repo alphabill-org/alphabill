@@ -9,13 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
 var (
 	ErrSystemIdentifierIsNil = errors.New("System identifier is nil")
-	ErrBlockStoreIsNil       = errors.New("block store is nil")
 	ErrTransactionExpired    = errors.New("transaction timeout must be greater than current block height")
 	ErrStrTxIsNil            = "transaction is nil"
 )
@@ -25,7 +23,7 @@ type (
 	// TxValidator is used to validate generic transactions (e.g. timeouts, system identifiers, etc.). This validator
 	// should not contain transaction system specific validation logic.
 	TxValidator interface {
-		Validate(tx txsystem.GenericTransaction) error
+		Validate(tx txsystem.GenericTransaction, latestBlockNumber uint64) error
 	}
 
 	// UnicityCertificateValidator is used to validate certificates.UnicityCertificate.
@@ -62,25 +60,20 @@ type (
 
 	DefaultTxValidator struct {
 		systemIdentifier []byte
-		blockStore       store.BlockStore
 	}
 )
 
 // NewDefaultTxValidator creates a new instance of default	TxValidator.
-func NewDefaultTxValidator(systemIdentifier []byte, blockStore store.BlockStore) (TxValidator, error) {
+func NewDefaultTxValidator(systemIdentifier []byte) (TxValidator, error) {
 	if systemIdentifier == nil {
 		return nil, ErrSystemIdentifierIsNil
 	}
-	if blockStore == nil {
-		return nil, ErrBlockStoreIsNil
-	}
 	return &DefaultTxValidator{
 		systemIdentifier: systemIdentifier,
-		blockStore:       blockStore,
 	}, nil
 }
 
-func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction) error {
+func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction, latestBlockNumber uint64) error {
 	if tx == nil {
 		return errors.New(ErrStrTxIsNil)
 	}
@@ -89,10 +82,9 @@ func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction) error {
 		return errors.Wrapf(ErrInvalidSystemIdentifier, "expected %X, got %X", dtv.systemIdentifier, tx.SystemID())
 	}
 
-	block := dtv.blockStore.LatestBlock()
-	if tx.Timeout() <= block.BlockNumber {
+	if tx.Timeout() <= latestBlockNumber {
 		// transaction is expired
-		return errors.Wrapf(ErrTransactionExpired, "timeout %v; blockNumber: %v", tx.Timeout(), block.BlockNumber)
+		return errors.Wrapf(ErrTransactionExpired, "timeout %v; blockNumber: %v", tx.Timeout(), latestBlockNumber)
 	}
 	return nil
 }

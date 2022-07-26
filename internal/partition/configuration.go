@@ -191,7 +191,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		}
 	}
 	if c.txValidator == nil {
-		c.txValidator, err = NewDefaultTxValidator(c.GetSystemIdentifier(), c.blockStore)
+		c.txValidator, err = NewDefaultTxValidator(c.GetSystemIdentifier())
 		if err != nil {
 			return err
 		}

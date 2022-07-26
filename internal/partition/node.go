@@ -226,7 +226,7 @@ func (n *Node) applyBlock(blockNr uint64, bl *block.Block) (*certificates.Unicit
 		if err != nil {
 			return nil, err
 		}
-		if err = n.validateAndExecuteTx(gtx); err != nil {
+		if err = n.validateAndExecuteTx(gtx, blockNr); err != nil {
 			return nil, err
 		}
 	}
@@ -381,7 +381,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
-	if err := n.txValidator.Validate(tx); err != nil {
+	if err := n.txValidator.Validate(tx, n.blockStore.LatestBlock().BlockNumber); err != nil {
 		logger.Warning("Received invalid transaction: %v", err)
 		return true
 	}
@@ -405,7 +405,7 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 
 func (n *Node) process(tx txsystem.GenericTransaction) {
 	defer trackExecutionTime(time.Now(), "Processing transaction")
-	if err := n.validateAndExecuteTx(tx); err != nil {
+	if err := n.validateAndExecuteTx(tx, n.blockStore.LatestBlock().BlockNumber); err != nil {
 		return
 	}
 	n.proposedTransactions = append(n.proposedTransactions, tx)
@@ -413,8 +413,8 @@ func (n *Node) process(tx txsystem.GenericTransaction) {
 	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposedTransactions))
 }
 
-func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction) error {
-	if err := n.txValidator.Validate(tx); err != nil {
+func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction, latestBlockNumber uint64) error {
+	if err := n.txValidator.Validate(tx, latestBlockNumber); err != nil {
 		logger.Warning("Transaction '%v' is invalid: %v", tx, err)
 		return err
 	}
@@ -872,7 +872,7 @@ func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
 	if err != nil {
 		return err
 	}
-	err = n.txValidator.Validate(genTx)
+	err = n.txValidator.Validate(genTx, n.blockStore.LatestBlock().BlockNumber)
 	if err != nil {
 		return err
 	}

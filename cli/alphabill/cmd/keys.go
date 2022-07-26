@@ -3,7 +3,9 @@ package cmd
 import (
 	"crypto/rand"
 	"fmt"
+	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -90,6 +92,10 @@ func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, e
 	exists := util.FileExists(file)
 
 	if (exists && overwrite) || (!exists && generateNewIfNotExist) {
+		// ensure intermediate dirs exist
+		if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
+			return nil, err
+		}
 		generateKeys, err := GenerateKeys()
 		if err != nil {
 			return nil, err

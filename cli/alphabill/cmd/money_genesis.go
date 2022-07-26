@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -70,6 +71,8 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	nodeGenesisFile := config.getNodeGenesisFileLocation(moneyPartitionHomePath)
 	if util.FileExists(nodeGenesisFile) {
 		return errors.Errorf("node genesis %s exists", nodeGenesisFile)
+	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
+		return err
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)

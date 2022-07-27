@@ -57,15 +57,17 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 // getOutputDir returns custom outputdir if provided, otherwise $AB_HOME/rootchain, and creates parent directories.
 // Must be called after base command PersistentPreRunE function has been called, so that $AB_HOME is initialized.
 func (c *rootGenesisConfig) getOutputDir() string {
+	var outputDir string
 	if c.OutputDir != "" {
-		return c.OutputDir
+		outputDir = c.OutputDir
+	} else {
+		outputDir = c.Base.defaultRootGenesisDir()
 	}
-	defaultOutputDir := c.Base.defaultRootGenesisDir()
-	err := os.MkdirAll(defaultOutputDir, 0700) // -rwx------
-	if err != nil {
+	// -rwx------
+	if err := os.MkdirAll(outputDir, 0700); err != nil {
 		panic(err)
 	}
-	return defaultOutputDir
+	return outputDir
 }
 
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {

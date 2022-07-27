@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 
@@ -62,6 +63,8 @@ func vdGenesisRunFun(_ context.Context, config *vdGenesisConfig) error {
 	nodeGenesisFile := config.getNodeGenesisFileLocation(vdHomePath)
 	if util.FileExists(nodeGenesisFile) {
 		return errors.Errorf("node genesis %s exists", nodeGenesisFile)
+	} else if err := os.MkdirAll(filepath.Dir(nodeGenesisFile), 0700); err != nil {
+		return err
 	}
 
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)

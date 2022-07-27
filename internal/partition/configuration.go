@@ -158,7 +158,6 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		c.t1Timeout = DefaultT1Timeout
 	}
 	if c.blockStore == nil {
-		logger.Debug("Using InMemoryBlockStore")
 		c.blockStore = store.NewInMemoryBlockStore()
 	}
 
@@ -192,7 +191,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		}
 	}
 	if c.txValidator == nil {
-		c.txValidator, err = NewDefaultTxValidator(c.GetSystemIdentifier(), c.blockStore)
+		c.txValidator, err = NewDefaultTxValidator(c.GetSystemIdentifier())
 		if err != nil {
 			return err
 		}

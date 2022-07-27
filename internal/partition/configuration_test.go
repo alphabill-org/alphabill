@@ -114,7 +114,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.NotNil(t, conf)
 	require.Equal(t, ctx, conf.context)
 	require.Equal(t, blockStore, conf.blockStore)
-	require.NoError(t, conf.txValidator.Validate(nil))
+	require.NoError(t, conf.txValidator.Validate(nil, 0))
 	require.NoError(t, conf.blockProposalValidator.Validate(nil, nil))
 	require.NoError(t, conf.unicityCertificateValidator.Validate(nil))
 	require.Equal(t, selector, conf.leaderSelector)

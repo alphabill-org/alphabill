@@ -13,10 +13,10 @@ do
 done
 
 # generate rootchain and partition genesis files
-build/alphabill root-genesis --home testab/rootchain -p testab/money1/money/node-genesis.json -p testab/money2/money/node-genesis.json -p testab/money3/money/node-genesis.json -k testab/rootchain/keys.json -g
+build/alphabill root-genesis --home testab/rootchain -o testab/rootchain/genesis -p testab/money1/money/node-genesis.json -p testab/money2/money/node-genesis.json -p testab/money3/money/node-genesis.json -k testab/rootchain/keys.json -g
 
 #start root chain
-build/alphabill root --home testab/rootchain -k testab/rootchain/keys.json -g testab/rootchain/rootchain/root-genesis.json > testab/rootchain/log.log &
+build/alphabill root --home testab/rootchain -k testab/rootchain/keys.json -g testab/rootchain/genesis/root-genesis.json > testab/rootchain/log.log &
 
 port=26666
 # partition node addresses
@@ -35,7 +35,7 @@ grpcPort=26766
 #start partition nodes
 for i in 1 2 3
 do
-  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" -g testab/rootchain/rootchain/partition-genesis-0.json -p "$nodeAddresses" > "testab/money$i/log.log" &
+  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" -g testab/rootchain/genesis/partition-genesis-0.json -p "$nodeAddresses" > "testab/money$i/log.log" &
   ((port=port+1))
   ((grpcPort=grpcPort+1))
 done

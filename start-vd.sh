@@ -17,7 +17,7 @@ done
 build/alphabill root-genesis --home testab -p testab/vd1/vd/node-genesis.json -p testab/vd2/vd/node-genesis.json -p testab/vd3/vd/node-genesis.json -k testab/rootchain/keys.json -g
 
 #start root chain
-build/alphabill root --home testab -k testab/rootchain/keys.json -g testab/rootchain/root-genesis.json > testab/rootchain/log.log &
+build/alphabill root --home testab -k testab/rootchain/keys.json -g testab/rootchain/root-genesis.json > testab/rootchain/rootchain.log &
 
 port=27666
 # partition node addresses
@@ -36,7 +36,7 @@ grpcPort=27766
 #start partition nodes
 for i in 1 2 3
 do
-  build/alphabill vd --home testab/vd$i -f testab/vd$i/vd/blocks.db -k testab/vd$i/vd/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" -g testab/rootchain/partition-genesis-1.json -p "$nodeAddresses" > "testab/vd$i/log.log" &
+  build/alphabill vd --home testab/vd$i -f testab/vd$i/vd/blocks.db -k testab/vd$i/vd/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" -g testab/rootchain/partition-genesis-1.json -p "$nodeAddresses" > "testab/vd$i/vd$i.log" &
   ((port=port+1))
   ((grpcPort=grpcPort+1))
 done

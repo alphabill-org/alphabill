@@ -184,6 +184,7 @@ func (n *Node) greetRootChain() {
 }
 
 func initState(n *Node) error {
+	defer trackExecutionTime(time.Now(), "Restore node state")
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	// latest block from the store

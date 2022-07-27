@@ -631,6 +631,7 @@ func (n *Node) handleT1TimeoutEvent() {
 		n.stopForwardingOrHandlingTransactions()
 	}()
 	if n.leaderSelector.IsCurrentNodeLeader() {
+		logger.Debug("Current node is the leader.")
 		if err := n.sendBlockProposal(); err != nil {
 			logger.Warning("Failed to send BlockProposal: %v", err)
 			return
@@ -787,7 +788,7 @@ func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) error {
 }
 
 func (n *Node) sendBlockProposal() error {
-	defer trackExecutionTime(time.Now(), "Sending BlockProposals")
+	defer trackExecutionTime(time.Now(), "Sending BlockProposal")
 	systemIdentifier := n.configuration.GetSystemIdentifier()
 	nodeId := n.leaderSelector.SelfID()
 	prop := &blockproposal.BlockProposal{

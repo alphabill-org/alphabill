@@ -17,7 +17,7 @@ var req2 = &certification.BlockCertificationRequest{
 }
 
 func Test_requestStore_add(t *testing.T) {
-	rs := newRequestStore()
+	rs := newRequestStore("")
 	rs.add("1", req1)
 	rs.add("1", req1)
 	rs.add("2", req2)
@@ -26,7 +26,7 @@ func Test_requestStore_add(t *testing.T) {
 }
 
 func Test_requestStore_isConsensusReceived(t *testing.T) {
-	rs := newRequestStore()
+	rs := newRequestStore("")
 	rs.add("1", req1)
 	rs.add("2", req2)
 	_, possible := rs.isConsensusReceived(2)
@@ -34,7 +34,7 @@ func Test_requestStore_isConsensusReceived(t *testing.T) {
 }
 
 func TestRequestStore_isConsensusReceived_SingleNode(t *testing.T) {
-	rs := newRequestStore()
+	rs := newRequestStore("")
 	rs.add("1", req1)
 	ir, possible := rs.isConsensusReceived(1)
 	require.True(t, possible)
@@ -42,7 +42,7 @@ func TestRequestStore_isConsensusReceived_SingleNode(t *testing.T) {
 }
 
 func TestRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
-	rs := newRequestStore()
+	rs := newRequestStore("")
 	rs.add("1", req1)
 	rs.add("2", req2)
 	_, possible := rs.isConsensusReceived(2)
@@ -55,7 +55,7 @@ func TestRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 }
 
 func TestRequestStore_isConsensusReceived_FiveNodes(t *testing.T) {
-	rs := newRequestStore()
+	rs := newRequestStore("")
 	rs.add("1", req1)
 	ir, possible := rs.isConsensusReceived(5)
 	require.True(t, possible)

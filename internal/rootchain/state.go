@@ -204,13 +204,12 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 		s.latestUnicityCertificates.put(identifier, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
-	}
-	// send responses
-	for key, store := range s.incomingRequests {
-		requestStore := s.incomingRequests[key]
-		if len(requestStore.requests) > 0 {
-			// remove active request from the store.
-			store.reset()
+
+		if requestStore, found := s.incomingRequests[identifier]; found {
+			if len(requestStore.requests) > 0 {
+				// remove active request from the store.
+				requestStore.reset()
+			}
 		}
 	}
 

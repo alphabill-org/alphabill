@@ -572,6 +572,11 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
 			logger.Warning("UC IR hash not equal to state's hash: '%X' vs '%X'", uc.InputRecord.Hash, state.Root())
 			return n.startRecovery(uc)
+		} else if !bytes.Equal(uc.InputRecord.BlockHash, n.luc.InputRecord.BlockHash) {
+			logger.Warning("UC IR block hash not equal to LUC's block hash: '%X' vs '%X'", uc.InputRecord.BlockHash, n.luc.InputRecord.BlockHash)
+			return n.startRecovery(uc)
+		} else {
+			logger.Debug("No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) {
 		// UC certifies pending block proposal
@@ -630,6 +635,10 @@ func (n *Node) handleT1TimeoutEvent() {
 		n.leaderSelector.UpdateLeader(nil)
 		n.stopForwardingOrHandlingTransactions()
 	}()
+	if n.status == recovering {
+		logger.Info("T1 timeout: node is recovering")
+		return
+	}
 	if n.leaderSelector.IsCurrentNodeLeader() {
 		logger.Debug("Current node is the leader.")
 		if err := n.sendBlockProposal(); err != nil {

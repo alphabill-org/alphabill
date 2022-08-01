@@ -79,7 +79,7 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 		if _, f := requestStores[identifier]; f {
 			return nil, errors.Errorf("system identifier %X is not unique", identifier)
 		}
-		reqStore := newRequestStore()
+		reqStore := newRequestStore(identifier)
 		for _, v := range p.Validators {
 			if _, f := reqStore.requests[v.NodeIdentifier]; f {
 				return nil, errors.Errorf("partition %v contains multiple validators with %v id", identifier, v.NodeIdentifier)
@@ -125,6 +125,7 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 	}
 	partitionRequests, f := s.incomingRequests[systemIdentifier]
 	if f {
+		logger.Debug("Partition '%X' has already sent %v certification requests", req.SystemIdentifier, len(partitionRequests.requests))
 		if rr, found := partitionRequests.requests[req.NodeIdentifier]; found {
 			if !bytes.Equal(rr.InputRecord.Hash, req.InputRecord.Hash) {
 				logger.Debug("Equivocating request with different hash: %v", req)
@@ -133,26 +134,27 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 				logger.Debug("Duplicated request: %v", req)
 				return nil, errors.New("duplicated request")
 			}
-
 		}
+		partitionRequests.add(req.NodeIdentifier, req)
+		s.checkConsensus(partitionRequests)
 	}
-	s.incomingRequests[systemIdentifier].add(req.NodeIdentifier, req)
-	s.checkConsensus(systemIdentifier)
 	return nil, nil
 }
 
-func (s *State) checkConsensus(identifier string) bool {
-	rs := s.incomingRequests[identifier]
-	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(identifier))
+func (s *State) checkConsensus(rs *requestStore) bool {
+	if uc := s.latestUnicityCertificates.get(rs.systemIdentifier); uc != nil {
+		logger.Debug("Checking consensus for '%X', latest completed root round: %v", []byte(rs.systemIdentifier), uc.UnicitySeal.RootChainRoundNumber)
+	}
+	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(rs.systemIdentifier))
 	if inputRecord != nil {
-		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(identifier), inputRecord.Hash)
-		s.inputRecords[identifier] = inputRecord
+		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(rs.systemIdentifier), inputRecord.Hash)
+		s.inputRecords[rs.systemIdentifier] = inputRecord
 		return true
 	} else if !consensusPossible {
-		logger.Debug("Consensus not possible for partition %X.", []byte(identifier))
-		luc := s.latestUnicityCertificates.get(identifier)
+		logger.Debug("Consensus not possible for partition %X.", []byte(rs.systemIdentifier))
+		luc := s.latestUnicityCertificates.get(rs.systemIdentifier)
 		if luc != nil {
-			s.inputRecords[identifier] = luc.InputRecord
+			s.inputRecords[rs.systemIdentifier] = luc.InputRecord
 		}
 	}
 	return false
@@ -202,13 +204,12 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 		s.latestUnicityCertificates.put(identifier, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
-	}
-	// send responses
-	for key, store := range s.incomingRequests {
-		requestStore := s.incomingRequests[key]
-		if len(requestStore.requests) > 0 {
-			// remove active request from the store.
-			store.reset()
+
+		if requestStore, found := s.incomingRequests[identifier]; found {
+			if len(requestStore.requests) > 0 {
+				// remove active request from the store.
+				requestStore.reset()
+			}
 		}
 	}
 

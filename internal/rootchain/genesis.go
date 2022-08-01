@@ -46,7 +46,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 	// verify that we have consensus between the partition nodes.
 	for _, p := range partitions {
 		id := string(p.SystemDescriptionRecord.SystemIdentifier)
-		if !state.checkConsensus(id) {
+		if !state.checkConsensus(state.incomingRequests[id]) {
 			return nil, nil, errors.Errorf("partition %X has not reached a consensus", id)
 		}
 	}

@@ -114,12 +114,12 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, 1, len(s.incomingRequests[string(partition2ID)].hashCounts))
 
 	// prepare partition1 consensus
-	require.True(t, s.checkConsensus(string(partition1ID)))
+	require.True(t, s.checkConsensus(s.incomingRequests[string(partition1ID)]))
 	require.Equal(t, 1, len(s.inputRecords))
 	require.Equal(t, partition1IR, s.inputRecords[string(partition1ID)])
 
 	// prepare partition1 consensus
-	require.True(t, s.checkConsensus(string(partition2ID)))
+	require.True(t, s.checkConsensus(s.incomingRequests[string(partition2ID)]))
 	require.Equal(t, 2, len(s.inputRecords))
 	require.Equal(t, partition2IR, s.inputRecords[string(partition2ID)])
 
@@ -312,7 +312,7 @@ func createStateAndExecuteRound(t *testing.T, partitions []*genesis.PartitionRec
 	require.NoError(t, err)
 	for _, p := range partitions {
 		id := string(p.SystemDescriptionRecord.SystemIdentifier)
-		s2.checkConsensus(id)
+		s2.checkConsensus(s2.incomingRequests[id])
 	}
 	_, err = s2.CreateUnicityCertificates()
 	require.NoError(t, err)

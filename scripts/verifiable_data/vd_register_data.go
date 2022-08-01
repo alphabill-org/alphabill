@@ -10,7 +10,6 @@ import (
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 /*
@@ -78,10 +77,9 @@ func main() {
 
 func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
-		UnitId:                hash,
-		SystemId:              []byte{0, 0, 0, 1},
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		UnitId:   hash,
+		SystemId: []byte{0, 0, 0, 1},
+		Timeout:  timeout,
 	}
 	return tx, nil
 }

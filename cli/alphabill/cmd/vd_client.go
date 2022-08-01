@@ -43,7 +43,8 @@ func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Command {
 	var sync bool
 	cmd := &cobra.Command{
-		Use: "register",
+		Use:   "register",
+		Short: "registers a new hash value on the ledger",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			hash, err := cmd.Flags().GetString("hash")
 			if err != nil {
@@ -81,7 +82,8 @@ func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Comman
 
 func listBlocksCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "list-blocks",
+		Use:   "list-blocks",
+		Short: "prints all non-empty blocks from the ledger",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			vdClient, err := initVDClient(ctx, cmd, wait, false)
 			if err != nil {

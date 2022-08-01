@@ -143,7 +143,7 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 
 func (s *State) checkConsensus(rs *requestStore) bool {
 	if uc := s.latestUnicityCertificates.get(rs.systemIdentifier); uc != nil {
-		logger.Debug("Checking consensus for '%X', root round: %v", []byte(rs.systemIdentifier), uc.UnicitySeal.RootChainRoundNumber)
+		logger.Debug("Checking consensus for '%X', latest completed root round: %v", []byte(rs.systemIdentifier), uc.UnicitySeal.RootChainRoundNumber)
 	}
 	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(rs.systemIdentifier))
 	if inputRecord != nil {

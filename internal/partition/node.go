@@ -265,7 +265,11 @@ func (n *Node) loop() {
 		case <-n.ctx.Done():
 			logger.Info("Exiting partition node component main loop")
 			return
-		case tx := <-n.txCh:
+		case tx, ok := <-n.txCh:
+			if !ok {
+				logger.Warning("Tx channel closed, exiting main loop")
+				return
+			}
 			n.process(tx)
 		case m, ok := <-n.network.ReceivedChannel():
 			if !ok {
@@ -329,7 +333,11 @@ func (n *Node) loop() {
 			default:
 				logger.Warning("Unknown network protocol: %s", m.Protocol)
 			}
-		case <-n.timers.C:
+		case _, ok := <-n.timers.C:
+			if !ok {
+				logger.Warning("Timers channel closed, exiting main loop")
+				return
+			}
 			logger.Info("Handling T1 timeout")
 			n.handleT1TimeoutEvent()
 		}

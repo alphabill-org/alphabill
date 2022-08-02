@@ -45,13 +45,6 @@ func main() {
 	bytes32 := dataHash.Bytes32()
 	dataId := bytes32[:]
 
-	// create tx
-	tx, err := createRegisterDataTx(dataId, *timeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// send tx
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -64,6 +57,19 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
+	blockNr, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	absoluteTimeout := blockNr.BlockNo + *timeout
+
+	// create tx
+	tx, err := createRegisterDataTx(dataId, absoluteTimeout)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// send tx
 	txResponse, err := txClient.ProcessTransaction(ctx, tx)
 	if err != nil {
 		log.Fatal(err)

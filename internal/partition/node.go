@@ -376,7 +376,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	}
 	newBlockNr := n.blockStore.LatestBlock().BlockNumber + 1
 	n.transactionSystem.BeginBlock(newBlockNr)
-	n.proposedTransactions = nil
+	n.proposedTransactions = []txsystem.GenericTransaction{}
 	n.pendingBlockProposal = nil
 	n.leaderSelector.UpdateLeader(uc.UnicitySeal)
 	n.startHandleOrForwardTransactions()

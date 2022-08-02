@@ -21,6 +21,7 @@ func TestLoadGlobalConfigFromFile(t *testing.T) {
 	require.True(t, globalConf.ShowCaller)
 	require.Equal(t, "UTC", globalConf.TimeLocation)
 	require.True(t, globalConf.ShowGoroutineID)
+	require.True(t, globalConf.ShowNodeID)
 	require.Equal(t, DEBUG, globalConf.DefaultLevel)
 	require.Equal(t, WARNING, globalConf.PackageLevels["internal_txbuffer"])
 }
@@ -54,6 +55,7 @@ consoleFormat: false
 showCaller: true
 timeLocation: UTC
 showGoroutineID: true
+showNodeID: true
 defaultLevel: DEBUG
 packageLevels:
   internal_txbuffer: WARNING

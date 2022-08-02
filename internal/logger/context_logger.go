@@ -45,6 +45,9 @@ func (c *ContextLogger) update(level LogLevel, context Context, showGoroutineID 
 
 	zeroLogger := log.Level(toZeroLevel(level))
 	for key, value := range context {
+		if key == KeyNodeID && !showNodeID {
+			continue
+		}
 		zeroLogger = zeroLogger.With().Interface(key, value).Logger()
 	}
 	if showGoroutineID {

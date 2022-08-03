@@ -175,6 +175,13 @@ func (v *VDClient) shutdown() {
 	}
 }
 
+func (v *VDClient) IsShutdown() bool {
+	if v.abClient != nil {
+		return v.abClient.IsShutdown()
+	}
+	return true
+}
+
 func validateHash(hash []byte) error {
 	if len(hash) != sha256.Size {
 		return errors.New(fmt.Sprintf("invalid hash length, expected %d bytes, got %d", sha256.Size, len(hash)))

@@ -29,8 +29,11 @@ type (
 	}
 
 	VDClientConfig struct {
-		AbConf       *client.AlphabillClientConfig
-		WaitBlock    bool
+		// AbConf configuration parameters of Alphabill client
+		AbConf *client.AlphabillClientConfig
+		// WaitBlock upon hash submission, waits for a block to contain a transaction with the given hash, stops when found or timeout is reached
+		WaitBlock bool
+		// BlockTimeout relative timeout of a transaction (e.g. if latest block # is 100, given block timeout is 50, transaction's timeout is 150)
 		BlockTimeout uint64
 	}
 )

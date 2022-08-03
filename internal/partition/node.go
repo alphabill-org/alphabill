@@ -208,6 +208,8 @@ func initState(n *Node) error {
 			prevBlock = bl
 		}
 		logger.Info("State initialised from persistent store up to block #%v", prevBlock.BlockNumber)
+
+		n.restoreBlockProposal(prevBlock)
 	} else {
 		if err := n.blockStore.Add(genesisBlock); err != nil {
 			return err
@@ -244,6 +246,48 @@ func (n *Node) applyBlock(blockNr uint64, bl *block.Block) (*certificates.Unicit
 	}
 	n.transactionSystem.Commit()
 	return uc, nil
+}
+
+func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
+	proposal, err := n.blockStore.GetPendingProposal()
+	if err != nil {
+		logger.Error("Error fetching block proposal: %s", err)
+	}
+	if proposal == nil {
+		logger.Info("Stored block proposal not found")
+		return
+	}
+	logger.Info("Trying to restore block proposal")
+
+	reportAndRevert := func(msg string, err error) {
+		logger.Error(msg, err)
+		n.transactionSystem.Revert()
+	}
+
+	// make sure proposal extends the previous state
+	if bytes.Equal(prevBlock.UnicityCertificate.InputRecord.Hash, proposal.PrevHash) {
+		logger.Debug("Stored block proposal extends the previous state")
+		blockNr := prevBlock.BlockNumber + 1
+		n.transactionSystem.BeginBlock(blockNr)
+		for _, gtx := range proposal.Transactions {
+			if err = n.validateAndExecuteTx(gtx, blockNr); err != nil {
+				reportAndRevert("Error executing tx from block proposal: %s", err)
+				return
+			}
+		}
+
+		state, err := n.transactionSystem.EndBlock()
+		if err != nil {
+			reportAndRevert("Error in transaction system: %s", err)
+			return
+		}
+		if !bytes.Equal(proposal.StateHash, state.Root()) {
+			reportAndRevert("Block proposal recovery failed: %s", errors.Errorf(", invalid state (proposal's state hash: %X, current state hash: %X", proposal.StateHash, state.Root()))
+			return
+		}
+		n.transactionSystem.Commit()
+		n.handleT1TimeoutEvent()
+	}
 }
 
 // Close shuts down the Node component.
@@ -765,9 +809,8 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	// check if recovery is complete
 	latestBlock := n.GetLatestBlock()
 	logger.Debug("Checking if recovery is complete, latest block: #%v", latestBlock.BlockNumber)
-	if latestBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber == n.luc.UnicitySeal.RootChainRoundNumber &&
-		bytes.Equal(latestBlock.UnicityCertificate.UnicitySeal.Hash, n.luc.UnicitySeal.Hash) {
-
+	if latestBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber >= n.luc.UnicitySeal.RootChainRoundNumber {
+		n.luc = latestBlock.UnicityCertificate
 		n.stopRecovery(n.luc)
 	} else {
 		logger.Debug("Not fully recovered yet, latest block's UC root round %v vs LUC's root round %v", latestBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)

@@ -162,12 +162,14 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, blockNumber uint64, ch 
 				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
 				continue
 			}
-			blockNumber = blockNumber + 1
-			b, err := w.AlphabillClient.GetBlock(blockNumber)
+			b, err := w.AlphabillClient.GetBlock(blockNumber + 1)
 			if err != nil {
 				return err
 			}
-			ch <- b
+			if b != nil {
+				blockNumber = b.BlockNumber
+				ch <- b
+			}
 		}
 	}
 }
@@ -184,12 +186,14 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, blockNumber uint6
 		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
-			blockNumber = blockNumber + 1
-			b, err := w.AlphabillClient.GetBlock(blockNumber)
+			b, err := w.AlphabillClient.GetBlock(blockNumber + 1)
 			if err != nil {
 				return err
 			}
-			ch <- b
+			if b != nil {
+				blockNumber = b.BlockNumber
+				ch <- b
+			}
 		}
 	}
 	return nil

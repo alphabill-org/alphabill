@@ -28,7 +28,7 @@ type abClientMock struct {
 	incrementBlock bool
 	fail           bool
 	shutdown       bool
-	block          *block.Block
+	block          func(nr uint64) *block.Block
 }
 
 func testConf() *VDClientConfig {
@@ -71,9 +71,12 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	mock.incrementBlock = true
-	mock.block = &block.Block{
-		BlockNumber: uint64(conf.BlockTimeout + 1),
+	mock.block = func(nr uint64) *block.Block {
+		return &block.Block{
+			BlockNumber: nr,
+		}
 	}
+
 	vdClient.abClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
@@ -198,9 +201,12 @@ func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	mock := &abClientMock{}
 	mock.maxBlock = 1
 	mock.incrementBlock = true
-	mock.block = &block.Block{
-		BlockNumber: mock.maxBlock + 1,
+	mock.block = func(nr uint64) *block.Block {
+		return &block.Block{
+			BlockNumber: nr,
+		}
 	}
+
 	vdClient.abClient = mock
 
 	wg := sync.WaitGroup{}
@@ -237,9 +243,10 @@ func (a *abClientMock) SendTransaction(tx *txsystem.Transaction) (*txsystem.Tran
 }
 
 func (a *abClientMock) GetBlock(n uint64) (*block.Block, error) {
-	if a.block != nil && a.block.BlockNumber == n {
-		fmt.Printf("GetBlock(%d) = %s\n", n, a.block)
-		return a.block, nil
+	if a.block != nil {
+		bl := a.block(n)
+		fmt.Printf("GetBlock(%d) = %s\n", n, bl)
+		return bl, nil
 	}
 	fmt.Printf("GetBlock(%d) = nil\n", n)
 	return nil, nil

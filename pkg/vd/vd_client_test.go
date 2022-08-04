@@ -66,14 +66,25 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	require.NoError(t, log.InitStdoutLogger())
 	conf := testConf()
 	conf.WaitBlock = true
-	conf.BlockTimeout = 1
+	conf.BlockTimeout = 5
+	callbackCalled := false
+	conf.OnBlockCallback = func(b *block.Block) {
+		require.NotNil(t, b)
+		require.Equal(t, conf.BlockTimeout-1, b.BlockNumber)
+		callbackCalled = true
+	}
 	vdClient, err := New(context.Background(), conf)
 	require.NoError(t, err)
 	mock := &abClientMock{}
 	mock.incrementBlock = true
 	mock.block = func(nr uint64) *block.Block {
+		var txs []*txsystem.Transaction
+		if nr == conf.BlockTimeout-1 && mock.tx != nil {
+			txs = append(txs, mock.tx)
+		}
 		return &block.Block{
-			BlockNumber: nr,
+			BlockNumber:  nr,
+			Transactions: txs,
 		}
 	}
 
@@ -97,6 +108,8 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 		wg.Wait()
 		return true
 	}, test.WaitDuration, test.WaitTick)
+
+	require.True(t, callbackCalled)
 }
 
 func TestVdClient_RegisterHash_LeadingZeroes(t *testing.T) {

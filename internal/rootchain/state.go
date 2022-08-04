@@ -4,6 +4,7 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -16,15 +17,14 @@ import (
 
 // State holds the State of the root chain.
 type State struct {
-	roundNumber               uint64                               // current round number
-	previousRoundRootHash     []byte                               // previous round root hash
-	partitionStore            *partitionStore                      // keeps track of partition in the root chain
-	latestUnicityCertificates *unicityCertificatesStore            // keeps track of latest unicity certificate for each tx system
-	inputRecords              map[string]*certificates.InputRecord // input records ready for certification. key is system identifier
-	incomingRequests          map[string]*requestStore             // keeps track of incoming request. key is system identifier
-	hashAlgorithm             gocrypto.Hash                        // hash algorithm
-	signer                    crypto.Signer                        // private key of the root chain
-	verifier                  crypto.Verifier
+	previousRoundRootHash []byte                               // previous round root hash
+	partitionStore        *partitionStore                      // keeps track of partition in the root chain
+	store                 store.RootChainStore                 // keeps track of latest unicity certificate for each tx system
+	inputRecords          map[string]*certificates.InputRecord // input records ready for certification. key is system identifier
+	incomingRequests      map[string]*requestStore             // keeps track of incoming request. key is system identifier
+	hashAlgorithm         gocrypto.Hash                        // hash algorithm
+	signer                crypto.Signer                        // private key of the root chain
+	verifier              crypto.Verifier
 }
 
 func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, error) {
@@ -43,14 +43,14 @@ func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, 
 	// load unicity certificates
 	for _, p := range g.Partitions {
 		identifier := p.GetSystemIdentifierString()
-		s.latestUnicityCertificates.put(identifier, p.Certificate)
+		s.store.AddUC(identifier, p.Certificate)
 	}
 	// reset incoming requests
 	for _, store := range s.incomingRequests {
 		// rest requests removes all values from the store.
 		store.reset()
 	}
-	s.roundNumber = g.GetRoundNumber() + 1
+	s.store.IncrementRoundNumber()
 	s.previousRoundRootHash = g.GetRoundHash()
 	return s, nil
 }
@@ -94,15 +94,14 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 	}
 
 	return &State{
-		roundNumber:               1,
-		previousRoundRootHash:     make([]byte, gocrypto.SHA256.Size()),
-		latestUnicityCertificates: newUnicityCertificateStore(),
-		inputRecords:              make(map[string]*certificates.InputRecord),
-		incomingRequests:          requestStores,
-		partitionStore:            newPartitionStore(partitions),
-		signer:                    signer,
-		verifier:                  verifier,
-		hashAlgorithm:             hashAlgorithm,
+		previousRoundRootHash: make([]byte, gocrypto.SHA256.Size()),
+		store:                 store.NewUnicityCertificateStore(),
+		inputRecords:          make(map[string]*certificates.InputRecord),
+		incomingRequests:      requestStores,
+		partitionStore:        newPartitionStore(partitions),
+		signer:                signer,
+		verifier:              verifier,
+		hashAlgorithm:         hashAlgorithm,
 	}, nil
 }
 
@@ -111,7 +110,7 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 		return nil, err
 	}
 	systemIdentifier := string(req.SystemIdentifier)
-	latestUnicityCertificate := s.latestUnicityCertificates.get(systemIdentifier)
+	latestUnicityCertificate := s.store.GetUC(systemIdentifier)
 	seal := latestUnicityCertificate.UnicitySeal
 	if req.RootRoundNumber < seal.RootChainRoundNumber {
 		// Older UC, return current.
@@ -142,7 +141,7 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 }
 
 func (s *State) checkConsensus(rs *requestStore) bool {
-	if uc := s.latestUnicityCertificates.get(rs.systemIdentifier); uc != nil {
+	if uc := s.store.GetUC(rs.systemIdentifier); uc != nil {
 		logger.Debug("Checking consensus for '%X', latest completed root round: %v", []byte(rs.systemIdentifier), uc.UnicitySeal.RootChainRoundNumber)
 	}
 	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(rs.systemIdentifier))
@@ -152,7 +151,7 @@ func (s *State) checkConsensus(rs *requestStore) bool {
 		return true
 	} else if !consensusPossible {
 		logger.Debug("Consensus not possible for partition %X.", []byte(rs.systemIdentifier))
-		luc := s.latestUnicityCertificates.get(rs.systemIdentifier)
+		luc := s.store.GetUC(rs.systemIdentifier)
 		if luc != nil {
 			s.inputRecords[rs.systemIdentifier] = luc.InputRecord
 		}
@@ -162,7 +161,7 @@ func (s *State) checkConsensus(rs *requestStore) bool {
 
 func (s *State) CreateUnicityCertificates() ([]string, error) {
 	data := s.toUnicityTreeData(s.inputRecords)
-	logger.Info("Creating unicity certificates. RoundNr %v, inputRecords: %v", s.roundNumber, len(data))
+	logger.Info("Creating unicity certificates. RoundNr %v, inputRecords: %v", s.GetRoundNumber(), len(data))
 	ut, err := unicitytree.New(s.hashAlgorithm.New(), data)
 	if err != nil {
 		return nil, err
@@ -201,7 +200,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 			// should never happen.
 			panic(err)
 		}
-		s.latestUnicityCertificates.put(identifier, certificate)
+		s.store.AddUC(identifier, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
 
@@ -215,18 +214,18 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 
 	s.inputRecords = make(map[string]*certificates.InputRecord)
 	s.previousRoundRootHash = rootHash
-	s.roundNumber++
+	s.store.IncrementRoundNumber()
 	return systemIdentifiers, nil
 }
 
 func (s *State) GetLatestUnicityCertificate(systemID string) *certificates.UnicityCertificate {
-	return s.latestUnicityCertificates.get(systemID)
+	return s.store.GetUC(systemID)
 }
 
 // CopyOldInputRecords copies input records from the latest unicity certificates to inputRecords.
 func (s *State) CopyOldInputRecords(identifier string) {
 	if _, f := s.inputRecords[identifier]; !f {
-		s.inputRecords[identifier] = s.latestUnicityCertificates.get(identifier).InputRecord
+		s.inputRecords[identifier] = s.store.GetUC(identifier).InputRecord
 	}
 }
 
@@ -247,7 +246,7 @@ func (s *State) toUnicityTreeData(records map[string]*certificates.InputRecord) 
 
 func (s *State) createUnicitySeal(rootHash []byte) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
-		RootChainRoundNumber: s.roundNumber,
+		RootChainRoundNumber: s.GetRoundNumber(),
 		PreviousHash:         s.previousRoundRootHash,
 		Hash:                 rootHash,
 	}
@@ -278,5 +277,5 @@ func (s *State) isInputRecordValid(req *certification.BlockCertificationRequest)
 }
 
 func (s *State) GetRoundNumber() uint64 {
-	return s.roundNumber
+	return s.store.GetRoundNumber()
 }

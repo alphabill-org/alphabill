@@ -63,7 +63,7 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 	// generate genesis structs
 	for i, p := range partitions {
 		id := string(p.SystemDescriptionRecord.SystemIdentifier)
-		certificate := state.latestUnicityCertificates.get(id)
+		certificate := state.store.GetUC(id)
 		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
 			Nodes:                   p.Validators,
 			Certificate:             certificate,

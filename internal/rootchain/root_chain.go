@@ -172,7 +172,7 @@ func (rc *RootChain) loop() {
 				logger.Debug("Handling T3 timeout")
 				partitionIdentifiers, err := rc.state.CreateUnicityCertificates()
 				if err != nil {
-					logger.Warning("Round %v failed: %v", rc.state.roundNumber, err)
+					logger.Warning("Round %v failed: %v", rc.state.GetRoundNumber(), err)
 				}
 				rc.sendUC(partitionIdentifiers)
 				rc.timers.Restart(t3TimerID)
@@ -191,7 +191,7 @@ func (rc *RootChain) loop() {
 
 func (rc *RootChain) sendUC(identifiers []string) {
 	for _, identifier := range identifiers {
-		uc := rc.state.latestUnicityCertificates.get(identifier)
+		uc := rc.state.store.GetUC(identifier)
 		if uc == nil {
 			// we don't have uc; continue with the next identifier
 			logger.Warning("Latest UC does not exist for partition: %v", identifier)

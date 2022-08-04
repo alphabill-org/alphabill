@@ -99,13 +99,13 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 
 	s, err := NewStateFromPartitionRecords([]*genesis.PartitionRecord{partition1, partition2}, rootSigner, gocrypto.SHA256)
 	require.NoError(t, err)
-	require.Equal(t, uint64(1), s.roundNumber)
+	require.Equal(t, uint64(1), s.GetRoundNumber())
 	// partition store checks
 	require.Equal(t, 2, s.partitionStore.size())
 	require.Equal(t, 5, s.partitionStore.nodeCount(string(partition1ID)))
 	require.Equal(t, 4, s.partitionStore.nodeCount(string(partition2ID)))
 
-	require.Equal(t, 0, s.latestUnicityCertificates.size())
+	require.Equal(t, 0, s.store.UCCount())
 	require.Equal(t, 0, len(s.inputRecords))
 	require.Equal(t, 2, len(s.incomingRequests))
 	require.Equal(t, 5, len(s.incomingRequests[string(partition1ID)].requests))
@@ -126,10 +126,10 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	// create certificates
 	_, err = s.CreateUnicityCertificates()
 	require.NoError(t, err)
-	require.Equal(t, 2, s.latestUnicityCertificates.size())
-	p1UC := s.latestUnicityCertificates.get(string(partition1ID))
+	require.Equal(t, 2, s.store.UCCount())
+	p1UC := s.store.GetUC(string(partition1ID))
 	require.NotNil(t, p1UC)
-	p2UC := s.latestUnicityCertificates.get(string(partition2ID))
+	p2UC := s.store.GetUC(string(partition2ID))
 	require.NotNil(t, p2UC)
 	require.NotEqual(t, p1UC, p2UC)
 	require.Equal(t, p1UC.UnicitySeal, p2UC.UnicitySeal)
@@ -139,7 +139,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.NoError(t, p2UC.IsValid(rootVerifier, s.hashAlgorithm, partition2ID, p2Hash))
 
 	// verify State after the round
-	require.Equal(t, uint64(2), s.roundNumber)
+	require.Equal(t, uint64(2), s.GetRoundNumber())
 	require.Equal(t, p1UC.UnicitySeal.Hash, s.previousRoundRootHash)
 	require.Equal(t, 2, len(s.incomingRequests))
 	require.Equal(t, 0, len(s.incomingRequests[string(partition1ID)].requests))
@@ -300,7 +300,7 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 	sysIds, err := s.CreateUnicityCertificates()
 	require.NoError(t, err)
 	require.Equal(t, 1, len(sysIds))
-	luc := s.latestUnicityCertificates.get(sysIds[0])
+	luc := s.store.GetUC(sysIds[0])
 	require.NotEqual(t, req.InputRecord.Hash, luc.InputRecord.Hash)
 	require.NotEqual(t, r1.InputRecord.Hash, luc.InputRecord.Hash)
 	require.NotEqual(t, r2.InputRecord.Hash, luc.InputRecord.Hash)
@@ -367,7 +367,7 @@ func CreateBlockCertificationRequest(nodeIdentifier string, s *State, signers cr
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: partition1ID,
 		NodeIdentifier:   nodeIdentifier,
-		RootRoundNumber:  s.roundNumber - 1,
+		RootRoundNumber:  s.GetRoundNumber() - 1,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: partition1IR.Hash,
 			Hash:         []byte{0, 1, 0, 1},

@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	gocrypto "crypto"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -33,7 +34,7 @@ func NewGenesisFromPartitionNodes(nodes []*genesis.PartitionNode, rootSigner cry
 // NewGenesis creates a new genesis for the root chain and each partition.
 func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer, encPubKey crypto.Verifier) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	// initiate State
-	state, err := NewStateFromPartitionRecords(partitions, rootSigner, gocrypto.SHA256)
+	state, err := NewStateFromPartitionRecords(partitions, rootSigner, gocrypto.SHA256, rstore.NewInMemoryRootChainStore())
 	if err != nil {
 		return nil, nil, err
 	}

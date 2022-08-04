@@ -17,17 +17,18 @@ import (
 
 // State holds the State of the root chain.
 type State struct {
-	previousRoundRootHash []byte                               // previous round root hash
-	partitionStore        *partitionStore                      // keeps track of partition in the root chain
-	store                 store.RootChainStore                 // keeps track of latest unicity certificate for each tx system
-	inputRecords          map[string]*certificates.InputRecord // input records ready for certification. key is system identifier
-	incomingRequests      map[string]*requestStore             // keeps track of incoming request. key is system identifier
-	hashAlgorithm         gocrypto.Hash                        // hash algorithm
-	signer                crypto.Signer                        // private key of the root chain
-	verifier              crypto.Verifier
+	partitionStore   *partitionStore                      // keeps track of partition in the root chain
+	store            store.RootChainStore                 // keeps track of latest unicity certificate for each tx system
+	inputRecords     map[string]*certificates.InputRecord // input records ready for certification. key is system identifier
+	incomingRequests map[string]*requestStore             // keeps track of incoming request. key is system identifier
+	hashAlgorithm    gocrypto.Hash                        // hash algorithm
+	signer           crypto.Signer                        // private key of the root chain
+	verifier         crypto.Verifier
 }
 
-func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, error) {
+var zeroHash = make([]byte, gocrypto.SHA256.Size())
+
+func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer, store store.RootChainStore) (*State, error) {
 	_, verifier, err := GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")
@@ -36,28 +37,33 @@ func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, 
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 
-	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), signer, gocrypto.Hash(g.HashAlgorithm))
+	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), signer, gocrypto.Hash(g.HashAlgorithm), store)
 	if err != nil {
 		return nil, err
 	}
 	// load unicity certificates
 	for _, p := range g.Partitions {
 		identifier := p.GetSystemIdentifierString()
-		s.store.AddUC(identifier, p.Certificate)
+		if s.store.GetUC(identifier) == nil {
+			s.store.AddUC(identifier, p.Certificate)
+		}
 	}
 	// reset incoming requests
-	for _, store := range s.incomingRequests {
+	for _, requests := range s.incomingRequests {
 		// rest requests removes all values from the store.
-		store.reset()
+		requests.reset()
 	}
+
 	s.store.IncrementRoundNumber()
-	s.previousRoundRootHash = g.GetRoundHash()
+	if bytes.Equal(s.store.GetPreviousRoundRootHash(), zeroHash) {
+		s.store.SetPreviousRoundRootHash(g.GetRoundHash())
+	}
 	return s, nil
 }
 
 // NewStateFromPartitionRecords creates the State from the genesis.PartitionRecord array. The State returned by this
 // method is usually used to generate genesis file.
-func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer crypto.Signer, hashAlgorithm gocrypto.Hash) (*State, error) {
+func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer crypto.Signer, hashAlgorithm gocrypto.Hash, chainStore store.RootChainStore) (*State, error) {
 	if len(partitions) == 0 {
 		return nil, errors.New("partitions not found")
 	}
@@ -94,14 +100,13 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 	}
 
 	return &State{
-		previousRoundRootHash: make([]byte, gocrypto.SHA256.Size()),
-		store:                 store.NewUnicityCertificateStore(),
-		inputRecords:          make(map[string]*certificates.InputRecord),
-		incomingRequests:      requestStores,
-		partitionStore:        newPartitionStore(partitions),
-		signer:                signer,
-		verifier:              verifier,
-		hashAlgorithm:         hashAlgorithm,
+		store:            chainStore,
+		inputRecords:     make(map[string]*certificates.InputRecord),
+		incomingRequests: requestStores,
+		partitionStore:   newPartitionStore(partitions),
+		signer:           signer,
+		verifier:         verifier,
+		hashAlgorithm:    hashAlgorithm,
 	}, nil
 }
 
@@ -213,7 +218,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 	}
 
 	s.inputRecords = make(map[string]*certificates.InputRecord)
-	s.previousRoundRootHash = rootHash
+	s.store.SetPreviousRoundRootHash(rootHash)
 	s.store.IncrementRoundNumber()
 	return systemIdentifiers, nil
 }
@@ -247,7 +252,7 @@ func (s *State) toUnicityTreeData(records map[string]*certificates.InputRecord) 
 func (s *State) createUnicitySeal(rootHash []byte) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
 		RootChainRoundNumber: s.GetRoundNumber(),
-		PreviousHash:         s.previousRoundRootHash,
+		PreviousHash:         s.store.GetPreviousRoundRootHash(),
 		Hash:                 rootHash,
 	}
 	return u, u.Sign(s.signer)

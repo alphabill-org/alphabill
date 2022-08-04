@@ -1,44 +1,55 @@
 package store
 
 import (
+	gocrypto "crypto"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 )
 
-// UnicityCertificatesStore keeps track of latest unicity certificates.
-type UnicityCertificatesStore struct {
-	ucStore     map[string]*certificates.UnicityCertificate
-	roundNumber uint64 // current round number
+// InMemoryRootChainStore keeps track of latest unicity certificates.
+type InMemoryRootChainStore struct {
+	ucStore               map[string]*certificates.UnicityCertificate
+	roundNumber           uint64 // current round number
+	previousRoundRootHash []byte // previous round root hash
 }
 
-// NewUnicityCertificateStore returns a new empty UnicityCertificatesStore.
-func NewUnicityCertificateStore() *UnicityCertificatesStore {
-	s := UnicityCertificatesStore{
-		ucStore:     make(map[string]*certificates.UnicityCertificate),
-		roundNumber: 1,
+// NewInMemoryRootChainStore returns a new empty InMemoryRootChainStore.
+func NewInMemoryRootChainStore() *InMemoryRootChainStore {
+	s := InMemoryRootChainStore{
+		ucStore:               make(map[string]*certificates.UnicityCertificate),
+		roundNumber:           1,
+		previousRoundRootHash: make([]byte, gocrypto.SHA256.Size()),
 	}
 	return &s
 }
 
 // AddUC adds or replaces the unicity certificate with given identifier.
-func (u *UnicityCertificatesStore) AddUC(identifier string, certificate *certificates.UnicityCertificate) {
+func (u *InMemoryRootChainStore) AddUC(identifier string, certificate *certificates.UnicityCertificate) {
 	u.ucStore[identifier] = certificate
 }
 
 // GetUC returns the unicity certificate or nil if not found.
-func (u *UnicityCertificatesStore) GetUC(id string) *certificates.UnicityCertificate {
+func (u *InMemoryRootChainStore) GetUC(id string) *certificates.UnicityCertificate {
 	return u.ucStore[id]
 }
 
 // UCCount returns the total number of unicity certificates
-func (u *UnicityCertificatesStore) UCCount() int {
+func (u *InMemoryRootChainStore) UCCount() int {
 	return len(u.ucStore)
 }
 
-func (u *UnicityCertificatesStore) GetRoundNumber() uint64 {
+func (u *InMemoryRootChainStore) GetRoundNumber() uint64 {
 	return u.roundNumber
 }
 
-func (u *UnicityCertificatesStore) IncrementRoundNumber() uint64 {
+func (u *InMemoryRootChainStore) IncrementRoundNumber() uint64 {
 	u.roundNumber++
 	return u.roundNumber
+}
+
+func (u *InMemoryRootChainStore) GetPreviousRoundRootHash() []byte {
+	return u.previousRoundRootHash
+}
+
+func (u *InMemoryRootChainStore) SetPreviousRoundRootHash(previousRoundRootHash []byte) {
+	u.previousRoundRootHash = previousRoundRootHash
 }

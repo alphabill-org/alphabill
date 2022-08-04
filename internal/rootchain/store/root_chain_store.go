@@ -8,4 +8,6 @@ type RootChainStore interface {
 	UCCount() int
 	GetRoundNumber() uint64
 	IncrementRoundNumber() uint64
+	GetPreviousRoundRootHash() []byte
+	SetPreviousRoundRootHash([]byte)
 }

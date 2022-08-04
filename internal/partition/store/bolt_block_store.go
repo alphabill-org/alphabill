@@ -1,8 +1,8 @@
 package store
 
 import (
-	"encoding/binary"
 	"encoding/json"
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -69,7 +69,7 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		blockNoInBytes := serializeUint64(b.BlockNumber)
+		blockNoInBytes := util.Uint64ToBytes(b.BlockNumber)
 		err = tx.Bucket(blocksBucket).Put(blockNoInBytes, val)
 		if err != nil {
 			return err
@@ -85,7 +85,7 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
 	var b *block.Block
 	err := bs.db.View(func(tx *bolt.Tx) error {
-		blockJson := tx.Bucket(blocksBucket).Get(serializeUint64(blockNumber))
+		blockJson := tx.Bucket(blocksBucket).Get(util.Uint64ToBytes(blockNumber))
 		if blockJson != nil {
 			return json.Unmarshal(blockJson, &b)
 		}
@@ -100,7 +100,7 @@ func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
 func (bs *BoltBlockStore) Height() (uint64, error) {
 	var height uint64
 	err := bs.db.View(func(tx *bolt.Tx) error {
-		height = deserializeUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
+		height = util.BytesToUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
 		return nil
 	})
 	if err != nil {
@@ -145,7 +145,7 @@ func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 }
 
 func (bs *BoltBlockStore) getLatestBlockNo(tx *bolt.Tx) uint64 {
-	return deserializeUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
+	return util.BytesToUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
 }
 
 func (bs *BoltBlockStore) createBuckets() error {
@@ -170,21 +170,11 @@ func (bs *BoltBlockStore) initMetaData() error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
 		val := tx.Bucket(metaBucket).Get(latestBlockNoKey)
 		if val == nil {
-			err := tx.Bucket(metaBucket).Put(latestBlockNoKey, serializeUint64(0))
+			err := tx.Bucket(metaBucket).Put(latestBlockNoKey, util.Uint64ToBytes(0))
 			if err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-}
-
-func serializeUint64(key uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, key)
-	return b
-}
-
-func deserializeUint64(key []byte) uint64 {
-	return binary.BigEndian.Uint64(key)
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"path"
 	"time"
 
@@ -95,6 +96,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 		rk.SigningPrivateKey,
 		net,
 		rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
+		rootchain.WithRootChainStore(rstore.NewInMemoryRootChainStore()),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)

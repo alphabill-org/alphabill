@@ -3,6 +3,7 @@ package rootchain
 import (
 	"context"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
@@ -42,6 +43,7 @@ type (
 
 	rootChainConf struct {
 		t3Timeout time.Duration
+		store     store.RootChainStore
 	}
 
 	Option func(c *rootChainConf)
@@ -50,6 +52,12 @@ type (
 func WithT3Timeout(timeout time.Duration) Option {
 	return func(c *rootChainConf) {
 		c.t3Timeout = timeout
+	}
+}
+
+func WithRootChainStore(store store.RootChainStore) Option {
+	return func(c *rootChainConf) {
+		c.store = store
 	}
 }
 
@@ -63,13 +71,10 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 		return nil, errors.New("network is nil")
 	}
 	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
-	s, err := NewStateFromGenesis(genesis, signer)
-	if err != nil {
-		return nil, err
-	}
 
 	conf := loadConf(opts)
 
+	s, err := NewStateFromGenesis(genesis, signer, conf.store)
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +235,7 @@ func (rc *RootChain) sendUC(identifiers []string) {
 func loadConf(opts []Option) *rootChainConf {
 	conf := &rootChainConf{
 		t3Timeout: defaultT3Timeout,
+		store:     store.NewInMemoryRootChainStore(),
 	}
 	for _, opt := range opts {
 		if opt == nil {

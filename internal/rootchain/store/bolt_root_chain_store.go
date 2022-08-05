@@ -11,10 +11,12 @@ const BoltRootChainStoreFileName = "rootchain.db"
 
 var (
 	// buckets
-	roundBucket = []byte("roundBucket")
-	ucBucket    = []byte("ucBucket")
+	prevRoundHashBucket = []byte("prevRoundHashBucket")
+	roundBucket         = []byte("roundBucket")
+	ucBucket            = []byte("ucBucket")
 
 	// keys
+	prevRoundHashKey     = []byte("prevRoundHashKey")
 	latestRoundNumberKey = []byte("latestRoundNumberKey")
 )
 
@@ -44,6 +46,10 @@ func NewBoltRootChainStore(dbFile string) (*BoltRootChainStore, error) {
 func (s *BoltRootChainStore) createBuckets() error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(roundBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(prevRoundHashBucket)
 		if err != nil {
 			return err
 		}
@@ -89,7 +95,7 @@ func (s *BoltRootChainStore) GetUC(systemIdentifier string) *certificates.Unicit
 	var uc *certificates.UnicityCertificate
 	err := s.db.View(func(tx *bolt.Tx) error {
 		if ucJson := tx.Bucket(ucBucket).Get([]byte(systemIdentifier)); ucJson != nil {
-			return json.Unmarshal(ucJson, uc)
+			return json.Unmarshal(ucJson, &uc)
 		}
 		return nil
 	})

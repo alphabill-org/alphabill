@@ -171,7 +171,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	if err != nil {
 		return nil, err
 	}
-	blockStore, err := initBlockStore(cfg.DbFile)
+	blockStore, err := initNodeBlockStore(cfg.DbFile)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	return node, nil
 }
 
-func initBlockStore(dbFile string) (store.BlockStore, error) {
+func initNodeBlockStore(dbFile string) (store.BlockStore, error) {
 	if dbFile != "" {
 		return store.NewBoltBlockStore(dbFile)
 	} else {

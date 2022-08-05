@@ -144,3 +144,23 @@ func (s *BoltRootChainStore) IncrementRoundNumber() uint64 {
 	}
 	return roundNr
 }
+
+func (s *BoltRootChainStore) GetPreviousRoundRootHash() []byte {
+	var hash []byte
+	err := s.db.View(func(tx *bolt.Tx) error {
+		hash = tx.Bucket(prevRoundHashBucket).Get(prevRoundHashKey)
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return hash
+}
+
+func (s *BoltRootChainStore) SetPreviousRoundRootHash(hash []byte) {
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(prevRoundHashBucket).Put(prevRoundHashKey, hash)
+	}); err != nil {
+		panic(err)
+	}
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -48,14 +47,29 @@ func (r *rpcServer) ProcessTransaction(ctx context.Context, tx *txsystem.Transac
 }
 
 func (r *rpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
-	block, err := r.node.GetBlock(req.BlockNo)
+	b, err := r.node.GetBlock(req.BlockNumber)
 	if err != nil {
 		return &alphabill.GetBlockResponse{ErrorMessage: err.Error()}, err
 	}
-	return &alphabill.GetBlockResponse{Block: block}, nil
+	return &alphabill.GetBlockResponse{Block: b}, nil
 }
 
-func (r *rpcServer) GetMaxBlockNo(ctx context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
-	maxBlockNr := r.node.GetLatestBlock().GetBlockNumber()
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: maxBlockNr}, nil
+func (r *rpcServer) GetMaxBlockNumber(ctx context.Context, req *alphabill.GetMaxBlockNumberRequest) (*alphabill.GetMaxBlockNumberResponse, error) {
+	maxBlockNumber := r.node.GetLatestBlock().GetBlockNumber()
+	return &alphabill.GetMaxBlockNumberResponse{BlockNumber: maxBlockNumber}, nil
+}
+
+func (r *rpcServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphabillService_GetBlocksServer) error {
+	// TODO verify request
+	for blockNumber := req.GetBlockNumberFrom(); blockNumber <= req.GetBlockNumberUntil(); blockNumber++ {
+		b, err := r.node.GetBlock(blockNumber)
+		if err != nil {
+			return err
+		}
+		err = stream.Send(&alphabill.GetBlocksResponse{Block: b})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

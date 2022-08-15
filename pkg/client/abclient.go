@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -17,7 +18,8 @@ import (
 // ABClient manages connection to alphabill node and implements RPC methods
 type ABClient interface {
 	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	GetBlock(blockNo uint64) (*block.Block, error)
+	GetBlock(blockNumber uint64) (*block.Block, error)
+	GetBlocks(ctx context.Context, blockNumberFrom, blockNumberUntil uint64, ch chan<- *block.Block) error
 	GetMaxBlockNumber() (uint64, error)
 	Shutdown() error
 	IsShutdown() bool
@@ -36,11 +38,13 @@ type AlphabillClient struct {
 
 	// mu mutex guarding mutable fields (connection and client)
 	mu sync.RWMutex
+
+	cancelCh chan bool
 }
 
 // New creates instance of AlphabillClient
 func New(config AlphabillClientConfig) *AlphabillClient {
-	return &AlphabillClient{config: config}
+	return &AlphabillClient{config: config, cancelCh: make(chan bool, 1)}
 }
 
 func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
@@ -72,7 +76,7 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNo}, grpc.WaitForReady(c.config.WaitForReady))
+	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNumber: blockNo}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +84,37 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 		return nil, errors.New(res.ErrorMessage)
 	}
 	return res.Block, nil
+}
+
+func (c *AlphabillClient) GetBlocks(ctx context.Context, from uint64, until uint64, ch chan<- *block.Block) error {
+	err := c.connect()
+	if err != nil {
+		return err
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	stream, err := c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumberFrom: from, BlockNumberUntil: until})
+	if err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-c.cancelCh: // canceled from shutdown
+			return nil
+		case <-ctx.Done(): // canceled by user or error in block receiver
+			return nil
+		default:
+			res, err := stream.Recv()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			ch <- res.Block
+		}
+	}
 }
 
 func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
@@ -95,20 +130,26 @@ func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{}, grpc.WaitForReady(c.config.WaitForReady))
+	res, err := c.client.GetMaxBlockNumber(ctx, &alphabill.GetMaxBlockNumberRequest{}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return 0, err
 	}
 	if res.ErrorMessage != "" {
 		return 0, errors.New(res.ErrorMessage)
 	}
-	return res.BlockNo, nil
+	return res.BlockNumber, nil
 }
 
 func (c *AlphabillClient) Shutdown() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.isShutdown() {
+		// signal GetBlocks rpc stream to close
+		select {
+		case c.cancelCh <- true:
+		default:
+		}
+
 		err := c.connection.Close()
 		if err != nil {
 			return errors.Wrap(err, "error shutting down alphabill client")

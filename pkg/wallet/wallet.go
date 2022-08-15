@@ -128,7 +128,7 @@ func (w *Wallet) syncLedger(ctx context.Context, blockNumber uint64, syncForever
 		if syncForever {
 			err = w.fetchBlocksForever(ctx, blockNumber, ch)
 		} else {
-			err = w.fetchBlocksUntilMaxBlock(ctx, blockNumber, ch)
+			err = w.fetchBlocksUntilMaxBlockStream(ctx, blockNumber, ch)
 		}
 		log.Info("closing block receiver channel")
 		close(ch)
@@ -197,6 +197,14 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, blockNumber uint6
 		}
 	}
 	return nil
+}
+
+func (w *Wallet) fetchBlocksUntilMaxBlockStream(ctx context.Context, blockNumber uint64, ch chan<- *block.Block) error {
+	maxBlockNo, err := w.GetMaxBlockNumber()
+	if err != nil {
+		return err
+	}
+	return w.AlphabillClient.GetBlocks(ctx, blockNumber+1, maxBlockNo, ch)
 }
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {

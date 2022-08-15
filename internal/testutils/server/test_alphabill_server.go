@@ -2,6 +2,7 @@ package testserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -36,17 +37,33 @@ func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *t
 func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	blockFunc, f := s.blocks[req.BlockNo]
+	blockFunc, f := s.blocks[req.BlockNumber]
 	if !f {
-		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
+		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNumber)}, nil
 	}
 	return blockFunc(), nil
 }
 
-func (s *TestAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
+func (s *TestAlphabillServiceServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphabillService_GetBlocksServer) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: s.maxBlockHeight}, nil
+	for i := req.BlockNumberFrom; i <= req.BlockNumberUntil; i++ {
+		blockFunc, f := s.blocks[i]
+		if !f {
+			return errors.New(fmt.Sprintf("block with number %v not found", i))
+		}
+		err := stream.Send(&alphabill.GetBlocksResponse{Block: blockFunc().Block})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *TestAlphabillServiceServer) GetMaxBlockNumber(context.Context, *alphabill.GetMaxBlockNumberRequest) (*alphabill.GetMaxBlockNumberResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return &alphabill.GetMaxBlockNumberResponse{BlockNumber: s.maxBlockHeight}, nil
 }
 
 func (s *TestAlphabillServiceServer) GetPubKey() []byte {
@@ -73,7 +90,7 @@ func (s *TestAlphabillServiceServer) GetProcessedTransactions() []*txsystem.Tran
 	return s.processedTxs
 }
 
-func (s *TestAlphabillServiceServer) GetBlocks() map[uint64]func() *alphabill.GetBlockResponse {
+func (s *TestAlphabillServiceServer) GetAllBlocks() map[uint64]func() *alphabill.GetBlockResponse {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.blocks

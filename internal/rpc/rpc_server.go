@@ -47,16 +47,16 @@ func (r *rpcServer) ProcessTransaction(ctx context.Context, tx *txsystem.Transac
 }
 
 func (r *rpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
-	b, err := r.node.GetBlock(req.BlockNumber)
+	b, err := r.node.GetBlock(req.BlockNo)
 	if err != nil {
 		return &alphabill.GetBlockResponse{ErrorMessage: err.Error()}, err
 	}
 	return &alphabill.GetBlockResponse{Block: b}, nil
 }
 
-func (r *rpcServer) GetMaxBlockNumber(ctx context.Context, req *alphabill.GetMaxBlockNumberRequest) (*alphabill.GetMaxBlockNumberResponse, error) {
+func (r *rpcServer) GetMaxBlockNo(ctx context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
 	maxBlockNumber := r.node.GetLatestBlock().GetBlockNumber()
-	return &alphabill.GetMaxBlockNumberResponse{BlockNumber: maxBlockNumber}, nil
+	return &alphabill.GetMaxBlockNoResponse{BlockNo: maxBlockNumber}, nil
 }
 
 func (r *rpcServer) GetBlocks(req *alphabill.GetBlocksRequest, stream alphabill.AlphabillService_GetBlocksServer) error {

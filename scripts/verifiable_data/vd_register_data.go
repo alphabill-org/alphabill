@@ -57,11 +57,11 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	blockNr, err := txClient.GetMaxBlockNumber(ctx, &alphabill.GetMaxBlockNumberRequest{})
+	blockNr, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := blockNr.BlockNumber + *timeout
+	absoluteTimeout := blockNr.BlockNo + *timeout
 
 	// create tx
 	tx, err := createRegisterDataTx(dataId, absoluteTimeout)

@@ -37,9 +37,9 @@ func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *t
 func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	blockFunc, f := s.blocks[req.BlockNumber]
+	blockFunc, f := s.blocks[req.BlockNo]
 	if !f {
-		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNumber)}, nil
+		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
 	}
 	return blockFunc(), nil
 }
@@ -60,10 +60,10 @@ func (s *TestAlphabillServiceServer) GetBlocks(req *alphabill.GetBlocksRequest, 
 	return nil
 }
 
-func (s *TestAlphabillServiceServer) GetMaxBlockNumber(context.Context, *alphabill.GetMaxBlockNumberRequest) (*alphabill.GetMaxBlockNumberResponse, error) {
+func (s *TestAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return &alphabill.GetMaxBlockNumberResponse{BlockNumber: s.maxBlockHeight}, nil
+	return &alphabill.GetMaxBlockNoResponse{BlockNo: s.maxBlockHeight}, nil
 }
 
 func (s *TestAlphabillServiceServer) GetPubKey() []byte {

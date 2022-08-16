@@ -76,7 +76,7 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNumber: blockNo}, grpc.WaitForReady(c.config.WaitForReady))
+	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNo}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return nil, err
 	}
@@ -130,14 +130,14 @@ func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetMaxBlockNumber(ctx, &alphabill.GetMaxBlockNumberRequest{}, grpc.WaitForReady(c.config.WaitForReady))
+	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return 0, err
 	}
 	if res.ErrorMessage != "" {
 		return 0, errors.New(res.ErrorMessage)
 	}
-	return res.BlockNumber, nil
+	return res.BlockNo, nil
 }
 
 func (c *AlphabillClient) Shutdown() error {

@@ -26,7 +26,7 @@ type AlphabillServiceClient interface {
 	ProcessTransaction(ctx context.Context, in *txsystem.Transaction, opts ...grpc.CallOption) (*txsystem.TransactionResponse, error)
 	GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (*GetBlockResponse, error)
 	GetBlocks(ctx context.Context, in *GetBlocksRequest, opts ...grpc.CallOption) (AlphabillService_GetBlocksClient, error)
-	GetMaxBlockNumber(ctx context.Context, in *GetMaxBlockNumberRequest, opts ...grpc.CallOption) (*GetMaxBlockNumberResponse, error)
+	GetMaxBlockNo(ctx context.Context, in *GetMaxBlockNoRequest, opts ...grpc.CallOption) (*GetMaxBlockNoResponse, error)
 }
 
 type alphabillServiceClient struct {
@@ -87,9 +87,9 @@ func (x *alphabillServiceGetBlocksClient) Recv() (*GetBlocksResponse, error) {
 	return m, nil
 }
 
-func (c *alphabillServiceClient) GetMaxBlockNumber(ctx context.Context, in *GetMaxBlockNumberRequest, opts ...grpc.CallOption) (*GetMaxBlockNumberResponse, error) {
-	out := new(GetMaxBlockNumberResponse)
-	err := c.cc.Invoke(ctx, "/abrpc.AlphabillService/GetMaxBlockNumber", in, out, opts...)
+func (c *alphabillServiceClient) GetMaxBlockNo(ctx context.Context, in *GetMaxBlockNoRequest, opts ...grpc.CallOption) (*GetMaxBlockNoResponse, error) {
+	out := new(GetMaxBlockNoResponse)
+	err := c.cc.Invoke(ctx, "/abrpc.AlphabillService/GetMaxBlockNo", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ type AlphabillServiceServer interface {
 	ProcessTransaction(context.Context, *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(context.Context, *GetBlockRequest) (*GetBlockResponse, error)
 	GetBlocks(*GetBlocksRequest, AlphabillService_GetBlocksServer) error
-	GetMaxBlockNumber(context.Context, *GetMaxBlockNumberRequest) (*GetMaxBlockNumberResponse, error)
+	GetMaxBlockNo(context.Context, *GetMaxBlockNoRequest) (*GetMaxBlockNoResponse, error)
 	mustEmbedUnimplementedAlphabillServiceServer()
 }
 
@@ -120,8 +120,8 @@ func (UnimplementedAlphabillServiceServer) GetBlock(context.Context, *GetBlockRe
 func (UnimplementedAlphabillServiceServer) GetBlocks(*GetBlocksRequest, AlphabillService_GetBlocksServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetBlocks not implemented")
 }
-func (UnimplementedAlphabillServiceServer) GetMaxBlockNumber(context.Context, *GetMaxBlockNumberRequest) (*GetMaxBlockNumberResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetMaxBlockNumber not implemented")
+func (UnimplementedAlphabillServiceServer) GetMaxBlockNo(context.Context, *GetMaxBlockNoRequest) (*GetMaxBlockNoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMaxBlockNo not implemented")
 }
 func (UnimplementedAlphabillServiceServer) mustEmbedUnimplementedAlphabillServiceServer() {}
 
@@ -193,20 +193,20 @@ func (x *alphabillServiceGetBlocksServer) Send(m *GetBlocksResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _AlphabillService_GetMaxBlockNumber_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMaxBlockNumberRequest)
+func _AlphabillService_GetMaxBlockNo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMaxBlockNoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AlphabillServiceServer).GetMaxBlockNumber(ctx, in)
+		return srv.(AlphabillServiceServer).GetMaxBlockNo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/abrpc.AlphabillService/GetMaxBlockNumber",
+		FullMethod: "/abrpc.AlphabillService/GetMaxBlockNo",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AlphabillServiceServer).GetMaxBlockNumber(ctx, req.(*GetMaxBlockNumberRequest))
+		return srv.(AlphabillServiceServer).GetMaxBlockNo(ctx, req.(*GetMaxBlockNoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -227,8 +227,8 @@ var AlphabillService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AlphabillService_GetBlock_Handler,
 		},
 		{
-			MethodName: "GetMaxBlockNumber",
-			Handler:    _AlphabillService_GetMaxBlockNumber_Handler,
+			MethodName: "GetMaxBlockNo",
+			Handler:    _AlphabillService_GetMaxBlockNo_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

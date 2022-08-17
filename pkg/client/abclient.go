@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"sync"
 	"time"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
@@ -19,7 +20,7 @@ import (
 type ABClient interface {
 	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(blockNumber uint64) (*block.Block, error)
-	GetBlocks(ctx context.Context, blockNumberFrom, blockNumberUntil uint64, ch chan<- *block.Block) error
+	GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error)
 	GetMaxBlockNumber() (uint64, error)
 	Shutdown() error
 	IsShutdown() bool
@@ -86,35 +87,28 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 	return res.Block, nil
 }
 
-func (c *AlphabillClient) GetBlocks(ctx context.Context, from uint64, until uint64, ch chan<- *block.Block) error {
+func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) ([]*block.Block, error) {
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+blockCount-1))
 	err := c.connect()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
-	stream, err := c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumberFrom: from, BlockNumberUntil: until})
+	ctx := context.Background()
+	if c.config.RequestTimeoutMs > 0 {
+		ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(c.config.RequestTimeoutMs)*time.Millisecond)
+		defer cancel()
+		ctx = ctxTimeout
+	}
+	res, err := c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for {
-		select {
-		case <-c.cancelCh: // canceled from shutdown
-			return nil
-		case <-ctx.Done(): // canceled by user or error in block receiver
-			return nil
-		default:
-			res, err := stream.Recv()
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			ch <- res.Block
-		}
+	if res.ErrorMessage != "" {
+		return nil, errors.New(res.ErrorMessage)
 	}
+	return res.Blocks, nil
 }
 
 func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
@@ -188,4 +182,8 @@ func (c *AlphabillClient) connect() error {
 	c.connection = conn
 	c.client = alphabill.NewAlphabillServiceClient(conn)
 	return nil
+}
+
+func trackExecutionTime(start time.Time, name string) {
+	log.Info(name, " took ", time.Since(start))
 }

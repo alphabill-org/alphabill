@@ -265,11 +265,8 @@ func (a *abClientMock) GetBlock(n uint64) (*block.Block, error) {
 	return nil, nil
 }
 
-func (a *abClientMock) GetBlocks(ctx context.Context, blockNumberFrom, blockNumberUntil uint64, ch chan<- *block.Block) error {
-	if a.block != nil {
-		ch <- a.block(blockNumberFrom)
-	}
-	return nil
+func (a *abClientMock) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
+	return []*block.Block{a.block(blockNumber)}, nil
 }
 
 func (a *abClientMock) GetMaxBlockNumber() (uint64, error) {

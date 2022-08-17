@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	prefetchBlockCount          = 10
+	prefetchBlockCount          = 100
 	sleepTimeAtMaxBlockHeightMs = 500
+	blockDownloadBatchSize      = 100
 )
 
 var (
@@ -128,7 +129,7 @@ func (w *Wallet) syncLedger(ctx context.Context, blockNumber uint64, syncForever
 		if syncForever {
 			err = w.fetchBlocksForever(ctx, blockNumber, ch)
 		} else {
-			err = w.fetchBlocksUntilMaxBlockStream(ctx, blockNumber, ch)
+			err = w.fetchBlocksUntilMaxBlock(ctx, blockNumber, ch)
 		}
 		log.Info("closing block receiver channel")
 		close(ch)
@@ -162,13 +163,9 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, blockNumber uint64, ch 
 				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
 				continue
 			}
-			b, err := w.AlphabillClient.GetBlock(blockNumber + 1)
+			blockNumber, err = w.fetchBlocks(blockNumber, maxBlockNo, ch)
 			if err != nil {
 				return err
-			}
-			if b != nil {
-				blockNumber = b.BlockNumber
-				ch <- b
 			}
 		}
 	}
@@ -186,25 +183,36 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, blockNumber uint6
 		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
-			b, err := w.AlphabillClient.GetBlock(blockNumber + 1)
+			blockNumber, err = w.fetchBlocks(blockNumber, maxBlockNo, ch)
 			if err != nil {
 				return err
-			}
-			if b != nil {
-				blockNumber = b.BlockNumber
-				ch <- b
 			}
 		}
 	}
 	return nil
 }
 
-func (w *Wallet) fetchBlocksUntilMaxBlockStream(ctx context.Context, blockNumber uint64, ch chan<- *block.Block) error {
-	maxBlockNo, err := w.GetMaxBlockNumber()
-	if err != nil {
-		return err
+func (w *Wallet) fetchBlocks(blockNumber uint64, maxBlockNo uint64, ch chan<- *block.Block) (uint64, error) {
+	if maxBlockNo-blockNumber >= blockDownloadBatchSize {
+		blocks, err := w.AlphabillClient.GetBlocks(blockNumber+1, blockDownloadBatchSize)
+		if err != nil {
+			return 0, err
+		}
+		for _, b := range blocks {
+			blockNumber = b.BlockNumber
+			ch <- b
+		}
+	} else {
+		b, err := w.AlphabillClient.GetBlock(blockNumber + 1)
+		if err != nil {
+			return 0, err
+		}
+		if b != nil {
+			blockNumber = b.BlockNumber
+			ch <- b
+		}
 	}
-	return w.AlphabillClient.GetBlocks(ctx, blockNumber+1, maxBlockNo, ch)
+	return blockNumber, nil
 }
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {

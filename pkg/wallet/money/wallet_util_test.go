@@ -1,7 +1,6 @@
 package money
 
 import (
-	"context"
 	"os"
 	"path"
 	"testing"
@@ -30,8 +29,8 @@ func (c *mockAlphabillClient) GetBlock(uint64) (*block.Block, error) {
 	return nil, nil
 }
 
-func (c *mockAlphabillClient) GetBlocks(ctx context.Context, blockNumberFrom, blockNumberUntil uint64, ch chan<- *block.Block) error {
-	return nil
+func (c *mockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
+	return nil, nil
 }
 
 func (c *mockAlphabillClient) GetMaxBlockNumber() (uint64, error) {

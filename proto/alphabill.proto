@@ -9,17 +9,18 @@ option go_package = "github.com/alphabill-org/alphabill/internal/alphabill/alpha
 service AlphabillService {
   rpc ProcessTransaction(Transaction) returns (TransactionResponse) {};
   rpc GetBlock(GetBlockRequest) returns (GetBlockResponse) {};
-  rpc GetBlocks(GetBlocksRequest) returns (stream GetBlocksResponse) {};
+  rpc GetBlocks(GetBlocksRequest) returns (GetBlocksResponse) {};
   rpc GetMaxBlockNo(GetMaxBlockNoRequest) returns (GetMaxBlockNoResponse) {};
 }
 
 message GetBlocksRequest {
-  uint64 block_number_from = 1;
-  uint64 block_number_until = 2;
+  uint64 block_number = 1;
+  uint64 block_count = 2;
 }
 
 message GetBlocksResponse {
-  Block block = 2;
+  string error_message = 1;
+  repeated Block blocks = 2;
 }
 
 message GetBlockRequest {

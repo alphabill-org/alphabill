@@ -22,7 +22,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	addBills(t, w)
 
 	// when dc runs
-	err := w.collectDust(context.Background(), false)
+	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then metadata is updated
@@ -233,7 +233,7 @@ func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
 
 func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	w, _ := CreateTestWallet(t)
-	k, _ := w.db.Do().GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey(0)
 
 	dcBills := []*bill{
 		{Id: uint256.NewInt(2), DcTx: testtransaction.CreateRandomDcTx()},
@@ -260,9 +260,9 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	b1 := &bill{Id: uint256.NewInt(0), IsDcBill: false}
 	b2 := &bill{Id: uint256.NewInt(1), IsDcBill: true, DcExpirationTimeout: 10}
 	b3 := &bill{Id: uint256.NewInt(2), IsDcBill: true, DcExpirationTimeout: 20}
-	_ = w.db.Do().SetBill(b1)
-	_ = w.db.Do().SetBill(b2)
-	_ = w.db.Do().SetBill(b3)
+	_ = w.db.Do().SetBill(0, b1)
+	_ = w.db.Do().SetBill(0, b2)
+	_ = w.db.Do().SetBill(0, b3)
 	blockHeight := uint64(15)
 	_ = w.db.Do().SetBlockNumber(blockHeight)
 
@@ -280,7 +280,7 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that one expired bill gets removed and remaining bills are not expired
-	bills, _ := w.db.Do().GetBills()
+	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 2)
 	for _, b := range bills {
 		require.False(t, b.isExpired(blockHeight))
@@ -298,7 +298,7 @@ func addBill(t *testing.T, w *Wallet, value uint64) *bill {
 		Value:  value,
 		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
-	err := w.db.Do().SetBill(&b1)
+	err := w.db.Do().SetBill(0, &b1)
 	require.NoError(t, err)
 	return &b1
 }
@@ -315,7 +315,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 		Value:  value,
 		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
-	k, _ := w.db.Do().GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey(0)
 
 	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
 	require.NoError(t, err)
@@ -326,7 +326,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout
 
-	err = w.db.Do().SetBill(&b)
+	err = w.db.Do().SetBill(0, &b)
 	require.NoError(t, err)
 	return &b
 }
@@ -364,7 +364,7 @@ func setBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 }
 
 func verifyBalance(t *testing.T, w *Wallet, balance uint64) {
-	actualDcNonce, err := w.db.Do().GetBalance()
+	actualDcNonce, err := w.db.Do().GetBalance(0)
 	require.NoError(t, err)
 	require.EqualValues(t, balance, actualDcNonce)
 }
@@ -391,7 +391,7 @@ func parseSwapTx(t *testing.T, tx *txsystem.Transaction) *billtx.SwapOrder {
 }
 
 func calculateExpectedDcNonce(t *testing.T, w *Wallet) []byte {
-	bills, err := w.db.Do().GetBills()
+	bills, err := w.db.Do().GetBills(0)
 	require.NoError(t, err)
 	return calculateDcNonce(bills)
 }

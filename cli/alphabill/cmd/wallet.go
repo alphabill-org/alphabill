@@ -193,7 +193,7 @@ func execSendCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	err = w.Send(pubKey, amount)
+	err = w.Send(pubKey, amount, 0)
 	if err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	balance, err := w.GetBalance()
+	balance, err := w.GetBalance(0)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func execGetPubKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	pubKey, err := w.GetPublicKey()
+	pubKey, err := w.GetPublicKey(0)
 	if err != nil {
 		return err
 	}

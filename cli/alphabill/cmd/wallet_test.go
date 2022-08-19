@@ -53,7 +53,7 @@ func TestWalletGetBalanceCmd(t *testing.T) {
 
 func TestPubKeyCmd(t *testing.T) {
 	stdout := execCommand(t, "get-pubkey")
-	verifyStdout(t, stdout, "0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0")
+	verifyStdout(t, stdout, "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 }
 
 /*
@@ -77,11 +77,11 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.NoError(t, err)
 
 	w1 := createNewNamedWallet(t, "wallet-1", ":9543")
-	w1PubKey, _ := w1.GetPublicKey()
+	w1PubKey, _ := w1.GetPublicKey(0)
 	w1.Shutdown()
 
 	w2 := createNewNamedWallet(t, "wallet-2", ":9543")
-	w2PubKey, _ := w2.GetPublicKey()
+	w2PubKey, _ := w2.GetPublicKey(0)
 	w2.Shutdown()
 
 	// transfer initial bill to wallet 1

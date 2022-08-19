@@ -30,17 +30,19 @@ import (
 const (
 	testMnemonic                 = "dinosaur simple verify deliver bless ridge monkey design venue six problem lucky"
 	testMasterKeyBase58          = "xprv9s21ZrQH143K4ZSw4N2P35FTs9PNiLAuufvQWoodWoneZ71o52jTL4VJuEXHej21BPUF9dQm5u3curjcem5zsARtq1MKP9mrbbq1qKqyuFX"
-	testPubKeyHex                = "0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
-	testPrivKeyHex               = "a5e8bff9733ebc751a45ca4b8cc6ce8e76c8316a5eb556f738092df6232e78de"
-	testPubKeyHashSha256Hex      = "35e22185db8875c75af23b334676e76b723f10eba2a314b2c64d71c0299b5e3a"
-	testPubKeyHashSha512Hex      = "be7a5c70c13611ea4cdc075c50e6a1cbbca54fc7acf6e330436d04d91063eab80e8f45864895f793d5bc5fb2c57c6813e3dd8b773286d716938537f0a9794b2e"
+	testPubKey0Hex               = "03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	testPubKey1Hex               = "02d36c574db299904b285aaeb57eb7b1fa145c43af90bec3c635c4174c224587b6"
+	testPubKey2Hex               = "02f6cbeacfd97ebc9b657081eb8b6c9ed3a588646d618ddbd03e198290af94c9d2"
+	testPrivKey0Hex              = "70096ea8536cfba71203a959ed7de2a5900c5547762606f73b2aa078a66e355f"
+	testPubKey0HashSha256Hex     = "f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
+	testPubKey0HashSha512Hex     = "9254c2cb897e4b458ba51eb200015e301d578cd5572b75068dfd1332f8200d15b2642f623d5a5d8e8174508e93b22c75801ea95bf9be479de90aaf2776171251"
 	testAccountKeyDerivationPath = "m/44'/634'/0'/0/0"
 )
 
 func TestWalletCanBeCreated(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	balance, err := w.GetBalance()
+	balance, err := w.GetBalance(0)
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -53,7 +55,7 @@ func TestWalletCanBeCreated(t *testing.T) {
 	masterKey, err := hdkeychain.NewKeyFromString(masterKeyString)
 	require.NoError(t, err)
 
-	ac, err := w.db.Do().GetAccountKey()
+	ac, err := w.db.Do().GetAccountKey(0)
 	require.NoError(t, err)
 
 	eac, err := wallet.NewAccountKey(masterKey, testAccountKeyDerivationPath)
@@ -87,11 +89,11 @@ func TestWalletSendFunction(t *testing.T) {
 	amount := uint64(50)
 
 	// test ErrInvalidPubKey
-	err := w.Send(invalidPubKey, amount)
+	err := w.Send(invalidPubKey, amount, 0)
 	require.ErrorIs(t, err, ErrInvalidPubKey)
 
 	// test ErrInsufficientBalance
-	err = w.Send(validPubKey, amount)
+	err = w.Send(validPubKey, amount, 0)
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 
 	// test abclient returns error
@@ -100,30 +102,87 @@ func TestWalletSendFunction(t *testing.T) {
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	err = w.db.Do().SetBill(&b)
+	err = w.db.Do().SetBill(0, &b)
 	require.NoError(t, err)
 	mockClient.txResponse = &txsystem.TransactionResponse{Ok: false, Message: "some error"}
-	err = w.Send(validPubKey, amount)
+	err = w.Send(validPubKey, amount, 0)
 	require.ErrorContains(t, err, "payment returned error code: some error")
 	mockClient.txResponse = nil
 
 	// test ErrSwapInProgress
 	nonce := calculateExpectedDcNonce(t, w)
 	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
-	err = w.Send(validPubKey, amount)
+	err = w.Send(validPubKey, amount, 0)
 	require.ErrorIs(t, err, ErrSwapInProgress)
 	setDcMetadata(t, w, nonce, nil)
 
 	// test ok response
-	err = w.Send(validPubKey, amount)
+	err = w.Send(validPubKey, amount, 0)
+	require.NoError(t, err)
+
+	// test another account
+	_, _, _ = w.AddAccount()
+	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(55555), Value: 50})
+	err = w.Send(validPubKey, amount, 1)
 	require.NoError(t, err)
 }
 
 func TestWallet_GetPublicKey(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
-	pubKey, err := w.GetPublicKey()
+	pubKey, err := w.GetPublicKey(0)
 	require.NoError(t, err)
-	require.EqualValues(t, "0x"+testPubKeyHex, hexutil.Encode(pubKey))
+	require.EqualValues(t, "0x"+testPubKey0Hex, hexutil.Encode(pubKey))
+}
+
+func TestWallet_GetPublicKeys(t *testing.T) {
+	w, _ := CreateTestWalletFromSeed(t)
+	_, _, _ = w.AddAccount()
+
+	pubKeys, err := w.GetPublicKeys()
+	require.NoError(t, err)
+	require.Len(t, pubKeys, 2)
+	require.EqualValues(t, "0x"+testPubKey0Hex, hexutil.Encode(pubKeys[0]))
+	require.EqualValues(t, "0x"+testPubKey1Hex, hexutil.Encode(pubKeys[1]))
+}
+
+func TestWallet_AddKey(t *testing.T) {
+	w, _ := CreateTestWalletFromSeed(t)
+
+	accNum, accPubKey, err := w.AddAccount()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, accNum)
+	require.EqualValues(t, "0x"+testPubKey1Hex, hexutil.Encode(accPubKey))
+	accNum, _ = w.db.Do().GetMaxAccountNumber()
+	require.EqualValues(t, 1, accNum)
+
+	accNum, accPubKey, err = w.AddAccount()
+	require.NoError(t, err)
+	require.EqualValues(t, 2, accNum)
+	require.EqualValues(t, "0x"+testPubKey2Hex, hexutil.Encode(accPubKey))
+	accNum, _ = w.db.Do().GetMaxAccountNumber()
+	require.EqualValues(t, 2, accNum)
+}
+
+func TestWallet_GetBalance(t *testing.T) {
+	w, _ := CreateTestWalletFromSeed(t)
+	balance, err := w.GetBalance(0)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, balance)
+}
+
+func TestWallet_GetBalances(t *testing.T) {
+	w, _ := CreateTestWalletFromSeed(t)
+	_ = w.db.Do().SetBill(0, &bill{Id: uint256.NewInt(0), Value: 1})
+	_ = w.db.Do().SetBill(0, &bill{Id: uint256.NewInt(1), Value: 1})
+
+	_, _, _ = w.AddAccount()
+	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(2), Value: 2})
+	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(3), Value: 2})
+
+	balances, err := w.GetBalances()
+	require.NoError(t, err)
+	require.EqualValues(t, 2, balances[0])
+	require.EqualValues(t, 4, balances[1])
 }
 
 func TestWalletIsClosedAfterCallingIsEncrypted(t *testing.T) {
@@ -140,14 +199,14 @@ func TestWalletIsClosedAfterCallingIsEncrypted(t *testing.T) {
 	require.NoError(t, err)
 
 	// then using wallet db should not hang
-	_, err = w.GetPublicKey()
+	_, err = w.GetPublicKey(0)
 	require.NoError(t, err)
 }
 
 func TestBlockProcessing(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	k, err := w.db.Do().GetAccountKey()
+	k, err := w.db.Do().GetAccountKey(0)
 	require.NoError(t, err)
 
 	blocks := []*block.Block{
@@ -199,7 +258,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify balance 0 before processing
-	balance, err := w.db.Do().GetBalance()
+	balance, err := w.db.Do().GetBalance(0)
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -215,7 +274,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify balance after block processing
-	balance, err = w.db.Do().GetBalance()
+	balance, err = w.db.Do().GetBalance(0)
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }
@@ -237,7 +296,7 @@ func TestBlockProcessing_InvalidSystemID(t *testing.T) {
 
 func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	w, _ := CreateTestWallet(t)
-	k, _ := w.db.Do().GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey(0)
 
 	testBlock := &block.Block{
 		SystemIdentifier:  alphabillMoneySystemId,
@@ -286,7 +345,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	merkleTree, err := createMerkleTree(testBlock.Transactions)
 	require.NoError(t, err)
 
-	bills, err := w.db.Do().GetBills()
+	bills, err := w.db.Do().GetBills(0)
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
 
@@ -327,7 +386,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	receiverPubKey := make([]byte, 33)
 
 	// when whole balance is spent
-	err := w.Send(receiverPubKey, 100)
+	err := w.Send(receiverPubKey, 100, 0)
 	require.NoError(t, err)
 
 	// then bill transfer order should be sent
@@ -368,12 +427,12 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	mk, err := w.db.Do().GetMasterKey()
 	require.Equal(t, testMasterKeyBase58, mk)
 
-	ac, err := w.db.Do().GetAccountKey()
+	ac, err := w.db.Do().GetAccountKey(0)
 	require.NoError(t, err)
-	require.Equal(t, testPubKeyHex, hex.EncodeToString(ac.PubKey))
-	require.Equal(t, testPrivKeyHex, hex.EncodeToString(ac.PrivKey))
-	require.Equal(t, testPubKeyHashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
-	require.Equal(t, testPubKeyHashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
+	require.Equal(t, testPubKey0Hex, hex.EncodeToString(ac.PubKey))
+	require.Equal(t, testPrivKey0Hex, hex.EncodeToString(ac.PrivKey))
+	require.Equal(t, testPubKey0HashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
+	require.Equal(t, testPubKey0HashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
 }
 
 func createMerkleTree(blockTxs []*txsystem.Transaction) (*mt.MerkleTree, error) {

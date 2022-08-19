@@ -20,18 +20,20 @@ import (
 )
 
 var (
-	keysBucket   = []byte("keys")
-	billsBucket  = []byte("bills")
-	metaBucket   = []byte("meta")
-	dcMetaBucket = []byte("dcMetadata")
+	keysBucket         = []byte("keys")
+	accountsBucket     = []byte("accounts")
+	accountBillsBucket = []byte("accountBills")
+	metaBucket         = []byte("meta")
+	dcMetaBucket       = []byte("dcMetadata")
 )
 
 var (
-	accountKeyName     = []byte("accountKey")
-	masterKeyName      = []byte("masterKey")
-	mnemonicKeyName    = []byte("mnemonicKey")
-	blockHeightKeyName = []byte("blockHeightKey")
-	isEncryptedKeyName = []byte("isEncryptedKey")
+	masterKeyName           = []byte("masterKey")
+	mnemonicKeyName         = []byte("mnemonicKey")
+	accountKeyName          = []byte("accountKey")
+	blockHeightKeyName      = []byte("blockHeightKey")
+	isEncryptedKeyName      = []byte("isEncryptedKey")
+	maxAccountNumberKeyName = []byte("maxAccountNumberKey")
 )
 
 var (
@@ -51,8 +53,11 @@ type Db interface {
 }
 
 type TxContext interface {
-	GetAccountKey() (*wallet.AccountKey, error)
-	SetAccountKey(key *wallet.AccountKey) error
+	AddAccount(accountNumber uint64, key *wallet.AccountKey) error
+	GetAccountKey(accountNumber uint64) (*wallet.AccountKey, error)
+	GetAccountKeys() (map[uint64]*wallet.AccountKey, error)
+	GetMaxAccountNumber() (uint64, error)
+	SetMaxAccountNumber(accountNumber uint64) error
 
 	GetMasterKey() (string, error)
 	SetMasterKey(masterKey string) error
@@ -67,11 +72,12 @@ type TxContext interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
-	SetBill(bill *bill) error
-	ContainsBill(id *uint256.Int) (bool, error)
-	RemoveBill(id *uint256.Int) error
-	GetBills() ([]*bill, error)
-	GetBalance() (uint64, error)
+	SetBill(accountNumber uint64, bill *bill) error
+	ContainsBill(accountNumber uint64, id *uint256.Int) (bool, error)
+	RemoveBill(accountNumber uint64, id *uint256.Int) error
+	GetBills(accountNumber uint64) ([]*bill, error)
+	GetBalance(accountNumber uint64) (uint64, error)
+	GetBalances() (map[uint64]uint64, error)
 
 	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
 	GetDcMetadata(nonce []byte) (*dcMetadata, error)
@@ -98,7 +104,7 @@ func OpenDb(config WalletConfig) (*wdb, error) {
 	return openDb(dbFilePath, config.WalletPass, false)
 }
 
-func (w *wdbtx) SetAccountKey(key *wallet.AccountKey) error {
+func (w *wdbtx) AddAccount(accountNumber uint64, key *wallet.AccountKey) error {
 	return w.withTx(w.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
@@ -108,14 +114,22 @@ func (w *wdbtx) SetAccountKey(key *wallet.AccountKey) error {
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(keysBucket).Put(accountKeyName, val)
+		accBucket, err := tx.Bucket(accountsBucket).CreateBucketIfNotExists(util.Uint64ToBytes(accountNumber))
+		if err != nil {
+			return err
+		}
+		_, err = accBucket.CreateBucketIfNotExists(accountBillsBucket)
+		if err != nil {
+			return err
+		}
+		return accBucket.Put(accountKeyName, val)
 	}, true)
 }
 
-func (w *wdbtx) GetAccountKey() (*wallet.AccountKey, error) {
+func (w *wdbtx) GetAccountKey(accountNumber uint64) (*wallet.AccountKey, error) {
 	var key *wallet.AccountKey
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		k := tx.Bucket(keysBucket).Get(accountKeyName)
+		k := tx.Bucket(accountsBucket).Bucket(util.Uint64ToBytes(accountNumber)).Get(accountKeyName)
 		if k == nil {
 			return errKeyNotFound
 		}
@@ -133,6 +147,34 @@ func (w *wdbtx) GetAccountKey() (*wallet.AccountKey, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+func (w *wdbtx) GetAccountKeys() (map[uint64]*wallet.AccountKey, error) {
+	keys := make(map[uint64]*wallet.AccountKey)
+	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+		return tx.Bucket(accountsBucket).ForEach(func(accountNumber, v []byte) error {
+			if v != nil { // v is nil if entry is a bucket
+				return nil
+			}
+			accountKey := tx.Bucket(accountsBucket).Bucket(accountNumber).Get(accountKeyName)
+			accountKeyDecrypted, err := w.decryptValue(accountKey)
+			if err != nil {
+				return err
+			}
+			var accountKeyRes *wallet.AccountKey
+			err = json.Unmarshal(accountKeyDecrypted, &accountKeyRes)
+			if err != nil {
+				return err
+			}
+			accountNumberRes := binary.BigEndian.Uint64(accountNumber)
+			keys[accountNumberRes] = accountKeyRes
+			return nil
+		})
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
 }
 
 func (w *wdbtx) SetMasterKey(masterKey string) error {
@@ -161,6 +203,28 @@ func (w *wdbtx) GetMasterKey() (string, error) {
 	}, false)
 	if err != nil {
 		return "", err
+	}
+	return res, nil
+}
+
+func (w *wdbtx) SetMaxAccountNumber(accountNumber uint64) error {
+	return w.withTx(w.tx, func(tx *bolt.Tx) error {
+		return tx.Bucket(metaBucket).Put(maxAccountNumberKeyName, util.Uint64ToBytes(accountNumber))
+	}, true)
+}
+
+func (w *wdbtx) GetMaxAccountNumber() (uint64, error) {
+	var res uint64
+	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+		accountNumber := tx.Bucket(metaBucket).Get(maxAccountNumberKeyName)
+		if accountNumber == nil {
+			return errKeyNotFound
+		}
+		res = binary.BigEndian.Uint64(accountNumber)
+		return nil
+	}, false)
+	if err != nil {
+		return 0, err
 	}
 	return res, nil
 }
@@ -226,7 +290,7 @@ func (w *wdbtx) VerifyPassword() (bool, error) {
 		return false, err
 	}
 	if encrypted {
-		_, err = w.GetAccountKey()
+		_, err = w.GetAccountKey(0)
 		if err != nil {
 			if errors.Is(err, abcrypto.ErrEmptyPassphrase) {
 				return false, nil
@@ -240,22 +304,26 @@ func (w *wdbtx) VerifyPassword() (bool, error) {
 	return true, nil
 }
 
-func (w *wdbtx) SetBill(bill *bill) error {
+func (w *wdbtx) SetBill(accountNumber uint64, bill *bill) error {
 	return w.withTx(w.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(bill)
 		if err != nil {
 			return err
 		}
-		log.Info(fmt.Sprintf("adding bill: value=%d id=%s", bill.Value, bill.Id.String()))
-		return tx.Bucket(billsBucket).Put(bill.getId(), val)
+		log.Info(fmt.Sprintf("adding bill: value=%d id=%s, for account=%d", bill.Value, bill.Id.String(), accountNumber))
+		bkt := tx.Bucket(accountsBucket).Bucket(util.Uint64ToBytes(accountNumber)).Bucket(accountBillsBucket)
+		if err != nil {
+			return err
+		}
+		return bkt.Put(bill.getId(), val)
 	}, true)
 }
 
-func (w *wdbtx) ContainsBill(id *uint256.Int) (bool, error) {
+func (w *wdbtx) ContainsBill(accountNumber uint64, id *uint256.Int) (bool, error) {
 	var res bool
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
 		billId := id.Bytes32()
-		res = tx.Bucket(billsBucket).Get(billId[:]) != nil
+		res = tx.Bucket(accountsBucket).Bucket(util.Uint64ToBytes(accountNumber)).Bucket(accountBillsBucket).Get(billId[:]) != nil
 		return nil
 	}, false)
 	if err != nil {
@@ -264,10 +332,10 @@ func (w *wdbtx) ContainsBill(id *uint256.Int) (bool, error) {
 	return res, nil
 }
 
-func (w *wdbtx) GetBills() ([]*bill, error) {
+func (w *wdbtx) GetBills(accountNumber uint64) ([]*bill, error) {
 	var res []*bill
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(billsBucket)
+		bucket := tx.Bucket(accountsBucket).Bucket(util.Uint64ToBytes(accountNumber)).Bucket(accountBillsBucket)
 		c := bucket.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			b, err := parseBill(v)
@@ -284,17 +352,17 @@ func (w *wdbtx) GetBills() ([]*bill, error) {
 	return res, nil
 }
 
-func (w *wdbtx) RemoveBill(id *uint256.Int) error {
+func (w *wdbtx) RemoveBill(accountNumber uint64, id *uint256.Int) error {
 	return w.withTx(w.tx, func(tx *bolt.Tx) error {
 		bytes32 := id.Bytes32()
-		return tx.Bucket(billsBucket).Delete(bytes32[:])
+		return tx.Bucket(accountsBucket).Bucket(util.Uint64ToBytes(accountNumber)).Bucket(accountBillsBucket).Delete(bytes32[:])
 	}, true)
 }
 
-func (w *wdbtx) GetBalance() (uint64, error) {
+func (w *wdbtx) GetBalance(accountNumber uint64) (uint64, error) {
 	sum := uint64(0)
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		return tx.Bucket(billsBucket).ForEach(func(k, v []byte) error {
+		return tx.Bucket(accountsBucket).Bucket(util.Uint64ToBytes(accountNumber)).Bucket(accountBillsBucket).ForEach(func(k, v []byte) error {
 			var b *bill
 			err := json.Unmarshal(v, &b)
 			if err != nil {
@@ -308,6 +376,37 @@ func (w *wdbtx) GetBalance() (uint64, error) {
 		return 0, err
 	}
 	return sum, nil
+}
+
+func (w *wdbtx) GetBalances() (map[uint64]uint64, error) {
+	res := make(map[uint64]uint64)
+	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+		return tx.Bucket(accountsBucket).ForEach(func(accNum, v []byte) error {
+			if v != nil { // value is nil if entry is a bucket
+				return nil
+			}
+			sum := uint64(0)
+			accBillsBucket := tx.Bucket(accountsBucket).Bucket(accNum).Bucket(accountBillsBucket)
+			err := accBillsBucket.ForEach(func(billId, billValue []byte) error {
+				var b *bill
+				err := json.Unmarshal(billValue, &b)
+				if err != nil {
+					return err
+				}
+				sum += b.Value
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			res[util.BytesToUint64(accNum)] = sum
+			return nil
+		})
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (w *wdbtx) GetBlockNumber() (uint64, error) {
@@ -436,10 +535,26 @@ func (w *wdb) createBuckets() error {
 		if err != nil {
 			return err
 		}
-		_, err = tx.CreateBucketIfNotExists(billsBucket)
+		_, err = tx.CreateBucketIfNotExists(accountsBucket)
 		if err != nil {
 			return err
 		}
+		//_, err = tx.Bucket(accountsBucket).CreateBucketIfNotExists()
+		//if err != nil {
+		//	return err
+		//}
+		//_, err = tx.Bucket(keysBucket).CreateBucketIfNotExists(accountKeysBucket)
+		//if err != nil {
+		//	return err
+		//}
+		//_, err = tx.CreateBucketIfNotExists(billsBucket)
+		//if err != nil {
+		//	return err
+		//}
+		//_, err = tx.Bucket(billsBucket).CreateBucketIfNotExists(util.Uint64ToBytes(0))
+		//if err != nil {
+		//	return err
+		//}
 		_, err = tx.CreateBucketIfNotExists(metaBucket)
 		if err != nil {
 			return err

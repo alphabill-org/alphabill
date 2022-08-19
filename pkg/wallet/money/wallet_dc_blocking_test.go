@@ -26,7 +26,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 
-	k, _ := w.db.Do().GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -48,7 +48,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
-	bills, _ := w.db.Do().GetBills()
+	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 1)
 	b := bills[0]
 	require.EqualValues(t, b.Value, 3)
@@ -66,7 +66,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 	dcNonce := uint256.NewInt(1337)
 	addDcBills(t, w, dcNonce, 10)
-	k, _ := w.db.Do().GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -76,13 +76,13 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	require.Len(t, w.dcWg.swaps, 1)
 
 	// when the swap tx with dc bills is received
-	bills, _ := w.db.Do().GetBills()
+	bills, _ := w.db.Do().GetBills(0)
 	res := createBlockWithSwapTxFromDcBills(dcNonce, k, bills...)
 	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
 	// then only the swapped bill should exist
-	bills, _ = w.db.Do().GetBills()
+	bills, _ = w.db.Do().GetBills(0)
 	require.Len(t, bills, 1)
 	b := bills[0]
 	require.EqualValues(t, b.Value, 3)
@@ -110,7 +110,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	b22 := addDcBill(t, w, dcNonce2, 4, 10)
 	b23 := addDcBill(t, w, dcNonce2, 5, 10)
 
-	k, _ := w.db.Do().GetAccountKey()
+	k, _ := w.db.Do().GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -129,7 +129,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	require.Len(t, w.dcWg.swaps, 1)
 
 	// and bills are updated
-	bills, _ := w.db.Do().GetBills()
+	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
 
 	// when the swap tx with dc bills is received
@@ -145,7 +145,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	require.Len(t, w.dcWg.swaps, 0)
 
 	// and wallet bills are updated
-	bills, _ = w.db.Do().GetBills()
+	bills, _ = w.db.Do().GetBills(0)
 	require.Len(t, bills, 2)
 }
 
@@ -161,7 +161,7 @@ func TestSendingSwapUpdatesDcWaitGroupTimeout(t *testing.T) {
 	w.dcWg.addExpectedSwap(expectedSwap{dcNonce: nonce32[:], timeout: dcTimeoutBlockCount})
 
 	// when trySwap is called
-	err := w.trySwap(w.db.Do())
+	err := w.trySwap(w.db.Do(), 0)
 	require.NoError(t, err)
 
 	// then dcWg timeout is updated
@@ -173,7 +173,7 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		dcErr := w.collectDust(context.Background(), true)
+		dcErr := w.collectDust(context.Background(), true, 0)
 		require.NoError(t, dcErr)
 		wg.Done()
 	}()

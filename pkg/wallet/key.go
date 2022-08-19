@@ -141,7 +141,7 @@ func derivePrivateKey(path accounts.DerivationPath, masterKey *hdkeychain.Extend
 		}
 	}
 
-	privateKey, err := masterKey.ECPrivKey()
+	privateKey, err := derivedKey.ECPrivKey()
 	if err != nil {
 		return nil, err
 	}

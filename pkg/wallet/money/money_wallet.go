@@ -77,13 +77,6 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 		return nil, ErrInvalidPassword
 	}
 
-	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
-
-	mw.Wallet = wallet.New().
-		SetBlockProcessor(mw).
-		SetABClientConf(config.AlphabillClientConfig).
-		Build()
-
 	accountKeys, err := db.Do().GetAccountKeys()
 	if err != nil {
 		return nil, err
@@ -91,11 +84,17 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 	accs := make([]account, len(accountKeys))
 	for num, val := range accountKeys {
 		accs[num] = account{
-			accountNumber: num,
+			accountNumber: uint64(num),
 			accountKeys:   *val.PubKeyHash,
 		}
 	}
-	mw.accounts = &accounts{accounts: accs}
+	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup(), accounts: &accounts{accounts: accs}}
+
+	mw.Wallet = wallet.New().
+		SetBlockProcessor(mw).
+		SetABClientConf(config.AlphabillClientConfig).
+		Build()
+
 	return mw, nil
 }
 
@@ -209,7 +208,7 @@ func (w *Wallet) GetBalance(accountNumber uint64) (uint64, error) {
 
 // GetBalances returns sum value of all bills currently owned by the wallet, for all accounts
 // the value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalances() (map[uint64]uint64, error) {
+func (w *Wallet) GetBalances() ([]uint64, error) {
 	return w.db.Do().GetBalances()
 }
 

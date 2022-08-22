@@ -37,10 +37,9 @@ var (
 )
 
 var (
-	errWalletDbAlreadyExists    = errors.New("wallet db already exists")
-	errWalletDbDoesNotExists    = errors.New("cannot open wallet db, file does not exist")
-	errKeyNotFound              = errors.New("key not found in wallet")
-	errBillWithMinValueNotFound = errors.New("spendable bill with min value not found")
+	errWalletDbAlreadyExists = errors.New("wallet db already exists")
+	errWalletDbDoesNotExists = errors.New("cannot open wallet db, file does not exist")
+	errKeyNotFound           = errors.New("key not found in wallet")
 )
 
 const walletFileName = "wallet.db"
@@ -55,7 +54,7 @@ type Db interface {
 type TxContext interface {
 	AddAccount(accountNumber uint64, key *wallet.AccountKey) error
 	GetAccountKey(accountNumber uint64) (*wallet.AccountKey, error)
-	GetAccountKeys() (map[uint64]*wallet.AccountKey, error)
+	GetAccountKeys() ([]*wallet.AccountKey, error)
 	GetMaxAccountNumber() (uint64, error)
 	SetMaxAccountNumber(accountNumber uint64) error
 
@@ -77,7 +76,7 @@ type TxContext interface {
 	RemoveBill(accountNumber uint64, id *uint256.Int) error
 	GetBills(accountNumber uint64) ([]*bill, error)
 	GetBalance(accountNumber uint64) (uint64, error)
-	GetBalances() (map[uint64]uint64, error)
+	GetBalances() ([]uint64, error)
 
 	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
 	GetDcMetadata(nonce []byte) (*dcMetadata, error)
@@ -149,7 +148,7 @@ func (w *wdbtx) GetAccountKey(accountNumber uint64) (*wallet.AccountKey, error) 
 	return key, nil
 }
 
-func (w *wdbtx) GetAccountKeys() (map[uint64]*wallet.AccountKey, error) {
+func (w *wdbtx) GetAccountKeys() ([]*wallet.AccountKey, error) {
 	keys := make(map[uint64]*wallet.AccountKey)
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
 		return tx.Bucket(accountsBucket).ForEach(func(accountNumber, v []byte) error {
@@ -174,7 +173,11 @@ func (w *wdbtx) GetAccountKeys() (map[uint64]*wallet.AccountKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keys, nil
+	res := make([]*wallet.AccountKey, len(keys))
+	for accNum, key := range keys {
+		res[accNum] = key
+	}
+	return res, nil
 }
 
 func (w *wdbtx) SetMasterKey(masterKey string) error {
@@ -378,7 +381,7 @@ func (w *wdbtx) GetBalance(accountNumber uint64) (uint64, error) {
 	return sum, nil
 }
 
-func (w *wdbtx) GetBalances() (map[uint64]uint64, error) {
+func (w *wdbtx) GetBalances() ([]uint64, error) {
 	res := make(map[uint64]uint64)
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
 		return tx.Bucket(accountsBucket).ForEach(func(accNum, v []byte) error {
@@ -406,7 +409,11 @@ func (w *wdbtx) GetBalances() (map[uint64]uint64, error) {
 	if err != nil {
 		return nil, err
 	}
-	return res, nil
+	balances := make([]uint64, len(res))
+	for accNum, sum := range res {
+		balances[accNum] = sum
+	}
+	return balances, nil
 }
 
 func (w *wdbtx) GetBlockNumber() (uint64, error) {

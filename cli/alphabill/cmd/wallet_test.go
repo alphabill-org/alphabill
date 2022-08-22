@@ -48,12 +48,12 @@ func TestWalletCreateCmd(t *testing.T) {
 func TestWalletGetBalanceCmd(t *testing.T) {
 	stdout := execCommand(t, "get-balance")
 
-	verifyStdout(t, stdout, "0")
+	verifyStdout(t, stdout, "#1 0")
 }
 
-func TestPubKeyCmd(t *testing.T) {
-	stdout := execCommand(t, "get-pubkey")
-	verifyStdout(t, stdout, "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
+func TestPubKeysCmd(t *testing.T) {
+	stdout := execCommand(t, "get-pubkeys")
+	verifyStdout(t, stdout, "#1 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 }
 
 /*
@@ -92,19 +92,19 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet 1
-	waitForBalance(t, "wallet-1", initialBill.Value)
+	waitForBalance(t, "wallet-1", initialBill.Value, 0)
 
 	// send two transactions (two bills) to wallet-2
 	stdout := execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-1", initialBill.Value-1)
+	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
 
 	stdout = execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-1", initialBill.Value-2)
+	waitForBalance(t, "wallet-1", initialBill.Value-2, 0)
 
 	// verify wallet-2 received said bills
-	waitForBalance(t, "wallet-2", 2)
+	waitForBalance(t, "wallet-2", 2, 0)
 
 	// swap wallet-2 bills
 	stdout = execWalletCmd(t, "wallet-2", "collect-dust")
@@ -113,8 +113,8 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	// send wallet-2 bill back to wallet-1
 	stdout = execWalletCmd(t, "wallet-2", "send --amount 1 --address "+hexutil.Encode(w1PubKey))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-2", 1)
-	waitForBalance(t, "wallet-1", initialBill.Value-1)
+	waitForBalance(t, "wallet-2", 1, 0)
+	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
@@ -153,14 +153,14 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func waitForBalance(t *testing.T, walletName string, expectedBalance uint64) {
+func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, accountNumber uint64) {
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, walletName, "sync")
 		verifyStdout(t, stdout, "Wallet synchronized successfully.")
 
 		stdout = execWalletCmd(t, walletName, "get-balance")
 		for _, line := range stdout.lines {
-			if line == strconv.FormatUint(expectedBalance, 10) {
+			if line == "#"+strconv.FormatUint(accountNumber+1, 10)+" "+strconv.FormatUint(expectedBalance, 10) {
 				return true
 			}
 		}

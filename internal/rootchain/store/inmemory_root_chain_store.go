@@ -41,15 +41,11 @@ func (u *InMemoryRootChainStore) GetRoundNumber() uint64 {
 	return u.roundNumber
 }
 
-func (u *InMemoryRootChainStore) IncrementRoundNumber() uint64 {
-	u.roundNumber++
-	return u.roundNumber
-}
-
 func (u *InMemoryRootChainStore) GetPreviousRoundRootHash() []byte {
 	return u.previousRoundRootHash
 }
 
-func (u *InMemoryRootChainStore) SetPreviousRoundRootHash(previousRoundRootHash []byte) {
+func (u *InMemoryRootChainStore) PrepareNextRound(previousRoundRootHash []byte) {
+	u.roundNumber++
 	u.previousRoundRootHash = previousRoundRootHash
 }

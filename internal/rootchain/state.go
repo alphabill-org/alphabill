@@ -54,9 +54,8 @@ func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer, store sto
 		requests.reset()
 	}
 
-	s.store.IncrementRoundNumber()
 	if bytes.Equal(s.store.GetPreviousRoundRootHash(), zeroHash) {
-		s.store.SetPreviousRoundRootHash(g.GetRoundHash())
+		s.store.PrepareNextRound(g.GetRoundHash())
 	}
 	return s, nil
 }
@@ -218,8 +217,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 	}
 
 	s.inputRecords = make(map[string]*certificates.InputRecord)
-	s.store.SetPreviousRoundRootHash(rootHash)
-	s.store.IncrementRoundNumber()
+	s.store.PrepareNextRound(rootHash)
 	return systemIdentifiers, nil
 }
 

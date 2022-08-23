@@ -129,22 +129,6 @@ func (s *BoltRootChainStore) GetRoundNumber() uint64 {
 	return roundNr
 }
 
-func (s *BoltRootChainStore) IncrementRoundNumber() uint64 {
-	var roundNr uint64
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		roundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
-		roundNr++
-		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(roundNr)); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		panic(err)
-	}
-	return roundNr
-}
-
 func (s *BoltRootChainStore) GetPreviousRoundRootHash() []byte {
 	var hash []byte
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -157,10 +141,17 @@ func (s *BoltRootChainStore) GetPreviousRoundRootHash() []byte {
 	return hash
 }
 
-func (s *BoltRootChainStore) SetPreviousRoundRootHash(hash []byte) {
-	if err := s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(prevRoundHashBucket).Put(prevRoundHashKey, hash)
-	}); err != nil {
+func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte) {
+	var roundNr uint64
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		roundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
+		roundNr++
+		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(roundNr)); err != nil {
+			return err
+		}
+		return tx.Bucket(prevRoundHashBucket).Put(prevRoundHashKey, prevStateHash)
+	})
+	if err != nil {
 		panic(err)
 	}
 }

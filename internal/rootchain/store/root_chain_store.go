@@ -7,7 +7,6 @@ type RootChainStore interface {
 	GetUC(systemIdentifier string) *certificates.UnicityCertificate
 	UCCount() int
 	GetRoundNumber() uint64
-	IncrementRoundNumber() uint64
 	GetPreviousRoundRootHash() []byte
-	SetPreviousRoundRootHash([]byte)
+	PrepareNextRound([]byte)
 }

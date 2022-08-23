@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -115,6 +114,60 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
 	waitForBalance(t, "wallet-2", 1, 0)
 	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
+} /*
+
+Test scenario:
+start network and rpc server and send initial bill to wallet account 1
+add two accounts to wallet
+wallet account 1 sends two transactions to wallet account 2
+wallet runs dust collection
+wallet account 2 sends transaction to account 3
+*/
+func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 10000,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill)
+	startRPCServer(t, network, ":9543")
+
+	// create wallet with 3 accounts
+	_ = wlog.InitStdoutLogger()
+	w := createNewNamedWallet(t, "wallet", ":9543")
+	pubKey1, _ := w.GetPublicKey(0)
+	w.Shutdown()
+
+	pubKey2Hex := addAccount(t, "wallet")
+	pubKey3Hex := addAccount(t, "wallet")
+
+	// transfer initial bill to wallet
+	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify bill is received by wallet account 1
+	waitForBalance(t, "wallet", initialBill.Value, 0)
+
+	// send two transactions (two bills) to wallet account 2
+	stdout := execWalletCmd(t, "wallet", "send --amount 1 --address "+pubKey2Hex)
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+	waitForBalance(t, "wallet", 1, 1)
+
+	stdout = execWalletCmd(t, "wallet", "send --amount 1 --address "+pubKey2Hex)
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+	waitForBalance(t, "wallet", 2, 1)
+
+	// swap account 2 bills
+	stdout = execWalletCmd(t, "wallet", "collect-dust")
+	verifyStdout(t, stdout, "Dust collection finished successfully.")
+
+	// send account 2 bills to account 3
+	stdout = execWalletCmd(t, "wallet", "send --amount 2 --key 2 --address "+pubKey3Hex)
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+	waitForBalance(t, "wallet", 2, 2)
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
@@ -160,12 +213,23 @@ func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, acc
 
 		stdout = execWalletCmd(t, walletName, "get-balance")
 		for _, line := range stdout.lines {
-			if line == "#"+strconv.FormatUint(accountNumber+1, 10)+" "+strconv.FormatUint(expectedBalance, 10) {
+			if line == fmt.Sprintf("#%d %d", accountNumber+1, expectedBalance) {
 				return true
 			}
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)
+}
+
+// addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
+func addAccount(t *testing.T, walletName string) string {
+	stdout := execWalletCmd(t, walletName, "add-key")
+	for _, line := range stdout.lines {
+		if strings.HasPrefix(line, "Added key #") {
+			return line[13:]
+		}
+	}
+	return ""
 }
 
 func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {

@@ -33,7 +33,6 @@ const (
 
 var (
 	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
-	ErrSwapNotEnoughBills   = errors.New("need to have more than 1 bill to perform swap")
 	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
 	ErrInvalidPassword      = errors.New("invalid password")
@@ -179,9 +178,9 @@ func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
 }
 
-// CollectDust starts the dust collector process.
+// CollectDust starts the dust collector process for all accounts in the wallet.
 // Wallet needs to be synchronizing using Sync or SyncToMaxBlockNumber in order to receive transactions and finish the process.
-// The function blocks until dust collector process is finished or timed out.
+// The function blocks until dust collector process is finished or timed out. Skips account if the account already has only one or no bills.
 func (w *Wallet) CollectDust(ctx context.Context) error {
 	errgrp, ctx := errgroup.WithContext(ctx)
 	for _, acc := range w.accounts.getAll() {
@@ -564,6 +563,7 @@ func (w *Wallet) trySwap(tx TxContext, accountNumber uint64) error {
 }
 
 // collectDust sends dust transfer for every bill for given account in wallet and records metadata.
+// Returns immediately without error if there's already 1 or 0 bills.
 // Once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared.
 // If blocking is true then the function blocks until swap has been completed or timed out,
 // if blocking is false then the function returns after sending the dc transfers.
@@ -582,7 +582,8 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountNumber u
 			return err
 		}
 		if len(bills) < 2 {
-			return ErrSwapNotEnoughBills
+			log.Info("Account ", accountNumber, " has less than 2 bills, skipping dust collection")
+			return nil
 		}
 		var expectedSwaps []expectedSwap
 		dcBillGroups := groupDcBills(bills)

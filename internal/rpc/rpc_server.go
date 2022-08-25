@@ -78,8 +78,8 @@ func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest
 }
 
 func verifyRequest(req *alphabill.GetBlocksRequest, latestBlockNumber uint64) error {
-	if req.BlockNumber <= 0 {
-		return errors.New("block number cannot be negative")
+	if req.BlockNumber < 1 {
+		return errors.New("block number cannot be less than one")
 	}
 	if req.BlockCount < 1 {
 		return errors.New("block count cannot be less than one")

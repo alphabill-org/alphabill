@@ -47,6 +47,7 @@ func New(config AlphabillClientConfig) *AlphabillClient {
 }
 
 func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+	defer trackExecutionTime(time.Now(), "sending transaction")
 	err := c.connect()
 	if err != nil {
 		return nil, err
@@ -62,7 +63,8 @@ func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.T
 	return c.client.ProcessTransaction(ctx, tx, grpc.WaitForReady(c.config.WaitForReady))
 }
 
-func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
+func (c *AlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading block %d", blockNumber))
 	err := c.connect()
 	if err != nil {
 		return nil, err
@@ -75,7 +77,7 @@ func (c *AlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNo}, grpc.WaitForReady(c.config.WaitForReady))
+	res, err := c.client.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: blockNumber}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +112,7 @@ func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) ([]*b
 }
 
 func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
-	defer trackExecutionTime(time.Now(), "GetMaxBlockNumber")
+	defer trackExecutionTime(time.Now(), "fetching max block number")
 	err := c.connect()
 	if err != nil {
 		return 0, err

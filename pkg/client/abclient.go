@@ -39,13 +39,11 @@ type AlphabillClient struct {
 
 	// mu mutex guarding mutable fields (connection and client)
 	mu sync.RWMutex
-
-	cancelCh chan bool
 }
 
 // New creates instance of AlphabillClient
 func New(config AlphabillClientConfig) *AlphabillClient {
-	return &AlphabillClient{config: config, cancelCh: make(chan bool, 1)}
+	return &AlphabillClient{config: config}
 }
 
 func (c *AlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
@@ -112,6 +110,7 @@ func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) ([]*b
 }
 
 func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
+	defer trackExecutionTime(time.Now(), "GetMaxBlockNumber")
 	err := c.connect()
 	if err != nil {
 		return 0, err
@@ -138,12 +137,6 @@ func (c *AlphabillClient) Shutdown() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.isShutdown() {
-		// signal GetBlocks rpc stream to close
-		select {
-		case c.cancelCh <- true:
-		default:
-		}
-
 		err := c.connection.Close()
 		if err != nil {
 			return errors.Wrap(err, "error shutting down alphabill client")

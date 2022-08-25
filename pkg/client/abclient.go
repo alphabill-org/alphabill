@@ -185,5 +185,5 @@ func (c *AlphabillClient) connect() error {
 }
 
 func trackExecutionTime(start time.Time, name string) {
-	log.Info(name, " took ", time.Since(start))
+	log.Debug(name, " took ", time.Since(start))
 }

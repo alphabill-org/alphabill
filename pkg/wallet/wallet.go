@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"golang.org/x/sync/errgroup"
@@ -15,7 +16,7 @@ import (
 const (
 	prefetchBlockCount          = 100
 	sleepTimeAtMaxBlockHeightMs = 500
-	blockDownloadBatchSize      = 100
+	blockDownloadMaxBatchSize   = 100
 )
 
 var (
@@ -192,25 +193,15 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, blockNumber uint6
 	return nil
 }
 
-func (w *Wallet) fetchBlocks(blockNumber uint64, maxBlockNo uint64, ch chan<- *block.Block) (uint64, error) {
-	if maxBlockNo-blockNumber >= blockDownloadBatchSize {
-		blocks, err := w.AlphabillClient.GetBlocks(blockNumber+1, blockDownloadBatchSize)
-		if err != nil {
-			return 0, err
-		}
-		for _, b := range blocks {
-			blockNumber = b.BlockNumber
-			ch <- b
-		}
-	} else {
-		b, err := w.AlphabillClient.GetBlock(blockNumber + 1)
-		if err != nil {
-			return 0, err
-		}
-		if b != nil {
-			blockNumber = b.BlockNumber
-			ch <- b
-		}
+func (w *Wallet) fetchBlocks(blockNumber uint64, maxBlockNumber uint64, ch chan<- *block.Block) (uint64, error) {
+	batchSize := util.Min(blockDownloadMaxBatchSize, maxBlockNumber-blockNumber)
+	blocks, err := w.AlphabillClient.GetBlocks(blockNumber+1, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	for _, b := range blocks {
+		blockNumber = b.BlockNumber
+		ch <- b
 	}
 	return blockNumber, nil
 }

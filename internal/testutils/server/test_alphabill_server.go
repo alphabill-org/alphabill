@@ -49,7 +49,7 @@ func (s *TestAlphabillServiceServer) GetBlocks(_ context.Context, req *alphabill
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	blocks := make([]*block.Block, 0, req.BlockCount)
-	for i := req.BlockNumber; i <= req.BlockNumber+req.BlockCount; i++ {
+	for i := req.BlockNumber; i < req.BlockNumber+req.BlockCount; i++ {
 		blockFunc, f := s.blocks[i]
 		if !f {
 			return nil, errors.New(fmt.Sprintf("block with number %v not found", i))

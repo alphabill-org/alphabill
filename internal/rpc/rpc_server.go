@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -86,8 +87,8 @@ func verifyRequest(req *alphabill.GetBlocksRequest, latestBlockNumber uint64) er
 	if req.BlockCount > 100 {
 		return errors.New("block count cannot be larger than 100")
 	}
-	if latestBlockNumber < req.BlockNumber+req.BlockCount {
-		return errors.New("not enough blocks available for request")
+	if latestBlockNumber < req.BlockNumber+req.BlockCount-1 {
+		return errors.New(fmt.Sprintf("not enough blocks available for request, asked for blocks %d-%d, latest available block %d", req.BlockNumber, req.BlockNumber+req.BlockCount-1, latestBlockNumber))
 	}
 	return nil
 }

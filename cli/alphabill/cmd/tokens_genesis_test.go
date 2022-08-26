@@ -74,7 +74,7 @@ func TestTokensGenesis_LoadExistingKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := New()
-	args := "tokens-genesis --gen-keys --home " + homeDir
+	args := "tokens-genesis --home " + homeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)

@@ -23,6 +23,10 @@ func (c *DummyAlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 	return &block.Block{BlockNumber: blockNo}, nil
 }
 
+func (c *DummyAlphabillClient) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
+	return []*block.Block{{BlockNumber: blockNumber}}, nil
+}
+
 func (c *DummyAlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	return 10, nil
 }

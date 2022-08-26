@@ -2,9 +2,9 @@ package rpc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -33,7 +33,7 @@ func NewRpcServer(node partitionNode) (*rpcServer, error) {
 	}, nil
 }
 
-func (r *rpcServer) ProcessTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (r *rpcServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	err := r.node.SubmitTx(tx)
 	if err != nil {
 		return &txsystem.TransactionResponse{
@@ -47,15 +47,48 @@ func (r *rpcServer) ProcessTransaction(ctx context.Context, tx *txsystem.Transac
 	}, nil
 }
 
-func (r *rpcServer) GetBlock(ctx context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
-	block, err := r.node.GetBlock(req.BlockNo)
+func (r *rpcServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
+	b, err := r.node.GetBlock(req.BlockNo)
 	if err != nil {
 		return &alphabill.GetBlockResponse{ErrorMessage: err.Error()}, err
 	}
-	return &alphabill.GetBlockResponse{Block: block}, nil
+	return &alphabill.GetBlockResponse{Block: b}, nil
 }
 
-func (r *rpcServer) GetMaxBlockNo(ctx context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
-	maxBlockNr := r.node.GetLatestBlock().GetBlockNumber()
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: maxBlockNr}, nil
+func (r *rpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
+	maxBlockNumber := r.node.GetLatestBlock().GetBlockNumber()
+	return &alphabill.GetMaxBlockNoResponse{BlockNo: maxBlockNumber}, nil
+}
+
+func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
+	latestBlock := r.node.GetLatestBlock()
+	err := verifyRequest(req, latestBlock.BlockNumber)
+	if err != nil {
+		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
+	}
+	res := make([]*block.Block, 0, req.BlockCount)
+	for blockNumber := req.BlockNumber; blockNumber < req.BlockNumber+req.BlockCount; blockNumber++ {
+		b, err := r.node.GetBlock(blockNumber)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, b)
+	}
+	return &alphabill.GetBlocksResponse{Blocks: res}, nil
+}
+
+func verifyRequest(req *alphabill.GetBlocksRequest, latestBlockNumber uint64) error {
+	if req.BlockNumber < 1 {
+		return errors.New("block number cannot be less than one")
+	}
+	if req.BlockCount < 1 {
+		return errors.New("block count cannot be less than one")
+	}
+	if req.BlockCount > 100 {
+		return errors.New("block count cannot be larger than 100")
+	}
+	if latestBlockNumber < req.BlockNumber+req.BlockCount-1 {
+		return errors.New(fmt.Sprintf("not enough blocks available for request, asked for blocks %d-%d, latest available block %d", req.BlockNumber, req.BlockNumber+req.BlockCount-1, latestBlockNumber))
+	}
+	return nil
 }

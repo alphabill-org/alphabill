@@ -29,6 +29,10 @@ func (c *mockAlphabillClient) GetBlock(uint64) (*block.Block, error) {
 	return nil, nil
 }
 
+func (c *mockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
+	return nil, nil
+}
+
 func (c *mockAlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	return c.maxBlockNo, nil
 }

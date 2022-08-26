@@ -68,9 +68,9 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 	conf.WaitBlock = true
 	conf.BlockTimeout = 5
 	callbackCalled := false
-	conf.OnBlockCallback = func(b *block.Block) {
+	conf.OnBlockCallback = func(b *VDBlock) {
 		require.NotNil(t, b)
-		require.Equal(t, conf.BlockTimeout-1, b.BlockNumber)
+		require.Equal(t, conf.BlockTimeout-1, b.GetBlockNumber())
 		callbackCalled = true
 	}
 	vdClient, err := New(context.Background(), conf)
@@ -263,6 +263,10 @@ func (a *abClientMock) GetBlock(n uint64) (*block.Block, error) {
 	}
 	fmt.Printf("GetBlock(%d) = nil\n", n)
 	return nil, nil
+}
+
+func (a *abClientMock) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
+	return []*block.Block{a.block(blockNumber)}, nil
 }
 
 func (a *abClientMock) GetMaxBlockNumber() (uint64, error) {

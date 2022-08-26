@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
@@ -43,53 +42,51 @@ func TestSync(t *testing.T) {
 
 	// start server that sends given blocks to wallet
 	serviceServer := testserver.NewTestAlphabillServiceServer()
-	blocks := []*alphabill.GetBlockResponse{
+	blocks := []*block.Block{
 		{
-			Block: &block.Block{
-				SystemIdentifier:  alphabillMoneySystemId,
-				BlockNumber:       1,
-				PreviousBlockHash: hash.Sum256([]byte{}),
-				Transactions: []*txsystem.Transaction{
-					// random dust transfer can be processed
-					{
-						SystemId:              alphabillMoneySystemId,
-						UnitId:                hash.Sum256([]byte{0x00}),
-						TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
-						Timeout:               1000,
-						OwnerProof:            script.PredicateArgumentEmpty(),
-					},
-					// receive transfer of 100 bills
-					{
-						SystemId:              alphabillMoneySystemId,
-						UnitId:                hash.Sum256([]byte{0x01}),
-						TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
-						Timeout:               1000,
-						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					},
-					// receive split of 100 bills
-					{
-						SystemId:              alphabillMoneySystemId,
-						UnitId:                hash.Sum256([]byte{0x02}),
-						TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
-						Timeout:               1000,
-						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					},
-					// receive swap of 100 bills
-					{
-						SystemId:              alphabillMoneySystemId,
-						UnitId:                hash.Sum256([]byte{0x03}),
-						TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
-						Timeout:               1000,
-						OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					},
+			SystemIdentifier:  alphabillMoneySystemId,
+			BlockNumber:       1,
+			PreviousBlockHash: hash.Sum256([]byte{}),
+			Transactions: []*txsystem.Transaction{
+				// random dust transfer can be processed
+				{
+					SystemId:              alphabillMoneySystemId,
+					UnitId:                hash.Sum256([]byte{0x00}),
+					TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
+					Timeout:               1000,
+					OwnerProof:            script.PredicateArgumentEmpty(),
 				},
-				UnicityCertificate: &certificates.UnicityCertificate{},
+				// receive transfer of 100 bills
+				{
+					SystemId:              alphabillMoneySystemId,
+					UnitId:                hash.Sum256([]byte{0x01}),
+					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
+					Timeout:               1000,
+					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				},
+				// receive split of 100 bills
+				{
+					SystemId:              alphabillMoneySystemId,
+					UnitId:                hash.Sum256([]byte{0x02}),
+					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+					Timeout:               1000,
+					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				},
+				// receive swap of 100 bills
+				{
+					SystemId:              alphabillMoneySystemId,
+					UnitId:                hash.Sum256([]byte{0x03}),
+					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+					Timeout:               1000,
+					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				},
 			},
+			UnicityCertificate: &certificates.UnicityCertificate{},
 		},
 	}
 	serviceServer.SetMaxBlockNumber(1)
 	for _, b := range blocks {
-		serviceServer.SetBlock(b.Block.BlockNumber, b)
+		serviceServer.SetBlock(b.BlockNumber, b)
 	}
 	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
@@ -138,14 +135,12 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	serviceServer := testserver.NewTestAlphabillServiceServer()
 	maxBlockNumber := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
-		b := &alphabill.GetBlockResponse{
-			Block: &block.Block{
-				SystemIdentifier:   alphabillMoneySystemId,
-				BlockNumber:        blockNo,
-				PreviousBlockHash:  hash.Sum256([]byte{}),
-				Transactions:       []*txsystem.Transaction{},
-				UnicityCertificate: &certificates.UnicityCertificate{},
-			},
+		b := &block.Block{
+			SystemIdentifier:   alphabillMoneySystemId,
+			BlockNumber:        blockNo,
+			PreviousBlockHash:  hash.Sum256([]byte{}),
+			Transactions:       []*txsystem.Transaction{},
+			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
 		serviceServer.SetBlock(blockNo, b)
 	}
@@ -216,14 +211,12 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	// when dc timeout is reached
 	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
-		b := &alphabill.GetBlockResponse{
-			Block: &block.Block{
-				SystemIdentifier:   alphabillMoneySystemId,
-				BlockNumber:        blockNo,
-				PreviousBlockHash:  hash.Sum256([]byte{}),
-				Transactions:       []*txsystem.Transaction{},
-				UnicityCertificate: &certificates.UnicityCertificate{},
-			},
+		b := &block.Block{
+			SystemIdentifier:   alphabillMoneySystemId,
+			BlockNumber:        blockNo,
+			PreviousBlockHash:  hash.Sum256([]byte{}),
+			Transactions:       []*txsystem.Transaction{},
+			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
 		serverService.SetBlock(blockNo, b)
 	}

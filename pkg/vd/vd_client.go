@@ -26,7 +26,7 @@ type (
 		syncToBlock   bool
 		timeoutDelta  uint64
 		ctx           context.Context
-		blockCallback func(b *block.Block)
+		blockCallback func(b *VDBlock)
 	}
 
 	VDClientConfig struct {
@@ -37,9 +37,17 @@ type (
 		// BlockTimeout relative timeout of a transaction (e.g. if latest block # is 100, given block timeout is 50, transaction's timeout is 150)
 		BlockTimeout uint64
 		// OnBlockCallback is called if WaitBlock is set to true and block containing a transaction with the given hash is found
-		OnBlockCallback func(b *block.Block)
+		OnBlockCallback func(b *VDBlock)
+	}
+
+	VDBlock struct {
+		blockNumber uint64
 	}
 )
+
+func (block *VDBlock) GetBlockNumber() uint64 {
+	return block.blockNumber
+}
 
 func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 	return &VDClient{
@@ -159,7 +167,7 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(hash)))
 					if v.blockCallback != nil {
 						log.Info("Invoking block callback")
-						v.blockCallback(b)
+						v.blockCallback(&VDBlock{blockNumber: b.BlockNumber})
 					}
 					v.shutdown()
 					break

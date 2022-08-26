@@ -38,7 +38,7 @@ func newUserTokenGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) 
 	}
 
 	cmd.Flags().BytesHexVarP(&config.SystemIdentifier, "system-identifier", "s", tokens.DefaultTokenTxSystemIdentifier, "system identifier in HEX format")
-	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/token/node-genesis.json)")
+	cmd.Flags().StringVarP(&config.Output, "output", "o", "", "path to the output genesis file (default: $AB_HOME/tokens/node-genesis.json)")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
 	config.Keys.addCmdFlags(cmd)
 	return cmd

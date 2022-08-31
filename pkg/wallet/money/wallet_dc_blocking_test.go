@@ -36,14 +36,14 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 
 	// and dc txs should be sent
 	dcNonce := calculateExpectedDcNonce(t, w)
-	require.Len(t, mockClient.txs, 2)
-	for _, tx := range mockClient.txs {
+	require.Len(t, mockClient.GetRecordedTransactions(), 2)
+	for _, tx := range mockClient.GetRecordedTransactions() {
 		dcTx := parseDcTx(t, tx)
 		require.EqualValues(t, dcNonce, dcTx.Nonce)
 	}
 
 	// when the swap tx with given nonce is received
-	res := createBlockWithSwapTx(dcNonce, k, mockClient.txs)
+	res := createBlockWithSwapTx(dcNonce, k, mockClient.GetRecordedTransactions())
 	err := w.ProcessBlock(res.Block)
 	require.NoError(t, err)
 
@@ -157,7 +157,7 @@ func TestSendingSwapUpdatesDcWaitGroupTimeout(t *testing.T) {
 	addDcBill(t, w, nonce, 2, dcTimeoutBlockCount)
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
 	_ = w.db.Do().SetBlockNumber(dcTimeoutBlockCount)
-	mockClient.maxBlockNo = dcTimeoutBlockCount
+	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)
 	w.dcWg.addExpectedSwap(expectedSwap{dcNonce: nonce32[:], timeout: dcTimeoutBlockCount})
 
 	// when trySwap is called

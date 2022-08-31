@@ -104,10 +104,10 @@ func TestWalletSendFunction(t *testing.T) {
 	}
 	err = w.db.Do().SetBill(0, &b)
 	require.NoError(t, err)
-	mockClient.txResponse = &txsystem.TransactionResponse{Ok: false, Message: "some error"}
+	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: "some error"})
 	err = w.Send(validPubKey, amount, 0)
 	require.ErrorContains(t, err, "payment returned error code: some error")
-	mockClient.txResponse = nil
+	mockClient.SetTxResponse(nil)
 
 	// test ErrSwapInProgress
 	nonce := calculateExpectedDcNonce(t, w)
@@ -390,8 +390,8 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	// then bill transfer order should be sent
-	require.Len(t, mockClient.txs, 1)
-	btTx := parseBillTransferTx(t, mockClient.txs[0])
+	require.Len(t, mockClient.GetRecordedTransactions(), 1)
+	btTx := parseBillTransferTx(t, mockClient.GetRecordedTransactions()[0])
 	require.EqualValues(t, 100, btTx.TargetValue)
 }
 

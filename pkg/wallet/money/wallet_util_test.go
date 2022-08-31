@@ -5,48 +5,11 @@ import (
 	"path"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/stretchr/testify/require"
 )
 
-type mockAlphabillClient struct {
-	txs        []*txsystem.Transaction
-	txResponse *txsystem.TransactionResponse
-	maxBlockNo uint64
-	shutdown   bool
-}
-
-func (c *mockAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
-	c.txs = append(c.txs, tx)
-	if c.txResponse != nil {
-		return c.txResponse, nil
-	}
-	return &txsystem.TransactionResponse{Ok: true}, nil
-}
-
-func (c *mockAlphabillClient) GetBlock(uint64) (*block.Block, error) {
-	return nil, nil
-}
-
-func (c *mockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
-	return nil, nil
-}
-
-func (c *mockAlphabillClient) GetMaxBlockNumber() (uint64, error) {
-	return c.maxBlockNo, nil
-}
-
-func (c *mockAlphabillClient) Shutdown() error {
-	c.shutdown = true
-	return nil
-}
-
-func (c *mockAlphabillClient) IsShutdown() bool {
-	return c.shutdown
-}
-
-func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
+func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
 	c := WalletConfig{DbPath: os.TempDir()}
 	w, err := CreateNewWallet("", c)
@@ -55,12 +18,12 @@ func CreateTestWallet(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	})
 	require.NoError(t, err)
 
-	mockClient := &mockAlphabillClient{}
+	mockClient := &clientmock.MockAlphabillClient{}
 	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 
-func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphabillClient) {
+func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir()})
 	t.Cleanup(func() {
@@ -68,7 +31,7 @@ func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *mockAlphabillClient) {
 	})
 	require.NoError(t, err)
 
-	mockClient := &mockAlphabillClient{}
+	mockClient := &clientmock.MockAlphabillClient{}
 	w.AlphabillClient = mockClient
 	return w, mockClient
 }

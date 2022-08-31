@@ -520,7 +520,7 @@ func (w *Wallet) trySwap(tx TxContext, accountNumber uint64) error {
 	if err != nil {
 		return err
 	}
-	bills, err := tx.GetBills()
+	bills, err := tx.GetBills(accountNumber)
 	if err != nil {
 		return err
 	}
@@ -537,7 +537,7 @@ func (w *Wallet) trySwap(tx TxContext, accountNumber uint64) error {
 				return err
 			}
 			timeout := maxBlockNumber + swapTimeoutBlockCount
-			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout)
+			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout, accountNumber)
 			if err != nil {
 				return err
 			}

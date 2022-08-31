@@ -92,11 +92,12 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				return sc
 			}(),
 		}, {
-			args: "money --server-address=srv:1234 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
+			args: "money --server-address=srv:1234 --server-max-get-blocks-batch-size=55 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
 				sc.RPCServer = &grpcServerConfiguration{
 					Address:                 "srv:1234",
+					MaxGetBlocksBatchSize:   55,
 					MaxRecvMsgSize:          66,
 					MaxConnectionAgeMs:      77,
 					MaxConnectionAgeGraceMs: 88,
@@ -177,7 +178,6 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			abApp.baseCmd.SetArgs(strings.Split(tt.args, " "))
 			abApp.WithOpts(Opts.NodeRunFunc(shardRunFunc)).Execute(context.Background())
 			require.Equal(t, tt.expectedConfig.Node, actualConfig.Node)
-
 			require.Equal(t, tt.expectedConfig, actualConfig)
 		})
 	}
@@ -238,8 +238,9 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			RootChainAddress: "/ip4/127.0.0.1/tcp/26662",
 		},
 		RPCServer: &grpcServerConfiguration{
-			Address:        defaultServerAddr,
-			MaxRecvMsgSize: defaultMaxRecvMsgSize,
+			Address:               defaultServerAddr,
+			MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
+			MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 		},
 	}
 }

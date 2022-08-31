@@ -34,6 +34,9 @@ func NewRpcServer(node partitionNode, opts ...Option) (*rpcServer, error) {
 	if node == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
+	if options.maxGetBlocksBatchSize < 1 {
+		return nil, errors.Wrap(errors.ErrInvalidArgument, "server-max-get-blocks-batch-size cannot be less than one")
+	}
 	return &rpcServer{
 		node:                  node,
 		maxGetBlocksBatchSize: options.maxGetBlocksBatchSize,
@@ -76,6 +79,7 @@ func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest
 	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
 	maxAvailableBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.BlockNumber)
 	batchSize := maxAvailableBlockNumber - req.BlockNumber
+	fmt.Println(fmt.Sprintf("reqno=%d, reqcount=%d, maxBlockCount=%d, maxAvailableBlockNumber=%d, batchSize=%d", req.BlockNumber, req.BlockCount, maxBlockCount, maxAvailableBlockNumber, batchSize))
 	res := make([]*block.Block, 0, batchSize)
 	for blockNumber := req.BlockNumber; blockNumber <= maxAvailableBlockNumber; blockNumber++ {
 		b, err := r.node.GetBlock(blockNumber)

@@ -140,8 +140,9 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	require.NoError(t, err)
 
 	grpcServer, err := initRPCServer(network.Nodes[0], &grpcServerConfiguration{
-		Address:        addr,
-		MaxRecvMsgSize: defaultMaxRecvMsgSize,
+		Address:               addr,
+		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
+		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 	})
 	require.NoError(t, err)
 

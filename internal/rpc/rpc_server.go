@@ -74,7 +74,7 @@ func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest
 		}
 		res = append(res, b)
 	}
-	return &alphabill.GetBlocksResponse{Blocks: res}, nil
+	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.BlockNumber}, nil
 }
 
 func verifyRequest(req *alphabill.GetBlocksRequest, latestBlockNumber uint64) error {

@@ -40,9 +40,9 @@ func SetLogger(l Logger) {
 	logger = l
 }
 
-func InitStdoutLogger() error {
+func InitStdoutLogger(priority Priority) error {
 	if logger == nil {
-		l, err := New(INFO, os.Stdout)
+		l, err := New(priority, os.Stdout)
 		if err != nil {
 			return err
 		}

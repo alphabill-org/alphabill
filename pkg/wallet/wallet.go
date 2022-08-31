@@ -195,11 +195,11 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 
 func (w *Wallet) fetchBlocks(lastBlockNumber uint64, maxBlockNumber uint64, ch chan<- *block.Block) (uint64, error) {
 	batchSize := util.Min(blockDownloadMaxBatchSize, maxBlockNumber-lastBlockNumber)
-	blocks, err := w.AlphabillClient.GetBlocks(lastBlockNumber+1, batchSize)
+	res, err := w.AlphabillClient.GetBlocks(lastBlockNumber+1, batchSize)
 	if err != nil {
 		return 0, err
 	}
-	for _, b := range blocks {
+	for _, b := range res.Blocks {
 		lastBlockNumber = b.BlockNumber
 		ch <- b
 	}

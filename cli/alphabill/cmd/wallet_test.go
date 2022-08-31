@@ -73,7 +73,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	startRPCServer(t, network, ":9543")
 
 	// create 2 wallets
-	err := wlog.InitStdoutLogger()
+	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
 	w1 := createNewNamedWallet(t, "wallet-1", ":9543")

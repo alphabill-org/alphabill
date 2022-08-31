@@ -20,7 +20,8 @@ message GetBlocksRequest {
 
 message GetBlocksResponse {
   string error_message = 1;
-  repeated Block blocks = 2;
+  uint64 max_block_number = 2;
+  repeated Block blocks = 3;
 }
 
 message GetBlockRequest {

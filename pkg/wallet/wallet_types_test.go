@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
@@ -23,8 +24,8 @@ func (c *DummyAlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 	return &block.Block{BlockNumber: blockNo}, nil
 }
 
-func (c *DummyAlphabillClient) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
-	return []*block.Block{{BlockNumber: blockNumber}}, nil
+func (c *DummyAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+	return &alphabill.GetBlocksResponse{MaxBlockNumber: 10, Blocks: []*block.Block{{BlockNumber: blockNumber}}}, nil
 }
 
 func (c *DummyAlphabillClient) GetMaxBlockNumber() (uint64, error) {

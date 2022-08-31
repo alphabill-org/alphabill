@@ -20,7 +20,7 @@ import (
 type ABClient interface {
 	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(blockNumber uint64) (*block.Block, error)
-	GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error)
+	GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetMaxBlockNumber() (uint64, error)
 	Shutdown() error
 	IsShutdown() bool
@@ -87,7 +87,7 @@ func (c *AlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
 	return res.Block, nil
 }
 
-func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) ([]*block.Block, error) {
+func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+blockCount-1))
 	err := c.connect()
 	if err != nil {
@@ -108,7 +108,7 @@ func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) ([]*b
 	if res.ErrorMessage != "" {
 		return nil, errors.New(res.ErrorMessage)
 	}
-	return res.Blocks, nil
+	return res, nil
 }
 
 func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {

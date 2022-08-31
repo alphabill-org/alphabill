@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (
@@ -66,8 +67,11 @@ func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest
 	if err != nil {
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}
-	res := make([]*block.Block, 0, req.BlockCount)
-	for blockNumber := req.BlockNumber; blockNumber < req.BlockNumber+req.BlockCount; blockNumber++ {
+	maxBlockCount := util.Min(req.BlockCount, 100)
+	maxAvailableBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.BlockNumber)
+	batchSize := maxAvailableBlockNumber - req.BlockNumber
+	res := make([]*block.Block, 0, batchSize)
+	for blockNumber := req.BlockNumber; blockNumber <= maxAvailableBlockNumber; blockNumber++ {
 		b, err := r.node.GetBlock(blockNumber)
 		if err != nil {
 			return nil, err
@@ -84,11 +88,8 @@ func verifyRequest(req *alphabill.GetBlocksRequest, latestBlockNumber uint64) er
 	if req.BlockCount < 1 {
 		return errors.New("block count cannot be less than one")
 	}
-	if req.BlockCount > 100 {
-		return errors.New("block count cannot be larger than 100")
-	}
-	if latestBlockNumber < req.BlockNumber+req.BlockCount-1 {
-		return errors.New(fmt.Sprintf("not enough blocks available for request, asked for blocks %d-%d, latest available block %d", req.BlockNumber, req.BlockNumber+req.BlockCount-1, latestBlockNumber))
+	if req.BlockNumber > latestBlockNumber {
+		return errors.New(fmt.Sprintf("block number cannot be larger than latest block number, got %d have %d", req.BlockNumber, latestBlockNumber))
 	}
 	return nil
 }

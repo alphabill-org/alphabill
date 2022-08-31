@@ -177,6 +177,7 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 	if err != nil {
 		return err
 	}
+	log.Info("syncing from block number ", lastBlockNumber+1, " to ", maxBlockNo)
 	for lastBlockNumber < maxBlockNo {
 		select {
 		case <-w.syncFlag.cancelSyncCh: // canceled from shutdown

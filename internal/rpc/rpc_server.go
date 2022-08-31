@@ -15,7 +15,8 @@ import (
 type (
 	rpcServer struct {
 		alphabill.UnimplementedAlphabillServiceServer
-		node partitionNode
+		node                  partitionNode
+		maxGetBlocksBatchSize uint64
 	}
 
 	partitionNode interface {
@@ -25,12 +26,17 @@ type (
 	}
 )
 
-func NewRpcServer(node partitionNode) (*rpcServer, error) {
+func NewRpcServer(node partitionNode, opts ...Option) (*rpcServer, error) {
+	options := defaultOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
 	if node == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
 	return &rpcServer{
-		node: node,
+		node:                  node,
+		maxGetBlocksBatchSize: options.maxGetBlocksBatchSize,
 	}, nil
 }
 
@@ -67,7 +73,7 @@ func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest
 	if err != nil {
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}
-	maxBlockCount := util.Min(req.BlockCount, 100)
+	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
 	maxAvailableBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.BlockNumber)
 	batchSize := maxAvailableBlockNumber - req.BlockNumber
 	res := make([]*block.Block, 0, batchSize)

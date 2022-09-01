@@ -206,14 +206,14 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, accountNumber uint64) {
+func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, walletName, "sync")
 		verifyStdout(t, stdout, "Wallet synchronized successfully.")
 
 		stdout = execWalletCmd(t, walletName, "get-balance")
 		for _, line := range stdout.lines {
-			if line == fmt.Sprintf("#%d %d", accountNumber+1, expectedBalance) {
+			if line == fmt.Sprintf("#%d %d", accountIndex+1, expectedBalance) {
 				return true
 			}
 		}

@@ -152,14 +152,14 @@ func TestWallet_AddKey(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, accNum)
 	require.EqualValues(t, "0x"+testPubKey1Hex, hexutil.Encode(accPubKey))
-	accNum, _ = w.db.Do().GetMaxAccountNumber()
+	accNum, _ = w.db.Do().GetMaxAccountIndex()
 	require.EqualValues(t, 1, accNum)
 
 	accNum, accPubKey, err = w.AddAccount()
 	require.NoError(t, err)
 	require.EqualValues(t, 2, accNum)
 	require.EqualValues(t, "0x"+testPubKey2Hex, hexutil.Encode(accPubKey))
-	accNum, _ = w.db.Do().GetMaxAccountNumber()
+	accNum, _ = w.db.Do().GetMaxAccountIndex()
 	require.EqualValues(t, 2, accNum)
 }
 

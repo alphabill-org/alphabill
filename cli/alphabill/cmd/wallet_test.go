@@ -73,7 +73,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	startRPCServer(t, network, ":9543")
 
 	// create 2 wallets
-	err := wlog.InitStdoutLogger()
+	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
 	w1 := createNewNamedWallet(t, "wallet-1", ":9543")
@@ -140,8 +140,9 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	require.NoError(t, err)
 
 	grpcServer, err := initRPCServer(network.Nodes[0], &grpcServerConfiguration{
-		Address:        addr,
-		MaxRecvMsgSize: defaultMaxRecvMsgSize,
+		Address:               addr,
+		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
+		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 	})
 	require.NoError(t, err)
 

@@ -131,7 +131,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
-	rpcServer, err := rpc.NewRpcServer(node)
+	rpcServer, err := rpc.NewRpcServer(node, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
 	if err != nil {
 		return nil, err
 	}

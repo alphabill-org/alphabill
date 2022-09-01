@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
@@ -26,6 +27,10 @@ func (c *mockAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsyst
 }
 
 func (c *mockAlphabillClient) GetBlock(uint64) (*block.Block, error) {
+	return nil, nil
+}
+
+func (c *mockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 	return nil, nil
 }
 

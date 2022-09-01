@@ -520,10 +520,6 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 	if err != nil {
 		return err
 	}
-	maxBlockNo, err := w.GetMaxBlockNumber()
-	if err != nil {
-		return err
-	}
 	bills, err := tx.GetBills(accountIndex)
 	if err != nil {
 		return err
@@ -536,8 +532,12 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 			return err
 		}
 		if dcMeta != nil && dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
-			timeout := maxBlockNo + swapTimeoutBlockCount
-			err := w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout, accountIndex)
+			maxBlockNumber, err := w.GetMaxBlockNumber()
+			if err != nil {
+				return err
+			}
+			timeout := maxBlockNumber + swapTimeoutBlockCount
+			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout, accountIndex)
 			if err != nil {
 				return err
 			}

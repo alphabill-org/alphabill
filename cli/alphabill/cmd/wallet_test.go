@@ -133,7 +133,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	startRPCServer(t, network, ":9543")
 
 	// create wallet with 3 accounts
-	_ = wlog.InitStdoutLogger()
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	w := createNewNamedWallet(t, "wallet", ":9543")
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()

@@ -230,8 +230,8 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	for accNum, accBalance := range balances {
-		consoleWriter.Println(fmt.Sprintf("#%d %d", accNum+1, accBalance))
+	for accountIndex, accBalance := range balances {
+		consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accBalance))
 	}
 	return nil
 }
@@ -258,8 +258,8 @@ func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	for accNum, accPubKey := range pubKeys {
-		consoleWriter.Println(fmt.Sprintf("#%d %s", accNum+1, hexutil.Encode(accPubKey)))
+	for accIdx, accPubKey := range pubKeys {
+		consoleWriter.Println(fmt.Sprintf("#%d %s", accIdx+1, hexutil.Encode(accPubKey)))
 	}
 	return nil
 }
@@ -336,11 +336,11 @@ func execAddKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	accNum, accPubKey, err := w.AddAccount()
+	accIdx, accPubKey, err := w.AddAccount()
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Added key #%d %s", accNum+1, hexutil.Encode(accPubKey)))
+	consoleWriter.Println(fmt.Sprintf("Added key #%d %s", accIdx+1, hexutil.Encode(accPubKey)))
 	return nil
 }
 

@@ -220,15 +220,15 @@ func (w *Wallet) GetPublicKey(accountIndex uint64) ([]byte, error) {
 	return key.PubKey, nil
 }
 
-// GetPublicKeys returns public keys of the wallet, indexed by account numbers
+// GetPublicKeys returns public keys of the wallet, indexed by account indexes
 func (w *Wallet) GetPublicKeys() ([][]byte, error) {
 	accKeys, err := w.db.Do().GetAccountKeys()
 	if err != nil {
 		return nil, err
 	}
 	pubKeys := make([][]byte, len(accKeys))
-	for accNum, accKey := range accKeys {
-		pubKeys[accNum] = accKey.PubKey
+	for accIdx, accKey := range accKeys {
+		pubKeys[accIdx] = accKey.PubKey
 	}
 	return pubKeys, nil
 }
@@ -240,7 +240,7 @@ func (w *Wallet) GetMnemonic() (string, error) {
 
 // AddAccount adds the next account in account key series to the wallet.
 // New accounts are indexed only from the time of creation and not backwards in time.
-// Returns added account number together with account's public key.
+// Returns new account's index and public key.
 func (w *Wallet) AddAccount() (uint64, []byte, error) {
 	masterKeyString, err := w.db.Do().GetMasterKey()
 	if err != nil {

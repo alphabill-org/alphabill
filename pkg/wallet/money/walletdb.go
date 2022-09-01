@@ -178,8 +178,8 @@ func (w *wdbtx) GetAccountKeys() ([]*wallet.AccountKey, error) {
 		return nil, err
 	}
 	res := make([]*wallet.AccountKey, len(keys))
-	for accNum, key := range keys {
-		res[accNum] = key
+	for accIdx, key := range keys {
+		res[accIdx] = key
 	}
 	return res, nil
 }
@@ -394,12 +394,12 @@ func (w *wdbtx) GetBalance(accountIndex uint64) (uint64, error) {
 func (w *wdbtx) GetBalances() ([]uint64, error) {
 	res := make(map[uint64]uint64)
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		return tx.Bucket(accountsBucket).ForEach(func(accNum, v []byte) error {
+		return tx.Bucket(accountsBucket).ForEach(func(accIdx, v []byte) error {
 			if v != nil { // value is nil if entry is a bucket
 				return nil
 			}
 			sum := uint64(0)
-			accountBucket, err := getAccountBucket(tx, accNum)
+			accountBucket, err := getAccountBucket(tx, accIdx)
 			if err != nil {
 				return err
 			}
@@ -416,7 +416,7 @@ func (w *wdbtx) GetBalances() ([]uint64, error) {
 			if err != nil {
 				return err
 			}
-			res[util.BytesToUint64(accNum)] = sum
+			res[util.BytesToUint64(accIdx)] = sum
 			return nil
 		})
 	}, false)
@@ -424,8 +424,8 @@ func (w *wdbtx) GetBalances() ([]uint64, error) {
 		return nil, err
 	}
 	balances := make([]uint64, len(res))
-	for accNum, sum := range res {
-		balances[accNum] = sum
+	for accIdx, sum := range res {
+		balances[accIdx] = sum
 	}
 	return balances, nil
 }

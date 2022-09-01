@@ -148,19 +148,19 @@ func TestWallet_GetPublicKeys(t *testing.T) {
 func TestWallet_AddKey(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
 
-	accNum, accPubKey, err := w.AddAccount()
+	accIdx, accPubKey, err := w.AddAccount()
 	require.NoError(t, err)
-	require.EqualValues(t, 1, accNum)
+	require.EqualValues(t, 1, accIdx)
 	require.EqualValues(t, "0x"+testPubKey1Hex, hexutil.Encode(accPubKey))
-	accNum, _ = w.db.Do().GetMaxAccountIndex()
-	require.EqualValues(t, 1, accNum)
+	accIdx, _ = w.db.Do().GetMaxAccountIndex()
+	require.EqualValues(t, 1, accIdx)
 
-	accNum, accPubKey, err = w.AddAccount()
+	accIdx, accPubKey, err = w.AddAccount()
 	require.NoError(t, err)
-	require.EqualValues(t, 2, accNum)
+	require.EqualValues(t, 2, accIdx)
 	require.EqualValues(t, "0x"+testPubKey2Hex, hexutil.Encode(accPubKey))
-	accNum, _ = w.db.Do().GetMaxAccountIndex()
-	require.EqualValues(t, 2, accNum)
+	accIdx, _ = w.db.Do().GetMaxAccountIndex()
+	require.EqualValues(t, 2, accIdx)
 }
 
 func TestWallet_GetBalance(t *testing.T) {

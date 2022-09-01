@@ -2,6 +2,7 @@ package clientmock
 
 import (
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
@@ -34,8 +35,11 @@ func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error)
 	return nil, nil
 }
 
-func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
-	return []*block.Block{c.blocks[blockNumber]}, nil
+func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+	return &alphabill.GetBlocksResponse{
+		MaxBlockNumber: c.maxBlockNumber,
+		Blocks:         []*block.Block{c.blocks[blockNumber]},
+	}, nil
 }
 
 func (c *MockAlphabillClient) GetMaxBlockNumber() (uint64, error) {

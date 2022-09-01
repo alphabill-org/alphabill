@@ -87,8 +87,8 @@ func (w *WalletBackend) Start(ctx context.Context) error {
 			}
 
 			batchSize := util.Min(100, maxBlockNumber-blockNumber)
-			blocks, _ := w.abclient.GetBlocks(blockNumber+1, batchSize)
-			for _, b := range blocks {
+			res, _ := w.abclient.GetBlocks(blockNumber+1, batchSize)
+			for _, b := range res.Blocks {
 				log.Info("processing block %d", b.BlockNumber)
 				if blockNumber+1 != b.BlockNumber {
 					return errors.New(fmt.Sprintf("invalid block number, got %d current %d", b.BlockNumber, blockNumber))

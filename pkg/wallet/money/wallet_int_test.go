@@ -27,6 +27,7 @@ const port = 9111
 func TestSync(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
+	_ = log.InitStdoutLogger(log.DEBUG)
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
@@ -122,6 +123,7 @@ func TestSync(t *testing.T) {
 func TestSyncToMaxBlockNumber(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
+	_ = log.InitStdoutLogger(log.DEBUG)
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
@@ -165,7 +167,7 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
-	_ = log.InitStdoutLogger(log.INFO)
+	_ = log.InitStdoutLogger(log.DEBUG)
 	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),

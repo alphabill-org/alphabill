@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -72,14 +71,13 @@ func (r *rpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlockN
 
 func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
 	latestBlock := r.node.GetLatestBlock()
-	err := verifyRequest(req, latestBlock.BlockNumber)
+	err := verifyRequest(req)
 	if err != nil {
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}
 	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
 	maxAvailableBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.BlockNumber)
-	batchSize := maxAvailableBlockNumber - req.BlockNumber
-	fmt.Println(fmt.Sprintf("reqno=%d, reqcount=%d, maxBlockCount=%d, maxAvailableBlockNumber=%d, batchSize=%d", req.BlockNumber, req.BlockCount, maxBlockCount, maxAvailableBlockNumber, batchSize))
+	batchSize := maxAvailableBlockNumber - req.BlockNumber + 1
 	res := make([]*block.Block, 0, batchSize)
 	for blockNumber := req.BlockNumber; blockNumber <= maxAvailableBlockNumber; blockNumber++ {
 		b, err := r.node.GetBlock(blockNumber)
@@ -91,15 +89,12 @@ func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest
 	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.BlockNumber}, nil
 }
 
-func verifyRequest(req *alphabill.GetBlocksRequest, latestBlockNumber uint64) error {
+func verifyRequest(req *alphabill.GetBlocksRequest) error {
 	if req.BlockNumber < 1 {
 		return errors.New("block number cannot be less than one")
 	}
 	if req.BlockCount < 1 {
 		return errors.New("block count cannot be less than one")
-	}
-	if req.BlockNumber > latestBlockNumber {
-		return errors.New(fmt.Sprintf("block number cannot be larger than latest block number, got %d have %d", req.BlockNumber, latestBlockNumber))
 	}
 	return nil
 }

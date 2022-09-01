@@ -149,6 +149,9 @@ func (w *Wallet) syncLedger(ctx context.Context, lastBlockNumber uint64, syncFor
 }
 
 func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
+	log.Info("syncing from current block number ", lastBlockNumber)
+	var err error
+	var maxBlockNumber uint64
 	for {
 		select {
 		case <-w.syncFlag.cancelSyncCh: // canceled from shutdown
@@ -156,15 +159,10 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
-			maxBlockNo, err := w.GetMaxBlockNumber()
-			if err != nil {
-				return err
-			}
-			if lastBlockNumber == maxBlockNo {
+			if maxBlockNumber != 0 && lastBlockNumber == maxBlockNumber {
 				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
-				continue
 			}
-			lastBlockNumber, err = w.fetchBlocks(lastBlockNumber, maxBlockNo, ch)
+			lastBlockNumber, maxBlockNumber, err = w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
 			if err != nil {
 				return err
 			}
@@ -173,19 +171,20 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 }
 
 func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
-	maxBlockNo, err := w.GetMaxBlockNumber()
+	maxBlockNumber, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
-	log.Info("syncing from block number ", lastBlockNumber+1, " to ", maxBlockNo)
-	for lastBlockNumber < maxBlockNo {
+	log.Info("syncing from current block number ", lastBlockNumber, " to ", maxBlockNumber)
+	for lastBlockNumber < maxBlockNumber {
 		select {
 		case <-w.syncFlag.cancelSyncCh: // canceled from shutdown
 			return nil
 		case <-ctx.Done(): // canceled by user or error in block receiver
 			return nil
 		default:
-			lastBlockNumber, err = w.fetchBlocks(lastBlockNumber, maxBlockNo, ch)
+			batchSize := util.Min(blockDownloadMaxBatchSize, maxBlockNumber-lastBlockNumber)
+			lastBlockNumber, _, err = w.fetchBlocks(lastBlockNumber, batchSize, ch)
 			if err != nil {
 				return err
 			}
@@ -194,17 +193,17 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 	return nil
 }
 
-func (w *Wallet) fetchBlocks(lastBlockNumber uint64, maxBlockNumber uint64, ch chan<- *block.Block) (uint64, error) {
-	batchSize := util.Min(blockDownloadMaxBatchSize, maxBlockNumber-lastBlockNumber)
+func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (uint64, uint64, error) {
+	log.Debug("fetching blocks blocknumber=", lastBlockNumber+1, " blockcount=", batchSize)
 	res, err := w.AlphabillClient.GetBlocks(lastBlockNumber+1, batchSize)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	for _, b := range res.Blocks {
 		lastBlockNumber = b.BlockNumber
 		ch <- b
 	}
-	return lastBlockNumber, nil
+	return lastBlockNumber, res.MaxBlockNumber, nil
 }
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {

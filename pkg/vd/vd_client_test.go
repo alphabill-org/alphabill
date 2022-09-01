@@ -8,15 +8,13 @@ import (
 	"sync"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-
-	"github.com/alphabill-org/alphabill/pkg/client"
-
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testfile "github.com/alphabill-org/alphabill/internal/testutils/file"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +61,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
-	require.NoError(t, log.InitStdoutLogger())
+	require.NoError(t, log.InitStdoutLogger(log.INFO))
 	conf := testConf()
 	conf.WaitBlock = true
 	conf.BlockTimeout = 5
@@ -206,7 +204,7 @@ func TestVdClient_RegisterFileHash(t *testing.T) {
 }
 
 func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
-	require.NoError(t, log.InitStdoutLogger())
+	require.NoError(t, log.InitStdoutLogger(log.INFO))
 	conf := testConf()
 	conf.WaitBlock = true
 	vdClient, err := New(context.Background(), conf)
@@ -265,8 +263,8 @@ func (a *abClientMock) GetBlock(n uint64) (*block.Block, error) {
 	return nil, nil
 }
 
-func (a *abClientMock) GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error) {
-	return []*block.Block{a.block(blockNumber)}, nil
+func (a *abClientMock) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: []*block.Block{a.block(blockNumber)}}, nil
 }
 
 func (a *abClientMock) GetMaxBlockNumber() (uint64, error) {

@@ -20,7 +20,7 @@ import (
 type ABClient interface {
 	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(blockNumber uint64) (*block.Block, error)
-	GetBlocks(blockNumber, blockCount uint64) ([]*block.Block, error)
+	GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 	GetMaxBlockNumber() (uint64, error)
 	Shutdown() error
 	IsShutdown() bool
@@ -87,9 +87,16 @@ func (c *AlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
 	return res.Block, nil
 }
 
-func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) ([]*block.Block, error) {
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+blockCount-1))
-	err := c.connect()
+func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) (res *alphabill.GetBlocksResponse, err error) {
+	defer func(t1 time.Time) {
+		if res != nil && len(res.Blocks) > 0 {
+			trackExecutionTime(t1, fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+uint64(len(res.Blocks))-1))
+		} else {
+			trackExecutionTime(t1, fmt.Sprintf("downloading blocks %d+%d (empty response)", blockNumber, blockCount))
+		}
+	}(time.Now())
+
+	err = c.connect()
 	if err != nil {
 		return nil, err
 	}
@@ -101,14 +108,14 @@ func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) ([]*b
 		defer cancel()
 		ctx = ctxTimeout
 	}
-	res, err := c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount}, grpc.WaitForReady(c.config.WaitForReady))
+	res, err = c.client.GetBlocks(ctx, &alphabill.GetBlocksRequest{BlockNumber: blockNumber, BlockCount: blockCount}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
 		return nil, err
 	}
 	if res.ErrorMessage != "" {
 		return nil, errors.New(res.ErrorMessage)
 	}
-	return res.Blocks, nil
+	return res, nil
 }
 
 func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {

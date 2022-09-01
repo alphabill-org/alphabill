@@ -72,7 +72,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	startRPCServer(t, network, ":9543")
 
 	// create 2 wallets
-	err := wlog.InitStdoutLogger()
+	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
 	w1 := createNewNamedWallet(t, "wallet-1", ":9543")
@@ -133,7 +133,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	startRPCServer(t, network, ":9543")
 
 	// create wallet with 3 accounts
-	_ = wlog.InitStdoutLogger()
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	w := createNewNamedWallet(t, "wallet", ":9543")
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
@@ -193,8 +193,9 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	require.NoError(t, err)
 
 	grpcServer, err := initRPCServer(network.Nodes[0], &grpcServerConfiguration{
-		Address:        addr,
-		MaxRecvMsgSize: defaultMaxRecvMsgSize,
+		Address:               addr,
+		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
+		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 	})
 	require.NoError(t, err)
 
@@ -206,14 +207,14 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, accountNumber uint64) {
+func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, walletName, "sync")
 		verifyStdout(t, stdout, "Wallet synchronized successfully.")
 
 		stdout = execWalletCmd(t, walletName, "get-balance")
 		for _, line := range stdout.lines {
-			if line == fmt.Sprintf("#%d %d", accountNumber+1, expectedBalance) {
+			if line == fmt.Sprintf("#%d %d", accountIndex+1, expectedBalance) {
 				return true
 			}
 		}

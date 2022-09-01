@@ -104,8 +104,8 @@ func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*A
 	}, nil
 }
 
-// NewDerivationPath returns derivation path for given account number
-func NewDerivationPath(accountNumber uint64) string {
+// NewDerivationPath returns derivation path for given account index
+func NewDerivationPath(accountIndex uint64) string {
 	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
 	// m / purpose' / coin_type' / account' / change / address_index
 	// m - master key
@@ -116,7 +116,7 @@ func NewDerivationPath(accountNumber uint64) string {
 	// 0 - address index
 	// we currently have an ethereum like account based model meaning 1 account = 1 address
 	derivationPath := "m/44'/634'/%d'/0/0"
-	return fmt.Sprintf(derivationPath, accountNumber)
+	return fmt.Sprintf(derivationPath, accountIndex)
 }
 
 func generateMnemonic() (string, error) {

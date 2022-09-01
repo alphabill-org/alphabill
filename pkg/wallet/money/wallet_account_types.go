@@ -13,8 +13,8 @@ type (
 		accounts []account
 	}
 	account struct {
-		accountNumber uint64
-		accountKeys   wallet.KeyHashes
+		accountIndex uint64
+		accountKeys  wallet.KeyHashes
 	}
 )
 

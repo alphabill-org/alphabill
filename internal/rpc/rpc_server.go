@@ -2,19 +2,20 @@ package rpc
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (
 	rpcServer struct {
 		alphabill.UnimplementedAlphabillServiceServer
-		node partitionNode
+		node                  partitionNode
+		maxGetBlocksBatchSize uint64
 	}
 
 	partitionNode interface {
@@ -24,12 +25,20 @@ type (
 	}
 )
 
-func NewRpcServer(node partitionNode) (*rpcServer, error) {
+func NewRpcServer(node partitionNode, opts ...Option) (*rpcServer, error) {
+	options := defaultOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
 	if node == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, errstr.NilArgument)
 	}
+	if options.maxGetBlocksBatchSize < 1 {
+		return nil, errors.Wrap(errors.ErrInvalidArgument, "server-max-get-blocks-batch-size cannot be less than one")
+	}
 	return &rpcServer{
-		node: node,
+		node:                  node,
+		maxGetBlocksBatchSize: options.maxGetBlocksBatchSize,
 	}, nil
 }
 
@@ -62,33 +71,30 @@ func (r *rpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlockN
 
 func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
 	latestBlock := r.node.GetLatestBlock()
-	err := verifyRequest(req, latestBlock.BlockNumber)
+	err := verifyRequest(req)
 	if err != nil {
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}
-	res := make([]*block.Block, 0, req.BlockCount)
-	for blockNumber := req.BlockNumber; blockNumber < req.BlockNumber+req.BlockCount; blockNumber++ {
+	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
+	batchMaxBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.BlockNumber)
+	batchSize := batchMaxBlockNumber - req.BlockNumber + 1
+	res := make([]*block.Block, 0, batchSize)
+	for blockNumber := req.BlockNumber; blockNumber <= batchMaxBlockNumber; blockNumber++ {
 		b, err := r.node.GetBlock(blockNumber)
 		if err != nil {
 			return nil, err
 		}
 		res = append(res, b)
 	}
-	return &alphabill.GetBlocksResponse{Blocks: res}, nil
+	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.BlockNumber}, nil
 }
 
-func verifyRequest(req *alphabill.GetBlocksRequest, latestBlockNumber uint64) error {
+func verifyRequest(req *alphabill.GetBlocksRequest) error {
 	if req.BlockNumber < 1 {
 		return errors.New("block number cannot be less than one")
 	}
 	if req.BlockCount < 1 {
 		return errors.New("block count cannot be less than one")
-	}
-	if req.BlockCount > 100 {
-		return errors.New("block count cannot be larger than 100")
-	}
-	if latestBlockNumber < req.BlockNumber+req.BlockCount-1 {
-		return errors.New(fmt.Sprintf("not enough blocks available for request, asked for blocks %d-%d, latest available block %d", req.BlockNumber, req.BlockNumber+req.BlockCount-1, latestBlockNumber))
 	}
 	return nil
 }

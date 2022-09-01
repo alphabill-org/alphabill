@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"google.golang.org/grpc"
 )
 
@@ -49,14 +50,15 @@ func (s *TestAlphabillServiceServer) GetBlocks(_ context.Context, req *alphabill
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	blocks := make([]*block.Block, 0, req.BlockCount)
-	for i := req.BlockNumber; i < req.BlockNumber+req.BlockCount; i++ {
+	maxBlockNumber := util.Min(s.maxBlockHeight, req.BlockNumber+req.BlockCount-1)
+	for i := req.BlockNumber; i <= maxBlockNumber; i++ {
 		blockFunc, f := s.blocks[i]
 		if !f {
 			return nil, errors.New(fmt.Sprintf("block with number %v not found", i))
 		}
 		blocks = append(blocks, blockFunc())
 	}
-	return &alphabill.GetBlocksResponse{Blocks: blocks}, nil
+	return &alphabill.GetBlocksResponse{Blocks: blocks, MaxBlockNumber: s.maxBlockHeight}, nil
 }
 
 func (s *TestAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {

@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/client"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -18,6 +16,8 @@ import (
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +27,7 @@ const port = 9111
 func TestSync(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
+	_ = log.InitStdoutLogger(log.DEBUG)
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
 		Db:                    nil,
@@ -122,6 +123,7 @@ func TestSync(t *testing.T) {
 func TestSyncToMaxBlockNumber(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
+	_ = log.InitStdoutLogger(log.DEBUG)
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
@@ -165,6 +167,7 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
+	_ = log.InitStdoutLogger(log.DEBUG)
 	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),

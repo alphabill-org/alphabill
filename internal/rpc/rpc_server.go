@@ -76,10 +76,10 @@ func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}
 	maxBlockCount := util.Min(req.BlockCount, r.maxGetBlocksBatchSize)
-	maxAvailableBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.BlockNumber)
-	batchSize := maxAvailableBlockNumber - req.BlockNumber + 1
+	batchMaxBlockNumber := util.Min(req.BlockNumber+maxBlockCount-1, latestBlock.BlockNumber)
+	batchSize := batchMaxBlockNumber - req.BlockNumber + 1
 	res := make([]*block.Block, 0, batchSize)
-	for blockNumber := req.BlockNumber; blockNumber <= maxAvailableBlockNumber; blockNumber++ {
+	for blockNumber := req.BlockNumber; blockNumber <= batchMaxBlockNumber; blockNumber++ {
 		b, err := r.node.GetBlock(blockNumber)
 		if err != nil {
 			return nil, err

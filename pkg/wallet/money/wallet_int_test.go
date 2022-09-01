@@ -38,7 +38,7 @@ func TestSync(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	k, err := w.db.Do().GetAccountKey()
+	k, err := w.db.Do().GetAccountKey(0)
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
@@ -98,7 +98,7 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify starting balance
-	balance, err := w.GetBalance()
+	balance, err := w.GetBalance(0)
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -115,7 +115,7 @@ func TestSync(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 
 	// then balance is increased
-	balance, err = w.GetBalance()
+	balance, err = w.GetBalance(0)
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }

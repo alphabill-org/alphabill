@@ -18,7 +18,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false)
+	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
@@ -49,7 +49,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false)
+	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then swap tx is sent for the timed out dc bill
@@ -77,7 +77,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	mockClient.maxBlockNo = 100
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false)
+	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then dust txs are broadcast
@@ -100,7 +100,7 @@ func TestDcJobDoesNotSendSwapIfDcBillTimeoutHasNotBeenReached(t *testing.T) {
 	setBlockHeight(t, w, 5)
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false)
+	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then swap must not be broadcast
@@ -118,7 +118,7 @@ func TestDcJobSendsMultipleSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	mockClient.maxBlockNo = 10
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false)
+	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then 2 swap txs must be broadcast
@@ -142,7 +142,7 @@ func TestConcurrentDcJobCannotBeStarted(t *testing.T) {
 	setDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount})
 
 	// when dust collector runs
-	err := w.collectDust(context.Background(), false)
+	err := w.collectDust(context.Background(), false, 0)
 	require.ErrorIs(t, err, ErrSwapInProgress)
 
 	// then metadata is the same

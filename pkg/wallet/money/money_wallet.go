@@ -17,9 +17,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -31,7 +33,6 @@ const (
 
 var (
 	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
-	ErrSwapNotEnoughBills   = errors.New("need to have more than 1 bill to perform swap")
 	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
 	ErrInvalidPassword      = errors.New("invalid password")
@@ -46,7 +47,7 @@ type (
 		db               Db
 		dustCollectorJob *cron.Cron
 		dcWg             *dcWaitGroup
-		accountKey       *wallet.KeyHashes
+		accounts         *accounts
 	}
 )
 
@@ -75,19 +76,24 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 		return nil, ErrInvalidPassword
 	}
 
-	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
+	accountKeys, err := db.Do().GetAccountKeys()
+	if err != nil {
+		return nil, err
+	}
+	accs := make([]account, len(accountKeys))
+	for idx, val := range accountKeys {
+		accs[idx] = account{
+			accountIndex: uint64(idx),
+			accountKeys:  *val.PubKeyHash,
+		}
+	}
+	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup(), accounts: &accounts{accounts: accs}}
 
 	mw.Wallet = wallet.New().
 		SetBlockProcessor(mw).
 		SetABClientConf(config.AlphabillClientConfig).
 		Build()
 
-	ac, err := db.Do().GetAccountKey()
-	if err != nil {
-		return nil, err
-	}
-
-	mw.accountKey = ac.PubKeyHash
 	return mw, nil
 }
 
@@ -117,10 +123,12 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		for i, pbTx := range b.Transactions {
-			err = w.collectBills(dbTx, pbTx, b, i)
-			if err != nil {
-				return err
+		for _, acc := range w.accounts.getAll() {
+			for i, pbTx := range b.Transactions {
+				err = w.collectBills(dbTx, pbTx, b, i, &acc)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		return w.endBlock(dbTx, b)
@@ -129,21 +137,23 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 
 func (w *Wallet) endBlock(dbTx TxContext, b *block.Block) error {
 	blockNumber := b.BlockNumber
-	err := w.deleteExpiredDcBills(dbTx, blockNumber)
+	err := dbTx.SetBlockNumber(blockNumber)
 	if err != nil {
 		return err
 	}
-	err = dbTx.SetBlockNumber(blockNumber)
-	if err != nil {
-		return err
-	}
-	err = w.trySwap(dbTx)
-	if err != nil {
-		return err
-	}
-	err = w.dcWg.DecrementSwaps(dbTx, blockNumber)
-	if err != nil {
-		return err
+	for _, acc := range w.accounts.getAll() {
+		err = w.deleteExpiredDcBills(dbTx, blockNumber, acc.accountIndex)
+		if err != nil {
+			return err
+		}
+		err = w.trySwap(dbTx, acc.accountIndex)
+		if err != nil {
+			return err
+		}
+		err = w.dcWg.DecrementSwaps(dbTx, blockNumber, acc.accountIndex)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -168,34 +178,59 @@ func (w *Wallet) DeleteDb() {
 	w.db.DeleteDb()
 }
 
-// CollectDust starts the dust collector process.
-// Wallet needs to be synchronizing using Sync or SyncToMaxBlockHeight in order to receive transactions and finish the process.
-// The function blocks until dust collector process is finished or timed out.
+// CollectDust starts the dust collector process for all accounts in the wallet.
+// Wallet needs to be synchronizing using Sync or SyncToMaxBlockNumber in order to receive transactions and finish the process.
+// The function blocks until dust collector process is finished or timed out. Skips account if the account already has only one or no bills.
 func (w *Wallet) CollectDust(ctx context.Context) error {
-	return w.collectDust(ctx, true)
+	errgrp, ctx := errgroup.WithContext(ctx)
+	for _, acc := range w.accounts.getAll() {
+		errgrp.Go(func() error {
+			return w.collectDust(ctx, true, acc.accountIndex)
+		})
+	}
+	return errgrp.Wait()
 }
 
 // StartDustCollectorJob starts the dust collector background process that runs every hour until wallet is shut down.
-// PartitionWallet needs to be synchronizing using Sync or SyncToMaxBlockHeight in order to receive transactions and finish the process.
+// Wallet needs to be synchronizing using Sync or SyncToMaxBlockNumber in order to receive transactions and finish the process.
 // Returns error if the job failed to start.
 func (w *Wallet) StartDustCollectorJob() error {
 	_, err := w.startDustCollectorJob()
 	return err
 }
 
-// GetBalance returns sum value of all bills currently owned by the wallet,
+// GetBalance returns sum value of all bills currently owned by the wallet, for given account
 // the value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalance() (uint64, error) {
-	return w.db.Do().GetBalance()
+func (w *Wallet) GetBalance(accountIndex uint64) (uint64, error) {
+	return w.db.Do().GetBalance(accountIndex)
+}
+
+// GetBalances returns sum value of all bills currently owned by the wallet, for all accounts
+// the value returned is the smallest denomination of alphabills.
+func (w *Wallet) GetBalances() ([]uint64, error) {
+	return w.db.Do().GetBalances()
 }
 
 // GetPublicKey returns public key of the wallet (compressed secp256k1 key 33 bytes)
-func (w *Wallet) GetPublicKey() ([]byte, error) {
-	key, err := w.db.Do().GetAccountKey()
+func (w *Wallet) GetPublicKey(accountIndex uint64) ([]byte, error) {
+	key, err := w.db.Do().GetAccountKey(accountIndex)
 	if err != nil {
 		return nil, err
 	}
 	return key.PubKey, nil
+}
+
+// GetPublicKeys returns public keys of the wallet, indexed by account indexes
+func (w *Wallet) GetPublicKeys() ([][]byte, error) {
+	accKeys, err := w.db.Do().GetAccountKeys()
+	if err != nil {
+		return nil, err
+	}
+	pubKeys := make([][]byte, len(accKeys))
+	for accIdx, accKey := range accKeys {
+		pubKeys[accIdx] = accKey.PubKey
+	}
+	return pubKeys, nil
 }
 
 // GetMnemonic returns mnemonic seed of the wallet
@@ -203,10 +238,52 @@ func (w *Wallet) GetMnemonic() (string, error) {
 	return w.db.Do().GetMnemonic()
 }
 
+// AddAccount adds the next account in account key series to the wallet.
+// New accounts are indexed only from the time of creation and not backwards in time.
+// Returns new account's index and public key.
+func (w *Wallet) AddAccount() (uint64, []byte, error) {
+	masterKeyString, err := w.db.Do().GetMasterKey()
+	if err != nil {
+		return 0, nil, err
+	}
+	masterKey, err := hdkeychain.NewKeyFromString(masterKeyString)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	accountIndex, err := w.db.Do().GetMaxAccountIndex()
+	if err != nil {
+		return 0, nil, err
+	}
+	accountIndex += 1
+
+	derivationPath := wallet.NewDerivationPath(accountIndex)
+	accountKey, err := wallet.NewAccountKey(masterKey, derivationPath)
+	if err != nil {
+		return 0, nil, err
+	}
+	err = w.db.WithTransaction(func(tx TxContext) error {
+		err := tx.AddAccount(accountIndex, accountKey)
+		if err != nil {
+			return err
+		}
+		err = tx.SetMaxAccountIndex(accountIndex)
+		if err != nil {
+			return err
+		}
+		w.accounts.add(&account{accountIndex: accountIndex, accountKeys: *accountKey.PubKeyHash})
+		return nil
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	return accountIndex, accountKey.PubKey, nil
+}
+
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritzing larger bills.
-func (w *Wallet) Send(receiverPubKey []byte, amount uint64) error {
+func (w *Wallet) Send(receiverPubKey []byte, amount uint64, accountIndex uint64) error {
 	if len(receiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
 	}
@@ -219,7 +296,7 @@ func (w *Wallet) Send(receiverPubKey []byte, amount uint64) error {
 		return ErrSwapInProgress
 	}
 
-	balance, err := w.GetBalance()
+	balance, err := w.GetBalance(accountIndex)
 	if err != nil {
 		return err
 	}
@@ -236,12 +313,12 @@ func (w *Wallet) Send(receiverPubKey []byte, amount uint64) error {
 		return err
 	}
 
-	k, err := w.db.Do().GetAccountKey()
+	k, err := w.db.Do().GetAccountKey(accountIndex)
 	if err != nil {
 		return err
 	}
 
-	bills, err := w.db.Do().GetBills()
+	bills, err := w.db.Do().GetBills(accountIndex)
 	if err != nil {
 		return err
 	}
@@ -284,7 +361,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 	return w.Wallet.SyncToMaxBlockNumber(ctx, blockNumber)
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, txIdx int) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, txIdx int, acc *account) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -292,7 +369,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	stx := gtx.(txsystem.GenericTransaction)
 	switch tx := stx.(type) {
 	case money.Transfer:
-		isOwner, err := verifyOwner(w.accountKey, tx.NewBearer())
+		isOwner, err := verifyOwner(acc, tx.NewBearer())
 		if err != nil {
 			return err
 		}
@@ -302,18 +379,18 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
-			})
+			}, acc.accountIndex)
 			if err != nil {
 				return err
 			}
 		} else {
-			err := dbTx.RemoveBill(tx.UnitID())
+			err := dbTx.RemoveBill(acc.accountIndex, tx.UnitID())
 			if err != nil {
 				return err
 			}
 		}
 	case money.TransferDC:
-		isOwner, err := verifyOwner(w.accountKey, tx.TargetBearer())
+		isOwner, err := verifyOwner(acc, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
@@ -328,12 +405,12 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
 				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
-			})
+			}, acc.accountIndex)
 			if err != nil {
 				return err
 			}
 		} else {
-			err := dbTx.RemoveBill(tx.UnitID())
+			err := dbTx.RemoveBill(acc.accountIndex, tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -343,7 +420,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill, err := dbTx.ContainsBill(tx.UnitID())
+		containsBill, err := dbTx.ContainsBill(acc.accountIndex, tx.UnitID())
 		if err != nil {
 			return err
 		}
@@ -353,12 +430,12 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
 				TxHash: tx.Hash(crypto.SHA256),
-			})
+			}, acc.accountIndex)
 			if err != nil {
 				return err
 			}
 		}
-		isOwner, err := verifyOwner(w.accountKey, tx.TargetBearer())
+		isOwner, err := verifyOwner(acc, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
@@ -368,13 +445,13 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
-			})
+			}, acc.accountIndex)
 			if err != nil {
 				return err
 			}
 		}
 	case money.Swap:
-		isOwner, err := verifyOwner(w.accountKey, tx.OwnerCondition())
+		isOwner, err := verifyOwner(acc, tx.OwnerCondition())
 		if err != nil {
 			return err
 		}
@@ -384,7 +461,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
-			})
+			}, acc.accountIndex)
 			if err != nil {
 				return err
 			}
@@ -394,13 +471,13 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				return err
 			}
 			for _, dustTransfer := range tx.DCTransfers() {
-				err := dbTx.RemoveBill(dustTransfer.UnitID())
+				err := dbTx.RemoveBill(acc.accountIndex, dustTransfer.UnitID())
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := dbTx.RemoveBill(tx.UnitID())
+			err := dbTx.RemoveBill(acc.accountIndex, tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -412,24 +489,24 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	return nil
 }
 
-func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill) error {
+func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill, accountIndex uint64) error {
 	blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return err
 	}
 	bill.BlockProof = blockProof
-	return dbTx.SetBill(bill)
+	return dbTx.SetBill(accountIndex, bill)
 }
 
-func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64) error {
-	bills, err := dbTx.GetBills()
+func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64, accountIndex uint64) error {
+	bills, err := dbTx.GetBills(accountIndex)
 	if err != nil {
 		return err
 	}
 	for _, b := range bills {
 		if b.isExpired(blockNumber) {
 			log.Info(fmt.Sprintf("deleting expired dc bill: value=%d id=%s", b.Value, b.Id.String()))
-			err = dbTx.RemoveBill(b.Id)
+			err = dbTx.RemoveBill(accountIndex, b.Id)
 			if err != nil {
 				return err
 			}
@@ -438,12 +515,12 @@ func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64) error 
 	return nil
 }
 
-func (w *Wallet) trySwap(tx TxContext) error {
+func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 	blockHeight, err := tx.GetBlockNumber()
 	if err != nil {
 		return err
 	}
-	bills, err := tx.GetBills()
+	bills, err := tx.GetBills(accountIndex)
 	if err != nil {
 		return err
 	}
@@ -460,7 +537,7 @@ func (w *Wallet) trySwap(tx TxContext) error {
 				return err
 			}
 			timeout := maxBlockNumber + swapTimeoutBlockCount
-			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout)
+			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout, accountIndex)
 			if err != nil {
 				return err
 			}
@@ -485,11 +562,12 @@ func (w *Wallet) trySwap(tx TxContext) error {
 	return nil
 }
 
-// collectDust sends dust transfer for every bill in wallet and records metadata.
+// collectDust sends dust transfer for every bill for given account in wallet and records metadata.
+// Returns immediately without error if there's already 1 or 0 bills.
 // Once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared.
 // If blocking is true then the function blocks until swap has been completed or timed out,
 // if blocking is false then the function returns after sending the dc transfers.
-func (w *Wallet) collectDust(ctx context.Context, blocking bool) error {
+func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex uint64) error {
 	err := w.db.WithTransaction(func(dbTx TxContext) error {
 		blockHeight, err := dbTx.GetBlockNumber()
 		if err != nil {
@@ -499,12 +577,13 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool) error {
 		if err != nil {
 			return err
 		}
-		bills, err := dbTx.GetBills()
+		bills, err := dbTx.GetBills(accountIndex)
 		if err != nil {
 			return err
 		}
 		if len(bills) < 2 {
-			return ErrSwapNotEnoughBills
+			log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
+			return nil
 		}
 		var expectedSwaps []expectedSwap
 		dcBillGroups := groupDcBills(bills)
@@ -512,7 +591,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool) error {
 			for _, v := range dcBillGroups {
 				if blockHeight >= v.dcTimeout {
 					swapTimeout := maxBlockNo + swapTimeoutBlockCount
-					err = w.swapDcBills(dbTx, v.dcBills, v.dcNonce, swapTimeout)
+					err = w.swapDcBills(dbTx, v.dcBills, v.dcNonce, swapTimeout, accountIndex)
 					if err != nil {
 						return err
 					}
@@ -531,7 +610,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool) error {
 				return ErrSwapInProgress
 			}
 
-			k, err := dbTx.GetAccountKey()
+			k, err := dbTx.GetAccountKey(accountIndex)
 			if err != nil {
 				return err
 			}
@@ -593,8 +672,8 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool) error {
 	return nil
 }
 
-func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, timeout uint64) error {
-	k, err := tx.GetAccountKey()
+func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, timeout uint64, accountIndex uint64) error {
+	k, err := tx.GetAccountKey(accountIndex)
 	if err != nil {
 		return err
 	}
@@ -633,15 +712,17 @@ func (w *Wallet) isSwapInProgress(dbTx TxContext) (bool, error) {
 
 func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	return w.dustCollectorJob.AddFunc("@hourly", func() {
-		err := w.collectDust(context.Background(), false)
-		if err != nil {
-			log.Error("error in dust collector job: ", err)
+		for _, acc := range w.accounts.getAll() {
+			err := w.collectDust(context.Background(), false, acc.accountIndex)
+			if err != nil {
+				log.Error("error in dust collector job: ", err)
+			}
 		}
 	})
 }
 
 func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet, err error) {
-	mw = &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup()}
+	mw = &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup(), accounts: newAccountsCache()}
 	defer func() {
 		if err != nil {
 			// delete database if any error occurs after creating it
@@ -664,7 +745,10 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet,
 		return
 	}
 
-	mw.accountKey = keys.AccountKey.PubKeyHash
+	mw.accounts.add(&account{
+		accountIndex: 0,
+		accountKeys:  *keys.AccountKey.PubKeyHash,
+	})
 	return
 }
 
@@ -739,6 +823,10 @@ func saveKeys(db Db, keys *wallet.Keys, walletPass string) error {
 		if err != nil {
 			return err
 		}
-		return tx.SetAccountKey(keys.AccountKey)
+		err = tx.AddAccount(0, keys.AccountKey)
+		if err != nil {
+			return err
+		}
+		return tx.SetMaxAccountIndex(0)
 	})
 }

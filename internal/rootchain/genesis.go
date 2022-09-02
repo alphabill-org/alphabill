@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
 
@@ -45,8 +46,8 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 	}
 
 	// verify that we have consensus between the partition nodes.
-	for _, p := range partitions {
-		id := string(p.SystemDescriptionRecord.SystemIdentifier)
+	for _, partition := range partitions {
+		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
 		if !state.checkConsensus(state.incomingRequests[id]) {
 			return nil, nil, errors.Errorf("partition %X has not reached a consensus", id)
 		}
@@ -62,17 +63,17 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 	rootPublicKey, verifier, err := GetPublicKeyAndVerifier(rootSigner)
 
 	// generate genesis structs
-	for i, p := range partitions {
-		id := string(p.SystemDescriptionRecord.SystemIdentifier)
+	for i, partition := range partitions {
+		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
 		certificate := state.store.GetUC(id)
 		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
-			Nodes:                   p.Validators,
+			Nodes:                   partition.Validators,
 			Certificate:             certificate,
-			SystemDescriptionRecord: p.SystemDescriptionRecord,
+			SystemDescriptionRecord: partition.SystemDescriptionRecord,
 		}
 
-		var keys = make([]*genesis.PublicKeyInfo, len(p.Validators))
-		for j, v := range p.Validators {
+		var keys = make([]*genesis.PublicKeyInfo, len(partition.Validators))
+		for j, v := range partition.Validators {
 			keys[j] = &genesis.PublicKeyInfo{
 				NodeIdentifier:      v.NodeIdentifier,
 				SigningPublicKey:    v.SigningPublicKey,
@@ -81,12 +82,12 @@ func NewGenesis(partitions []*genesis.PartitionRecord, rootSigner crypto.Signer,
 		}
 
 		partitionGenesis[i] = &genesis.PartitionGenesis{
-			SystemDescriptionRecord: p.SystemDescriptionRecord,
+			SystemDescriptionRecord: partition.SystemDescriptionRecord,
 			Certificate:             certificate,
 			TrustBase:               rootPublicKey,
 			EncryptionKey:           encPubKeyBytes,
 			Keys:                    keys,
-			Params:                  p.Validators[0].Params,
+			Params:                  partition.Validators[0].Params,
 		}
 	}
 

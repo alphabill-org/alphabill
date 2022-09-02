@@ -1,6 +1,7 @@
 package rootchain
 
 import (
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -12,18 +13,18 @@ var id1 = []byte{0, 0, 0, 1}
 var id2 = []byte{0, 0, 0, 2}
 
 func TestPartitionStore(t *testing.T) {
-	counts := make(map[string]int)
-	counts[string(id1)] = 0
-	counts[string(id2)] = 2
+	counts := make(map[p.SystemIdentifier]int)
+	counts[p.SystemIdentifier(id1)] = 0
+	counts[p.SystemIdentifier(id2)] = 2
 
 	type args struct {
 		partitions []*genesis.PartitionRecord
 	}
 	type want struct {
 		size                     int
-		nodeCounts               map[string]int
-		containsPartitions       []string
-		doesNotContainPartitions []string
+		nodeCounts               map[p.SystemIdentifier]int
+		containsPartitions       []p.SystemIdentifier
+		doesNotContainPartitions []p.SystemIdentifier
 	}
 	tests := []struct {
 		name string
@@ -69,8 +70,8 @@ func TestPartitionStore(t *testing.T) {
 			want: want{
 				size:                     2,
 				nodeCounts:               counts,
-				containsPartitions:       []string{string(id1), string(id2)},
-				doesNotContainPartitions: []string{"1"},
+				containsPartitions:       []p.SystemIdentifier{p.SystemIdentifier(id1), p.SystemIdentifier(id2)},
+				doesNotContainPartitions: []p.SystemIdentifier{p.SystemIdentifier("1")},
 			},
 		},
 	}

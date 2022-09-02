@@ -2,6 +2,7 @@ package partition
 
 import (
 	gocrypto "crypto"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -145,7 +146,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
-	systemIdentifier := string(tp.nodeConf.GetSystemIdentifier())
+	systemIdentifier := p.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
 	// produce some root chain rounds
 	tp.rootState.CopyOldInputRecords(systemIdentifier)
 	_, err := tp.rootState.CreateUnicityCertificates()

@@ -3,6 +3,7 @@ package rootchain
 import (
 	"context"
 	"fmt"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"time"
 
@@ -183,18 +184,18 @@ func (rc *RootChain) loop() {
 				rc.timers.Restart(t3TimerID)
 				for _, identifier := range partitionIdentifiers {
 					logger.Debug("Restarting T2 timer: %X", []byte(identifier))
-					rc.timers.Restart(identifier)
+					rc.timers.Restart(string(identifier))
 				}
 			} else {
 				logger.Debug("Handling T2 timeout with a name '%X'", []byte(timerName))
-				rc.state.CopyOldInputRecords(timerName)
+				rc.state.CopyOldInputRecords(p.SystemIdentifier(timerName))
 				rc.timers.Restart(timerName)
 			}
 		}
 	}
 }
 
-func (rc *RootChain) sendUC(identifiers []string) {
+func (rc *RootChain) sendUC(identifiers []p.SystemIdentifier) {
 	for _, identifier := range identifiers {
 		uc := rc.state.store.GetUC(identifier)
 		if uc == nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 type txProcessor struct {
@@ -19,7 +20,7 @@ func newTxProcessor(store BillStore) *txProcessor {
 	return &txProcessor{store: store}
 }
 
-func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pubKey *pubkey) error {
+func (p *txProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txIdx int, pubKey *pubkey) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -28,35 +29,41 @@ func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pub
 
 	switch tx := stx.(type) {
 	case moneytx.Transfer:
-		isOwner, err := verifyOwner(pubKey, tx.NewBearer())
+		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.NewBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			log.Info("received transfer order")
-			b.saveWithProof(pubKey.pubkey, &bill{
+			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
+			if err != nil {
+				return err
+			}
 		} else {
-			err := b.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.pubkey, tx.UnitID())
 			if err != nil {
 				return err
 			}
 		}
 	case moneytx.TransferDC:
-		isOwner, err := verifyOwner(pubKey, tx.TargetBearer())
+		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			log.Info("received TransferDC order")
-			b.saveWithProof(pubKey.pubkey, &bill{
+			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
+			if err != nil {
+				return err
+			}
 		} else {
-			err := b.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.pubkey, tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -66,44 +73,54 @@ func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pub
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill, err := b.store.ContainsBill(pubKey.pubkey, tx.UnitID())
+		containsBill, err := p.store.ContainsBill(pubKey.pubkey, tx.UnitID())
 		if err != nil {
 			return err
 		}
 		if containsBill {
-			b.saveWithProof(pubKey.pubkey, &bill{
+			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
 				Id:    tx.UnitID(),
 				Value: tx.RemainingValue(),
 			})
+			if err != nil {
+				return err
+			}
 		}
-		isOwner, err := verifyOwner(pubKey, tx.TargetBearer())
+		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
-			b.saveWithProof(pubKey.pubkey, &bill{
-				Id:    utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
+			id := utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
+			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
+				Id:    id,
 				Value: tx.Amount(),
 			})
+			if err != nil {
+				return err
+			}
 		}
 	case moneytx.Swap:
-		isOwner, err := verifyOwner(pubKey, tx.OwnerCondition())
+		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.OwnerCondition())
 		if err != nil {
 			return err
 		}
 		if isOwner {
-			b.saveWithProof(pubKey.pubkey, &bill{
+			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
+			if err != nil {
+				return err
+			}
 			for _, dustTransfer := range tx.DCTransfers() {
-				err := b.store.RemoveBill(pubKey.pubkey, dustTransfer.UnitID())
+				err := p.store.RemoveBill(pubKey.pubkey, dustTransfer.UnitID())
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := b.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.pubkey, tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -115,13 +132,25 @@ func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pub
 	return nil
 }
 
-func (b *txProcessor) saveWithProof(pubkey []byte, bi *bill) {
-	// TODO save proof
-	b.store.AddBill(pubkey, bi)
+func (p *txProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx int, bi *bill) error {
+	err := p.store.AddBill(pubkey, bi)
+	if err != nil {
+		return err
+	}
+	bp, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
+	if err != nil {
+		return err
+	}
+	billIdBytes := bi.Id.Bytes32()
+	return p.store.SetBlockProof(&blockProof{
+		BillId:      billIdBytes[:],
+		BlockNumber: b.BlockNumber,
+		BlockProof:  bp,
+	})
 }
 
 // verifyOwner checks if given p2pkh bearer predicate contains given pubKey hash
-func verifyOwner(pubKey *pubkey, bp []byte) (bool, error) {
+func verifyOwner(pubkeyHashes *wallet.KeyHashes, bp []byte) (bool, error) {
 	// p2pkh predicate: [0x53, 0x76, 0xa8, 0x01, 0x4f, 0x01, <32 bytes>, 0x87, 0x69, 0xac, 0x01]
 	// p2pkh predicate: [Dup, Hash <SHA256>, PushHash <SHA256> <32 bytes>, Equal, Verify, CheckSig <secp256k1>]
 
@@ -136,9 +165,9 @@ func verifyOwner(pubKey *pubkey, bp []byte) (bool, error) {
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively
 	hashAlgo := bp[5]
 	if hashAlgo == 0x01 {
-		return bytes.Equal(bp[6:38], pubKey.pubkeyHash.Sha256), nil
+		return bytes.Equal(bp[6:38], pubkeyHashes.Sha256), nil
 	} else if hashAlgo == 0x02 {
-		return bytes.Equal(bp[6:70], pubKey.pubkeyHash.Sha512), nil
+		return bytes.Equal(bp[6:70], pubkeyHashes.Sha512), nil
 	}
 	return false, nil
 }

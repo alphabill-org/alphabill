@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -14,8 +15,8 @@ import (
 )
 
 func TestTxProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
-	pubKey, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
-	pubKeyHash := hash.Sum256(pubKey)
+	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
+	pubKeyHash := hash.Sum256(pubKeyBytes)
 	tx1 := &txsystem.Transaction{
 		UnitId:                newUnitId(1),
 		SystemId:              alphabillMoneySystemId,
@@ -37,37 +38,53 @@ func TestTxProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(pubKeyHash),
 	}
 	b := &block.Block{
-		BlockNumber:  1,
-		Transactions: []*txsystem.Transaction{tx1, tx2, tx3, tx4},
+		BlockNumber:        1,
+		Transactions:       []*txsystem.Transaction{tx1, tx2, tx3, tx4},
+		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	pk := &pubkey{
-		pubkey: pubKey,
+	pubKey := &pubkey{
+		pubkey: pubKeyBytes,
 		pubkeyHash: &wallet.KeyHashes{
-			Sha256: hash.Sum256(pubKey),
-			Sha512: hash.Sum512(pubKey),
+			Sha256: hash.Sum256(pubKeyBytes),
+			Sha512: hash.Sum512(pubKeyBytes),
 		},
 	}
 
 	store := NewInmemoryBillStore()
 	txp := newTxProcessor(store)
-	err := txp.processTx(tx1, b, pk)
-	require.NoError(t, err)
 
-	err = txp.processTx(tx2, b, pk)
-	require.NoError(t, err)
+	// process transactions
+	for i, tx := range b.Transactions {
+		err := txp.processTx(tx, b, i, pubKey)
+		require.NoError(t, err, "tx index %d", i)
+	}
 
-	err = txp.processTx(tx3, b, pk)
-	require.NoError(t, err)
-
-	err = txp.processTx(tx4, b, pk)
-	require.NoError(t, err)
-
-	bills, err := store.GetBills(pubKey)
+	// verify bills exist
+	bills, err := store.GetBills(pubKeyBytes)
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
+
+	// verify proofs exist
+	for _, bi := range bills {
+		billIdBytes := bi.Id.Bytes32()
+		proof, err := store.GetBlockProof(billIdBytes[:])
+		require.NoError(t, err)
+		verifyProof(t, proof, billIdBytes[:])
+	}
 }
 
 func newUnitId(unitId uint64) []byte {
 	bytes32 := uint256.NewInt(unitId).Bytes32()
 	return bytes32[:]
+}
+
+func verifyProof(t *testing.T, proof *blockProof, billId []byte) {
+	require.NotNil(t, proof)
+	require.EqualValues(t, 1, proof.BlockNumber)
+	require.EqualValues(t, billId, proof.BillId)
+
+	require.NotNil(t, proof.BlockProof)
+	require.NotNil(t, proof.BlockProof.BlockHeaderHash)
+	require.NotNil(t, proof.BlockProof.MerkleProof)
+	require.NotNil(t, proof.BlockProof.UnicityCertificate)
 }

@@ -490,7 +490,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 }
 
 func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill, accountIndex uint64) error {
-	blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+	blockProof, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return err
 	}

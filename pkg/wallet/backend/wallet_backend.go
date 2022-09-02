@@ -95,8 +95,8 @@ func (w *WalletBackend) Start(ctx context.Context) error {
 				}
 
 				for _, tx := range b.Transactions {
-					for _, pubKey := range w.trackedPubKeys {
-						_ = w.txProcessor.processTx(tx, b, pubKey)
+					for i, pubKey := range w.trackedPubKeys {
+						_ = w.txProcessor.processTx(tx, b, i, pubKey)
 					}
 				}
 				w.store.SetBlockNumber(b.BlockNumber)

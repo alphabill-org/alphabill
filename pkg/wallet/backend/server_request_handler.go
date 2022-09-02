@@ -47,7 +47,12 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
 		return
 	}
-	bills := s.service.GetBills(pk)
+	bills, err := s.service.GetBills(pk)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error("error on GET /list-bills %w", err)
+		return
+	}
 	res := &ListBillsResponse{Bills: bills}
 	writeAsJson(w, res)
 }
@@ -59,7 +64,12 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
 		return
 	}
-	bills := s.service.GetBills(pk)
+	bills, err := s.service.GetBills(pk)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error("error on GET /balance %w", err)
+		return
+	}
 	sum := uint64(0)
 	for _, b := range bills {
 		sum += b.Value
@@ -75,7 +85,12 @@ func (s *RequestHandler) blockProofFunc(w http.ResponseWriter, r *http.Request) 
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
 		return
 	}
-	p := s.service.GetBlockProof(billId)
+	p, err := s.service.GetBlockProof(billId)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Error("error on GET /block-proof %w", err)
+		return
+	}
 	res := &BlockProofResponse{p}
 	writeAsJson(w, res)
 }

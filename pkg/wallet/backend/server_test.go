@@ -20,12 +20,12 @@ type mockWalletService struct {
 	proof *blockProof
 }
 
-func (m *mockWalletService) GetBills(pubKey []byte) []*bill {
-	return m.bills
+func (m *mockWalletService) GetBills(pubKey []byte) ([]*bill, error) {
+	return m.bills, nil
 }
 
-func (m *mockWalletService) GetBlockProof(unitId []byte) *blockProof {
-	return m.proof
+func (m *mockWalletService) GetBlockProof(unitId []byte) (*blockProof, error) {
+	return m.proof, nil
 }
 
 func TestListBillsRequest_Ok(t *testing.T) {

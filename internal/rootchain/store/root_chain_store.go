@@ -1,12 +1,18 @@
 package store
 
-import "github.com/alphabill-org/alphabill/internal/certificates"
+import (
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+)
 
 type RootChainStore interface {
-	AddUC(systemIdentifier string, certificate *certificates.UnicityCertificate)
-	GetUC(systemIdentifier string) *certificates.UnicityCertificate
+	AddUC(p.SystemIdentifier, *certificates.UnicityCertificate)
+	GetUC(p.SystemIdentifier) *certificates.UnicityCertificate
 	UCCount() int
+	AddIR(p.SystemIdentifier, *certificates.InputRecord)
+	GetIR(p.SystemIdentifier) *certificates.InputRecord
+	GetAllIRs() map[p.SystemIdentifier]*certificates.InputRecord
 	GetRoundNumber() uint64
 	GetPreviousRoundRootHash() []byte
-	PrepareNextRound([]byte)
+	PrepareNextRound([]byte) uint64
 }

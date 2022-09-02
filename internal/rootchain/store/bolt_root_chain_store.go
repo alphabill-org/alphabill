@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
 	bolt "go.etcd.io/bbolt"
 )
@@ -74,13 +75,13 @@ func (s *BoltRootChainStore) initRound() error {
 	})
 }
 
-func (s *BoltRootChainStore) AddUC(systemIdentifier string, certificate *certificates.UnicityCertificate) {
+func (s *BoltRootChainStore) AddUC(id p.SystemIdentifier, certificate *certificates.UnicityCertificate) {
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(certificate)
 		if err != nil {
 			return err
 		}
-		err = tx.Bucket(ucBucket).Put([]byte(systemIdentifier), val)
+		err = tx.Bucket(ucBucket).Put([]byte(id), val)
 		if err != nil {
 			return err
 		}
@@ -91,10 +92,10 @@ func (s *BoltRootChainStore) AddUC(systemIdentifier string, certificate *certifi
 	}
 }
 
-func (s *BoltRootChainStore) GetUC(systemIdentifier string) *certificates.UnicityCertificate {
+func (s *BoltRootChainStore) GetUC(id p.SystemIdentifier) *certificates.UnicityCertificate {
 	var uc *certificates.UnicityCertificate
 	err := s.db.View(func(tx *bolt.Tx) error {
-		if ucJson := tx.Bucket(ucBucket).Get([]byte(systemIdentifier)); ucJson != nil {
+		if ucJson := tx.Bucket(ucBucket).Get([]byte(id)); ucJson != nil {
 			return json.Unmarshal(ucJson, &uc)
 		}
 		return nil
@@ -115,6 +116,19 @@ func (s *BoltRootChainStore) UCCount() int {
 		panic(err)
 	}
 	return keysCount
+}
+
+func (s *BoltRootChainStore) AddIR(p.SystemIdentifier, *certificates.InputRecord) {
+	// TODO
+	panic("TODO")
+}
+
+func (s *BoltRootChainStore) GetIR(p.SystemIdentifier) *certificates.InputRecord {
+	panic("TODO")
+}
+
+func (s *BoltRootChainStore) GetAllIRs() map[p.SystemIdentifier]*certificates.InputRecord {
+	panic("TODO")
 }
 
 func (s *BoltRootChainStore) GetRoundNumber() uint64 {
@@ -141,7 +155,7 @@ func (s *BoltRootChainStore) GetPreviousRoundRootHash() []byte {
 	return hash
 }
 
-func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte) {
+func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte) uint64 {
 	var roundNr uint64
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		roundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
@@ -154,4 +168,5 @@ func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte) {
 	if err != nil {
 		panic(err)
 	}
+	return roundNr
 }

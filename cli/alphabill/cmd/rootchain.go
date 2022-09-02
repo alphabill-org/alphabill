@@ -94,7 +94,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	if err != nil {
 		return err
 	}
-	blockStore, err := initRootChainBlockStore(config.DbFile)
+	store, err := initRootChainStore(config.DbFile)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 		rk.SigningPrivateKey,
 		net,
 		rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
-		rootchain.WithRootChainStore(blockStore),
+		rootchain.WithRootChainStore(store),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)
@@ -119,7 +119,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	})
 }
 
-func initRootChainBlockStore(dbFile string) (rstore.RootChainStore, error) {
+func initRootChainStore(dbFile string) (rstore.RootChainStore, error) {
 	if dbFile != "" {
 		return rstore.NewBoltRootChainStore(dbFile)
 	} else {

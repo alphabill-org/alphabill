@@ -222,7 +222,7 @@ func (s *State) GetLatestUnicityCertificate(id p.SystemIdentifier) *certificates
 
 // CopyOldInputRecords copies input records from the latest unicity certificate
 func (s *State) CopyOldInputRecords(id p.SystemIdentifier) {
-	if ir := s.store.GetIR(id); ir != nil {
+	if ir := s.store.GetIR(id); ir == nil {
 		s.store.AddIR(id, s.store.GetUC(id).InputRecord)
 	}
 }

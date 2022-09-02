@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -48,12 +47,12 @@ func TestWalletCreateCmd(t *testing.T) {
 func TestWalletGetBalanceCmd(t *testing.T) {
 	stdout := execCommand(t, "get-balance")
 
-	verifyStdout(t, stdout, "0")
+	verifyStdout(t, stdout, "#1 0")
 }
 
-func TestPubKeyCmd(t *testing.T) {
-	stdout := execCommand(t, "get-pubkey")
-	verifyStdout(t, stdout, "0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0")
+func TestPubKeysCmd(t *testing.T) {
+	stdout := execCommand(t, "get-pubkeys")
+	verifyStdout(t, stdout, "#1 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 }
 
 /*
@@ -73,15 +72,15 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	startRPCServer(t, network, ":9543")
 
 	// create 2 wallets
-	err := wlog.InitStdoutLogger()
+	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
 	w1 := createNewNamedWallet(t, "wallet-1", ":9543")
-	w1PubKey, _ := w1.GetPublicKey()
+	w1PubKey, _ := w1.GetPublicKey(0)
 	w1.Shutdown()
 
 	w2 := createNewNamedWallet(t, "wallet-2", ":9543")
-	w2PubKey, _ := w2.GetPublicKey()
+	w2PubKey, _ := w2.GetPublicKey(0)
 	w2.Shutdown()
 
 	// transfer initial bill to wallet 1
@@ -92,19 +91,19 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet 1
-	waitForBalance(t, "wallet-1", initialBill.Value)
+	waitForBalance(t, "wallet-1", initialBill.Value, 0)
 
 	// send two transactions (two bills) to wallet-2
 	stdout := execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-1", initialBill.Value-1)
+	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
 
 	stdout = execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-1", initialBill.Value-2)
+	waitForBalance(t, "wallet-1", initialBill.Value-2, 0)
 
 	// verify wallet-2 received said bills
-	waitForBalance(t, "wallet-2", 2)
+	waitForBalance(t, "wallet-2", 2, 0)
 
 	// swap wallet-2 bills
 	stdout = execWalletCmd(t, "wallet-2", "collect-dust")
@@ -113,8 +112,62 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	// send wallet-2 bill back to wallet-1
 	stdout = execWalletCmd(t, "wallet-2", "send --amount 1 --address "+hexutil.Encode(w1PubKey))
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-2", 1)
-	waitForBalance(t, "wallet-1", initialBill.Value-1)
+	waitForBalance(t, "wallet-2", 1, 0)
+	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
+} /*
+
+Test scenario:
+start network and rpc server and send initial bill to wallet account 1
+add two accounts to wallet
+wallet account 1 sends two transactions to wallet account 2
+wallet runs dust collection
+wallet account 2 sends transaction to account 3
+*/
+func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 10000,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill)
+	startRPCServer(t, network, ":9543")
+
+	// create wallet with 3 accounts
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
+	w := createNewNamedWallet(t, "wallet", ":9543")
+	pubKey1, _ := w.GetPublicKey(0)
+	w.Shutdown()
+
+	pubKey2Hex := addAccount(t, "wallet")
+	pubKey3Hex := addAccount(t, "wallet")
+
+	// transfer initial bill to wallet
+	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify bill is received by wallet account 1
+	waitForBalance(t, "wallet", initialBill.Value, 0)
+
+	// send two transactions (two bills) to wallet account 2
+	stdout := execWalletCmd(t, "wallet", "send --amount 1 --address "+pubKey2Hex)
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+	waitForBalance(t, "wallet", 1, 1)
+
+	stdout = execWalletCmd(t, "wallet", "send --amount 1 --address "+pubKey2Hex)
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+	waitForBalance(t, "wallet", 2, 1)
+
+	// swap account 2 bills
+	stdout = execWalletCmd(t, "wallet", "collect-dust")
+	verifyStdout(t, stdout, "Dust collection finished successfully.")
+
+	// send account 2 bills to account 3
+	stdout = execWalletCmd(t, "wallet", "send --amount 2 --key 2 --address "+pubKey3Hex)
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+	waitForBalance(t, "wallet", 2, 2)
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
@@ -140,8 +193,9 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	require.NoError(t, err)
 
 	grpcServer, err := initRPCServer(network.Nodes[0], &grpcServerConfiguration{
-		Address:        addr,
-		MaxRecvMsgSize: defaultMaxRecvMsgSize,
+		Address:               addr,
+		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
+		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 	})
 	require.NoError(t, err)
 
@@ -153,19 +207,30 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func waitForBalance(t *testing.T, walletName string, expectedBalance uint64) {
+func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
 		stdout := execWalletCmd(t, walletName, "sync")
 		verifyStdout(t, stdout, "Wallet synchronized successfully.")
 
 		stdout = execWalletCmd(t, walletName, "get-balance")
 		for _, line := range stdout.lines {
-			if line == strconv.FormatUint(expectedBalance, 10) {
+			if line == fmt.Sprintf("#%d %d", accountIndex+1, expectedBalance) {
 				return true
 			}
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)
+}
+
+// addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
+func addAccount(t *testing.T, walletName string) string {
+	stdout := execWalletCmd(t, walletName, "add-key")
+	for _, line := range stdout.lines {
+		if strings.HasPrefix(line, "Added key #") {
+			return line[13:]
+		}
+	}
+	return ""
 }
 
 func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {

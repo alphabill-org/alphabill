@@ -23,9 +23,10 @@ type (
 		abClient client.ABClient
 		wallet   *wallet.Wallet
 		// synchronizes with ledger until the block is found where tx has been added to
-		syncToBlock  bool
-		timeoutDelta uint64
-		ctx          context.Context
+		syncToBlock   bool
+		timeoutDelta  uint64
+		ctx           context.Context
+		blockCallback func(b *VDBlock)
 	}
 
 	VDClientConfig struct {
@@ -35,15 +36,26 @@ type (
 		WaitBlock bool
 		// BlockTimeout relative timeout of a transaction (e.g. if latest block # is 100, given block timeout is 50, transaction's timeout is 150)
 		BlockTimeout uint64
+		// OnBlockCallback is called if WaitBlock is set to true and block containing a transaction with the given hash is found
+		OnBlockCallback func(b *VDBlock)
+	}
+
+	VDBlock struct {
+		blockNumber uint64
 	}
 )
 
+func (block *VDBlock) GetBlockNumber() uint64 {
+	return block.blockNumber
+}
+
 func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 	return &VDClient{
-		ctx:          ctx,
-		abClient:     client.New(*conf.AbConf),
-		syncToBlock:  conf.WaitBlock,
-		timeoutDelta: conf.BlockTimeout,
+		ctx:           ctx,
+		abClient:      client.New(*conf.AbConf),
+		syncToBlock:   conf.WaitBlock,
+		timeoutDelta:  conf.BlockTimeout,
+		blockCallback: conf.OnBlockCallback,
 	}, nil
 }
 
@@ -153,6 +165,10 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 				// if hash is provided, print only the corresponding block
 				if bytes.Equal(hash, tx.GetUnitId()) {
 					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(hash)))
+					if v.blockCallback != nil {
+						log.Info("Invoking block callback")
+						v.blockCallback(&VDBlock{blockNumber: b.BlockNumber})
+					}
 					v.shutdown()
 					break
 				}

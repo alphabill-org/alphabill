@@ -3,6 +3,7 @@ package wallet
 import (
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -53,25 +54,13 @@ func NewKeys(mnemonic string) (*Keys, error) {
 		return nil, err
 	}
 
-	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
-	// m / purpose' / coin_type' / account' / change / address_index
-	// m - master key
-	// 44' - cryptocurrencies
-	// 634' - coin type, randomly chosen number from https://github.com/satoshilabs/slips/blob/master/slip-0044.md
-	// 0' - account number (currently use only one account)
-	// 0 - change address 0 or 1; 0 = externally used address, 1 = internal address, currently always 0
-	// 0 - address index
-	// we currently have an ethereum like account based model meaning 1 account = 1 address and no plans to support multiple accounts at this time,
-	// so we use wallet's "HD" part only for generating single key from seed
-	derivationPath := "m/44'/634'/0'/0/0"
-
 	// only HDPrivateKeyID is used from chaincfg.MainNetParams,
 	// it is used as version flag in extended key, which in turn is used to identify the extended key's type.
 	masterKey, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
 	if err != nil {
 		return nil, err
 	}
-	ac, err := NewAccountKey(masterKey, derivationPath)
+	ac, err := NewAccountKey(masterKey, NewDerivationPath(0))
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +104,21 @@ func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*A
 	}, nil
 }
 
+// NewDerivationPath returns derivation path for given account index
+func NewDerivationPath(accountIndex uint64) string {
+	// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
+	// m / purpose' / coin_type' / account' / change / address_index
+	// m - master key
+	// 44' - cryptocurrencies
+	// 634' - coin type, randomly chosen number from https://github.com/satoshilabs/slips/blob/master/slip-0044.md
+	// 0' - account number
+	// 0 - change address 0 or 1; 0 = externally used address, 1 = internal address, currently always 0
+	// 0 - address index
+	// we currently have an ethereum like account based model meaning 1 account = 1 address
+	derivationPath := "m/44'/634'/%d'/0/0"
+	return fmt.Sprintf(derivationPath, accountIndex)
+}
+
 func generateMnemonic() (string, error) {
 	entropy, err := bip39.NewEntropy(mnemonicEntropyBitSize)
 	if err != nil {
@@ -141,7 +145,7 @@ func derivePrivateKey(path accounts.DerivationPath, masterKey *hdkeychain.Extend
 		}
 	}
 
-	privateKey, err := masterKey.ECPrivKey()
+	privateKey, err := derivedKey.ECPrivKey()
 	if err != nil {
 		return nil, err
 	}

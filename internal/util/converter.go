@@ -8,6 +8,6 @@ func Uint64ToBytes(i uint64) []byte {
 	return bytes
 }
 
-func BytesToUint64(key []byte) uint64 {
-	return binary.BigEndian.Uint64(key)
+func BytesToUint64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
 }

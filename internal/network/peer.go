@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"crypto/rand"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	mrand "math/rand"
 	"time"
 
@@ -195,6 +196,14 @@ func (p *Peer) GetRandomPeerID() peer.ID {
 	// #nosec G404
 	index := mrand.Intn(len(peers))
 	return peers[index]
+}
+
+func (p *Peer) NewPingService() *ping.PingService {
+	return ping.NewPingService(p.host)
+}
+
+func (p *Peer) Ping(ctx context.Context, peer peer.ID) <-chan ping.Result {
+	return ping.Ping(ctx, p.host, peer)
 }
 
 func (pi *PeerInfo) GetID() (peer.ID, error) {

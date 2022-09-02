@@ -169,18 +169,54 @@ func New(
 	// TODO for some weird reason if nodes start behind the root chain, they do not start communicating until something is sent from the partition node side
 	go n.greetRootChain()
 
+	//go n.pingRootChain(n.ctx) // TODO fix
+
 	return n, nil
 }
 
+func (n *Node) pingRootChain(ctx context.Context) {
+	logger.Debug("init ping")
+	pctx, cancel := context.WithCancel(ctx)
+	ts := n.configuration.peer.Ping(pctx, n.configuration.rootChainID)
+	defer cancel()
+
+	for {
+		select {
+		case res, ok := <-ts:
+			if !ok {
+				logger.Warning("ping channel closed")
+				return
+			}
+			if res.Error != nil {
+				logger.Error("error in ping", res.Error)
+				go n.pingRootChain(ctx)
+			} else {
+				logger.Debug("ping took %v microseconds: ", res.RTT.Microseconds())
+			}
+		case <-time.After(time.Second * 4):
+			logger.Debug("failed to receive ping from root")
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 func (n *Node) greetRootChain() {
-	logger.Debug("Sending handshake to root chain")
-	_ = n.network.Send(network.OutputMessage{
-		Protocol: network.ProtocolHandshake,
-		Message: &handshake.Handshake{
-			SystemIdentifier: n.configuration.GetSystemIdentifier(),
-			NodeIdentifier:   n.leaderSelector.SelfID().String(),
-		},
-	}, []peer.ID{n.configuration.rootChainID})
+	for {
+		//logger.Debug("Sending handshake to root chain")
+		err := n.network.Send(network.OutputMessage{
+			Protocol: network.ProtocolHandshake,
+			Message: &handshake.Handshake{
+				SystemIdentifier: n.configuration.GetSystemIdentifier(),
+				NodeIdentifier:   n.leaderSelector.SelfID().String(),
+			},
+		}, []peer.ID{n.configuration.rootChainID})
+
+		if err != nil {
+			logger.Error("error sending handshake", err)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 func initState(n *Node) error {

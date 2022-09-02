@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTxProcessor(t *testing.T) {
+func TestTxProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKey, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKey)
 	tx1 := &txsystem.Transaction{
@@ -48,7 +48,7 @@ func TestTxProcessor(t *testing.T) {
 		},
 	}
 
-	store := NewInmemoryWalletBackendStore()
+	store := NewInmemoryBillStore()
 	txp := newTxProcessor(store)
 	err := txp.processTx(tx1, b, pk)
 	require.NoError(t, err)
@@ -61,7 +61,10 @@ func TestTxProcessor(t *testing.T) {
 
 	err = txp.processTx(tx4, b, pk)
 	require.NoError(t, err)
-	require.Len(t, store.GetBills(pubKey), 4)
+
+	bills, err := store.GetBills(pubKey)
+	require.NoError(t, err)
+	require.Len(t, bills, 4)
 }
 
 func newUnitId(unitId uint64) []byte {

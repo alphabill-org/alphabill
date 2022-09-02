@@ -25,7 +25,7 @@ type (
 		trackedPubKeys []*pubkey
 		txProcessor    *txProcessor
 		abclient       client.ABClient
-		store          WalletBackendStore
+		store          BillStore
 	}
 
 	bill struct {
@@ -44,19 +44,19 @@ type (
 		pubkeyHash *wallet.KeyHashes
 	}
 
-	WalletBackendStore interface {
-		GetBlockNumber() uint64
-		SetBlockNumber(blockNumber uint64)
-		GetBills(pubkey []byte) []*bill
-		SetBill(pubkey []byte, bill *bill)
-		GetBlockProof(billId []byte) *blockProof
-		SetBlockProof(proof *blockProof)
-		RemoveBill(key *pubkey, id *uint256.Int)
-		ContainsBill(key *pubkey, id *uint256.Int) bool
+	BillStore interface {
+		GetBlockNumber() (uint64, error)
+		SetBlockNumber(blockNumber uint64) error
+		GetBills(pubKey []byte) ([]*bill, error)
+		AddBill(pubKey []byte, bill *bill) error
+		RemoveBill(pubKey []byte, id *uint256.Int) error
+		ContainsBill(pubKey []byte, id *uint256.Int) (bool, error)
+		GetBlockProof(billId []byte) (*blockProof, error)
+		SetBlockProof(proof *blockProof) error
 	}
 )
 
-func New(pubkeys [][]byte, abclient client.ABClient, store WalletBackendStore) *WalletBackend {
+func New(pubkeys [][]byte, abclient client.ABClient, store BillStore) *WalletBackend {
 	var trackedPubKeys []*pubkey
 	for _, pk := range pubkeys {
 		trackedPubKeys = append(trackedPubKeys, &pubkey{
@@ -72,7 +72,7 @@ func New(pubkeys [][]byte, abclient client.ABClient, store WalletBackendStore) *
 
 // Start downloading blocks and indexing bills by their owner's public key
 func (w *WalletBackend) Start(ctx context.Context) error {
-	blockNumber := w.store.GetBlockNumber()
+	blockNumber, _ := w.store.GetBlockNumber()
 	for {
 		select {
 		case <-ctx.Done():
@@ -107,11 +107,11 @@ func (w *WalletBackend) Start(ctx context.Context) error {
 }
 
 // GetBills returns all bills for given public key
-func (w *WalletBackend) GetBills(pubkey []byte) []*bill {
+func (w *WalletBackend) GetBills(pubkey []byte) ([]*bill, error) {
 	return w.store.GetBills(pubkey)
 }
 
 // GetBlockProof returns most recent proof for given unit id
-func (w *WalletBackend) GetBlockProof(unitId []byte) *blockProof {
+func (w *WalletBackend) GetBlockProof(unitId []byte) (*blockProof, error) {
 	return w.store.GetBlockProof(unitId)
 }

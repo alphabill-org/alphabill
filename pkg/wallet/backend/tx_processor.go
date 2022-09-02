@@ -12,10 +12,10 @@ import (
 )
 
 type txProcessor struct {
-	store WalletBackendStore
+	store BillStore
 }
 
-func newTxProcessor(store WalletBackendStore) *txProcessor {
+func newTxProcessor(store BillStore) *txProcessor {
 	return &txProcessor{store: store}
 }
 
@@ -39,7 +39,10 @@ func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pub
 				Value: tx.TargetValue(),
 			})
 		} else {
-			b.store.RemoveBill(pubKey, tx.UnitID())
+			err := b.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			if err != nil {
+				return err
+			}
 		}
 	case moneytx.TransferDC:
 		isOwner, err := verifyOwner(pubKey, tx.TargetBearer())
@@ -53,14 +56,20 @@ func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pub
 				Value: tx.TargetValue(),
 			})
 		} else {
-			b.store.RemoveBill(pubKey, tx.UnitID())
+			err := b.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			if err != nil {
+				return err
+			}
 		}
 	case moneytx.Split:
 		// split tx contains two bills: existing bill and new bill
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill := b.store.ContainsBill(pubKey, tx.UnitID())
+		containsBill, err := b.store.ContainsBill(pubKey.pubkey, tx.UnitID())
+		if err != nil {
+			return err
+		}
 		if containsBill {
 			b.saveWithProof(pubKey.pubkey, &bill{
 				Id:    tx.UnitID(),
@@ -88,10 +97,16 @@ func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pub
 				Value: tx.TargetValue(),
 			})
 			for _, dustTransfer := range tx.DCTransfers() {
-				b.store.RemoveBill(pubKey, dustTransfer.UnitID())
+				err := b.store.RemoveBill(pubKey.pubkey, dustTransfer.UnitID())
+				if err != nil {
+					return err
+				}
 			}
 		} else {
-			b.store.RemoveBill(pubKey, tx.UnitID())
+			err := b.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			if err != nil {
+				return err
+			}
 		}
 	default:
 		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", tx))
@@ -102,7 +117,7 @@ func (b *txProcessor) processTx(txPb *txsystem.Transaction, bl *block.Block, pub
 
 func (b *txProcessor) saveWithProof(pubkey []byte, bi *bill) {
 	// TODO save proof
-	b.store.SetBill(pubkey, bi)
+	b.store.AddBill(pubkey, bi)
 }
 
 // verifyOwner checks if given p2pkh bearer predicate contains given pubKey hash

@@ -27,7 +27,7 @@ func TestWalletBackend_CanBeStarted(t *testing.T) {
 			}},
 		},
 	})
-	w := New([][]byte{pubKey}, abclient, NewInmemoryWalletBackendStore())
+	w := New([][]byte{pubKey}, abclient, NewInmemoryBillStore())
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()
 	go func() {
@@ -35,7 +35,9 @@ func TestWalletBackend_CanBeStarted(t *testing.T) {
 		require.NoError(t, err)
 	}()
 	require.Eventually(t, func() bool {
-		require.Len(t, w.GetBills(pubKey), 1)
+		bills, err := w.GetBills(pubKey)
+		require.NoError(t, err)
+		require.Len(t, bills, 1)
 		return true
 	}, test.WaitDuration, test.WaitTick)
 }

@@ -159,7 +159,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
 		NodeIdentifier:     "1",
 		UnicityCertificate: uc,
-		Transactions:       []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions:       []*txsystem.Transaction{testtransaction.RandomBillTransfer(t)},
 	}
 	err = bp.Sign(gocrypto.SHA256, nodeSigner)
 	require.NoError(t, err)

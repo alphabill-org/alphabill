@@ -1,0 +1,34 @@
+syntax = "proto3";
+package alphabill.tokens.v1;
+
+import "google/protobuf/any.proto";
+
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/tokens/;tokens";
+
+message CreateNonFungibleTokenTypeAttributes {
+  // is the symbol (short name) of this token type, up to 32 characters in theU TF-8 encoding; note that the symbols are not guaranteed to be unique;
+  string symbol = 1;
+  // identifies the parent type that this type derives from; 0 indicates there is no parent type;
+  bytes parent_type_id = 2;
+  // the predicate clause that controls defining new sub-types of this type;
+  bytes sub_type_creation_predicate = 3;
+  // the predicate clause that controls creating new tokens of this type
+  bytes token_creation_predicate = 4;
+  // the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their bearer predicates;
+  bytes invariant_predicate = 5;
+  // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
+  bytes data_update_predicate = 6;
+}
+
+message MintNonFungibleTokenAttributes {
+  // the initial bearer predicate of the new token
+  bytes bearer = 1;
+  // identifies the type of the new token;
+  bytes type = 2;
+  // the optional URI of an external resource associated with the new token
+  string uri = 3;
+  // the optional data associated with the new token
+  google.protobuf.Any data = 4;
+  // the data update predicate of the new token;
+  bytes data_update_predicate = 5;
+}

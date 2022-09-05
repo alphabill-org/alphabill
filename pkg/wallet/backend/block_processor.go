@@ -12,15 +12,28 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
-type txProcessor struct {
-	store BillStore
+type blockProcessor struct {
+	store   BillStore
+	pubkeys []*pubkey
 }
 
-func newTxProcessor(store BillStore) *txProcessor {
-	return &txProcessor{store: store}
+func newBlockProcessor(store BillStore, pubkeys []*pubkey) *blockProcessor {
+	return &blockProcessor{store: store, pubkeys: pubkeys}
 }
 
-func (p *txProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txIdx int, pubKey *pubkey) error {
+func (p *blockProcessor) ProcessBlock(b *block.Block) error {
+	for i, tx := range b.Transactions {
+		for _, pubKey := range p.pubkeys {
+			err := p.processTx(tx, b, i, pubKey)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txIdx int, pubKey *pubkey) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -132,7 +145,7 @@ func (p *txProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txId
 	return nil
 }
 
-func (p *txProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx int, bi *bill) error {
+func (p *blockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx int, bi *bill) error {
 	err := p.store.AddBill(pubkey, bi)
 	if err != nil {
 		return err

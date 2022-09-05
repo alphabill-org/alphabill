@@ -2,14 +2,10 @@ package backend
 
 import (
 	"context"
-	"fmt"
-	"time"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/proof"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
@@ -22,10 +18,8 @@ var (
 
 type (
 	WalletBackend struct {
-		trackedPubKeys []*pubkey
-		txProcessor    *txProcessor
-		abclient       client.ABClient
-		store          BillStore
+		store         BillStore
+		genericWallet *wallet.Wallet
 	}
 
 	bill struct {
@@ -67,43 +61,18 @@ func New(pubkeys [][]byte, abclient client.ABClient, store BillStore) *WalletBac
 			},
 		})
 	}
-	return &WalletBackend{trackedPubKeys: trackedPubKeys, abclient: abclient, txProcessor: newTxProcessor(store), store: store}
+	bp := newBlockProcessor(store, trackedPubKeys)
+	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
+	return &WalletBackend{store: store, genericWallet: genericWallet}
 }
 
-// Start downloading blocks and indexing bills by their owner's public key
+// Start starts downloading blocks and indexing bills by their owner's public key
 func (w *WalletBackend) Start(ctx context.Context) error {
-	blockNumber, _ := w.store.GetBlockNumber()
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info("wallet backend canceled by user")
-			return nil
-		default:
-			maxBlockNumber, _ := w.abclient.GetMaxBlockNumber()
-			if blockNumber == maxBlockNumber {
-				log.Debug("sleeping at max block height...")
-				time.Sleep(time.Second)
-				continue
-			}
-
-			batchSize := util.Min(100, maxBlockNumber-blockNumber)
-			res, _ := w.abclient.GetBlocks(blockNumber+1, batchSize)
-			for _, b := range res.Blocks {
-				log.Info("processing block %d", b.BlockNumber)
-				if blockNumber+1 != b.BlockNumber {
-					return errors.New(fmt.Sprintf("invalid block number, got %d current %d", b.BlockNumber, blockNumber))
-				}
-
-				for _, tx := range b.Transactions {
-					for i, pubKey := range w.trackedPubKeys {
-						_ = w.txProcessor.processTx(tx, b, i, pubKey)
-					}
-				}
-				w.store.SetBlockNumber(b.BlockNumber)
-				blockNumber = b.BlockNumber
-			}
-		}
+	blockNumber, err := w.store.GetBlockNumber()
+	if err != nil {
+		return err
 	}
+	return w.genericWallet.Sync(ctx, blockNumber)
 }
 
 // GetBills returns all bills for given public key

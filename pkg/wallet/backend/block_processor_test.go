@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTxProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
+func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
 	tx1 := &txsystem.Transaction{
@@ -51,13 +51,11 @@ func TestTxProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	}
 
 	store := NewInmemoryBillStore()
-	txp := newTxProcessor(store)
+	bp := newBlockProcessor(store, []*pubkey{pubKey})
 
 	// process transactions
-	for i, tx := range b.Transactions {
-		err := txp.processTx(tx, b, i, pubKey)
-		require.NoError(t, err, "tx index %d", i)
-	}
+	err := bp.ProcessBlock(b)
+	require.NoError(t, err)
 
 	// verify bills exist
 	bills, err := store.GetBills(pubKeyBytes)

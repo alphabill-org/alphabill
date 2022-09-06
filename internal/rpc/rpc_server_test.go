@@ -76,6 +76,14 @@ func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 	require.EqualValues(t, 1, res.MaxBlockNumber)
 }
 
+func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
+	p, err := NewRpcServer(&MockNode{maxBlockNumber: 7})
+	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
+	require.NoError(t, err)
+	require.Len(t, res.Blocks, 0)
+	require.EqualValues(t, 7, res.MaxBlockNumber)
+}
+
 func TestRpcServer_ProcessTransaction_Fails(t *testing.T) {
 	ctx := context.Background()
 	con, client := createRpcClient(t, ctx)

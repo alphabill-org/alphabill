@@ -102,8 +102,8 @@ func (bs *BoltBlockStore) Height() (uint64, error) {
 func (bs *BoltBlockStore) LatestBlock() *block.Block {
 	var res *block.Block
 	err := bs.db.View(func(tx *bolt.Tx) error {
-		latestBLockNumber := tx.Bucket(metaBucket).Get(latestBlockNoKey)
-		blockJson := tx.Bucket(blocksBucket).Get(latestBLockNumber)
+		latestBlockNumber := tx.Bucket(metaBucket).Get(latestBlockNoKey)
+		blockJson := tx.Bucket(blocksBucket).Get(latestBlockNumber)
 		if blockJson == nil {
 			return nil
 		}

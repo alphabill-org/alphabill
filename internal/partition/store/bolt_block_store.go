@@ -25,8 +25,7 @@ var errInvalidBlockNo = errors.New("invalid block number")
 
 // BoltBlockStore is a persistent implementation of BlockStore interface.
 type BoltBlockStore struct {
-	db          *bolt.DB
-	latestBlock *block.Block
+	db *bolt.DB
 }
 
 // NewBoltBlockStore creates new on-disk persistent block store using bolt db.
@@ -46,14 +45,6 @@ func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	height, err := bs.Height()
-	if err != nil {
-		return nil, err
-	}
-	bs.latestBlock, err = bs.Get(height)
-	if err != nil {
-		return nil, err
-	}
 	logger.Info("Bolt DB initialised")
 	return bs, nil
 }
@@ -64,7 +55,6 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		bs.latestBlock = b
 		val, err := json.Marshal(b)
 		if err != nil {
 			return err
@@ -110,7 +100,20 @@ func (bs *BoltBlockStore) Height() (uint64, error) {
 }
 
 func (bs *BoltBlockStore) LatestBlock() *block.Block {
-	return bs.latestBlock
+	var res *block.Block
+	err := bs.db.View(func(tx *bolt.Tx) error {
+		latestBLockNumber := tx.Bucket(metaBucket).Get(latestBlockNoKey)
+		blockJson := tx.Bucket(blocksBucket).Get(latestBLockNumber)
+		if blockJson == nil {
+			return nil
+		}
+		return json.Unmarshal(blockJson, &res)
+	})
+	if err != nil {
+		// should never happen
+		logger.Error("error fetching latest block %w", err)
+	}
+	return res
 }
 
 func (bs *BoltBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {

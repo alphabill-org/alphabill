@@ -678,9 +678,12 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 				n.stopRecovery(uc)
 			}
 		}
-	} else if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) {
+	} else if bl, blockHash, err := n.proposalHash(n.pendingBlockProposal.Transactions, uc); bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) && bytes.Equal(uc.InputRecord.BlockHash, blockHash) {
+		if err != nil {
+			return errors.Wrap(err, "block finalization: proposal hash calculation failed")
+		}
 		// UC certifies pending block proposal
-		err := n.finalizeBlock(n.pendingBlockProposal.Transactions, uc)
+		err = n.finalizeBlock(bl)
 		if err != nil {
 			return errors.Wrap(err, "block finalization failed")
 		}
@@ -700,12 +703,9 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 	return nil
 }
 
-// finalizeBlock creates the block and adds it to the blockStore.
-func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) error {
-	defer trackExecutionTime(time.Now(), "Block finalization")
+func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
 	latestBlock := n.blockStore.LatestBlock()
 	newHeight := latestBlock.BlockNumber + 1
-	logger.Info("Finalizing block #%v. TxCount: %v", newHeight, len(transactions))
 	b := &block.Block{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
 		BlockNumber:        newHeight,
@@ -715,13 +715,15 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 	}
 	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
 	if err != nil {
-		return err
+		return nil, nil, nil
 	}
-	if !bytes.Equal(blockHash, uc.InputRecord.BlockHash) {
-		return errors.Errorf("finalized block hash not equal to IR block hash. IR block hash %X, finalized block hash %X",
-			uc.InputRecord.BlockHash, blockHash)
-	}
-	err = n.blockStore.Add(b)
+	return b, blockHash, err
+}
+
+// finalizeBlock creates the block and adds it to the blockStore.
+func (n *Node) finalizeBlock(b *block.Block) error {
+	defer trackExecutionTime(time.Now(), "Block finalization")
+	err := n.blockStore.Add(b)
 	if err != nil {
 		return err
 	}

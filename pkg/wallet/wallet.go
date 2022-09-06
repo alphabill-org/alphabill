@@ -93,7 +93,7 @@ func (w *Wallet) SendTransaction(tx *txsystem.Transaction) (*txsystem.Transactio
 	return w.AlphabillClient.SendTransaction(tx)
 }
 
-// Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
+// Shutdown terminates connection to alphabill node and cancels any background goroutines.
 func (w *Wallet) Shutdown() {
 	log.Info("shutting down wallet")
 
@@ -149,7 +149,7 @@ func (w *Wallet) syncLedger(ctx context.Context, lastBlockNumber uint64, syncFor
 }
 
 func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
-	log.Info("syncing from current block number ", lastBlockNumber)
+	log.Info("syncing until cancelled from current block number ", lastBlockNumber)
 	var err error
 	var maxBlockNumber uint64
 	for {
@@ -194,7 +194,6 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 }
 
 func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (uint64, uint64, error) {
-	log.Debug("fetching blocks blocknumber=", lastBlockNumber+1, " blockcount=", batchSize)
 	res, err := w.AlphabillClient.GetBlocks(lastBlockNumber+1, batchSize)
 	if err != nil {
 		return 0, 0, err

@@ -104,7 +104,7 @@ func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
 		if err != nil {
-			fmt.Println("error deleting bills.db %w", err)
+			fmt.Println("error deleting bills.db ", err)
 		}
 	})
 	return NewBoltBillStore(dbFile)

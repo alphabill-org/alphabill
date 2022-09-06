@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -10,6 +11,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
@@ -22,6 +24,14 @@ func newBlockProcessor(store BillStore, pubkeys []*pubkey) *blockProcessor {
 }
 
 func (p *blockProcessor) ProcessBlock(b *block.Block) error {
+	wlog.Info("processing block: ", b.BlockNumber)
+	lastBlockNumber, err := p.store.GetBlockNumber()
+	if err != nil {
+		return err
+	}
+	if b.BlockNumber-lastBlockNumber != 1 {
+		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber))
+	}
 	for i, tx := range b.Transactions {
 		for _, pubKey := range p.pubkeys {
 			err := p.processTx(tx, b, i, pubKey)
@@ -30,7 +40,7 @@ func (p *blockProcessor) ProcessBlock(b *block.Block) error {
 			}
 		}
 	}
-	return nil
+	return p.store.SetBlockNumber(b.BlockNumber)
 }
 
 func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txIdx int, pubKey *pubkey) error {
@@ -47,7 +57,7 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			return err
 		}
 		if isOwner {
-			log.Info("received transfer order")
+			wlog.Info("received transfer order")
 			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
@@ -67,7 +77,7 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			return err
 		}
 		if isOwner {
-			log.Info("received TransferDC order")
+			wlog.Info("received TransferDC order")
 			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
@@ -139,7 +149,7 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			}
 		}
 	default:
-		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", tx))
+		wlog.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", tx))
 		return nil
 	}
 	return nil

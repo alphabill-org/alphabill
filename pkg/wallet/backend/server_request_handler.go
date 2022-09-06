@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/mux"
 )
@@ -50,7 +51,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	bills, err := s.service.GetBills(pk)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Error("error on GET /list-bills %w", err)
+		wlog.Error("error on GET /list-bills ", err)
 		return
 	}
 	res := &ListBillsResponse{Bills: bills}
@@ -67,7 +68,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	bills, err := s.service.GetBills(pk)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Error("error on GET /balance %w", err)
+		wlog.Error("error on GET /balance ", err)
 		return
 	}
 	sum := uint64(0)
@@ -88,7 +89,7 @@ func (s *RequestHandler) blockProofFunc(w http.ResponseWriter, r *http.Request) 
 	p, err := s.service.GetBlockProof(billId)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Error("error on GET /block-proof %w", err)
+		wlog.Error("error on GET /block-proof ", err)
 		return
 	}
 	res := &BlockProofResponse{p}

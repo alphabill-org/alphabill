@@ -88,11 +88,12 @@ func (c *AlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
 }
 
 func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) (res *alphabill.GetBlocksResponse, err error) {
+	log.Debug("fetching blocks blocknumber=", blockNumber, " blockcount=", blockCount)
 	defer func(t1 time.Time) {
 		if res != nil && len(res.Blocks) > 0 {
 			trackExecutionTime(t1, fmt.Sprintf("downloading blocks %d-%d", blockNumber, blockNumber+uint64(len(res.Blocks))-1))
 		} else {
-			trackExecutionTime(t1, fmt.Sprintf("downloading blocks %d+%d (empty response)", blockNumber, blockCount))
+			trackExecutionTime(t1, "downloading blocks empty response")
 		}
 	}(time.Now())
 

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net"
 	"net/http"
+
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type (
@@ -26,7 +28,7 @@ func NewHttpServer(addr string, service WalletBackendService) *WalletBackendHttp
 }
 
 func (s *WalletBackendHttpServer) Start() error {
-	log.Info("starting http server on " + s.server.Addr)
+	wlog.Info("starting http server on " + s.server.Addr)
 	listener, err := net.Listen("tcp", s.server.Addr)
 	if err != nil {
 		return err
@@ -34,15 +36,15 @@ func (s *WalletBackendHttpServer) Start() error {
 	go func() {
 		err := s.server.Serve(listener)
 		if errors.Is(err, http.ErrServerClosed) {
-			log.Info("http server closed")
+			wlog.Info("http server closed")
 		} else {
-			log.Error("http server error %v", err)
+			wlog.Error("http server error: ", err)
 		}
 	}()
 	return nil
 }
 
 func (s *WalletBackendHttpServer) Shutdown(ctx context.Context) error {
-	log.Info("shutting down http server on " + s.server.Addr)
+	wlog.Info("shutting down http server on " + s.server.Addr)
 	return s.server.Shutdown(ctx)
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/proof"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -153,7 +154,7 @@ func doGet(t *testing.T, url string, response interface{}) *http.Response {
 		_ = httpRes.Body.Close()
 	}()
 	resBytes, _ := ioutil.ReadAll(httpRes.Body)
-	log.Info("GET %s response: %s", url, string(resBytes))
+	wlog.Info("GET %s response: %s", url, string(resBytes))
 	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(response)
 	require.NoError(t, err)
 	return httpRes

@@ -161,6 +161,10 @@ func (s *State) checkConsensus(rs *requestStore) bool {
 
 func (s *State) CreateUnicityCertificates() ([]p.SystemIdentifier, error) {
 	data := s.toUnicityTreeData(s.store.GetAllIRs())
+	logger.Debug("Input records are:")
+	for _, ir := range data {
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("IR for partition %X is:", ir.SystemIdentifier), ir)
+	}
 	ut, err := unicitytree.New(s.hashAlgorithm.New(), data)
 	if err != nil {
 		return nil, err

@@ -990,10 +990,6 @@ func (n *Node) sendCertificationRequest() error {
 	}, []peer.ID{n.configuration.rootChainID})
 }
 
-func (n *Node) StartRound() {
-	n.startNewRound(n.luc)
-}
-
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
 	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {

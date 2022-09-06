@@ -15,6 +15,7 @@ var (
 	prevRoundHashBucket = []byte("prevRoundHashBucket")
 	roundBucket         = []byte("roundBucket")
 	ucBucket            = []byte("ucBucket")
+	irBucket            = []byte("irBucket")
 
 	// keys
 	prevRoundHashKey     = []byte("prevRoundHashKey")
@@ -55,6 +56,10 @@ func (s *BoltRootChainStore) createBuckets() error {
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists(ucBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(irBucket)
 		if err != nil {
 			return err
 		}
@@ -118,17 +123,53 @@ func (s *BoltRootChainStore) UCCount() int {
 	return keysCount
 }
 
-func (s *BoltRootChainStore) AddIR(p.SystemIdentifier, *certificates.InputRecord) {
-	// TODO
-	panic("TODO")
+func (s *BoltRootChainStore) AddIR(id p.SystemIdentifier, ir *certificates.InputRecord) {
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		val, err := json.Marshal(ir)
+		if err != nil {
+			return err
+		}
+		err = tx.Bucket(irBucket).Put([]byte(id), val)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
 }
 
-func (s *BoltRootChainStore) GetIR(p.SystemIdentifier) *certificates.InputRecord {
-	panic("TODO")
+func (s *BoltRootChainStore) GetIR(id p.SystemIdentifier) *certificates.InputRecord {
+	var ir *certificates.InputRecord
+	err := s.db.View(func(tx *bolt.Tx) error {
+		if ucJson := tx.Bucket(irBucket).Get([]byte(id)); ucJson != nil {
+			return json.Unmarshal(ucJson, &ir)
+		}
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return ir
 }
 
 func (s *BoltRootChainStore) GetAllIRs() map[p.SystemIdentifier]*certificates.InputRecord {
-	panic("TODO")
+	target := make(map[p.SystemIdentifier]*certificates.InputRecord)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(irBucket).ForEach(func(k, v []byte) error {
+			var ir *certificates.InputRecord
+			if err := json.Unmarshal(v, &ir); err != nil {
+				return err
+			}
+			target[p.SystemIdentifier(k)] = ir
+			return nil
+		})
+	})
+	if err != nil {
+		panic(err)
+	}
+	return target
 }
 
 func (s *BoltRootChainStore) GetRoundNumber() uint64 {
@@ -163,6 +204,10 @@ func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte) uint64 {
 		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(roundNr)); err != nil {
 			return err
 		}
+		// clean IRs
+		_ = tx.DeleteBucket(irBucket)
+		_, _ = tx.CreateBucketIfNotExists(irBucket)
+
 		return tx.Bucket(prevRoundHashBucket).Put(prevRoundHashKey, prevStateHash)
 	})
 	if err != nil {

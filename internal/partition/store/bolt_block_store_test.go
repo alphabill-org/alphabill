@@ -120,7 +120,7 @@ func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
 		if err != nil {
-			fmt.Println("error deleting blocks.db %w", err)
+			fmt.Printf("error deleting blocks.db %v\n", err)
 		}
 	})
 	return NewBoltBlockStore(dbFile)

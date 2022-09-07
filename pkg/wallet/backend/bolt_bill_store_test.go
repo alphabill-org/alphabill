@@ -99,6 +99,33 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	require.Equal(t, expectedBlockProof, bp)
 }
 
+func TestBillStore_AddBillWithProof(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	pubKey, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000000")
+
+	// add bill with proof
+	b := newBill(1)
+	billIdBytes := b.Id.Bytes32()
+	p := &blockProof{
+		BillId:      billIdBytes[:],
+		BlockNumber: 1,
+		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
+	}
+	err := bs.AddBillWithProof(pubKey, b, p)
+	require.NoError(t, err)
+
+	// verify bill
+	f, err := bs.ContainsBill(pubKey, b.Id)
+	require.NoError(t, err)
+	require.True(t, f)
+
+	// verify proof
+	billIdBytes = b.Id.Bytes32()
+	actualProof, err := bs.GetBlockProof(billIdBytes[:])
+	require.NoError(t, err)
+	require.EqualValues(t, p, actualProof)
+}
+
 func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
 	dbFile := path.Join(os.TempDir(), BoltBillStoreFileName)
 	t.Cleanup(func() {

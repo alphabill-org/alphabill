@@ -54,6 +54,22 @@ func (s *InmemoryBillStore) AddBill(pubKey []byte, b *bill) error {
 	return nil
 }
 
+func (s *InmemoryBillStore) AddBillWithProof(pubKey []byte, b *bill, p *blockProof) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	bills, f := s.bills[string(pubKey)]
+	if !f {
+		bills = map[string]*bill{}
+		s.bills[string(pubKey)] = bills
+	}
+	b32 := b.Id.Bytes32()
+	bills[string(b32[:])] = b
+
+	s.proofs[string(p.BillId)] = p
+
+	return nil
+}
+
 func (s *InmemoryBillStore) RemoveBill(pubKey []byte, id *uint256.Int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

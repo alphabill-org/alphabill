@@ -156,20 +156,17 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 }
 
 func (p *blockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx int, bi *bill) error {
-	err := p.store.AddBill(pubkey, bi)
-	if err != nil {
-		return err
-	}
 	bp, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return err
 	}
 	billIdBytes := bi.Id.Bytes32()
-	return p.store.SetBlockProof(&blockProof{
+	proof := &blockProof{
 		BillId:      billIdBytes[:],
 		BlockNumber: b.BlockNumber,
 		BlockProof:  bp,
-	})
+	}
+	return p.store.AddBillWithProof(pubkey, bi, proof)
 }
 
 // verifyOwner checks if given p2pkh bearer predicate contains given pubKey hash

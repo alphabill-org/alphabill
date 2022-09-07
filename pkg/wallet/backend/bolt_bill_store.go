@@ -103,6 +103,29 @@ func (s *BoltBillStore) AddBill(pubKey []byte, b *bill) error {
 	})
 }
 
+func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *bill, proof *blockProof) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		pubkeyBillsBucket, err := tx.Bucket(billsBucket).CreateBucketIfNotExists(pubKey)
+		if err != nil {
+			return err
+		}
+		billBytes, err := json.Marshal(b)
+		if err != nil {
+			return err
+		}
+		billIdBytes := b.Id.Bytes32()
+		err = pubkeyBillsBucket.Put(billIdBytes[:], billBytes)
+		if err != nil {
+			return err
+		}
+		val, err := json.Marshal(proof)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(proofsBucket).Put(proof.BillId, val)
+	})
+}
+
 func (s *BoltBillStore) RemoveBill(pubKey []byte, id *uint256.Int) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubKey)

@@ -63,9 +63,10 @@ func (s *InmemoryBillStore) AddBillWithProof(pubKey []byte, b *bill, p *blockPro
 		s.bills[string(pubKey)] = bills
 	}
 	b32 := b.Id.Bytes32()
-	bills[string(b32[:])] = b
+	bId := string(b32[:])
+	bills[bId] = b
 
-	s.proofs[string(p.BillId)] = p
+	s.proofs[bId] = p
 
 	return nil
 }
@@ -97,6 +98,7 @@ func (s *InmemoryBillStore) GetBlockProof(billId []byte) (*blockProof, error) {
 func (s *InmemoryBillStore) SetBlockProof(proof *blockProof) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.proofs[string(proof.BillId)] = proof
+	b32 := proof.BillId.Bytes32()
+	s.proofs[string(b32[:])] = proof
 	return nil
 }

@@ -11,7 +11,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/proof"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -60,11 +59,11 @@ func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
 	res := &ErrorResponse{}
-	pk := "0x0000000000000000000000000000000000000000000000000000000000000000"
+	pk := "0x00"
 	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, "pubkey must be 68 bytes long (with 0x prefix)", res.Message)
+	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
 }
 
 func TestBalanceRequest_Ok(t *testing.T) {
@@ -102,13 +101,13 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/balance?pubkey=%s", pk), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, "pubkey must be 68 bytes long (with 0x prefix)", res.Message)
+	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
 }
 
 func TestBlockProofRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
 		proof: &blockProof{
-			BillId:      []byte{0},
+			BillId:      uint256.NewInt(0),
 			BlockNumber: 1,
 			BlockProof: &proof.BlockProof{
 				BlockHeaderHash:    []byte{0},
@@ -120,7 +119,7 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 	startServer(t, mockService)
 
 	res := &BlockProofResponse{}
-	billId := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	billId := "0x1"
 	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/block-proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
@@ -147,6 +146,16 @@ func TestBlockProofRequest_InvalidBillID(t *testing.T) {
 	require.Equal(t, "hex string without 0x prefix", res.Message)
 }
 
+func TestBlockProofRequest_LeadingZerosBillId(t *testing.T) {
+	startServer(t, &mockWalletService{})
+
+	res := &ErrorResponse{}
+	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=0x01", res)
+
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, "hex number with leading zero digits", res.Message)
+}
+
 func doGet(t *testing.T, url string, response interface{}) *http.Response {
 	httpRes, err := http.Get(url)
 	require.NoError(t, err)
@@ -154,7 +163,7 @@ func doGet(t *testing.T, url string, response interface{}) *http.Response {
 		_ = httpRes.Body.Close()
 	}()
 	resBytes, _ := ioutil.ReadAll(httpRes.Body)
-	wlog.Info("GET %s response: %s", url, string(resBytes))
+	fmt.Printf("GET %s response: %s\n", url, string(resBytes))
 	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(response)
 	require.NoError(t, err)
 	return httpRes

@@ -77,7 +77,8 @@ func TestBillStore_GetSetBills(t *testing.T) {
 
 func TestBillStore_GetSetProofs(t *testing.T) {
 	bs, _ := createTestBillStore(t)
-	billIdBytes := uint256.NewInt(1).Bytes32()
+	billId := uint256.NewInt(1)
+	billIdBytes := billId.Bytes32()
 
 	// verify nil proof
 	bp, err := bs.GetBlockProof(billIdBytes[:])
@@ -86,7 +87,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 
 	// add proof
 	expectedBlockProof := &blockProof{
-		BillId:      billIdBytes[:],
+		BillId:      billId,
 		BlockNumber: 1,
 		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
 	}
@@ -107,7 +108,7 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 	b := newBill(1)
 	billIdBytes := b.Id.Bytes32()
 	p := &blockProof{
-		BillId:      billIdBytes[:],
+		BillId:      b.Id,
 		BlockNumber: 1,
 		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
 	}

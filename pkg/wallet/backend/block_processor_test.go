@@ -67,7 +67,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		billIdBytes := bi.Id.Bytes32()
 		proof, err := store.GetBlockProof(billIdBytes[:])
 		require.NoError(t, err)
-		verifyProof(t, proof, billIdBytes[:])
+		verifyProof(t, proof, bi.Id)
 	}
 }
 
@@ -76,10 +76,10 @@ func newUnitId(unitId uint64) []byte {
 	return bytes32[:]
 }
 
-func verifyProof(t *testing.T, proof *blockProof, billId []byte) {
+func verifyProof(t *testing.T, proof *blockProof, billId *uint256.Int) {
 	require.NotNil(t, proof)
 	require.EqualValues(t, 1, proof.BlockNumber)
-	require.EqualValues(t, billId, proof.BillId)
+	require.Equal(t, billId, proof.BillId)
 
 	require.NotNil(t, proof.BlockProof)
 	require.NotNil(t, proof.BlockProof.BlockHeaderHash)

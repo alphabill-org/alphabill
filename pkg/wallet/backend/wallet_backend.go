@@ -30,7 +30,7 @@ type (
 	}
 
 	blockProof struct {
-		BillId      []byte            `json:"billId"`
+		BillId      *uint256.Int      `json:"billId"`
 		BlockNumber uint64            `json:"blockNumber"`
 		BlockProof  *proof.BlockProof `json:"blockProof"`
 	}
@@ -45,6 +45,7 @@ type (
 		SetBlockNumber(blockNumber uint64) error
 		GetBills(pubKey []byte) ([]*bill, error)
 		AddBill(pubKey []byte, bill *bill) error
+		AddBillWithProof(pubKey []byte, bill *bill, proof *blockProof) error
 		RemoveBill(pubKey []byte, id *uint256.Int) error
 		ContainsBill(pubKey []byte, id *uint256.Int) (bool, error)
 		GetBlockProof(billId []byte) (*blockProof, error)

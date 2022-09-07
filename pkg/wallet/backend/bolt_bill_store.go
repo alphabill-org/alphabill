@@ -122,7 +122,7 @@ func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *bill, proof *blockPro
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(proofsBucket).Put(proof.BillId, val)
+		return tx.Bucket(proofsBucket).Put(billIdBytes[:], val)
 	})
 }
 
@@ -178,7 +178,8 @@ func (s *BoltBillStore) SetBlockProof(proof *blockProof) error {
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(proofsBucket).Put(proof.BillId, val)
+		billIdBytes := proof.BillId.Bytes32()
+		return tx.Bucket(proofsBucket).Put(billIdBytes[:], val)
 	})
 }
 

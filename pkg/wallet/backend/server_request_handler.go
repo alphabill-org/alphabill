@@ -8,6 +8,7 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/mux"
+	"github.com/holiman/uint256"
 )
 
 type (
@@ -105,11 +106,16 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 }
 
 func parseBillId(r *http.Request) ([]byte, error) {
-	billId := r.URL.Query().Get("bill_id")
-	if billId == "" {
+	billIdHex := r.URL.Query().Get("bill_id")
+	if billIdHex == "" {
 		return nil, errors.New("missing required bill_id query parameter")
 	}
-	return hexutil.Decode(billId)
+	billId256, err := uint256.FromHex(billIdHex)
+	if err != nil {
+		return nil, err
+	}
+	billIdBytes := billId256.Bytes32()
+	return billIdBytes[:], nil
 }
 
 func parsePubKey(r *http.Request) ([]byte, error) {
@@ -122,7 +128,7 @@ func parsePubKey(r *http.Request) ([]byte, error) {
 
 func decodePubKeyHex(pubKey string) ([]byte, error) {
 	if len(pubKey) != 68 {
-		return nil, errors.New("pubkey must be 68 bytes long (with 0x prefix)")
+		return nil, errors.New("pubkey hex string must be 68 characters long (with 0x prefix)")
 	}
 	return hexutil.Decode(pubKey)
 }

@@ -160,9 +160,8 @@ func (p *blockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx 
 	if err != nil {
 		return err
 	}
-	billIdBytes := bi.Id.Bytes32()
 	proof := &blockProof{
-		BillId:      billIdBytes[:],
+		BillId:      bi.Id,
 		BlockNumber: b.BlockNumber,
 		BlockProof:  bp,
 	}

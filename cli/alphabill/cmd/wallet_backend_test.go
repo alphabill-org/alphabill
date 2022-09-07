@@ -40,7 +40,7 @@ func TestWalletBackendCli(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// start wallet-backend service
-	serverAddr := "localhost:7777"
+	serverAddr := "localhost:8888"
 	outputWriter := &testConsoleWriter{}
 	go func() {
 		homeDir := setupTestHomeDir(t, "wallet-backend-test")

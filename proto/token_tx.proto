@@ -6,7 +6,7 @@ import "google/protobuf/any.proto";
 option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/tokens/;tokens";
 
 message CreateNonFungibleTokenTypeAttributes {
-  // is the symbol (short name) of this token type, up to 32 characters in theU TF-8 encoding; note that the symbols are not guaranteed to be unique;
+  // is the symbol (short name) of this token type, up to 32 characters in the UTF-8 encoding; note that the symbols are not guaranteed to be unique;
   string symbol = 1;
   // identifies the parent type that this type derives from; 0 indicates there is no parent type;
   bytes parent_type_id = 2;
@@ -18,6 +18,8 @@ message CreateNonFungibleTokenTypeAttributes {
   bytes invariant_predicate = 5;
   // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
   bytes data_update_predicate = 6;
+  // the input to satisfy the sub-type creation predicate.
+  bytes sub_type_creation_predicate_signature = 7;
 }
 
 message MintNonFungibleTokenAttributes {

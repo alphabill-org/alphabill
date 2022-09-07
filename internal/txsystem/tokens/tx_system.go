@@ -149,7 +149,7 @@ func (t *tokensTxSystem) validateCreateNonFungibleTokenTypeTx(tx *createNonFungi
 		parentTypeID = parentData.parentTypeId
 	}
 	if len(predicate) > 0 {
-		return script.RunScript(tx.OwnerProof(), predicate, tx.SigBytes())
+		return script.RunScript(tx.attributes.SubTypeCreationPredicateSignature, predicate, tx.SigBytes())
 	}
 	return nil
 }

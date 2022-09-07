@@ -101,6 +101,7 @@ func (c *createNonFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 	hasher.Write(c.attributes.TokenCreationPredicate)
 	hasher.Write(c.attributes.InvariantPredicate)
 	hasher.Write(c.attributes.DataUpdatePredicate)
+	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
 	c.wrapper.hashValue = hasher.Sum(nil)
 	c.wrapper.hashFunc = hashFunc
 	return c.wrapper.hashValue

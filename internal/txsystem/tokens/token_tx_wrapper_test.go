@@ -12,16 +12,17 @@ import (
 )
 
 var (
-	systemID                 = []byte{0, 0, 4, 2}
-	unitID                   = []byte{1}
-	ownerProof               = []byte{2}
-	symbol                   = "TEST"
-	parentTypeId             = []byte{3}
-	subTypeCreationPredicate = []byte{4}
-	tokenCreationPredicate   = []byte{5}
-	invariantPredicate       = []byte{6}
-	dataUpdatePredicate      = []byte{7}
-	timeout                  = uint64(100)
+	systemID                          = []byte{0, 0, 4, 2}
+	unitID                            = []byte{1}
+	ownerProof                        = []byte{2}
+	symbol                            = "TEST"
+	parentTypeId                      = []byte{3}
+	subTypeCreationPredicate          = []byte{4}
+	tokenCreationPredicate            = []byte{5}
+	invariantPredicate                = []byte{6}
+	dataUpdatePredicate               = []byte{7}
+	subTypeCreationPredicateSignature = []byte{8}
+	timeout                           = uint64(100)
 )
 
 func TestCreateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
@@ -60,6 +61,7 @@ func TestCreateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T)
 	b.Write(tokenCreationPredicate)
 	b.Write(invariantPredicate)
 	b.Write(dataUpdatePredicate)
+	b.Write(subTypeCreationPredicateSignature)
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -72,12 +74,13 @@ func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *t
 		OwnerProof:            ownerProof,
 	}
 	attr := &CreateNonFungibleTokenTypeAttributes{
-		Symbol:                   symbol,
-		ParentTypeId:             parentTypeId,
-		SubTypeCreationPredicate: subTypeCreationPredicate,
-		TokenCreationPredicate:   tokenCreationPredicate,
-		InvariantPredicate:       invariantPredicate,
-		DataUpdatePredicate:      dataUpdatePredicate,
+		Symbol:                            symbol,
+		ParentTypeId:                      parentTypeId,
+		SubTypeCreationPredicate:          subTypeCreationPredicate,
+		TokenCreationPredicate:            tokenCreationPredicate,
+		InvariantPredicate:                invariantPredicate,
+		DataUpdatePredicate:               dataUpdatePredicate,
+		SubTypeCreationPredicateSignature: subTypeCreationPredicateSignature,
 	}
 	// #nosec G104
 	require.NoError(t, tx.TransactionAttributes.MarshalFrom(attr))

@@ -111,12 +111,12 @@ func TestExecuteCreateNFTType_WithParentID(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitIdentifier.Bytes()),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
-				Symbol:                   symbol,
-				ParentTypeId:             parent1Identifier.Bytes(),
-				SubTypeCreationPredicate: script.PredicateAlwaysFalse(),
+				Symbol:                            symbol,
+				ParentTypeId:                      parent1Identifier.Bytes(),
+				SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
+				SubTypeCreationPredicateSignature: script.PredicateArgumentEmpty(),
 			},
 		),
 	)
@@ -151,7 +151,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	require.NoError(t, txs.Execute(createParent1Tx))
 
 	// create parent2 type
-	createParent2Tx := testtransaction.NewTransaction(
+	unsignedCreateParent2Tx := testtransaction.NewTransaction(
 		t,
 		testtransaction.WithUnitId(parent2Identifier.Bytes()),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
@@ -163,23 +163,42 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 			},
 		),
 	)
-	gtx, signature := signTx(t, txs, createParent2Tx, parent2Signer, parent2PubKey)
+	signature, p2pkhPredicate := signTx(t, txs, unsignedCreateParent2Tx, parent2Signer, parent2PubKey)
+
+	signedCreateParent2Tx := testtransaction.NewTransaction(
+		t,
+		testtransaction.WithUnitId(parent2Identifier.Bytes()),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(
+			&CreateNonFungibleTokenTypeAttributes{
+				Symbol:                            symbol,
+				ParentTypeId:                      parent1Identifier.Bytes(),
+				SubTypeCreationPredicate:          parent2SubTypeCreationPredicate,
+				SubTypeCreationPredicateSignature: p2pkhPredicate,
+			},
+		),
+	)
+
+	gtx, err := txs.ConvertTx(signedCreateParent2Tx)
+	require.NoError(t, err)
 	require.NoError(t, txs.Execute(gtx))
 
 	// create child sub-type
+	unsignedChildTxAttributes := &CreateNonFungibleTokenTypeAttributes{
+		Symbol:                   symbol,
+		ParentTypeId:             parent2Identifier.Bytes(),
+		SubTypeCreationPredicate: script.PredicateAlwaysFalse(), // no sub-types
+	}
 	createChildTx := testtransaction.NewTransaction(
 		t,
 		testtransaction.WithUnitId(unitIdentifier.Bytes()),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
-			&CreateNonFungibleTokenTypeAttributes{
-				Symbol:                   symbol,
-				ParentTypeId:             parent2Identifier.Bytes(),
-				SubTypeCreationPredicate: script.PredicateAlwaysFalse(), // no sub-types
-			},
+			unsignedChildTxAttributes,
 		),
 	)
-	gtx, err := txs.ConvertTx(createChildTx)
+
+	gtx, err = txs.ConvertTx(createChildTx)
 	require.NoError(t, err)
 
 	signature, err = childSigner.SignBytes(gtx.SigBytes())
@@ -188,9 +207,17 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	require.NoError(t, err)
 
 	// child owner proof must satisfy parent1 & parent2 SubTypeCreationPredicates
-	createChildTx.OwnerProof = append(
-		script.PredicateArgumentPayToPublicKeyHashDefault(signature, childPublicKey),        // parent2 predicate argument (with script.StartByte byte)
-		script.PredicateArgumentPayToPublicKeyHashDefault(signature2, parent2PubKey)[1:]..., // parent1 predicate argument (without script.StartByte byte)
+	unsignedChildTxAttributes.SubTypeCreationPredicateSignature = append(
+		script.PredicateArgumentPayToPublicKeyHashDefault(signature, childPublicKey),        // parent2 p2pkhPredicate argument (with script.StartByte byte)
+		script.PredicateArgumentPayToPublicKeyHashDefault(signature2, parent2PubKey)[1:]..., // parent1 p2pkhPredicate argument (without script.StartByte byte)
+	)
+	createChildTx = testtransaction.NewTransaction(
+		t,
+		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(
+			unsignedChildTxAttributes,
+		),
 	)
 	gtx, err = txs.ConvertTx(createChildTx)
 	require.NoError(t, err)
@@ -332,15 +359,14 @@ func newTokenTxSystem(t *testing.T) *tokensTxSystem {
 	return txs
 }
 
-func signTx(t *testing.T, txs *tokensTxSystem, tx *txsystem.Transaction, signer crypto.Signer, pubKey []byte) (txsystem.GenericTransaction, []byte) {
+func signTx(t *testing.T, txs *tokensTxSystem, tx *txsystem.Transaction, signer crypto.Signer, pubKey []byte) ([]byte, []byte) {
 	gtx, err := txs.ConvertTx(tx)
 	require.NoError(t, err)
 
 	signature, err := signer.SignBytes(gtx.SigBytes())
 	require.NoError(t, err)
 
-	tx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(signature, pubKey)
 	gtx, err = txs.ConvertTx(tx)
 	require.NoError(t, err)
-	return gtx, signature
+	return signature, script.PredicateArgumentPayToPublicKeyHashDefault(signature, pubKey)
 }

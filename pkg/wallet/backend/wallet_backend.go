@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -19,9 +18,7 @@ type (
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
-
-		mu   sync.Mutex // mu mutex guarding sync flag
-		sync bool       // sync true if wallet is synchronizing or trying to synchronize, guarded by mu
+		cancelSyncCh  chan bool
 	}
 
 	bill struct {
@@ -68,7 +65,7 @@ func New(pubkeys [][]byte, abclient client.ABClient, store BillStore) *WalletBac
 	}
 	bp := newBlockProcessor(store, trackedPubKeys)
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
-	return &WalletBackend{store: store, genericWallet: genericWallet}
+	return &WalletBackend{store: store, genericWallet: genericWallet, cancelSyncCh: make(chan bool, 1)}
 }
 
 // Start starts downloading blocks and indexing bills by their owner's public key.
@@ -81,30 +78,29 @@ func (w *WalletBackend) Start(ctx context.Context) error {
 	return w.genericWallet.Sync(ctx, blockNumber)
 }
 
-// StartProcess same as Start but in case of error restarts the process.
-// Returns immediately and retries until canceled by Shutdown method.
-func (w *WalletBackend) StartProcess(ctx context.Context) *sync.WaitGroup {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		wlog.Info("starting wallet synchronization goroutine")
-		w.setSync(true)
-		retryCount := 0
-		for w.isSync() {
+// StartProcess calls Start in a retry loop, can be canceled by cancelling context or calling Shutdown method.
+func (w *WalletBackend) StartProcess(ctx context.Context) {
+	wlog.Info("starting wallet-backend synchronization")
+	defer wlog.Info("wallet-backend synchronization ended")
+	retryCount := 0
+	for {
+		select {
+		case <-ctx.Done(): // canceled from context
+			return
+		case <-w.cancelSyncCh: // canceled from shutdown method
+			return
+		default:
 			if retryCount > 0 {
 				wlog.Info("sleeping 10s before retrying alphabill connection")
 				time.Sleep(10 * time.Second)
 			}
 			err := w.Start(ctx)
 			if err != nil {
-				wlog.Error("error synchronizing wallet: ", err)
+				wlog.Error("error synchronizing wallet-backend: ", err)
 			}
 			retryCount++
 		}
-		wlog.Info("wallet synchronization goroutine ended")
-		wg.Done()
-	}()
-	return &wg
+	}
 }
 
 // GetBills returns all bills for given public key.
@@ -119,18 +115,10 @@ func (w *WalletBackend) GetBlockProof(unitId []byte) (*blockProof, error) {
 
 // Shutdown terminates wallet backend service.
 func (w *WalletBackend) Shutdown() {
-	w.setSync(false)
+	// send signal to cancel channel if channel is not full
+	select {
+	case w.cancelSyncCh <- true:
+	default:
+	}
 	w.genericWallet.Shutdown()
-}
-
-func (w *WalletBackend) isSync() bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.sync
-}
-
-func (w *WalletBackend) setSync(sync bool) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.sync = sync
 }

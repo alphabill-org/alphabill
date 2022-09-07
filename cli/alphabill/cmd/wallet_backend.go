@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
+	"sync"
 	"syscall"
 
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
@@ -16,9 +18,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	walletBackendDir  = "wallet-backend"
+	serverAddrCmdName = "server-addr"
+	dbFileCmdName     = "db"
+	pubkeysCmdName    = "pubkeys"
+)
+
 type walletBackendConfig struct {
 	Base         *baseConfiguration
 	AlphabillUrl string
+	ServerAddr   string
+	DbFile       string
 	Pubkeys      []string
 	LogLevel     string
 	LogFile      string
@@ -39,8 +50,20 @@ func (c *walletBackendConfig) GetPubKeys() ([][]byte, error) {
 	return pubkeys, nil
 }
 
+func (c *walletBackendConfig) GetDbFile() (string, error) {
+	if c.DbFile != "" {
+		return c.DbFile, nil
+	}
+	walletBackendHomeDir := path.Join(c.Base.HomeDir, walletBackendDir)
+	err := os.MkdirAll(walletBackendHomeDir, 0700) // -rwx------
+	if err != nil {
+		return "", err
+	}
+	return path.Join(walletBackendHomeDir, backend.BoltBillStoreFileName), nil
+}
+
 // newWalletBackendCmd creates a new cobra command for the wallet-backend component.
-func newWalletBackendCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	config := &walletBackendConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "wallet-backend",
@@ -61,33 +84,48 @@ func newWalletBackendCmd(_ context.Context, baseConfig *baseConfiguration) *cobr
 	}
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
-	walletCmd.AddCommand(startCmd(config))
+	walletCmd.AddCommand(startCmd(ctx, config))
 	return walletCmd
 }
 
-func startCmd(config *walletBackendConfig) *cobra.Command {
+func startCmd(ctx context.Context, config *walletBackendConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execStartCmd(cmd, config)
+			return execStartCmd(ctx, cmd, config)
 		},
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
-	cmd.Flags().StringSliceVarP(&config.Pubkeys, "pubkeys", "p", nil, "pubkeys to index")
+	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "wallet backend server address")
+	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/wallet-backend/"+backend.BoltBillStoreFileName+")")
+	cmd.Flags().StringSliceVarP(&config.Pubkeys, pubkeysCmdName, "p", nil, "pubkeys to index")
+	_ = cmd.MarkFlagRequired("pubkeys")
 	return cmd
 }
 
-func execStartCmd(_ *cobra.Command, config *walletBackendConfig) error {
+func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendConfig) error {
 	abclient := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})
 	pubkeys, err := config.GetPubKeys()
 	if err != nil {
 		return err
 	}
+	dbFile, err := config.GetDbFile()
+	if err != nil {
+		return err
+	}
+	store, err := backend.NewBoltBillStore(dbFile)
+	if err != nil {
+		return err
+	}
+	service := backend.New(pubkeys, abclient, store)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		service.StartProcess(ctx)
+		wg.Done()
+	}()
 
-	service := backend.New(pubkeys, abclient, backend.NewInmemoryBillStore())
-	wg := service.StartProcess(context.Background())
-
-	server := backend.NewHttpServer(":8082", service)
+	server := backend.NewHttpServer(config.ServerAddr, service)
 	err = server.Start()
 	if err != nil {
 		service.Shutdown()

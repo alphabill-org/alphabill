@@ -25,11 +25,6 @@ func NewInMemoryRootChainStore() *InMemoryRootChainStore {
 	return &s
 }
 
-// AddUC adds or replaces the unicity certificate with given identifier.
-func (u *InMemoryRootChainStore) AddUC(id p.SystemIdentifier, certificate *certificates.UnicityCertificate) {
-	u.ucStore[id] = certificate
-}
-
 // GetUC returns the unicity certificate or nil if not found.
 func (u *InMemoryRootChainStore) GetUC(id p.SystemIdentifier) *certificates.UnicityCertificate {
 	return u.ucStore[id]
@@ -64,9 +59,12 @@ func (u *InMemoryRootChainStore) GetPreviousRoundRootHash() []byte {
 	return u.previousRoundRootHash
 }
 
-func (u *InMemoryRootChainStore) PrepareNextRound(previousRoundRootHash []byte) uint64 {
+func (u *InMemoryRootChainStore) PrepareNextRound(previousRoundRootHash []byte, ucs []*certificates.UnicityCertificate) uint64 {
 	u.roundNumber++
 	u.previousRoundRootHash = previousRoundRootHash
+	for _, cert := range ucs {
+		u.ucStore[p.SystemIdentifier(cert.UnicityTreeCertificate.SystemIdentifier)] = cert
+	}
 	u.inputRecords = make(map[p.SystemIdentifier]*certificates.InputRecord)
 	return u.GetRoundNumber()
 }

@@ -42,10 +42,11 @@ func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer, store sto
 		return nil, err
 	}
 	// load unicity certificates
+	var certs = make([]*certificates.UnicityCertificate, 0, len(g.Partitions))
 	for _, partition := range g.Partitions {
 		identifier := partition.GetSystemIdentifierString()
 		if s.store.GetUC(identifier) == nil {
-			s.store.AddUC(identifier, partition.Certificate)
+			certs = append(certs, partition.Certificate)
 		}
 	}
 	// reset incoming requests
@@ -53,9 +54,7 @@ func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer, store sto
 		requests.reset()
 	}
 
-	if bytes.Equal(s.store.GetPreviousRoundRootHash(), zeroHash) {
-		s.store.PrepareNextRound(g.GetRoundHash())
-	}
+	s.store.PrepareNextRound(g.GetRoundHash(), certs)
 	return s, nil
 }
 
@@ -178,6 +177,7 @@ func (s *State) CreateUnicityCertificates() ([]p.SystemIdentifier, error) {
 	logger.Info("Creating unicity certificates. RoundNr %v, inputRecords: %v", unicitySeal.RootChainRoundNumber, len(data))
 
 	var systemIdentifiers []p.SystemIdentifier
+	var certs = make([]*certificates.UnicityCertificate, 0, len(data))
 	for _, d := range data {
 		cert, err := ut.GetCertificate(d.SystemIdentifier)
 		if err != nil {
@@ -204,7 +204,7 @@ func (s *State) CreateUnicityCertificates() ([]p.SystemIdentifier, error) {
 			// should never happen.
 			panic(err)
 		}
-		s.store.AddUC(identifier, certificate)
+		certs = append(certs, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
 
@@ -216,7 +216,7 @@ func (s *State) CreateUnicityCertificates() ([]p.SystemIdentifier, error) {
 		}
 	}
 
-	s.store.PrepareNextRound(rootHash)
+	s.store.PrepareNextRound(rootHash, certs)
 	return systemIdentifiers, nil
 }
 

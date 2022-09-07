@@ -6,7 +6,6 @@ import (
 )
 
 type RootChainStore interface {
-	AddUC(p.SystemIdentifier, *certificates.UnicityCertificate)
 	GetUC(p.SystemIdentifier) *certificates.UnicityCertificate
 	UCCount() int
 	AddIR(p.SystemIdentifier, *certificates.InputRecord)
@@ -14,5 +13,5 @@ type RootChainStore interface {
 	GetAllIRs() map[p.SystemIdentifier]*certificates.InputRecord
 	GetRoundNumber() uint64
 	GetPreviousRoundRootHash() []byte
-	PrepareNextRound([]byte) uint64
+	PrepareNextRound([]byte, []*certificates.UnicityCertificate) uint64
 }

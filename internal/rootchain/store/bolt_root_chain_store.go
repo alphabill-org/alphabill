@@ -196,13 +196,24 @@ func (s *BoltRootChainStore) GetPreviousRoundRootHash() []byte {
 	return hash
 }
 
-func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte) uint64 {
+func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte, ucs []*certificates.UnicityCertificate) uint64 {
 	var roundNr uint64
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		roundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
 		roundNr++
 		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(roundNr)); err != nil {
 			return err
+		}
+		certsBucket := tx.Bucket(ucBucket)
+		for _, cert := range ucs {
+			val, err := json.Marshal(cert)
+			if err != nil {
+				return err
+			}
+			err = certsBucket.Put(cert.UnicityTreeCertificate.SystemIdentifier, val)
+			if err != nil {
+				return err
+			}
 		}
 		// clean IRs
 		_ = tx.DeleteBucket(irBucket)

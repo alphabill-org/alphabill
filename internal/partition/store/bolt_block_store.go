@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/binary"
 	"encoding/json"
+	"log"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -110,8 +111,7 @@ func (bs *BoltBlockStore) LatestBlock() *block.Block {
 		return json.Unmarshal(blockJson, &res)
 	})
 	if err != nil {
-		// should never happen
-		logger.Error("error fetching latest block %w", err)
+		log.Panicf("error fetching latest block %v", err)
 	}
 	return res
 }

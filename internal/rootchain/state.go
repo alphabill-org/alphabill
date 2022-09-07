@@ -28,7 +28,7 @@ type State struct {
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
 
-func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer, store store.RootChainStore) (*State, error) {
+func NewState(g *genesis.RootGenesis, signer crypto.Signer, store store.RootChainStore) (*State, error) {
 	_, verifier, err := GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")

@@ -75,7 +75,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 
 	conf := loadConf(opts)
 
-	s, err := NewStateFromGenesis(genesis, signer, conf.store)
+	s, err := NewState(genesis, signer, conf.store)
 	if err != nil {
 		return nil, err
 	}

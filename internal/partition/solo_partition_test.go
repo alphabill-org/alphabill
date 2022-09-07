@@ -107,7 +107,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewStateFromGenesis(rootGenesis, rootSigner, rstore.NewInMemoryRootChainStore())
+	rc, err := rootchain.NewState(rootGenesis, rootSigner, rstore.NewInMemoryRootChainStore())
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()

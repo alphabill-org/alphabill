@@ -65,7 +65,7 @@ func Test_newStateFromGenesis_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewStateFromGenesis(tt.args.g, tt.args.signer, rstore.NewInMemoryRootChainStore())
+			got, err := NewState(tt.args.g, tt.args.signer, rstore.NewInMemoryRootChainStore())
 			require.Nil(t, got)
 			require.True(t, strings.Contains(err.Error(), tt.errStg))
 		})
@@ -82,7 +82,7 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 	rootGenesis, _, err := NewGenesis(partitions, rootSigner, encPubKey)
 	require.NoError(t, err)
 
-	s1, err := NewStateFromGenesis(rootGenesis, rootSigner, rstore.NewInMemoryRootChainStore())
+	s1, err := NewState(rootGenesis, rootSigner, rstore.NewInMemoryRootChainStore())
 	require.NoError(t, err)
 
 	s2 := createStateAndExecuteRound(t, partitions, rootSigner)

@@ -80,23 +80,6 @@ func (s *BoltRootChainStore) initRound() error {
 	})
 }
 
-func (s *BoltRootChainStore) AddUC(id p.SystemIdentifier, certificate *certificates.UnicityCertificate) {
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		val, err := json.Marshal(certificate)
-		if err != nil {
-			return err
-		}
-		err = tx.Bucket(ucBucket).Put([]byte(id), val)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		panic(err)
-	}
-}
-
 func (s *BoltRootChainStore) GetUC(id p.SystemIdentifier) *certificates.UnicityCertificate {
 	var uc *certificates.UnicityCertificate
 	err := s.db.View(func(tx *bolt.Tx) error {

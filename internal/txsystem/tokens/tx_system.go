@@ -4,15 +4,17 @@ import (
 	"crypto"
 	goerrors "errors"
 
-	"github.com/alphabill-org/alphabill/internal/script"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const (
 	zeroSummaryValue = rma.Uint64SummaryValue(0)
+	uriMaxSize       = 4 * 1024
+	dataMaxSize      = 64 * 1024
 
 	ErrStrSystemIdentifierIsNil = "system identifier is nil"
 	ErrStrUnitIDIsZero          = "unit ID cannot be zero"
@@ -80,6 +82,17 @@ func (t *tokensTxSystem) Execute(tx txsystem.GenericTransaction) error {
 			newNonFungibleTokenTypeData(tx),
 			h,
 		)
+	case *mintNonFungibleTokenWrapper:
+		if err := t.validateMintNonFungibleTokenWrapper(tx); err != nil {
+			return err
+		}
+		h := tx.Hash(t.hashAlgorithm)
+		return t.state.AddItem(
+			tx.UnitID(),
+			tx.attributes.Bearer,
+			newMintNonFungibleTokenData(tx, t.hashAlgorithm),
+			h,
+		)
 	default:
 		return errors.Errorf("unknown tx type %T", tx)
 	}
@@ -126,7 +139,7 @@ func (t *tokensTxSystem) validateCreateNonFungibleTokenTypeTx(tx *createNonFungi
 
 	parentTypeID := tx.ParentTypeID()
 
-	// tx proof satisfies the predicate obtained by concatenating all the
+	// signature satisfies the predicate obtained by concatenating all the
 	// sub-type creation clauses along the type inheritance chain.
 	var predicate []byte
 	for {
@@ -150,6 +163,63 @@ func (t *tokensTxSystem) validateCreateNonFungibleTokenTypeTx(tx *createNonFungi
 	}
 	if len(predicate) > 0 {
 		return script.RunScript(tx.attributes.SubTypeCreationPredicateSignature, predicate, tx.SigBytes())
+	}
+	return nil
+}
+
+func (t *tokensTxSystem) validateMintNonFungibleTokenWrapper(tx *mintNonFungibleTokenWrapper) error {
+	unitID := tx.wrapper.UnitID()
+	unitID.Uint64()
+	if unitID.IsZero() {
+		return errors.New(ErrStrUnitIDIsZero)
+	}
+	uri := tx.attributes.Uri
+	if len(uri) > uriMaxSize {
+		return errors.Errorf("URI exceeds the maximum allowed size of %v KB", uriMaxSize)
+	}
+	if !util.IsValidURI(uri) {
+		return errors.Errorf("URI %s is invalid", uri)
+	}
+	if len(tx.attributes.Data) > dataMaxSize {
+		return errors.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
+	}
+	u, err := t.state.GetUnit(unitID)
+	if u != nil {
+		return errors.Errorf("unit %v exists", unitID)
+	}
+	if !goerrors.Is(err, rma.ErrUnitNotFound) {
+		return err
+	}
+	nftTypeID := tx.NFTTypeID()
+	if nftTypeID.IsZero() {
+		return errors.New(ErrStrUnitIDIsZero)
+	}
+
+	// the transaction request satisfies the predicate obtained by concatenating all the token creation clauses along
+	// the type inheritance chain.
+	var predicate []byte
+	var parentID = nftTypeID
+	for {
+		if parentID.IsZero() {
+			// type has no parent.
+			break
+		}
+		// parent unit must exist
+		u, err = t.state.GetUnit(parentID)
+		if err != nil {
+			return err
+		}
+
+		// parent must be a non-fungible token type
+		parentData, f := u.Data.(*nonFungibleTokenTypeData)
+		if !f {
+			return errors.Errorf("unit %v is not a non-fungible token type", parentID)
+		}
+		predicate = append(parentData.tokenCreationPredicate, predicate...)
+		parentID = parentData.parentTypeId
+	}
+	if len(predicate) > 0 {
+		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicate, tx.SigBytes())
 	}
 	return nil
 }

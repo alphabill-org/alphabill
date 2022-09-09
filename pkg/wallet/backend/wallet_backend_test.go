@@ -10,6 +10,7 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,11 @@ func TestWalletBackend_BillCanBeIndexed(t *testing.T) {
 			}},
 		},
 	})
-	w := New([][]byte{pubKey}, abclient, NewInmemoryBillStore())
+	store := NewInmemoryBillStore()
+	bp := NewBlockProcessor(store)
+	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
+
+	w := New(genericWallet, store)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {

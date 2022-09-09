@@ -12,6 +12,7 @@ import (
 
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -117,7 +118,17 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 	if err != nil {
 		return err
 	}
-	service := backend.New(pubkeys, abclient, store)
+	for _, pubkey := range pubkeys {
+		k := backend.NewPubkey(pubkey)
+		err = store.AddKey(k)
+		if err != nil {
+			return err
+		}
+	}
+	bp := backend.NewBlockProcessor(store)
+	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
+
+	service := backend.New(w, store)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {

@@ -16,21 +16,21 @@ import (
 )
 
 type mockWalletService struct {
-	bills []*bill
-	proof *blockProof
+	bills []*Bill
+	proof *BlockProof
 }
 
-func (m *mockWalletService) GetBills(pubKey []byte) ([]*bill, error) {
+func (m *mockWalletService) GetBills(pubKey []byte) ([]*Bill, error) {
 	return m.bills, nil
 }
 
-func (m *mockWalletService) GetBlockProof(unitId []byte) (*blockProof, error) {
+func (m *mockWalletService) GetBlockProof(unitId []byte) (*BlockProof, error) {
 	return m.proof, nil
 }
 
 func TestListBillsRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
-		bills: []*bill{{
+		bills: []*Bill{{
 			Id:    uint256.NewInt(1),
 			Value: 1,
 		}},
@@ -68,7 +68,7 @@ func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 
 func TestBalanceRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
-		bills: []*bill{{
+		bills: []*Bill{{
 			Id:    uint256.NewInt(1),
 			Value: 1,
 		}},
@@ -106,7 +106,7 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 
 func TestBlockProofRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
-		proof: &blockProof{
+		proof: &BlockProof{
 			BillId:      uint256.NewInt(0),
 			BlockNumber: 1,
 			BlockProof: &proof.BlockProof{

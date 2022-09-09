@@ -14,16 +14,15 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
-type blockProcessor struct {
-	store   BillStore
-	pubkeys []*pubkey
+type BlockProcessor struct {
+	store BillStore
 }
 
-func newBlockProcessor(store BillStore, pubkeys []*pubkey) *blockProcessor {
-	return &blockProcessor{store: store, pubkeys: pubkeys}
+func NewBlockProcessor(store BillStore) *BlockProcessor {
+	return &BlockProcessor{store: store}
 }
 
-func (p *blockProcessor) ProcessBlock(b *block.Block) error {
+func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 	wlog.Info("processing block: ", b.BlockNumber)
 	lastBlockNumber, err := p.store.GetBlockNumber()
 	if err != nil {
@@ -32,9 +31,13 @@ func (p *blockProcessor) ProcessBlock(b *block.Block) error {
 	if b.BlockNumber-lastBlockNumber != 1 {
 		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber))
 	}
+	keys, err := p.store.GetKeys()
+	if err != nil {
+		return err
+	}
 	for i, tx := range b.Transactions {
-		for _, pubKey := range p.pubkeys {
-			err := p.processTx(tx, b, i, pubKey)
+		for _, key := range keys {
+			err := p.processTx(tx, b, i, key)
 			if err != nil {
 				return err
 			}
@@ -43,7 +46,7 @@ func (p *blockProcessor) ProcessBlock(b *block.Block) error {
 	return p.store.SetBlockNumber(b.BlockNumber)
 }
 
-func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txIdx int, pubKey *pubkey) error {
+func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txIdx int, pubKey *Pubkey) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -52,13 +55,13 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 
 	switch tx := stx.(type) {
 	case moneytx.Transfer:
-		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.NewBearer())
+		isOwner, err := verifyOwner(pubKey.PubkeyHash, tx.NewBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			wlog.Info("received transfer order")
-			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
@@ -66,19 +69,19 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 				return err
 			}
 		} else {
-			err := p.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.Pubkey, tx.UnitID())
 			if err != nil {
 				return err
 			}
 		}
 	case moneytx.TransferDC:
-		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.TargetBearer())
+		isOwner, err := verifyOwner(pubKey.PubkeyHash, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			wlog.Info("received TransferDC order")
-			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
@@ -86,7 +89,7 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 				return err
 			}
 		} else {
-			err := p.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.Pubkey, tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -96,12 +99,12 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill, err := p.store.ContainsBill(pubKey.pubkey, tx.UnitID())
+		containsBill, err := p.store.ContainsBill(pubKey.Pubkey, tx.UnitID())
 		if err != nil {
 			return err
 		}
 		if containsBill {
-			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.RemainingValue(),
 			})
@@ -109,13 +112,13 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 				return err
 			}
 		}
-		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.TargetBearer())
+		isOwner, err := verifyOwner(pubKey.PubkeyHash, tx.TargetBearer())
 		if err != nil {
 			return err
 		}
 		if isOwner {
 			id := utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
-			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    id,
 				Value: tx.Amount(),
 			})
@@ -124,12 +127,12 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			}
 		}
 	case moneytx.Swap:
-		isOwner, err := verifyOwner(pubKey.pubkeyHash, tx.OwnerCondition())
+		isOwner, err := verifyOwner(pubKey.PubkeyHash, tx.OwnerCondition())
 		if err != nil {
 			return err
 		}
 		if isOwner {
-			err = p.saveBillWithProof(pubKey.pubkey, b, txIdx, &bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
@@ -137,13 +140,13 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 				return err
 			}
 			for _, dustTransfer := range tx.DCTransfers() {
-				err := p.store.RemoveBill(pubKey.pubkey, dustTransfer.UnitID())
+				err := p.store.RemoveBill(pubKey.Pubkey, dustTransfer.UnitID())
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := p.store.RemoveBill(pubKey.pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.Pubkey, tx.UnitID())
 			if err != nil {
 				return err
 			}
@@ -155,12 +158,12 @@ func (p *blockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 	return nil
 }
 
-func (p *blockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx int, bi *bill) error {
+func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx int, bi *Bill) error {
 	bp, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return err
 	}
-	proof := &blockProof{
+	proof := &BlockProof{
 		BillId:      bi.Id,
 		BlockNumber: b.BlockNumber,
 		BlockProof:  bp,

@@ -13,6 +13,7 @@ const BoltBillStoreFileName = "bills.db"
 var (
 	billsBucket  = []byte("billsBucket")  // pubkey => bucket[bill_id]=bill
 	proofsBucket = []byte("proofsBucket") // bill_id => block_proof
+	keysBucket   = []byte("keysBucket")   // pubkey => hashed pubkey
 	metaBucket   = []byte("metaBucket")
 
 	blockNumberKey = []byte("blockNumberKey")
@@ -65,15 +66,15 @@ func (s *BoltBillStore) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
-func (s *BoltBillStore) GetBills(pubkey []byte) ([]*bill, error) {
-	var bills []*bill
+func (s *BoltBillStore) GetBills(pubkey []byte) ([]*Bill, error) {
+	var bills []*Bill
 	err := s.db.View(func(tx *bolt.Tx) error {
 		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubkey)
 		if pubkeyBillsBucket == nil {
 			return nil
 		}
 		return pubkeyBillsBucket.ForEach(func(billId, billBytes []byte) error {
-			var b *bill
+			var b *Bill
 			err := json.Unmarshal(billBytes, &b)
 			if err != nil {
 				return err
@@ -88,7 +89,7 @@ func (s *BoltBillStore) GetBills(pubkey []byte) ([]*bill, error) {
 	return bills, nil
 }
 
-func (s *BoltBillStore) AddBill(pubKey []byte, b *bill) error {
+func (s *BoltBillStore) AddBill(pubKey []byte, b *Bill) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		pubkeyBillsBucket, err := tx.Bucket(billsBucket).CreateBucketIfNotExists(pubKey)
 		if err != nil {
@@ -103,7 +104,7 @@ func (s *BoltBillStore) AddBill(pubKey []byte, b *bill) error {
 	})
 }
 
-func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *bill, proof *blockProof) error {
+func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *Bill, proof *BlockProof) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		pubkeyBillsBucket, err := tx.Bucket(billsBucket).CreateBucketIfNotExists(pubKey)
 		if err != nil {
@@ -157,8 +158,8 @@ func (s *BoltBillStore) ContainsBill(pubKey []byte, id *uint256.Int) (bool, erro
 	return res, nil
 }
 
-func (s *BoltBillStore) GetBlockProof(billId []byte) (*blockProof, error) {
-	var proof *blockProof
+func (s *BoltBillStore) GetBlockProof(billId []byte) (*BlockProof, error) {
+	var proof *BlockProof
 	err := s.db.View(func(tx *bolt.Tx) error {
 		proofBytes := tx.Bucket(proofsBucket).Get(billId)
 		if proofBytes == nil {
@@ -172,7 +173,7 @@ func (s *BoltBillStore) GetBlockProof(billId []byte) (*blockProof, error) {
 	return proof, nil
 }
 
-func (s *BoltBillStore) SetBlockProof(proof *blockProof) error {
+func (s *BoltBillStore) SetBlockProof(proof *BlockProof) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(proof)
 		if err != nil {
@@ -183,6 +184,39 @@ func (s *BoltBillStore) SetBlockProof(proof *blockProof) error {
 	})
 }
 
+func (s *BoltBillStore) GetKeys() ([]*Pubkey, error) {
+	var keys []*Pubkey
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(keysBucket).ForEach(func(_, pubkeyBytes []byte) error {
+			var key *Pubkey
+			err := json.Unmarshal(pubkeyBytes, &key)
+			if err != nil {
+				return err
+			}
+			keys = append(keys, key)
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+func (s *BoltBillStore) AddKey(k *Pubkey) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		exists := tx.Bucket(keysBucket).Get(k.Pubkey)
+		if exists == nil {
+			keyBytes, err := json.Marshal(k)
+			if err != nil {
+				return err
+			}
+			return tx.Bucket(keysBucket).Put(k.Pubkey, keyBytes)
+		}
+		return nil
+	})
+}
+
 func (s *BoltBillStore) createBuckets() error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(billsBucket)
@@ -190,6 +224,10 @@ func (s *BoltBillStore) createBuckets() error {
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists(proofsBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(keysBucket)
 		if err != nil {
 			return err
 		}

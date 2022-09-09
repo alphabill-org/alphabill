@@ -17,7 +17,7 @@ type (
 	}
 
 	ListBillsResponse struct {
-		Bills []*bill `json:"bills"`
+		Bills []*Bill `json:"bills"`
 	}
 
 	BalanceResponse struct {
@@ -25,7 +25,7 @@ type (
 	}
 
 	BlockProofResponse struct {
-		BlockProof *blockProof `json:"blockProof"`
+		BlockProof *BlockProof `json:"blockProof"`
 	}
 
 	ErrorResponse struct {

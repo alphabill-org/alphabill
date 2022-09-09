@@ -35,7 +35,7 @@ func TestNewReceiverProtocol_Ok(t *testing.T) {
 	defer func() { require.NoError(t, s.Close()) }()
 
 	w := NewProtoBufWriter(s)
-	tx := testtransaction.RandomBillTransfer()
+	tx := testtransaction.RandomBillTransfer(t)
 	err = w.Write(tx)
 	require.NoError(t, err)
 

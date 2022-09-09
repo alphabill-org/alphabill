@@ -7,6 +7,7 @@ package rma
 
 import (
 	"crypto"
+	goerrors "errors"
 	"fmt"
 	"hash"
 
@@ -18,6 +19,8 @@ const (
 	errStrItemDoesntExist      = "item %d does not exist"
 	errStrInvalidHashAlgorithm = "invalid hash algorithm"
 )
+
+var ErrUnitNotFound = goerrors.New("unit not found")
 
 type (
 	Predicate []byte
@@ -215,7 +218,7 @@ func (tree *Tree) Revert() {
 func (tree *Tree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := tree.getNode(id)
 	if !exists {
-		return nil, errors.Errorf(errStrItemDoesntExist, id)
+		return nil, errors.Wrapf(ErrUnitNotFound, errStrItemDoesntExist, id)
 	}
 	return node.Content, nil
 }

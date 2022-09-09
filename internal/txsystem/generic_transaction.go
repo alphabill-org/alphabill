@@ -20,7 +20,7 @@ type (
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte
 		ToProtoBuf() *Transaction
-		SigBytes() []byte // TODO remove from the interface because it isn't needed by all partitions?
+		SigBytes() []byte
 	}
 
 	// DefaultGenericTransaction is a default implementation of GenericTransaction interface. NB! Only suitable for

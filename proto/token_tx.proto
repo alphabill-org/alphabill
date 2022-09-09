@@ -34,3 +34,14 @@ message MintNonFungibleTokenAttributes {
   // the input to satisfy the token creation predicate.
   bytes token_creation_predicate_signature = 7;
 }
+
+message TransferNonFungibleTokenAttributes {
+  // the new bearer predicate of the token
+  bytes newBearer = 1;
+  // optional nonce
+  bytes nonce = 2;
+  //the backlink to the previous transaction with the token
+  bytes backlink = 3;
+  // the input to satisfy the token type invariant predicate
+  bytes invariantPredicateSignature = 4;
+}

@@ -11,13 +11,15 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/proof"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 type mockWalletService struct {
-	bills []*Bill
-	proof *BlockProof
+	bills       []*Bill
+	proof       *BlockProof
+	trackedKeys [][]byte
 }
 
 func (m *mockWalletService) GetBills(pubKey []byte) ([]*Bill, error) {
@@ -26,6 +28,11 @@ func (m *mockWalletService) GetBills(pubKey []byte) ([]*Bill, error) {
 
 func (m *mockWalletService) GetBlockProof(unitId []byte) (*BlockProof, error) {
 	return m.proof, nil
+}
+
+func (m *mockWalletService) AddKey(pubkey []byte) error {
+	m.trackedKeys = append(m.trackedKeys, pubkey)
+	return nil
 }
 
 func TestListBillsRequest_Ok(t *testing.T) {
@@ -156,6 +163,20 @@ func TestBlockProofRequest_LeadingZerosBillId(t *testing.T) {
 	require.Equal(t, "hex number with leading zero digits", res.Message)
 }
 
+func TestAddKeyRequest_Ok(t *testing.T) {
+	mockService := &mockWalletService{}
+	startServer(t, mockService)
+
+	req := &AddKeyRequest{Pubkey: "0x000000000000000000000000000000000000000000000000000000000000000000"}
+	res := &AddKeyResponse{}
+	httpRes := doPost(t, "http://localhost:7777/admin/add-key", req, res)
+
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Len(t, mockService.trackedKeys, 1)
+	pubkeyBytes, _ := hexutil.Decode(req.Pubkey)
+	require.Equal(t, mockService.trackedKeys[0], pubkeyBytes)
+}
+
 func doGet(t *testing.T, url string, response interface{}) *http.Response {
 	httpRes, err := http.Get(url)
 	require.NoError(t, err)
@@ -165,6 +186,21 @@ func doGet(t *testing.T, url string, response interface{}) *http.Response {
 	resBytes, _ := ioutil.ReadAll(httpRes.Body)
 	fmt.Printf("GET %s response: %s\n", url, string(resBytes))
 	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(response)
+	require.NoError(t, err)
+	return httpRes
+}
+
+func doPost(t *testing.T, url string, req interface{}, res interface{}) *http.Response {
+	reqBodyBytes, err := json.Marshal(req)
+	require.NoError(t, err)
+	httpRes, err := http.Post(url, "application/json", bytes.NewBuffer(reqBodyBytes))
+	require.NoError(t, err)
+	defer func() {
+		_ = httpRes.Body.Close()
+	}()
+	resBytes, _ := ioutil.ReadAll(httpRes.Body)
+	fmt.Printf("POST %s response: %s\n", url, string(resBytes))
+	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(res)
 	require.NoError(t, err)
 	return httpRes
 }

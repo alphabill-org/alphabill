@@ -109,6 +109,11 @@ func (w *WalletBackend) GetBlockProof(unitId []byte) (*BlockProof, error) {
 	return w.store.GetBlockProof(unitId)
 }
 
+// AddKey adds new public key to list of tracked keys.
+func (w *WalletBackend) AddKey(pubkey []byte) error {
+	return w.store.AddKey(NewPubkey(pubkey))
+}
+
 // Shutdown terminates wallet backend service.
 func (w *WalletBackend) Shutdown() {
 	// send signal to cancel channel if channel is not full

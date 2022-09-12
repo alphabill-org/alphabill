@@ -184,7 +184,7 @@ func (w *Wallet) DeleteDb() {
 func (w *Wallet) CollectDust(ctx context.Context) error {
 	errgrp, ctx := errgroup.WithContext(ctx)
 	for _, acc := range w.accounts.getAll() {
-		acc := acc // copy value for §§
+		acc := acc // copy value for closure
 		errgrp.Go(func() error {
 			return w.collectDust(ctx, true, acc.accountIndex)
 		})

@@ -19,11 +19,11 @@ import (
 )
 
 var (
-	keysBucket         = []byte("keys")
-	accountsBucket     = []byte("accounts")
-	accountBillsBucket = []byte("accountBills")
-	metaBucket         = []byte("meta")
-	dcMetaBucket       = []byte("dcMetadata")
+	keysBucket          = []byte("keys")
+	accountsBucket      = []byte("accounts")
+	accountBillsBucket  = []byte("accountBills")
+	accountDcMetaBucket = []byte("accountDcMeta")
+	metaBucket          = []byte("meta")
 )
 
 var (
@@ -77,9 +77,9 @@ type TxContext interface {
 	GetBalance(accountIndex uint64) (uint64, error)
 	GetBalances() ([]uint64, error)
 
-	GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error)
-	GetDcMetadata(nonce []byte) (*dcMetadata, error)
-	SetDcMetadata(nonce []byte, dcMetadata *dcMetadata) error
+	GetDcMetadataMap(accountIndex uint64) (map[uint256.Int]*dcMetadata, error)
+	GetDcMetadata(accountIndex uint64, nonce []byte) (*dcMetadata, error)
+	SetDcMetadata(accountIndex uint64, nonce []byte, dcMetadata *dcMetadata) error
 }
 
 type wdb struct {
@@ -117,6 +117,10 @@ func (w *wdbtx) AddAccount(accountIndex uint64, key *wallet.AccountKey) error {
 			return err
 		}
 		_, err = accBucket.CreateBucketIfNotExists(accountBillsBucket)
+		if err != nil {
+			return err
+		}
+		_, err = accBucket.CreateBucketIfNotExists(accountDcMetaBucket)
 		if err != nil {
 			return err
 		}
@@ -452,10 +456,14 @@ func (w *wdbtx) SetBlockNumber(blockHeight uint64) error {
 	}, true)
 }
 
-func (w *wdbtx) GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error) {
+func (w *wdbtx) GetDcMetadataMap(accountIndex uint64) (map[uint256.Int]*dcMetadata, error) {
 	res := map[uint256.Int]*dcMetadata{}
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		return tx.Bucket(dcMetaBucket).ForEach(func(k, v []byte) error {
+		accountBucket, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		return accountBucket.Bucket(accountDcMetaBucket).ForEach(func(k, v []byte) error {
 			var m *dcMetadata
 			err := json.Unmarshal(v, &m)
 			if err != nil {
@@ -471,10 +479,14 @@ func (w *wdbtx) GetDcMetadataMap() (map[uint256.Int]*dcMetadata, error) {
 	return res, nil
 }
 
-func (w *wdbtx) GetDcMetadata(nonce []byte) (*dcMetadata, error) {
+func (w *wdbtx) GetDcMetadata(accountIndex uint64, nonce []byte) (*dcMetadata, error) {
 	var res *dcMetadata
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		m := tx.Bucket(dcMetaBucket).Get(nonce)
+		accountBucket, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		m := accountBucket.Bucket(accountDcMetaBucket).Get(nonce)
 		if m != nil {
 			return json.Unmarshal(m, &res)
 		}
@@ -486,16 +498,20 @@ func (w *wdbtx) GetDcMetadata(nonce []byte) (*dcMetadata, error) {
 	return res, nil
 }
 
-func (w *wdbtx) SetDcMetadata(dcNonce []byte, dcMetadata *dcMetadata) error {
+func (w *wdbtx) SetDcMetadata(accountIndex uint64, dcNonce []byte, dcMetadata *dcMetadata) error {
 	return w.withTx(w.tx, func(tx *bolt.Tx) error {
+		accountBucket, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
 		if dcMetadata != nil {
 			val, err := json.Marshal(dcMetadata)
 			if err != nil {
 				return err
 			}
-			return tx.Bucket(dcMetaBucket).Put(dcNonce, val)
+			return accountBucket.Bucket(accountDcMetaBucket).Put(dcNonce, val)
 		}
-		return tx.Bucket(dcMetaBucket).Delete(dcNonce)
+		return accountBucket.Bucket(accountDcMetaBucket).Delete(dcNonce)
 	}, true)
 }
 
@@ -562,7 +578,7 @@ func (w *wdb) createBuckets() error {
 		if err != nil {
 			return err
 		}
-		_, err = tx.CreateBucketIfNotExists(dcMetaBucket)
+		_, err = tx.CreateBucketIfNotExists(accountDcMetaBucket)
 		if err != nil {
 			return err
 		}

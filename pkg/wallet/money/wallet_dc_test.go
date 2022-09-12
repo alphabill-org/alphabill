@@ -338,7 +338,7 @@ func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 
 func verifyDcMetadata(t *testing.T, w *Wallet, dcNonce []byte, m *dcMetadata) {
 	require.NotEmpty(t, dcNonce)
-	actualMetadata, err := w.db.Do().GetDcMetadata(dcNonce)
+	actualMetadata, err := w.db.Do().GetDcMetadata(0, dcNonce)
 	require.NoError(t, err)
 	require.Equal(t, m.DcValueSum, actualMetadata.DcValueSum)
 	require.Equal(t, m.DcTimeout, actualMetadata.DcTimeout)
@@ -347,14 +347,14 @@ func verifyDcMetadata(t *testing.T, w *Wallet, dcNonce []byte, m *dcMetadata) {
 
 func verifyDcMetadataEmpty(t *testing.T, w *Wallet, dcNonce []byte) {
 	require.NotEmpty(t, dcNonce)
-	dcm, err := w.db.Do().GetDcMetadata(dcNonce)
+	dcm, err := w.db.Do().GetDcMetadata(0, dcNonce)
 	require.NoError(t, err)
 	require.Nil(t, dcm)
 }
 
 func setDcMetadata(t *testing.T, w *Wallet, dcNonce []byte, m *dcMetadata) {
 	require.NotNil(t, dcNonce)
-	err := w.db.Do().SetDcMetadata(dcNonce, m)
+	err := w.db.Do().SetDcMetadata(0, dcNonce, m)
 	require.NoError(t, err)
 }
 

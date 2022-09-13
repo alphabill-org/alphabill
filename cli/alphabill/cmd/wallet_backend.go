@@ -10,6 +10,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
@@ -42,7 +43,7 @@ func (c *walletBackendConfig) GetPubKeys() ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(pubKeyBytes) != 33 {
+		if len(pubKeyBytes) != crypto.CompressedSecp256K1PublicKeySize {
 			return nil, errors.New("invalid pubkey format")
 		}
 		pubkeys[i] = pubKeyBytes

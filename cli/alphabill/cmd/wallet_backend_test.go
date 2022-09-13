@@ -12,6 +12,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
@@ -40,7 +41,9 @@ func TestWalletBackendCli(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// start wallet-backend service
-	serverAddr := "localhost:8888"
+	port, err := net.GetFreePort()
+	require.NoError(t, err)
+	serverAddr := fmt.Sprintf("localhost:%d", port)
 	outputWriter := &testConsoleWriter{}
 	go func() {
 		homeDir := setupTestHomeDir(t, "wallet-backend-test")

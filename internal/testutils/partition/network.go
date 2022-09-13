@@ -4,16 +4,15 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"net"
 	"time"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
 	"google.golang.org/protobuf/proto"
@@ -183,7 +182,7 @@ func createNetworkPeers(count int) ([]*network.Peer, error) {
 
 	var peerInfo = make([]*network.PeerInfo, count)
 	for i := 0; i < count; i++ {
-		port, err := getFreePort()
+		port, err := net.GetFreePort()
 		if err != nil {
 			return nil, err
 		}
@@ -230,20 +229,6 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 		}
 	}
 	return keyPairs, nil
-}
-
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.

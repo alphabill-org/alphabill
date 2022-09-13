@@ -29,7 +29,7 @@ func (p *blockProcessor) ProcessBlock(b *block.Block) error {
 	if err != nil {
 		return err
 	}
-	if b.BlockNumber-lastBlockNumber != 1 {
+	if b.BlockNumber != lastBlockNumber+1 {
 		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber))
 	}
 	for i, tx := range b.Transactions {

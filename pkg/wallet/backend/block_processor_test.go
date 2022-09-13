@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -42,16 +41,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		Transactions:       []*txsystem.Transaction{tx1, tx2, tx3, tx4},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-	pubKey := &pubkey{
-		pubkey: pubKeyBytes,
-		pubkeyHash: &wallet.KeyHashes{
-			Sha256: hash.Sum256(pubKeyBytes),
-			Sha512: hash.Sum512(pubKeyBytes),
-		},
-	}
 
 	store := NewInmemoryBillStore()
-	bp := newBlockProcessor(store, []*pubkey{pubKey})
+	_ = store.AddKey(NewPubkey(pubKeyBytes))
+	bp := NewBlockProcessor(store)
 
 	// process transactions
 	err := bp.ProcessBlock(b)
@@ -76,7 +69,7 @@ func newUnitId(unitId uint64) []byte {
 	return bytes32[:]
 }
 
-func verifyProof(t *testing.T, proof *blockProof, billId *uint256.Int) {
+func verifyProof(t *testing.T, proof *BlockProof, billId *uint256.Int) {
 	require.NotNil(t, proof)
 	require.EqualValues(t, 1, proof.BlockNumber)
 	require.Equal(t, billId, proof.BillId)

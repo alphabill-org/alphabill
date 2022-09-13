@@ -86,7 +86,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	require.Nil(t, bp)
 
 	// add proof
-	expectedBlockProof := &blockProof{
+	expectedBlockProof := &BlockProof{
 		BillId:      billId,
 		BlockNumber: 1,
 		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
@@ -107,7 +107,7 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 	// add bill with proof
 	b := newBill(1)
 	billIdBytes := b.Id.Bytes32()
-	p := &blockProof{
+	p := &BlockProof{
 		BillId:      b.Id,
 		BlockNumber: 1,
 		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
@@ -127,6 +127,30 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 	require.EqualValues(t, p, actualProof)
 }
 
+func TestBillStore_GetSetKeys(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	pubKeyBytes, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000000")
+	pubkey := NewPubkey(pubKeyBytes)
+
+	// add key
+	err := bs.AddKey(pubkey)
+	require.NoError(t, err)
+
+	// verify getKeys
+	keys, err := bs.GetKeys()
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.Equal(t, pubkey, keys[0])
+
+	// verify adding same key does not overwrite existing key
+	err = bs.AddKey(pubkey)
+	require.NoError(t, err)
+	keys, err = bs.GetKeys()
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.Equal(t, pubkey, keys[0])
+}
+
 func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
 	dbFile := path.Join(os.TempDir(), BoltBillStoreFileName)
 	t.Cleanup(func() {
@@ -138,8 +162,8 @@ func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
 	return NewBoltBillStore(dbFile)
 }
 
-func newBill(val uint64) *bill {
-	return &bill{
+func newBill(val uint64) *Bill {
+	return &Bill{
 		Id:    uint256.NewInt(val),
 		Value: val,
 	}

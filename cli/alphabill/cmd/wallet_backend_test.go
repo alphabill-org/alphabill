@@ -44,7 +44,7 @@ func TestWalletBackendCli(t *testing.T) {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
 	serverAddr := fmt.Sprintf("localhost:%d", port)
-	outputWriter := &testConsoleWriter{}
+	consoleWriter = &testConsoleWriter{}
 	go func() {
 		homeDir := setupTestHomeDir(t, "wallet-backend-test")
 		cmd := New()
@@ -55,7 +55,6 @@ func TestWalletBackendCli(t *testing.T) {
 		t.Cleanup(cancelFunc)
 		err = cmd.addAndExecuteCommand(ctx)
 		require.NoError(t, err)
-		fmt.Println(outputWriter.lines)
 	}()
 
 	// wait for wallet-backend to index the transaction by verifying balance

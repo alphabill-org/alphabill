@@ -36,9 +36,15 @@ func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error)
 }
 
 func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+	if blockNumber <= c.maxBlockNumber {
+		return &alphabill.GetBlocksResponse{
+			MaxBlockNumber: c.maxBlockNumber,
+			Blocks:         []*block.Block{c.blocks[blockNumber]},
+		}, nil
+	}
 	return &alphabill.GetBlocksResponse{
 		MaxBlockNumber: c.maxBlockNumber,
-		Blocks:         []*block.Block{c.blocks[blockNumber]},
+		Blocks:         []*block.Block{},
 	}, nil
 }
 
@@ -61,6 +67,10 @@ func (c *MockAlphabillClient) SetTxResponse(txResponse *txsystem.TransactionResp
 
 func (c *MockAlphabillClient) SetMaxBlockNumber(blockNumber uint64) {
 	c.maxBlockNumber = blockNumber
+}
+
+func (c *MockAlphabillClient) SetBlock(b *block.Block) {
+	c.blocks[b.BlockNumber] = b
 }
 
 func (c *MockAlphabillClient) GetRecordedTransactions() []*txsystem.Transaction {

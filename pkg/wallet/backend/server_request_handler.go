@@ -17,7 +17,7 @@ type (
 	}
 
 	ListBillsResponse struct {
-		Bills []*bill `json:"bills"`
+		Bills []*Bill `json:"bills"`
 	}
 
 	BalanceResponse struct {
@@ -25,7 +25,14 @@ type (
 	}
 
 	BlockProofResponse struct {
-		BlockProof *blockProof `json:"blockProof"`
+		BlockProof *BlockProof `json:"blockProof"`
+	}
+
+	AddKeyRequest struct {
+		Pubkey string `json:"pubkey"`
+	}
+
+	AddKeyResponse struct {
 	}
 
 	ErrorResponse struct {
@@ -39,6 +46,11 @@ func (s *RequestHandler) router() *mux.Router {
 	r.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET")
 	r.HandleFunc("/balance", s.balanceFunc).Methods("GET")
 	r.HandleFunc("/block-proof", s.blockProofFunc).Methods("GET")
+
+	// TODO authorization
+	ra := r.PathPrefix("/admin/").Subrouter()
+	ra.HandleFunc("/add-key", s.addKeyFunc).Methods("POST")
+
 	return r
 }
 
@@ -95,6 +107,29 @@ func (s *RequestHandler) blockProofFunc(w http.ResponseWriter, r *http.Request) 
 	}
 	res := &BlockProofResponse{p}
 	writeAsJson(w, res)
+}
+
+func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
+	req := &AddKeyRequest{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeAsJson(w, ErrorResponse{Message: err.Error()})
+		return
+	}
+	pubkeyBytes, err := decodePubKeyHex(req.Pubkey)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeAsJson(w, ErrorResponse{Message: err.Error()})
+		return
+	}
+	err = s.service.AddKey(pubkeyBytes)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		wlog.Error("error on POST /add-key ", err)
+		return
+	}
+	writeAsJson(w, &AddKeyResponse{})
 }
 
 func writeAsJson(w http.ResponseWriter, res interface{}) {

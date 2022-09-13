@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -99,8 +100,7 @@ func startCmd(ctx context.Context, config *walletBackendConfig) *cobra.Command {
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "wallet backend server address")
 	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/wallet-backend/"+backend.BoltBillStoreFileName+")")
-	cmd.Flags().StringSliceVarP(&config.Pubkeys, pubkeysCmdName, "p", nil, "pubkeys to index")
-	_ = cmd.MarkFlagRequired("pubkeys")
+	cmd.Flags().StringSliceVarP(&config.Pubkeys, pubkeysCmdName, "p", nil, "pubkeys to index (more keys can be added to running service through web api)")
 	return cmd
 }
 
@@ -118,7 +118,17 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 	if err != nil {
 		return err
 	}
-	service := backend.New(pubkeys, abclient, store)
+	for _, pubkey := range pubkeys {
+		k := backend.NewPubkey(pubkey)
+		err = store.AddKey(k)
+		if err != nil {
+			return err
+		}
+	}
+	bp := backend.NewBlockProcessor(store)
+	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
+
+	service := backend.New(w, store)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {

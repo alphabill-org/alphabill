@@ -368,11 +368,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	stx := gtx.(txsystem.GenericTransaction)
 	switch tx := stx.(type) {
 	case money.Transfer:
-		isOwner, err := verifyOwner(acc, tx.NewBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
@@ -389,11 +385,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 		}
 	case money.TransferDC:
-		isOwner, err := verifyOwner(acc, tx.TargetBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received TransferDC order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:                  tx.UnitID(),
@@ -434,11 +426,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				return err
 			}
 		}
-		isOwner, err := verifyOwner(acc, tx.TargetBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
@@ -450,11 +438,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 		}
 	case money.Swap:
-		isOwner, err := verifyOwner(acc, tx.OwnerCondition())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.OwnerCondition()) {
 			log.Info("received swap order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),

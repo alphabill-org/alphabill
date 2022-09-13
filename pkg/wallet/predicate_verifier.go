@@ -8,12 +8,8 @@ import (
 
 // VerifyP2PKHOwner checks if given bearer predicate equals either SHA256 or SHA512 P2PKH predicate.
 func VerifyP2PKHOwner(pubkeyHashes *KeyHashes, bp []byte) bool {
-	// 6th byte should be hash algorithm
-	if len(bp) < 6 {
-		return false
-	}
-	// 5th byte is PushHash 0x4f
-	if bp[4] != script.OpPushHash {
+	// p2pkh owner predicate must be 10 + (32 or 64) (SHA256 or SHA512) bytes long
+	if len(bp) != 42 && len(bp) != 74 {
 		return false
 	}
 	// 6th byte is HashAlgo 0x01 or 0x02 for SHA256 and SHA512 respectively

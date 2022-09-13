@@ -14,6 +14,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
+var ErrRootGenesisIsNil = errors.New("Root genesis is nil")
+
 // State holds the State of the root chain.
 type State struct {
 	roundNumber               uint64                               // current round number
@@ -28,15 +30,23 @@ type State struct {
 }
 
 func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, error) {
-	_, verifier, err := GetPublicKeyAndVerifier(signer)
+	_, _, err := GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")
 	}
-	if err = g.IsValid(verifier); err != nil {
+	if g == nil {
+		return nil, ErrRootGenesisIsNil
+	}
+
+	// _, verifier, err := GetPublicKeyAndVerifier(signer)
+	// if err != nil {
+	//	return nil, errors.Wrap(err, "invalid root chain private key")
+	//}
+	if err := g.IsValidFinal(); err != nil {
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 
-	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), signer, gocrypto.Hash(g.HashAlgorithm))
+	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), signer, gocrypto.Hash(g.RootCluster.Consensus.HashAlgorithm))
 	if err != nil {
 		return nil, err
 	}

@@ -98,8 +98,14 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	// root genesis
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-
-	rootGenesis, partitionGenesis, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{nodeGenesis}, rootSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
+	require.NoError(t, err)
+	rootGenesis, partitionGenesis, err := rootchain.NewRootGenesis(pr,
+		rootchain.WithPeerID("test"),
+		rootchain.WithSigningKey(rootSigner),
+		rootchain.WithEncryptionPubKey(rootPubKeyBytes))
 	if err != nil {
 		t.Error(err)
 	}

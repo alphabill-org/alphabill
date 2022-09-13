@@ -77,7 +77,12 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 	_, _, partition2, _ := createPartitionRecord(t, partition2IR, partition2ID, 4)
 	partitions := []*genesis.PartitionRecord{partition1, partition2}
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	rootGenesis, _, err := NewGenesis(partitions, rootSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	rootGenesis, _, err := NewRootGenesis(partitions,
+		WithPeerID("test"),
+		WithSigningKey(rootSigner),
+		WithEncryptionPubKey(rootPubKeyBytes))
 	require.NoError(t, err)
 
 	s1, err := NewStateFromGenesis(rootGenesis, rootSigner)

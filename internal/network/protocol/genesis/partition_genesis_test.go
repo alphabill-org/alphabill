@@ -26,12 +26,17 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		EncryptionPublicKey: pubKey,
 	}
 
+	rootKeyInfo := &PublicKeyInfo{
+		NodeIdentifier:      "1",
+		SigningPublicKey:    pubKey,
+		EncryptionPublicKey: pubKey,
+	}
+
 	type fields struct {
 		SystemDescriptionRecord *SystemDescriptionRecord
 		Certificate             *certificates.UnicityCertificate
+		RootValidators          []*PublicKeyInfo
 		Keys                    []*PublicKeyInfo
-		TrustBase               []byte
-		EncryptionKey           []byte
 	}
 	type args struct {
 		verifier      crypto.Verifier
@@ -56,8 +61,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "system description record is nil",
 			args: args{verifier: verifier},
 			fields: fields{
-				Keys:          []*PublicKeyInfo{keyInfo},
-				EncryptionKey: pubKey,
+				RootValidators: []*PublicKeyInfo{rootKeyInfo},
+				Keys:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErr: ErrSystemDescriptionIsNil,
 		},
@@ -69,8 +74,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase: pubKey,
-				Keys:      nil,
+				RootValidators: []*PublicKeyInfo{rootKeyInfo},
+				Keys:           nil,
 			},
 			wantErr: ErrKeysAreMissing,
 		},
@@ -82,9 +87,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     pubKey,
-				EncryptionKey: pubKey,
-				Keys:          []*PublicKeyInfo{nil},
+				RootValidators: []*PublicKeyInfo{rootKeyInfo},
+				Keys:           []*PublicKeyInfo{nil},
 			},
 			wantErr: ErrKeyIsNil,
 		},
@@ -97,8 +101,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     pubKey,
-				EncryptionKey: pubKey,
+				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys: []*PublicKeyInfo{
 					{NodeIdentifier: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
 				},
@@ -113,9 +116,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     pubKey,
-				EncryptionKey: pubKey,
-				Keys:          []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: []byte{0, 0}}},
+				RootValidators: []*PublicKeyInfo{rootKeyInfo},
+				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: []byte{0, 0}}},
 			},
 			wantErrStr: "pubkey must be 33 bytes long, but is 2",
 		},
@@ -127,25 +129,23 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     pubKey,
-				EncryptionKey: pubKey,
-				Keys:          []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
+				RootValidators: []*PublicKeyInfo{rootKeyInfo},
+				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
 			},
 			wantErrStr: "pubkey must be 33 bytes long, but is 2",
 		},
 		{
-			name: "invalid trust base",
+			name: "invalid root signing public key",
 			args: args{verifier: verifier},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     []byte{0},
-				EncryptionKey: pubKey,
-				Keys:          []*PublicKeyInfo{keyInfo},
+				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
+				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "invalid trust base",
+			wantErrStr: "pubkey must be 33 bytes long, but is 1",
 		},
 		{
 			name: "certificate is nil",
@@ -155,10 +155,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     pubKey,
-				Certificate:   nil,
-				EncryptionKey: pubKey,
-				Keys:          []*PublicKeyInfo{keyInfo},
+				Certificate:    nil,
+				RootValidators: []*PublicKeyInfo{rootKeyInfo},
+				Keys:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErr: certificates.ErrUnicityCertificateIsNil,
 		},
@@ -170,11 +169,10 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     pubKey,
-				EncryptionKey: nil,
-				Keys:          []*PublicKeyInfo{keyInfo},
+				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
+				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErr: ErrRootChainEncryptionKeyMissing,
+			wantErrStr: "invalid root validator public key info",
 		},
 		{
 			name: "encryption key is invalid",
@@ -184,9 +182,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					SystemIdentifier: []byte{0, 0, 0, 0},
 					T2Timeout:        100,
 				},
-				TrustBase:     pubKey,
-				EncryptionKey: []byte{0, 0, 0, 0},
-				Keys:          []*PublicKeyInfo{keyInfo},
+				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},
+				Keys:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "pubkey must be 33 bytes long, but is 4",
 		},
@@ -196,8 +193,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			x := &PartitionGenesis{
 				SystemDescriptionRecord: tt.fields.SystemDescriptionRecord,
 				Certificate:             tt.fields.Certificate,
-				TrustBase:               tt.fields.TrustBase,
-				EncryptionKey:           tt.fields.EncryptionKey,
+				RootValidators:          tt.fields.RootValidators,
 				Keys:                    tt.fields.Keys,
 			}
 			err := x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)

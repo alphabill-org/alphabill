@@ -1,4 +1,22 @@
 {
+  "root_cluster": {
+    "root_validators": [
+      {
+        "node_identifier": "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm",
+        "signing_public_key": "AnJdIK9EqWwNh0SDxe5q9QxLjoi3lWVNWsizhywCppBA",
+        "encryption_public_key": "ArydEzLAl49KjvsyEZWF6YMb9W68MqC1a6QIvAJvl9OA"
+      }
+    ],
+    "consensus": {
+      "total_root_validators": 1,
+      "block_rate_ms": 900,
+      "quorum_threshold": 0,
+      "hash_algorithm": 5,
+      "signatures": {
+        "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "eIg1RNMA6pY+r7cPw7pqlppz519vJ5YK/3RMtTBcQCZh9GHwxykxwYCCFPtgvgBEhjAughoAeT9Pmb3PjUMnOgA="
+      }
+    }
+  },
   "partitions": [
     {
       "nodes": [
@@ -78,7 +96,5 @@
         "t2timeout": 2500
       }
     }
-  ],
-  "trust_base": "AnJdIK9EqWwNh0SDxe5q9QxLjoi3lWVNWsizhywCppBA",
-  "hash_algorithm": 5
+  ]
 }

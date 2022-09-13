@@ -25,14 +25,18 @@ func TestNewGenesis_Ok(t *testing.T) {
 	rootChainVerifier, err := rootChainSigner.Verifier()
 	require.NoError(t, err)
 
-	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-
-	rg, ps, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootChainSigner, encPubKey)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	rootPubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	rg, ps, err := NewRootGenesis([]*genesis.PartitionRecord{partition},
+		WithPeerID("test"),
+		WithSigningKey(rootChainSigner),
+		WithEncryptionPubKey(rootPubKeyBytes))
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.NotNil(t, ps)
 	require.Equal(t, 1, len(ps))
-	require.NoError(t, rg.IsValid(rootChainVerifier))
+	require.NoError(t, rg.IsValid("test", rootChainVerifier))
 }
 
 func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
@@ -61,7 +65,12 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	_, _, err = NewGenesis([]*genesis.PartitionRecord{partition}, rootChainSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	_, _, err = NewRootGenesis([]*genesis.PartitionRecord{partition},
+		WithPeerID("test"),
+		WithSigningKey(rootChainSigner),
+		WithEncryptionPubKey(rootPubKeyBytes))
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "has not reached a consensus"))
 }
@@ -78,7 +87,14 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
 	require.NoError(t, err)
-	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2}, rootChainSigner, rootChainVerifier)
+	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
+	require.NoError(t, err)
+	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn1, pn2})
+	require.NoError(t, err)
+	rg, pgs, err := NewRootGenesis(pr,
+		WithPeerID("test"),
+		WithSigningKey(rootChainSigner),
+		WithEncryptionPubKey(rootPubKeyBytes))
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 2, len(rg.Partitions[0].Nodes))
@@ -89,6 +105,7 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	systemIdentifier1 := []byte{0, 0, 0, 0}
 	systemIdentifier2 := []byte{0, 0, 0, 1}
 	systemIdentifier3 := []byte{0xFF, 0xFF, 0xFF, 0xFF}
+
 	partitionSigner, _ := testsig.CreateSignerAndVerifier(t)
 	partitionSigner2, _ := testsig.CreateSignerAndVerifier(t)
 	partitionSigner3, _ := testsig.CreateSignerAndVerifier(t)
@@ -100,7 +117,14 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
 	require.NoError(t, err)
-	rg, pgs, err := NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn1, pn2, pn3}, rootChainSigner, rootChainVerifier)
+	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
+	require.NoError(t, err)
+	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn1, pn2, pn3})
+	require.NoError(t, err)
+	rg, pgs, err := NewRootGenesis(pr,
+		WithPeerID("test"),
+		WithSigningKey(rootChainSigner),
+		WithEncryptionPubKey(rootPubKeyBytes))
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 1, len(rg.Partitions[0].Nodes))

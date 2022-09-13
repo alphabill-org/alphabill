@@ -1,6 +1,7 @@
 package rootchain
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -62,6 +63,25 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
+	// todo root genesis: sort of hack for now, but how to handle this with when conf is to be upgraded
+	nodeInfo := genesis.GetRootCluster().FindPubKeyById(peer.ID().String())
+	if nodeInfo == nil {
+		logger.Info("Root node %v info not in genesis file", peer.ID().String())
+		return nil, errors.New("invalid root validator encode key")
+	}
+	ver, err := signer.Verifier()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	signPubKeyBytes, err := ver.MarshalPublicKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	// verify that the same public key is present in the genesis file
+	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
+		return nil, errors.Errorf("invalid root validator sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
+	}
+
 	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
 	s, err := NewStateFromGenesis(genesis, signer)
 	if err != nil {

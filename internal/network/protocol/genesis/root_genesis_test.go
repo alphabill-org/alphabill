@@ -1,6 +1,7 @@
 package genesis
 
 import (
+	gocrypto "crypto"
 	"strings"
 	"testing"
 
@@ -14,10 +15,29 @@ import (
 )
 
 func TestRootGenesis_IsValid1(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
+	rootKeyInfo := &PublicKeyInfo{
+		NodeIdentifier:      "1",
+		SigningPublicKey:    pubKey,
+		EncryptionPublicKey: pubKey,
+	}
+	rootConsensus := &ConsensusParams{
+		TotalRootValidators: 1,
+		BlockRateMs:         900,
+		ConsensusTimeoutMs:  nil,
+		QuorumThreshold:     nil,
+		HashAlgorithm:       uint32(gocrypto.SHA256),
+		Signatures:          make(map[string][]byte),
+	}
+	alg := gocrypto.Hash(rootConsensus.HashAlgorithm)
+	hash := rootConsensus.Hash(alg)
+	sig, err := signer.SignHash(hash)
+	require.NoError(t, err)
+	rootConsensus.Signatures["1"] = sig
 	type fields struct {
+		Root          *GenesisRootCluster
 		Partitions    []*GenesisPartitionRecord
 		TrustBase     []byte
 		HashAlgorithm uint32
@@ -38,19 +58,29 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 			wantErr: ErrVerifierIsNil,
 		},
 		{
-			name: "invalid trust base",
+			name: "invalid root validator info",
 			args: args{
 				verifier: verifier,
 			},
-			fields:     fields{TrustBase: nil},
-			wantErrStr: "invalid trust base",
+			fields: fields{
+				Root: &GenesisRootCluster{
+					RootValidators: []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
+					Consensus:      rootConsensus},
+			},
+			wantErr: ErrMissingPubKeyInfo,
 		},
 		{
 			name: "partitions not found",
 			args: args{
 				verifier: verifier,
 			},
-			fields:  fields{TrustBase: pubKey},
+			fields: fields{
+				Root: &GenesisRootCluster{
+					RootValidators: []*PublicKeyInfo{rootKeyInfo},
+					Consensus:      rootConsensus,
+				},
+				Partitions: nil,
+			},
 			wantErr: ErrPartitionsNotFound,
 		},
 		{
@@ -58,18 +88,23 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 			args: args{
 				verifier: verifier,
 			},
-			fields:  fields{TrustBase: pubKey, Partitions: []*GenesisPartitionRecord{nil}},
+			fields: fields{
+				Root: &GenesisRootCluster{
+					RootValidators: []*PublicKeyInfo{rootKeyInfo},
+					Consensus:      rootConsensus,
+				},
+				Partitions: []*GenesisPartitionRecord{nil},
+			},
 			wantErr: ErrGenesisPartitionRecordIsNil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &RootGenesis{
-				Partitions:    tt.fields.Partitions,
-				TrustBase:     tt.fields.TrustBase,
-				HashAlgorithm: tt.fields.HashAlgorithm,
+				RootCluster: tt.fields.Root,
+				Partitions:  tt.fields.Partitions,
 			}
-			err := x.IsValid(tt.args.verifier)
+			err := x.IsValid("1", tt.args.verifier)
 			if tt.wantErr != nil {
 				require.Equal(t, tt.wantErr, err)
 			} else {
@@ -82,7 +117,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 
 func TestRootGenesis_IsValid_Nil(t *testing.T) {
 	var rg *RootGenesis = nil
-	err := rg.IsValid(nil)
+	err := rg.IsValid("", nil)
 	require.ErrorIs(t, err, ErrRootGenesisIsNil)
 }
 

@@ -173,7 +173,11 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 			return err
 		}
 	}
-	trustBaseBytes := c.genesis.TrustBase
+	// todo root genesis: hack to get compiling again
+	if len(c.genesis.RootValidators) != 1 {
+		return errors.New("Only monolithic root chain is supported at this point")
+	}
+	trustBaseBytes := c.genesis.RootValidators[0].SigningPublicKey
 	c.trustBase, err = crypto.NewVerifierSecp256k1(trustBaseBytes)
 	if err != nil {
 		return err

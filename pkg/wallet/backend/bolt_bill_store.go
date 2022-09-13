@@ -205,13 +205,14 @@ func (s *BoltBillStore) GetKeys() ([]*Pubkey, error) {
 
 func (s *BoltBillStore) AddKey(k *Pubkey) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		exists := tx.Bucket(keysBucket).Get(k.Pubkey)
+		keysBkt := tx.Bucket(keysBucket)
+		exists := keysBkt.Get(k.Pubkey)
 		if exists == nil {
 			keyBytes, err := json.Marshal(k)
 			if err != nil {
 				return err
 			}
-			return tx.Bucket(keysBucket).Put(k.Pubkey, keyBytes)
+			return keysBkt.Put(k.Pubkey, keyBytes)
 		}
 		return nil
 	})

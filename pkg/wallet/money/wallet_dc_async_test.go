@@ -15,15 +15,15 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addDcBills(t, w, nonce, 10)
 	setBlockHeight(t, w, 100)
-	mockClient.maxBlockNo = 100
+	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
 	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then swap tx is broadcast
-	require.Len(t, mockClient.txs, 1)
-	tx := mockClient.txs[0]
+	require.Len(t, mockClient.GetRecordedTransactions(), 1)
+	tx := mockClient.GetRecordedTransactions()[0]
 	txSwap := parseSwapTx(t, tx)
 
 	// and verify each dc tx id = nonce = swap.id
@@ -46,15 +46,15 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	addBill(t, w, 1)
 	addDcBill(t, w, nonce, 2, 10)
 	setBlockHeight(t, w, 100)
-	mockClient.maxBlockNo = 100
+	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
 	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then swap tx is sent for the timed out dc bill
-	require.Len(t, mockClient.txs, 1)
-	tx := mockClient.txs[0]
+	require.Len(t, mockClient.GetRecordedTransactions(), 1)
+	tx := mockClient.GetRecordedTransactions()[0]
 	txSwap := parseSwapTx(t, tx)
 
 	// and verify nonce = swap.id = dc tx id
@@ -74,18 +74,18 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 	setBlockHeight(t, w, 100)
-	mockClient.maxBlockNo = 100
+	mockClient.SetMaxBlockNumber(100)
 
 	// when dust collector runs
 	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then dust txs are broadcast
-	require.Len(t, mockClient.txs, 2)
+	require.Len(t, mockClient.GetRecordedTransactions(), 2)
 
 	// and nonces are equal
-	dcTx0 := parseDcTx(t, mockClient.txs[0])
-	dcTx1 := parseDcTx(t, mockClient.txs[1])
+	dcTx0 := parseDcTx(t, mockClient.GetRecordedTransactions()[0])
+	dcTx1 := parseDcTx(t, mockClient.GetRecordedTransactions()[1])
 	require.EqualValues(t, dcTx0.Nonce, dcTx1.Nonce)
 
 	// and metadata is updated
@@ -104,7 +104,7 @@ func TestDcJobDoesNotSendSwapIfDcBillTimeoutHasNotBeenReached(t *testing.T) {
 	require.NoError(t, err)
 
 	// then swap must not be broadcast
-	require.Empty(t, mockClient.txs, 0)
+	require.Empty(t, mockClient.GetRecordedTransactions(), 0)
 }
 
 func TestDcJobSendsMultipleSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
@@ -115,15 +115,15 @@ func TestDcJobSendsMultipleSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	addDcBill(t, w, nonce1, 1, 10)
 	addDcBill(t, w, nonce2, 2, 10)
 	setBlockHeight(t, w, 10)
-	mockClient.maxBlockNo = 10
+	mockClient.SetMaxBlockNumber(10)
 
 	// when dust collector runs
 	err := w.collectDust(context.Background(), false, 0)
 	require.NoError(t, err)
 
 	// then 2 swap txs must be broadcast
-	require.Len(t, mockClient.txs, 2)
-	for _, tx := range mockClient.txs {
+	require.Len(t, mockClient.GetRecordedTransactions(), 2)
+	for _, tx := range mockClient.GetRecordedTransactions() {
 		require.NotNil(t, parseSwapTx(t, tx))
 	}
 

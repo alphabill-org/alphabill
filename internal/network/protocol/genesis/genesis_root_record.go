@@ -44,7 +44,7 @@ func validatorsUnique(validators []*PublicKeyInfo) error {
 }
 
 // IsValid only validates Consensus structure and the signature of one
-func (x *GenesisRootCluster) IsValid() error {
+func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {
 		return ErrGenesisRootIssNil
 	}
@@ -79,7 +79,7 @@ func (x *GenesisRootCluster) IsValid() error {
 	return nil
 }
 
-func (x *GenesisRootCluster) IsValidFinal() error {
+func (x *GenesisRootRecord) IsValidFinal() error {
 	if x == nil {
 		return ErrGenesisRootIssNil
 	}
@@ -99,7 +99,7 @@ func (x *GenesisRootCluster) IsValidFinal() error {
 	return nil
 }
 
-func (x *GenesisRootCluster) FindPubKeyById(id string) *PublicKeyInfo {
+func (x *GenesisRootRecord) FindPubKeyById(id string) *PublicKeyInfo {
 	if x == nil {
 		return nil
 	}

@@ -65,7 +65,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 		return nil, errors.New("network is nil")
 	}
 	// todo root genesis: sort of hack for now, but how to handle this with when conf is to be upgraded
-	nodeInfo := genesis.GetRootCluster().FindPubKeyById(peer.ID().String())
+	nodeInfo := genesis.Root.FindPubKeyById(peer.ID().String())
 	if nodeInfo == nil {
 		logger.Info("Root node %v info not in genesis file", peer.ID().String())
 		return nil, errors.New("invalid root validator encode key")

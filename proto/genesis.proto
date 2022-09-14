@@ -6,11 +6,11 @@ import "google/protobuf/any.proto";
 option go_package = "github.com/alphabill-org/alphabill/internal/network/protocol/genesis/;genesis";
 
 message RootGenesis {
-  GenesisRootCluster root_cluster = 1;
+  GenesisRootRecord root = 1;
   repeated GenesisPartitionRecord partitions = 2;
 }
 
-message GenesisRootCluster {
+message GenesisRootRecord {
   repeated PublicKeyInfo root_validators = 1;
   ConsensusParams consensus = 2;
 }

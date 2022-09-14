@@ -47,7 +47,7 @@ func NewStateFromGenesis(g *genesis.RootGenesis, selfId string, signer crypto.Si
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 
-	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), selfId, signer, gocrypto.Hash(g.RootCluster.Consensus.HashAlgorithm))
+	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), selfId, signer, gocrypto.Hash(g.Root.Consensus.HashAlgorithm))
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,5 @@
 {
-  "root_cluster": {
+  "root": {
     "root_validators": [
       {
         "node_identifier": "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm",

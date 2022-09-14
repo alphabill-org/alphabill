@@ -219,13 +219,13 @@ func NewRootGenesis(partitions []*genesis.PartitionRecord, opts ...GenesisOption
 	}
 	consensusParams.Signatures = make(map[string][]byte)
 	consensusParams.Signatures[c.peerID] = sig
-	rootClusterRecord := &genesis.GenesisRootCluster{
+	genesisRoot := &genesis.GenesisRootRecord{
 		RootValidators: rootValidatorInfo,
 		Consensus:      consensusParams,
 	}
 	rootGenesis := &genesis.RootGenesis{
-		RootCluster: rootClusterRecord,
-		Partitions:  genesisPartitions,
+		Root:       genesisRoot,
+		Partitions: genesisPartitions,
 	}
 
 	if err := rootGenesis.IsValid(c.peerID, verifier); err != nil {

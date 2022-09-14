@@ -30,9 +30,9 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 		return err
 	}
 	// Check the root cluster is valid
-	x.RootCluster.IsValid()
+	x.Root.IsValid()
 	// verify that the signing key was added
-	pubKeyInfo := x.RootCluster.FindPubKeyById(rootId)
+	pubKeyInfo := x.Root.FindPubKeyById(rootId)
 	if pubKeyInfo == nil {
 		return ErrMissingPubKeyInfo
 	}
@@ -41,7 +41,7 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 		return errors.Errorf("invalid trust base. expected %X, got %X", pubKeyBytes, pubKeyInfo.SigningPublicKey)
 	}
 	// calculate consensus hash
-	alg := gocrypto.Hash(x.RootCluster.Consensus.HashAlgorithm)
+	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
 	if len(x.Partitions) == 0 {
 		return ErrPartitionsNotFound
 	}
@@ -59,7 +59,7 @@ func (x *RootGenesis) IsValidFinal() error {
 		return ErrRootGenesisIsNil
 	}
 	// Verify that the consensus struct has been signed by all root nodes
-	err := x.RootCluster.IsValidFinal()
+	err := x.Root.IsValidFinal()
 	if err != nil {
 		return errors.Wrap(err, "Invalid root genesis")
 	}

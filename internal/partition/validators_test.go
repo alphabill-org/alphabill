@@ -48,7 +48,7 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 				rootTrustBase:     nil,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: certificates.ErrRootPublicInfoMissing,
+			wantErr: certificates.ErrRootValidatorInfoMissing,
 		},
 	}
 	for _, tt := range tests {
@@ -118,7 +118,7 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 				trustBase:         nil,
 				algorithm:         gocrypto.SHA256,
 			},
-			wantErr: certificates.ErrRootPublicInfoMissing,
+			wantErr: certificates.ErrRootValidatorInfoMissing,
 		},
 	}
 	for _, tt := range tests {

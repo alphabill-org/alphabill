@@ -29,10 +29,10 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 			wantErr:  ErrUnicitySealIsNil,
 		},
 		{
-			name:     "verifier is nil",
+			name:     "no root validators",
 			seal:     &UnicitySeal{},
 			verifier: nil,
-			wantErr:  ErrRootPublicInfoMissing,
+			wantErr:  ErrRootValidatorInfoMissing,
 		},
 		{
 			name: "PreviousHash is nil",
@@ -143,5 +143,5 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		Signatures:           map[string][]byte{"": zeroHash},
 	}
 	err := seal.Verify(nil)
-	require.ErrorIs(t, err, ErrRootPublicInfoMissing)
+	require.ErrorIs(t, err, ErrRootValidatorInfoMissing)
 }

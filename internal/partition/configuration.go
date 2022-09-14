@@ -173,11 +173,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 			return err
 		}
 	}
-	// todo root genesis: hack to get compiling again
-	if len(c.genesis.RootValidators) != 1 {
-		return errors.New("Only monolithic root chain is supported at this point")
-	}
-	c.rootTrustBase, err = NewRootTrustBase(c.genesis.RootValidators)
+	c.rootTrustBase, err = genesis.NewRootTrustBase(c.genesis.RootValidators)
 	if err != nil {
 		return err
 	}

@@ -90,7 +90,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{nil},
 			},
-			wantErr: ErrKeyIsNil,
+			wantErrStr: ErrValidatorPublicInfoIsEmpty.Error(),
 		},
 
 		{
@@ -106,7 +106,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					{NodeIdentifier: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
 				},
 			},
-			wantErr: ErrNodeIdentifierIsEmpty,
+			wantErrStr: ErrNodeIdentifierIsEmpty.Error(),
 		},
 		{
 			name: "signing pub key is invalid",

@@ -18,7 +18,7 @@ var (
 	ErrUnicitySealPreviousHashIsNil = errors.New("previous hash is nil")
 	ErrInvalidBlockNumber           = errors.New("invalid block number")
 	ErrUnicitySealSignatureIsNil    = errors.New("no signatures")
-	ErrRootPublicInfoMissing        = errors.New("root validator public info is missing")
+	ErrRootValidatorInfoMissing     = errors.New("root validator info is missing")
 	ErrUnknownSigner                = errors.New("Unknown signer")
 )
 
@@ -27,7 +27,7 @@ func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 		return ErrUnicitySealIsNil
 	}
 	if len(verifiers) == 0 {
-		return ErrRootPublicInfoMissing
+		return ErrRootValidatorInfoMissing
 	}
 	if x.Hash == nil {
 		return ErrUnicitySealHashIsNil
@@ -74,7 +74,7 @@ func (x *UnicitySeal) AddToHasher(hasher hash.Hash) {
 
 func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 	if verifiers == nil {
-		return ErrRootPublicInfoMissing
+		return ErrRootValidatorInfoMissing
 	}
 	if len(x.Signatures) == 0 {
 		return errors.New("invalid unicity seal signature")
@@ -91,6 +91,6 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 			return errors.Wrap(err, "invalid unicity seal signature")
 		}
 	}
-	// todo root genesis: for distributed we will need a quorum check as well
+	// TODO: in distributed root chain there needs to be a way to check if nof signatures represent quorum
 	return nil
 }

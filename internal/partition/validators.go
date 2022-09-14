@@ -63,22 +63,6 @@ type (
 	}
 )
 
-func NewRootTrustBase(rootPublicInfo []*genesis.PublicKeyInfo) (map[string]crypto.Verifier, error) {
-	if len(rootPublicInfo) == 0 {
-		return nil, certificates.ErrRootPublicInfoMissing
-	}
-	// Collect all root signing keys
-	rootIdToKey := make(map[string]crypto.Verifier)
-	for _, info := range rootPublicInfo {
-		ver, err := crypto.NewVerifierSecp256k1(info.SigningPublicKey)
-		if err != nil {
-			return nil, errors.New("invalid signing key")
-		}
-		rootIdToKey[info.NodeIdentifier] = ver
-	}
-	return rootIdToKey, nil
-}
-
 // NewDefaultTxValidator creates a new instance of default	TxValidator.
 func NewDefaultTxValidator(systemIdentifier []byte) (TxValidator, error) {
 	if systemIdentifier == nil {
@@ -115,7 +99,7 @@ func NewDefaultUnicityCertificateValidator(
 		return nil, err
 	}
 	if len(rootTrust) == 0 {
-		return nil, certificates.ErrRootPublicInfoMissing
+		return nil, certificates.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultUnicityCertificateValidator{
@@ -140,7 +124,7 @@ func NewDefaultBlockProposalValidator(
 		return nil, err
 	}
 	if len(rootTrust) == 0 {
-		return nil, certificates.ErrRootPublicInfoMissing
+		return nil, certificates.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultBlockProposalValidator{

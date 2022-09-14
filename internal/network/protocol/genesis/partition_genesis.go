@@ -36,34 +36,31 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 	if len(x.RootValidators) < 1 {
 		return ErrMissingRootValidators
 	}
+	// check that root validator public info is valid
 	for _, node := range x.RootValidators {
 		err := node.IsValid()
 		if err != nil {
 			return errors.Wrap(err, "invalid root validator public key info")
 		}
 	}
+	// make sure it is a list of unique node ids and keys
+	err := ValidatorInfoUnique(x.RootValidators)
+	if err != nil {
+		return errors.Wrap(err, "invalid root validator list")
+	}
+	// check partition validator public info is valid
 	for _, keyInfo := range x.Keys {
-		if keyInfo == nil {
-			return ErrKeyIsNil
-		}
-		if keyInfo.NodeIdentifier == "" {
-			return ErrNodeIdentifierIsEmpty
-		}
-		if len(keyInfo.SigningPublicKey) == 0 {
-			return ErrSigningPublicKeyIsInvalid
-		}
-		_, err := crypto.NewVerifierSecp256k1(keyInfo.SigningPublicKey)
+		err := keyInfo.IsValid()
 		if err != nil {
-			return err
-		}
-		if len(keyInfo.EncryptionPublicKey) == 0 {
-			return ErrEncryptionPublicKeyIsInvalid
-		}
-		_, err = crypto.NewVerifierSecp256k1(keyInfo.EncryptionPublicKey)
-		if err != nil {
-			return err
+			return errors.Wrap(err, "invalid partition node validator public key info")
 		}
 	}
+	// make sure it is a list of unique node ids and keys
+	err = ValidatorInfoUnique(x.Keys)
+	if err != nil {
+		return errors.Wrap(err, "invalid partition validator list")
+	}
+
 	if x.SystemDescriptionRecord == nil {
 		return ErrSystemDescriptionIsNil
 	}

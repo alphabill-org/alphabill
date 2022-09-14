@@ -11,45 +11,13 @@ var ErrRootValidatorsSize = errors.New("Registered root validators do not match 
 var ErrGenesisRootIssNil = errors.New("Root genesis record is nil")
 var ErrNoRootValidators = errors.New("No root validators set")
 
-func validatorsUnique(validators []*PublicKeyInfo) error {
-	if len(validators) == 0 {
-		return ErrNoRootValidators
-	}
-	var ids = make(map[string]string)
-	var signingKeys = make(map[string][]byte)
-	var encryptionKeys = make(map[string][]byte)
-	for _, nodeInfo := range validators {
-		if err := nodeInfo.IsValid(); err != nil {
-			return err
-		}
-		id := nodeInfo.NodeIdentifier
-		if _, f := ids[id]; f {
-			return errors.Errorf("duplicated node id: %v", id)
-		}
-		ids[id] = id
-
-		signingPubKey := string(nodeInfo.SigningPublicKey)
-		if _, f := signingKeys[signingPubKey]; f {
-			return errors.Errorf("duplicated node signing public key: %X", nodeInfo.SigningPublicKey)
-		}
-		signingKeys[signingPubKey] = nodeInfo.SigningPublicKey
-
-		encPubKey := string(nodeInfo.EncryptionPublicKey)
-		if _, f := encryptionKeys[encPubKey]; f {
-			return errors.Errorf("duplicated node encryption public key: %X", nodeInfo.EncryptionPublicKey)
-		}
-		encryptionKeys[encPubKey] = nodeInfo.EncryptionPublicKey
-	}
-	return nil
-}
-
 // IsValid only validates Consensus structure and the signature of one
 func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {
 		return ErrGenesisRootIssNil
 	}
 	// 1. Check all registered validator nodes are unique and have all fields set correctly
-	err := validatorsUnique(x.RootValidators)
+	err := ValidatorInfoUnique(x.RootValidators)
 	if err != nil {
 		return err
 	}
@@ -79,7 +47,9 @@ func (x *GenesisRootRecord) IsValid() error {
 	return nil
 }
 
-func (x *GenesisRootRecord) IsValidFinal() error {
+// Verify calls IsValid and makes sure that consensus total number of validators matches number of registered root
+// validators and number of signatures in consensus structure
+func (x *GenesisRootRecord) Verify() error {
 	if x == nil {
 		return ErrGenesisRootIssNil
 	}

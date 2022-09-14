@@ -39,7 +39,6 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 	type fields struct {
 		Root          *GenesisRootRecord
 		Partitions    []*GenesisPartitionRecord
-		TrustBase     []byte
 		HashAlgorithm uint32
 	}
 	type args struct {

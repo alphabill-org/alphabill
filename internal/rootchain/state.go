@@ -43,7 +43,7 @@ func NewStateFromGenesis(g *genesis.RootGenesis, selfId string, signer crypto.Si
 	// if err != nil {
 	//	return nil, errors.Wrap(err, "invalid root chain private key")
 	//}
-	if err := g.IsValidFinal(); err != nil {
+	if err := g.Verify(); err != nil {
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 

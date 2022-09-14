@@ -25,6 +25,7 @@ var (
 	parent1Identifier = uint256.NewInt(1)
 	parent2Identifier = uint256.NewInt(2)
 	unitIdentifier    = uint256.NewInt(10)
+	nftTypeID         = []byte{100}
 )
 
 func TestNewTokenTxSystem_DefaultOptions(t *testing.T) {
@@ -341,7 +342,6 @@ func TestExecuteCreateNFTType_InvalidSymbolName(t *testing.T) {
 
 func TestMintNFT_Ok(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	nftTypeID := []byte{100}
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
@@ -375,8 +375,8 @@ func TestMintNFT_Ok(t *testing.T) {
 	u, err := txs.state.GetUnit(uint256.NewInt(0).SetBytes(unitID))
 	require.NoError(t, err)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), u.StateHash)
-	require.IsType(t, &noneFungibleTokenData{}, u.Data)
-	d := u.Data.(*noneFungibleTokenData)
+	require.IsType(t, &nonFungibleTokenData{}, u.Data)
+	d := u.Data.(*nonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.Value())
 	require.Equal(t, uint256.NewInt(0).SetBytes(nftTypeID), d.nftType)
 	require.Equal(t, []byte{10}, d.data)
@@ -400,7 +400,6 @@ func TestMintNFT_UnitIDIsZero(t *testing.T) {
 
 func TestMintNFT_UnitIDExists(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	nftTypeID := []byte{100}
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
@@ -519,6 +518,187 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+}
+
+func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
+	txs := newTokenTxSystem(t)
+
+	tx := testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                   script.PredicateAlwaysTrue(),
+			Nonce:                       test.RandomBytes(32),
+			Backlink:                    test.RandomBytes(32),
+			InvariantPredicateSignature: script.PredicateAlwaysTrue(),
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+}
+
+func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
+			Symbol:                   symbol,
+			SubTypeCreationPredicate: subTypeCreationPredicate,
+			TokenCreationPredicate:   tokenCreationPredicate,
+			InvariantPredicate:       invariantPredicate,
+			DataUpdatePredicate:      dataUpdatePredicate,
+		}),
+	)
+	require.NoError(t, txs.Execute(tx))
+
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                   script.PredicateAlwaysTrue(),
+			Nonce:                       test.RandomBytes(32),
+			Backlink:                    test.RandomBytes(32),
+			InvariantPredicateSignature: script.PredicateAlwaysTrue(),
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "unit 10 is not a non-fungible token type")
+}
+
+func TestTransferNFT_InvalidBacklink(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                   script.PredicateAlwaysTrue(),
+			Nonce:                       test.RandomBytes(32),
+			Backlink:                    []byte{1},
+			InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "invalid backlink")
+}
+
+func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                   script.PredicateAlwaysTrue(),
+			Nonce:                       test.RandomBytes(32),
+			Backlink:                    make([]byte, 32),
+			InvariantPredicateSignature: []byte{0, 0, 0, 1},
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "invalid script format")
+}
+
+func TestTransferNFT_InvalidSignature(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                   script.PredicateAlwaysTrue(),
+			Nonce:                       test.RandomBytes(32),
+			Backlink:                    make([]byte, 32),
+			InvariantPredicateSignature: script.PredicateAlwaysFalse(),
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "script execution result yielded false or non-clean stack")
+}
+
+func TestTransferNFT_Ok(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                   script.PredicateAlwaysTrue(),
+			Nonce:                       test.RandomBytes(32),
+			Backlink:                    make([]byte, 32),
+			InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		}),
+	)
+	require.NoError(t, txs.Execute(tx))
+
+	u, err := txs.state.GetUnit(uint256.NewInt(0).SetBytes(unitID))
+	require.NoError(t, err)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), u.StateHash)
+	require.IsType(t, &nonFungibleTokenData{}, u.Data)
+	d := u.Data.(*nonFungibleTokenData)
+	require.Equal(t, zeroSummaryValue, d.Value())
+	require.Equal(t, uint256.NewInt(0).SetBytes(nftTypeID), d.nftType)
+	require.Equal(t, []byte{10}, d.data)
+	require.Equal(t, validNFTURI, d.uri)
+	require.Equal(t, script.PredicateAlwaysTrue(), d.dataUpdatePredicate)
+	require.Equal(t, uint64(0), d.t)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
+}
+
+func createNFTTypeAndMintToken(t *testing.T, txs *tokensTxSystem, nftTypeID []byte, nftID []byte) txsystem.GenericTransaction {
+	// create NFT type
+	tx := testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(nftTypeID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
+			Symbol:                   symbol,
+			SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
+			TokenCreationPredicate:   script.PredicateAlwaysTrue(),
+			InvariantPredicate:       script.PredicateAlwaysTrue(),
+			DataUpdatePredicate:      script.PredicateAlwaysTrue(),
+		}),
+	)
+
+	require.NoError(t, txs.Execute(tx))
+
+	// mint NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(nftID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
+			Bearer:                          script.PredicateAlwaysTrue(),
+			NftType:                         nftTypeID,
+			Uri:                             validNFTURI,
+			Data:                            []byte{10},
+			DataUpdatePredicate:             script.PredicateAlwaysTrue(),
+			TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		}),
+	)
+	require.NoError(t, txs.Execute(tx))
+	return tx
 }
 
 type mockUnitData struct{}

@@ -18,7 +18,7 @@ type nonFungibleTokenTypeData struct {
 	dataUpdatePredicate      []byte       // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
 }
 
-type noneFungibleTokenData struct {
+type nonFungibleTokenData struct {
 	nftType             *uint256.Int
 	uri                 string // uri is the optional URI of an external resource associated with the token
 	data                []byte // data is the optional data associated with the token.
@@ -29,7 +29,7 @@ type noneFungibleTokenData struct {
 
 func newMintNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
 	attr := tx.attributes
-	return &noneFungibleTokenData{
+	return &nonFungibleTokenData{
 		nftType:             tx.NFTTypeID(),
 		uri:                 attr.Uri,
 		data:                attr.Data,
@@ -65,7 +65,7 @@ func (n *nonFungibleTokenTypeData) Value() rma.SummaryValue {
 	return zeroSummaryValue
 }
 
-func (n *noneFungibleTokenData) AddToHasher(hasher hash.Hash) {
+func (n *nonFungibleTokenData) AddToHasher(hasher hash.Hash) {
 	hasher.Write(n.nftType.Bytes())
 	hasher.Write([]byte(n.uri))
 	hasher.Write(n.data)
@@ -74,6 +74,6 @@ func (n *noneFungibleTokenData) AddToHasher(hasher hash.Hash) {
 	hasher.Write(n.backlink)
 }
 
-func (n *noneFungibleTokenData) Value() rma.SummaryValue {
+func (n *nonFungibleTokenData) Value() rma.SummaryValue {
 	return zeroSummaryValue
 }

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -109,7 +108,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10))
+	log.Info("processing block: ", b.BlockNumber)
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -370,11 +369,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	stx := gtx.(txsystem.GenericTransaction)
 	switch tx := stx.(type) {
 	case money.Transfer:
-		isOwner, err := verifyOwner(acc, tx.NewBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
@@ -391,11 +386,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 		}
 	case money.TransferDC:
-		isOwner, err := verifyOwner(acc, tx.TargetBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received TransferDC order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:                  tx.UnitID(),
@@ -436,11 +427,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				return err
 			}
 		}
-		isOwner, err := verifyOwner(acc, tx.TargetBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
@@ -452,11 +439,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 		}
 	case money.Swap:
-		isOwner, err := verifyOwner(acc, tx.OwnerCondition())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.OwnerCondition()) {
 			log.Info("received swap order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
@@ -491,7 +474,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 }
 
 func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill, accountIndex uint64) error {
-	blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+	blockProof, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return err
 	}
@@ -795,7 +778,7 @@ func groupDcBills(bills []*bill) map[uint256.Int]*dcBillGroup {
 func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
 	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
-	if blockNumber-lastBlockNumber != 1 {
+	if blockNumber != lastBlockNumber+1 {
 		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
 	}
 	return nil

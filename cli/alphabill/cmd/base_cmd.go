@@ -49,7 +49,7 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newRootChainCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIdentifierCmd(ctx))
 	a.baseCmd.AddCommand(newVDClientCmd(ctx, a.baseConfig))
-
+	a.baseCmd.AddCommand(newWalletBackendCmd(ctx, a.baseConfig))
 	return a.baseCmd.Execute()
 }
 

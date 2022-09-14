@@ -102,10 +102,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
 	require.NoError(t, err)
-	rootGenesis, partitionGenesis, err := rootchain.NewRootGenesis(pr,
-		rootchain.WithPeerID("test"),
-		rootchain.WithSigningKey(rootSigner),
-		rootchain.WithEncryptionPubKey(rootPubKeyBytes))
+	rootGenesis, partitionGenesis, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	if err != nil {
 		t.Error(err)
 	}

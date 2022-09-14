@@ -79,10 +79,7 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	rootGenesis, _, err := NewRootGenesis(partitions,
-		WithPeerID("test"),
-		WithSigningKey(rootSigner),
-		WithEncryptionPubKey(rootPubKeyBytes))
+	rootGenesis, _, err := NewRootGenesis("test", rootSigner, rootPubKeyBytes, partitions)
 	require.NoError(t, err)
 
 	s1, err := NewStateFromGenesis(rootGenesis, "test", rootSigner)

@@ -66,10 +66,7 @@ func TestPartitionReceivesUnicityCertificates(t *testing.T) {
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	id := rootNode.peer.ID()
-	rootGenesis, _, err := NewRootGenesis([]*genesis.PartitionRecord{partitionRecord},
-		WithPeerID(id.String()),
-		WithSigningKey(rootNode.signingKey),
-		WithEncryptionPubKey(rootPubKeyBytes))
+	rootGenesis, _, err := NewRootGenesis(id.String(), rootNode.signingKey, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 
 	mockNet := testnetwork.NewMockNetwork()
@@ -183,10 +180,7 @@ func initRootChain(t *testing.T, opts ...Option) (*RootChain, *network.Peer, cry
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	rootGenesis, _, err := NewRootGenesis([]*genesis.PartitionRecord{partition},
-		WithPeerID(id.String()),
-		WithSigningKey(rootSigner),
-		WithEncryptionPubKey(rootPubKeyBytes))
+	rootGenesis, _, err := NewRootGenesis(id.String(), rootSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
 	require.NoError(t, err)
 	rc, err := NewRootChain(peer, rootGenesis, rootSigner, testnetwork.NewMockNetwork(), opts...)
 	require.NoError(t, err)

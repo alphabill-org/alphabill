@@ -28,10 +28,7 @@ func TestNewGenesis_Ok(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	rg, ps, err := NewRootGenesis([]*genesis.PartitionRecord{partition},
-		WithPeerID("test"),
-		WithSigningKey(rootChainSigner),
-		WithEncryptionPubKey(rootPubKeyBytes))
+	rg, ps, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.NotNil(t, ps)
@@ -67,10 +64,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	_, _, err = NewRootGenesis([]*genesis.PartitionRecord{partition},
-		WithPeerID("test"),
-		WithSigningKey(rootChainSigner),
-		WithEncryptionPubKey(rootPubKeyBytes))
+	_, _, err = NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "has not reached a consensus"))
 }
@@ -91,10 +85,7 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	require.NoError(t, err)
 	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn1, pn2})
 	require.NoError(t, err)
-	rg, pgs, err := NewRootGenesis(pr,
-		WithPeerID("test"),
-		WithSigningKey(rootChainSigner),
-		WithEncryptionPubKey(rootPubKeyBytes))
+	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 2, len(rg.Partitions[0].Nodes))
@@ -122,10 +113,7 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	require.NoError(t, err)
 	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn1, pn2, pn3})
 	require.NoError(t, err)
-	rg, pgs, err := NewRootGenesis(pr,
-		WithPeerID("test"),
-		WithSigningKey(rootChainSigner),
-		WithEncryptionPubKey(rootPubKeyBytes))
+	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 1, len(rg.Partitions[0].Nodes))

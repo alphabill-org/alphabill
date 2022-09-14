@@ -69,10 +69,7 @@ func TestRunVD(t *testing.T) {
 		require.NoError(t, err)
 		pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootchain.NewRootGenesis(pr,
-			rootchain.WithPeerID("test"),
-			rootchain.WithSigningKey(rootSigner),
-			rootchain.WithEncryptionPubKey(rootPubKeyBytes))
+		_, partitionGenesisFiles, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])

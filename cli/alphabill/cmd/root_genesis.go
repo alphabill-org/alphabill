@@ -112,7 +112,6 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.Keys.GetKeyFileLocation())
 	}
-
 	pn, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
 		return err
@@ -130,16 +129,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 		return err
 	}
 
-	//	encVerifier, err := crypto.NewVerifierSecp256k1(pubKeyBytes)
-	//	if err != nil {
-	//		return err
-	//	}
-
-	rg, pg, err := rootchain.NewRootGenesis(
-		pr,
-		rootchain.WithPeerID(peerID.String()),
-		rootchain.WithSigningKey(keys.SigningPrivateKey),
-		rootchain.WithEncryptionPubKey(encPubKeyBytes),
+	rg, pg, err := rootchain.NewRootGenesis(peerID.String(), keys.SigningPrivateKey, encPubKeyBytes, pr,
 		rootchain.WithTotalNodes(config.TotalNodes),
 		rootchain.WithBlockRate(config.BlockRateMs),
 		rootchain.WithConsensusTimeout(config.ConsensusTimeoutMs),

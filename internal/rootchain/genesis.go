@@ -12,6 +12,11 @@ var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
 var ErrQuorumThresholdOnlyDistributed = errors.New("Quorum threshold must only be less than total nodes in root chain")
 
 type (
+	RootNodeInfo struct {
+		peerID    string
+		signer    crypto.Signer
+		encPubKey []byte
+	}
 	rootGenesisConf struct {
 		peerID                string
 		encryptionPubKeyBytes []byte
@@ -57,24 +62,6 @@ func (c *rootGenesisConf) isValid() error {
 		return ErrQuorumThresholdOnlyDistributed
 	}
 	return nil
-}
-
-func WithPeerID(peerID string) GenesisOption {
-	return func(c *rootGenesisConf) {
-		c.peerID = peerID
-	}
-}
-
-func WithSigningKey(signer crypto.Signer) GenesisOption {
-	return func(c *rootGenesisConf) {
-		c.signer = signer
-	}
-}
-
-func WithEncryptionPubKey(encryptionPubKey []byte) GenesisOption {
-	return func(c *rootGenesisConf) {
-		c.encryptionPubKeyBytes = encryptionPubKey
-	}
 }
 
 func WithTotalNodes(rootValidators uint32) GenesisOption {
@@ -128,13 +115,18 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 	return partitionRecords, nil
 }
 
-func NewRootGenesis(partitions []*genesis.PartitionRecord, opts ...GenesisOption) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
+func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*genesis.PartitionRecord,
+	opts ...GenesisOption) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
+
 	c := &rootGenesisConf{
-		totalValidators:    1,
-		blockRateMs:        900,
-		consensusTimeoutMs: 0,
-		quorumThreshold:    0,
-		hashAlgorithm:      gocrypto.SHA256,
+		peerID:                id,
+		signer:                s,
+		encryptionPubKeyBytes: encPubKey,
+		totalValidators:       1,
+		blockRateMs:           900,
+		consensusTimeoutMs:    0,
+		quorumThreshold:       0,
+		hashAlgorithm:         gocrypto.SHA256,
 	}
 
 	for _, option := range opts {

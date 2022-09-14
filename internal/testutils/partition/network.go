@@ -85,19 +85,11 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	if err != nil {
 		return nil, err
 	}
-
-	//verifier, err := crypto.NewVerifierSecp256k1(pubKeyBytes)
-	if err != nil {
-		return nil, err
-	}
 	pr, err := rootchain.NewPartitionRecordFromNodes(nodeGenesisFiles)
 	if err != nil {
 		return nil, err
 	}
-	rootGenesis, partitionGenesisFiles, err := rootchain.NewRootGenesis(pr,
-		rootchain.WithPeerID(peerID.String()),
-		rootchain.WithSigningKey(rootSigner),
-		rootchain.WithEncryptionPubKey(pubKeyBytes))
+	rootGenesis, partitionGenesisFiles, err := rootchain.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
 	if err != nil {
 		return nil, err
 	}

@@ -52,7 +52,9 @@
       "root_chain_round_number": 1,
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       "hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA=",
-      "signature": "k4fL/IUVBwM0s1ee0Ab5q8N6Beiq3ryDs9f8dBEjLKxwn8tFSienUlFtJWSisxYm72YWRrgop4sRp5c7RHI1XwE="
+      "signatures": {
+        "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "k4fL/IUVBwM0s1ee0Ab5q8N6Beiq3ryDs9f8dBEjLKxwn8tFSienUlFtJWSisxYm72YWRrgop4sRp5c7RHI1XwE="
+      }
     }
   },
   "root_validators": [

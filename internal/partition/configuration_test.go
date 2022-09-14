@@ -147,7 +147,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		genesis   *genesis.PartitionGenesis
-		trustBase crypto.Verifier
+		trustBase map[string]crypto.Verifier
 	}
 	type args struct {
 		txs txsystem.TransactionSystem
@@ -162,7 +162,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			name: "invalid genesis",
 			fields: fields{
 				genesis:   nil,
-				trustBase: rootVerifier,
+				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
 			},
 			args: args{
 				txs: &testtxsystem.CounterTxSystem{},
@@ -173,7 +173,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			name: "invalid genesis input record hash",
 			fields: fields{
 				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
-				trustBase: rootVerifier,
+				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
 			},
 			args: args{
 				txs: &testtxsystem.CounterTxSystem{
@@ -186,7 +186,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			name: "invalid genesis summary value",
 			fields: fields{
 				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
-				trustBase: rootVerifier,
+				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
 			},
 			args: args{
 				txs: &testtxsystem.CounterTxSystem{
@@ -201,7 +201,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			c := &configuration{
 				hashAlgorithm: gocrypto.SHA256,
 				genesis:       tt.fields.genesis,
-				trustBase:     tt.fields.trustBase,
+				rootTrustBase: tt.fields.trustBase,
 			}
 			err := c.isGenesisValid(tt.args.txs)
 			require.Error(t, err)

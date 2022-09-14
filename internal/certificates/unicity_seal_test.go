@@ -19,20 +19,20 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 	tests := []struct {
 		name     string
 		seal     *UnicitySeal
-		verifier crypto.Verifier
+		verifier map[string]crypto.Verifier
 		wantErr  error
 	}{
 		{
 			name:     "seal is nil",
 			seal:     nil,
-			verifier: verifier,
+			verifier: map[string]crypto.Verifier{"test": verifier},
 			wantErr:  ErrUnicitySealIsNil,
 		},
 		{
 			name:     "verifier is nil",
 			seal:     &UnicitySeal{},
 			verifier: nil,
-			wantErr:  ErrUnicitySealVerifierIsNil,
+			wantErr:  ErrRootPublicInfoMissing,
 		},
 		{
 			name: "PreviousHash is nil",
@@ -40,9 +40,9 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 1,
 				PreviousHash:         nil,
 				Hash:                 zeroHash,
-				Signature:            zeroHash,
+				Signatures:           map[string][]byte{"": zeroHash},
 			},
-			verifier: verifier,
+			verifier: map[string]crypto.Verifier{"test": verifier},
 			wantErr:  ErrUnicitySealPreviousHashIsNil,
 		},
 		{
@@ -51,9 +51,9 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 1,
 				PreviousHash:         zeroHash,
 				Hash:                 nil,
-				Signature:            zeroHash,
+				Signatures:           map[string][]byte{"": zeroHash},
 			},
-			verifier: verifier,
+			verifier: map[string]crypto.Verifier{"test": verifier},
 			wantErr:  ErrUnicitySealHashIsNil,
 		},
 		{
@@ -62,9 +62,9 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 1,
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
-				Signature:            nil,
+				Signatures:           nil,
 			},
-			verifier: verifier,
+			verifier: map[string]crypto.Verifier{"test": verifier},
 			wantErr:  ErrUnicitySealSignatureIsNil,
 		},
 		{
@@ -73,9 +73,9 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 0,
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
-				Signature:            nil,
+				Signatures:           nil,
 			},
-			verifier: verifier,
+			verifier: map[string]crypto.Verifier{"test": verifier},
 			wantErr:  ErrInvalidBlockNumber,
 		},
 	}
@@ -92,9 +92,11 @@ func TestIsValid_InvalidSignature(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
-		Signature:            zeroHash,
+		Signatures:           map[string][]byte{"test": zeroHash},
 	}
-	err := seal.IsValid(verifier)
+	verifiers := map[string]crypto.Verifier{"test": verifier}
+
+	err := seal.IsValid(verifiers)
 	require.True(t, strings.Contains(err.Error(), "invalid unicity seal signature"))
 }
 
@@ -105,9 +107,10 @@ func TestSignAndVerify_Ok(t *testing.T) {
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
-	err := seal.Sign(signer)
+	err := seal.Sign("test", signer)
 	require.NoError(t, err)
-	err = seal.Verify(verifier)
+	verifiers := map[string]crypto.Verifier{"test": verifier}
+	err = seal.Verify(verifiers)
 	require.NoError(t, err)
 }
 func TestVerify_SignatureIsNil(t *testing.T) {
@@ -117,7 +120,8 @@ func TestVerify_SignatureIsNil(t *testing.T) {
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
-	err := seal.Verify(verifier)
+	verifiers := map[string]crypto.Verifier{"test": verifier}
+	err := seal.Verify(verifiers)
 	require.True(t, strings.Contains(err.Error(), "invalid unicity seal signature"))
 }
 
@@ -127,7 +131,7 @@ func TestSign_SignerIsNil(t *testing.T) {
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
-	err := seal.Sign(nil)
+	err := seal.Sign("test", nil)
 	require.ErrorIs(t, err, ErrSignerIsNil)
 }
 
@@ -136,8 +140,8 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
-		Signature:            zeroHash,
+		Signatures:           map[string][]byte{"": zeroHash},
 	}
 	err := seal.Verify(nil)
-	require.ErrorIs(t, err, ErrVerifierIsNil)
+	require.ErrorIs(t, err, ErrRootPublicInfoMissing)
 }

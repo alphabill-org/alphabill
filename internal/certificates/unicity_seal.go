@@ -17,15 +17,17 @@ var (
 	ErrUnicitySealHashIsNil         = errors.New("hash is nil")
 	ErrUnicitySealPreviousHashIsNil = errors.New("previous hash is nil")
 	ErrInvalidBlockNumber           = errors.New("invalid block number")
-	ErrUnicitySealSignatureIsNil    = errors.New("signature is nil")
+	ErrUnicitySealSignatureIsNil    = errors.New("no signatures")
+	ErrRootPublicInfoMissing        = errors.New("root validator public info is missing")
+	ErrUnknownSigner                = errors.New("Unknown signer")
 )
 
-func (x *UnicitySeal) IsValid(verifier crypto.Verifier) error {
+func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	if x == nil {
 		return ErrUnicitySealIsNil
 	}
-	if verifier == nil {
-		return ErrUnicitySealVerifierIsNil
+	if len(verifiers) == 0 {
+		return ErrRootPublicInfoMissing
 	}
 	if x.Hash == nil {
 		return ErrUnicitySealHashIsNil
@@ -36,13 +38,13 @@ func (x *UnicitySeal) IsValid(verifier crypto.Verifier) error {
 	if x.RootChainRoundNumber < 1 {
 		return ErrInvalidBlockNumber
 	}
-	if x.Signature == nil {
+	if len(x.Signatures) == 0 {
 		return ErrUnicitySealSignatureIsNil
 	}
-	return x.Verify(verifier)
+	return x.Verify(verifiers)
 }
 
-func (x *UnicitySeal) Sign(signer crypto.Signer) error {
+func (x *UnicitySeal) Sign(id string, signer crypto.Signer) error {
 	if signer == nil {
 		return ErrSignerIsNil
 	}
@@ -50,7 +52,11 @@ func (x *UnicitySeal) Sign(signer crypto.Signer) error {
 	if err != nil {
 		return err
 	}
-	x.Signature = signature
+	// initiate signatures
+	if x.Signatures == nil {
+		x.Signatures = make(map[string][]byte)
+	}
+	x.Signatures[id] = signature
 	return nil
 }
 
@@ -66,13 +72,25 @@ func (x *UnicitySeal) AddToHasher(hasher hash.Hash) {
 	hasher.Write(x.Bytes())
 }
 
-func (x *UnicitySeal) Verify(v crypto.Verifier) error {
-	if v == nil {
-		return ErrVerifierIsNil
+func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
+	if verifiers == nil {
+		return ErrRootPublicInfoMissing
 	}
-	err := v.VerifyBytes(x.Signature, x.Bytes())
-	if err != nil {
-		return errors.Wrap(err, "invalid unicity seal signature")
+	if len(x.Signatures) == 0 {
+		return errors.New("invalid unicity seal signature")
 	}
-	return err
+	// Verify all signatures, all must be from known origin and valid
+	for id, sig := range x.Signatures {
+		// Find verifier info
+		ver, f := verifiers[id]
+		if !f {
+			return ErrUnknownSigner
+		}
+		err := ver.VerifyBytes(sig, x.Bytes())
+		if err != nil {
+			return errors.Wrap(err, "invalid unicity seal signature")
+		}
+	}
+	// todo root genesis: for distributed we will need a quorum check as well
+	return nil
 }

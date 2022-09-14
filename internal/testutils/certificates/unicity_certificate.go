@@ -31,7 +31,7 @@ func CreateUnicityCertificate(
 	}
 	rootHash := ut.GetRootHash()
 	unicitySeal := createUnicitySeal(rootHash, roundNumber, previousRoundRootHash)
-	err = unicitySeal.Sign(signer)
+	err = unicitySeal.Sign("test", signer)
 	if err != nil {
 		t.Error(err)
 	}

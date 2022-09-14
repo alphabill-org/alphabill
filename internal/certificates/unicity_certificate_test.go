@@ -19,7 +19,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
 	}
-	err := seal.Sign(signer)
+	err := seal.Sign("test", signer)
 	require.NoError(t, err)
 	type fields struct {
 		InputRecord            *InputRecord
@@ -27,7 +27,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 		UnicitySeal            *UnicitySeal
 	}
 	type args struct {
-		verifier              crypto.Verifier
+		verifiers             map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
 		systemIdentifier      []byte
 		systemDescriptionHash []byte
@@ -47,7 +47,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				UnicitySeal:            seal,
 			},
 			args: args{
-				verifier:              verifier,
+				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
 				systemDescriptionHash: zeroHash,
@@ -62,7 +62,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				UnicitySeal:            seal,
 			},
 			args: args{
-				verifier:              verifier,
+				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
 				systemDescriptionHash: zeroHash,
@@ -77,7 +77,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				UnicitySeal:            nil,
 			},
 			args: args{
-				verifier:              verifier,
+				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
 				systemDescriptionHash: zeroHash,
@@ -92,7 +92,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				UnicitySeal:            seal,
 			},
 			args: args{
-				verifier:              verifier,
+				verifiers:             map[string]crypto.Verifier{"test": verifier},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      identifier,
 				systemDescriptionHash: zeroHash,
@@ -109,7 +109,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 				UnicitySeal:            tt.fields.UnicitySeal,
 			}
 
-			err := uc.IsValid(tt.args.verifier, tt.args.algorithm, tt.args.systemIdentifier, tt.args.systemDescriptionHash)
+			err := uc.IsValid(tt.args.verifiers, tt.args.algorithm, tt.args.systemIdentifier, tt.args.systemDescriptionHash)
 			if tt.err != nil {
 				require.ErrorIs(t, err, tt.err)
 			} else {

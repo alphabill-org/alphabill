@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	gocrypto "crypto"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -183,7 +184,7 @@ func NewRootGenesis(partitions []*genesis.PartitionRecord, opts ...GenesisOption
 		return nil, nil, err
 	}
 	// initiate State
-	state, err := NewStateFromPartitionRecords(partitions, c.signer, gocrypto.SHA256)
+	state, err := NewStateFromPartitionRecords(partitions, c.peerID, c.signer, gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, err
 	}

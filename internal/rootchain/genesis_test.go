@@ -116,6 +116,7 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	rootChainSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()
+	rootTrust := map[string]crypto.Verifier{"test": rootChainVerifier}
 	require.NoError(t, err)
 	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
 	require.NoError(t, err)
@@ -130,7 +131,7 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	require.Equal(t, 1, len(rg.Partitions[0].Nodes))
 	require.Equal(t, 3, len(pgs))
 	for _, pg := range pgs {
-		require.NoError(t, pg.IsValid(rootChainVerifier, gocrypto.SHA256))
+		require.NoError(t, pg.IsValid(rootTrust, gocrypto.SHA256))
 	}
 }
 

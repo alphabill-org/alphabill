@@ -45,8 +45,9 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 	if len(x.Partitions) == 0 {
 		return ErrPartitionsNotFound
 	}
+	verifiers := map[string]crypto.Verifier{rootId: verifier}
 	for _, p := range x.Partitions {
-		if err = p.IsValid(verifier, alg); err != nil {
+		if err = p.IsValid(verifiers, alg); err != nil {
 			return err
 		}
 	}

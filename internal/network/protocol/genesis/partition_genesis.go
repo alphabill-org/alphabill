@@ -1,8 +1,8 @@
 package genesis
 
 import (
-	"bytes"
 	gocrypto "crypto"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
@@ -23,12 +23,12 @@ func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
 	return nil
 }
 
-func (x *PartitionGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
+func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
 		return ErrPartitionGenesisIsNil
 	}
-	if verifier == nil {
-		return ErrVerifierIsNil
+	if len(verifiers) == 0 {
+		return ErrMissingPubKeyInfo
 	}
 	if len(x.Keys) < 1 {
 		return ErrKeysAreMissing
@@ -64,27 +64,23 @@ func (x *PartitionGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocry
 			return err
 		}
 	}
-
+	if x.SystemDescriptionRecord == nil {
+		return ErrSystemDescriptionIsNil
+	}
 	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
 		return err
 	}
-	pubKeyBytes, err := verifier.MarshalPublicKey()
-	if err != nil {
-		return err
-	}
-	// Make sure the public key information was added
-	// todo root genesis: need to verify that public key info matches signatures in UC
-	rootId := x.RootValidators[0].NodeIdentifier
-	pubKeyInfo := x.FindRootPubKeyInfoById(string(rootId))
-	if pubKeyInfo == nil {
-		return errors.Errorf("Root validator id %v is missing", string(rootId))
-	}
-	if !bytes.Equal(pubKeyBytes, pubKeyInfo.SigningPublicKey) {
-		return errors.Errorf("invalid trust base. expected %X, got %X", pubKeyBytes, pubKeyInfo.SigningPublicKey)
+	if x.Certificate == nil {
+		return certificates.ErrUnicityCertificateIsNil
 	}
 	sdrHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
-	if err := x.Certificate.IsValid(verifier, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
+	// validate all signatures against known root keys
+	if err := x.Certificate.IsValid(verifiers, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
 		return err
+	}
+	// UC Seal must be signed by all validators
+	if len(x.RootValidators) != len(x.Certificate.UnicitySeal.Signatures) {
+		return errors.New("Unicity Certificate is not signed by all root validators")
 	}
 	return nil
 }

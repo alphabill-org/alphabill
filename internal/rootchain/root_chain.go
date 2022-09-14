@@ -59,7 +59,8 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
-	log.SetContext(log.KeyNodeID, peer.ID().String())
+	selfId := peer.ID().String()
+	log.SetContext(log.KeyNodeID, selfId)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
@@ -83,7 +84,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	}
 
 	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
-	s, err := NewStateFromGenesis(genesis, signer)
+	s, err := NewStateFromGenesis(genesis, selfId, signer)
 	if err != nil {
 		return nil, err
 	}

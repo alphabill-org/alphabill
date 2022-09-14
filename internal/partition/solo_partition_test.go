@@ -112,7 +112,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewStateFromGenesis(rootGenesis, rootSigner)
+	rc, err := rootchain.NewStateFromGenesis(rootGenesis, "test", rootSigner)
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
@@ -223,7 +223,7 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRou
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}
-	return u, u.Sign(sn.rootSigner)
+	return u, u.Sign("test", sn.rootSigner)
 }
 
 func (sn *SingleNodePartition) GetLatestBlock() *block.Block {

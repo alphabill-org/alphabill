@@ -46,7 +46,7 @@ type (
 		peer                        *network.Peer
 		signer                      crypto.Signer
 		genesis                     *genesis.PartitionGenesis
-		trustBase                   crypto.Verifier
+		rootTrustBase               map[string]crypto.Verifier
 		rootChainAddress            multiaddr.Multiaddr
 		rootChainID                 peer.ID
 		network                     Net
@@ -177,19 +177,19 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 	if len(c.genesis.RootValidators) != 1 {
 		return errors.New("Only monolithic root chain is supported at this point")
 	}
-	trustBaseBytes := c.genesis.RootValidators[0].SigningPublicKey
-	c.trustBase, err = crypto.NewVerifierSecp256k1(trustBaseBytes)
+	c.rootTrustBase, err = NewRootTrustBase(c.genesis.RootValidators)
 	if err != nil {
 		return err
 	}
 	if c.blockProposalValidator == nil {
-		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.SystemDescriptionRecord, c.trustBase, c.hashAlgorithm)
+
+		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
 		if err != nil {
 			return err
 		}
 	}
 	if c.unicityCertificateValidator == nil {
-		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.SystemDescriptionRecord, c.trustBase, c.hashAlgorithm)
+		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
 		if err != nil {
 			return err
 		}
@@ -201,7 +201,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		}
 	}
 	if c.rootChainAddress != nil {
-		// add rootchain address to the peerstore. this enables us to send receivedMessages to the rootchain.
+		// add rootchain address to the peer store. this enables us to send receivedMessages to the rootchain.
 		c.peer.Network().Peerstore().AddAddr(c.rootChainID, c.rootChainAddress, peerstore.PermanentAddrTTL)
 	}
 	return nil
@@ -217,7 +217,7 @@ func (c *configuration) genesisBlock() *block.Block {
 }
 
 func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
-	if err := c.genesis.IsValid(c.trustBase, c.hashAlgorithm); err != nil {
+	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
 		logger.Warning("Invalid partition genesis file: %v", err)
 		return errors.Wrap(err, "invalid root partition genesis file")
 	}

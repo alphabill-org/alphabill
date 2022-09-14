@@ -25,11 +25,12 @@ type State struct {
 	inputRecords              map[string]*certificates.InputRecord // input records ready for certification. key is system identifier
 	incomingRequests          map[string]*requestStore             // keeps track of incoming request. key is system identifier
 	hashAlgorithm             gocrypto.Hash                        // hash algorithm
+	selfId                    string                               // node identifier
 	signer                    crypto.Signer                        // private key of the root chain
-	verifier                  crypto.Verifier
+	verifiers                 map[string]crypto.Verifier
 }
 
-func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, error) {
+func NewStateFromGenesis(g *genesis.RootGenesis, selfId string, signer crypto.Signer) (*State, error) {
 	_, _, err := GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")
@@ -46,7 +47,7 @@ func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, 
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 
-	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), signer, gocrypto.Hash(g.RootCluster.Consensus.HashAlgorithm))
+	s, err := NewStateFromPartitionRecords(g.GetPartitionRecords(), selfId, signer, gocrypto.Hash(g.RootCluster.Consensus.HashAlgorithm))
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +68,7 @@ func NewStateFromGenesis(g *genesis.RootGenesis, signer crypto.Signer) (*State, 
 
 // NewStateFromPartitionRecords creates the State from the genesis.PartitionRecord array. The State returned by this
 // method is usually used to generate genesis file.
-func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer crypto.Signer, hashAlgorithm gocrypto.Hash) (*State, error) {
+func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, nodeId string, signer crypto.Signer, hashAlgorithm gocrypto.Hash) (*State, error) {
 	if len(partitions) == 0 {
 		return nil, errors.New("partitions not found")
 	}
@@ -110,8 +111,9 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 		inputRecords:              make(map[string]*certificates.InputRecord),
 		incomingRequests:          requestStores,
 		partitionStore:            newPartitionStore(partitions),
+		selfId:                    nodeId,
 		signer:                    signer,
-		verifier:                  verifier,
+		verifiers:                 map[string]crypto.Verifier{nodeId: verifier},
 		hashAlgorithm:             hashAlgorithm,
 	}, nil
 }
@@ -206,7 +208,7 @@ func (s *State) CreateUnicityCertificates() ([]string, error) {
 		}
 
 		// check the certificate
-		err = certificate.IsValid(s.verifier, s.hashAlgorithm, d.SystemIdentifier, d.SystemDescriptionRecordHash)
+		err = certificate.IsValid(s.verifiers, s.hashAlgorithm, d.SystemIdentifier, d.SystemDescriptionRecordHash)
 		if err != nil {
 			// should never happen.
 			panic(err)
@@ -261,7 +263,7 @@ func (s *State) createUnicitySeal(rootHash []byte) (*certificates.UnicitySeal, e
 		PreviousHash:         s.previousRoundRootHash,
 		Hash:                 rootHash,
 	}
-	return u, u.Sign(s.signer)
+	return u, u.Sign(s.selfId, s.signer)
 }
 
 func (s *State) isInputRecordValid(req *certification.BlockCertificationRequest) error {

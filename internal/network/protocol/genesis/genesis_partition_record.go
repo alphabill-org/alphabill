@@ -13,11 +13,11 @@ var (
 	ErrNodesAreMissing             = errors.New("nodes are missing")
 )
 
-func (x *GenesisPartitionRecord) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
+func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
 		return ErrGenesisPartitionRecordIsNil
 	}
-	if verifier == nil {
+	if len(verifiers) == 0 {
 		return ErrVerifierIsNil
 	}
 	if len(x.Nodes) == 0 {
@@ -31,7 +31,7 @@ func (x *GenesisPartitionRecord) IsValid(verifier crypto.Verifier, hashAlgorithm
 	if err := nodesUnique(x.Nodes); err != nil {
 		return err
 	}
-	if err := x.Certificate.IsValid(verifier, hashAlgorithm, systemIdentifier, systemDescriptionHash); err != nil {
+	if err := x.Certificate.IsValid(verifiers, hashAlgorithm, systemIdentifier, systemDescriptionHash); err != nil {
 		return err
 	}
 	return nil

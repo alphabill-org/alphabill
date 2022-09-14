@@ -63,7 +63,7 @@ func Test_newStateFromGenesis_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewStateFromGenesis(tt.args.g, tt.args.signer)
+			got, err := NewStateFromGenesis(tt.args.g, "test", tt.args.signer)
 			require.Nil(t, got)
 			require.True(t, strings.Contains(err.Error(), tt.errStg))
 		})
@@ -85,7 +85,7 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 		WithEncryptionPubKey(rootPubKeyBytes))
 	require.NoError(t, err)
 
-	s1, err := NewStateFromGenesis(rootGenesis, rootSigner)
+	s1, err := NewStateFromGenesis(rootGenesis, "test", rootSigner)
 	require.NoError(t, err)
 
 	s2 := createStateAndExecuteRound(t, partitions, rootSigner)
@@ -102,7 +102,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	_, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	_, _, partition2, _ := createPartitionRecord(t, partition2IR, partition2ID, 4)
 
-	s, err := NewStateFromPartitionRecords([]*genesis.PartitionRecord{partition1, partition2}, rootSigner, gocrypto.SHA256)
+	s, err := NewStateFromPartitionRecords([]*genesis.PartitionRecord{partition1, partition2}, "test", rootSigner, gocrypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), s.roundNumber)
 	// partition store checks
@@ -140,8 +140,9 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, p1UC.UnicitySeal, p2UC.UnicitySeal)
 	p1Hash := partition1.SystemDescriptionRecord.Hash(gocrypto.SHA256)
 	p2Hash := partition2.SystemDescriptionRecord.Hash(gocrypto.SHA256)
-	require.NoError(t, p1UC.IsValid(rootVerifier, s.hashAlgorithm, partition1ID, p1Hash))
-	require.NoError(t, p2UC.IsValid(rootVerifier, s.hashAlgorithm, partition2ID, p2Hash))
+	verifiers := map[string]crypto.Verifier{"test": rootVerifier}
+	require.NoError(t, p1UC.IsValid(verifiers, s.hashAlgorithm, partition1ID, p1Hash))
+	require.NoError(t, p2UC.IsValid(verifiers, s.hashAlgorithm, partition2ID, p2Hash))
 
 	// verify State after the round
 	require.Equal(t, uint64(2), s.roundNumber)
@@ -313,7 +314,7 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 
 func createStateAndExecuteRound(t *testing.T, partitions []*genesis.PartitionRecord, rootSigner crypto.Signer) *State {
 	t.Helper()
-	s2, err := NewStateFromPartitionRecords(partitions, rootSigner, gocrypto.SHA256)
+	s2, err := NewStateFromPartitionRecords(partitions, "test", rootSigner, gocrypto.SHA256)
 	require.NoError(t, err)
 	for _, p := range partitions {
 		id := string(p.SystemDescriptionRecord.SystemIdentifier)

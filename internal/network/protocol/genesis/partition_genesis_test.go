@@ -19,7 +19,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-
+	verifiers := map[string]crypto.Verifier{"test": verifier}
 	keyInfo := &PublicKeyInfo{
 		NodeIdentifier:      "1",
 		SigningPublicKey:    pubKey,
@@ -39,7 +39,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		Keys                    []*PublicKeyInfo
 	}
 	type args struct {
-		verifier      crypto.Verifier
+		verifier      map[string]crypto.Verifier
 		hashAlgorithm gocrypto.Hash
 	}
 	tests := []struct {
@@ -55,11 +55,11 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				Keys: []*PublicKeyInfo{keyInfo},
 			},
-			wantErr: ErrVerifierIsNil,
+			wantErr: ErrMissingPubKeyInfo,
 		},
 		{
 			name: "system description record is nil",
-			args: args{verifier: verifier},
+			args: args{verifier: verifiers},
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{keyInfo},
@@ -68,7 +68,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "keys are missing",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -81,7 +81,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "node signing key info is nil",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -95,7 +95,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 
 		{
 			name: "key info identifier is empty",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -110,7 +110,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "signing pub key is invalid",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -123,7 +123,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "encryption pub key is invalid",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -136,7 +136,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "invalid root signing public key",
-			args: args{verifier: verifier},
+			args: args{verifier: verifiers},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -149,7 +149,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "certificate is nil",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -163,7 +163,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "encryption key is nil",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -176,7 +176,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		},
 		{
 			name: "encryption key is invalid",
-			args: args{verifier: verifier, hashAlgorithm: gocrypto.SHA256},
+			args: args{verifier: verifiers, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				SystemDescriptionRecord: &SystemDescriptionRecord{
 					SystemIdentifier: []byte{0, 0, 0, 0},
@@ -209,5 +209,6 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 func TestPartitionGenesis_IsValid_Nil(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	var pr *PartitionGenesis
-	require.ErrorIs(t, pr.IsValid(verifier, gocrypto.SHA256), ErrPartitionGenesisIsNil)
+	verifiers := map[string]crypto.Verifier{"test": verifier}
+	require.ErrorIs(t, pr.IsValid(verifiers, gocrypto.SHA256), ErrPartitionGenesisIsNil)
 }

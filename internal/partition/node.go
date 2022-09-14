@@ -40,6 +40,7 @@ const (
 	EventTypeBlockFinalized
 	EventTypeRecoveryStarted
 	EventTypeRecoveryFinished
+	EventTypeStateReverted
 )
 
 const t1TimerName = "t1"
@@ -272,7 +273,7 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 
 	reportAndRevert := func(msg string, err error) {
 		logger.Error(msg, err)
-		n.transactionSystem.Revert()
+		n.revertState()
 	}
 
 	// make sure proposal extends the previous state
@@ -665,17 +666,21 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
-		n.transactionSystem.Revert()
+		n.revertState()
 		n.startNewRound(uc)
 		return ErrStateReverted
 	} else {
 		// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
-		logger.Warning("Reverting state tree.")
-		n.transactionSystem.Revert()
 		return n.startRecovery(uc)
 	}
 	n.startNewRound(uc)
 	return nil
+}
+
+func (n *Node) revertState() {
+	logger.Warning("Reverting state")
+	n.sendEvent(EventTypeStateReverted, nil)
+	n.transactionSystem.Revert()
 }
 
 func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
@@ -843,6 +848,7 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
 		// already recovering
 		return nil
 	}
+	n.revertState()
 	logger.Warning("Starting recovery")
 	n.status = recovering
 	n.stopForwardingOrHandlingTransactions()

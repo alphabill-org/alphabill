@@ -288,7 +288,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 	tp.SubmitUnicityCertificate(uc)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
-	require.Equal(t, uint64(0), txSystem.RevertCount)
+	require.Equal(t, uint64(1), txSystem.RevertCount)
 	require.Equal(t, recovering, tp.partition.status)
 }
 
@@ -424,7 +424,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 	require.Eventually(t, CertificationRequestReceived(tp), test.WaitDuration, test.WaitTick)
 }
 
-func TestBlockProposal_TxSystemStateIsDifferent(t *testing.T) {
+func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
@@ -446,6 +446,33 @@ func TestBlockProposal_TxSystemStateIsDifferent(t *testing.T) {
 	system.InitCount = 10000
 	tp.SubmitBlockProposal(bp)
 	ContainsError(t, tp, "invalid tx system state root. expected")
+}
+
+func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
+	system := &testtxsystem.CounterTxSystem{}
+	tp := NewSingleNodePartition(t, system)
+	defer tp.Close()
+	block := tp.GetLatestBlock()
+	uc, err := tp.CreateUnicityCertificate(
+		block.UnicityCertificate.InputRecord,
+		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
+		block.UnicityCertificate.UnicitySeal.PreviousHash,
+	)
+	require.NoError(t, err)
+	bp := &blockproposal.BlockProposal{
+		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
+		NodeIdentifier:     "r",
+		UnicityCertificate: uc,
+		Transactions:       []*txsystem.Transaction{},
+	}
+	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
+	require.NoError(t, err)
+	system.InitCount = 10000
+	tp.SubmitBlockProposal(bp)
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, uint64(1), system.RevertCount)
+	ContainsEvent(t, tp, EventTypeStateReverted)
+	require.Equal(t, recovering, tp.partition.status)
 }
 
 func (c *AlwaysValidCertificateValidator) Validate(_ *certificates.UnicityCertificate) error {

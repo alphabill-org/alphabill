@@ -89,6 +89,10 @@ func (c *createNonFungibleTokenTypeWrapper) ParentTypeID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(c.attributes.ParentTypeId)
 }
 
+func (c *mintNonFungibleTokenWrapper) NFTTypeID() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(c.attributes.NftType)
+}
+
 func (c *createNonFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if c.wrapper.hashComputed(hashFunc) {
 		return c.wrapper.hashValue
@@ -120,11 +124,28 @@ func (c *createNonFungibleTokenTypeWrapper) SigBytes() []byte {
 }
 
 func (c *mintNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
-	// TODO AB-341
-	panic("implement me")
+	if c.wrapper.hashComputed(hashFunc) {
+		return c.wrapper.hashValue
+	}
+	hasher := hashFunc.New()
+	c.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(c.attributes.Bearer)
+	hasher.Write(c.attributes.NftType)
+	hasher.Write([]byte(c.attributes.Uri))
+	hasher.Write(c.attributes.Data)
+	hasher.Write(c.attributes.DataUpdatePredicate)
+	c.wrapper.hashValue = hasher.Sum(nil)
+	c.wrapper.hashFunc = hashFunc
+	return c.wrapper.hashValue
 }
 
 func (c *mintNonFungibleTokenWrapper) SigBytes() []byte {
-	// TODO AB-341
-	panic("implement me")
+	var b bytes.Buffer
+	c.wrapper.sigBytes(&b)
+	b.Write(c.attributes.Bearer)
+	b.Write(c.attributes.NftType)
+	b.Write([]byte(c.attributes.Uri))
+	b.Write(c.attributes.Data)
+	b.Write(c.attributes.DataUpdatePredicate)
+	return b.Bytes()
 }

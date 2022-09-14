@@ -1,11 +1,12 @@
 package tokens
 
 import (
+	"crypto"
 	"hash"
 
-	"github.com/holiman/uint256"
-
 	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/holiman/uint256"
 )
 
 type nonFungibleTokenTypeData struct {
@@ -15,6 +16,27 @@ type nonFungibleTokenTypeData struct {
 	tokenCreationPredicate   []byte       // the predicate clause that controls creating new tokens of this type
 	invariantPredicate       []byte       // the invariant predicate clause that all tokens of this type (and of sub-types of this type) inherit into their bearer predicates;
 	dataUpdatePredicate      []byte       // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
+}
+
+type nonFungibleTokenData struct {
+	nftType             *uint256.Int
+	uri                 string // uri is the optional URI of an external resource associated with the token
+	data                []byte // data is the optional data associated with the token.
+	dataUpdatePredicate []byte // the data update predicate;
+	t                   uint64 // the round number of the last transaction with this token;
+	backlink            []byte // the hash of the last transaction order for this token
+}
+
+func newMintNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
+	attr := tx.attributes
+	return &nonFungibleTokenData{
+		nftType:             tx.NFTTypeID(),
+		uri:                 attr.Uri,
+		data:                attr.Data,
+		dataUpdatePredicate: attr.DataUpdatePredicate,
+		t:                   0,                           // we don't have previous tx
+		backlink:            make([]byte, hasher.Size()), // in case of new NFT token the backlink is zero hash
+	}
 }
 
 func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.UnitData {
@@ -40,5 +62,18 @@ func (n *nonFungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 
 // Value returns the SummaryValue of this single UnitData.
 func (n *nonFungibleTokenTypeData) Value() rma.SummaryValue {
+	return zeroSummaryValue
+}
+
+func (n *nonFungibleTokenData) AddToHasher(hasher hash.Hash) {
+	hasher.Write(n.nftType.Bytes())
+	hasher.Write([]byte(n.uri))
+	hasher.Write(n.data)
+	hasher.Write(n.dataUpdatePredicate)
+	hasher.Write(util.Uint64ToBytes(n.t))
+	hasher.Write(n.backlink)
+}
+
+func (n *nonFungibleTokenData) Value() rma.SummaryValue {
 	return zeroSummaryValue
 }

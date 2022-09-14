@@ -1,8 +1,6 @@
 syntax = "proto3";
 package alphabill.tokens.v1;
 
-import "google/protobuf/any.proto";
-
 option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/tokens/;tokens";
 
 message CreateNonFungibleTokenTypeAttributes {
@@ -26,11 +24,13 @@ message MintNonFungibleTokenAttributes {
   // the initial bearer predicate of the new token
   bytes bearer = 1;
   // identifies the type of the new token;
-  bytes type = 2;
+  bytes nftType = 2;
   // the optional URI of an external resource associated with the new token
   string uri = 3;
   // the optional data associated with the new token
-  google.protobuf.Any data = 4;
+  bytes data = 4;
   // the data update predicate of the new token;
   bytes data_update_predicate = 5;
+  // the input to satisfy the token creation predicate.
+  bytes token_creation_predicate_signature = 7;
 }

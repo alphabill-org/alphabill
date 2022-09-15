@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -109,7 +108,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	log.Info("processing block: " + strconv.FormatUint(b.BlockNumber, 10))
+	log.Info("processing block: ", b.BlockNumber)
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -184,6 +183,7 @@ func (w *Wallet) DeleteDb() {
 func (w *Wallet) CollectDust(ctx context.Context) error {
 	errgrp, ctx := errgroup.WithContext(ctx)
 	for _, acc := range w.accounts.getAll() {
+		acc := acc // copy value for closure
 		errgrp.Go(func() error {
 			return w.collectDust(ctx, true, acc.accountIndex)
 		})
@@ -288,7 +288,7 @@ func (w *Wallet) Send(receiverPubKey []byte, amount uint64, accountIndex uint64)
 		return ErrInvalidPubKey
 	}
 
-	swapInProgress, err := w.isSwapInProgress(w.db.Do())
+	swapInProgress, err := w.isSwapInProgress(w.db.Do(), accountIndex)
 	if err != nil {
 		return err
 	}
@@ -369,11 +369,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	stx := gtx.(txsystem.GenericTransaction)
 	switch tx := stx.(type) {
 	case money.Transfer:
-		isOwner, err := verifyOwner(acc, tx.NewBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
@@ -390,11 +386,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 		}
 	case money.TransferDC:
-		isOwner, err := verifyOwner(acc, tx.TargetBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received TransferDC order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:                  tx.UnitID(),
@@ -435,11 +427,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				return err
 			}
 		}
-		isOwner, err := verifyOwner(acc, tx.TargetBearer())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
@@ -451,11 +439,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 		}
 	case money.Swap:
-		isOwner, err := verifyOwner(acc, tx.OwnerCondition())
-		if err != nil {
-			return err
-		}
-		if isOwner {
+		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.OwnerCondition()) {
 			log.Info("received swap order")
 			err := w.saveWithProof(dbTx, b, txIdx, &bill{
 				Id:     tx.UnitID(),
@@ -466,7 +450,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				return err
 			}
 			// clear dc metadata
-			err = dbTx.SetDcMetadata(txPb.UnitId, nil)
+			err = dbTx.SetDcMetadata(acc.accountIndex, txPb.UnitId, nil)
 			if err != nil {
 				return err
 			}
@@ -490,7 +474,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 }
 
 func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill, accountIndex uint64) error {
-	blockProof, err := ExtractBlockProof(b, txIdx, crypto.SHA256)
+	blockProof, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
 	if err != nil {
 		return err
 	}
@@ -527,7 +511,7 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 	dcBillGroups := groupDcBills(bills)
 	for nonce, billGroup := range dcBillGroups {
 		nonce32 := nonce.Bytes32()
-		dcMeta, err := tx.GetDcMetadata(nonce32[:])
+		dcMeta, err := tx.GetDcMetadata(accountIndex, nonce32[:])
 		if err != nil {
 			return err
 		}
@@ -546,14 +530,14 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 	}
 
 	// delete expired metadata
-	nonceMetadataMap, err := tx.GetDcMetadataMap()
+	nonceMetadataMap, err := tx.GetDcMetadataMap(accountIndex)
 	if err != nil {
 		return err
 	}
 	for nonce, m := range nonceMetadataMap {
 		if m.timeoutReached(blockHeight) {
 			nonce32 := nonce.Bytes32()
-			err := tx.SetDcMetadata(nonce32[:], nil)
+			err := tx.SetDcMetadata(accountIndex, nonce32[:], nil)
 			if err != nil {
 				return err
 			}
@@ -569,6 +553,7 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 // if blocking is false then the function returns after sending the dc transfers.
 func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex uint64) error {
 	err := w.db.WithTransaction(func(dbTx TxContext) error {
+		log.Info("starting dust collection for account=", accountIndex, " blocking=", blocking)
 		blockHeight, err := dbTx.GetBlockNumber()
 		if err != nil {
 			return err
@@ -602,7 +587,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				}
 			}
 		} else {
-			swapInProgress, err := w.isSwapInProgress(dbTx)
+			swapInProgress, err := w.isSwapInProgress(dbTx, accountIndex)
 			if err != nil {
 				return err
 			}
@@ -625,7 +610,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 					return err
 				}
 
-				log.Info("sending dust transfer tx for bill ", b.Id)
+				log.Info("sending dust transfer tx for bill=", b.Id, " account=", accountIndex)
 				res, err := w.SendTransaction(tx)
 				if err != nil {
 					return err
@@ -635,7 +620,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				}
 			}
 			expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
-			err = dbTx.SetDcMetadata(dcNonce, &dcMetadata{
+			err = dbTx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{
 				DcValueSum: dcValueSum,
 				DcTimeout:  dcTimeout,
 			})
@@ -652,7 +637,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		return err
 	}
 	if blocking {
-		log.Info("waiting for blocking collect dust (wallet needs to be synchronizing to finish this process)")
+		log.Info("waiting for blocking collect dust on account=", accountIndex, " (wallet needs to be synchronizing to finish this process)")
 
 		// wrap wg.Wait() as channel
 		done := make(chan struct{})
@@ -667,7 +652,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		case <-done:
 			// dust collection finished (swap received or timed out)
 		}
-		log.Info("finished waiting for blocking collect dust")
+		log.Info("finished waiting for blocking collect dust on account=", accountIndex)
 	}
 	return nil
 }
@@ -689,16 +674,16 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, time
 	if !res.Ok {
 		return errors.New("swap tx returned error code: " + res.Message)
 	}
-	return tx.SetDcMetadata(dcNonce, &dcMetadata{SwapTimeout: timeout})
+	return tx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{SwapTimeout: timeout})
 }
 
-// isSwapInProgress returns true if there's a running dc process managed by the wallet
-func (w *Wallet) isSwapInProgress(dbTx TxContext) (bool, error) {
+// isSwapInProgress returns true if there's a running dc process managed by the wallet, for the given account
+func (w *Wallet) isSwapInProgress(dbTx TxContext, accIdx uint64) (bool, error) {
 	blockHeight, err := dbTx.GetBlockNumber()
 	if err != nil {
 		return false, err
 	}
-	dcMetadataMap, err := dbTx.GetDcMetadataMap()
+	dcMetadataMap, err := dbTx.GetDcMetadataMap(accIdx)
 	if err != nil {
 		return false, err
 	}
@@ -793,7 +778,7 @@ func groupDcBills(bills []*bill) map[uint256.Int]*dcBillGroup {
 func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
 	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
-	if blockNumber-lastBlockNumber != 1 {
+	if blockNumber != lastBlockNumber+1 {
 		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
 	}
 	return nil

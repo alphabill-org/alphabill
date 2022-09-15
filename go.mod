@@ -13,6 +13,7 @@ require (
 	github.com/btcsuite/btcd v0.23.1
 	github.com/btcsuite/btcd/btcutil v1.1.1
 	github.com/ethereum/go-ethereum v1.10.21
+	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/holiman/uint256 v1.2.0
 	github.com/libp2p/go-libp2p v0.21.0

@@ -99,7 +99,7 @@ func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*A
 	return &AccountKey{
 		PubKey:         compressedPubKey,
 		PrivKey:        privateKeyBytes,
-		PubKeyHash:     hashPubKey(compressedPubKey),
+		PubKeyHash:     NewKeyHash(compressedPubKey),
 		DerivationPath: []byte(derivationPath),
 	}, nil
 }
@@ -119,19 +119,20 @@ func NewDerivationPath(accountIndex uint64) string {
 	return fmt.Sprintf(derivationPath, accountIndex)
 }
 
+// NewKeyHash creates sha256/sha512 hash pair from given key
+func NewKeyHash(key []byte) *KeyHashes {
+	return &KeyHashes{
+		Sha256: hash.Sum256(key),
+		Sha512: hash.Sum512(key),
+	}
+}
+
 func generateMnemonic() (string, error) {
 	entropy, err := bip39.NewEntropy(mnemonicEntropyBitSize)
 	if err != nil {
 		return "", err
 	}
 	return bip39.NewMnemonic(entropy)
-}
-
-func hashPubKey(pubKey []byte) *KeyHashes {
-	return &KeyHashes{
-		Sha256: hash.Sum256(pubKey),
-		Sha512: hash.Sum512(pubKey),
-	}
 }
 
 // derivePrivateKey derives the private accountKey of the derivation path.

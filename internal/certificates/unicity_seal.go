@@ -12,8 +12,6 @@ import (
 var (
 	ErrUnicitySealIsNil             = errors.New("unicity seal is nil")
 	ErrSignerIsNil                  = errors.New("signer is nil")
-	ErrUnicitySealVerifierIsNil     = errors.New("unicity seal verifier is nil")
-	ErrVerifierIsNil                = errors.New("verifier is nil")
 	ErrUnicitySealHashIsNil         = errors.New("hash is nil")
 	ErrUnicitySealPreviousHashIsNil = errors.New("previous hash is nil")
 	ErrInvalidBlockNumber           = errors.New("invalid block number")
@@ -91,6 +89,5 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 			return errors.Wrap(err, "invalid unicity seal signature")
 		}
 	}
-	// TODO: in distributed root chain there needs to be a way to check if nof signatures represent quorum
 	return nil
 }

@@ -14,7 +14,6 @@ var (
 	ErrPartitionsNotFound     = errors.New("partitions not found")
 	ErrMissingConsensusSig    = errors.New("missing consensus signature")
 	ErrMissingPubKeyInfo      = errors.New("missing rood validator info")
-	ErrRootClusterIsNil       = errors.New("root cluster is nil")
 )
 
 // IsValid verifies that the genesis file is signed by the generator and that the public key is included

@@ -31,11 +31,8 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		HashAlgorithm:       uint32(gocrypto.SHA256),
 		Signatures:          make(map[string][]byte),
 	}
-	alg := gocrypto.Hash(rootConsensus.HashAlgorithm)
-	hash := rootConsensus.Hash(alg)
-	sig, err := signer.SignHash(hash)
+	err = rootConsensus.Sign("1", signer)
 	require.NoError(t, err)
-	rootConsensus.Signatures["1"] = sig
 	type fields struct {
 		Root          *GenesisRootRecord
 		Partitions    []*GenesisPartitionRecord

@@ -1,8 +1,6 @@
 package genesis
 
 import (
-	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
@@ -10,11 +8,18 @@ var ErrNotSignedByAllRootValidators = errors.New("Consensus parameters are not s
 var ErrRootValidatorsSize = errors.New("Registered root validators do not match consensus total root nodes")
 var ErrGenesisRootIssNil = errors.New("Root genesis record is nil")
 var ErrNoRootValidators = errors.New("No root validators set")
+var ErrConsensusIsNil = errors.New("consensus is nil")
 
 // IsValid only validates Consensus structure and the signature of one
 func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {
 		return ErrGenesisRootIssNil
+	}
+	if len(x.RootValidators) == 0 {
+		return ErrNoRootValidators
+	}
+	if x.Consensus == nil {
+		return ErrConsensusIsNil
 	}
 	// 1. Check all registered validator nodes are unique and have all fields set correctly
 	err := ValidatorInfoUnique(x.RootValidators)
@@ -27,22 +32,13 @@ func (x *GenesisRootRecord) IsValid() error {
 		return err
 	}
 	// 3. Verify that all validators have signed the consensus structure
-	// calculate hash of consensus structure
-	hash := x.Consensus.Hash(gocrypto.Hash(x.Consensus.HashAlgorithm))
-	for _, validator := range x.RootValidators {
-		// find signature
-		sig, f := x.Consensus.Signatures[validator.NodeIdentifier]
-		if !f {
-			return errors.Errorf("Consensus struct is not signed by validator %v", validator.NodeIdentifier)
-		}
-		ver, err := crypto.NewVerifierSecp256k1(validator.SigningPublicKey)
-		if err != nil {
-			return err
-		}
-		err = ver.VerifyHash(sig, hash)
-		if err != nil {
-			return errors.Errorf("Consensus struct signature verification failed for validator %v", validator.NodeIdentifier)
-		}
+	verifiers, err := NewValidatorTrustBase(x.RootValidators)
+	if err != nil {
+		return err
+	}
+	err = x.Consensus.Verify(verifiers)
+	if err != nil {
+		return err
 	}
 	return nil
 }

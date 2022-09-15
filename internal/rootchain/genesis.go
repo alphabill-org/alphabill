@@ -89,6 +89,7 @@ func WithQuorumThreshold(threshold uint32) GenesisOption {
 	}
 }
 
+// WithHashAlgorithm set custom hash algorithm (unused for now, remove?)
 func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) GenesisOption {
 	return func(c *rootGenesisConf) {
 		c.hashAlgorithm = hashAlgorithm
@@ -203,14 +204,12 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		ConsensusTimeoutMs:  c.ConsensusTimeoutMs(),
 		QuorumThreshold:     c.QuorumThreshold(),
 		HashAlgorithm:       uint32(c.hashAlgorithm),
+		Signatures:          make(map[string][]byte),
 	}
-	hash := consensusParams.Hash(c.hashAlgorithm)
-	sig, err := c.signer.SignHash(hash)
+	err = consensusParams.Sign(c.peerID, c.signer)
 	if err != nil {
 		return nil, nil, err
 	}
-	consensusParams.Signatures = make(map[string][]byte)
-	consensusParams.Signatures[c.peerID] = sig
 	genesisRoot := &genesis.GenesisRootRecord{
 		RootValidators: rootValidatorInfo,
 		Consensus:      consensusParams,
@@ -255,12 +254,11 @@ func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.Roo
 	}
 	// Take the first and start appending to it from the rest
 	rg, rest := rootGenesis[0], rootGenesis[1:]
-	consensusHash := rg.Root.Consensus.Hash(gocrypto.SHA256)
+	consensusBytes := rg.Root.Consensus.Bytes()
 	// Check and append
 	for _, appendGen := range rest {
-		// Check consensus parameters are same by comparing hashes
-		otherHash := appendGen.Root.Consensus.Hash(gocrypto.SHA256)
-		if bytes.Compare(consensusHash, otherHash) != 0 {
+		// Check consensus parameters are same by comparing serialized bytes
+		if bytes.Compare(consensusBytes, appendGen.Root.Consensus.Bytes()) != 0 {
 			return nil, nil, errors.New("not compatible root genesis files, consensus is different")
 		}
 		// Take a naive approach for start: append first, validate later

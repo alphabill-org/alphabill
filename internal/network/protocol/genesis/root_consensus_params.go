@@ -13,10 +13,11 @@ var (
 	ErrConsensusParamsIsNil          = errors.New("consensus record is nil")
 	ErrInvalidNumberOfRootValidators = errors.New("invalid number of root validators")
 	ErrConsensusNotSigned            = errors.New("consensus struct is not signed")
-	ErrBlockRateTooSmall             = errors.New("Block rate too small")
-	ErrInvalidQuorumThreshold        = errors.New("Invalid quorum threshold")
-	ErrUnknownHashAlgorithm          = errors.New("Unknown hash algorithm")
-	ErrInvalidConsensusTimeout       = errors.New("Invalid consensus timeout")
+	ErrBlockRateTooSmall             = errors.New("block rate too small")
+	ErrInvalidQuorumThreshold        = errors.New("invalid quorum threshold")
+	ErrUnknownHashAlgorithm          = errors.New("unknown hash algorithm")
+	ErrInvalidConsensusTimeout       = errors.New("invalid consensus timeout")
+	ErrConsensusUnknownSigner        = errors.New("consensus unknown signer")
 )
 
 const (
@@ -131,14 +132,14 @@ func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
 		return certificates.ErrRootValidatorInfoMissing
 	}
 	if len(x.Signatures) == 0 {
-		return errors.New("missing consensus signature")
+		return ErrConsensusNotSigned
 	}
 	// Verify all signatures, all must be from known origin and valid
 	for id, sig := range x.Signatures {
 		// Find verifier info
 		ver, f := verifiers[id]
 		if !f {
-			return certificates.ErrUnknownSigner
+			return ErrConsensusUnknownSigner
 		}
 		err := ver.VerifyBytes(sig, x.Bytes())
 		if err != nil {

@@ -298,7 +298,7 @@ func TestConsensusVerify_SignatureIsNil(t *testing.T) {
 	}
 	verifiers := map[string]crypto.Verifier{"test": ver}
 	err := x.Verify(verifiers)
-	require.True(t, strings.Contains(err.Error(), "missing consensus signature"))
+	require.ErrorIs(t, err, ErrConsensusNotSigned)
 }
 
 func TestConsensusIsValid_InvalidSignature(t *testing.T) {
@@ -330,7 +330,7 @@ func TestConsensusVerify_UnknownSigner(t *testing.T) {
 	}
 	verifiers := map[string]crypto.Verifier{"t": ver}
 	err := x.Verify(verifiers)
-	require.ErrorIs(t, err, certificates.ErrUnknownSigner)
+	require.ErrorIs(t, err, ErrConsensusUnknownSigner)
 }
 
 func TestSign_SignerIsNil(t *testing.T) {

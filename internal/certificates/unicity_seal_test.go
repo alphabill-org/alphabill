@@ -125,6 +125,19 @@ func TestVerify_SignatureIsNil(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "invalid unicity seal signature"))
 }
 
+func TestVerify_SignatureUnknownSigner(t *testing.T) {
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	seal := &UnicitySeal{
+		RootChainRoundNumber: 1,
+		PreviousHash:         zeroHash,
+		Hash:                 zeroHash,
+		Signatures:           map[string][]byte{"test": zeroHash},
+	}
+	verifiers := map[string]crypto.Verifier{"xxx": verifier}
+	err := seal.Verify(verifiers)
+	require.ErrorIs(t, err, ErrUnknownSigner)
+}
+
 func TestSign_SignerIsNil(t *testing.T) {
 	seal := &UnicitySeal{
 		RootChainRoundNumber: 1,

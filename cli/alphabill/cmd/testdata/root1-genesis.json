@@ -1,0 +1,266 @@
+{
+  "root": {
+    "root_validators": [
+      {
+        "node_identifier": "16Uiu2HAmTQFTEdgNLKFHSjHTQeY68x7BnFAXY2sfGydBu2HWRpqN",
+        "signing_public_key": "Ap2JUTC52PwXvU6ZOO6EXoCcAlhd12g4zNUEztdevRzU",
+        "encryption_public_key": "A9sYqxEWcJ1mjohVF9HpaLC2nzfshL5R++sN5YzACa9h"
+      }
+    ],
+    "consensus": {
+      "total_root_validators": 4,
+      "block_rate_ms": 900,
+      "consensus_timeout_ms": 10000,
+      "hash_algorithm": 5,
+      "signatures": {
+        "16Uiu2HAmTQFTEdgNLKFHSjHTQeY68x7BnFAXY2sfGydBu2HWRpqN": "evMt9gIBjAaU2SRPMIMDwh1VYKA3OloPKc6+4CnFuGI9BqW6aUagLb+OM0L10dbfun/CWSWKPPytfWXCQS1nEgA="
+      }
+    }
+  },
+  "partitions": [
+    {
+      "nodes": [
+        {
+          "node_identifier": "16Uiu2HAm7WCucwykRBjCqEHVwdZNdNTY1DsR2rzJpUPrVCTVJfN3",
+          "signing_public_key": "AoPAnQKC5WgYHue9sQU86yDyuWLjwvtzvmakqb9LYvww",
+          "encryption_public_key": "ArN1iWyiRUHG5fJVGKbJjcIP3pyDLB283GnNzmBP8KCE",
+          "block_certification_request": {
+            "system_identifier": "AAAAAA==",
+            "node_identifier": "16Uiu2HAm7WCucwykRBjCqEHVwdZNdNTY1DsR2rzJpUPrVCTVJfN3",
+            "root_round_number": 1,
+            "input_record": {
+              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "hash": "y3DqqNADw4FpNKQ0cBCMdyExUSA+4vnZVV+NO5u8jGY=",
+              "block_hash": "NCPP4u14D10J3a94qErKptlZf1k+EC7BVm59cjyx75s=",
+              "summary_value": "AAAAAAAehIA="
+            },
+            "signature": "JIfjt9el60o+tL/mfMtuBOdJO7jMnKsjnPJZDbrCzpVMJgrXaUI9yxTelfzNHYhN7npvnjXBVEDSgkTC11WQkQA="
+          },
+          "t2timeout": 2500,
+          "params": {
+            "type_url": "type.googleapis.com/MoneyPartitionParams",
+            "value": "CMCEPRDAhD0="
+          }
+        },
+        {
+          "node_identifier": "16Uiu2HAm8UCAkjRr2Y6KdHSeScjLBdRSRhWsG9eusAEdMhf26Kxs",
+          "signing_public_key": "A3IjF1DED9q8RsyecRVx9CAzxn1ozC5rb+XiAWkAzrmt",
+          "encryption_public_key": "AsHNOfknYWGAkWVLme1cNnT15KpWNiiZjlxE+/HfBBTI",
+          "block_certification_request": {
+            "system_identifier": "AAAAAA==",
+            "node_identifier": "16Uiu2HAm8UCAkjRr2Y6KdHSeScjLBdRSRhWsG9eusAEdMhf26Kxs",
+            "root_round_number": 1,
+            "input_record": {
+              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "hash": "y3DqqNADw4FpNKQ0cBCMdyExUSA+4vnZVV+NO5u8jGY=",
+              "block_hash": "NCPP4u14D10J3a94qErKptlZf1k+EC7BVm59cjyx75s=",
+              "summary_value": "AAAAAAAehIA="
+            },
+            "signature": "c4GVqID/WUjThZl4D0Xaw5kxxRRFtnA5rbETaaTA1hNpQLvkcdXUssF1UFAUb0adRHT9J1EaqHtRb4aKVzfVkgE="
+          },
+          "t2timeout": 2500,
+          "params": {
+            "type_url": "type.googleapis.com/MoneyPartitionParams",
+            "value": "CMCEPRDAhD0="
+          }
+        },
+        {
+          "node_identifier": "16Uiu2HAkxDWSaTzFRHzNvCMZ3yPc6jtcrn3AvmCqu4iuswEqxX3Q",
+          "signing_public_key": "A8QkNyIN0zvz7RRwyXOK3bFQtGplPa3KYV/WdfI0iw7R",
+          "encryption_public_key": "Ail1TmKFxeFFXg4vzSuD74widFdYbhXFF19mdpL7gX37",
+          "block_certification_request": {
+            "system_identifier": "AAAAAA==",
+            "node_identifier": "16Uiu2HAkxDWSaTzFRHzNvCMZ3yPc6jtcrn3AvmCqu4iuswEqxX3Q",
+            "root_round_number": 1,
+            "input_record": {
+              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "hash": "y3DqqNADw4FpNKQ0cBCMdyExUSA+4vnZVV+NO5u8jGY=",
+              "block_hash": "NCPP4u14D10J3a94qErKptlZf1k+EC7BVm59cjyx75s=",
+              "summary_value": "AAAAAAAehIA="
+            },
+            "signature": "9/7grkI9Cku/wjyZCLKGLzq5HKB/FVMYvOMj37dlMCpe94bJQlnjfZc+dZOLRbuJhp7gozNtpCEYiNoTWUFlvQE="
+          },
+          "t2timeout": 2500,
+          "params": {
+            "type_url": "type.googleapis.com/MoneyPartitionParams",
+            "value": "CMCEPRDAhD0="
+          }
+        }
+      ],
+      "certificate": {
+        "input_record": {
+          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "hash": "y3DqqNADw4FpNKQ0cBCMdyExUSA+4vnZVV+NO5u8jGY=",
+          "block_hash": "NCPP4u14D10J3a94qErKptlZf1k+EC7BVm59cjyx75s=",
+          "summary_value": "AAAAAAAehIA="
+        },
+        "unicity_tree_certificate": {
+          "system_identifier": "AAAAAA==",
+          "sibling_hashes": [
+            "i/HOjhNARZnBP5nRzfhDz0XUr3IO6YqhIy9Coi8+hTs=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          ],
+          "system_description_hash": "1xLJvNPorwq+KXmXUY4IhQwyVJJO1ROXgYNxcrBt25U="
+        },
+        "unicity_seal": {
+          "root_chain_round_number": 1,
+          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "hash": "s59hQLcaug3pQekvd3Rjfk2+ahCyFrTS1Nq1xuOyk/I=",
+          "signatures": {
+            "16Uiu2HAmTQFTEdgNLKFHSjHTQeY68x7BnFAXY2sfGydBu2HWRpqN": "qZTKLHSv0akAsLTUoYa2En+mLbMSJdXJSke+74Y+ooZRAA4tHOPBnRXT6Nh2LuMtduiS/chIGAR7UTymrLaNVwA="
+          }
+        }
+      },
+      "system_description_record": {
+        "system_identifier": "AAAAAA==",
+        "t2timeout": 2500
+      }
+    },
+    {
+      "nodes": [
+        {
+          "node_identifier": "16Uiu2HAkvVBgD6NX3CjcyYhEYVCgvbyA31X38wo3ktPzMMD539pz",
+          "signing_public_key": "Ah2ZIptD8v5uCiGv6thJDr7DyJUgYNhHaVXb0+xwvOZ2",
+          "encryption_public_key": "Ag/CAfX5qIV7cz0vlxu0WYdB8kWMtoZxiwxY9zF574gP",
+          "block_certification_request": {
+            "system_identifier": "AAAAAQ==",
+            "node_identifier": "16Uiu2HAkvVBgD6NX3CjcyYhEYVCgvbyA31X38wo3ktPzMMD539pz",
+            "root_round_number": 1,
+            "input_record": {
+              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "block_hash": "dKAYKZBGWxdA4CmrFKuFNXXoSrr0AqJ1IKSFgdE6tcw=",
+              "summary_value": "AAAAAAAAAAA="
+            },
+            "signature": "Ma1A2JwQxcEMSpELR4NagHoPmWPeAQQz6jmQcf0WMjE4UIx93Vn7pXiGXcoodP9krccCNHd2Jd80ieWGNspXNgE="
+          },
+          "t2timeout": 2500
+        },
+        {
+          "node_identifier": "16Uiu2HAm5mZWAuBw3frAximoXfWciE732iUsToDWYwEXDDB2ANYP",
+          "signing_public_key": "At2+ykrt8R6CHXdcNVQHjP566oaAG4Xjl3adnNO1agi1",
+          "encryption_public_key": "ApmtKakEy3d81tk8uG+5Q2H9gpipYqeCAnW0MDKnQsTI",
+          "block_certification_request": {
+            "system_identifier": "AAAAAQ==",
+            "node_identifier": "16Uiu2HAm5mZWAuBw3frAximoXfWciE732iUsToDWYwEXDDB2ANYP",
+            "root_round_number": 1,
+            "input_record": {
+              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "block_hash": "dKAYKZBGWxdA4CmrFKuFNXXoSrr0AqJ1IKSFgdE6tcw=",
+              "summary_value": "AAAAAAAAAAA="
+            },
+            "signature": "hLZj41v/biBQXlSP9urozVtksDTOTLcqBHA2Rp2SbFEChZQkV5LGj4aLz2J1w12XQrWT4UILNnvQSw5LKXhbRgA="
+          },
+          "t2timeout": 2500
+        },
+        {
+          "node_identifier": "16Uiu2HAmQ3danPhRtxiiepuTSaxnbV2asYW44ktsB7To8G57BdPH",
+          "signing_public_key": "A+Ay5OBkH64CfFL1GZVJVdmgA0/2dU7zM/QNOXH8fAO/",
+          "encryption_public_key": "A6k9bt413K69FRLZRtXWYPeAIxKtt9KkSoK7CIgddWnM",
+          "block_certification_request": {
+            "system_identifier": "AAAAAQ==",
+            "node_identifier": "16Uiu2HAmQ3danPhRtxiiepuTSaxnbV2asYW44ktsB7To8G57BdPH",
+            "root_round_number": 1,
+            "input_record": {
+              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+              "block_hash": "dKAYKZBGWxdA4CmrFKuFNXXoSrr0AqJ1IKSFgdE6tcw=",
+              "summary_value": "AAAAAAAAAAA="
+            },
+            "signature": "Hy90FgaxgDUMf/9SG/Xudw26M4Zz6NzYxXrfRlGLBzI6LUeivlBZzKcVv8U/aSvk63B22MBypVmrluZdBHBIqgE="
+          },
+          "t2timeout": 2500
+        }
+      ],
+      "certificate": {
+        "input_record": {
+          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "block_hash": "dKAYKZBGWxdA4CmrFKuFNXXoSrr0AqJ1IKSFgdE6tcw=",
+          "summary_value": "AAAAAAAAAAA="
+        },
+        "unicity_tree_certificate": {
+          "system_identifier": "AAAAAQ==",
+          "sibling_hashes": [
+            "L5+hA9ofoNHd2K+gcZ3AbVxe3O6KCiByaP6ZhXft04Y=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          ],
+          "system_description_hash": "7ZSAu8ahWCpF6gGd0zsIa7hd0uGE1nb7l4dnFzCvCGI="
+        },
+        "unicity_seal": {
+          "root_chain_round_number": 1,
+          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "hash": "s59hQLcaug3pQekvd3Rjfk2+ahCyFrTS1Nq1xuOyk/I=",
+          "signatures": {
+            "16Uiu2HAmTQFTEdgNLKFHSjHTQeY68x7BnFAXY2sfGydBu2HWRpqN": "qZTKLHSv0akAsLTUoYa2En+mLbMSJdXJSke+74Y+ooZRAA4tHOPBnRXT6Nh2LuMtduiS/chIGAR7UTymrLaNVwA="
+          }
+        }
+      },
+      "system_description_record": {
+        "system_identifier": "AAAAAQ==",
+        "t2timeout": 2500
+      }
+    }
+  ]
+}

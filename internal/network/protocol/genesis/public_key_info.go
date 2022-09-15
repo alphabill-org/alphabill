@@ -9,22 +9,26 @@ var (
 	ErrValidatorPublicInfoIsEmpty = errors.New("public key info is empty")
 )
 
-func NewRootTrustBase(rootPublicInfo []*PublicKeyInfo) (map[string]crypto.Verifier, error) {
-	if len(rootPublicInfo) == 0 {
+// NewValidatorTrustBase creates a verifier to node id map from public key info using the signing public key.
+func NewValidatorTrustBase(publicKeyInfo []*PublicKeyInfo) (map[string]crypto.Verifier, error) {
+	// If is nil or empty - return the same error
+	if len(publicKeyInfo) == 0 {
 		return nil, ErrValidatorPublicInfoIsEmpty
 	}
-	// Collect all root signing keys
-	rootIdToKey := make(map[string]crypto.Verifier)
-	for _, info := range rootPublicInfo {
+	// Create a map of all validator node identifier to verifier (public signing keys)
+	nodeIdToKey := make(map[string]crypto.Verifier)
+	for _, info := range publicKeyInfo {
 		ver, err := crypto.NewVerifierSecp256k1(info.SigningPublicKey)
 		if err != nil {
-			return nil, errors.New("invalid signing public key")
+			return nil, err
 		}
-		rootIdToKey[info.NodeIdentifier] = ver
+		nodeIdToKey[info.NodeIdentifier] = ver
 	}
-	return rootIdToKey, nil
+	return nodeIdToKey, nil
 }
 
+// ValidatorInfoUnique checks for duplicates in the slice, makes sure that there are no validators that share the same
+// id or public key. There is one exception, currently a validator can use the same key for encryption and signing.
 func ValidatorInfoUnique(validators []*PublicKeyInfo) error {
 	if len(validators) == 0 {
 		return ErrValidatorPublicInfoIsEmpty
@@ -57,6 +61,7 @@ func ValidatorInfoUnique(validators []*PublicKeyInfo) error {
 	return nil
 }
 
+// IsValid validates that all fields are correctly set and public keys are correct.
 func (x *PublicKeyInfo) IsValid() error {
 	if x == nil {
 		return ErrValidatorPublicInfoIsEmpty

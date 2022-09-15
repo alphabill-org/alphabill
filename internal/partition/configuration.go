@@ -173,7 +173,7 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 			return err
 		}
 	}
-	c.rootTrustBase, err = genesis.NewRootTrustBase(c.genesis.RootValidators)
+	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
 		return err
 	}

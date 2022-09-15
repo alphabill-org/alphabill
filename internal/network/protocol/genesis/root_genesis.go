@@ -79,7 +79,7 @@ func (x *RootGenesis) Verify() error {
 		return ErrPartitionsNotFound
 	}
 	// Check all signatures on Partition UC Seals
-	verifiers, err := NewRootTrustBase(x.Root.RootValidators)
+	verifiers, err := NewValidatorTrustBase(x.Root.RootValidators)
 	if err != nil {
 		return errors.Wrap(err, "Invalid root genesis validators")
 	}

@@ -260,6 +260,7 @@ func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.Roo
 	// Check and append
 	for _, appendGen := range rest {
 		// Check consensus parameters are same by comparing serialized bytes
+		// Should probably write a compare method instead of comparing serialized struct
 		if bytes.Compare(consensusBytes, appendGen.Root.Consensus.Bytes()) != 0 {
 			return nil, nil, errors.New("not compatible root genesis files, consensus is different")
 		}

@@ -159,7 +159,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErr: certificates.ErrUnicityCertificateIsNil,
+			wantErr: ErrPartitionUnicityCertificateIsNil,
 		},
 		{
 			name: "encryption key is nil",

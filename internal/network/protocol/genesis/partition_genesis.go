@@ -2,7 +2,7 @@ package genesis
 
 import (
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/certificates"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
@@ -12,6 +12,7 @@ var ErrRootChainEncryptionKeyMissing = errors.New("root encryption public key is
 var ErrKeysAreMissing = errors.New("partition keys are missing")
 var ErrKeyIsNil = errors.New("key is nil")
 var ErrMissingRootValidators = errors.New("Missing root validators")
+var ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
 
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
 	// linear search for id
@@ -68,7 +69,7 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 		return err
 	}
 	if x.Certificate == nil {
-		return certificates.ErrUnicityCertificateIsNil
+		return ErrPartitionUnicityCertificateIsNil
 	}
 	sdrHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
 	// validate all signatures against known root keys

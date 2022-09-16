@@ -14,8 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-var ErrRootGenesisIsNil = errors.New("Root genesis is nil")
-
 // State holds the State of the root chain.
 type State struct {
 	roundNumber               uint64                               // current round number
@@ -36,13 +34,9 @@ func NewStateFromGenesis(g *genesis.RootGenesis, selfId string, signer crypto.Si
 		return nil, errors.Wrap(err, "invalid root chain private key")
 	}
 	if g == nil {
-		return nil, ErrRootGenesisIsNil
+		return nil, errors.New("root genesis is nil")
 	}
 
-	// _, verifier, err := GetPublicKeyAndVerifier(signer)
-	// if err != nil {
-	//	return nil, errors.Wrap(err, "invalid root chain private key")
-	//}
 	if err := g.Verify(); err != nil {
 		return nil, errors.Wrap(err, "invalid genesis")
 	}

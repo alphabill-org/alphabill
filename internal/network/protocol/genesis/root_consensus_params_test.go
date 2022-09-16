@@ -330,7 +330,7 @@ func TestConsensusVerify_UnknownSigner(t *testing.T) {
 	}
 	verifiers := map[string]crypto.Verifier{"t": ver}
 	err := x.Verify(verifiers)
-	require.ErrorIs(t, err, ErrConsensusUnknownSigner)
+	require.ErrorContains(t, err, "Consensus signed by unknown validator:")
 }
 
 func TestSign_SignerIsNil(t *testing.T) {

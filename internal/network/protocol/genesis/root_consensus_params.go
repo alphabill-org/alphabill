@@ -18,6 +18,7 @@ var (
 	ErrUnknownHashAlgorithm          = errors.New("unknown hash algorithm")
 	ErrInvalidConsensusTimeout       = errors.New("invalid consensus timeout")
 	ErrConsensusUnknownSigner        = errors.New("consensus unknown signer")
+	ErrConsensusIsNotSignedByAll     = errors.New("consensus is not signed by all root validators")
 )
 
 const (
@@ -134,12 +135,17 @@ func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
 	if len(x.Signatures) == 0 {
 		return ErrConsensusNotSigned
 	}
+	// If there is more signatures, then we will give more detailed info below (what id is missing)
+	// todo: consider that verification is costly, so perhaps it would still make sense to escape early
+	if len(x.Signatures) < len(verifiers) {
+		return ErrConsensusIsNotSignedByAll
+	}
 	// Verify all signatures, all must be from known origin and valid
 	for id, sig := range x.Signatures {
 		// Find verifier info
 		ver, f := verifiers[id]
 		if !f {
-			return ErrConsensusUnknownSigner
+			return errors.Errorf("Consensus signed by unknown validator: %v", id)
 		}
 		err := ver.VerifyBytes(sig, x.Bytes())
 		if err != nil {

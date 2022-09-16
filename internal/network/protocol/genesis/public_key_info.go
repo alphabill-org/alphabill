@@ -27,6 +27,8 @@ func NewValidatorTrustBase(publicKeyInfo []*PublicKeyInfo) (map[string]crypto.Ve
 	return nodeIdToKey, nil
 }
 
+// TODO: This is the same functionality as for PartitionNode, by defining a common interface these could be combined into one method, thus removing duplicate code.
+
 // ValidatorInfoUnique checks for duplicates in the slice, makes sure that there are no validators that share the same
 // id or public key. There is one exception, currently a validator can use the same key for encryption and signing.
 func ValidatorInfoUnique(validators []*PublicKeyInfo) error {

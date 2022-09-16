@@ -4,13 +4,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
-var ErrNotSignedByAllRootValidators = errors.New("Consensus parameters are not signed by all validators")
-var ErrRootValidatorsSize = errors.New("Registered root validators do not match consensus total root nodes")
-var ErrGenesisRootIssNil = errors.New("Root genesis record is nil")
-var ErrNoRootValidators = errors.New("No root validators set")
+var ErrRootValidatorsSize = errors.New("registered root validators do not match consensus total root nodes")
+var ErrGenesisRootIssNil = errors.New("root genesis record is nil")
+var ErrNoRootValidators = errors.New("no root validators set")
 var ErrConsensusIsNil = errors.New("consensus is nil")
 
-// IsValid only validates Consensus structure and the signature of one
+// IsValid only validates Consensus structure and that it signed by the listed root validators
 func (x *GenesisRootRecord) IsValid() error {
 	if x == nil {
 		return ErrGenesisRootIssNil
@@ -31,7 +30,7 @@ func (x *GenesisRootRecord) IsValid() error {
 	if err != nil {
 		return err
 	}
-	// 3. Verify that all validators have signed the consensus structure
+	// 3. Verify that all signatures are valid and from known authors
 	verifiers, err := NewValidatorTrustBase(x.RootValidators)
 	if err != nil {
 		return err
@@ -58,13 +57,10 @@ func (x *GenesisRootRecord) Verify() error {
 	if x.Consensus.TotalRootValidators != uint32(len(x.RootValidators)) {
 		return ErrRootValidatorsSize
 	}
-	// 3. Check number of signatures on consensus struct, it is required to be signed by every validator
-	if x.Consensus.TotalRootValidators != uint32(len(x.Consensus.Signatures)) {
-		return ErrNotSignedByAllRootValidators
-	}
 	return nil
 }
 
+// FindPubKeyById returns matching PublicKeyInfo matching node id or nil if not found
 func (x *GenesisRootRecord) FindPubKeyById(id string) *PublicKeyInfo {
 	if x == nil {
 		return nil

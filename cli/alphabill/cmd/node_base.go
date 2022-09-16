@@ -154,10 +154,10 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	if err != nil {
 		return nil, err
 	}
-	// todo root genesis: huge hack to make things compile, assume monolithic
-	if len(pg.RootValidators) != 1 {
-		return nil, errors.New("Invalid root validator info")
+	if len(pg.RootValidators) < 1 {
+		return nil, errors.New("Root validator info is missing")
 	}
+	// Assume monolithic root chain for now and only extract the id of the first root node
 	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.RootValidators[0].EncryptionPublicKey)
 	if err != nil {
 		return nil, err

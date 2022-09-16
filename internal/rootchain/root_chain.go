@@ -64,7 +64,8 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
-	// todo root genesis: sort of hack for now, but how to handle this with when conf is to be upgraded
+	// todo root genesis: this will become obsolete when dynamic configuration is implemented??
+	// Locate local node from genesis info
 	nodeInfo := genesis.Root.FindPubKeyById(peer.ID().String())
 	if nodeInfo == nil {
 		logger.Info("Root node %v info not in genesis file", peer.ID().String())

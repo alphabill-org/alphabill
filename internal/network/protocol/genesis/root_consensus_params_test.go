@@ -2,7 +2,6 @@ package genesis
 
 import (
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
@@ -147,7 +146,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 	tests := []struct {
 		name    string
 		fields  fields
-		wantErr error
+		wantErr string
 	}{
 		{
 			name: "Total root nodes 0",
@@ -230,7 +229,7 @@ func TestConsensusParams_IsValid(t *testing.T) {
 				HashAlgorithm:       tt.fields.HashAlgorithm,
 				Signatures:          tt.fields.Signatures,
 			}
-			require.Equal(t, tt.wantErr, x.IsValid())
+			require.ErrorContains(t, x.IsValid(), tt.wantErr)
 		})
 	}
 }
@@ -298,7 +297,7 @@ func TestConsensusVerify_SignatureIsNil(t *testing.T) {
 	}
 	verifiers := map[string]crypto.Verifier{"test": ver}
 	err := x.Verify(verifiers)
-	require.ErrorIs(t, err, ErrConsensusNotSigned)
+	require.ErrorContains(t, err, ErrConsensusNotSigned)
 }
 
 func TestConsensusIsValid_InvalidSignature(t *testing.T) {
@@ -340,7 +339,7 @@ func TestSign_SignerIsNil(t *testing.T) {
 		HashAlgorithm:       hashAlgo,
 	}
 	err := x.Sign("test", nil)
-	require.ErrorIs(t, err, certificates.ErrSignerIsNil)
+	require.ErrorContains(t, err, ErrSignerIsNil)
 }
 
 func TestVerify_VerifierIsNil(t *testing.T) {
@@ -351,5 +350,5 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		Signatures:          map[string][]byte{"test": {0, 0}},
 	}
 	err := x.Verify(nil)
-	require.ErrorIs(t, err, certificates.ErrRootValidatorInfoMissing)
+	require.ErrorContains(t, err, ErrRootValidatorInfoMissing)
 }

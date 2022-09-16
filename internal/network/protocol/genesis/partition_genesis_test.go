@@ -55,7 +55,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				Keys: []*PublicKeyInfo{keyInfo},
 			},
-			wantErr: ErrMissingPubKeyInfo,
+			wantErrStr: ErrVerifiersEmpty,
 		},
 		{
 			name: "system description record is nil",
@@ -90,7 +90,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{nil},
 			},
-			wantErrStr: ErrValidatorPublicInfoIsEmpty.Error(),
+			wantErrStr: ErrValidatorPublicInfoIsEmpty,
 		},
 
 		{
@@ -106,7 +106,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 					{NodeIdentifier: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
 				},
 			},
-			wantErrStr: ErrNodeIdentifierIsEmpty.Error(),
+			wantErrStr: "invalid partition node validator public key info",
 		},
 		{
 			name: "signing pub key is invalid",

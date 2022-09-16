@@ -4,7 +4,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"strings"
 	"testing"
 )
 
@@ -13,11 +12,10 @@ func TestNewValidatorTrustBase(t *testing.T) {
 		rootPublicInfo []*PublicKeyInfo
 	}
 	tests := []struct {
-		name       string
-		args       args
-		want       map[string]crypto.Verifier
-		wantErr    error
-		wantErrStr string
+		name    string
+		args    args
+		want    map[string]crypto.Verifier
+		wantErr string
 	}{
 		{
 			name:    "Validator info is nil",
@@ -37,18 +35,13 @@ func TestNewValidatorTrustBase(t *testing.T) {
 					SigningPublicKey:    []byte{1, 1},
 					EncryptionPublicKey: []byte{1, 2}}},
 			},
-			wantErrStr: "pubkey must be 33 bytes long, but is 2",
+			wantErr: "pubkey must be 33 bytes long, but is 2",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewValidatorTrustBase(tt.args.rootPublicInfo)
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
-			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
-			}
-
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -63,35 +56,34 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 		EncryptionPublicKey []byte
 	}
 	tests := []struct {
-		name       string
-		fields     fields
-		wantErr    error
-		wantErrStr string
+		name    string
+		fields  fields
+		wantErr string
 	}{
 		{
 			name:    "missing node identifier",
 			fields:  fields{"", pubKeyBytes, pubKeyBytes},
-			wantErr: ErrNodeIdentifierIsEmpty,
+			wantErr: ErrPubKeyNodeIdentifierIsEmpty,
 		},
 		{
 			name:    "signing pub key is missing",
 			fields:  fields{"1", nil, pubKeyBytes},
-			wantErr: ErrSigningPublicKeyIsInvalid,
+			wantErr: ErrPubKeyInfoSigningKeyIsInvalid,
 		},
 		{
-			name:       "signing pub key is invalid",
-			fields:     fields{"1", []byte{1, 2}, pubKeyBytes},
-			wantErrStr: "pubkey must be 33 bytes long, but is 2",
+			name:    "signing pub key is invalid",
+			fields:  fields{"1", []byte{1, 2}, pubKeyBytes},
+			wantErr: "pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name:    "enc pub key is missing",
 			fields:  fields{"1", pubKeyBytes, nil},
-			wantErr: ErrEncryptionPublicKeyIsInvalid,
+			wantErr: ErrPubKeyInfoEncryptionIsInvalid,
 		},
 		{
-			name:       "enc pub key is invalid",
-			fields:     fields{"1", pubKeyBytes, []byte{1}},
-			wantErrStr: "pubkey must be 33 bytes long, but is 1",
+			name:    "enc pub key is invalid",
+			fields:  fields{"1", pubKeyBytes, []byte{1}},
+			wantErr: "pubkey must be 33 bytes long, but is 1",
 		},
 	}
 	for _, tt := range tests {
@@ -101,12 +93,7 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 				SigningPublicKey:    tt.fields.SigningPublicKey,
 				EncryptionPublicKey: tt.fields.EncryptionPublicKey,
 			}
-			err := x.IsValid()
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
-			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
-			}
+			require.ErrorContains(t, x.IsValid(), tt.wantErr)
 		})
 	}
 }
@@ -128,10 +115,9 @@ func TestValidatorInfoUnique(t *testing.T) {
 		validators []*PublicKeyInfo
 	}
 	tests := []struct {
-		name       string
-		args       args
-		wantErr    error
-		wantErrStr string
+		name    string
+		args    args
+		wantErr string
 	}{
 		{
 			name:    "Validator info is nil",
@@ -148,7 +134,7 @@ func TestValidatorInfoUnique(t *testing.T) {
 			args: args{[]*PublicKeyInfo{
 				{NodeIdentifier: "1", SigningPublicKey: []byte{1, 1}, EncryptionPublicKey: []byte{1, 2}}},
 			},
-			wantErrStr: "pubkey must be 33 bytes long, but is 2",
+			wantErr: "pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name: "Duplicate node id",
@@ -156,7 +142,7 @@ func TestValidatorInfoUnique(t *testing.T) {
 				{NodeIdentifier: "1", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey1Bytes},
 				{NodeIdentifier: "1", SigningPublicKey: signPubKey2Bytes, EncryptionPublicKey: encPubKey2Bytes}},
 			},
-			wantErrStr: "duplicated node id:",
+			wantErr: "duplicated node id:",
 		},
 		{
 			name: "Duplicate signing pub key",
@@ -164,7 +150,7 @@ func TestValidatorInfoUnique(t *testing.T) {
 				{NodeIdentifier: "1", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey1Bytes},
 				{NodeIdentifier: "2", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey2Bytes}},
 			},
-			wantErrStr: "duplicated node signing public key:",
+			wantErr: "duplicated node signing public key:",
 		},
 		{
 			name: "Duplicate enc pub key",
@@ -172,17 +158,12 @@ func TestValidatorInfoUnique(t *testing.T) {
 				{NodeIdentifier: "1", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey1Bytes},
 				{NodeIdentifier: "2", SigningPublicKey: signPubKey2Bytes, EncryptionPublicKey: encPubKey1Bytes}},
 			},
-			wantErrStr: "duplicated node encryption public key:",
+			wantErr: "duplicated node encryption public key:",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidatorInfoUnique(tt.args.validators)
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
-			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
-			}
+			require.ErrorContains(t, ValidatorInfoUnique(tt.args.validators), tt.wantErr)
 		})
 	}
 }

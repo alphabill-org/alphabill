@@ -3,9 +3,12 @@ package genesis
 import (
 	gocrypto "crypto"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
+)
+
+const (
+	ErrVerifiersEmpty = "Verifier list is empty"
 )
 
 var (
@@ -18,7 +21,7 @@ func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, h
 		return ErrGenesisPartitionRecordIsNil
 	}
 	if len(verifiers) == 0 {
-		return ErrVerifierIsNil
+		return errors.New(ErrVerifiersEmpty)
 	}
 	if len(x.Nodes) == 0 {
 		return ErrNodesAreMissing

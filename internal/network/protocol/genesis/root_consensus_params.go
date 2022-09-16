@@ -3,25 +3,23 @@ package genesis
 import (
 	"bytes"
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-var (
-	ErrConsensusParamsIsNil          = errors.New("consensus record is nil")
-	ErrInvalidNumberOfRootValidators = errors.New("invalid number of root validators")
-	ErrConsensusNotSigned            = errors.New("consensus struct is not signed")
-	ErrBlockRateTooSmall             = errors.New("block rate too small")
-	ErrInvalidQuorumThreshold        = errors.New("invalid quorum threshold")
-	ErrUnknownHashAlgorithm          = errors.New("unknown hash algorithm")
-	ErrInvalidConsensusTimeout       = errors.New("invalid consensus timeout")
-	ErrConsensusUnknownSigner        = errors.New("consensus unknown signer")
-	ErrConsensusIsNotSignedByAll     = errors.New("consensus is not signed by all root validators")
-)
-
 const (
+	ErrConsensusParamsIsNil          = "consensus record is nil"
+	ErrInvalidNumberOfRootValidators = "invalid number of root validators"
+	ErrConsensusNotSigned            = "consensus struct is not signed"
+	ErrBlockRateTooSmall             = "block rate too small"
+	ErrInvalidQuorumThreshold        = "invalid quorum threshold"
+	ErrUnknownHashAlgorithm          = "unknown hash algorithm"
+	ErrInvalidConsensusTimeout       = "invalid consensus timeout"
+	ErrSignerIsNil                   = "Signer is nil"
+	ErrRootValidatorInfoMissing      = "missing root validator public info"
+	ErrConsensusIsNotSignedByAll     = "consensus is not signed by all root validators"
+
 	// MinDistributedRootValidators defines min number of distributed root chain validators.
 	// Total number of root validators is defined by N=3f+1
 	// If at least one faulty/compromised validator is to be tolerated then min nodes is 3*1+1=4
@@ -50,40 +48,40 @@ func GetMinQuorumThreshold(totalRootValidators uint32) uint32 {
 
 func (x *ConsensusParams) IsValid() error {
 	if x == nil {
-		return ErrConsensusParamsIsNil
+		return errors.New(ErrConsensusParamsIsNil)
 	}
 	if x.TotalRootValidators < 1 {
-		return ErrInvalidNumberOfRootValidators
+		return errors.New(ErrInvalidNumberOfRootValidators)
 	}
 	// There are two configurations that are supported:
 	// 1. monolithic root chain - has exactly 1 root validator
 	// 2. distributed root chain - must have at least MinDistributedRootValidators
 	if x.TotalRootValidators > 1 && x.TotalRootValidators < MinDistributedRootValidators {
-		return ErrInvalidNumberOfRootValidators
+		return errors.New(ErrInvalidNumberOfRootValidators)
 	}
 	// depending on configuration, distributed root chain may never be this fast, but it must not be faster
 	if x.BlockRateMs < MinBlockRateMs {
-		return ErrBlockRateTooSmall
+		return errors.New(ErrBlockRateTooSmall)
 	}
 	// If defined:  validate consensus timeout (only used in distributed set-up)
 	if x.ConsensusTimeoutMs != nil {
 		if *x.ConsensusTimeoutMs < x.BlockRateMs {
-			return ErrInvalidConsensusTimeout
+			return errors.New(ErrInvalidConsensusTimeout)
 		}
 	}
 	// If defined: verify quorum threshold
 	if x.QuorumThreshold != nil {
 		// Therefore, the defined quorum threshold must be same or higher
 		if *x.QuorumThreshold < GetMinQuorumThreshold(x.TotalRootValidators) {
-			return ErrInvalidQuorumThreshold
+			return errors.New(ErrInvalidQuorumThreshold)
 		}
 		if *x.QuorumThreshold > x.TotalRootValidators {
-			return ErrInvalidQuorumThreshold
+			return errors.New(ErrInvalidQuorumThreshold)
 		}
 	}
 	hashAlgo := gocrypto.Hash(x.HashAlgorithm)
 	if hashAlgo.Available() == false {
-		return ErrUnknownHashAlgorithm
+		return errors.New(ErrUnknownHashAlgorithm)
 	}
 	return nil
 }
@@ -108,10 +106,10 @@ func (x *ConsensusParams) Bytes() []byte {
 
 func (x *ConsensusParams) Sign(id string, signer crypto.Signer) error {
 	if x == nil {
-		return ErrConsensusParamsIsNil
+		return errors.New(ErrConsensusParamsIsNil)
 	}
 	if signer == nil {
-		return certificates.ErrSignerIsNil
+		return errors.New(ErrSignerIsNil)
 	}
 	signature, err := signer.SignBytes(x.Bytes())
 	if err != nil {
@@ -127,18 +125,18 @@ func (x *ConsensusParams) Sign(id string, signer crypto.Signer) error {
 
 func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
 	if x == nil {
-		return ErrConsensusParamsIsNil
+		return errors.New(ErrConsensusParamsIsNil)
 	}
 	if verifiers == nil {
-		return certificates.ErrRootValidatorInfoMissing
+		return errors.New(ErrRootValidatorInfoMissing)
 	}
 	if len(x.Signatures) == 0 {
-		return ErrConsensusNotSigned
+		return errors.New(ErrConsensusNotSigned)
 	}
-	// If there is more signatures, then we will give more detailed info below (what id is missing)
+	// If there are more signatures, then we will give more detailed info below on what id is missing
 	// todo: consider that verification is costly, so perhaps it would still make sense to escape early
 	if len(x.Signatures) < len(verifiers) {
-		return ErrConsensusIsNotSignedByAll
+		return errors.New(ErrConsensusIsNotSignedByAll)
 	}
 	// Verify all signatures, all must be from known origin and valid
 	for id, sig := range x.Signatures {

@@ -28,7 +28,7 @@ func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlg
 		return ErrPartitionGenesisIsNil
 	}
 	if len(verifiers) == 0 {
-		return ErrMissingPubKeyInfo
+		return errors.New(ErrVerifiersEmpty)
 	}
 	if len(x.Keys) < 1 {
 		return ErrKeysAreMissing

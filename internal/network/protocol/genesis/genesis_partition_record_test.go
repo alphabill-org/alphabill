@@ -42,10 +42,10 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name:    "verifier is nil",
-			args:    args{verifier: nil},
-			fields:  fields{},
-			wantErr: ErrVerifierIsNil,
+			name:       "verifier is nil",
+			args:       args{verifier: nil},
+			fields:     fields{},
+			wantErrStr: ErrVerifiersEmpty,
 		},
 		{
 			name:    "nodes missing",

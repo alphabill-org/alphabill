@@ -3,33 +3,32 @@ package genesis
 import (
 	"bytes"
 	gocrypto "crypto"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
-var (
-	ErrRootGenesisIsNil       = errors.New("root genesis is nil")
-	ErrRootGenesisRecordIsNil = errors.New("root genesis record is nil")
-	ErrVerifierIsNil          = errors.New("verifier is nil")
-	ErrPartitionsNotFound     = errors.New("partitions not found")
-	ErrMissingConsensusSig    = errors.New("missing consensus signature")
-	ErrMissingPubKeyInfo      = errors.New("missing rood validator info")
+const (
+	ErrRootGenesisIsNil       = "root genesis is nil"
+	ErrRootGenesisRecordIsNil = "root genesis record is nil"
+	ErrVerifierIsNil          = "verifier is nil"
+	ErrPartitionsNotFound     = "partitions not found"
 )
 
 // IsValid verifies that the genesis file is signed by the generator and that the public key is included
 func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 	if x == nil {
-		return ErrRootGenesisIsNil
+		return errors.New(ErrRootGenesisIsNil)
 	}
 	if verifier == nil {
-		return ErrVerifierIsNil
+		return errors.New(ErrVerifierIsNil)
 	}
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return err
 	}
 	if x.Root == nil {
-		return ErrRootGenesisRecordIsNil
+		return errors.New(ErrRootGenesisRecordIsNil)
 	}
 	// check the root genesis record is valid
 	err = x.Root.IsValid()
@@ -39,7 +38,7 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 	// verify that the signing public key is present in root validator info
 	pubKeyInfo := x.Root.FindPubKeyById(rootId)
 	if pubKeyInfo == nil {
-		return ErrMissingPubKeyInfo
+		return errors.Errorf("Missing public key info for node id %v", rootId)
 	}
 	// Compare keys
 	if !bytes.Equal(pubKeyBytes, pubKeyInfo.SigningPublicKey) {
@@ -48,7 +47,7 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 	// Verify that UC Seal has been correctly signed
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
 	if len(x.Partitions) == 0 {
-		return ErrPartitionsNotFound
+		return errors.New(ErrPartitionsNotFound)
 	}
 	verifiers := map[string]crypto.Verifier{rootId: verifier}
 	for _, p := range x.Partitions {
@@ -63,10 +62,10 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 // validators
 func (x *RootGenesis) Verify() error {
 	if x == nil {
-		return ErrRootGenesisIsNil
+		return errors.New(ErrRootGenesisIsNil)
 	}
 	if x.Root == nil {
-		return ErrRootGenesisRecordIsNil
+		return errors.New(ErrRootGenesisRecordIsNil)
 	}
 	// Verify that the root genesis record is valid and signed by all validators
 	err := x.Root.Verify()
@@ -75,7 +74,7 @@ func (x *RootGenesis) Verify() error {
 	}
 	// Check that the number of signatures on partition UC Seal matches the number of root validators
 	if len(x.Partitions) == 0 {
-		return ErrPartitionsNotFound
+		return errors.New(ErrPartitionsNotFound)
 	}
 	// Check all signatures on Partition UC Seals
 	verifiers, err := NewValidatorTrustBase(x.Root.RootValidators)

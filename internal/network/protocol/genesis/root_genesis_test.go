@@ -2,7 +2,6 @@ package genesis
 
 import (
 	gocrypto "crypto"
-	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -42,11 +41,10 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		verifier crypto.Verifier
 	}
 	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErr    error
-		wantErrStr string
+		name    string
+		fields  fields
+		args    args
+		wantErr string
 	}{
 		{
 			name:    "verifier is nil",
@@ -63,7 +61,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 					RootValidators: []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
 					Consensus:      rootConsensus},
 			},
-			wantErr: ErrMissingPubKeyInfo,
+			wantErr: "Missing public key info for node id",
 		},
 		{
 			name: "partitions not found",
@@ -91,7 +89,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 				},
 				Partitions: []*GenesisPartitionRecord{nil},
 			},
-			wantErr: ErrGenesisPartitionRecordIsNil,
+			wantErr: ErrGenesisPartitionRecordIsNil.Error(),
 		},
 	}
 	for _, tt := range tests {
@@ -101,12 +99,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 				Partitions: tt.fields.Partitions,
 			}
 			err := x.IsValid("1", tt.args.verifier)
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
-			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
-			}
-
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -114,7 +107,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 func TestRootGenesis_IsValid_Nil(t *testing.T) {
 	var rg *RootGenesis = nil
 	err := rg.IsValid("", nil)
-	require.ErrorIs(t, err, ErrRootGenesisIsNil)
+	require.ErrorContains(t, err, ErrRootGenesisIsNil)
 }
 
 func TestRootGenesis(t *testing.T) {

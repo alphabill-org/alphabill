@@ -5,15 +5,18 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
-var (
-	ErrValidatorPublicInfoIsEmpty = errors.New("public key info is empty")
+const (
+	ErrValidatorPublicInfoIsEmpty    = "public key info is empty"
+	ErrPubKeyNodeIdentifierIsEmpty   = "public key info node identifier empty"
+	ErrPubKeyInfoSigningKeyIsInvalid = "public key info singing key is invalid"
+	ErrPubKeyInfoEncryptionIsInvalid = "public key info encryption key is invalid"
 )
 
 // NewValidatorTrustBase creates a verifier to node id map from public key info using the signing public key.
 func NewValidatorTrustBase(publicKeyInfo []*PublicKeyInfo) (map[string]crypto.Verifier, error) {
 	// If is nil or empty - return the same error
 	if len(publicKeyInfo) == 0 {
-		return nil, ErrValidatorPublicInfoIsEmpty
+		return nil, errors.New(ErrValidatorPublicInfoIsEmpty)
 	}
 	// Create a map of all validator node identifier to verifier (public signing keys)
 	nodeIdToKey := make(map[string]crypto.Verifier)
@@ -33,7 +36,7 @@ func NewValidatorTrustBase(publicKeyInfo []*PublicKeyInfo) (map[string]crypto.Ve
 // id or public key. There is one exception, currently a validator can use the same key for encryption and signing.
 func ValidatorInfoUnique(validators []*PublicKeyInfo) error {
 	if len(validators) == 0 {
-		return ErrValidatorPublicInfoIsEmpty
+		return errors.New(ErrValidatorPublicInfoIsEmpty)
 	}
 	var ids = make(map[string]string)
 	var signingKeys = make(map[string][]byte)
@@ -66,20 +69,20 @@ func ValidatorInfoUnique(validators []*PublicKeyInfo) error {
 // IsValid validates that all fields are correctly set and public keys are correct.
 func (x *PublicKeyInfo) IsValid() error {
 	if x == nil {
-		return ErrValidatorPublicInfoIsEmpty
+		return errors.New(ErrValidatorPublicInfoIsEmpty)
 	}
 	if x.NodeIdentifier == "" {
-		return ErrNodeIdentifierIsEmpty
+		return errors.New(ErrPubKeyNodeIdentifierIsEmpty)
 	}
 	if len(x.SigningPublicKey) == 0 {
-		return ErrSigningPublicKeyIsInvalid
+		return errors.New(ErrPubKeyInfoSigningKeyIsInvalid)
 	}
 	_, err := crypto.NewVerifierSecp256k1(x.SigningPublicKey)
 	if err != nil {
 		return err
 	}
 	if len(x.EncryptionPublicKey) == 0 {
-		return ErrEncryptionPublicKeyIsInvalid
+		return errors.New(ErrPubKeyInfoEncryptionIsInvalid)
 	}
 	_, err = crypto.NewVerifierSecp256k1(x.EncryptionPublicKey)
 	if err != nil {

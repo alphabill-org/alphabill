@@ -72,10 +72,9 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		Consensus      *ConsensusParams
 	}
 	tests := []struct {
-		name       string
-		fields     fields
-		wantErr    error
-		wantErrStr string
+		name    string
+		fields  fields
+		wantErr string
 	}{
 		{
 			name: "Root validators nil",
@@ -114,7 +113,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "t", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
 				Consensus:      consensus},
-			wantErrStr: "Consensus signed by unknown validator:",
+			wantErr: "Consensus signed by unknown validator:",
 		},
 	}
 	for _, tt := range tests {
@@ -123,12 +122,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 				RootValidators: tt.fields.RootValidators,
 				Consensus:      tt.fields.Consensus,
 			}
-			err := x.IsValid()
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			} else {
-				require.ErrorContains(t, err, tt.wantErrStr)
-			}
+			require.ErrorContains(t, x.IsValid(), tt.wantErr)
 		})
 	}
 }
@@ -203,10 +197,9 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 		Consensus      *ConsensusParams
 	}
 	tests := []struct {
-		name       string
-		fields     fields
-		wantErr    error
-		wantErrStr string
+		name    string
+		fields  fields
+		wantErr string
 	}{
 		{
 			name: "Root validators nil",
@@ -237,12 +230,7 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 				RootValidators: tt.fields.RootValidators,
 				Consensus:      tt.fields.Consensus,
 			}
-			err := x.Verify()
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			} else {
-				require.ErrorContains(t, err, tt.wantErrStr)
-			}
+			require.ErrorContains(t, x.Verify(), tt.wantErr)
 		})
 	}
 }

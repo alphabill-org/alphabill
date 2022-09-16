@@ -9,8 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
 
-var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
-var ErrQuorumThresholdOnlyDistributed = errors.New("Quorum threshold must only be less than total nodes in root chain")
+const (
+	ErrEncryptionPubKeyIsNil          = "encryption public key is nil"
+	ErrQuorumThresholdOnlyDistributed = "Quorum threshold must only be less than total nodes in root chain"
+)
 
 type (
 	RootNodeInfo struct {
@@ -54,13 +56,13 @@ func (c *rootGenesisConf) isValid() error {
 		return ErrSignerIsNil
 	}
 	if len(c.encryptionPubKeyBytes) == 0 {
-		return ErrEncryptionPubKeyIsNil
+		return errors.New(ErrEncryptionPubKeyIsNil)
 	}
 	if c.totalValidators > 1 && c.totalValidators < genesis.MinDistributedRootValidators {
-		return genesis.ErrInvalidNumberOfRootValidators
+		return errors.New(genesis.ErrInvalidNumberOfRootValidators)
 	}
 	if c.totalValidators < c.quorumThreshold {
-		return ErrQuorumThresholdOnlyDistributed
+		return errors.New(ErrQuorumThresholdOnlyDistributed)
 	}
 	return nil
 }

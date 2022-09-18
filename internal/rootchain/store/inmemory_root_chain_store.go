@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/pkg/errors"
 )
 
 // InMemoryRootChainStore keeps track of latest unicity certificates.
@@ -59,12 +60,14 @@ func (u *InMemoryRootChainStore) GetPreviousRoundRootHash() []byte {
 	return u.previousRoundRootHash
 }
 
-func (u *InMemoryRootChainStore) PrepareNextRound(previousRoundRootHash []byte, ucs []*certificates.UnicityCertificate) uint64 {
+func (u *InMemoryRootChainStore) SaveState(previousRoundRootHash []byte, ucs []*certificates.UnicityCertificate, newRoundNumber uint64) {
+	if u.roundNumber+1 != newRoundNumber {
+		panic(errors.Errorf("Inconsistent round number, current=%v, new=%v", u.roundNumber, newRoundNumber))
+	}
 	u.roundNumber++
 	u.previousRoundRootHash = previousRoundRootHash
 	for _, cert := range ucs {
 		u.ucStore[p.SystemIdentifier(cert.UnicityTreeCertificate.SystemIdentifier)] = cert
 	}
 	u.inputRecords = make(map[p.SystemIdentifier]*certificates.InputRecord)
-	return u.GetRoundNumber()
 }

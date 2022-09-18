@@ -5,6 +5,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/pkg/errors"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -179,12 +180,13 @@ func (s *BoltRootChainStore) GetPreviousRoundRootHash() []byte {
 	return hash
 }
 
-func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte, ucs []*certificates.UnicityCertificate) uint64 {
-	var roundNr uint64
+func (s *BoltRootChainStore) SaveState(prevStateHash []byte, ucs []*certificates.UnicityCertificate, newRoundNumber uint64) {
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		roundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
-		roundNr++
-		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(roundNr)); err != nil {
+		prevRoundNr := util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
+		if prevRoundNr+1 != newRoundNumber {
+			return errors.Errorf("Inconsistent round number, current=%v, new=%v", prevRoundNr, newRoundNumber)
+		}
+		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(newRoundNumber)); err != nil {
 			return err
 		}
 		certsBucket := tx.Bucket(ucBucket)
@@ -207,5 +209,4 @@ func (s *BoltRootChainStore) PrepareNextRound(prevStateHash []byte, ucs []*certi
 	if err != nil {
 		panic(err)
 	}
-	return roundNr
 }

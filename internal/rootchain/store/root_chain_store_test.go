@@ -32,6 +32,7 @@ func TestRootStore(t *testing.T) {
 			test_New(t, tt.store)
 			test_IR(t, tt.store)
 			test_nextRound(t, tt.store)
+			test_badNextRound(t, tt.store)
 		})
 	}
 }
@@ -63,11 +64,24 @@ func test_nextRound(t *testing.T, rs RootChainStore) {
 
 	round := rs.GetRoundNumber()
 	hash := []byte{1}
-	rs.PrepareNextRound([]byte{1}, []*certificates.UnicityCertificate{uc})
+	rs.SaveState([]byte{1}, []*certificates.UnicityCertificate{uc}, round+1)
 
 	require.Equal(t, uc, rs.GetUC(sysId))
 	require.Equal(t, round+1, rs.GetRoundNumber())
 	require.Equal(t, hash, rs.GetPreviousRoundRootHash())
+}
+
+func test_badNextRound(t *testing.T, rs RootChainStore) {
+	uc := &certificates.UnicityCertificate{
+		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			SystemIdentifier: sysId.Bytes(),
+		},
+	}
+
+	round := rs.GetRoundNumber()
+	require.PanicsWithError(t, "Inconsistent round number, current=2, new=2", func() {
+		rs.SaveState([]byte{1}, []*certificates.UnicityCertificate{uc}, round)
+	})
 }
 
 func createBoltRootStore(t *testing.T) *BoltRootChainStore {

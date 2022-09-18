@@ -13,5 +13,5 @@ type RootChainStore interface {
 	GetAllIRs() map[p.SystemIdentifier]*certificates.InputRecord
 	GetRoundNumber() uint64
 	GetPreviousRoundRootHash() []byte
-	PrepareNextRound([]byte, []*certificates.UnicityCertificate) uint64
+	SaveState([]byte, []*certificates.UnicityCertificate, uint64)
 }

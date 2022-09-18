@@ -54,7 +54,7 @@ func NewState(g *genesis.RootGenesis, signer crypto.Signer, store store.RootChai
 		requests.reset()
 	}
 
-	s.store.PrepareNextRound(g.GetRoundHash(), certs)
+	s.PrepareNextRound(g.GetRoundHash(), certs, s.GetRoundNumber()+1)
 	return s, nil
 }
 
@@ -216,7 +216,7 @@ func (s *State) CreateUnicityCertificates() ([]p.SystemIdentifier, error) {
 		}
 	}
 
-	s.store.PrepareNextRound(rootHash, certs)
+	s.PrepareNextRound(rootHash, certs, unicitySeal.RootChainRoundNumber+1)
 	return systemIdentifiers, nil
 }
 
@@ -280,4 +280,8 @@ func (s *State) isInputRecordValid(req *certification.BlockCertificationRequest)
 
 func (s *State) GetRoundNumber() uint64 {
 	return s.store.GetRoundNumber()
+}
+
+func (s *State) PrepareNextRound(prevStateHash []byte, ucs []*certificates.UnicityCertificate, newRoundNumber uint64) {
+	s.store.SaveState(prevStateHash, ucs, newRoundNumber)
 }

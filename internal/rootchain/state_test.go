@@ -85,7 +85,18 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 
 	s2 := createStateAndExecuteRound(t, partitions, rootSigner)
 	require.NoError(t, err)
-	require.Equal(t, s1, s2)
+	require.Equal(t, s1.roundNumber, s2.roundNumber, 2)
+	require.Equal(t, s1.previousRoundRootHash, s2.previousRoundRootHash)
+	require.Equal(t, s1.partitionStore, s2.partitionStore)
+	require.Equal(t, s1.latestUnicityCertificates, s2.latestUnicityCertificates)
+	require.Equal(t, s1.inputRecords, s2.inputRecords)
+	// Root genesis does not contain incoming requests,this is a runtime store
+	require.Empty(t, s1.incomingRequests)
+	// When state is constructed from partition genesis files, the incoming requests is initiated with partition requests
+	require.NotEmpty(t, s2.incomingRequests)
+	require.Equal(t, s1.hashAlgorithm, s2.hashAlgorithm)
+	require.Equal(t, s1.signer, s2.signer)
+	require.Equal(t, s1.verifier, s2.verifier)
 }
 
 func TestNewStateFromPartitionRecords_Ok(t *testing.T) {

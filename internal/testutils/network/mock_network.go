@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type MockNet struct {

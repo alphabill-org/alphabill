@@ -7,7 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/imt"
+	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -41,9 +41,9 @@ func TestCreatePrimaryProof_OnlyPrimaryTransactions(t *testing.T) {
 
 	// verify hash chain
 	leaves, _ := blockTreeLeaves(b.Transactions, hashAlgorithm)
-	tree, _ := imt.New(leaves, hashAlgorithm)
+	tree, _ := omt.New(leaves, hashAlgorithm)
 	chain, _ := tree.GetMerklePath(tx.UnitId)
-	root := imt.EvalMerklePath(chain, tx.UnitId, hashAlgorithm)
+	root := omt.EvalMerklePath(chain, tx.UnitId, hashAlgorithm)
 	require.Equal(t, "51DED96EFFA752C15D49E86A4C87E60AC21A09FC6AFC5E18E4650FD69531E413", fmt.Sprintf("%X", root))
 
 	// verify primary proof for each transaction

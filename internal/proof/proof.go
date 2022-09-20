@@ -6,8 +6,8 @@ import (
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/imt"
 	"github.com/alphabill-org/alphabill/internal/mt"
+	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 )
@@ -92,7 +92,7 @@ func FromProtobuf(proof *BlockMerkleProof) []*mt.PathItem {
 	return dstPathItems
 }
 
-func ToProtobufHashChain(chain []*imt.Data) []*ChainItem {
+func ToProtobufHashChain(chain []*omt.Data) []*ChainItem {
 	r := make([]*ChainItem, len(chain))
 	for i, c := range chain {
 		r[i] = &ChainItem{Val: c.Val, Hash: c.Hash}
@@ -101,8 +101,8 @@ func ToProtobufHashChain(chain []*imt.Data) []*ChainItem {
 }
 
 // treeChain returns hash tree chain from given unit to root
-func treeChain(unitId []byte, leaves []*imt.Data, hashAlgorithm crypto.Hash) ([]*imt.Data, error) {
-	tree, err := imt.New(leaves, hashAlgorithm)
+func treeChain(unitId []byte, leaves []*omt.Data, hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
+	tree, err := omt.New(leaves, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -158,8 +158,8 @@ func extractTransactions(txs []*txsystem.Transaction, unitId []byte, txTypeProvi
 }
 
 // blockTreeLeaves creates input for block tree
-func blockTreeLeaves(txs []*txsystem.Transaction, hashAlgorithm crypto.Hash) ([]*imt.Data, error) {
-	leaves := make([]*imt.Data, len(txs))
+func blockTreeLeaves(txs []*txsystem.Transaction, hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
+	leaves := make([]*omt.Data, len(txs))
 	identifiers := extractIdentifiers(txs)
 	for i, unitId := range identifiers {
 		primTx, secTxs := extractTransactions(txs, unitId, money.TxTypeProvider)
@@ -167,7 +167,7 @@ func blockTreeLeaves(txs []*txsystem.Transaction, hashAlgorithm crypto.Hash) ([]
 		if err != nil {
 			return nil, err
 		}
-		leaves[i] = &imt.Data{Val: unitId, Hash: hash}
+		leaves[i] = &omt.Data{Val: unitId, Hash: hash}
 	}
 	return leaves, nil
 }
@@ -212,7 +212,7 @@ func newEmptyBlockProof(b *block.Block, hashAlgorithm crypto.Hash) *BlockProofV2
 	}
 }
 
-func newNotransBlockProof(b *block.Block, chain []*imt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newNotransBlockProof(b *block.Block, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -222,7 +222,7 @@ func newNotransBlockProof(b *block.Block, chain []*imt.Data, hashAlgorithm crypt
 	}
 }
 
-func newPrimBlockProof(b *block.Block, hashValue []byte, chain []*imt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newPrimBlockProof(b *block.Block, hashValue []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_PRIM,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -232,7 +232,7 @@ func newPrimBlockProof(b *block.Block, hashValue []byte, chain []*imt.Data, hash
 	}
 }
 
-func newOnlysecBlockProof(b *block.Block, secHash []byte, chain []*imt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newOnlysecBlockProof(b *block.Block, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),

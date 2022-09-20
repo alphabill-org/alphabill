@@ -11,34 +11,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIMTWithNilInput_ReturnsError(t *testing.T) {
-	mt, err := New(nil, crypto.SHA256)
-	require.Nil(t, mt)
+func TestOMTWithNilInput_ReturnsError(t *testing.T) {
+	tree, err := New(nil, crypto.SHA256)
+	require.Nil(t, tree)
 	require.ErrorIs(t, err, ErrNilData)
 }
 
-func TestIMTWithEmptyInput_RootHashIsZeroHash(t *testing.T) {
-	imt, err := New([]*Data{}, crypto.SHA256)
+func TestOMTWithEmptyInput_RootHashIsZeroHash(t *testing.T) {
+	tree, err := New([]*Data{}, crypto.SHA256)
 	require.NoError(t, err)
-	require.NotNil(t, imt)
-	require.Equal(t, make([]byte, 32), imt.GetRootHash())
+	require.NotNil(t, tree)
+	require.Equal(t, make([]byte, 32), tree.GetRootHash())
 }
 
-func TestIMTWithSingleNode(t *testing.T) {
+func TestOMTWithSingleNode(t *testing.T) {
 	unitId := uint64(1)
 	unitIdBytes := util.Uint64ToBytes(unitId)
 
 	data := []*Data{{Val: unitIdBytes, Hash: unitIdBytes}}
-	imt, err := New(data, crypto.SHA256)
+	tree, err := New(data, crypto.SHA256)
 	require.NoError(t, err)
-	require.NotNil(t, imt)
-	require.NotNil(t, imt.GetRootHash())
+	require.NotNil(t, tree)
+	require.NotNil(t, tree.GetRootHash())
 
 	expectedRootHash := hashLeaf(data[0], crypto.SHA256)
-	require.Equal(t, expectedRootHash, imt.GetRootHash())
+	require.Equal(t, expectedRootHash, tree.GetRootHash())
 }
 
-func TestIMTWithOddNumberOfLeaves(t *testing.T) {
+func TestOMTWithOddNumberOfLeaves(t *testing.T) {
 	var data []*Data
 	data = append(data, makeData(1))
 	data = append(data, makeData(3))
@@ -58,20 +58,20 @@ func TestIMTWithOddNumberOfLeaves(t *testing.T) {
 	//│       └── 1=0777A62CF9F686541E8D38C65C278DA7A09A67FB52C1297EF7A8FBFEA9E34F5C
 
 	hashAlgorithm := crypto.SHA256
-	imt, err := New(data, hashAlgorithm)
+	tree, err := New(data, hashAlgorithm)
 	require.NoError(t, err)
-	require.NotNil(t, imt)
+	require.NotNil(t, tree)
 
 	// verify path from every leaf leads to root
 	for _, d := range data {
-		path, _ := imt.GetMerklePath(d.Val)
+		path, _ := tree.GetMerklePath(d.Val)
 		root := EvalMerklePath(path, d.Val, hashAlgorithm)
 		require.Equal(t, "150174754AA19432198CCC89D50D80F86E96C02816906914786DDA516657547A", fmt.Sprintf("%X", root),
 			"failed to eval path for leaf %X", d.Val)
 	}
 }
 
-func TestIMTWithEvenNumberOfLeaves(t *testing.T) {
+func TestOMTWithEvenNumberOfLeaves(t *testing.T) {
 	var data []*Data
 	data = append(data, makeData(1))
 	data = append(data, makeData(3))
@@ -93,13 +93,13 @@ func TestIMTWithEvenNumberOfLeaves(t *testing.T) {
 	//│   └── 1=F0398B5F065EDF7DF507DD806097BD4012CD403C72636BD2FD2B72A6401E6BFA
 	//│       └── 1=0777A62CF9F686541E8D38C65C278DA7A09A67FB52C1297EF7A8FBFEA9E34F5C
 	hashAlgorithm := crypto.SHA256
-	imt, err := New(data, hashAlgorithm)
+	tree, err := New(data, hashAlgorithm)
 	require.NoError(t, err)
-	require.NotNil(t, imt)
+	require.NotNil(t, tree)
 
 	// verify path from every leaf leads to root
 	for _, d := range data {
-		path, _ := imt.GetMerklePath(d.Val)
+		path, _ := tree.GetMerklePath(d.Val)
 		root := EvalMerklePath(path, d.Val, hashAlgorithm)
 		require.Equal(t, "96AEB4BBB770AADC186BF634D7AE3ED0F6100BE612F3662D27019232CC9BED4F", fmt.Sprintf("%X", root),
 			"failed to eval path for leaf %X", d.Val)

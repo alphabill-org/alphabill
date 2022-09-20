@@ -25,27 +25,20 @@ func TestIMTWithEmptyInput_RootHashIsZeroHash(t *testing.T) {
 }
 
 func TestIMTWithSingleNode(t *testing.T) {
-	hasher := crypto.SHA256.New()
 	unitId := uint64(1)
 	unitIdBytes := util.Uint64ToBytes(unitId)
 
-	data := []*Data{{Val: unitIdBytes, Hash: unitIdBytes /*LeafHash: unitIdBytes*/}}
+	data := []*Data{{Val: unitIdBytes, Hash: unitIdBytes}}
 	imt, err := New(data, crypto.SHA256)
 	require.NoError(t, err)
 	require.NotNil(t, imt)
 	require.NotNil(t, imt.GetRootHash())
 
-	hasher.Reset()
-	hasher.Write([]byte{1})
-	hasher.Write(data[0].Val)
-	hasher.Write(data[0].Hash)
-	//hasher.Write(data[0].LeafHash)
-	expectedRootHash := hasher.Sum(nil)
+	expectedRootHash := hashLeaf(data[0], crypto.SHA256)
 	require.Equal(t, expectedRootHash, imt.GetRootHash())
 }
 
 func TestIMTWithOddNumberOfLeaves(t *testing.T) {
-	hashAlgorithm := crypto.SHA256
 	var data []*Data
 	data = append(data, makeData(1))
 	data = append(data, makeData(3))
@@ -64,17 +57,17 @@ func TestIMTWithOddNumberOfLeaves(t *testing.T) {
 	//│   └── 1=80DF7BA4A496FF0710360A6F32CD5A7F76FF0CC762C944782FAD41B712174EF2
 	//│       └── 1=0777A62CF9F686541E8D38C65C278DA7A09A67FB52C1297EF7A8FBFEA9E34F5C
 
+	hashAlgorithm := crypto.SHA256
 	imt, err := New(data, hashAlgorithm)
-	fmt.Println(imt.PrettyPrint())
 	require.NoError(t, err)
 	require.NotNil(t, imt)
 
 	// verify path from every leaf leads to root
-	for _, leaf := range data {
-		path, _ := imt.GetMerklePath(leaf.Val)
-		root := EvalMerklePath(path, leaf, hashAlgorithm)
+	for _, d := range data {
+		path, _ := imt.GetMerklePath(d.Val)
+		root := EvalMerklePath(path, d.Val, hashAlgorithm)
 		require.Equal(t, "150174754AA19432198CCC89D50D80F86E96C02816906914786DDA516657547A", fmt.Sprintf("%X", root),
-			"failed to eval path for leaf %X", leaf.Val)
+			"failed to eval path for leaf %X", d.Val)
 	}
 }
 
@@ -105,23 +98,12 @@ func TestIMTWithEvenNumberOfLeaves(t *testing.T) {
 	require.NotNil(t, imt)
 
 	// verify path from every leaf leads to root
-	for _, leaf := range data {
-		path, _ := imt.GetMerklePath(leaf.Val)
-		root := EvalMerklePath(path, leaf, hashAlgorithm)
+	for _, d := range data {
+		path, _ := imt.GetMerklePath(d.Val)
+		root := EvalMerklePath(path, d.Val, hashAlgorithm)
 		require.Equal(t, "96AEB4BBB770AADC186BF634D7AE3ED0F6100BE612F3662D27019232CC9BED4F", fmt.Sprintf("%X", root),
-			"failed to eval path for leaf %X", leaf.Val)
+			"failed to eval path for leaf %X", d.Val)
 	}
-}
-
-func TestName(t *testing.T) {
-	hasher := crypto.SHA256.New()
-	hasher.Write([]byte{1})
-	sum := hasher.Sum(nil)
-	fmt.Println(fmt.Sprintf("%X", sum))
-
-	hasher.Reset()
-	sum = hasher.Sum([]byte{1})
-	fmt.Println(fmt.Sprintf("%X", sum))
 }
 
 func makeData(num uint64) *Data {

@@ -167,7 +167,7 @@ func (s *MerkleTree) output(node *node, prefix string, isTail bool, str *string)
 
 func createMerkleTree(data []Data, hashAlgorithm crypto.Hash) *node {
 	if len(data) == 0 {
-		return nil
+		return &node{hash: make([]byte, hashAlgorithm.Size())}
 	}
 	if len(data) == 1 {
 		return &node{hash: data[0].Hash(hashAlgorithm)}

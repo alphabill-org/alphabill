@@ -26,7 +26,7 @@ func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*p
 
 	return &proof.BlockProof{
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
-		MerkleProof:        mt.ToProtobuf(path),
+		MerkleProof:        proof.ToProtobuf(path),
 		UnicityCertificate: b.UnicityCertificate,
 	}, nil
 }

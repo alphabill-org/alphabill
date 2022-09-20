@@ -13,9 +13,40 @@ message BlockProof {
 message BlockMerkleProof {
   repeated MerklePathItem path_items = 1;
 }
+
 message MerklePathItem {
   // DirectionLeft direction from parent node; left=true right=false
   bool direction_left = 1;
   // PathItem Hash of Merkle Tree node
   bytes path_item = 2;
+}
+
+enum ProofType {
+  PRIM = 0;
+  SEC = 1;
+  ONLYSEC = 2;
+  NOTRANS = 3;
+  EMPTYBLOCK = 4;
+}
+
+message BlockProofV2 {
+  ProofType proof_type = 1;
+  bytes block_header_hash = 2;
+  bytes hash_value = 3;
+  BlockTreeHashChain block_tree_hash_chain = 4;
+  SecTreeHashChain sec_tree_hash_chain = 5;
+  UnicityCertificate unicity_certificate = 6;
+}
+
+message BlockTreeHashChain {
+  repeated ChainItem items = 1;
+}
+
+message SecTreeHashChain {
+  repeated MerklePathItem items = 1;
+}
+
+message ChainItem {
+  bytes val = 1;
+  bytes hash = 2;
 }

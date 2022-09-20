@@ -16,7 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p/core/crypto"
 )
 
 const (

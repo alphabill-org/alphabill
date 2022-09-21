@@ -713,9 +713,9 @@ func (n *Node) finalizeBlock(b *block.Block) error {
 }
 
 func (n *Node) handleT1TimeoutEvent() {
+	n.stopForwardingOrHandlingTransactions()
 	defer func() {
 		n.leaderSelector.UpdateLeader(nil)
-		n.stopForwardingOrHandlingTransactions()
 	}()
 	if n.status == recovering {
 		logger.Info("T1 timeout: node is recovering")

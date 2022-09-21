@@ -817,6 +817,8 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 
 		_, err := n.applyBlock(b.BlockNumber, b)
 		if err != nil {
+			n.revertState()
+			n.stopRecovery(n.GetLatestBlock().UnicityCertificate)
 			return errors.Wrapf(err, "recovery failed")
 		}
 

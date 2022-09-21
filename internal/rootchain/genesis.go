@@ -3,6 +3,7 @@ package rootchain
 import (
 	"bytes"
 	gocrypto "crypto"
+
 	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -13,7 +14,7 @@ import (
 
 const (
 	ErrEncryptionPubKeyIsNil          = "encryption public key is nil"
-	ErrQuorumThresholdOnlyDistributed = "Quorum threshold must only be less than total nodes in root chain"
+	ErrQuorumThresholdOnlyDistributed = "quorum threshold must only be less than total nodes in root chain"
 )
 
 type (
@@ -254,7 +255,7 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 
 func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	if len(rootGenesis) < genesis.MinDistributedRootValidators {
-		return nil, nil, errors.New("No enough root genesis files")
+		return nil, nil, errors.Errorf("distributed root chain genesis requires at least %v root node genesis files", genesis.MinDistributedRootValidators)
 	}
 	// Take the first and start appending to it from the rest
 	rg, rest := rootGenesis[0], rootGenesis[1:]

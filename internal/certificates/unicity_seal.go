@@ -17,7 +17,7 @@ var (
 	ErrInvalidBlockNumber           = errors.New("invalid block number")
 	ErrUnicitySealSignatureIsNil    = errors.New("no signatures")
 	ErrRootValidatorInfoMissing     = errors.New("root validator info is missing")
-	ErrUnknownSigner                = errors.New("Unknown signer")
+	ErrUnknownSigner                = errors.New("unknown signer")
 )
 
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {

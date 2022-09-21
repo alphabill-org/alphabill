@@ -695,9 +695,10 @@ func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *cert
 	}
 	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, err
 	}
-	return b, blockHash, err
+	logger.Debug("Proposal hash: %X", blockHash)
+	return b, blockHash, nil
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.

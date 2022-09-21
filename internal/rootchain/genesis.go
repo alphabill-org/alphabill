@@ -255,7 +255,7 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 
 func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	if len(rootGenesis) < genesis.MinDistributedRootValidators {
-		return nil, nil, errors.Errorf("distributed root chain genesis requires at least %v root node genesis files", genesis.MinDistributedRootValidators)
+		return nil, nil, errors.Errorf("distributed root chain genesis requires at least %v root validator genesis files", genesis.MinDistributedRootValidators)
 	}
 	// Take the first and start appending to it from the rest
 	rg, rest := rootGenesis[0], rootGenesis[1:]

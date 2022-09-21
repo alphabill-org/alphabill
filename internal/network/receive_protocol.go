@@ -2,7 +2,7 @@ package network
 
 import (
 	"github.com/alphabill-org/alphabill/internal/errors"
-	libp2pNetwork "github.com/libp2p/go-libp2p-core/network"
+	libp2pNetwork "github.com/libp2p/go-libp2p/core/network"
 	"google.golang.org/protobuf/proto"
 )
 

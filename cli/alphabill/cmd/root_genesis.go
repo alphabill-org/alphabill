@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"os"
 	"path"
+
+	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"

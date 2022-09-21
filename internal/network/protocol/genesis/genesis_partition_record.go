@@ -2,6 +2,7 @@ package genesis
 
 import (
 	gocrypto "crypto"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -40,6 +41,6 @@ func (x *GenesisPartitionRecord) IsValid(verifiers map[string]crypto.Verifier, h
 	return nil
 }
 
-func (x *GenesisPartitionRecord) GetSystemIdentifierString() string {
-	return string(x.SystemDescriptionRecord.SystemIdentifier)
+func (x *GenesisPartitionRecord) GetSystemIdentifierString() p.SystemIdentifier {
+	return p.SystemIdentifier(x.SystemDescriptionRecord.SystemIdentifier)
 }

@@ -3,6 +3,7 @@ package partition
 import (
 	gocrypto "crypto"
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -146,7 +147,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
-	systemIdentifier := string(tp.nodeConf.GetSystemIdentifier())
+	systemIdentifier := p.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
 	// produce some root chain rounds
 	tp.rootState.CopyOldInputRecords(systemIdentifier)
 	_, err := tp.rootState.CreateUnicityCertificates()
@@ -236,6 +237,37 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
 	ContainsError(t, tp, "equivocating certificates. previous IR hash ")
+}
+
+// state does not change in case of no transactions in money partition
+func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t *testing.T) {
+	txs := &testtxsystem.CounterTxSystem{}
+	tp := NewSingleNodePartition(t, txs)
+	defer tp.Close()
+	initialBlock := tp.GetLatestBlock()
+	require.NoError(t, tp.CreateBlock(t))
+	require.Eventually(t, NextBlockReceived(tp, initialBlock), test.WaitDuration, test.WaitTick)
+
+	latestFinalizedBlock := tp.GetLatestBlock()
+	tp.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
+	tp.partition.startNewRound(tp.partition.luc)
+	// create block proposal
+	tp.SubmitT1Timeout(t)
+	require.Equal(t, uint64(0), txs.RevertCount)
+
+	// create UC which certifies 'latestFinalizedBlock', not the current block proposal
+	ir := proto.Clone(latestFinalizedBlock.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+
+	uc, err := tp.CreateUnicityCertificate(
+		ir,
+		latestFinalizedBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
+		latestFinalizedBlock.UnicityCertificate.UnicitySeal.PreviousHash,
+	)
+	require.NoError(t, err)
+
+	tp.SubmitUnicityCertificate(uc)
+	ContainsError(t, tp, ErrStateReverted.Error())
+	require.Equal(t, uint64(1), txs.RevertCount)
 }
 
 func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {

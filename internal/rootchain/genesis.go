@@ -3,9 +3,11 @@ package rootchain
 import (
 	"bytes"
 	gocrypto "crypto"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
 
@@ -141,13 +143,13 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		return nil, nil, err
 	}
 	// initiate State
-	state, err := NewStateFromPartitionRecords(partitions, c.peerID, c.signer, gocrypto.SHA256)
+	state, err := NewStateFromPartitionRecords(partitions, c.peerID, c.signer, gocrypto.SHA256, rstore.NewInMemoryRootChainStore())
 	if err != nil {
 		return nil, nil, err
 	}
 	// verify that we have consensus between the partition nodes.
-	for _, p := range partitions {
-		id := string(p.SystemDescriptionRecord.SystemIdentifier)
+	for _, partition := range partitions {
+		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
 		if !state.checkConsensus(state.incomingRequests[id]) {
 			return nil, nil, errors.Errorf("partition %X has not reached a consensus", id)
 		}
@@ -173,17 +175,17 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		EncryptionPublicKey: c.encryptionPubKeyBytes,
 	}
 	// generate genesis structs
-	for i, p := range partitions {
-		id := string(p.SystemDescriptionRecord.SystemIdentifier)
-		certificate := state.latestUnicityCertificates.get(id)
+	for i, partition := range partitions {
+		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
+		certificate := state.store.GetUC(id)
 		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
-			Nodes:                   p.Validators,
+			Nodes:                   partition.Validators,
 			Certificate:             certificate,
-			SystemDescriptionRecord: p.SystemDescriptionRecord,
+			SystemDescriptionRecord: partition.SystemDescriptionRecord,
 		}
 
-		var keys = make([]*genesis.PublicKeyInfo, len(p.Validators))
-		for j, v := range p.Validators {
+		var keys = make([]*genesis.PublicKeyInfo, len(partition.Validators))
+		for j, v := range partition.Validators {
 			keys[j] = &genesis.PublicKeyInfo{
 				NodeIdentifier:      v.NodeIdentifier,
 				SigningPublicKey:    v.SigningPublicKey,
@@ -192,11 +194,11 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		}
 
 		partitionGenesis[i] = &genesis.PartitionGenesis{
-			SystemDescriptionRecord: p.SystemDescriptionRecord,
+			SystemDescriptionRecord: partition.SystemDescriptionRecord,
 			Certificate:             certificate,
 			RootValidators:          rootValidatorInfo,
 			Keys:                    keys,
-			Params:                  p.Validators[0].Params,
+			Params:                  partition.Validators[0].Params,
 		}
 	}
 	// Sign the consensus and append signature
@@ -292,9 +294,9 @@ func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.Roo
 	}
 	// extract new partition genesis files
 	partitionGenesis := make([]*genesis.PartitionGenesis, len(rg.Partitions))
-	for i, p := range rg.Partitions {
-		var keys = make([]*genesis.PublicKeyInfo, len(p.Nodes))
-		for j, v := range p.Nodes {
+	for i, partition := range rg.Partitions {
+		var keys = make([]*genesis.PublicKeyInfo, len(partition.Nodes))
+		for j, v := range partition.Nodes {
 			keys[j] = &genesis.PublicKeyInfo{
 				NodeIdentifier:      v.NodeIdentifier,
 				SigningPublicKey:    v.SigningPublicKey,
@@ -302,11 +304,11 @@ func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.Roo
 			}
 		}
 		partitionGenesis[i] = &genesis.PartitionGenesis{
-			SystemDescriptionRecord: p.SystemDescriptionRecord,
-			Certificate:             p.Certificate,
+			SystemDescriptionRecord: partition.SystemDescriptionRecord,
+			Certificate:             partition.Certificate,
 			RootValidators:          rg.Root.RootValidators,
 			Keys:                    keys,
-			Params:                  p.Nodes[0].Params,
+			Params:                  partition.Nodes[0].Params,
 		}
 	}
 	// verify result

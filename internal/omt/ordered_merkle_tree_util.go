@@ -9,7 +9,7 @@ import (
 	"github.com/holiman/uint256"
 )
 
-// BlockTreeLeaves returns leaves for the block tree
+// BlockTreeLeaves returns leaves for the ordered merkle tree
 func BlockTreeLeaves(txs []txsystem.GenericTransaction, hashAlgorithm crypto.Hash) ([]*Data, error) {
 	leaves := make([]*Data, len(txs))
 	identifiers := ExtractIdentifiers(txs)
@@ -57,18 +57,18 @@ func ExtractTransactions(txs []txsystem.GenericTransaction, unitId *uint256.Int)
 // UnitHash creates unit hash for given primary and secondary unit transactions
 func UnitHash(primTx txsystem.GenericTransaction, secTxs []txsystem.GenericTransaction, hashAlgorithm crypto.Hash) ([]byte, error) {
 	primhash := HashTx(primTx, hashAlgorithm)
-	sechash, err := SecondaryHash(secTxs, hashAlgorithm)
+	sechash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
-	return HashUnit(primhash, sechash, hashAlgorithm), nil
+	return HashData(primhash, sechash, hashAlgorithm), nil
 }
 
-// HashUnit hashes together primary and secondary hash
-func HashUnit(primhash []byte, sechash []byte, hashAlgorithm crypto.Hash) []byte {
+// HashData hashes together two arbitary data units
+func HashData(h1 []byte, h2 []byte, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
-	hasher.Write(primhash)
-	hasher.Write(sechash)
+	hasher.Write(h1)
+	hasher.Write(h2)
 	return hasher.Sum(nil)
 }
 
@@ -83,19 +83,4 @@ func HashTx(tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) []byte {
 		hash = make([]byte, hashAlgorithm.Size())
 	}
 	return hash
-}
-
-// SecondaryHash returns root merkle hash calculated from given txs
-func SecondaryHash(txs []txsystem.GenericTransaction, hashAlgorithm crypto.Hash) ([]byte, error) {
-	// cast []txsystem.GenericTransaction to []mt.Data
-	secTxs := make([]mt.Data, len(txs))
-	for i, tx := range txs {
-		secTxs[i] = tx
-	}
-	// create merkle tree to get root hash
-	tree, err := mt.New(hashAlgorithm, secTxs)
-	if err != nil {
-		return nil, err
-	}
-	return tree.GetRootHash(), nil
 }

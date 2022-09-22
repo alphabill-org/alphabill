@@ -695,9 +695,10 @@ func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *cert
 	}
 	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, err
 	}
-	return b, blockHash, err
+	logger.Debug("Proposal hash: %X", blockHash)
+	return b, blockHash, nil
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
@@ -713,9 +714,9 @@ func (n *Node) finalizeBlock(b *block.Block) error {
 }
 
 func (n *Node) handleT1TimeoutEvent() {
+	n.stopForwardingOrHandlingTransactions()
 	defer func() {
 		n.leaderSelector.UpdateLeader(nil)
-		n.stopForwardingOrHandlingTransactions()
 	}()
 	if n.status == recovering {
 		logger.Info("T1 timeout: node is recovering")
@@ -816,6 +817,8 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 
 		_, err := n.applyBlock(b.BlockNumber, b)
 		if err != nil {
+			n.revertState()
+			n.stopRecovery(n.GetLatestBlock().UnicityCertificate)
 			return errors.Wrapf(err, "recovery failed")
 		}
 

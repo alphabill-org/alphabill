@@ -353,7 +353,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	for _, b := range bills {
 		// verify block proofs
 		require.NotNil(t, b.BlockProof)
-		merklePath := proof.FromProtobuf(b.BlockProof.MerkleProof)
+		merklePath := proof.FromProtobuf(b.BlockProof.MerkleProof.PathItems)
 		rootHash := mt.EvalMerklePath(merklePath, &mt.ByteHasher{Val: getMatchingTxForBill(b, testBlock).Bytes()}, crypto.SHA256)
 		require.NotNil(t, rootHash)
 		require.EqualValues(t, merkleTree.GetRootHash(), rootHash)

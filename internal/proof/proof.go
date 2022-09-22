@@ -76,10 +76,19 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.
 		if len(x.BlockTreeHashChain.Items) == 0 {
 			return nil
 		}
-		return errors.New("EMPTYBLOCK proof verification failed, block tree hash chain is not empty")
+		return errors.New("EMPTYBLOCK proof verification failed, invalid proof")
 	case ProofType_SEC:
-		// TODO impl
-		return nil
+		secChain := FromProtobuf(x.SecTreeHashChain.Items)
+		secChainOutput := mt.EvalMerklePath(secChain, tx, hashAlgorithm)
+		unithash := omt.HashData(x.HashValue, secChainOutput, hashAlgorithm)
+		unitIdBytes := tx.UnitID().Bytes32()
+		chain := x.BlockTreeHashChain.Items
+		if len(chain) > 0 &&
+			bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
+			bytes.Equal(chain[0].Hash, unithash) {
+			return nil
+		}
+		return errors.New("SEC proof verification failed, invalid proof")
 	case ProofType_ONLYSEC:
 		// TODO impl
 		return nil
@@ -93,14 +102,14 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.
 			bytes.Equal(chain[0].Hash, unithash) {
 			return nil
 		}
-		return errors.New("PRIM proof verification failed, invalid chain head")
+		return errors.New("PRIM proof verification failed, invalid proof")
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
 		chain := x.BlockTreeHashChain.Items
 		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
 			return nil
 		}
-		return errors.New("NOTRANS proof verification failed, invalid chain head")
+		return errors.New("NOTRANS proof verification failed, invalid proof")
 	default:
 		return errors.New("proof verification failed, unknown proof type " + x.ProofType.String())
 	}

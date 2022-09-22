@@ -20,15 +20,15 @@ func ToProtobuf(srcPathItmes []*mt.PathItem) *BlockMerkleProof {
 }
 
 // FromProtobuf utility function that converts BlockMerkleProof to []mt.PathItem
-func FromProtobuf(proof *BlockMerkleProof) []*mt.PathItem {
-	dstPathItems := make([]*mt.PathItem, len(proof.PathItems))
-	for i, srcPathItem := range proof.PathItems {
-		dstPathItems[i] = &mt.PathItem{
-			Hash:          srcPathItem.PathItem,
-			DirectionLeft: srcPathItem.DirectionLeft,
+func FromProtobuf(chain []*MerklePathItem) []*mt.PathItem {
+	dst := make([]*mt.PathItem, len(chain))
+	for i, src := range chain {
+		dst[i] = &mt.PathItem{
+			Hash:          src.PathItem,
+			DirectionLeft: src.DirectionLeft,
 		}
 	}
-	return dstPathItems
+	return dst
 }
 
 // ToProtobufHashChain utility function that converts []omt.Data to []ChainItem

@@ -21,11 +21,11 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-type GenericTransaction struct {
+type OnlySecondaryTx struct {
 	txsystem.GenericTransaction
 }
 
-func (g *GenericTransaction) IsPrimary() bool {
+func (g *OnlySecondaryTx) IsPrimary() bool {
 	return false
 }
 
@@ -33,7 +33,7 @@ func TestPrimProof_OnlyPrimTxsInBlock(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
 	b := &block.GenericBlock{}
 	for num := uint64(1); num <= 10; num++ {
-		b.Transactions = append(b.Transactions, createPrimaryMoneyTx(num))
+		b.Transactions = append(b.Transactions, createPrimaryTx(num))
 	}
 	uc, verifier := createUC(t, b, hashAlgorithm)
 	b.UnicityCertificate = uc
@@ -42,19 +42,19 @@ func TestPrimProof_OnlyPrimTxsInBlock(t *testing.T) {
 	for i, transaction := range b.Transactions {
 		verifyHashChain(t, b, transaction, hashAlgorithm)
 
-		p, err := CreatePrimaryProof(b, transaction.UnitID(), hashAlgorithm)
+		p, err := NewPrimaryProof(b, transaction.UnitID(), hashAlgorithm)
 		require.NoError(t, err)
 		require.Equal(t, ProofType_PRIM, p.ProofType)
-		require.Nil(t, VerifyProof(transaction, p, verifier, hashAlgorithm),
+		require.Nil(t, p.Verify(transaction, verifier, hashAlgorithm),
 			"proof verification failed for tx_idx=%d", i)
 	}
 
 	// verify proof is NoTrans for non existing transaction
-	tx := createPrimaryMoneyTx(11)
-	p, err := CreatePrimaryProof(b, uint256.NewInt(11), hashAlgorithm)
+	tx := createPrimaryTx(11)
+	p, err := NewPrimaryProof(b, uint256.NewInt(11), hashAlgorithm)
 	require.NoError(t, err)
 	require.Equal(t, ProofType_NOTRANS, p.ProofType)
-	require.Nil(t, VerifyProof(tx, p, verifier, hashAlgorithm))
+	require.Nil(t, p.Verify(tx, verifier, hashAlgorithm))
 }
 
 func TestSecProof_OnlySecTxsInBlock(t *testing.T) {
@@ -68,28 +68,28 @@ func TestSecProof_OnlySecTxsInBlock(t *testing.T) {
 
 	// verify secondary proof for each transaction
 	for i, tx := range b.Transactions {
-		p, err := CreateSecondaryProof(b, tx.UnitID(), i, hashAlgorithm)
+		p, err := NewSecondaryProof(b, tx.UnitID(), i, hashAlgorithm)
 		require.NoError(t, err)
 		require.Equal(t, ProofType_SEC, p.ProofType)
-		require.Nil(t, VerifyProof(tx, p, verifier, hashAlgorithm),
+		require.Nil(t, p.Verify(tx, verifier, hashAlgorithm),
 			"proof verification failed for tx_idx=%d", i)
 
 		nonExistentTxInBlock := createSecondaryTx(2)
-		require.Error(t, VerifyProof(nonExistentTxInBlock, p, verifier, hashAlgorithm),
+		require.Error(t, p.Verify(nonExistentTxInBlock, verifier, hashAlgorithm),
 			"proof verification should fail for non existent tx in a block")
 	}
 }
 
-func createPrimaryMoneyTx(unitid uint64) txsystem.GenericTransaction {
+func createPrimaryTx(unitid uint64) txsystem.GenericTransaction {
 	transferOrder := newTransferOrder(test.RandomBytes(32), 777, test.RandomBytes(32))
 	transaction := newTransaction(unitId(unitid), test.RandomBytes(32), 555, transferOrder)
 	tx, _ := money.NewMoneyTx([]byte{0, 0, 0, 0}, transaction)
 	return tx
 }
 
-func createSecondaryTx(unitid uint64) *GenericTransaction {
-	tx := createPrimaryMoneyTx(unitid)
-	return &GenericTransaction{tx}
+func createSecondaryTx(unitid uint64) *OnlySecondaryTx {
+	tx := createPrimaryTx(unitid)
+	return &OnlySecondaryTx{tx}
 }
 
 func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*certificates.UnicityCertificate, abcrypto.Verifier) {
@@ -113,10 +113,9 @@ func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*
 }
 
 func verifyHashChain(t *testing.T, b *block.GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {
-	leaves, _ := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
-	tree, _ := omt.New(leaves, hashAlgorithm)
 	unitIdBytes := tx.UnitID().Bytes32()
-	chain, _ := tree.GetMerklePath(unitIdBytes[:])
+	leaves, _ := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
+	chain, _ := treeChain(tx.UnitID(), leaves, hashAlgorithm)
 	root := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
 	require.Equal(t, "CB640C13D144809E963F82D393C88C3636E8672BE1EB400791649EDDF64DB578", fmt.Sprintf("%X", root))
 }

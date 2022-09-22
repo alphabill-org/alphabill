@@ -14,12 +14,11 @@ import (
 	"github.com/holiman/uint256"
 )
 
-// CreatePrimaryProof creates primary proof for given unit and block.
-func CreatePrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+// NewPrimaryProof creates primary proof for given unit and block.
+func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-
 	identifiers := omt.ExtractIdentifiers(b.Transactions)
 	leaves, err := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
 	if err != nil {
@@ -43,8 +42,8 @@ func CreatePrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorith
 	return newNotransBlockProof(b, chain, hashAlgorithm), nil
 }
 
-// CreateSecondaryProof creates secondary proof for given unit and block.
-func CreateSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+// NewSecondaryProof creates secondary proof for given unit and block.
+func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
@@ -65,16 +64,16 @@ func CreateSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx i
 	return newSecBlockProof(b, primhash, chain, secChain, hashAlgorithm), nil
 }
 
-// VerifyProof returns nil if given proof verifies given transaction, otherwise returns error.
-func VerifyProof(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
-	err := verifyUC(tx, p, verifier, hashAlgorithm)
+// Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
+func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	err := verifyUC(tx, x, verifier, hashAlgorithm)
 	if err != nil {
 		return err
 	}
 
-	switch p.ProofType {
+	switch x.ProofType {
 	case ProofType_EMPTYBLOCK:
-		if len(p.BlockTreeHashChain.Items) == 0 {
+		if len(x.BlockTreeHashChain.Items) == 0 {
 			return nil
 		}
 		return errors.New("EMPTYBLOCK proof verification failed, block tree hash chain is not empty")
@@ -86,9 +85,9 @@ func VerifyProof(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcry
 		return nil
 	case ProofType_PRIM:
 		primhash := omt.HashTx(tx, hashAlgorithm)
-		unithash := omt.HashData(primhash, p.HashValue, hashAlgorithm)
+		unithash := omt.HashData(primhash, x.HashValue, hashAlgorithm)
 		unitIdBytes := tx.UnitID().Bytes32()
-		chain := p.BlockTreeHashChain.Items
+		chain := x.BlockTreeHashChain.Items
 		if len(chain) > 0 &&
 			bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
 			bytes.Equal(chain[0].Hash, unithash) {
@@ -97,13 +96,13 @@ func VerifyProof(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcry
 		return errors.New("PRIM proof verification failed, invalid chain head")
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
-		chain := p.BlockTreeHashChain.Items
+		chain := x.BlockTreeHashChain.Items
 		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
 			return nil
 		}
 		return errors.New("NOTRANS proof verification failed, invalid chain head")
 	default:
-		return errors.New("proof verification failed, unknown proof type " + p.ProofType.String())
+		return errors.New("proof verification failed, unknown proof type " + x.ProofType.String())
 	}
 }
 

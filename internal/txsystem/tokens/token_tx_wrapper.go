@@ -16,6 +16,7 @@ const (
 	typeURLCreateNonFungibleTokenTypeAttributes = protobufTypeUrlPrefix + "CreateNonFungibleTokenTypeAttributes"
 	typeURLMintNonFungibleTokenAttributes       = protobufTypeUrlPrefix + "MintNonFungibleTokenAttributes"
 	typeURLTransferNonFungibleTokenAttributes   = protobufTypeUrlPrefix + "TransferNonFungibleTokenAttributes"
+	typeURLUpdateNonFungibleTokenAttributes     = protobufTypeUrlPrefix + "UpdateNonFungibleTokenAttributes"
 )
 
 type (
@@ -38,6 +39,11 @@ type (
 	transferNonFungibleTokenWrapper struct {
 		wrapper
 		attributes *TransferNonFungibleTokenAttributes
+	}
+
+	updateNonFungibleTokenWrapper struct {
+		wrapper
+		attributes *UpdateNonFungibleTokenAttributes
 	}
 )
 
@@ -70,6 +76,16 @@ func NewGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 			return nil, errors.Wrapf(err, "invalid tx attributes")
 		}
 		return &transferNonFungibleTokenWrapper{
+			wrapper:    wrapper{transaction: tx},
+			attributes: pb,
+		}, nil
+	case typeURLUpdateNonFungibleTokenAttributes:
+		pb := &UpdateNonFungibleTokenAttributes{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid tx attributes")
+		}
+		return &updateNonFungibleTokenWrapper{
 			wrapper:    wrapper{transaction: tx},
 			attributes: pb,
 		}, nil
@@ -187,5 +203,27 @@ func (t *transferNonFungibleTokenWrapper) SigBytes() []byte {
 	b.Write(t.attributes.NewBearer)
 	b.Write(t.attributes.Nonce)
 	b.Write(t.attributes.Backlink)
+	return b.Bytes()
+}
+
+func (u *updateNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if u.wrapper.hashComputed(hashFunc) {
+		return u.wrapper.hashValue
+	}
+	hasher := hashFunc.New()
+	u.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(u.attributes.Data)
+	hasher.Write(u.attributes.Backlink)
+	hasher.Write(u.attributes.DataUpdateSignature)
+	u.wrapper.hashValue = hasher.Sum(nil)
+	u.wrapper.hashFunc = hashFunc
+	return u.wrapper.hashValue
+}
+
+func (u *updateNonFungibleTokenWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	u.wrapper.sigBytes(&b)
+	b.Write(u.attributes.Data)
+	b.Write(u.attributes.Backlink)
 	return b.Bytes()
 }

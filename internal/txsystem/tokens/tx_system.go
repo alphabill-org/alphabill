@@ -112,6 +112,22 @@ func (t *tokensTxSystem) Execute(tx txsystem.GenericTransaction) error {
 			d.backlink = tx.Hash(t.hashAlgorithm)
 			return data
 		}, h)
+	case *updateNonFungibleTokenWrapper:
+		if err = t.validateUpdateNonFungibleTokenWrapper(tx); err != nil {
+			return err
+		}
+		h := tx.Hash(t.hashAlgorithm)
+		return t.state.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
+			d, ok := data.(*nonFungibleTokenData)
+			if !ok {
+				return data
+			}
+			d.data = tx.attributes.Data
+			d.t = t.currentBlockNumber
+			d.backlink = tx.Hash(t.hashAlgorithm)
+			return data
+		}, h)
+
 	default:
 		return errors.Errorf("unknown tx type %T", tx)
 	}
@@ -251,6 +267,38 @@ func (t *tokensTxSystem) validateTransferNonFungibleTokenWrapper(tx *transferNon
 		return err
 	}
 	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+}
+
+func (t *tokensTxSystem) validateUpdateNonFungibleTokenWrapper(tx *updateNonFungibleTokenWrapper) error {
+	if len(tx.attributes.Data) > dataMaxSize {
+		return errors.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
+	}
+	unitID := tx.UnitID()
+	u, err := t.state.GetUnit(unitID)
+	if err != nil {
+		return err
+	}
+	data, ok := u.Data.(*nonFungibleTokenData)
+	if !ok {
+		return errors.Errorf("unit %v is not a non-fungible token type", unitID)
+	}
+	if !bytes.Equal(data.backlink, tx.attributes.Backlink) {
+		return errors.New("invalid backlink")
+	}
+	predicate, err := t.getChainedPredicate(
+		data.nftType,
+		func(d *nonFungibleTokenTypeData) []byte {
+			return d.dataUpdatePredicate
+		},
+		func(d *nonFungibleTokenTypeData) *uint256.Int {
+			return d.parentTypeId
+		},
+	)
+	predicate = append(predicate, data.dataUpdatePredicate...)
+	if err != nil {
+		return err
+	}
+	return script.RunScript(tx.attributes.DataUpdateSignature, predicate, tx.SigBytes())
 }
 
 func (t *tokensTxSystem) getChainedPredicate(unitID *uint256.Int, predicateFn func(d *nonFungibleTokenTypeData) []byte, parentIDFn func(d *nonFungibleTokenTypeData) *uint256.Int) ([]byte, error) {

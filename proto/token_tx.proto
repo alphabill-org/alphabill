@@ -45,3 +45,12 @@ message TransferNonFungibleTokenAttributes {
   // the input to satisfy the token type invariant predicate
   bytes invariantPredicateSignature = 4;
 }
+
+message UpdateNonFungibleTokenAttributes {
+  // the new data to replace the data currently associated with the token
+  bytes data = 1;
+  // the backlink to the previous transaction with the token
+  bytes backlink = 2;
+  //  the input to satisfy the token data update predicate.
+  bytes dataUpdateSignature = 4;
+}

@@ -29,7 +29,7 @@ func (g *OnlySecondaryTx) IsPrimary() bool {
 	return false
 }
 
-func TestPrimProof_OnlyPrimTxsInBlock(t *testing.T) {
+func TestPrimProof_OnlyPrimTxs(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
 	b := &block.GenericBlock{}
 	for num := uint64(1); num <= 10; num++ {
@@ -57,7 +57,7 @@ func TestPrimProof_OnlyPrimTxsInBlock(t *testing.T) {
 	require.Nil(t, p.Verify(tx, verifier, hashAlgorithm))
 }
 
-func TestSecProof_OnlySecTxsInBlock(t *testing.T) {
+func TestSecProof_OnlySecTxs(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
 	b := &block.GenericBlock{}
 	for i := 0; i < 10; i++ {
@@ -74,9 +74,37 @@ func TestSecProof_OnlySecTxsInBlock(t *testing.T) {
 		require.Nil(t, p.Verify(tx, verifier, hashAlgorithm),
 			"proof verification failed for tx_idx=%d", i)
 
+		// test proof does not verify invalid tx
 		nonExistentTxInBlock := createSecondaryTx(2)
-		require.Error(t, p.Verify(nonExistentTxInBlock, verifier, hashAlgorithm),
+		require.ErrorIs(t, p.Verify(nonExistentTxInBlock, verifier, hashAlgorithm), ErrProofVerificationFailed,
 			"proof verification should fail for non existent tx in a block")
+	}
+}
+
+func TestPrimProof_OnlySecTxs(t *testing.T) {
+	// create block with secondary transactions for a given unit
+	hashAlgorithm := crypto.SHA256
+	b := &block.GenericBlock{
+		Transactions: []txsystem.GenericTransaction{
+			createSecondaryTx(1),
+			createSecondaryTx(1),
+			createSecondaryTx(1),
+		},
+	}
+	uc, verifier := createUC(t, b, hashAlgorithm)
+	b.UnicityCertificate = uc
+
+	for i, tx := range b.Transactions {
+		p, err := NewPrimaryProof(b, tx.UnitID(), hashAlgorithm)
+		require.NoError(t, err)
+		require.Equal(t, ProofType_ONLYSEC, p.ProofType)
+		require.Nil(t, p.Verify(tx, verifier, hashAlgorithm),
+			"proof verification failed for tx_idx=%d", i)
+
+		// test proof does not verify for wrong transaction
+		tx = createPrimaryTx(2)
+		err = p.Verify(tx, verifier, hashAlgorithm)
+		require.ErrorIs(t, err, ErrProofVerificationFailed)
 	}
 }
 

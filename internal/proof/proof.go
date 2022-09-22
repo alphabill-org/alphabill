@@ -8,11 +8,14 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 )
+
+var ErrProofVerificationFailed = errors.New("proof verification failed")
 
 // NewPrimaryProof creates primary proof for given unit and block.
 func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
@@ -75,44 +78,42 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.
 	case ProofType_PRIM:
 		primhash := omt.HashTx(tx, hashAlgorithm)
 		unithash := omt.HashData(primhash, x.HashValue, hashAlgorithm)
-		if x.verifyChainHead(tx.UnitID(), unithash) {
-			return nil
-		}
-		return errors.New("PRIM proof verification failed")
+		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_SEC:
 		secChain := FromProtobuf(x.SecTreeHashChain.Items)
 		secChainOutput := mt.EvalMerklePath(secChain, tx, hashAlgorithm)
 		unithash := omt.HashData(x.HashValue, secChainOutput, hashAlgorithm)
-		if x.verifyChainHead(tx.UnitID(), unithash) {
-			return nil
-		}
-		return errors.New("SEC proof verification failed")
+		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_ONLYSEC:
-		// TODO impl
-		return nil
+		zerohash := make([]byte, hashAlgorithm.Size())
+		unithash := omt.HashData(zerohash, x.HashValue, hashAlgorithm)
+		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
 		chain := x.BlockTreeHashChain.Items
 		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
 			return nil
 		}
-		return errors.New("NOTRANS proof verification failed")
+		return ErrProofVerificationFailed
 	case ProofType_EMPTYBLOCK:
 		if len(x.BlockTreeHashChain.Items) == 0 {
 			return nil
 		}
-		return errors.New("EMPTYBLOCK proof verification failed")
+		return ErrProofVerificationFailed
 	default:
 		return errors.New("proof verification failed, unknown proof type " + x.ProofType.String())
 	}
 }
 
-func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) bool {
+func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) error {
 	chain := x.BlockTreeHashChain.Items
 	unitIdBytes := unitId.Bytes32()
-	return len(chain) > 0 &&
+	if len(chain) > 0 &&
 		bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
-		bytes.Equal(chain[0].Hash, unithash)
+		bytes.Equal(chain[0].Hash, unithash) {
+		return nil
+	}
+	return ErrProofVerificationFailed
 }
 
 // verifyUC verifies unicity certificate and uc.ir.blockhash
@@ -127,13 +128,13 @@ func verifyUC(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcrypto
 	chain := FromProtobufHashChain(p.BlockTreeHashChain.Items)
 	unitIdBytes := tx.UnitID().Bytes32()
 	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
-	hasher := hashAlgorithm.New()
-	hasher.Write(p.BlockHeaderHash)
-	hasher.Write(rblock)
-	blockhash := hasher.Sum(nil)
+	blockhash := omt.HashData(p.BlockHeaderHash, rblock, hashAlgorithm)
 	if !bytes.Equal(p.UnicityCertificate.InputRecord.BlockHash, blockhash) {
-		return errors.New(fmt.Sprintf("proof verification failed, uc.ir block hash is not valid, got %X, expected %X",
-			p.UnicityCertificate.InputRecord.BlockHash, blockhash))
+		return aberrors.Wrap(
+			ErrProofVerificationFailed,
+			fmt.Sprintf("proof verification failed, uc.ir block hash is not valid, got %X, expected %X",
+				p.UnicityCertificate.InputRecord.BlockHash, blockhash),
+		)
 	}
 	return nil
 }

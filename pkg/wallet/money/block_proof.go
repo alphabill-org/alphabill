@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/proof"
 )
 
+// TODO AB-385
 func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*proof.BlockProof, error) {
 	mtTxs := make([]mt.Data, len(b.Transactions))
 	for i, txb := range b.Transactions {

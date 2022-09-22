@@ -26,7 +26,7 @@ func (x *GenericBlock) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	hh := x.HashHeader(hashAlgorithm)
 	hasher.Write(hh)
 
-	// TODO temporarily remove raw tx hashing from block hash as there is discrepancy
+	// TODO AB-383
 	// between 4.10.19 block_hash function and 4.10.22 VerifyProof block_hash calculation
 	//txHasher := hashAlgorithm.New()
 	//for _, tx := range x.Transactions {

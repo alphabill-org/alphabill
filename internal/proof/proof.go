@@ -72,47 +72,47 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.
 	}
 
 	switch x.ProofType {
-	case ProofType_EMPTYBLOCK:
-		if len(x.BlockTreeHashChain.Items) == 0 {
+	case ProofType_PRIM:
+		primhash := omt.HashTx(tx, hashAlgorithm)
+		unithash := omt.HashData(primhash, x.HashValue, hashAlgorithm)
+		if x.verifyChainHead(tx.UnitID(), unithash) {
 			return nil
 		}
-		return errors.New("EMPTYBLOCK proof verification failed, invalid proof")
+		return errors.New("PRIM proof verification failed")
 	case ProofType_SEC:
 		secChain := FromProtobuf(x.SecTreeHashChain.Items)
 		secChainOutput := mt.EvalMerklePath(secChain, tx, hashAlgorithm)
 		unithash := omt.HashData(x.HashValue, secChainOutput, hashAlgorithm)
-		unitIdBytes := tx.UnitID().Bytes32()
-		chain := x.BlockTreeHashChain.Items
-		if len(chain) > 0 &&
-			bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
-			bytes.Equal(chain[0].Hash, unithash) {
+		if x.verifyChainHead(tx.UnitID(), unithash) {
 			return nil
 		}
-		return errors.New("SEC proof verification failed, invalid proof")
+		return errors.New("SEC proof verification failed")
 	case ProofType_ONLYSEC:
 		// TODO impl
 		return nil
-	case ProofType_PRIM:
-		primhash := omt.HashTx(tx, hashAlgorithm)
-		unithash := omt.HashData(primhash, x.HashValue, hashAlgorithm)
-		unitIdBytes := tx.UnitID().Bytes32()
-		chain := x.BlockTreeHashChain.Items
-		if len(chain) > 0 &&
-			bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
-			bytes.Equal(chain[0].Hash, unithash) {
-			return nil
-		}
-		return errors.New("PRIM proof verification failed, invalid proof")
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
 		chain := x.BlockTreeHashChain.Items
 		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
 			return nil
 		}
-		return errors.New("NOTRANS proof verification failed, invalid proof")
+		return errors.New("NOTRANS proof verification failed")
+	case ProofType_EMPTYBLOCK:
+		if len(x.BlockTreeHashChain.Items) == 0 {
+			return nil
+		}
+		return errors.New("EMPTYBLOCK proof verification failed")
 	default:
 		return errors.New("proof verification failed, unknown proof type " + x.ProofType.String())
 	}
+}
+
+func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) bool {
+	chain := x.BlockTreeHashChain.Items
+	unitIdBytes := unitId.Bytes32()
+	return len(chain) > 0 &&
+		bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
+		bytes.Equal(chain[0].Hash, unithash)
 }
 
 // verifyUC verifies unicity certificate and uc.ir.blockhash

@@ -29,7 +29,7 @@ func (g *OnlySecondaryTx) IsPrimary() bool {
 	return false
 }
 
-func TestPrimProof_OnlyPrimTxs(t *testing.T) {
+func TestProofTypePrim(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
 	b := &block.GenericBlock{}
 	for num := uint64(1); num <= 10; num++ {
@@ -39,25 +39,23 @@ func TestPrimProof_OnlyPrimTxs(t *testing.T) {
 	b.UnicityCertificate = uc
 
 	// verify primary proof for each transaction
-	for i, transaction := range b.Transactions {
-		verifyHashChain(t, b, transaction, hashAlgorithm)
+	for i, tx := range b.Transactions {
+		verifyHashChain(t, b, tx, hashAlgorithm)
 
-		p, err := NewPrimaryProof(b, transaction.UnitID(), hashAlgorithm)
+		p, err := NewPrimaryProof(b, tx.UnitID(), hashAlgorithm)
 		require.NoError(t, err)
 		require.Equal(t, ProofType_PRIM, p.ProofType)
-		require.Nil(t, p.Verify(transaction, verifier, hashAlgorithm),
+		require.Nil(t, p.Verify(tx, verifier, hashAlgorithm),
 			"proof verification failed for tx_idx=%d", i)
-	}
 
-	// verify proof is NoTrans for non existing transaction
-	tx := createPrimaryTx(11)
-	p, err := NewPrimaryProof(b, uint256.NewInt(11), hashAlgorithm)
-	require.NoError(t, err)
-	require.Equal(t, ProofType_NOTRANS, p.ProofType)
-	require.Nil(t, p.Verify(tx, verifier, hashAlgorithm))
+		// test proof does not verify for wrong transaction
+		tx = createPrimaryTx(11)
+		err = p.Verify(tx, verifier, hashAlgorithm)
+		require.ErrorIs(t, err, ErrProofVerificationFailed)
+	}
 }
 
-func TestSecProof_OnlySecTxs(t *testing.T) {
+func TestProofTypeSec(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
 	b := &block.GenericBlock{}
 	for i := 0; i < 10; i++ {
@@ -81,7 +79,7 @@ func TestSecProof_OnlySecTxs(t *testing.T) {
 	}
 }
 
-func TestPrimProof_OnlySecTxs(t *testing.T) {
+func TestProofTypeOnlySec(t *testing.T) {
 	// create block with secondary transactions for a given unit
 	hashAlgorithm := crypto.SHA256
 	b := &block.GenericBlock{
@@ -106,6 +104,34 @@ func TestPrimProof_OnlySecTxs(t *testing.T) {
 		err = p.Verify(tx, verifier, hashAlgorithm)
 		require.ErrorIs(t, err, ErrProofVerificationFailed)
 	}
+}
+
+func TestProofTypeNoTrans(t *testing.T) {
+	hashAlgorithm := crypto.SHA256
+	b := &block.GenericBlock{}
+	b.Transactions = []txsystem.GenericTransaction{
+		createPrimaryTx(1),
+	}
+	uc, verifier := createUC(t, b, hashAlgorithm)
+	b.UnicityCertificate = uc
+
+	tx := createPrimaryTx(11)
+	p, err := NewPrimaryProof(b, uint256.NewInt(11), hashAlgorithm)
+	require.NoError(t, err)
+	require.Equal(t, ProofType_NOTRANS, p.ProofType)
+	require.Nil(t, p.Verify(tx, verifier, hashAlgorithm))
+}
+
+func TestProofTypeEmptyBlock(t *testing.T) {
+	hashAlgorithm := crypto.SHA256
+	b := &block.GenericBlock{}
+	uc, verifier := createUC(t, b, hashAlgorithm)
+	b.UnicityCertificate = uc
+
+	p, err := NewPrimaryProof(b, uint256.NewInt(1), hashAlgorithm)
+	require.NoError(t, err)
+	require.Equal(t, ProofType_EMPTYBLOCK, p.ProofType)
+	require.Nil(t, p.Verify(createPrimaryTx(1), verifier, hashAlgorithm))
 }
 
 func createPrimaryTx(unitid uint64) txsystem.GenericTransaction {

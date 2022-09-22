@@ -15,10 +15,23 @@ import (
 	"github.com/holiman/uint256"
 )
 
-var ErrProofVerificationFailed = errors.New("proof verification failed")
+var (
+	ErrProofVerificationFailed = errors.New("proof verification failed")
+	ErrTxIsNil                 = errors.New("tx is nil")
+	ErrVerifierIsNil           = errors.New("verifier is nil")
+	ErrBlockIsNil              = errors.New("block is nil")
+	ErrUnitIdIsNil             = errors.New("unit id is nil")
+)
 
 // NewPrimaryProof creates primary proof for given unit and block.
 func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+	if b == nil {
+		return nil, ErrBlockIsNil
+	}
+	if unitId == nil {
+		return nil, ErrUnitIdIsNil
+	}
+
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
@@ -47,6 +60,13 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 
 // NewSecondaryProof creates secondary proof for given unit and block.
 func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+	if b == nil {
+		return nil, ErrBlockIsNil
+	}
+	if unitId == nil {
+		return nil, ErrUnitIdIsNil
+	}
+
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
@@ -69,7 +89,14 @@ func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int,
 
 // Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
 func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
-	err := verifyUC(tx, x, verifier, hashAlgorithm)
+	if tx == nil {
+		return ErrTxIsNil
+	}
+	if verifier == nil {
+		return ErrVerifierIsNil
+	}
+
+	err := x.verifyUC(tx, verifier, hashAlgorithm)
 	if err != nil {
 		return err
 	}
@@ -90,13 +117,13 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
-		chain := x.BlockTreeHashChain.Items
+		chain := x.GetChainItems()
 		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
 			return nil
 		}
 		return ErrProofVerificationFailed
 	case ProofType_EMPTYBLOCK:
-		if len(x.BlockTreeHashChain.Items) == 0 {
+		if len(x.GetChainItems()) == 0 {
 			return nil
 		}
 		return ErrProofVerificationFailed
@@ -105,8 +132,30 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.
 	}
 }
 
+func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	sysid := x.UnicityCertificate.UnicityTreeCertificate.SystemIdentifier
+	sdr := x.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
+	err := x.UnicityCertificate.IsValid(verifier, hashAlgorithm, sysid, sdr)
+	if err != nil {
+		return err
+	}
+
+	chain := FromProtobufHashChain(x.GetChainItems())
+	unitIdBytes := tx.UnitID().Bytes32()
+	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
+	blockhash := omt.HashData(x.BlockHeaderHash, rblock, hashAlgorithm)
+	if !bytes.Equal(x.UnicityCertificate.InputRecord.BlockHash, blockhash) {
+		return aberrors.Wrap(
+			ErrProofVerificationFailed,
+			fmt.Sprintf("proof verification failed, uc.ir block hash is not valid, got %X, expected %X",
+				x.UnicityCertificate.InputRecord.BlockHash, blockhash),
+		)
+	}
+	return nil
+}
+
 func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) error {
-	chain := x.BlockTreeHashChain.Items
+	chain := x.GetChainItems()
 	unitIdBytes := unitId.Bytes32()
 	if len(chain) > 0 &&
 		bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
@@ -114,29 +163,6 @@ func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) err
 		return nil
 	}
 	return ErrProofVerificationFailed
-}
-
-// verifyUC verifies unicity certificate and uc.ir.blockhash
-func verifyUC(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
-	sysid := p.UnicityCertificate.UnicityTreeCertificate.SystemIdentifier
-	sdr := p.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
-	err := p.UnicityCertificate.IsValid(verifier, hashAlgorithm, sysid, sdr)
-	if err != nil {
-		return err
-	}
-
-	chain := FromProtobufHashChain(p.BlockTreeHashChain.Items)
-	unitIdBytes := tx.UnitID().Bytes32()
-	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
-	blockhash := omt.HashData(p.BlockHeaderHash, rblock, hashAlgorithm)
-	if !bytes.Equal(p.UnicityCertificate.InputRecord.BlockHash, blockhash) {
-		return aberrors.Wrap(
-			ErrProofVerificationFailed,
-			fmt.Sprintf("proof verification failed, uc.ir block hash is not valid, got %X, expected %X",
-				p.UnicityCertificate.InputRecord.BlockHash, blockhash),
-		)
-	}
-	return nil
 }
 
 // treeChain returns hash tree chain from given unit to root
@@ -207,4 +233,13 @@ func newSecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, 
 		SecTreeHashChain:   &SecTreeHashChain{Items: ToProtobuf(secChain).PathItems},
 		UnicityCertificate: b.UnicityCertificate,
 	}
+}
+
+// GetChainItems returns BlockTreeHashChain chain items, used for nil safe access.
+func (x *BlockProofV2) GetChainItems() []*ChainItem {
+	chain := x.BlockTreeHashChain
+	if chain != nil {
+		return chain.Items
+	}
+	return nil
 }

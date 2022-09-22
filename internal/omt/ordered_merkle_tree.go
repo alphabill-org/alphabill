@@ -5,8 +5,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-
-	"github.com/holiman/uint256"
 )
 
 var ErrNilData = errors.New("merkle tree input data is nil")
@@ -129,7 +127,7 @@ func (s *IndexedMerkleTree) output(node *node, prefix string, isTail bool, str *
 	} else {
 		*str += "┌── "
 	}
-	*str += fmt.Sprintf("%d=%X\n", uint256.NewInt(0).SetBytes(node.data.Val).Uint64(), node.data.Hash)
+	*str += fmt.Sprintf("%X\n", node.data.Hash)
 	if node.left != nil {
 		newPrefix := prefix
 		if isTail {
@@ -145,8 +143,11 @@ func (n *node) isLeaf() bool {
 	return n.left == nil && n.right == nil
 }
 
-// EvalMerklePath returns root hash calculated from the given hash chain
+// EvalMerklePath returns root hash calculated from the given hash chain, or zerohash if chain is empty
 func EvalMerklePath(merklePath []*Data, unitId []byte, hashAlgorithm crypto.Hash) []byte {
+	if len(merklePath) == 0 {
+		return make([]byte, hashAlgorithm.Size())
+	}
 	hasher := hashAlgorithm.New()
 	var h []byte
 	for i, item := range merklePath {

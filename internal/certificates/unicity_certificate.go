@@ -11,11 +11,11 @@ import (
 
 var ErrUnicityCertificateIsNil = errors.New("unicity certificate is nil")
 
-func (x *UnicityCertificate) IsValid(verifier crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier, systemDescriptionHash []byte) error {
+func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrUnicityCertificateIsNil
 	}
-	if err := x.UnicitySeal.IsValid(verifier); err != nil {
+	if err := x.UnicitySeal.IsValid(verifiers); err != nil {
 		return err
 	}
 	if err := x.InputRecord.IsValid(); err != nil {

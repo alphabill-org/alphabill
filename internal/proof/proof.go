@@ -3,26 +3,24 @@ package proof
 import (
 	"bytes"
 	"crypto"
-	"sort"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/mt"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/holiman/uint256"
 )
 
-type TxTypeProvider interface {
-	IsPrimary(tx *txsystem.Transaction) bool
-}
-
 // CreatePrimaryProof creates primary proof for given unit and block.
-func CreatePrimaryProof(b *block.Block, unitId []byte, typeProvider TxTypeProvider, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+func CreatePrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	identifiers := extractIdentifiers(b.Transactions)
-	leaves, err := blockTreeLeaves(b.Transactions, hashAlgorithm)
+
+	identifiers := omt.ExtractIdentifiers(b.Transactions)
+	leaves, err := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -31,8 +29,8 @@ func CreatePrimaryProof(b *block.Block, unitId []byte, typeProvider TxTypeProvid
 		return nil, err
 	}
 	if unitIdInIdentifiers(identifiers, unitId) {
-		primTx, secTxs := extractTransactions(b.Transactions, unitId, typeProvider)
-		secHash, err := secondaryHash(secTxs, hashAlgorithm)
+		primTx, secTxs := omt.ExtractTransactions(b.Transactions, unitId)
+		secHash, err := omt.SecondaryHash(secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
 		}
@@ -44,165 +42,92 @@ func CreatePrimaryProof(b *block.Block, unitId []byte, typeProvider TxTypeProvid
 	return newNotransBlockProof(b, chain, hashAlgorithm), nil
 }
 
-// VerifyProof returns true if given transaction and proof are valid.
-func VerifyProof(tx *txsystem.Transaction, p *BlockProofV2, pubkey []byte, hashAlgorithm crypto.Hash) bool {
-	// TODO verify UC
+// VerifyProof returns nil if given proof verifies given transaction, otherwise returns error.
+func VerifyProof(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	err := verifyUC(tx, p, verifier, hashAlgorithm)
+	if err != nil {
+		return err
+	}
+
 	switch p.ProofType {
 	case ProofType_EMPTYBLOCK:
-		return len(p.BlockTreeHashChain.Items) == 0
+		if len(p.BlockTreeHashChain.Items) == 0 {
+			return nil
+		}
+		return errors.New("proof emptyblock verification failed, proof block tree hash chain is not empty")
 	case ProofType_SEC:
 		// TODO impl
+		return nil
 	case ProofType_ONLYSEC:
 		// TODO impl
+		return nil
 	case ProofType_PRIM:
-		primhash := hashTx(tx, hashAlgorithm)
-		unithash := hashUnit(primhash, p.HashValue, hashAlgorithm)
-		return len(p.BlockTreeHashChain.Items) > 0 &&
-			bytes.Equal(p.BlockTreeHashChain.Items[0].Val, tx.UnitId) &&
-			bytes.Equal(p.BlockTreeHashChain.Items[0].Hash, unithash)
+		primhash := omt.HashTx(tx, hashAlgorithm)
+		unithash := omt.HashUnit(primhash, p.HashValue, hashAlgorithm)
+		unitIdBytes := tx.UnitID().Bytes32()
+		chain := p.BlockTreeHashChain.Items
+		if len(chain) > 0 &&
+			bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
+			bytes.Equal(chain[0].Hash, unithash) {
+			return nil
+		}
+		return errors.New("PRIM proof verification failed, invalid chain head")
 	case ProofType_NOTRANS:
-		return len(p.BlockTreeHashChain.Items) > 0 && !bytes.Equal(p.BlockTreeHashChain.Items[0].Val, tx.UnitId)
-	}
-	return false
-}
-
-// ToProtobuf utility function that converts []mt.PathItem to proof.BlockMerkleProof
-func ToProtobuf(srcPathItmes []*mt.PathItem) *BlockMerkleProof {
-	dstPathItems := make([]*MerklePathItem, len(srcPathItmes))
-	for i, srcPathItem := range srcPathItmes {
-		dstPathItems[i] = &MerklePathItem{
-			DirectionLeft: srcPathItem.DirectionLeft,
-			PathItem:      srcPathItem.Hash,
+		unitIdBytes := tx.UnitID().Bytes32()
+		chain := p.BlockTreeHashChain.Items
+		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
+			return nil
 		}
-	}
-	return &BlockMerkleProof{
-		PathItems: dstPathItems,
+		return errors.New("NOTRANS proof verification failed, invalid chain head")
+	default:
+		return errors.New("proof verification failed, unknown proof type " + p.ProofType.String())
 	}
 }
 
-// FromProtobuf utility function that converts proof.BlockMerkleProof to []mt.PathItem
-func FromProtobuf(proof *BlockMerkleProof) []*mt.PathItem {
-	dstPathItems := make([]*mt.PathItem, len(proof.PathItems))
-	for i, srcPathItem := range proof.PathItems {
-		dstPathItems[i] = &mt.PathItem{
-			Hash:          srcPathItem.PathItem,
-			DirectionLeft: srcPathItem.DirectionLeft,
-		}
+// verifyUC verifies unicity certificate and uc.ir.blockhash
+func verifyUC(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	sysid := p.UnicityCertificate.UnicityTreeCertificate.SystemIdentifier
+	sdr := p.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
+	err := p.UnicityCertificate.IsValid(verifier, hashAlgorithm, sysid, sdr)
+	if err != nil {
+		return err
 	}
-	return dstPathItems
-}
 
-func ToProtobufHashChain(chain []*omt.Data) []*ChainItem {
-	r := make([]*ChainItem, len(chain))
-	for i, c := range chain {
-		r[i] = &ChainItem{Val: c.Val, Hash: c.Hash}
+	chain := FromProtobufHashChain(p.BlockTreeHashChain.Items)
+	unitIdBytes := tx.UnitID().Bytes32()
+	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
+	hasher := hashAlgorithm.New()
+	hasher.Write(p.BlockHeaderHash)
+	hasher.Write(rblock)
+	blockhash := hasher.Sum(nil)
+	if !bytes.Equal(p.UnicityCertificate.InputRecord.BlockHash, blockhash) {
+		return errors.New(fmt.Sprintf("proof verification failed, uc.ir block hash is not valid, got %X, expected %X",
+			p.UnicityCertificate.InputRecord.BlockHash, blockhash))
 	}
-	return r
+	return nil
 }
 
 // treeChain returns hash tree chain from given unit to root
-func treeChain(unitId []byte, leaves []*omt.Data, hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
+func treeChain(unitId *uint256.Int, leaves []*omt.Data, hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
 	tree, err := omt.New(leaves, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
-	return tree.GetMerklePath(unitId)
+	unitIdBytes := unitId.Bytes32()
+	return tree.GetMerklePath(unitIdBytes[:])
 }
 
-// secondaryHash returns root merkle hash calculated from given txs
-func secondaryHash(txs []*txsystem.Transaction, hashAlgorithm crypto.Hash) ([]byte, error) {
-	// cast []*txsystem.Transaction to []mt.Data
-	secTxs := make([]mt.Data, len(txs))
-	for i, tx := range txs {
-		gtx, err := txsystem.NewDefaultGenericTransaction(tx)
-		if err != nil {
-			return nil, err
-		}
-		secTxs[i] = gtx
-	}
-	// create merkle tree to get root hash
-	tree, err := mt.New(hashAlgorithm, secTxs)
-	if err != nil {
-		return nil, err
-	}
-	return tree.GetRootHash(), nil
-}
-
-// extractTransactions returns ordered list of unit ids for given transactions
-func extractIdentifiers(txs []*txsystem.Transaction) [][]byte {
-	ids := make([][]byte, len(txs))
-	for i, tx := range txs {
-		ids[i] = tx.UnitId
-	}
-	// sort ids in ascending order
-	sort.Slice(ids, func(i, j int) bool {
-		return bytes.Compare(ids[i], ids[j]) < 0
-	})
-	return ids
-}
-
-// extractTransactions returns primary tx and list of secondary txs for given unit
-func extractTransactions(txs []*txsystem.Transaction, unitId []byte, txTypeProvider TxTypeProvider) (*txsystem.Transaction, []*txsystem.Transaction) {
-	var primaryTx *txsystem.Transaction
-	var secondaryTxs []*txsystem.Transaction
-	for _, tx := range txs {
-		if bytes.Equal(tx.UnitId, unitId) {
-			if txTypeProvider.IsPrimary(tx) {
-				primaryTx = tx
-			} else {
-				secondaryTxs = append(secondaryTxs, tx)
-			}
+func unitIdInIdentifiers(items []*uint256.Int, target *uint256.Int) bool {
+	// TODO binary search, input is already sorted
+	for _, item := range items {
+		if item.Eq(target) {
+			return true
 		}
 	}
-	return primaryTx, secondaryTxs
+	return false
 }
 
-// blockTreeLeaves creates input for block tree
-func blockTreeLeaves(txs []*txsystem.Transaction, hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
-	leaves := make([]*omt.Data, len(txs))
-	identifiers := extractIdentifiers(txs)
-	for i, unitId := range identifiers {
-		primTx, secTxs := extractTransactions(txs, unitId, money.TxTypeProvider)
-		hash, err := unitHash(primTx, secTxs, hashAlgorithm)
-		if err != nil {
-			return nil, err
-		}
-		leaves[i] = &omt.Data{Val: unitId, Hash: hash}
-	}
-	return leaves, nil
-}
-
-// unitHash creates unit hash for given primary and secondary unit transactions
-func unitHash(primTx *txsystem.Transaction, secTxs []*txsystem.Transaction, hashAlgorithm crypto.Hash) ([]byte, error) {
-	primhash := hashTx(primTx, hashAlgorithm)
-	sechash, err := secondaryHash(secTxs, hashAlgorithm)
-	if err != nil {
-		return nil, err
-	}
-	return hashUnit(primhash, sechash, hashAlgorithm), nil
-}
-
-func hashUnit(primhash []byte, sechash []byte, hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(primhash)
-	hasher.Write(sechash)
-	return hasher.Sum(nil)
-}
-
-// hashTx returns hash of given transaction or zero hash if nil transaction
-func hashTx(tx *txsystem.Transaction, hashAlgorithm crypto.Hash) []byte {
-	var hash []byte
-	hasher := hashAlgorithm.New()
-	if tx != nil {
-		hasher.Write(tx.Bytes())
-		hash = hasher.Sum(nil)
-	} else {
-		hash = make([]byte, hashAlgorithm.Size())
-	}
-	return hash
-}
-
-func newEmptyBlockProof(b *block.Block, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newEmptyBlockProof(b *block.GenericBlock, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_EMPTYBLOCK,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -212,7 +137,7 @@ func newEmptyBlockProof(b *block.Block, hashAlgorithm crypto.Hash) *BlockProofV2
 	}
 }
 
-func newNotransBlockProof(b *block.Block, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newNotransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -222,7 +147,7 @@ func newNotransBlockProof(b *block.Block, chain []*omt.Data, hashAlgorithm crypt
 	}
 }
 
-func newPrimBlockProof(b *block.Block, hashValue []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newPrimBlockProof(b *block.GenericBlock, hashValue []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_PRIM,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -232,7 +157,7 @@ func newPrimBlockProof(b *block.Block, hashValue []byte, chain []*omt.Data, hash
 	}
 }
 
-func newOnlysecBlockProof(b *block.Block, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newOnlysecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -240,14 +165,4 @@ func newOnlysecBlockProof(b *block.Block, secHash []byte, chain []*omt.Data, has
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		UnicityCertificate: b.UnicityCertificate,
 	}
-}
-
-func unitIdInIdentifiers(items [][]byte, target []byte) bool {
-	// TODO binary search, input is already sorted
-	for _, item := range items {
-		if bytes.Equal(item, target) {
-			return true
-		}
-	}
-	return false
 }

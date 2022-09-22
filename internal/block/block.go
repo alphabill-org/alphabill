@@ -9,6 +9,7 @@ import (
 )
 
 // Hash returns the hash of the block.
+// TODO remove in favor of GenericBlock#Hash or pass in TxConverter (available in txsystem ConvertTx)
 func (x *Block) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	hasher := hashAlgorithm.New()
 	x.AddHeaderToHasher(hasher)

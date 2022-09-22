@@ -136,5 +136,6 @@ func calculateBlockHash(blockNr uint64, systemIdentifier, previousHash []byte) [
 	hasher.Write(systemIdentifier)
 	hasher.Write(util.Uint64ToBytes(blockNr))
 	hasher.Write(previousHash)
+	hasher.Write(make([]byte, gocrypto.SHA256.Size()))
 	return hasher.Sum(nil)
 }

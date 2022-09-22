@@ -171,6 +171,10 @@ func (w *vdTransaction) ToProtoBuf() *txsystem.Transaction {
 	return w.transaction
 }
 
+func (w *vdTransaction) IsPrimary() bool {
+	return false
+}
+
 func (w *vdTransaction) sigBytes(b bytes.Buffer) {
 	b.Write(w.transaction.SystemId)
 	b.Write(w.transaction.UnitId)

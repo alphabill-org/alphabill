@@ -305,6 +305,10 @@ func (w *wrapper) ToProtoBuf() *txsystem.Transaction {
 	return w.transaction
 }
 
+func (w *wrapper) IsPrimary() bool {
+	return true
+}
+
 func (w *wrapper) sigBytes(b bytes.Buffer) {
 	b.Write(w.transaction.SystemId)
 	b.Write(w.transaction.UnitId)

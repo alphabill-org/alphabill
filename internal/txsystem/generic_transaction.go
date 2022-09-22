@@ -21,6 +21,7 @@ type (
 		Hash(hashFunc crypto.Hash) []byte
 		ToProtoBuf() *Transaction
 		SigBytes() []byte // TODO remove from the interface because it isn't needed by all partitions?
+		IsPrimary() bool
 	}
 
 	// DefaultGenericTransaction is a default implementation of GenericTransaction interface. NB! Only suitable for
@@ -86,4 +87,8 @@ func (d *DefaultGenericTransaction) SigBytes() []byte {
 	var b bytes.Buffer
 	d.sigBytes(b)
 	return b.Bytes()
+}
+
+func (d *DefaultGenericTransaction) IsPrimary() bool {
+	return true
 }

@@ -1,8 +1,11 @@
 package rootchain
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
@@ -16,7 +19,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
@@ -42,6 +45,7 @@ type (
 
 	rootChainConf struct {
 		t3Timeout time.Duration
+		store     store.RootChainStore
 	}
 
 	Option func(c *rootChainConf)
@@ -53,32 +57,55 @@ func WithT3Timeout(timeout time.Duration) Option {
 	}
 }
 
+func WithRootChainStore(store store.RootChainStore) Option {
+	return func(c *rootChainConf) {
+		c.store = store
+	}
+}
+
 // NewRootChain creates a new instance of the root chain.
 func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypto.Signer, net Net, opts ...Option) (*RootChain, error) {
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
-	log.SetContext(log.KeyNodeID, peer.ID().String())
+	selfId := peer.ID().String()
+	log.SetContext(log.KeyNodeID, selfId)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
-	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
-	s, err := NewStateFromGenesis(genesis, signer)
+	// todo root genesis: this will become obsolete when dynamic configuration is implemented??
+	// Locate local node from genesis info
+	nodeInfo := genesis.Root.FindPubKeyById(peer.ID().String())
+	if nodeInfo == nil {
+		logger.Info("Root node %v info not in genesis file", peer.ID().String())
+		return nil, errors.New("invalid root validator encode key")
+	}
+	ver, err := signer.Verifier()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	signPubKeyBytes, err := ver.MarshalPublicKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	// verify that the same public key is present in the genesis file
+	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
+		return nil, errors.Errorf("invalid root validator sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
 	}
 
+	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
 	conf := loadConf(opts)
 
+	s, err := NewState(genesis, selfId, signer, conf.store)
 	if err != nil {
 		return nil, err
 	}
 
 	timers := timer.NewTimers()
 	timers.Start(t3TimerID, conf.t3Timeout)
-	for _, p := range genesis.Partitions {
-		for _, validator := range p.Nodes {
-			duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
+	for _, partition := range genesis.Partitions {
+		for _, validator := range partition.Nodes {
+			duration := time.Duration(partition.SystemDescriptionRecord.T2Timeout) * time.Millisecond
 			timers.Start(string(validator.BlockCertificationRequest.SystemIdentifier), duration)
 			break
 		}
@@ -172,26 +199,26 @@ func (rc *RootChain) loop() {
 				logger.Debug("Handling T3 timeout")
 				partitionIdentifiers, err := rc.state.CreateUnicityCertificates()
 				if err != nil {
-					logger.Warning("Round %v failed: %v", rc.state.roundNumber, err)
+					logger.Warning("Round %v failed: %v", rc.state.GetRoundNumber(), err)
 				}
 				rc.sendUC(partitionIdentifiers)
 				rc.timers.Restart(t3TimerID)
 				for _, identifier := range partitionIdentifiers {
 					logger.Debug("Restarting T2 timer: %X", []byte(identifier))
-					rc.timers.Restart(identifier)
+					rc.timers.Restart(string(identifier))
 				}
 			} else {
 				logger.Debug("Handling T2 timeout with a name '%X'", []byte(timerName))
-				rc.state.CopyOldInputRecords(timerName)
+				rc.state.CopyOldInputRecords(p.SystemIdentifier(timerName))
 				rc.timers.Restart(timerName)
 			}
 		}
 	}
 }
 
-func (rc *RootChain) sendUC(identifiers []string) {
+func (rc *RootChain) sendUC(identifiers []p.SystemIdentifier) {
 	for _, identifier := range identifiers {
-		uc := rc.state.latestUnicityCertificates.get(identifier)
+		uc := rc.state.store.GetUC(identifier)
 		if uc == nil {
 			// we don't have uc; continue with the next identifier
 			logger.Warning("Latest UC does not exist for partition: %v", identifier)
@@ -230,6 +257,7 @@ func (rc *RootChain) sendUC(identifiers []string) {
 func loadConf(opts []Option) *rootChainConf {
 	conf := &rootChainConf{
 		t3Timeout: defaultT3Timeout,
+		store:     store.NewInMemoryRootChainStore(),
 	}
 	for _, opt := range opts {
 		if opt == nil {

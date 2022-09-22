@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 )
 

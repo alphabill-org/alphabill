@@ -19,14 +19,15 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,15 +99,18 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	// root genesis
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-
-	rootGenesis, partitionGenesis, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{nodeGenesis}, rootSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
+	require.NoError(t, err)
+	rootGenesis, partitionGenesis, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	if err != nil {
 		t.Error(err)
 	}
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewStateFromGenesis(rootGenesis, rootSigner)
+	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemoryRootChainStore())
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
@@ -217,7 +221,7 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRou
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}
-	return u, u.Sign(sn.rootSigner)
+	return u, u.Sign("test", sn.rootSigner)
 }
 
 func (sn *SingleNodePartition) GetLatestBlock() *block.Block {

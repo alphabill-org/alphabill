@@ -1,4 +1,4 @@
-package money
+package wallet
 
 import (
 	"crypto"

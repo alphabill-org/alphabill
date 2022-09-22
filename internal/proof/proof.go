@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
@@ -30,7 +31,7 @@ func CreatePrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorith
 	}
 	if unitIdInIdentifiers(identifiers, unitId) {
 		primTx, secTxs := omt.ExtractTransactions(b.Transactions, unitId)
-		secHash, err := omt.SecondaryHash(secTxs, hashAlgorithm)
+		secHash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
 		}
@@ -40,6 +41,28 @@ func CreatePrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorith
 		return newOnlysecBlockProof(b, secHash, chain, hashAlgorithm), nil
 	}
 	return newNotransBlockProof(b, chain, hashAlgorithm), nil
+}
+
+// CreateSecondaryProof creates secondary proof for given unit and block.
+func CreateSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+	if len(b.Transactions) == 0 {
+		return newEmptyBlockProof(b, hashAlgorithm), nil
+	}
+	leaves, err := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	chain, err := treeChain(unitId, leaves, hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	primTx, secTxs := omt.ExtractTransactions(b.Transactions, unitId)
+	primhash := omt.HashTx(primTx, hashAlgorithm)
+	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	return newSecBlockProof(b, primhash, chain, secChain, hashAlgorithm), nil
 }
 
 // VerifyProof returns nil if given proof verifies given transaction, otherwise returns error.
@@ -54,7 +77,7 @@ func VerifyProof(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcry
 		if len(p.BlockTreeHashChain.Items) == 0 {
 			return nil
 		}
-		return errors.New("proof emptyblock verification failed, proof block tree hash chain is not empty")
+		return errors.New("EMPTYBLOCK proof verification failed, block tree hash chain is not empty")
 	case ProofType_SEC:
 		// TODO impl
 		return nil
@@ -63,7 +86,7 @@ func VerifyProof(tx txsystem.GenericTransaction, p *BlockProofV2, verifier abcry
 		return nil
 	case ProofType_PRIM:
 		primhash := omt.HashTx(tx, hashAlgorithm)
-		unithash := omt.HashUnit(primhash, p.HashValue, hashAlgorithm)
+		unithash := omt.HashData(primhash, p.HashValue, hashAlgorithm)
 		unitIdBytes := tx.UnitID().Bytes32()
 		chain := p.BlockTreeHashChain.Items
 		if len(chain) > 0 &&
@@ -132,7 +155,6 @@ func newEmptyBlockProof(b *block.GenericBlock, hashAlgorithm crypto.Hash) *Block
 		ProofType:          ProofType_EMPTYBLOCK,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
 		HashValue:          make([]byte, hashAlgorithm.Size()),
-		BlockTreeHashChain: &BlockTreeHashChain{},
 		UnicityCertificate: b.UnicityCertificate,
 	}
 }
@@ -163,6 +185,17 @@ func newOnlysecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Da
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
 		HashValue:          secHash,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
+		UnicityCertificate: b.UnicityCertificate,
+	}
+}
+
+func newSecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, secChain []*mt.PathItem, hashAlgorithm crypto.Hash) *BlockProofV2 {
+	return &BlockProofV2{
+		ProofType:          ProofType_SEC,
+		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
+		HashValue:          secHash,
+		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
+		SecTreeHashChain:   &SecTreeHashChain{Items: ToProtobuf(secChain).PathItems},
 		UnicityCertificate: b.UnicityCertificate,
 	}
 }

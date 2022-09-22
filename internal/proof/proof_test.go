@@ -21,11 +21,19 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func TestCreatePrimaryProof_OnlyPrimaryTransactions(t *testing.T) {
+type GenericTransaction struct {
+	txsystem.GenericTransaction
+}
+
+func (g *GenericTransaction) IsPrimary() bool {
+	return false
+}
+
+func TestPrimProof_OnlyPrimTxsInBlock(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
 	b := &block.GenericBlock{}
 	for num := uint64(1); num <= 10; num++ {
-		b.Transactions = append(b.Transactions, createGenericTransaction(num))
+		b.Transactions = append(b.Transactions, createPrimaryMoneyTx(num))
 	}
 	uc, verifier := createUC(t, b, hashAlgorithm)
 	b.UnicityCertificate = uc
@@ -42,18 +50,46 @@ func TestCreatePrimaryProof_OnlyPrimaryTransactions(t *testing.T) {
 	}
 
 	// verify proof is NoTrans for non existing transaction
-	tx := createGenericTransaction(11)
+	tx := createPrimaryMoneyTx(11)
 	p, err := CreatePrimaryProof(b, uint256.NewInt(11), hashAlgorithm)
 	require.NoError(t, err)
 	require.Equal(t, ProofType_NOTRANS, p.ProofType)
 	require.Nil(t, VerifyProof(tx, p, verifier, hashAlgorithm))
 }
 
-func createGenericTransaction(unitid uint64) txsystem.GenericTransaction {
+func TestSecProof_OnlySecTxsInBlock(t *testing.T) {
+	hashAlgorithm := crypto.SHA256
+	b := &block.GenericBlock{}
+	for i := 0; i < 10; i++ {
+		b.Transactions = append(b.Transactions, createSecondaryTx(1))
+	}
+	uc, verifier := createUC(t, b, hashAlgorithm)
+	b.UnicityCertificate = uc
+
+	// verify secondary proof for each transaction
+	for i, tx := range b.Transactions {
+		p, err := CreateSecondaryProof(b, tx.UnitID(), i, hashAlgorithm)
+		require.NoError(t, err)
+		require.Equal(t, ProofType_SEC, p.ProofType)
+		require.Nil(t, VerifyProof(tx, p, verifier, hashAlgorithm),
+			"proof verification failed for tx_idx=%d", i)
+
+		nonExistentTxInBlock := createSecondaryTx(2)
+		require.Error(t, VerifyProof(nonExistentTxInBlock, p, verifier, hashAlgorithm),
+			"proof verification should fail for non existent tx in a block")
+	}
+}
+
+func createPrimaryMoneyTx(unitid uint64) txsystem.GenericTransaction {
 	transferOrder := newTransferOrder(test.RandomBytes(32), 777, test.RandomBytes(32))
 	transaction := newTransaction(unitId(unitid), test.RandomBytes(32), 555, transferOrder)
 	tx, _ := money.NewMoneyTx([]byte{0, 0, 0, 0}, transaction)
 	return tx
+}
+
+func createSecondaryTx(unitid uint64) *GenericTransaction {
+	tx := createPrimaryMoneyTx(unitid)
+	return &GenericTransaction{tx}
 }
 
 func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*certificates.UnicityCertificate, abcrypto.Verifier) {

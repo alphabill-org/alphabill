@@ -88,15 +88,15 @@ func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int,
 }
 
 // Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
-func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	if tx == nil {
 		return ErrTxIsNil
 	}
-	if verifier == nil {
+	if verifiers == nil {
 		return ErrVerifierIsNil
 	}
 
-	err := x.verifyUC(tx, verifier, hashAlgorithm)
+	err := x.verifyUC(tx, verifiers, hashAlgorithm)
 	if err != nil {
 		return err
 	}
@@ -132,10 +132,10 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifier abcrypto.
 	}
 }
 
-func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifier abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	sysid := x.UnicityCertificate.UnicityTreeCertificate.SystemIdentifier
 	sdr := x.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
-	err := x.UnicityCertificate.IsValid(verifier, hashAlgorithm, sysid, sdr)
+	err := x.UnicityCertificate.IsValid(verifiers, hashAlgorithm, sysid, sdr)
 	if err != nil {
 		return err
 	}

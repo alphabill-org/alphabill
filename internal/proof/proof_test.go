@@ -146,7 +146,7 @@ func createSecondaryTx(unitid uint64) *OnlySecondaryTx {
 	return &OnlySecondaryTx{tx}
 }
 
-func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*certificates.UnicityCertificate, abcrypto.Verifier) {
+func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*certificates.UnicityCertificate, map[string]abcrypto.Verifier) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	blockhash, _ := b.Hash(hashAlgorithm)
 	ir := &certificates.InputRecord{
@@ -163,7 +163,7 @@ func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*
 		1,
 		make([]byte, 32),
 	)
-	return uc, verifier
+	return uc, map[string]abcrypto.Verifier{"test": verifier}
 }
 
 func verifyHashChain(t *testing.T, b *block.GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {

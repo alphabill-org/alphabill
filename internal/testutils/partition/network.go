@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -75,16 +76,19 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	if err != nil {
 		return nil, err
 	}
+	peerID, err := peer.IDFromPublicKey(encPubKey)
+	if err != nil {
+		return nil, err
+	}
 	pubKeyBytes, err := encPubKey.Raw()
 	if err != nil {
 		return nil, err
 	}
-
-	verifier, err := crypto.NewVerifierSecp256k1(pubKeyBytes)
+	pr, err := rootchain.NewPartitionRecordFromNodes(nodeGenesisFiles)
 	if err != nil {
 		return nil, err
 	}
-	rootGenesis, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes(nodeGenesisFiles, rootSigner, verifier)
+	rootGenesis, partitionGenesisFiles, err := rootchain.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
 	if err != nil {
 		return nil, err
 	}

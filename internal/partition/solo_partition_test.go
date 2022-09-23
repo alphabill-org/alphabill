@@ -99,15 +99,18 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	// root genesis
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-
-	rootGenesis, partitionGenesis, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{nodeGenesis}, rootSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
+	require.NoError(t, err)
+	rootGenesis, partitionGenesis, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	if err != nil {
 		t.Error(err)
 	}
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewState(rootGenesis, rootSigner, rstore.NewInMemoryRootChainStore())
+	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemoryRootChainStore())
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
@@ -218,7 +221,7 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRou
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}
-	return u, u.Sign(sn.rootSigner)
+	return u, u.Sign("test", sn.rootSigner)
 }
 
 func (sn *SingleNodePartition) GetLatestBlock() *block.Block {

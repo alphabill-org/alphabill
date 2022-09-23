@@ -1,6 +1,7 @@
 package rootchain
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -67,24 +68,44 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
-	log.SetContext(log.KeyNodeID, peer.ID().String())
+	selfId := peer.ID().String()
+	log.SetContext(log.KeyNodeID, selfId)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
-	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
+	// todo root genesis: this will become obsolete when dynamic configuration is implemented??
+	// Locate local node from genesis info
+	nodeInfo := genesis.Root.FindPubKeyById(peer.ID().String())
+	if nodeInfo == nil {
+		logger.Info("Root node %v info not in genesis file", peer.ID().String())
+		return nil, errors.New("invalid root validator encode key")
+	}
+	ver, err := signer.Verifier()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	signPubKeyBytes, err := ver.MarshalPublicKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	// verify that the same public key is present in the genesis file
+	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
+		return nil, errors.Errorf("invalid root validator sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
+	}
 
+	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
 	conf := loadConf(opts)
 
-	s, err := NewState(genesis, signer, conf.store)
+	s, err := NewState(genesis, selfId, signer, conf.store)
 	if err != nil {
 		return nil, err
 	}
 
 	timers := timer.NewTimers()
 	timers.Start(t3TimerID, conf.t3Timeout)
-	for _, p := range genesis.Partitions {
-		for _, validator := range p.Nodes {
-			duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
+	for _, partition := range genesis.Partitions {
+		for _, validator := range partition.Nodes {
+			duration := time.Duration(partition.SystemDescriptionRecord.T2Timeout) * time.Millisecond
 			timers.Start(string(validator.BlockCertificationRequest.SystemIdentifier), duration)
 			break
 		}

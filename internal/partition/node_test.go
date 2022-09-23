@@ -2,6 +2,7 @@ package partition
 
 import (
 	gocrypto "crypto"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
 
@@ -352,8 +353,10 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
-
-	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.SystemDescriptionRecord, tp.nodeConf.trustBase, gocrypto.SHA256)
+	ver, err := tp.rootSigner.Verifier()
+	require.NoError(t, err)
+	rootTrust := map[string]crypto.Verifier{"test": ver}
+	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.SystemDescriptionRecord, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})

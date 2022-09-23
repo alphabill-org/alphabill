@@ -22,16 +22,20 @@ type State struct {
 	store            store.RootChainStore                 // keeps track of latest unicity certificate for each tx system
 	incomingRequests map[p.SystemIdentifier]*requestStore // keeps track of incoming request. key is system identifier
 	hashAlgorithm    gocrypto.Hash                        // hash algorithm
+	selfId           string                               // node identifier
 	signer           crypto.Signer                        // private key of the root chain
-	verifier         crypto.Verifier
+	verifiers        map[string]crypto.Verifier
 }
 
-func NewState(g *genesis.RootGenesis, signer crypto.Signer, store store.RootChainStore) (*State, error) {
+func NewState(g *genesis.RootGenesis, self string, signer crypto.Signer, store store.RootChainStore) (*State, error) {
 	_, verifier, err := GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid root chain private key")
 	}
-	if err = g.IsValid(verifier); err != nil {
+	if g == nil {
+		return nil, errors.New("root genesis is nil")
+	}
+	if err := g.Verify(); err != nil {
 		return nil, errors.Wrap(err, "invalid genesis")
 	}
 	// Consider store is initiated when it contains any number of Unicity certificates
@@ -61,15 +65,16 @@ func NewState(g *genesis.RootGenesis, signer crypto.Signer, store store.RootChai
 		store:            store,
 		incomingRequests: make(map[p.SystemIdentifier]*requestStore),
 		partitionStore:   &partitionStore,
+		selfId:           self,
 		signer:           signer,
-		verifier:         verifier,
-		hashAlgorithm:    gocrypto.Hash(g.HashAlgorithm),
+		verifiers:        map[string]crypto.Verifier{self: verifier},
+		hashAlgorithm:    gocrypto.Hash(g.Root.Consensus.HashAlgorithm),
 	}, nil
 }
 
 // NewStateFromPartitionRecords creates the State from the genesis.PartitionRecord array. The State returned by this
 // method is usually used to generate genesis file.
-func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer crypto.Signer, hashAlgorithm gocrypto.Hash, chainStore store.RootChainStore) (*State, error) {
+func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, nodeId string, signer crypto.Signer, hashAlgorithm gocrypto.Hash, chainStore store.RootChainStore) (*State, error) {
 	if len(partitions) == 0 {
 		return nil, errors.New("partitions not found")
 	}
@@ -85,7 +90,9 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 	}
 	prevStateHashZero := make([]byte, gocrypto.SHA256.Size())
 	// set initial state for root genesis creation
-	chainStore.Init(prevStateHashZero, nil, 1)
+	if err := chainStore.Init(prevStateHashZero, nil, 1); err != nil {
+		return nil, err
+	}
 	requestStores := make(map[p.SystemIdentifier]*requestStore)
 	partitionStore := partitionStore{}
 
@@ -115,8 +122,9 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, signer 
 		store:            chainStore,
 		incomingRequests: requestStores,
 		partitionStore:   &partitionStore,
+		selfId:           nodeId,
 		signer:           signer,
-		verifier:         verifier,
+		verifiers:        map[string]crypto.Verifier{nodeId: verifier},
 		hashAlgorithm:    hashAlgorithm,
 	}, nil
 }
@@ -220,7 +228,7 @@ func (s *State) CreateUnicityCertificates() ([]p.SystemIdentifier, error) {
 		}
 
 		// check the certificate
-		err = certificate.IsValid(s.verifier, s.hashAlgorithm, d.SystemIdentifier, d.SystemDescriptionRecordHash)
+		err = certificate.IsValid(s.verifiers, s.hashAlgorithm, d.SystemIdentifier, d.SystemDescriptionRecordHash)
 		if err != nil {
 			// should never happen.
 			panic(err)
@@ -273,7 +281,7 @@ func (s *State) createUnicitySeal(rootHash []byte) (*certificates.UnicitySeal, e
 		PreviousHash:         s.store.GetPreviousRoundRootHash(),
 		Hash:                 rootHash,
 	}
-	return u, u.Sign(s.signer)
+	return u, u.Sign(s.selfId, s.signer)
 }
 
 func (s *State) isInputRecordValid(req *certification.BlockCertificationRequest) error {

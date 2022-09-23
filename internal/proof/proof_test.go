@@ -10,7 +10,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/omt"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -135,8 +134,8 @@ func TestProofTypeEmptyBlock(t *testing.T) {
 }
 
 func createPrimaryTx(unitid uint64) txsystem.GenericTransaction {
-	transferOrder := newTransferOrder(test.RandomBytes(32), 777, test.RandomBytes(32))
-	transaction := newTransaction(unitId(unitid), test.RandomBytes(32), 555, transferOrder)
+	transferOrder := newTransferOrder(make([]byte, 32), 777, make([]byte, 32))
+	transaction := newTransaction(unitId(unitid), make([]byte, 32), 555, transferOrder)
 	tx, _ := money.NewMoneyTx([]byte{0, 0, 0, 0}, transaction)
 	return tx
 }
@@ -171,7 +170,8 @@ func verifyHashChain(t *testing.T, b *block.GenericBlock, tx txsystem.GenericTra
 	leaves, _ := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
 	chain, _ := treeChain(tx.UnitID(), leaves, hashAlgorithm)
 	root := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
-	require.Equal(t, "CB640C13D144809E963F82D393C88C3636E8672BE1EB400791649EDDF64DB578", fmt.Sprintf("%X", root))
+	require.Equal(t, "49D67B64AF0919D3C0A803CF2FC1EB260A94F57673D05E9BB1D883F99981FB82", fmt.Sprintf("%X", root),
+		"hash chain verification failed for tx=%X", unitIdBytes[:])
 }
 
 func unitId(num uint64) []byte {

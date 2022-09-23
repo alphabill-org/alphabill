@@ -10,7 +10,7 @@ import (
 var ErrNilData = errors.New("merkle tree input data is nil")
 
 type (
-	IndexedMerkleTree struct {
+	OrderedMerkleTree struct {
 		root       *node
 		dataLength int // number of leaves
 	}
@@ -28,18 +28,18 @@ type (
 	}
 )
 
-// New creates a new indexed Merkle Tree for given set of leaves.
-func New(leaves []*Data, hashAlgorithm crypto.Hash) (*IndexedMerkleTree, error) {
+// New creates a new ordered Merkle Tree for given set of leaves.
+func New(leaves []*Data, hashAlgorithm crypto.Hash) (*OrderedMerkleTree, error) {
 	// TODO data has to be sorted
 	if leaves == nil {
 		return nil, ErrNilData
 	}
 	zeroHash := make([]byte, hashAlgorithm.Size())
-	return &IndexedMerkleTree{root: createTreeNode(leaves, hashAlgorithm, zeroHash), dataLength: len(leaves)}, nil
+	return &OrderedMerkleTree{root: createTreeNode(leaves, hashAlgorithm, zeroHash), dataLength: len(leaves)}, nil
 }
 
-// GetRootHash returns the root Hash of the Indexed Merkle Tree.
-func (s *IndexedMerkleTree) GetRootHash() []byte {
+// GetRootHash returns the root Hash of the Ordered Merkle Tree.
+func (s *OrderedMerkleTree) GetRootHash() []byte {
 	if s.root == nil {
 		return nil
 	}
@@ -47,14 +47,14 @@ func (s *IndexedMerkleTree) GetRootHash() []byte {
 }
 
 // GetMerklePath extracts the merkle path from the given leaf to root.
-func (s *IndexedMerkleTree) GetMerklePath(val []byte) ([]*Data, error) {
+func (s *OrderedMerkleTree) GetMerklePath(val []byte) ([]*Data, error) {
 	var z []*Data
 	s.getMerklePath(val, s.root, &z)
 	return z, nil
 }
 
 // getMerklePath recurisvely extracts the merkle path from given leaf to current node curr.
-func (s *IndexedMerkleTree) getMerklePath(val []byte, curr *node, z *[]*Data) {
+func (s *OrderedMerkleTree) getMerklePath(val []byte, curr *node, z *[]*Data) {
 	if curr.isLeaf() {
 		*z = append([]*Data{{Val: curr.data.Val, Hash: curr.data.unitHash}}, *z...)
 		return
@@ -102,7 +102,7 @@ func hashLeaf(d *Data, hashAlgorithm crypto.Hash) []byte {
 }
 
 // PrettyPrint returns human readable string representation of the Merkle Tree.
-func (s *IndexedMerkleTree) PrettyPrint() string {
+func (s *OrderedMerkleTree) PrettyPrint() string {
 	if s.root == nil {
 		return "tree is empty"
 	}
@@ -111,7 +111,7 @@ func (s *IndexedMerkleTree) PrettyPrint() string {
 	return out
 }
 
-func (s *IndexedMerkleTree) output(node *node, prefix string, isTail bool, str *string) {
+func (s *OrderedMerkleTree) output(node *node, prefix string, isTail bool, str *string) {
 	if node.right != nil {
 		newPrefix := prefix
 		if isTail {

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -104,16 +105,16 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 	switch x.ProofType {
 	case ProofType_PRIM:
 		primhash := omt.HashTx(tx, hashAlgorithm)
-		unithash := omt.HashData(primhash, x.HashValue, hashAlgorithm)
+		unithash := hash.Sum(hashAlgorithm, primhash, x.HashValue)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_SEC:
 		secChain := FromProtobuf(x.SecTreeHashChain.Items)
 		secChainOutput := mt.EvalMerklePath(secChain, tx, hashAlgorithm)
-		unithash := omt.HashData(x.HashValue, secChainOutput, hashAlgorithm)
+		unithash := hash.Sum(hashAlgorithm, x.HashValue, secChainOutput)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_ONLYSEC:
 		zerohash := make([]byte, hashAlgorithm.Size())
-		unithash := omt.HashData(zerohash, x.HashValue, hashAlgorithm)
+		unithash := hash.Sum(hashAlgorithm, zerohash, x.HashValue)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
@@ -128,7 +129,7 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 		}
 		return ErrProofVerificationFailed
 	default:
-		return errors.New("proof verification failed, unknown proof type " + x.ProofType.String())
+		return aberrors.Wrap(ErrProofVerificationFailed, "unknown proof type "+x.ProofType.String())
 	}
 }
 
@@ -143,7 +144,7 @@ func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[st
 	chain := FromProtobufHashChain(x.GetChainItems())
 	unitIdBytes := tx.UnitID().Bytes32()
 	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
-	blockhash := omt.HashData(x.BlockHeaderHash, rblock, hashAlgorithm)
+	blockhash := hash.Sum(hashAlgorithm, x.BlockHeaderHash, x.TransactionsHash, rblock)
 	if !bytes.Equal(x.UnicityCertificate.InputRecord.BlockHash, blockhash) {
 		return aberrors.Wrap(
 			ErrProofVerificationFailed,
@@ -196,6 +197,7 @@ func newEmptyBlockProof(b *block.GenericBlock, hashAlgorithm crypto.Hash) *Block
 	return &BlockProofV2{
 		ProofType:          ProofType_EMPTYBLOCK,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
+		TransactionsHash:   b.HashTransactions(hashAlgorithm),
 		HashValue:          make([]byte, hashAlgorithm.Size()),
 		UnicityCertificate: b.UnicityCertificate,
 	}
@@ -205,6 +207,7 @@ func newNotransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorith
 	return &BlockProofV2{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
+		TransactionsHash:   b.HashTransactions(hashAlgorithm),
 		HashValue:          make([]byte, hashAlgorithm.Size()),
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		UnicityCertificate: b.UnicityCertificate,
@@ -215,6 +218,7 @@ func newPrimBlockProof(b *block.GenericBlock, hashValue []byte, chain []*omt.Dat
 	return &BlockProofV2{
 		ProofType:          ProofType_PRIM,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
+		TransactionsHash:   b.HashTransactions(hashAlgorithm),
 		HashValue:          hashValue,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		UnicityCertificate: b.UnicityCertificate,
@@ -225,6 +229,7 @@ func newOnlysecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Da
 	return &BlockProofV2{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
+		TransactionsHash:   b.HashTransactions(hashAlgorithm),
 		HashValue:          secHash,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		UnicityCertificate: b.UnicityCertificate,
@@ -235,6 +240,7 @@ func newSecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, 
 	return &BlockProofV2{
 		ProofType:          ProofType_SEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
+		TransactionsHash:   b.HashTransactions(hashAlgorithm),
 		HashValue:          secHash,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		SecTreeHashChain:   &SecTreeHashChain{Items: ToProtobuf(secChain).PathItems},

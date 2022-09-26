@@ -26,13 +26,9 @@ func (x *GenericBlock) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	hh := x.HashHeader(hashAlgorithm)
 	hasher.Write(hh)
 
-	// TODO AB-383
-	// between 4.10.19 block_hash function and 4.10.22 VerifyProof block_hash calculation
-	//txHasher := hashAlgorithm.New()
-	//for _, tx := range x.Transactions {
-	//	txHasher.Write(tx.ToProtoBuf().Bytes())
-	//}
-	//hasher.Write(txHasher.Sum(nil))
+	txHasher := hashAlgorithm.New()
+	x.AddTransactionsToHasher(txHasher)
+	hasher.Write(txHasher.Sum(nil))
 
 	leaves, err := omt.BlockTreeLeaves(x.Transactions, hashAlgorithm)
 	if err != nil {
@@ -59,6 +55,18 @@ func (x *GenericBlock) AddHeaderToHasher(hasher hash.Hash) {
 	//hasher.Write(b.ShardIdentifier)
 	hasher.Write(util.Uint64ToBytes(x.BlockNumber))
 	hasher.Write(x.PreviousBlockHash)
+}
+
+func (x *GenericBlock) HashTransactions(hashAlgorithm crypto.Hash) []byte {
+	hasher := hashAlgorithm.New()
+	x.AddTransactionsToHasher(hasher)
+	return hasher.Sum(nil)
+}
+
+func (x *GenericBlock) AddTransactionsToHasher(hasher hash.Hash) {
+	for _, tx := range x.Transactions {
+		hasher.Write(tx.ToProtoBuf().Bytes())
+	}
 }
 
 // ToProtobuf converts GenericBlock to protobuf Block

@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
@@ -15,12 +16,12 @@ func BlockTreeLeaves(txs []txsystem.GenericTransaction, hashAlgorithm crypto.Has
 	identifiers := ExtractIdentifiers(txs)
 	for i, unitId := range identifiers {
 		primTx, secTxs := ExtractTransactions(txs, unitId)
-		hash, err := UnitHash(primTx, secTxs, hashAlgorithm)
+		h, err := UnitHash(primTx, secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
 		}
 		unitIdBytes := unitId.Bytes32()
-		leaves[i] = &Data{Val: unitIdBytes[:], Hash: hash}
+		leaves[i] = &Data{Val: unitIdBytes[:], Hash: h}
 	}
 	return leaves, nil
 }
@@ -61,26 +62,18 @@ func UnitHash(primTx txsystem.GenericTransaction, secTxs []txsystem.GenericTrans
 	if err != nil {
 		return nil, err
 	}
-	return HashData(primhash, sechash, hashAlgorithm), nil
-}
-
-// HashData hashes together two arbitary data units
-func HashData(h1 []byte, h2 []byte, hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	hasher.Write(h1)
-	hasher.Write(h2)
-	return hasher.Sum(nil)
+	return hash.Sum(hashAlgorithm, primhash, sechash), nil
 }
 
 // HashTx returns hash of given transaction or zero hash if nil transaction
 func HashTx(tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) []byte {
-	var hash []byte
+	var h []byte
 	hasher := hashAlgorithm.New()
 	if tx != nil {
 		hasher.Write(tx.ToProtoBuf().Bytes())
-		hash = hasher.Sum(nil)
+		h = hasher.Sum(nil)
 	} else {
-		hash = make([]byte, hashAlgorithm.Size())
+		h = make([]byte, hashAlgorithm.Size())
 	}
-	return hash
+	return h
 }

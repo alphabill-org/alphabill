@@ -28,9 +28,8 @@ type (
 	}
 )
 
-// New creates a new ordered Merkle Tree for given set of leaves.
+// New creates a new ordered Merkle Tree for given set of leaves. The leaves have to be sorted.
 func New(leaves []*Data, hashAlgorithm crypto.Hash) (*OrderedMerkleTree, error) {
-	// TODO data has to be sorted
 	if leaves == nil {
 		return nil, ErrNilData
 	}

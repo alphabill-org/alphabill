@@ -176,9 +176,16 @@ func treeChain(unitId *uint256.Int, leaves []*omt.Data, hashAlgorithm crypto.Has
 }
 
 func unitIdInIdentifiers(items []*uint256.Int, target *uint256.Int) bool {
-	// TODO binary search, input is already sorted
-	for _, item := range items {
-		if item.Eq(target) {
+	low := 0
+	high := len(items) - 1
+	for low <= high {
+		mid := low + (high-low)/2
+		midItem := items[mid]
+		if midItem.Lt(target) {
+			low = mid + 1
+		} else if midItem.Gt(target) {
+			high = mid - 1
+		} else {
 			return true
 		}
 	}

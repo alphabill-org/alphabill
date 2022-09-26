@@ -59,7 +59,7 @@ type (
 		attributes *CreateFungibleTokenTypeAttributes
 	}
 
-	mintFungibleTokenTypeWrapper struct {
+	mintFungibleTokenWrapper struct {
 		wrapper
 		attributes *MintFungibleTokenAttributes
 	}
@@ -142,7 +142,7 @@ func NewGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 		return convertToWrapper(
 			&MintFungibleTokenAttributes{},
 			func(a *MintFungibleTokenAttributes) txsystem.GenericTransaction {
-				return &mintFungibleTokenTypeWrapper{
+				return &mintFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
 				}
@@ -359,7 +359,11 @@ func (c *createFungibleTokenTypeWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
-func (m *mintFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
+func (c *createFungibleTokenTypeWrapper) ParentTypeID() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(c.attributes.ParentTypeId)
+}
+
+func (m *mintFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if m.wrapper.hashComputed(hashFunc) {
 		return m.wrapper.hashValue
 	}
@@ -374,13 +378,17 @@ func (m *mintFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 	return m.wrapper.hashValue
 }
 
-func (m *mintFungibleTokenTypeWrapper) SigBytes() []byte {
+func (m *mintFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	m.wrapper.sigBytes(&b)
 	b.Write(m.attributes.Bearer)
 	b.Write(m.attributes.Type)
 	b.Write(util.Uint64ToBytes(m.attributes.Value))
 	return b.Bytes()
+}
+
+func (x *MintFungibleTokenAttributes) GetTokenTypeID() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(x.Type)
 }
 
 func (t *transferFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {

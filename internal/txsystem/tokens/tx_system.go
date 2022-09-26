@@ -92,7 +92,7 @@ func (t *tokensTxSystem) Execute(tx txsystem.GenericTransaction) error {
 		return t.state.AddItem(
 			tx.UnitID(),
 			tx.attributes.Bearer,
-			newMintNonFungibleTokenData(tx, t.hashAlgorithm),
+			newNonFungibleTokenData(tx, t.hashAlgorithm),
 			h,
 		)
 	case *transferNonFungibleTokenWrapper:

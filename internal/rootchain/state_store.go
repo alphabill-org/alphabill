@@ -27,7 +27,7 @@ type RootState struct {
 }
 
 // NewVolatileStateStore stores state in volatile memory only, everything is lost on exit
-func NewVolatileStateStore(hashAlgorithm gocrypto.Hash) RootStateStore {
+func NewVolatileStateStore(hashAlgorithm gocrypto.Hash) *RootState {
 	return &RootState{
 		latestRound:    0,
 		latestRootHash: make([]byte, hashAlgorithm.Size()),
@@ -76,7 +76,7 @@ type PersistentRootState struct {
 
 // NewPersistentStateStoreFromDb persists state using the persistent storage provider interface
 // Currently uses RootSate as cache (probably should be refactored)
-func NewPersistentStateStoreFromDb(store RootStatePersistReadWriter) RootStateStore {
+func NewPersistentStateStoreFromDb(store RootStatePersistReadWriter) *PersistentRootState {
 	// Init to default
 	// Get the latest state from DB
 	return &PersistentRootState{

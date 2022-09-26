@@ -1,4 +1,4 @@
-package store
+package db
 
 import (
 	gocrypto "crypto"
@@ -30,15 +30,11 @@ var mockUc = &certificates.UnicityCertificate{
 	},
 }
 
-func TestRootStore(t *testing.T) {
+func TestPersistentRootStore(t *testing.T) {
 	tests := []struct {
 		desc  string
-		store RootChainStore
+		store *RootChainDb
 	}{
-		{
-			desc:  "inmemory",
-			store: createInMemoryRootStore(t),
-		},
 		{
 			desc:  "bolt",
 			store: createBoltRootStore(t),
@@ -46,7 +42,7 @@ func TestRootStore(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("store|"+tt.desc, func(t *testing.T) {
+		t.Run("db|"+tt.desc, func(t *testing.T) {
 			test_New(t, tt.store)
 			test_IR(t, tt.store)
 			test_nextRound(t, tt.store)
@@ -55,13 +51,13 @@ func TestRootStore(t *testing.T) {
 	}
 }
 
-func test_New(t *testing.T, rs RootChainStore) {
+func test_New(t *testing.T, rs *RootChainDb) {
 	require.NotNil(t, rs)
 	require.Equal(t, rs.UCCount(), 1)
-	require.Equal(t, rs.GetRoundNumber(), uint64(1))
+	require.Equal(t, rs.ReadLatestRoundNumber(), uint64(1))
 }
 
-func test_IR(t *testing.T, rs RootChainStore) {
+func test_IR(t *testing.T, rs *RootChainDb) {
 	ir := &certificates.InputRecord{
 		Hash: []byte{1, 2, 3},
 	}
@@ -73,36 +69,36 @@ func test_IR(t *testing.T, rs RootChainStore) {
 	require.Len(t, rs.GetAllIRs(), 1)
 }
 
-func test_nextRound(t *testing.T, rs RootChainStore) {
+func test_nextRound(t *testing.T, rs *RootChainDb) {
 	uc := &certificates.UnicityCertificate{
 		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
 			SystemIdentifier: sysId.Bytes(),
 		},
 	}
 
-	round := rs.GetRoundNumber()
+	round := rs.ReadLatestRoundNumber()
 	hash := []byte{1}
-	rs.SaveState([]byte{1}, []*certificates.UnicityCertificate{uc}, round+1)
+	rs.WriteState([]byte{1}, []*certificates.UnicityCertificate{uc}, round+1)
 
 	require.Equal(t, uc, rs.GetUC(sysId))
-	require.Equal(t, round+1, rs.GetRoundNumber())
-	require.Equal(t, hash, rs.GetPreviousRoundRootHash())
+	require.Equal(t, round+1, rs.ReadLatestRoundNumber())
+	require.Equal(t, hash, rs.ReadLatestRoundRootHash())
 }
 
-func test_badNextRound(t *testing.T, rs RootChainStore) {
+func test_badNextRound(t *testing.T, rs *RootChainDb) {
 	uc := &certificates.UnicityCertificate{
 		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
 			SystemIdentifier: sysId.Bytes(),
 		},
 	}
 
-	round := rs.GetRoundNumber()
+	round := rs.ReadLatestRoundNumber()
 	require.PanicsWithError(t, "Inconsistent round number, current=2, new=2", func() {
-		rs.SaveState([]byte{1}, []*certificates.UnicityCertificate{uc}, round)
+		rs.WriteState([]byte{1}, []*certificates.UnicityCertificate{uc}, round)
 	})
 }
 
-func createBoltRootStore(t *testing.T) *BoltRootChainStore {
+func Test_Noinit(t *testing.T) {
 	dbFile := path.Join(os.TempDir(), BoltRootChainStoreFileName)
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
@@ -110,20 +106,25 @@ func createBoltRootStore(t *testing.T) *BoltRootChainStore {
 			fmt.Printf("error deleting %s: %v\n", dbFile, err)
 		}
 	})
-	store, err := NewBoltRootChainStore(dbFile)
+	store, err := NewBoltRootChainDb(dbFile)
 	require.NoError(t, err)
 	require.False(t, store.GetInitiated())
-	ucs := []*certificates.UnicityCertificate{mockUc}
-	require.NoError(t, store.Init(previousHash, ucs, round))
-	require.True(t, store.GetInitiated())
-	return store
+	require.Equal(t, uint64(0), store.ReadLatestRoundNumber())
+	require.Nil(t, store.GetUC(sysId))
+	require.Nil(t, store.ReadLatestRoundRootHash())
 }
 
-func createInMemoryRootStore(t *testing.T) *InMemoryRootChainStore {
-	store := NewInMemoryRootChainStore()
-	require.False(t, store.GetInitiated())
+func createBoltRootStore(t *testing.T) *RootChainDb {
+	dbFile := path.Join(os.TempDir(), BoltRootChainStoreFileName)
+	t.Cleanup(func() {
+		err := os.Remove(dbFile)
+		if err != nil {
+			fmt.Printf("error deleting %s: %v\n", dbFile, err)
+		}
+	})
+	store, err := NewBoltRootChainDb(dbFile)
+	require.NoError(t, err)
 	ucs := []*certificates.UnicityCertificate{mockUc}
-	require.NoError(t, store.Init(previousHash, ucs, round))
-	require.True(t, store.GetInitiated())
+	require.NotPanics(t, func() { store.WriteState(previousHash, ucs, round) })
 	return store
 }

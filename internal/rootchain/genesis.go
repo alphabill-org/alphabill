@@ -4,8 +4,6 @@ import (
 	"bytes"
 	gocrypto "crypto"
 
-	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -144,7 +142,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		return nil, nil, err
 	}
 	// initiate State
-	state, err := NewStateFromPartitionRecords(partitions, c.peerID, c.signer, gocrypto.SHA256, rstore.NewInMemoryRootChainStore())
+	state, err := NewStateFromPartitionRecords(partitions, c.peerID, c.signer, gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, err
 	}

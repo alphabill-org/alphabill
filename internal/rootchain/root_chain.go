@@ -3,9 +3,9 @@ package rootchain
 import (
 	"bytes"
 	"context"
+	gocrypto "crypto"
 	"fmt"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
@@ -34,18 +34,23 @@ type (
 		ReceivedChannel() <-chan network.ReceivedMessage
 	}
 
+	PersistentStore interface {
+		RootStatePersistReadWriter
+	}
+
 	RootChain struct {
-		ctx       context.Context
-		ctxCancel context.CancelFunc
-		net       Net
-		peer      *network.Peer // p2p network
-		state     *State        // state of the root chain. keeps everything needed for consensus.
-		timers    *timer.Timers // keeps track of T2 and T3 timers
+		ctx        context.Context
+		ctxCancel  context.CancelFunc
+		net        Net
+		peer       *network.Peer // p2p network
+		state      *State        // state of the root chain. keeps everything needed for consensus.
+		stateStore RootStateStore
+		timers     *timer.Timers // keeps track of T2 and T3 timers
 	}
 
 	rootChainConf struct {
-		t3Timeout time.Duration
-		store     store.RootChainStore
+		t3Timeout  time.Duration
+		stateStore RootStateStore
 	}
 
 	Option func(c *rootChainConf)
@@ -57,9 +62,9 @@ func WithT3Timeout(timeout time.Duration) Option {
 	}
 }
 
-func WithRootChainStore(store store.RootChainStore) Option {
+func WithPersistentStore(store PersistentStore) Option {
 	return func(c *rootChainConf) {
-		c.store = store
+		c.stateStore = NewPersistentStateStoreFromDb(store)
 	}
 }
 
@@ -96,7 +101,7 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
 	conf := loadConf(opts)
 
-	s, err := NewState(genesis, selfId, signer, conf.store)
+	s, err := NewState(genesis, selfId, signer, conf.stateStore)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +204,7 @@ func (rc *RootChain) loop() {
 				logger.Debug("Handling T3 timeout")
 				partitionIdentifiers, err := rc.state.CreateUnicityCertificates()
 				if err != nil {
-					logger.Warning("Round %v failed: %v", rc.state.GetRoundNumber(), err)
+					logger.Warning("Round %v failed: %v", rc.state.GetCurrentRoundNumber(), err)
 				}
 				rc.sendUC(partitionIdentifiers)
 				rc.timers.Restart(t3TimerID)
@@ -256,8 +261,8 @@ func (rc *RootChain) sendUC(identifiers []p.SystemIdentifier) {
 
 func loadConf(opts []Option) *rootChainConf {
 	conf := &rootChainConf{
-		t3Timeout: defaultT3Timeout,
-		store:     store.NewInMemoryRootChainStore(),
+		t3Timeout:  defaultT3Timeout,
+		stateStore: NewVolatileStateStore(gocrypto.SHA256),
 	}
 	for _, opt := range opts {
 		if opt == nil {

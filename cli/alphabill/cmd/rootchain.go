@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/db"
 	"path"
 	"time"
 
@@ -94,18 +94,29 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 	if err != nil {
 		return err
 	}
-	store, err := initRootChainStore(config.DbFile)
-	if err != nil {
-		return err
+	var rc *rootchain.RootChain
+	if config.DbFile != "" {
+		store, err := rstore.NewBoltRootChainDb(config.DbFile)
+		if err != nil {
+			return err
+		}
+		rc, err = rootchain.NewRootChain(
+			peer,
+			rootGenesis,
+			rk.SigningPrivateKey,
+			net,
+			rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
+			rootchain.WithPersistentStore(store),
+		)
+	} else {
+		rc, err = rootchain.NewRootChain(
+			peer,
+			rootGenesis,
+			rk.SigningPrivateKey,
+			net,
+			rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
+		)
 	}
-	rc, err := rootchain.NewRootChain(
-		peer,
-		rootGenesis,
-		rk.SigningPrivateKey,
-		net,
-		rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
-		rootchain.WithRootChainStore(store),
-	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)
 	}
@@ -117,14 +128,6 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 			return nil
 		}).Start(ctx)
 	})
-}
-
-func initRootChainStore(dbFile string) (rstore.RootChainStore, error) {
-	if dbFile != "" {
-		return rstore.NewBoltRootChainStore(dbFile)
-	} else {
-		return rstore.NewInMemoryRootChainStore(), nil
-	}
 }
 
 func createPeer(config *rootChainConfig, encPrivate crypto.PrivKey) (*network.Peer, error) {

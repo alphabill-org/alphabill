@@ -19,7 +19,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
-	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -110,7 +109,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemoryRootChainStore())
+	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rootchain.NewVolatileStateStore(gocrypto.SHA256))
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()

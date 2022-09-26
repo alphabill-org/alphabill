@@ -143,7 +143,7 @@ func (n *node) isLeaf() bool {
 }
 
 // EvalMerklePath returns root hash calculated from the given hash chain, or zerohash if chain is empty
-func EvalMerklePath(merklePath []*Data, unitId []byte, hashAlgorithm crypto.Hash) []byte {
+func EvalMerklePath(merklePath []*Data, value []byte, hashAlgorithm crypto.Hash) []byte {
 	if len(merklePath) == 0 {
 		return make([]byte, hashAlgorithm.Size())
 	}
@@ -154,7 +154,7 @@ func EvalMerklePath(merklePath []*Data, unitId []byte, hashAlgorithm crypto.Hash
 			h = hashLeaf(item, hashAlgorithm)
 		} else {
 			hasher.Write([]byte{0})
-			if bytes.Compare(unitId, item.Val) <= 0 {
+			if bytes.Compare(value, item.Val) <= 0 {
 				hasher.Write(h)
 				hasher.Write(item.Hash)
 			} else {

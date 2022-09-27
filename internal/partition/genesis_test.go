@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -132,10 +133,18 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 }
 
 func calculateBlockHash(blockNr uint64, systemIdentifier, previousHash []byte) []byte {
+	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
 	hasher := gocrypto.SHA256.New()
 	hasher.Write(systemIdentifier)
 	hasher.Write(util.Uint64ToBytes(blockNr))
 	hasher.Write(previousHash)
-	hasher.Write(make([]byte, gocrypto.SHA256.Size()))
-	return hasher.Sum(nil)
+	headerHash := hasher.Sum(nil)
+	hasher.Reset()
+
+	txsHash := hasher.Sum(nil)
+	hasher.Reset()
+
+	treeHash := make([]byte, gocrypto.SHA256.Size())
+
+	return hash.Sum(gocrypto.SHA256, headerHash, txsHash, treeHash)
 }

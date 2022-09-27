@@ -74,9 +74,10 @@ func (x *GenericBlock) AddTransactionsToHasher(hasher hash.Hash) {
 // ToProtobuf converts GenericBlock to protobuf Block
 func (x *GenericBlock) ToProtobuf() *Block {
 	return &Block{
+		SystemIdentifier:   x.SystemIdentifier,
 		BlockNumber:        x.BlockNumber,
 		PreviousBlockHash:  x.PreviousBlockHash,
-		Transactions:       toProtoBuf(x.Transactions),
+		Transactions:       genericTxsToProtobuf(x.Transactions),
 		UnicityCertificate: x.UnicityCertificate,
 	}
 }
@@ -126,10 +127,22 @@ func (x *GenericBlock) ExtractTransactions(unitId *uint256.Int) (txsystem.Generi
 	return primaryTx, secondaryTxs
 }
 
-func toProtoBuf(transactions []txsystem.GenericTransaction) []*txsystem.Transaction {
-	protoTransactions := make([]*txsystem.Transaction, len(transactions))
-	for i, tx := range transactions {
-		protoTransactions[i] = tx.ToProtoBuf()
+func genericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transaction {
+	dst := make([]*txsystem.Transaction, len(src))
+	for i, tx := range src {
+		dst[i] = tx.ToProtoBuf()
 	}
-	return protoTransactions
+	return dst
+}
+
+func protobufTxsToGeneric(src []*txsystem.Transaction, txConverter TxConverter) ([]txsystem.GenericTransaction, error) {
+	dst := make([]txsystem.GenericTransaction, len(src))
+	var err error
+	for i, tx := range src {
+		dst[i], err = txConverter.ConvertTx(tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dst, nil
 }

@@ -4,26 +4,34 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
+type CertificationRequestStore interface {
+	Add(request *certification.BlockCertificationRequest) error
+	IsConsensusReceived(id p.SystemIdentifier, nrOfNodes int) (*certificates.InputRecord, bool)
+	GetRequests(id p.SystemIdentifier) []*certification.BlockCertificationRequest
+	Reset()
+	Clear(id p.SystemIdentifier)
+}
+
 // State holds the State of the root chain.
 type State struct {
-	partitionStore   *partitionStore                      // keeps track of partition in the root chain
-	store            store.RootChainStore                 // keeps track of latest unicity certificate for each tx system
-	incomingRequests map[p.SystemIdentifier]*requestStore // keeps track of incoming request. key is system identifier
-	hashAlgorithm    gocrypto.Hash                        // hash algorithm
-	selfId           string                               // node identifier
-	signer           crypto.Signer                        // private key of the root chain
+	partitionStore   *partitionStore           // keeps track of partition in the root chain
+	store            store.RootChainStore      // keeps track of latest unicity certificate for each tx system
+	incomingRequests CertificationRequestStore // keeps track of incoming request. key is system identifier
+	hashAlgorithm    gocrypto.Hash             // hash algorithm
+	selfId           string                    // node identifier
+	signer           crypto.Signer             // private key of the root chain
 	verifiers        map[string]crypto.Verifier
 }
 
@@ -53,9 +61,7 @@ func NewState(g *genesis.RootGenesis, selfId string, signer crypto.Signer, store
 		}
 	}
 	// reset incoming requests
-	for _, requests := range s.incomingRequests {
-		requests.reset()
-	}
+	s.incomingRequests.Reset()
 
 	s.PrepareNextRound(g.GetRoundHash(), certs, s.GetRoundNumber()+1)
 	return s, nil
@@ -74,32 +80,30 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, nodeId 
 	if err != nil {
 		return nil, err
 	}
-	requestStores := make(map[p.SystemIdentifier]*requestStore)
+	// Make sure that all provided partitions have unique system identifiers
+	if err := genesis.CheckPartitionSystemIdentifiersUnique(partitions); err != nil {
+		return nil, err
+	}
+	requestStore := NewCertificationRequestStore()
 	for _, partition := range partitions {
 		util.WriteDebugJsonLog(logger, "RootChain genesis is", partition)
+		// Check that partition is valid: required fields sent and no duplicate nodes
 		if err := partition.IsValid(); err != nil {
 			return nil, errors.Errorf("invalid partition record: %v", err)
 		}
-		identifier := p.SystemIdentifier(partition.GetSystemIdentifier())
-		if _, f := requestStores[identifier]; f {
-			return nil, errors.Errorf("system identifier %X is not unique", identifier)
-		}
-		reqStore := newRequestStore(identifier)
+		// Collect certification requests
 		for _, v := range partition.Validators {
-			if _, f := reqStore.requests[v.NodeIdentifier]; f {
-				return nil, errors.Errorf("partition %v contains multiple validators with %v id", identifier, v.NodeIdentifier)
+			if err := requestStore.Add(v.BlockCertificationRequest); err != nil {
+				return nil, err
 			}
-			reqStore.add(v.NodeIdentifier, v.BlockCertificationRequest)
 			logger.Debug("Node %v added to the partition %X.", v.NodeIdentifier, partition.SystemDescriptionRecord.SystemIdentifier)
 		}
-		requestStores[identifier] = reqStore
-
 		logger.Debug("Partition %X initialized.", partition.SystemDescriptionRecord.SystemIdentifier)
 	}
 
 	return &State{
 		store:            chainStore,
-		incomingRequests: requestStores,
+		incomingRequests: requestStore,
 		partitionStore:   newPartitionStore(partitions),
 		selfId:           nodeId,
 		signer:           signer,
@@ -125,38 +129,27 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 		// Extending of unknown State.
 		return latestUnicityCertificate, errors.Errorf("request extends unknown state: expected hash: %v, got: %v", seal.Hash, req.InputRecord.PreviousHash)
 	}
-	partitionRequests, f := s.incomingRequests[systemIdentifier]
-	if f {
-		logger.Debug("Partition '%X' has already sent %v certification requests", req.SystemIdentifier, len(partitionRequests.requests))
-		if rr, found := partitionRequests.requests[req.NodeIdentifier]; found {
-			if !bytes.Equal(rr.InputRecord.Hash, req.InputRecord.Hash) {
-				logger.Debug("Equivocating request with different hash: %v", req)
-				return nil, errors.New("equivocating request with different hash")
-			} else {
-				logger.Debug("Duplicated request: %v", req)
-				return nil, errors.New("duplicated request")
-			}
-		}
-		partitionRequests.add(req.NodeIdentifier, req)
-		s.checkConsensus(partitionRequests)
+	if err := s.incomingRequests.Add(req); err != nil {
+		return nil, err
 	}
+	s.checkConsensus(systemIdentifier)
 	return nil, nil
 }
 
-func (s *State) checkConsensus(rs *requestStore) bool {
-	if uc := s.store.GetUC(rs.id); uc != nil {
-		logger.Debug("Checking consensus for '%X', latest completed root round: %v", []byte(rs.id), uc.UnicitySeal.RootChainRoundNumber)
+func (s *State) checkConsensus(id p.SystemIdentifier) bool {
+	if uc := s.store.GetUC(id); uc != nil {
+		logger.Debug("Checking consensus for '%X', latest completed root round: %v", []byte(id), uc.UnicitySeal.RootChainRoundNumber)
 	}
-	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(rs.id))
+	inputRecord, consensusPossible := s.incomingRequests.IsConsensusReceived(id, s.partitionStore.nodeCount(id))
 	if inputRecord != nil {
-		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(rs.id), inputRecord.Hash)
-		s.store.AddIR(rs.id, inputRecord)
+		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(id), inputRecord.Hash)
+		s.store.AddIR(id, inputRecord)
 		return true
 	} else if !consensusPossible {
-		logger.Debug("Consensus not possible for partition %X.", []byte(rs.id))
-		luc := s.store.GetUC(rs.id)
+		logger.Debug("Consensus not possible for partition %X.", []byte(id))
+		luc := s.store.GetUC(id)
 		if luc != nil {
-			s.store.AddIR(rs.id, luc.InputRecord)
+			s.store.AddIR(id, luc.InputRecord)
 		}
 	}
 	return false
@@ -211,13 +204,8 @@ func (s *State) CreateUnicityCertificates() ([]p.SystemIdentifier, error) {
 		certs = append(certs, certificate)
 		systemIdentifiers = append(systemIdentifiers, identifier)
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
-
-		if requestStore, found := s.incomingRequests[identifier]; found {
-			if len(requestStore.requests) > 0 {
-				// remove active request from the store.
-				requestStore.reset()
-			}
-		}
+		// clear requests for partition after new Unicity Certificate has been made
+		s.incomingRequests.Clear(identifier)
 	}
 
 	s.PrepareNextRound(rootHash, certs, unicitySeal.RootChainRoundNumber+1)

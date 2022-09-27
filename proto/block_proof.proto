@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "certificates.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/internal/proof;proof";
+option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
 
 message BlockProof {
   bytes block_header_hash = 1;

@@ -6,7 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/proof"
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -89,7 +89,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	expectedBlockProof := &BlockProof{
 		BillId:      billId,
 		BlockNumber: 1,
-		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
+		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
 	}
 	err = bs.SetBlockProof(expectedBlockProof)
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 	p := &BlockProof{
 		BillId:      b.Id,
 		BlockNumber: 1,
-		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
+		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
 	}
 	err := bs.AddBillWithProof(pubKey, b, p)
 	require.NoError(t, err)

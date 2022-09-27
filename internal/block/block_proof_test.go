@@ -1,11 +1,10 @@
-package proof
+package block
 
 import (
 	"crypto"
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -30,7 +29,7 @@ func (g *OnlySecondaryTx) IsPrimary() bool {
 
 func TestProofTypePrim(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
-	b := &block.GenericBlock{}
+	b := &GenericBlock{}
 	for num := uint64(1); num <= 10; num++ {
 		b.Transactions = append(b.Transactions, createPrimaryTx(num))
 	}
@@ -56,7 +55,7 @@ func TestProofTypePrim(t *testing.T) {
 
 func TestProofTypeSec(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
-	b := &block.GenericBlock{}
+	b := &GenericBlock{}
 	for i := 0; i < 10; i++ {
 		b.Transactions = append(b.Transactions, createSecondaryTx(1))
 	}
@@ -81,7 +80,7 @@ func TestProofTypeSec(t *testing.T) {
 func TestProofTypeOnlySec(t *testing.T) {
 	// create block with secondary transactions for a given unit
 	hashAlgorithm := crypto.SHA256
-	b := &block.GenericBlock{
+	b := &GenericBlock{
 		Transactions: []txsystem.GenericTransaction{
 			createSecondaryTx(1),
 			createSecondaryTx(1),
@@ -107,7 +106,7 @@ func TestProofTypeOnlySec(t *testing.T) {
 
 func TestProofTypeNoTrans(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
-	b := &block.GenericBlock{}
+	b := &GenericBlock{}
 	b.Transactions = []txsystem.GenericTransaction{
 		createPrimaryTx(1),
 	}
@@ -123,7 +122,7 @@ func TestProofTypeNoTrans(t *testing.T) {
 
 func TestProofTypeEmptyBlock(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
-	b := &block.GenericBlock{}
+	b := &GenericBlock{}
 	uc, verifier := createUC(t, b, hashAlgorithm)
 	b.UnicityCertificate = uc
 
@@ -145,7 +144,7 @@ func createSecondaryTx(unitid uint64) *OnlySecondaryTx {
 	return &OnlySecondaryTx{tx}
 }
 
-func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*certificates.UnicityCertificate, map[string]abcrypto.Verifier) {
+func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certificates.UnicityCertificate, map[string]abcrypto.Verifier) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	blockhash, _ := b.Hash(hashAlgorithm)
 	ir := &certificates.InputRecord{
@@ -165,7 +164,7 @@ func createUC(t *testing.T, b *block.GenericBlock, hashAlgorithm crypto.Hash) (*
 	return uc, map[string]abcrypto.Verifier{"test": verifier}
 }
 
-func verifyHashChain(t *testing.T, b *block.GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {
+func verifyHashChain(t *testing.T, b *GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {
 	unitIdBytes := tx.UnitID().Bytes32()
 	leaves, _ := b.BlockTreeLeaves(hashAlgorithm)
 	chain, _ := treeChain(tx.UnitID(), leaves, hashAlgorithm)

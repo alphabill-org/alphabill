@@ -1,4 +1,4 @@
-package proof
+package block
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -25,7 +24,7 @@ var (
 )
 
 // NewPrimaryProof creates primary proof for given unit and block.
-func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
 	if b == nil {
 		return nil, ErrBlockIsNil
 	}
@@ -60,7 +59,7 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 }
 
 // NewSecondaryProof creates secondary proof for given unit and block.
-func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+func NewSecondaryProof(b *GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
 	if b == nil {
 		return nil, ErrBlockIsNil
 	}
@@ -80,7 +79,7 @@ func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int,
 		return nil, err
 	}
 	primTx, secTxs := b.ExtractTransactions(unitId)
-	primhash := block.HashTx(primTx, hashAlgorithm)
+	primhash := HashTx(primTx, hashAlgorithm)
 	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
@@ -104,7 +103,7 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 
 	switch x.ProofType {
 	case ProofType_PRIM:
-		primhash := block.HashTx(tx, hashAlgorithm)
+		primhash := HashTx(tx, hashAlgorithm)
 		unithash := hash.Sum(hashAlgorithm, primhash, x.HashValue)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_SEC:
@@ -193,7 +192,7 @@ func unitIdInIdentifiers(items []*uint256.Int, target *uint256.Int) bool {
 	return false
 }
 
-func newEmptyBlockProof(b *block.GenericBlock, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newEmptyBlockProof(b *GenericBlock, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_EMPTYBLOCK,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -203,7 +202,7 @@ func newEmptyBlockProof(b *block.GenericBlock, hashAlgorithm crypto.Hash) *Block
 	}
 }
 
-func newNoTransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newNoTransBlockProof(b *GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -214,7 +213,7 @@ func newNoTransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorith
 	}
 }
 
-func newPrimBlockProof(b *block.GenericBlock, hashValue []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newPrimBlockProof(b *GenericBlock, hashValue []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_PRIM,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -225,7 +224,7 @@ func newPrimBlockProof(b *block.GenericBlock, hashValue []byte, chain []*omt.Dat
 	}
 }
 
-func newOnlySecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newOnlySecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -236,7 +235,7 @@ func newOnlySecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Da
 	}
 }
 
-func newSecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, secChain []*mt.PathItem, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newSecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, secChain []*mt.PathItem, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_SEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),

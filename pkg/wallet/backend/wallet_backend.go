@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/proof"
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
@@ -27,7 +27,7 @@ type (
 	BlockProof struct {
 		BillId      *uint256.Int      `json:"billId"`
 		BlockNumber uint64            `json:"blockNumber"`
-		BlockProof  *proof.BlockProof `json:"blockProof"`
+		BlockProof  *block.BlockProof `json:"blockProof"`
 	}
 
 	Pubkey struct {

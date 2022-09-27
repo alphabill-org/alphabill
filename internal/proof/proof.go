@@ -53,9 +53,9 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 		if primTx != nil {
 			return newPrimBlockProof(b, secHash, chain, hashAlgorithm), nil
 		}
-		return newOnlysecBlockProof(b, secHash, chain, hashAlgorithm), nil
+		return newOnlySecBlockProof(b, secHash, chain, hashAlgorithm), nil
 	}
-	return newNotransBlockProof(b, chain, hashAlgorithm), nil
+	return newNoTransBlockProof(b, chain, hashAlgorithm), nil
 }
 
 // NewSecondaryProof creates secondary proof for given unit and block.
@@ -201,7 +201,7 @@ func newEmptyBlockProof(b *block.GenericBlock, hashAlgorithm crypto.Hash) *Block
 	}
 }
 
-func newNotransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newNoTransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -221,7 +221,7 @@ func newPrimBlockProof(b *block.GenericBlock, hashValue []byte, chain []*omt.Dat
 	}
 }
 
-func newOnlysecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newOnlySecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),

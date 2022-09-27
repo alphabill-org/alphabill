@@ -337,7 +337,7 @@ func TestExecuteCreateNFTType_InvalidSymbolName(t *testing.T) {
 			Symbol: s,
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), ErrStringInvalidSymbolName)
+	require.ErrorContains(t, txs.Execute(tx), ErrStrInvalidSymbolName)
 }
 
 func TestMintNFT_Ok(t *testing.T) {

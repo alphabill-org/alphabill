@@ -36,8 +36,8 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	identifiers := omt.ExtractIdentifiers(b.Transactions)
-	leaves, err := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
+	identifiers := b.ExtractIdentifiers()
+	leaves, err := b.BlockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 		return nil, err
 	}
 	if unitIdInIdentifiers(identifiers, unitId) {
-		primTx, secTxs := omt.ExtractTransactions(b.Transactions, unitId)
+		primTx, secTxs := b.ExtractTransactions(unitId)
 		secHash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
@@ -54,9 +54,9 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 		if primTx != nil {
 			return newPrimBlockProof(b, secHash, chain, hashAlgorithm), nil
 		}
-		return newOnlysecBlockProof(b, secHash, chain, hashAlgorithm), nil
+		return newOnlySecBlockProof(b, secHash, chain, hashAlgorithm), nil
 	}
-	return newNotransBlockProof(b, chain, hashAlgorithm), nil
+	return newNoTransBlockProof(b, chain, hashAlgorithm), nil
 }
 
 // NewSecondaryProof creates secondary proof for given unit and block.
@@ -71,7 +71,7 @@ func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int,
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	leaves, err := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
+	leaves, err := b.BlockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +79,8 @@ func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int,
 	if err != nil {
 		return nil, err
 	}
-	primTx, secTxs := omt.ExtractTransactions(b.Transactions, unitId)
-	primhash := omt.HashTx(primTx, hashAlgorithm)
+	primTx, secTxs := b.ExtractTransactions(unitId)
+	primhash := block.HashTx(primTx, hashAlgorithm)
 	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 
 	switch x.ProofType {
 	case ProofType_PRIM:
-		primhash := omt.HashTx(tx, hashAlgorithm)
+		primhash := block.HashTx(tx, hashAlgorithm)
 		unithash := hash.Sum(hashAlgorithm, primhash, x.HashValue)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_SEC:
@@ -203,7 +203,7 @@ func newEmptyBlockProof(b *block.GenericBlock, hashAlgorithm crypto.Hash) *Block
 	}
 }
 
-func newNotransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newNoTransBlockProof(b *block.GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
@@ -225,7 +225,7 @@ func newPrimBlockProof(b *block.GenericBlock, hashValue []byte, chain []*omt.Dat
 	}
 }
 
-func newOnlysecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
+func newOnlySecBlockProof(b *block.GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
 	return &BlockProofV2{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),

@@ -166,7 +166,7 @@ func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certif
 
 func verifyHashChain(t *testing.T, b *GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {
 	unitIdBytes := tx.UnitID().Bytes32()
-	leaves, _ := b.BlockTreeLeaves(hashAlgorithm)
+	leaves, _ := b.blockTreeLeaves(hashAlgorithm)
 	chain, _ := treeChain(tx.UnitID(), leaves, hashAlgorithm)
 	root := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
 	require.Equal(t, "690822883B5310DF3B8DA4232252A76E20E07F2F4FB184CEF85D35DC4AF4DF70", fmt.Sprintf("%X", root),

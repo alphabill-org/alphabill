@@ -35,8 +35,8 @@ func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	identifiers := b.ExtractIdentifiers()
-	leaves, err := b.BlockTreeLeaves(hashAlgorithm)
+	identifiers := b.extractIdentifiers()
+	leaves, err := b.blockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.
 		return nil, err
 	}
 	if unitIdInIdentifiers(identifiers, unitId) {
-		primTx, secTxs := b.ExtractTransactions(unitId)
+		primTx, secTxs := b.extractTransactions(unitId)
 		secHash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
@@ -70,7 +70,7 @@ func NewSecondaryProof(b *GenericBlock, unitId *uint256.Int, secTxIdx int, hashA
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	leaves, err := b.BlockTreeLeaves(hashAlgorithm)
+	leaves, err := b.blockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func NewSecondaryProof(b *GenericBlock, unitId *uint256.Int, secTxIdx int, hashA
 	if err != nil {
 		return nil, err
 	}
-	primTx, secTxs := b.ExtractTransactions(unitId)
-	primhash := HashTx(primTx, hashAlgorithm)
+	primTx, secTxs := b.extractTransactions(unitId)
+	primhash := hashTx(primTx, hashAlgorithm)
 	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 
 	switch x.ProofType {
 	case ProofType_PRIM:
-		primhash := HashTx(tx, hashAlgorithm)
+		primhash := hashTx(tx, hashAlgorithm)
 		unithash := hash.Sum(hashAlgorithm, primhash, x.HashValue)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_SEC:
@@ -117,13 +117,13 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
-		chain := x.GetChainItems()
+		chain := x.getChainItems()
 		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
 			return nil
 		}
 		return ErrProofVerificationFailed
 	case ProofType_EMPTYBLOCK:
-		if len(x.GetChainItems()) == 0 {
+		if len(x.getChainItems()) == 0 {
 			return nil
 		}
 		return ErrProofVerificationFailed
@@ -140,7 +140,7 @@ func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[st
 		return err
 	}
 
-	chain := FromProtobufHashChain(x.GetChainItems())
+	chain := FromProtobufHashChain(x.getChainItems())
 	unitIdBytes := tx.UnitID().Bytes32()
 	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
 	blockhash := hash.Sum(hashAlgorithm, x.BlockHeaderHash, x.TransactionsHash, rblock)
@@ -155,7 +155,7 @@ func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[st
 }
 
 func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) error {
-	chain := x.GetChainItems()
+	chain := x.getChainItems()
 	unitIdBytes := unitId.Bytes32()
 	if len(chain) > 0 &&
 		bytes.Equal(chain[0].Val, unitIdBytes[:]) &&
@@ -163,6 +163,15 @@ func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) err
 		return nil
 	}
 	return ErrProofVerificationFailed
+}
+
+// getChainItems returns BlockTreeHashChain chain items, used for nil safe access.
+func (x *BlockProofV2) getChainItems() []*ChainItem {
+	chain := x.BlockTreeHashChain
+	if chain != nil {
+		return chain.Items
+	}
+	return nil
 }
 
 // treeChain returns hash tree chain from given unit to root
@@ -196,7 +205,7 @@ func newEmptyBlockProof(b *GenericBlock, hashAlgorithm crypto.Hash) *BlockProofV
 	return &BlockProofV2{
 		ProofType:          ProofType_EMPTYBLOCK,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
-		TransactionsHash:   b.HashTransactions(hashAlgorithm),
+		TransactionsHash:   b.hashTransactions(hashAlgorithm),
 		HashValue:          make([]byte, hashAlgorithm.Size()),
 		UnicityCertificate: b.UnicityCertificate,
 	}
@@ -206,7 +215,7 @@ func newNoTransBlockProof(b *GenericBlock, chain []*omt.Data, hashAlgorithm cryp
 	return &BlockProofV2{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
-		TransactionsHash:   b.HashTransactions(hashAlgorithm),
+		TransactionsHash:   b.hashTransactions(hashAlgorithm),
 		HashValue:          make([]byte, hashAlgorithm.Size()),
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		UnicityCertificate: b.UnicityCertificate,
@@ -217,7 +226,7 @@ func newPrimBlockProof(b *GenericBlock, hashValue []byte, chain []*omt.Data, has
 	return &BlockProofV2{
 		ProofType:          ProofType_PRIM,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
-		TransactionsHash:   b.HashTransactions(hashAlgorithm),
+		TransactionsHash:   b.hashTransactions(hashAlgorithm),
 		HashValue:          hashValue,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		UnicityCertificate: b.UnicityCertificate,
@@ -228,7 +237,7 @@ func newOnlySecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, ha
 	return &BlockProofV2{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
-		TransactionsHash:   b.HashTransactions(hashAlgorithm),
+		TransactionsHash:   b.hashTransactions(hashAlgorithm),
 		HashValue:          secHash,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		UnicityCertificate: b.UnicityCertificate,
@@ -239,19 +248,10 @@ func newSecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, secCha
 	return &BlockProofV2{
 		ProofType:          ProofType_SEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
-		TransactionsHash:   b.HashTransactions(hashAlgorithm),
+		TransactionsHash:   b.hashTransactions(hashAlgorithm),
 		HashValue:          secHash,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
 		SecTreeHashChain:   &SecTreeHashChain{Items: ToProtobuf(secChain).PathItems},
 		UnicityCertificate: b.UnicityCertificate,
 	}
-}
-
-// GetChainItems returns BlockTreeHashChain chain items, used for nil safe access.
-func (x *BlockProofV2) GetChainItems() []*ChainItem {
-	chain := x.BlockTreeHashChain
-	if chain != nil {
-		return chain.Items
-	}
-	return nil
 }

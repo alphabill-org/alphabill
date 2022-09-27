@@ -3,11 +3,13 @@ package block
 import (
 	"crypto"
 	"hash"
+	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/holiman/uint256"
 )
 
 // GenericBlock same as Block but transactions are of type txsystem.GenericTransaction
@@ -34,7 +36,7 @@ func (x *GenericBlock) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	//}
 	//hasher.Write(txHasher.Sum(nil))
 
-	leaves, err := omt.BlockTreeLeaves(x.Transactions, hashAlgorithm)
+	leaves, err := x.BlockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +71,51 @@ func (x *GenericBlock) ToProtobuf() *Block {
 		Transactions:       toProtoBuf(x.Transactions),
 		UnicityCertificate: x.UnicityCertificate,
 	}
+}
+
+// BlockTreeLeaves returns leaves for the ordered merkle tree
+func (x *GenericBlock) BlockTreeLeaves(hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
+	leaves := make([]*omt.Data, len(x.Transactions))
+	identifiers := x.ExtractIdentifiers()
+	for i, unitId := range identifiers {
+		primTx, secTxs := x.ExtractTransactions(unitId)
+		unitHash, err := UnitHash(primTx, secTxs, hashAlgorithm)
+		if err != nil {
+			return nil, err
+		}
+		unitIdBytes := unitId.Bytes32()
+		leaves[i] = &omt.Data{Val: unitIdBytes[:], Hash: unitHash}
+	}
+	return leaves, nil
+}
+
+// ExtractIdentifiers returns ordered list of unit ids for given transactions
+func (x *GenericBlock) ExtractIdentifiers() []*uint256.Int {
+	ids := make([]*uint256.Int, len(x.Transactions))
+	for i, tx := range x.Transactions {
+		ids[i] = tx.UnitID()
+	}
+	// sort ids in ascending order
+	sort.Slice(ids, func(i, j int) bool {
+		return ids[i].Cmp(ids[j]) < 0
+	})
+	return ids
+}
+
+// ExtractTransactions returns primary tx and list of secondary txs for given unit
+func (x *GenericBlock) ExtractTransactions(unitId *uint256.Int) (txsystem.GenericTransaction, []txsystem.GenericTransaction) {
+	var primaryTx txsystem.GenericTransaction
+	var secondaryTxs []txsystem.GenericTransaction
+	for _, tx := range x.Transactions {
+		if tx.UnitID().Eq(unitId) {
+			if tx.IsPrimary() {
+				primaryTx = tx
+			} else {
+				secondaryTxs = append(secondaryTxs, tx)
+			}
+		}
+	}
+	return primaryTx, secondaryTxs
 }
 
 func toProtoBuf(transactions []txsystem.GenericTransaction) []*txsystem.Transaction {

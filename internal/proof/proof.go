@@ -35,8 +35,8 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	identifiers := omt.ExtractIdentifiers(b.Transactions)
-	leaves, err := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
+	identifiers := b.ExtractIdentifiers()
+	leaves, err := b.BlockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func NewPrimaryProof(b *block.GenericBlock, unitId *uint256.Int, hashAlgorithm c
 		return nil, err
 	}
 	if unitIdInIdentifiers(identifiers, unitId) {
-		primTx, secTxs := omt.ExtractTransactions(b.Transactions, unitId)
+		primTx, secTxs := b.ExtractTransactions(unitId)
 		secHash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
@@ -70,7 +70,7 @@ func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int,
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	leaves, err := omt.BlockTreeLeaves(b.Transactions, hashAlgorithm)
+	leaves, err := b.BlockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +78,8 @@ func NewSecondaryProof(b *block.GenericBlock, unitId *uint256.Int, secTxIdx int,
 	if err != nil {
 		return nil, err
 	}
-	primTx, secTxs := omt.ExtractTransactions(b.Transactions, unitId)
-	primhash := omt.HashTx(primTx, hashAlgorithm)
+	primTx, secTxs := b.ExtractTransactions(unitId)
+	primhash := block.HashTx(primTx, hashAlgorithm)
 	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
 	if err != nil {
 		return nil, err
@@ -103,17 +103,17 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 
 	switch x.ProofType {
 	case ProofType_PRIM:
-		primhash := omt.HashTx(tx, hashAlgorithm)
-		unithash := omt.HashData(primhash, x.HashValue, hashAlgorithm)
+		primhash := block.HashTx(tx, hashAlgorithm)
+		unithash := block.HashData(primhash, x.HashValue, hashAlgorithm)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_SEC:
 		secChain := FromProtobuf(x.SecTreeHashChain.Items)
 		secChainOutput := mt.EvalMerklePath(secChain, tx, hashAlgorithm)
-		unithash := omt.HashData(x.HashValue, secChainOutput, hashAlgorithm)
+		unithash := block.HashData(x.HashValue, secChainOutput, hashAlgorithm)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_ONLYSEC:
 		zerohash := make([]byte, hashAlgorithm.Size())
-		unithash := omt.HashData(zerohash, x.HashValue, hashAlgorithm)
+		unithash := block.HashData(zerohash, x.HashValue, hashAlgorithm)
 		return x.verifyChainHead(tx.UnitID(), unithash)
 	case ProofType_NOTRANS:
 		unitIdBytes := tx.UnitID().Bytes32()
@@ -143,7 +143,7 @@ func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[st
 	chain := FromProtobufHashChain(x.GetChainItems())
 	unitIdBytes := tx.UnitID().Bytes32()
 	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
-	blockhash := omt.HashData(x.BlockHeaderHash, rblock, hashAlgorithm)
+	blockhash := block.HashData(x.BlockHeaderHash, rblock, hashAlgorithm)
 	if !bytes.Equal(x.UnicityCertificate.InputRecord.BlockHash, blockhash) {
 		return aberrors.Wrap(
 			ErrProofVerificationFailed,

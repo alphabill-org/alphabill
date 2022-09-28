@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/mt"
-	"github.com/alphabill-org/alphabill/internal/proof"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -353,7 +352,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	for _, b := range bills {
 		// verify block proofs
 		require.NotNil(t, b.BlockProof)
-		merklePath := proof.FromProtobuf(b.BlockProof.MerkleProof.PathItems)
+		merklePath := block.FromProtobuf(b.BlockProof.MerkleProof.PathItems)
 		rootHash := mt.EvalMerklePath(merklePath, &mt.ByteHasher{Val: getMatchingTxForBill(b, testBlock).Bytes()}, crypto.SHA256)
 		require.NotNil(t, rootHash)
 		require.EqualValues(t, merkleTree.GetRootHash(), rootHash)

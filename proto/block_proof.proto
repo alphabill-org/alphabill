@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "certificates.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/internal/proof;proof";
+option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
 
 message BlockProof {
   bytes block_header_hash = 1;
@@ -32,10 +32,11 @@ enum ProofType {
 message BlockProofV2 {
   ProofType proof_type = 1;
   bytes block_header_hash = 2;
-  bytes hash_value = 3;
-  BlockTreeHashChain block_tree_hash_chain = 4;
-  SecTreeHashChain sec_tree_hash_chain = 5;
-  UnicityCertificate unicity_certificate = 6;
+  bytes transactions_hash = 3;
+  bytes hash_value = 4;
+  BlockTreeHashChain block_tree_hash_chain = 5;
+  SecTreeHashChain sec_tree_hash_chain = 6;
+  UnicityCertificate unicity_certificate = 7;
 }
 
 message BlockTreeHashChain {

@@ -59,12 +59,12 @@ func (s *OrderedMerkleTree) getMerklePath(val []byte, curr *node, z *[]*Data) {
 		return
 	}
 	if bytes.Compare(val, curr.data.Val) <= 0 {
-		// target in the left sub-tree, prepend right node, and go left
-		*z = append([]*Data{curr.right.data}, *z...)
+		// target in the left sub-tree, prepend <curr.val,right.hash>, and go left
+		*z = append([]*Data{{Val: curr.data.Val, Hash: curr.right.data.Hash}}, *z...)
 		s.getMerklePath(val, curr.left, z)
 	} else {
-		// target in the right sub-tree, prepend left node and go right
-		*z = append([]*Data{curr.left.data}, *z...)
+		// target in the right sub-tree, prepend <curr.val,left.hash>, and go right
+		*z = append([]*Data{{Val: curr.data.Val, Hash: curr.left.data.Hash}}, *z...)
 		s.getMerklePath(val, curr.right, z)
 	}
 }
@@ -86,10 +86,15 @@ func createTreeNode(data []*Data, hashAlgorithm crypto.Hash, zeroHash []byte) *n
 	right := createTreeNode(data[n:], hashAlgorithm, zeroHash)
 
 	hasher := hashAlgorithm.New()
-	hasher.Write([]byte{0}) // non-leaf hash starts with byte 0 to prent false proofs
+	hasher.Write([]byte{0})     // non-leaf hash starts with byte 0 to prevent false proofs
+	hasher.Write(data[n-1].Val) // include unit value to prevent potential proof manipulation attacks
 	hasher.Write(left.data.Hash)
 	hasher.Write(right.data.Hash)
-	return &node{left: left, right: right, data: &Data{Val: data[n-1].Val, Hash: hasher.Sum(nil)}}
+	return &node{
+		left:  left,
+		right: right,
+		data:  &Data{Val: data[n-1].Val, Hash: hasher.Sum(nil)}, // val=highest value in left subtree
+	}
 }
 
 func hashLeaf(d *Data, hashAlgorithm crypto.Hash) []byte {
@@ -154,6 +159,7 @@ func EvalMerklePath(merklePath []*Data, value []byte, hashAlgorithm crypto.Hash)
 			h = hashLeaf(item, hashAlgorithm)
 		} else {
 			hasher.Write([]byte{0})
+			hasher.Write(item.Val)
 			if bytes.Compare(value, item.Val) <= 0 {
 				hasher.Write(h)
 				hasher.Write(item.Hash)

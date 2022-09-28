@@ -1,4 +1,4 @@
-package proof
+package block
 
 import (
 	"github.com/alphabill-org/alphabill/internal/mt"

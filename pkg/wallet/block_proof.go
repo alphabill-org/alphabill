@@ -5,11 +5,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/mt"
-	"github.com/alphabill-org/alphabill/internal/proof"
 )
 
 // TODO AB-385
-func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*proof.BlockProof, error) {
+func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*block.BlockProof, error) {
 	mtTxs := make([]mt.Data, len(b.Transactions))
 	for i, txb := range b.Transactions {
 		mtTxs[i] = &mt.ByteHasher{Val: txb.Bytes()}
@@ -25,9 +24,9 @@ func ExtractBlockProof(b *block.Block, txIdx int, hashAlgorithm crypto.Hash) (*p
 		return nil, err
 	}
 
-	return &proof.BlockProof{
+	return &block.BlockProof{
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
-		MerkleProof:        proof.ToProtobuf(path),
+		MerkleProof:        block.ToProtobuf(path),
 		UnicityCertificate: b.UnicityCertificate,
 	}, nil
 }

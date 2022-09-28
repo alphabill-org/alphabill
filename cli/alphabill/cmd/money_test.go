@@ -92,12 +92,13 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				return sc
 			}(),
 		}, {
-			args: "money --server-address=srv:1234 --server-max-get-blocks-batch-size=55 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
+			args: "money --server-address=srv:1234 --server-max-get-blocks-batch-size=55 --server-max-send-msg-size=65 --server-max-recv-msg-size=66 --server-max-connection-age-ms=77 --server-max-connection-age-grace-ms=88",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
 				sc.RPCServer = &grpcServerConfiguration{
 					Address:                 "srv:1234",
 					MaxGetBlocksBatchSize:   55,
+					MaxSendMsgSize:          65,
 					MaxRecvMsgSize:          66,
 					MaxConnectionAgeMs:      77,
 					MaxConnectionAgeGraceMs: 88,
@@ -241,6 +242,7 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			Address:               defaultServerAddr,
 			MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 			MaxRecvMsgSize:        defaultMaxRecvMsgSize,
+			MaxSendMsgSize:        defaultMaxSendMsgSize,
 		},
 	}
 }

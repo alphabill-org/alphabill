@@ -45,6 +45,7 @@ func TestRunVD(t *testing.T) {
 			RPCServer: &grpcServerConfiguration{
 				Address:        defaultServerAddr,
 				MaxRecvMsgSize: defaultMaxRecvMsgSize,
+				MaxSendMsgSize: defaultMaxSendMsgSize,
 			},
 		}
 		conf.RPCServer.Address = listenAddr

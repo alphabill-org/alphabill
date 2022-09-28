@@ -5,8 +5,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/omt"
 )
 
-// ToProtobuf utility function that converts []mt.PathItem to proof.BlockMerkleProof
-func ToProtobuf(srcPathItmes []*mt.PathItem) *BlockMerkleProof {
+// ToProtobuf utility function that converts []*mt.PathItem to []*MerklePathItem
+func ToProtobuf(srcPathItmes []*mt.PathItem) []*MerklePathItem {
 	dstPathItems := make([]*MerklePathItem, len(srcPathItmes))
 	for i, srcPathItem := range srcPathItmes {
 		dstPathItems[i] = &MerklePathItem{
@@ -14,12 +14,10 @@ func ToProtobuf(srcPathItmes []*mt.PathItem) *BlockMerkleProof {
 			PathItem:      srcPathItem.Hash,
 		}
 	}
-	return &BlockMerkleProof{
-		PathItems: dstPathItems,
-	}
+	return dstPathItems
 }
 
-// FromProtobuf utility function that converts BlockMerkleProof to []mt.PathItem
+// FromProtobuf utility function that converts []*MerklePathItem to []*mt.PathItem
 func FromProtobuf(chain []*MerklePathItem) []*mt.PathItem {
 	dst := make([]*mt.PathItem, len(chain))
 	for i, src := range chain {

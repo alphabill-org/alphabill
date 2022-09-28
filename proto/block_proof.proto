@@ -4,23 +4,6 @@ import "certificates.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
 
-message BlockProof {
-  bytes block_header_hash = 1;
-  BlockMerkleProof merkle_proof = 2;
-  UnicityCertificate unicity_certificate = 3;
-}
-
-message BlockMerkleProof {
-  repeated MerklePathItem path_items = 1;
-}
-
-message MerklePathItem {
-  // DirectionLeft direction from parent node; left=true right=false
-  bool direction_left = 1;
-  // PathItem Hash of Merkle Tree node
-  bytes path_item = 2;
-}
-
 enum ProofType {
   PRIM = 0;
   SEC = 1;
@@ -29,10 +12,11 @@ enum ProofType {
   EMPTYBLOCK = 4;
 }
 
-message BlockProofV2 {
+message BlockProof {
   ProofType proof_type = 1;
   bytes block_header_hash = 2;
   bytes transactions_hash = 3;
+  // hash value of either primary tx or secondary txs or zero hash, depending on proof type
   bytes hash_value = 4;
   BlockTreeHashChain block_tree_hash_chain = 5;
   SecTreeHashChain sec_tree_hash_chain = 6;
@@ -50,4 +34,11 @@ message SecTreeHashChain {
 message ChainItem {
   bytes val = 1;
   bytes hash = 2;
+}
+
+message MerklePathItem {
+  // DirectionLeft direction from parent node; left=true right=false
+  bool direction_left = 1;
+  // PathItem Hash of Merkle Tree node
+  bytes path_item = 2;
 }

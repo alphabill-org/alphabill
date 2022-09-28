@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -117,9 +116,10 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 			BillId:      uint256.NewInt(0),
 			BlockNumber: 1,
 			BlockProof: &block.BlockProof{
-				BlockHeaderHash:    []byte{0},
-				MerkleProof:        &block.BlockMerkleProof{PathItems: []*block.MerklePathItem{{DirectionLeft: true, PathItem: []byte{0}}}},
-				UnicityCertificate: &certificates.UnicityCertificate{},
+				BlockHeaderHash: []byte{0},
+				BlockTreeHashChain: &block.BlockTreeHashChain{
+					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
+				},
 			},
 		},
 	}

@@ -24,7 +24,7 @@ var (
 )
 
 // NewPrimaryProof creates primary proof for given unit and block.
-func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProof, error) {
 	if b == nil {
 		return nil, ErrBlockIsNil
 	}
@@ -59,7 +59,7 @@ func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.
 }
 
 // NewSecondaryProof creates secondary proof for given unit and block.
-func NewSecondaryProof(b *GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProofV2, error) {
+func NewSecondaryProof(b *GenericBlock, unitId *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProof, error) {
 	if b == nil {
 		return nil, ErrBlockIsNil
 	}
@@ -88,7 +88,7 @@ func NewSecondaryProof(b *GenericBlock, unitId *uint256.Int, secTxIdx int, hashA
 }
 
 // Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
-func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (x *BlockProof) Verify(tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	if tx == nil {
 		return ErrTxIsNil
 	}
@@ -96,7 +96,8 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 		return ErrVerifierIsNil
 	}
 
-	err := x.verifyUC(tx, verifiers, hashAlgorithm)
+	unitId := tx.UnitID()
+	err := x.verifyUC(unitId, verifiers, hashAlgorithm)
 	if err != nil {
 		return err
 	}
@@ -105,18 +106,18 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 	case ProofType_PRIM:
 		primhash := hashTx(tx, hashAlgorithm)
 		unithash := hash.Sum(hashAlgorithm, primhash, x.HashValue)
-		return x.verifyChainHead(tx.UnitID(), unithash)
+		return x.verifyChainHead(unitId, unithash)
 	case ProofType_SEC:
 		secChain := FromProtobuf(x.SecTreeHashChain.Items)
 		secChainOutput := mt.EvalMerklePath(secChain, tx, hashAlgorithm)
 		unithash := hash.Sum(hashAlgorithm, x.HashValue, secChainOutput)
-		return x.verifyChainHead(tx.UnitID(), unithash)
+		return x.verifyChainHead(unitId, unithash)
 	case ProofType_ONLYSEC:
 		zerohash := make([]byte, hashAlgorithm.Size())
 		unithash := hash.Sum(hashAlgorithm, zerohash, x.HashValue)
-		return x.verifyChainHead(tx.UnitID(), unithash)
+		return x.verifyChainHead(unitId, unithash)
 	case ProofType_NOTRANS:
-		unitIdBytes := tx.UnitID().Bytes32()
+		unitIdBytes := unitId.Bytes32()
 		chain := x.getChainItems()
 		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitIdBytes[:]) {
 			return nil
@@ -132,7 +133,7 @@ func (x *BlockProofV2) Verify(tx txsystem.GenericTransaction, verifiers map[stri
 	}
 }
 
-func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (x *BlockProof) verifyUC(unitId *uint256.Int, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	sysid := x.UnicityCertificate.UnicityTreeCertificate.SystemIdentifier
 	sdr := x.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
 	err := x.UnicityCertificate.IsValid(verifiers, hashAlgorithm, sysid, sdr)
@@ -141,7 +142,7 @@ func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[st
 	}
 
 	chain := FromProtobufHashChain(x.getChainItems())
-	unitIdBytes := tx.UnitID().Bytes32()
+	unitIdBytes := unitId.Bytes32()
 	rblock := omt.EvalMerklePath(chain, unitIdBytes[:], hashAlgorithm)
 	blockhash := hash.Sum(hashAlgorithm, x.BlockHeaderHash, x.TransactionsHash, rblock)
 	if !bytes.Equal(x.UnicityCertificate.InputRecord.BlockHash, blockhash) {
@@ -154,7 +155,7 @@ func (x *BlockProofV2) verifyUC(tx txsystem.GenericTransaction, verifiers map[st
 	return nil
 }
 
-func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) error {
+func (x *BlockProof) verifyChainHead(unitId *uint256.Int, unithash []byte) error {
 	chain := x.getChainItems()
 	unitIdBytes := unitId.Bytes32()
 	if len(chain) > 0 &&
@@ -166,7 +167,7 @@ func (x *BlockProofV2) verifyChainHead(unitId *uint256.Int, unithash []byte) err
 }
 
 // getChainItems returns BlockTreeHashChain chain items, used for nil safe access.
-func (x *BlockProofV2) getChainItems() []*ChainItem {
+func (x *BlockProof) getChainItems() []*ChainItem {
 	chain := x.BlockTreeHashChain
 	if chain != nil {
 		return chain.Items
@@ -201,8 +202,8 @@ func unitIdInIdentifiers(items []*uint256.Int, target *uint256.Int) bool {
 	return false
 }
 
-func newEmptyBlockProof(b *GenericBlock, hashAlgorithm crypto.Hash) *BlockProofV2 {
-	return &BlockProofV2{
+func newEmptyBlockProof(b *GenericBlock, hashAlgorithm crypto.Hash) *BlockProof {
+	return &BlockProof{
 		ProofType:          ProofType_EMPTYBLOCK,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
 		TransactionsHash:   b.hashTransactions(hashAlgorithm),
@@ -211,8 +212,8 @@ func newEmptyBlockProof(b *GenericBlock, hashAlgorithm crypto.Hash) *BlockProofV
 	}
 }
 
-func newNoTransBlockProof(b *GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
-	return &BlockProofV2{
+func newNoTransBlockProof(b *GenericBlock, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProof {
+	return &BlockProof{
 		ProofType:          ProofType_NOTRANS,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
 		TransactionsHash:   b.hashTransactions(hashAlgorithm),
@@ -222,8 +223,8 @@ func newNoTransBlockProof(b *GenericBlock, chain []*omt.Data, hashAlgorithm cryp
 	}
 }
 
-func newPrimBlockProof(b *GenericBlock, hashValue []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
-	return &BlockProofV2{
+func newPrimBlockProof(b *GenericBlock, hashValue []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProof {
+	return &BlockProof{
 		ProofType:          ProofType_PRIM,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
 		TransactionsHash:   b.hashTransactions(hashAlgorithm),
@@ -233,8 +234,8 @@ func newPrimBlockProof(b *GenericBlock, hashValue []byte, chain []*omt.Data, has
 	}
 }
 
-func newOnlySecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProofV2 {
-	return &BlockProofV2{
+func newOnlySecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, hashAlgorithm crypto.Hash) *BlockProof {
+	return &BlockProof{
 		ProofType:          ProofType_ONLYSEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
 		TransactionsHash:   b.hashTransactions(hashAlgorithm),
@@ -244,14 +245,14 @@ func newOnlySecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, ha
 	}
 }
 
-func newSecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, secChain []*mt.PathItem, hashAlgorithm crypto.Hash) *BlockProofV2 {
-	return &BlockProofV2{
+func newSecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, secChain []*mt.PathItem, hashAlgorithm crypto.Hash) *BlockProof {
+	return &BlockProof{
 		ProofType:          ProofType_SEC,
 		BlockHeaderHash:    b.HashHeader(hashAlgorithm),
 		TransactionsHash:   b.hashTransactions(hashAlgorithm),
 		HashValue:          secHash,
 		BlockTreeHashChain: &BlockTreeHashChain{Items: ToProtobufHashChain(chain)},
-		SecTreeHashChain:   &SecTreeHashChain{Items: ToProtobuf(secChain).PathItems},
+		SecTreeHashChain:   &SecTreeHashChain{Items: ToProtobuf(secChain)},
 		UnicityCertificate: b.UnicityCertificate,
 	}
 }

@@ -288,7 +288,7 @@ func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 			SubTypeCreationPredicate: subTypeCreationPredicate,
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("unit %v is not a non-fungible token type", parent1Identifier))
+	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("unit %v data is not of type %T", parent1Identifier, &nonFungibleTokenTypeData{}))
 }
 
 func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {

@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"bytes"
-	"crypto"
 	goerrors "errors"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -14,25 +13,20 @@ import (
 )
 
 type (
-	baseNonFungibleTokenTxExecutor struct {
-		state         *rma.Tree
-		hashAlgorithm crypto.Hash
-	}
-
 	createNonFungibleTokenTypeTxExecutor struct {
-		*baseNonFungibleTokenTxExecutor
+		*baseTxExecutor[*nonFungibleTokenTypeData]
 	}
 
 	mintNonFungibleTokenTxExecutor struct {
-		*baseNonFungibleTokenTxExecutor
+		*baseTxExecutor[*nonFungibleTokenTypeData]
 	}
 
 	transferNonFungibleTokenTxExecutor struct {
-		*baseNonFungibleTokenTxExecutor
+		*baseTxExecutor[*nonFungibleTokenTypeData]
 	}
 
 	updateNonFungibleTokenTxExecutor struct {
-		*baseNonFungibleTokenTxExecutor
+		*baseTxExecutor[*nonFungibleTokenTypeData]
 	}
 )
 
@@ -256,29 +250,4 @@ func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenW
 		return err
 	}
 	return script.RunScript(tx.attributes.DataUpdateSignature, predicate, tx.SigBytes())
-}
-
-func (c *baseNonFungibleTokenTxExecutor) getChainedPredicate(unitID *uint256.Int, predicateFn func(d *nonFungibleTokenTypeData) []byte, parentIDFn func(d *nonFungibleTokenTypeData) *uint256.Int) ([]byte, error) {
-	var predicate []byte
-	var parentID = unitID
-	for {
-		if parentID.IsZero() {
-			// type has no parent.
-			break
-		}
-		// parent unit must exist
-		u, err := c.state.GetUnit(parentID)
-		if err != nil {
-			return nil, err
-		}
-
-		// parent must be a non-fungible token type
-		parentData, f := u.Data.(*nonFungibleTokenTypeData)
-		if !f {
-			return nil, errors.Errorf("unit %v is not a non-fungible token type", parentID)
-		}
-		predicate = append(predicateFn(parentData), predicate...)
-		parentID = parentIDFn(parentData)
-	}
-	return predicate, nil
 }

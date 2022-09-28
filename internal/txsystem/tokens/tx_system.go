@@ -60,21 +60,6 @@ func New(opts ...Option) (*tokensTxSystem, error) {
 	return txs, nil
 }
 
-func initExecutors(state *rma.Tree, options *Options) map[reflect.Type]txExecutor {
-	executors := make(map[reflect.Type]txExecutor)
-	// non-fungible token tx executors
-	commonNFTTxExecutor := &baseNonFungibleTokenTxExecutor{
-		state:         state,
-		hashAlgorithm: options.hashAlgorithm,
-	}
-	executors[reflect.TypeOf(&createNonFungibleTokenTypeWrapper{})] = &createNonFungibleTokenTypeTxExecutor{commonNFTTxExecutor}
-	executors[reflect.TypeOf(&mintNonFungibleTokenWrapper{})] = &mintNonFungibleTokenTxExecutor{commonNFTTxExecutor}
-	executors[reflect.TypeOf(&transferNonFungibleTokenWrapper{})] = &transferNonFungibleTokenTxExecutor{commonNFTTxExecutor}
-	executors[reflect.TypeOf(&updateNonFungibleTokenWrapper{})] = &updateNonFungibleTokenTxExecutor{commonNFTTxExecutor}
-
-	return executors
-}
-
 func (t *tokensTxSystem) State() (txsystem.State, error) {
 	if t.state.ContainsUncommittedChanges() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
@@ -91,7 +76,6 @@ func (t *tokensTxSystem) Execute(tx txsystem.GenericTransaction) error {
 	if err != nil {
 		return err
 	}
-
 	txType := reflect.TypeOf(tx)
 	executor := t.executors[txType]
 	if executor == nil {
@@ -121,4 +105,29 @@ func (t *tokensTxSystem) getState() txsystem.State {
 		return txsystem.NewStateSummary(make([]byte, t.hashAlgorithm.Size()), zeroSummaryValue.Bytes())
 	}
 	return txsystem.NewStateSummary(t.state.GetRootHash(), zeroSummaryValue.Bytes())
+}
+
+func initExecutors(state *rma.Tree, options *Options) map[reflect.Type]txExecutor {
+	executors := make(map[reflect.Type]txExecutor)
+	// non-fungible token tx executors
+	commonNFTTxExecutor := &baseTxExecutor[*nonFungibleTokenTypeData]{
+		state:         state,
+		hashAlgorithm: options.hashAlgorithm,
+	}
+	executors[reflect.TypeOf(&createNonFungibleTokenTypeWrapper{})] = &createNonFungibleTokenTypeTxExecutor{commonNFTTxExecutor}
+	executors[reflect.TypeOf(&mintNonFungibleTokenWrapper{})] = &mintNonFungibleTokenTxExecutor{commonNFTTxExecutor}
+	executors[reflect.TypeOf(&transferNonFungibleTokenWrapper{})] = &transferNonFungibleTokenTxExecutor{commonNFTTxExecutor}
+	executors[reflect.TypeOf(&updateNonFungibleTokenWrapper{})] = &updateNonFungibleTokenTxExecutor{commonNFTTxExecutor}
+
+	// fungible token tx executors
+	commonFungibleTokenTxExecutor := &baseTxExecutor[*fungibleTokenTypeData]{
+		state:         state,
+		hashAlgorithm: options.hashAlgorithm,
+	}
+	executors[reflect.TypeOf(&createFungibleTokenTypeWrapper{})] = &createFungibleTokenTypeTxExecutor{commonFungibleTokenTxExecutor}
+	executors[reflect.TypeOf(&mintFungibleTokenWrapper{})] = &mintFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
+	executors[reflect.TypeOf(&transferFungibleTokenWrapper{})] = &transferFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
+	executors[reflect.TypeOf(&splitFungibleTokenWrapper{})] = &splitFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
+
+	return executors
 }

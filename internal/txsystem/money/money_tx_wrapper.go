@@ -113,15 +113,19 @@ func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
+	w.AddToHasher(hasher)
+
+	w.wrapper.hashValue = hasher.Sum(nil)
+	w.wrapper.hashFunc = hashFunc
+	return w.wrapper.hashValue
+}
+
+func (w *transferWrapper) AddToHasher(hasher hash.Hash) {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
 
 	hasher.Write(w.transfer.NewBearer)
 	hasher.Write(util.Uint64ToBytes(w.transfer.TargetValue))
 	hasher.Write(w.transfer.Backlink)
-
-	w.wrapper.hashValue = hasher.Sum(nil)
-	w.wrapper.hashFunc = hashFunc
-	return w.wrapper.hashValue
 }
 
 func (w *transferDCWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -129,15 +133,14 @@ func (w *transferDCWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-
-	w.addToHasher(hasher)
+	w.AddToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
 }
 
-func (w *transferDCWrapper) addToHasher(hasher hash.Hash) {
+func (w *transferDCWrapper) AddToHasher(hasher hash.Hash) {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
 	w.transferDC.addFieldsToHasher(hasher)
 }
@@ -147,12 +150,16 @@ func (w *billSplitWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	w.wrapper.addTransactionFieldsToHasher(hasher)
-	w.addAttributesToHasher(hasher)
+	w.AddToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *billSplitWrapper) AddToHasher(hasher hash.Hash) {
+	w.wrapper.addTransactionFieldsToHasher(hasher)
+	w.addAttributesToHasher(hasher)
 }
 
 func (w *billSplitWrapper) addAttributesToHasher(hasher hash.Hash) {
@@ -167,26 +174,26 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	w.wrapper.addTransactionFieldsToHasher(hasher)
-
-	hasher.Write(w.swap.OwnerCondition)
-	for _, bi := range w.swap.BillIdentifiers {
-		hasher.Write(bi)
-	}
-
-	for _, dt := range w.dcTransfers {
-		dt.addToHasher(hasher)
-	}
-
-	for _, p := range w.swap.Proofs {
-		hasher.Write(p)
-	}
-
-	hasher.Write(util.Uint64ToBytes(w.swap.TargetValue))
+	w.AddToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *swapWrapper) AddToHasher(hasher hash.Hash) {
+	w.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(w.swap.OwnerCondition)
+	for _, bi := range w.swap.BillIdentifiers {
+		hasher.Write(bi)
+	}
+	for _, dt := range w.dcTransfers {
+		dt.AddToHasher(hasher)
+	}
+	for _, p := range w.swap.Proofs {
+		hasher.Write(p)
+	}
+	hasher.Write(util.Uint64ToBytes(w.swap.TargetValue))
 }
 
 func (w *transferWrapper) SigBytes() []byte {

@@ -2,7 +2,6 @@ package money
 
 import (
 	"context"
-	"crypto"
 	"encoding/hex"
 	"os"
 	"path"
@@ -11,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -402,13 +400,4 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.Equal(t, testPrivKey0Hex, hex.EncodeToString(ac.PrivKey))
 	require.Equal(t, testPubKey0HashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
 	require.Equal(t, testPubKey0HashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
-}
-
-func createMerkleTree(blockTxs []*txsystem.Transaction) (*mt.MerkleTree, error) {
-	// create merkle tree from testBlock transactions
-	txs := make([]mt.Data, len(blockTxs))
-	for i, tx := range blockTxs {
-		txs[i] = &mt.ByteHasher{Val: tx.Bytes()}
-	}
-	return mt.New(crypto.SHA256, txs)
 }

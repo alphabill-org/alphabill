@@ -3,12 +3,11 @@ package txsystem
 import (
 	"bytes"
 	"crypto"
+	"hash"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/util"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
-
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -19,6 +18,7 @@ type (
 		Timeout() uint64
 		OwnerProof() []byte
 		Hash(hashFunc crypto.Hash) []byte
+		AddToHasher(hasher hash.Hash)
 		ToProtoBuf() *Transaction
 		SigBytes() []byte // TODO remove from the interface because it isn't needed by all partitions?
 		IsPrimary() bool
@@ -77,6 +77,10 @@ func (d *DefaultGenericTransaction) Hash(hashFunc crypto.Hash) []byte {
 	hasher.Write(d.transaction.Bytes())
 	d.hashValue = hasher.Sum(nil)
 	return d.hashValue
+}
+
+func (d *DefaultGenericTransaction) AddToHasher(hasher hash.Hash) {
+	hasher.Write(d.transaction.Bytes())
 }
 
 func (d *DefaultGenericTransaction) ToProtoBuf() *Transaction {

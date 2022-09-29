@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	store2 "github.com/alphabill-org/alphabill/internal/rootchain/store"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"strings"
 	"sync"
 	"testing"
@@ -111,7 +111,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, store2.NewInMemStateStore(gocrypto.SHA256))
+	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemStateStore(gocrypto.SHA256))
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()

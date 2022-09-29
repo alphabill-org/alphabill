@@ -89,7 +89,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 			return err
 		}
 		if decimalPlaces != parentData.decimalPlaces {
-			return errors.Errorf("invalid decimal places. allowed %v, got %v", maxDecimalPlaces, decimalPlaces)
+			return errors.Errorf("invalid decimal places. allowed %v, got %v", parentData.decimalPlaces, decimalPlaces)
 		}
 	}
 	predicate, err := c.getChainedPredicate(

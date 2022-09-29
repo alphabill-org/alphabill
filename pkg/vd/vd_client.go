@@ -177,8 +177,6 @@ func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcesso
 					}
 					v.shutdown()
 					break
-				} else if hex.EncodeToString(hash) == hex.EncodeToString(tx.GetUnitId()) {
-					log.Info("WTF?")
 				}
 			} else {
 				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(tx.GetUnitId())))

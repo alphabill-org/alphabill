@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -178,7 +179,10 @@ func (c *AlphabillClient) connect() error {
 		return nil
 	}
 
-	conn, err := grpc.Dial(c.config.Uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(
+		c.config.Uri,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(1024*1024*4), grpc.MaxCallRecvMsgSize(math.MaxInt32)))
 	if err != nil {
 		return err
 	}

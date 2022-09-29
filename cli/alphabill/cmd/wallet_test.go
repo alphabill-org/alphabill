@@ -196,6 +196,7 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 		Address:               addr,
 		MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 		MaxRecvMsgSize:        defaultMaxRecvMsgSize,
+		MaxSendMsgSize:        defaultMaxSendMsgSize,
 	})
 	require.NoError(t, err)
 

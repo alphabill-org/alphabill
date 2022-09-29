@@ -311,11 +311,11 @@ func (s *State) toUnicityTreeData(records map[p.SystemIdentifier]*certificates.I
 	return data
 }
 
-func (s *State) createUnicitySeal(newround uint64, newrRootHash []byte, prevRoot []byte) (*certificates.UnicitySeal, error) {
+func (s *State) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
-		RootChainRoundNumber: newround,
+		RootChainRoundNumber: newRound,
 		PreviousHash:         prevRoot,
-		Hash:                 newrRootHash,
+		Hash:                 newRootHash,
 	}
 	return u, u.Sign(s.selfId, s.signer)
 }

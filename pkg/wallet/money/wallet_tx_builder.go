@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -120,14 +121,13 @@ func createSwapTx(k *wallet.AccountKey, dcBills []*bill, dcNonce []byte, timeout
 	})
 
 	var billIds [][]byte
-	var dustTransferProofs [][]byte
+	var dustTransferProofs []*block.BlockProof
 	var dustTransferOrders []*txsystem.Transaction
 	var billValueSum uint64
 	for _, b := range dcBills {
 		billIds = append(billIds, b.getId())
 		dustTransferOrders = append(dustTransferOrders, b.Tx)
-		// TODO add DC proofs: https://guardtime.atlassian.net/browse/AB-99
-		dustTransferProofs = append(dustTransferProofs, nil)
+		dustTransferProofs = append(dustTransferProofs, b.BlockProof)
 		billValueSum += b.Value
 	}
 

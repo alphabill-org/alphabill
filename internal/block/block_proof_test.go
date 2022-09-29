@@ -12,15 +12,22 @@ import (
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-type OnlySecondaryTx struct {
-	txsystem.GenericTransaction
+type (
+	OnlyPrimaryTx struct {
+		txsystem.GenericTransaction
+	}
+	OnlySecondaryTx struct {
+		txsystem.GenericTransaction
+	}
+)
+
+func (g *OnlyPrimaryTx) IsPrimary() bool {
+	return true
 }
 
 func (g *OnlySecondaryTx) IsPrimary() bool {
@@ -132,11 +139,10 @@ func TestProofTypeEmptyBlock(t *testing.T) {
 	require.Nil(t, p.Verify(createPrimaryTx(1), verifier, hashAlgorithm))
 }
 
-func createPrimaryTx(unitid uint64) txsystem.GenericTransaction {
-	transferOrder := newTransferOrder(make([]byte, 32), 777, make([]byte, 32))
-	transaction := newTransaction(unitId(unitid), make([]byte, 32), 555, transferOrder)
-	tx, _ := money.NewMoneyTx([]byte{0, 0, 0, 0}, transaction)
-	return tx
+func createPrimaryTx(unitid uint64) *OnlyPrimaryTx {
+	transaction := newTransaction(unitId(unitid), make([]byte, 32), 555)
+	tx, _ := txsystem.NewDefaultGenericTransaction(transaction)
+	return &OnlyPrimaryTx{tx}
 }
 
 func createSecondaryTx(unitid uint64) *OnlySecondaryTx {
@@ -178,7 +184,7 @@ func unitId(num uint64) []byte {
 	return bytes32[:]
 }
 
-func newTransaction(id, ownerProof []byte, timeout uint64, attr proto.Message) *txsystem.Transaction {
+func newTransaction(id, ownerProof []byte, timeout uint64) *txsystem.Transaction {
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                id,
@@ -186,14 +192,5 @@ func newTransaction(id, ownerProof []byte, timeout uint64, attr proto.Message) *
 		Timeout:               timeout,
 		OwnerProof:            ownerProof,
 	}
-	_ = anypb.MarshalFrom(tx.TransactionAttributes, attr, proto.MarshalOptions{})
 	return tx
-}
-
-func newTransferOrder(newBearer []byte, targetValue uint64, backlink []byte) *money.TransferOrder {
-	return &money.TransferOrder{
-		NewBearer:   newBearer,
-		TargetValue: targetValue,
-		Backlink:    backlink,
-	}
 }

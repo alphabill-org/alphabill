@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -191,7 +192,7 @@ func (w *swapWrapper) AddToHasher(hasher hash.Hash) {
 		dt.AddToHasher(hasher)
 	}
 	for _, p := range w.swap.Proofs {
-		hasher.Write(p)
+		p.AddToHasher(hasher)
 	}
 	hasher.Write(util.Uint64ToBytes(w.swap.TargetValue))
 }
@@ -237,7 +238,7 @@ func (w *swapWrapper) SigBytes() []byte {
 		b.Write(dcTx.SigBytes())
 	}
 	for _, proof := range w.Proofs() {
-		b.Write(proof)
+		b.Write(proof.Bytes())
 	}
 	b.Write(util.Uint64ToBytes(w.TargetValue()))
 	return b.Bytes()
@@ -274,9 +275,9 @@ func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 
-func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
-func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }
-func (w *swapWrapper) TargetValue() uint64    { return w.swap.TargetValue }
+func (w *swapWrapper) OwnerCondition() []byte      { return w.swap.OwnerCondition }
+func (w *swapWrapper) Proofs() []*block.BlockProof { return w.swap.Proofs }
+func (w *swapWrapper) TargetValue() uint64         { return w.swap.TargetValue }
 func (w *swapWrapper) DCTransfers() []TransferDC {
 	var sdt []TransferDC
 	for _, dt := range w.dcTransfers {

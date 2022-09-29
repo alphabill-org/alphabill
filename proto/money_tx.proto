@@ -2,6 +2,7 @@ syntax = "proto3";
 package rpc;
 
 import "transaction.proto";
+import "block_proof.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/money/;money";
 
@@ -29,6 +30,6 @@ message SwapOrder {
   bytes owner_condition = 1;
   repeated bytes bill_identifiers = 2;
   repeated Transaction dc_transfers = 3;
-  repeated bytes proofs = 4;
+  repeated BlockProof proofs = 4;
   uint64 target_value = 5;
 }

@@ -35,9 +35,15 @@ func (x *UnicityTreeCertificate) GetAuthPath(leafHash []byte, hashAlgorithm gocr
 }
 
 func (x *UnicityTreeCertificate) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.SystemIdentifier)
-	hasher.Write(x.SystemDescriptionHash)
+	hasher.Write(x.Bytes())
+}
+
+func (x *UnicityTreeCertificate) Bytes() []byte {
+	var b bytes.Buffer
+	b.Write(x.SystemIdentifier)
+	b.Write(x.SystemDescriptionHash)
 	for _, siblingHash := range x.SiblingHashes {
-		hasher.Write(siblingHash)
+		b.Write(siblingHash)
 	}
+	return b.Bytes()
 }

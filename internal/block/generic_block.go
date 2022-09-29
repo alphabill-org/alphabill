@@ -67,7 +67,7 @@ func (x *GenericBlock) hashTransactions(hashAlgorithm crypto.Hash) []byte {
 
 func (x *GenericBlock) addTransactionsToHasher(hasher hash.Hash) {
 	for _, tx := range x.Transactions {
-		hasher.Write(tx.ToProtoBuf().Bytes())
+		tx.AddToHasher(hasher)
 	}
 }
 

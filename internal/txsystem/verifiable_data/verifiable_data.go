@@ -138,13 +138,15 @@ func (w *vdTransaction) Hash(hashFunc crypto.Hash) []byte {
 		return w.hashValue
 	}
 	hasher := hashFunc.New()
-	hasher.Write(w.transaction.SystemId)
-	hasher.Write(w.transaction.UnitId)
-	hasher.Write(w.transaction.OwnerProof)
-	hasher.Write(util.Uint64ToBytes(w.transaction.Timeout))
+	w.AddToHasher(hasher)
+
 	w.hashValue = hasher.Sum(nil)
 	w.hashFunc = hashFunc
 	return w.hashValue
+}
+
+func (w *vdTransaction) AddToHasher(hasher hash.Hash) {
+	hasher.Write(w.transaction.Bytes())
 }
 
 func (w *vdTransaction) SigBytes() []byte {

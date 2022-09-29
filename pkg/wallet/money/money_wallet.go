@@ -123,8 +123,8 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			return err
 		}
 		for _, acc := range w.accounts.getAll() {
-			for i, pbTx := range b.Transactions {
-				err = w.collectBills(dbTx, pbTx, b, i, &acc)
+			for _, pbTx := range b.Transactions {
+				err = w.collectBills(dbTx, pbTx, b, &acc)
 				if err != nil {
 					return err
 				}
@@ -361,7 +361,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 	return w.Wallet.SyncToMaxBlockNumber(ctx, blockNumber)
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, txIdx int, acc *account) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, acc *account) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -374,6 +374,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -391,9 +392,9 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			err := w.saveWithProof(dbTx, b, &bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
+				Tx:                  txPb,
 				TxHash:              tx.Hash(crypto.SHA256),
 				IsDcBill:            true,
-				DcTx:                txPb,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
 				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
@@ -421,6 +422,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -432,6 +434,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -444,6 +447,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {

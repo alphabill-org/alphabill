@@ -149,6 +149,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// verify that we have consensus between the partition nodes.
 	for _, partition := range partitions {
 		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
+		logger.Debug("Checking consensus for '%X'")
 		if !state.checkConsensus(state.incomingRequests[id]) {
 			return nil, nil, errors.Errorf("partition %X has not reached a consensus", id)
 		}

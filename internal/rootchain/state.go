@@ -48,11 +48,11 @@ func NewState(g *genesis.RootGenesis, self string, signer crypto.Signer, stateSt
 		return nil, errors.New("root chain store is nil")
 	}
 	// Init from genesis file is done only once
-	rcState, err := stateStore.Get()
+	state, err := stateStore.Get()
 	if err != nil {
 		return nil, err
 	}
-	storeInitiated := rcState.LatestRound > 0
+	storeInitiated := state.LatestRound > 0
 	// load/store unicity certificates and register partitions from root genesis file
 	partitionStore := partitionStore{}
 	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
@@ -65,7 +65,7 @@ func NewState(g *genesis.RootGenesis, self string, signer crypto.Signer, stateSt
 		certs[identifier] = partition.Certificate
 		// In case the store is already initiated, check if partition identifier is known
 		if storeInitiated {
-			if _, f := rcState.Certificates[identifier]; !f {
+			if _, f := state.Certificates[identifier]; !f {
 				return nil, errors.Errorf("invalid genesis, new partition %v detected", identifier)
 			}
 		}
@@ -180,12 +180,12 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 		}
 	}
 	partitionRequests.add(req.NodeIdentifier, req)
+	logger.Debug("Checking consensus for '%X', latest completed root round: %v", req.SystemIdentifier, seal.RootChainRoundNumber)
 	s.checkConsensus(partitionRequests)
 	return nil, nil
 }
 
 func (s *State) checkConsensus(rs *requestStore) bool {
-	logger.Debug("Checking consensus for '%X'")
 	inputRecord, consensusPossible := rs.isConsensusReceived(s.partitionStore.nodeCount(rs.id))
 	if inputRecord != nil {
 		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", []byte(rs.id), inputRecord.Hash)
@@ -196,7 +196,7 @@ func (s *State) checkConsensus(rs *requestStore) bool {
 		// Get last unicity certificate for the partition
 		luc, err := s.GetLatestUnicityCertificate(rs.id)
 		if err != nil {
-			logger.Error("Cannot re-certify partition: SystemIdentifier: %X, error: %s", []byte(rs.id), err.Error())
+			logger.Error("Cannot re-certify partition: SystemIdentifier: %X, error: %v", []byte(rs.id), err.Error())
 			return false
 		}
 		s.inputRecords[rs.id] = luc.InputRecord
@@ -204,6 +204,7 @@ func (s *State) checkConsensus(rs *requestStore) bool {
 	return false
 }
 
+// CreateUnicityCertificates certifies input records and returns state containing changes (new root, round, UCs changed)
 func (s *State) CreateUnicityCertificates() (*store.RootState, error) {
 	data := s.toUnicityTreeData(s.inputRecords)
 	logger.Debug("Input records are:")
@@ -218,7 +219,7 @@ func (s *State) CreateUnicityCertificates() (*store.RootState, error) {
 	logger.Info("New root hash is %X", rootHash)
 	lastState, err := s.store.Get()
 	if err != nil {
-		logger.Info("Failed to read last state from storage: %s", err.Error())
+		logger.Info("Failed to read last state from storage: %v", err.Error())
 		return nil, err
 	}
 	newRound := lastState.LatestRound + 1
@@ -341,13 +342,4 @@ func (s *State) isInputRecordValid(req *certification.BlockCertificationRequest)
 		return errors.Wrapf(err, "invalid InputRequest request")
 	}
 	return nil
-}
-
-// GetCurrentRoundNumber returns last stored round number + 1 as current round number
-func (s *State) GetCurrentRoundNumber() uint64 {
-	state, err := s.store.Get()
-	if err != nil {
-		return 0
-	}
-	return state.LatestRound + 1
 }

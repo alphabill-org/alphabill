@@ -21,11 +21,8 @@ func unitHash(primTx txsystem.GenericTransaction, secTxs []txsystem.GenericTrans
 // hashTx returns hash of given transaction or zero hash if nil transaction
 func hashTx(tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) []byte {
 	var h []byte
-	hasher := hashAlgorithm.New()
 	if tx != nil {
-		// TODO should we use tx.Hash(hashAlgorithm) here? i.e. what fields should be included in tx hash?
-		hasher.Write(tx.ToProtoBuf().Bytes())
-		h = hasher.Sum(nil)
+		h = tx.Hash(hashAlgorithm)
 	} else {
 		h = make([]byte, hashAlgorithm.Size())
 	}

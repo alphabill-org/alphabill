@@ -157,7 +157,9 @@ func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	tp.eh.Reset()
-	tp.SubmitUnicityCertificate(tp.rootState.GetLatestUnicityCertificate(systemIdentifier))
+	uc, err := tp.rootState.GetLatestUnicityCertificate(systemIdentifier)
+	require.NoError(t, err)
+	tp.SubmitUnicityCertificate(uc)
 
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()

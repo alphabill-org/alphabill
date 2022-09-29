@@ -3,6 +3,7 @@ package rootchain
 import (
 	gocrypto "crypto"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"strings"
 	"testing"
 
@@ -64,7 +65,7 @@ func Test_newStateFromGenesis_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewState(tt.args.g, "test", tt.args.signer, NewVolatileStateStore(gocrypto.SHA256))
+			got, err := NewState(tt.args.g, "test", tt.args.signer, store.NewInMemStateStore(gocrypto.SHA256))
 			require.Nil(t, got)
 			require.True(t, strings.Contains(err.Error(), tt.errStg))
 		})
@@ -83,7 +84,7 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 	rootGenesis, _, err := NewRootGenesis("test", rootSigner, rootPubKeyBytes, partitions)
 	require.NoError(t, err)
 
-	s1, err := NewState(rootGenesis, "test", rootSigner, NewVolatileStateStore(gocrypto.SHA256))
+	s1, err := NewState(rootGenesis, "test", rootSigner, store.NewInMemStateStore(gocrypto.SHA256))
 	require.NoError(t, err)
 
 	s2 := createStateAndExecuteRound(t, partitions, rootSigner)
@@ -134,10 +135,14 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	// create certificates
 	_, err = s.CreateUnicityCertificates()
 	require.NoError(t, err)
-	require.Equal(t, 2, s.store.UCCount())
-	p1UC := s.store.GetUC(p.SystemIdentifier(partition1ID))
+	state, err := s.store.Get()
+	require.NoError(t, err)
+	p1UC, f := state.Certificates[p.SystemIdentifier(partition1ID)]
+	require.True(t, f)
 	require.NotNil(t, p1UC)
-	p2UC := s.store.GetUC(p.SystemIdentifier(partition2ID))
+	p2UC, f := state.Certificates[p.SystemIdentifier(partition2ID)]
+	require.True(t, f)
+	require.NotNil(t, p2UC)
 	require.NotNil(t, p2UC)
 	require.NotEqual(t, p1UC, p2UC)
 	require.Equal(t, p1UC.UnicitySeal, p2UC.UnicitySeal)
@@ -149,7 +154,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 
 	// verify State after the round
 	require.Equal(t, uint64(2), s.GetCurrentRoundNumber())
-	require.Equal(t, p1UC.UnicitySeal.Hash, s.store.GetLatestRoundRootHash())
+	require.Equal(t, p1UC.UnicitySeal.Hash, state.LatestRootHash)
 	require.Equal(t, 2, len(s.incomingRequests))
 	require.Equal(t, 0, len(s.incomingRequests[p.SystemIdentifier(partition1ID)].requests))
 	require.Equal(t, 0, len(s.incomingRequests[p.SystemIdentifier(partition2ID)].requests))
@@ -306,10 +311,11 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 	uc, err = s.HandleBlockCertificationRequest(r2)
 	require.NoError(t, err)
 	require.Nil(t, uc)
-	sysIds, err := s.CreateUnicityCertificates()
+	state, err := s.CreateUnicityCertificates()
 	require.NoError(t, err)
-	require.Equal(t, 1, len(sysIds))
-	luc := s.store.GetUC(sysIds[0])
+	require.Equal(t, 1, len(state.Certificates))
+	luc, f := state.Certificates[p.SystemIdentifier(r1.SystemIdentifier)]
+	require.True(t, f)
 	require.NotEqual(t, req.InputRecord.Hash, luc.InputRecord.Hash)
 	require.NotEqual(t, r1.InputRecord.Hash, luc.InputRecord.Hash)
 	require.NotEqual(t, r2.InputRecord.Hash, luc.InputRecord.Hash)

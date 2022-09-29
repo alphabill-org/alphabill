@@ -176,7 +176,10 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// generate genesis structs
 	for i, partition := range partitions {
 		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
-		certificate := state.store.GetUC(id)
+		certificate, err := state.GetLatestUnicityCertificate(id)
+		if err != nil {
+			return nil, nil, err
+		}
 		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
 			Nodes:                   partition.Validators,
 			Certificate:             certificate,

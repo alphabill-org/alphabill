@@ -4,6 +4,8 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	store2 "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"strings"
 	"sync"
 	"testing"
@@ -109,7 +111,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rootchain.NewVolatileStateStore(gocrypto.SHA256))
+	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, store2.NewInMemStateStore(gocrypto.SHA256))
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
@@ -235,14 +237,14 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 	if err != nil {
 		return err
 	}
-	systemIds, err := sn.rootState.CreateUnicityCertificates()
+	newState, err := sn.rootState.CreateUnicityCertificates()
 	if err != nil {
 		return err
 	}
-	if len(systemIds) != 1 {
+	uc, f := newState.Certificates[p.SystemIdentifier(req.SystemIdentifier)]
+	if !f {
 		return errors.New("uc not created")
 	}
-	uc := sn.rootState.GetLatestUnicityCertificate(systemIds[0])
 	sn.eh.Reset()
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",

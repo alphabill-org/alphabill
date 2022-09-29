@@ -56,7 +56,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 	case moneytx.Transfer:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.NewBearer()) {
 			wlog.Info("received transfer order")
-			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
@@ -72,7 +72,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 	case moneytx.TransferDC:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
 			wlog.Info("received TransferDC order")
-			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
@@ -95,7 +95,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			return err
 		}
 		if containsBill {
-			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.RemainingValue(),
 			})
@@ -105,7 +105,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
 			id := utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
-			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
 				Id:    id,
 				Value: tx.Amount(),
 			})
@@ -115,7 +115,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 	case moneytx.Swap:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.OwnerCondition()) {
-			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
+			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
 			})
@@ -141,15 +141,19 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 	return nil
 }
 
-func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, txIdx int, bi *Bill) error {
-	bp, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
+func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, bi *Bill) error {
+	genericBlock, err := b.ToGenericBlock(txConverter)
+	if err != nil {
+		return err
+	}
+	blockProof, err := block.NewPrimaryProof(genericBlock, bi.Id, crypto.SHA256)
 	if err != nil {
 		return err
 	}
 	proof := &BlockProof{
 		BillId:      bi.Id,
 		BlockNumber: b.BlockNumber,
-		BlockProof:  bp,
+		BlockProof:  blockProof,
 	}
 	return p.store.AddBillWithProof(pubkey, bi, proof)
 }

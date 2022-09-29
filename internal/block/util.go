@@ -23,6 +23,7 @@ func hashTx(tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) []byte {
 	var h []byte
 	hasher := hashAlgorithm.New()
 	if tx != nil {
+		// TODO should we use tx.Hash(hashAlgorithm) here? i.e. what fields should be included in tx hash?
 		hasher.Write(tx.ToProtoBuf().Bytes())
 		h = hasher.Sum(nil)
 	} else {

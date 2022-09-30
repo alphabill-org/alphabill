@@ -2,6 +2,7 @@ package backend
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -17,6 +18,10 @@ var (
 	metaBucket   = []byte("metaBucket")
 
 	blockNumberKey = []byte("blockNumberKey")
+)
+
+var (
+	ErrKeyAlreadyExists = errors.New("key already exists")
 )
 
 type BoltBillStore struct {
@@ -214,7 +219,7 @@ func (s *BoltBillStore) AddKey(k *Pubkey) error {
 			}
 			return keysBkt.Put(k.Pubkey, keyBytes)
 		}
-		return nil
+		return ErrKeyAlreadyExists
 	})
 }
 

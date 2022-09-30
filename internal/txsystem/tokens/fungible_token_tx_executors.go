@@ -46,9 +46,22 @@ func (c *createFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTransact
 	return nil
 }
 
-func (m *mintFungibleTokenTxExecutor) Execute(tx txsystem.GenericTransaction, currentBlockNr uint64) error {
-	//TODO AB-345
-	panic("implement me")
+func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _ uint64) error {
+	tx, ok := gtx.(*mintFungibleTokenWrapper)
+	if !ok {
+		return errors.Errorf("invalid tx type: %T", gtx)
+	}
+	if err := m.validate(tx); err != nil {
+		return err
+	}
+	h := tx.Hash(m.hashAlgorithm)
+	return m.state.AddItem(
+		tx.UnitID(),
+		tx.attributes.Bearer,
+		newFungibleTokenData(tx, m.hashAlgorithm),
+		h,
+	)
+	return nil
 }
 
 func (t *transferFungibleTokenTxExecutor) Execute(tx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -106,6 +119,36 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 	}
 	if len(predicate) > 0 {
 		return script.RunScript(tx.attributes.SubTypeCreationPredicateSignature, predicate, tx.SigBytes())
+	}
+	return nil
+}
+
+func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) error {
+	unitID := tx.UnitID()
+	if unitID.IsZero() {
+		return errors.New(ErrStrUnitIDIsZero)
+	}
+	u, err := m.state.GetUnit(unitID)
+	if u != nil {
+		return errors.Errorf("unit %v exists", unitID)
+	}
+	if !goerrors.Is(err, rma.ErrUnitNotFound) {
+		return err
+	}
+	predicate, err := m.getChainedPredicate(
+		tx.TypeID(),
+		func(d *fungibleTokenTypeData) []byte {
+			return d.subTypeCreationPredicate
+		},
+		func(d *fungibleTokenTypeData) *uint256.Int {
+			return d.parentTypeId
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if len(predicate) > 0 {
+		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicate, tx.SigBytes())
 	}
 	return nil
 }

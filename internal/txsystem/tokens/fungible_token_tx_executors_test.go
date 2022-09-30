@@ -194,6 +194,92 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 	require.ErrorContains(t, err, "invalid script format")
 }
 
+func TestMintFungibleToken_NotOk(t *testing.T) {
+	executor := &mintFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+
+	tests := []struct {
+		name       string
+		tx         txsystem.GenericTransaction
+		wantErrStr string
+	}{
+		{
+			name:       "invalid tx type",
+			tx:         &createNonFungibleTokenTypeWrapper{},
+			wantErrStr: fmt.Sprintf("invalid tx type: %T", &createNonFungibleTokenTypeWrapper{}),
+		},
+		{
+			name:       "unit ID is 0",
+			tx:         createTx(t, uint256.NewInt(0), &MintFungibleTokenAttributes{}),
+			wantErrStr: "unit ID cannot be zero",
+		},
+		{
+			name:       "unit with given ID exists",
+			tx:         createTx(t, uint256.NewInt(existingUnitID), &MintFungibleTokenAttributes{}),
+			wantErrStr: fmt.Sprintf("unit %v exists", existingUnitID),
+		},
+		{
+			name: "parent does not exist",
+			tx: createTx(t, uint256.NewInt(validUnitID), &MintFungibleTokenAttributes{
+				Bearer:                          script.PredicateAlwaysTrue(),
+				Type:                            uint256.NewInt(100).Bytes(),
+				Value:                           1000,
+				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+			}),
+			wantErrStr: "item 100 does not exist",
+		},
+		{
+			name: "invalid token creation predicate argument",
+			tx: createTx(t, uint256.NewInt(validUnitID), &MintFungibleTokenAttributes{
+				Bearer:                          script.PredicateAlwaysTrue(),
+				Type:                            uint256.NewInt(existingUnitID).Bytes(),
+				Value:                           1000,
+				TokenCreationPredicateSignature: script.PredicateAlwaysFalse(),
+			}),
+			wantErrStr: "script execution result yielded false or non-clean stack",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorContains(t, executor.Execute(tt.tx, 10), tt.wantErrStr)
+		})
+	}
+}
+
+func TestMintFungibleToken_Ok(t *testing.T) {
+	executor := &mintFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+	attributes := &MintFungibleTokenAttributes{
+		Bearer:                          script.PredicateAlwaysTrue(),
+		Type:                            uint256.NewInt(existingUnitID).Bytes(),
+		Value:                           1000,
+		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+	tokenID := uint256.NewInt(validUnitID)
+	err := executor.Execute(createTx(t, tokenID, attributes), 10)
+	require.NoError(t, err)
+
+	unit, err := executor.state.GetUnit(tokenID)
+	require.NoError(t, err)
+	require.NotNil(t, unit)
+	require.IsType(t, &fungibleTokenData{}, unit.Data)
+
+	d := unit.Data.(*fungibleTokenData)
+	require.Equal(t, attributes.Type, d.tokenType.Bytes())
+	require.Equal(t, attributes.Value, d.value)
+	require.Equal(t, make([]byte, 32), d.backlink)
+	require.Equal(t, uint64(0), d.t)
+	require.Equal(t, attributes.Bearer, []byte(unit.Bearer))
+}
+
 func initState(t *testing.T) *rma.Tree {
 	state, err := rma.New(&rma.Config{
 		HashAlgorithm: gocrypto.SHA256,

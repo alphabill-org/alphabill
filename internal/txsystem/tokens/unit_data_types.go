@@ -82,7 +82,7 @@ func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, hasher crypto.Hash
 func newFungibleTokenData(tx *mintFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
 	attr := tx.attributes
 	return &fungibleTokenData{
-		tokenType: attr.GetTokenTypeID(),
+		tokenType: tx.TypeID(),
 		value:     attr.Value,
 		t:         0,                           // we don't have previous tx
 		backlink:  make([]byte, hasher.Size()), // in case of new NFT token the backlink is zero hash

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -15,10 +17,12 @@ import (
 )
 
 const (
-	invalidSymbolName = "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥"
-	validSymbolName   = "BETA"
-	validUnitID       = 10
-	existingUnitID    = 1
+	invalidSymbolName       = "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥"
+	validSymbolName         = "BETA"
+	validUnitID             = 10
+	existingTokenTypeUnitID = 1
+	existingTokenUnitID     = 2
+	existingTokenValue      = 1000
 )
 
 func TestCreateFungibleTokenType_NotOk(t *testing.T) {
@@ -56,12 +60,12 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit with given ID exists",
-			tx:         createTx(t, uint256.NewInt(existingUnitID), &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 5}),
-			wantErrStr: fmt.Sprintf("unit %v exists", existingUnitID),
+			tx:         createTx(t, uint256.NewInt(existingTokenTypeUnitID), &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 5}),
+			wantErrStr: fmt.Sprintf("unit %v exists", existingTokenTypeUnitID),
 		},
 		{
 			name:       "parent.decimals != tx.attributes.decimalPlaces",
-			tx:         createTx(t, uint256.NewInt(validUnitID), &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 6, ParentTypeId: uint256.NewInt(existingUnitID).Bytes()}),
+			tx:         createTx(t, uint256.NewInt(validUnitID), &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 6, ParentTypeId: uint256.NewInt(existingTokenTypeUnitID).Bytes()}),
 			wantErrStr: "invalid decimal places. allowed 5, got 6",
 		},
 		{
@@ -159,7 +163,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.Equal(t, parentID, d.parentTypeId)
 }
 
-func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSiganture(t *testing.T) {
+func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSignature(t *testing.T) {
 	executor := &createFungibleTokenTypeTxExecutor{
 		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
 			state:         initState(t),
@@ -219,8 +223,8 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "unit with given ID exists",
-			tx:         createTx(t, uint256.NewInt(existingUnitID), &MintFungibleTokenAttributes{}),
-			wantErrStr: fmt.Sprintf("unit %v exists", existingUnitID),
+			tx:         createTx(t, uint256.NewInt(existingTokenTypeUnitID), &MintFungibleTokenAttributes{}),
+			wantErrStr: fmt.Sprintf("unit %v exists", existingTokenTypeUnitID),
 		},
 		{
 			name: "parent does not exist",
@@ -236,7 +240,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			name: "invalid token creation predicate argument",
 			tx: createTx(t, uint256.NewInt(validUnitID), &MintFungibleTokenAttributes{
 				Bearer:                          script.PredicateAlwaysTrue(),
-				Type:                            uint256.NewInt(existingUnitID).Bytes(),
+				Type:                            uint256.NewInt(existingTokenTypeUnitID).Bytes(),
 				Value:                           1000,
 				TokenCreationPredicateSignature: script.PredicateAlwaysFalse(),
 			}),
@@ -259,7 +263,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	}
 	attributes := &MintFungibleTokenAttributes{
 		Bearer:                          script.PredicateAlwaysTrue(),
-		Type:                            uint256.NewInt(existingUnitID).Bytes(),
+		Type:                            uint256.NewInt(existingTokenTypeUnitID).Bytes(),
 		Value:                           1000,
 		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
 	}
@@ -280,17 +284,134 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, attributes.Bearer, []byte(unit.Bearer))
 }
 
+func TestTransferFungibleToken_NotOk(t *testing.T) {
+	executor := &transferFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+
+	tests := []struct {
+		name       string
+		tx         txsystem.GenericTransaction
+		wantErrStr string
+	}{
+		{
+			name:       "invalid tx type",
+			tx:         &createNonFungibleTokenTypeWrapper{},
+			wantErrStr: fmt.Sprintf("invalid tx type: %T", &createNonFungibleTokenTypeWrapper{}),
+		},
+		{
+			name:       "unit ID is 0",
+			tx:         createTx(t, uint256.NewInt(0), &TransferFungibleTokenAttributes{}),
+			wantErrStr: "unit ID cannot be zero",
+		},
+		{
+			name:       "fungible token does not exists",
+			tx:         createTx(t, uint256.NewInt(42), &TransferFungibleTokenAttributes{}),
+			wantErrStr: "unit 42 does not exist",
+		},
+
+		{
+			name:       "unit isn't fungible token",
+			tx:         createTx(t, uint256.NewInt(existingTokenTypeUnitID), &TransferFungibleTokenAttributes{}),
+			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
+		},
+		{
+			name: "invalid value",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &TransferFungibleTokenAttributes{
+				NewBearer:                   script.PredicateAlwaysTrue(),
+				Value:                       existingTokenValue - 1,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    make([]byte, 32),
+				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			}),
+			wantErrStr: fmt.Sprintf("invalid token value: expected %v, got %v", existingTokenValue, existingTokenValue-1),
+		},
+		{
+			name: "invalid backlink",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &TransferFungibleTokenAttributes{
+				NewBearer:                   script.PredicateAlwaysTrue(),
+				Value:                       existingTokenValue,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    test.RandomBytes(32),
+				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			}),
+			wantErrStr: "invalid backlink",
+		},
+		{
+			name: "invalid token invariant predicate argument",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &TransferFungibleTokenAttributes{
+				NewBearer:                   script.PredicateAlwaysTrue(),
+				Value:                       existingTokenValue,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    make([]byte, 32),
+				InvariantPredicateSignature: script.PredicateAlwaysFalse(),
+			}),
+			wantErrStr: "script execution result yielded false or non-clean stack",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorContains(t, executor.Execute(tt.tx, 10), tt.wantErrStr)
+		})
+	}
+}
+
+func TestTransferFungibleToken_Ok(t *testing.T) {
+	executor := &transferFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+
+	transferAttributes := &TransferFungibleTokenAttributes{
+		NewBearer:                   script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
+		Value:                       existingTokenValue,
+		Nonce:                       test.RandomBytes(32),
+		Backlink:                    make([]byte, 32),
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+
+	uID := uint256.NewInt(existingTokenUnitID)
+	tx := createTx(t, uID, transferAttributes)
+	var roundNr uint64 = 10
+	err := executor.Execute(tx, roundNr)
+	require.NoError(t, err)
+
+	u, err := executor.state.GetUnit(uID)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.IsType(t, &fungibleTokenData{}, u.Data)
+	d := u.Data.(*fungibleTokenData)
+
+	require.Equal(t, transferAttributes.NewBearer, []byte(u.Bearer))
+	require.Equal(t, transferAttributes.Value, d.value)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, roundNr, d.t)
+}
+
 func initState(t *testing.T) *rma.Tree {
 	state, err := rma.New(&rma.Config{
 		HashAlgorithm: gocrypto.SHA256,
 	})
-	state.AddItem(uint256.NewInt(existingUnitID), script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
+
+	state.AddItem(uint256.NewInt(existingTokenTypeUnitID), script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA",
 		parentTypeId:             uint256.NewInt(0),
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		invariantPredicate:       script.PredicateAlwaysTrue(),
+	}, make([]byte, 32))
+	require.NoError(t, err)
+	state.AddItem(uint256.NewInt(existingTokenUnitID), script.PredicateAlwaysTrue(), &fungibleTokenData{
+		tokenType: uint256.NewInt(existingTokenTypeUnitID),
+		value:     existingTokenValue,
+		t:         0,
+		backlink:  make([]byte, 32),
 	}, make([]byte, 32))
 	require.NoError(t, err)
 	return state

@@ -4,8 +4,6 @@ import (
 	"bytes"
 	gocrypto "crypto"
 
-	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -144,13 +142,14 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		return nil, nil, err
 	}
 	// initiate State
-	state, err := NewStateFromPartitionRecords(partitions, c.peerID, c.signer, gocrypto.SHA256, rstore.NewInMemoryRootChainStore())
+	state, err := NewStateFromPartitionRecords(partitions, c.peerID, c.signer, gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, err
 	}
 	// verify that we have consensus between the partition nodes.
 	for _, partition := range partitions {
 		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
+		logger.Debug("Checking consensus for '%X'")
 		if !state.checkConsensus(state.incomingRequests[id]) {
 			return nil, nil, errors.Errorf("partition %X has not reached a consensus", id)
 		}
@@ -178,7 +177,10 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// generate genesis structs
 	for i, partition := range partitions {
 		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
-		certificate := state.store.GetUC(id)
+		certificate, err := state.GetLatestUnicityCertificate(id)
+		if err != nil {
+			return nil, nil, err
+		}
 		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
 			Nodes:                   partition.Validators,
 			Certificate:             certificate,

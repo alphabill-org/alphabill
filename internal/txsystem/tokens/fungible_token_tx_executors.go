@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/holiman/uint256"
 )
 
@@ -88,9 +89,45 @@ func (t *transferFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransactio
 	}, h)
 }
 
-func (s *splitFungibleTokenTxExecutor) Execute(tx txsystem.GenericTransaction, currentBlockNr uint64) error {
-	//TODO AB-350
-	panic("implement me")
+func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
+	tx, ok := gtx.(*splitFungibleTokenWrapper)
+	if !ok {
+		return errors.Errorf("invalid tx type: %T", gtx)
+	}
+	if err := s.validate(tx); err != nil {
+		return err
+	}
+	u, err := s.state.GetUnit(tx.UnitID())
+	if err != nil {
+		return err
+	}
+	d := u.Data.(*fungibleTokenData)
+	// add new token unit
+	newTokenID := util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(s.hashAlgorithm))
+	logger.Debug("Adding a fungible token with ID %v", newTokenID)
+	txHash := tx.Hash(s.hashAlgorithm)
+	err = s.state.AddItem(newTokenID, tx.attributes.NewBearer, &fungibleTokenData{
+		tokenType: d.tokenType,
+		value:     tx.attributes.Value,
+		t:         0,
+		backlink:  make([]byte, s.hashAlgorithm.Size()),
+	}, txHash)
+	if err != nil {
+		return err
+	}
+	return s.state.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
+		d, ok := data.(*fungibleTokenData)
+		if !ok {
+			// No change in case of incorrect data type.
+			return data
+		}
+		return &fungibleTokenData{
+			tokenType: d.tokenType,
+			value:     d.value - tx.attributes.Value,
+			t:         currentBlockNr,
+			backlink:  txHash,
+		}
+	}, txHash)
 }
 
 func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenTypeWrapper) error {
@@ -197,6 +234,48 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
 	predicate, err := t.getChainedPredicate(
+		d.tokenType,
+		func(d *fungibleTokenTypeData) []byte {
+			return d.invariantPredicate
+		},
+		func(d *fungibleTokenTypeData) *uint256.Int {
+			return d.parentTypeId
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if len(predicate) > 0 {
+		return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+	}
+	return nil
+}
+
+func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) error {
+	unitID := tx.UnitID()
+	if unitID.IsZero() {
+		return errors.New(ErrStrUnitIDIsZero)
+	}
+	u, err := s.state.GetUnit(unitID)
+	if err != nil {
+		if goerrors.Is(err, rma.ErrUnitNotFound) {
+			return errors.Wrapf(err, "unit %v does not exist", unitID)
+		}
+		return err
+	}
+
+	d, ok := u.Data.(*fungibleTokenData)
+	if !ok {
+		return errors.Errorf("unit %v is not fungible token data", unitID)
+	}
+	if d.value < tx.attributes.Value {
+		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.Value)
+	}
+
+	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
+		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
+	}
+	predicate, err := s.getChainedPredicate(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate

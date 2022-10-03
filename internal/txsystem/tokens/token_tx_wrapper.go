@@ -423,14 +423,27 @@ func (s *splitFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	}
 	hasher := hashFunc.New()
 	s.wrapper.addTransactionFieldsToHasher(hasher)
+	s.addAttributesToHasher(hasher)
+	s.wrapper.hashValue = hasher.Sum(nil)
+	s.wrapper.hashFunc = hashFunc
+	return s.wrapper.hashValue
+}
+
+func (s *splitFungibleTokenWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
+	hasher := hashFunc.New()
+	idBytes := s.UnitID().Bytes32()
+	hasher.Write(idBytes[:])
+	s.addAttributesToHasher(hasher)
+	hasher.Write(util.Uint64ToBytes(s.Timeout()))
+	return hasher.Sum(nil)
+}
+
+func (s *splitFungibleTokenWrapper) addAttributesToHasher(hasher hash.Hash) {
 	hasher.Write(s.attributes.NewBearer)
 	hasher.Write(util.Uint64ToBytes(s.attributes.Value))
 	hasher.Write(s.attributes.Nonce)
 	hasher.Write(s.attributes.Backlink)
 	hasher.Write(s.attributes.InvariantPredicateSignature)
-	s.wrapper.hashValue = hasher.Sum(nil)
-	s.wrapper.hashFunc = hashFunc
-	return s.wrapper.hashValue
 }
 
 func (s *splitFungibleTokenWrapper) SigBytes() []byte {

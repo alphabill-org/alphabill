@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
@@ -391,6 +392,129 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, transferAttributes.Value, d.value)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
+}
+
+func TestSplitFungibleToken_NotOk(t *testing.T) {
+	executor := &splitFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+
+	tests := []struct {
+		name       string
+		tx         txsystem.GenericTransaction
+		wantErrStr string
+	}{
+		{
+			name:       "invalid tx type",
+			tx:         &createNonFungibleTokenTypeWrapper{},
+			wantErrStr: fmt.Sprintf("invalid tx type: %T", &createNonFungibleTokenTypeWrapper{}),
+		},
+		{
+			name:       "unit ID is 0",
+			tx:         createTx(t, uint256.NewInt(0), &SplitFungibleTokenAttributes{}),
+			wantErrStr: "unit ID cannot be zero",
+		},
+		{
+			name:       "fungible token does not exists",
+			tx:         createTx(t, uint256.NewInt(42), &SplitFungibleTokenAttributes{}),
+			wantErrStr: "unit 42 does not exist",
+		},
+
+		{
+			name:       "unit isn't fungible token",
+			tx:         createTx(t, uint256.NewInt(existingTokenTypeUnitID), &SplitFungibleTokenAttributes{}),
+			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
+		},
+		{
+			name: "invalid value",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &SplitFungibleTokenAttributes{
+				NewBearer:                   script.PredicateAlwaysTrue(),
+				Value:                       existingTokenValue + 1,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    make([]byte, 32),
+				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			}),
+			wantErrStr: fmt.Sprintf("invalid token value: max allowed %v, got %v", existingTokenValue, existingTokenValue+1),
+		},
+		{
+			name: "invalid backlink",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &SplitFungibleTokenAttributes{
+				NewBearer:                   script.PredicateAlwaysTrue(),
+				Value:                       existingTokenValue,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    test.RandomBytes(32),
+				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			}),
+			wantErrStr: "invalid backlink",
+		},
+		{
+			name: "invalid token invariant predicate argument",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &SplitFungibleTokenAttributes{
+				NewBearer:                   script.PredicateAlwaysTrue(),
+				Value:                       existingTokenValue,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    make([]byte, 32),
+				InvariantPredicateSignature: script.PredicateAlwaysFalse(),
+			}),
+			wantErrStr: "script execution result yielded false or non-clean stack",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorContains(t, executor.Execute(tt.tx, 10), tt.wantErrStr)
+		})
+	}
+}
+
+func TestSplitFungibleToken_Ok(t *testing.T) {
+	executor := &splitFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+
+	var remainingValue uint64 = 10
+	transferAttributes := &SplitFungibleTokenAttributes{
+		NewBearer:                   script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
+		Value:                       existingTokenValue - remainingValue,
+		Nonce:                       test.RandomBytes(32),
+		Backlink:                    make([]byte, 32),
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+
+	uID := uint256.NewInt(existingTokenUnitID)
+	tx := createTx(t, uID, transferAttributes)
+	var roundNr uint64 = 10
+	err := executor.Execute(tx, roundNr)
+	require.NoError(t, err)
+
+	u, err := executor.state.GetUnit(uID)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.IsType(t, &fungibleTokenData{}, u.Data)
+	d := u.Data.(*fungibleTokenData)
+
+	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
+	require.Equal(t, remainingValue, d.value)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, roundNr, d.t)
+
+	newUnitID := util.SameShardId(uID, tx.(*splitFungibleTokenWrapper).HashForIdCalculation(executor.hashAlgorithm))
+	newUnit, err := executor.state.GetUnit(newUnitID)
+	require.NoError(t, err)
+	require.NotNil(t, newUnit)
+	require.IsType(t, &fungibleTokenData{}, newUnit.Data)
+
+	newUnitData := newUnit.Data.(*fungibleTokenData)
+
+	require.Equal(t, transferAttributes.NewBearer, []byte(newUnit.Bearer))
+	require.Equal(t, existingTokenValue-remainingValue, newUnitData.value)
+	require.Equal(t, make([]byte, 32), newUnitData.backlink)
+	require.Equal(t, uint64(0), newUnitData.t)
 }
 
 func initState(t *testing.T) *rma.Tree {

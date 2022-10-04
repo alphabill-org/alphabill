@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
-
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -515,6 +514,110 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, existingTokenValue-remainingValue, newUnitData.value)
 	require.Equal(t, make([]byte, 32), newUnitData.backlink)
 	require.Equal(t, uint64(0), newUnitData.t)
+}
+
+func TestBurnFungibleToken_NotOk(t *testing.T) {
+	executor := &burnFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+
+	tests := []struct {
+		name       string
+		tx         txsystem.GenericTransaction
+		wantErrStr string
+	}{
+		{
+			name:       "invalid tx type",
+			tx:         &createNonFungibleTokenTypeWrapper{},
+			wantErrStr: fmt.Sprintf("invalid tx type: %T", &createNonFungibleTokenTypeWrapper{}),
+		},
+		{
+			name:       "unit ID is 0",
+			tx:         createTx(t, uint256.NewInt(0), &BurnFungibleTokenAttributes{}),
+			wantErrStr: "unit ID cannot be zero",
+		},
+		{
+			name:       "fungible token does not exists",
+			tx:         createTx(t, uint256.NewInt(42), &BurnFungibleTokenAttributes{}),
+			wantErrStr: "unit 42 does not exist",
+		},
+		{
+			name:       "unit isn't fungible token",
+			tx:         createTx(t, uint256.NewInt(existingTokenTypeUnitID), &BurnFungibleTokenAttributes{}),
+			wantErrStr: fmt.Sprintf("unit %v is not fungible token data", existingTokenTypeUnitID),
+		},
+		{
+			name: "invalid value",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+				Value:                       existingTokenValue - 1,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    make([]byte, 32),
+				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			}),
+			wantErrStr: fmt.Sprintf("invalid token value: expected %v, got %v", existingTokenValue, existingTokenValue-1),
+		},
+		{
+			name: "invalid backlink",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+				Value:                       existingTokenValue,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    test.RandomBytes(32),
+				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			}),
+			wantErrStr: "invalid backlink",
+		},
+		{
+			name: "invalid token invariant predicate argument",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+				Value:                       existingTokenValue,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    make([]byte, 32),
+				InvariantPredicateSignature: script.PredicateAlwaysFalse(),
+			}),
+			wantErrStr: "script execution result yielded false or non-clean stack",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorContains(t, executor.Execute(tt.tx, 10), tt.wantErrStr)
+		})
+	}
+}
+
+func TestBurnFungibleToken_Ok(t *testing.T) {
+	executor := &burnFungibleTokenTxExecutor{
+		baseTxExecutor: &baseTxExecutor[*fungibleTokenTypeData]{
+			state:         initState(t),
+			hashAlgorithm: gocrypto.SHA256,
+		},
+	}
+
+	transferAttributes := &BurnFungibleTokenAttributes{
+		Value:                       existingTokenValue,
+		Nonce:                       test.RandomBytes(32),
+		Backlink:                    make([]byte, 32),
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+
+	uID := uint256.NewInt(existingTokenUnitID)
+	tx := createTx(t, uID, transferAttributes)
+	var roundNr uint64 = 10
+	err := executor.Execute(tx, roundNr)
+	require.NoError(t, err)
+
+	u, err := executor.state.GetUnit(uID)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.Equal(t, rma.Predicate([]byte{0}), u.Bearer)
+	require.IsType(t, &fungibleTokenData{}, u.Data)
+	d := u.Data.(*fungibleTokenData)
+
+	require.Equal(t, transferAttributes.Value, d.value)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, roundNr, d.t)
 }
 
 func initState(t *testing.T) *rma.Tree {

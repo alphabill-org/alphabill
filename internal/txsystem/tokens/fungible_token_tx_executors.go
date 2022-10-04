@@ -28,6 +28,10 @@ type (
 	splitFungibleTokenTxExecutor struct {
 		*baseTxExecutor[*fungibleTokenTypeData]
 	}
+
+	burnFungibleTokenTxExecutor struct {
+		*baseTxExecutor[*fungibleTokenTypeData]
+	}
 )
 
 func (c *createFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTransaction, _ uint64) error {
@@ -128,6 +132,34 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 			backlink:  txHash,
 		}
 	}, txHash)
+}
+
+func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
+	tx, ok := gtx.(*burnFungibleTokenWrapper)
+	if !ok {
+		return errors.Errorf("invalid tx type: %T", gtx)
+	}
+	if err := b.validate(tx); err != nil {
+		return err
+	}
+	unitID := tx.UnitID()
+	h := tx.Hash(b.hashAlgorithm)
+	if err := b.state.SetOwner(unitID, []byte{0}, h); err != nil {
+		return err
+	}
+	return b.state.UpdateData(unitID, func(data rma.UnitData) rma.UnitData {
+		d, ok := data.(*fungibleTokenData)
+		if !ok {
+			// No change in case of incorrect data type.
+			return data
+		}
+		return &fungibleTokenData{
+			tokenType: d.tokenType,
+			value:     d.value,
+			t:         currentBlockNr,
+			backlink:  h,
+		}
+	}, h)
 }
 
 func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenTypeWrapper) error {
@@ -276,6 +308,47 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
 	predicate, err := s.getChainedPredicate(
+		d.tokenType,
+		func(d *fungibleTokenTypeData) []byte {
+			return d.invariantPredicate
+		},
+		func(d *fungibleTokenTypeData) *uint256.Int {
+			return d.parentTypeId
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if len(predicate) > 0 {
+		return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+	}
+	return nil
+}
+
+func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) error {
+	unitID := tx.UnitID()
+	if unitID.IsZero() {
+		return errors.New(ErrStrUnitIDIsZero)
+	}
+	u, err := b.state.GetUnit(unitID)
+	if err != nil {
+		if goerrors.Is(err, rma.ErrUnitNotFound) {
+			return errors.Wrapf(err, "unit %v does not exist", unitID)
+		}
+		return err
+	}
+
+	d, ok := u.Data.(*fungibleTokenData)
+	if !ok {
+		return errors.Errorf("unit %v is not fungible token data", unitID)
+	}
+	if tx.attributes.Value != d.value {
+		return errors.Errorf("invalid token value: expected %v, got %v", d.value, tx.attributes.Value)
+	}
+	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
+		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
+	}
+	predicate, err := b.getChainedPredicate(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate

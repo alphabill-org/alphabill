@@ -128,6 +128,7 @@ func initExecutors(state *rma.Tree, options *Options) map[reflect.Type]txExecuto
 	executors[reflect.TypeOf(&mintFungibleTokenWrapper{})] = &mintFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
 	executors[reflect.TypeOf(&transferFungibleTokenWrapper{})] = &transferFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
 	executors[reflect.TypeOf(&splitFungibleTokenWrapper{})] = &splitFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
+	executors[reflect.TypeOf(&burnFungibleTokenWrapper{})] = &burnFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
 
 	return executors
 }

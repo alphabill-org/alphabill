@@ -95,6 +95,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			return err
 		}
 		if containsBill {
+			wlog.Info("received split order (existing bill)")
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.RemainingValue(),
@@ -104,6 +105,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			}
 		}
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
+			wlog.Info("received split order (new bill)")
 			id := utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    id,
@@ -115,6 +117,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 	case moneytx.Swap:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.OwnerCondition()) {
+			wlog.Info("received swap order")
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),

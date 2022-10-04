@@ -26,12 +26,14 @@ var (
 	bearer                            = []byte{10}
 	nftType                           = []byte{11}
 	data                              = []byte{12}
+	updatedData                       = []byte{0, 12}
 	uri                               = "https://alphabill.org"
 	tokenCreationPredicateSignature   = []byte{14}
 	newBearer                         = []byte{15}
 	nonce                             = []byte{16}
 	backlink                          = []byte{17}
 	invariantPredicateSignature       = []byte{18}
+	dataUpdateSignature               = []byte{19}
 )
 
 func TestCreateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
@@ -143,6 +145,37 @@ func TestTransferNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
+func TestUpdateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T) {
+	tx := createUpdateNonFungibleTokenTxOrder(t, systemID)
+	genericTx, err := NewGenericTx(tx)
+	require.NoError(t, err)
+	hash := genericTx.Hash(gocrypto.SHA256)
+
+	b := gocrypto.SHA256.New()
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(ownerProof)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(updatedData)
+	b.Write(backlink)
+	b.Write(dataUpdateSignature)
+	require.Equal(t, b.Sum(nil), hash)
+}
+
+func TestUpdateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	tx := createUpdateNonFungibleTokenTxOrder(t, systemID)
+	genericTx, err := NewGenericTx(tx)
+	require.NoError(t, err)
+	sigBytes := genericTx.SigBytes()
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(updatedData)
+	b.Write(backlink)
+	require.Equal(t, b.Bytes(), sigBytes)
+}
+
 func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.Transaction {
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
@@ -189,6 +222,20 @@ func createTransferNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte
 			Nonce:                       nonce,
 			Backlink:                    backlink,
 			InvariantPredicateSignature: invariantPredicateSignature,
+		}),
+	)
+}
+
+func createUpdateNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.Transaction {
+	return testtransaction.NewTransaction(t,
+		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithTimeout(timeout),
+		testtransaction.WithOwnerProof(ownerProof),
+		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
+			Data:                updatedData,
+			Backlink:            backlink,
+			DataUpdateSignature: dataUpdateSignature,
 		}),
 	)
 }

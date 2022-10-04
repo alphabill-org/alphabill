@@ -34,7 +34,7 @@ func TestOMTWithSingleNode(t *testing.T) {
 	require.NotNil(t, tree)
 	require.NotNil(t, tree.GetRootHash())
 
-	expectedRootHash := hashLeaf(data[0], crypto.SHA256)
+	expectedRootHash := computeLeafTreeHash(data[0], crypto.SHA256.New())
 	require.Equal(t, expectedRootHash, tree.GetRootHash())
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"hash"
 )
 
 var ErrNilData = errors.New("merkle tree input data is nil")
@@ -23,8 +24,8 @@ type (
 
 	Data struct {
 		Val      []byte
-		Hash     []byte
-		unitHash []byte // unitHash for leaf nodes, proof-chain first element needs to be unit hash not tree hash
+		Hash     []byte // Hash accumulated tree hash, leaf nodes have prefix 1, non-leaf nodes have prefix 0
+		leafHash []byte // leafHash for leaf nodes, proof-chain first element needs to be raw hash not tree hash
 	}
 )
 
@@ -55,7 +56,7 @@ func (s *OrderedMerkleTree) GetMerklePath(val []byte) ([]*Data, error) {
 // getMerklePath recurisvely extracts the merkle path from given leaf to current node curr.
 func (s *OrderedMerkleTree) getMerklePath(val []byte, curr *node, z *[]*Data) {
 	if curr.isLeaf() {
-		*z = append([]*Data{{Val: curr.data.Val, Hash: curr.data.unitHash}}, *z...)
+		*z = append([]*Data{{Val: curr.data.Val, Hash: curr.data.leafHash}}, *z...)
 		return
 	}
 	if bytes.Compare(val, curr.data.Val) <= 0 {
@@ -73,19 +74,19 @@ func createTreeNode(data []*Data, hashAlgorithm crypto.Hash, zeroHash []byte) *n
 	if len(data) == 0 {
 		return &node{data: &Data{Hash: zeroHash}}
 	}
+	hasher := hashAlgorithm.New()
 	if len(data) == 1 {
 		d := data[0]
 		return &node{data: &Data{
 			Val:      d.Val,
-			Hash:     hashLeaf(d, hashAlgorithm),
-			unitHash: d.Hash,
+			Hash:     computeLeafTreeHash(d, hasher),
+			leafHash: d.Hash,
 		}}
 	}
 	n := len(data) / 2
 	left := createTreeNode(data[:n], hashAlgorithm, zeroHash)
 	right := createTreeNode(data[n:], hashAlgorithm, zeroHash)
 
-	hasher := hashAlgorithm.New()
 	hasher.Write([]byte{0})     // non-leaf hash starts with byte 0 to prevent false proofs
 	hasher.Write(data[n-1].Val) // include unit value to prevent potential proof manipulation attacks
 	hasher.Write(left.data.Hash)
@@ -97,8 +98,7 @@ func createTreeNode(data []*Data, hashAlgorithm crypto.Hash, zeroHash []byte) *n
 	}
 }
 
-func hashLeaf(d *Data, hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
+func computeLeafTreeHash(d *Data, hasher hash.Hash) []byte {
 	hasher.Write([]byte{1}) // leaf hash starts with byte 1 to prevent false proofs
 	hasher.Write(d.Val)
 	hasher.Write(d.Hash)
@@ -156,7 +156,7 @@ func EvalMerklePath(merklePath []*Data, value []byte, hashAlgorithm crypto.Hash)
 	var h []byte
 	for i, item := range merklePath {
 		if i == 0 {
-			h = hashLeaf(item, hashAlgorithm)
+			h = computeLeafTreeHash(item, hasher)
 		} else {
 			hasher.Write([]byte{0})
 			hasher.Write(item.Val)
@@ -168,8 +168,8 @@ func EvalMerklePath(merklePath []*Data, value []byte, hashAlgorithm crypto.Hash)
 				hasher.Write(h)
 			}
 			h = hasher.Sum(nil)
-			hasher.Reset()
 		}
+		hasher.Reset()
 	}
 	return h
 }

@@ -28,6 +28,10 @@ var (
 	data                              = []byte{12}
 	uri                               = "https://alphabill.org"
 	tokenCreationPredicateSignature   = []byte{14}
+	newBearer                         = []byte{15}
+	nonce                             = []byte{16}
+	backlink                          = []byte{17}
+	invariantPredicateSignature       = []byte{18}
 )
 
 func TestCreateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
@@ -50,7 +54,7 @@ func TestCreateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T
 }
 
 func TestMintNonFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
-	tx := createMintFungibleTokenTxOrder(t, systemID)
+	tx := createMintNonFungibleTokenTxOrder(t, systemID)
 	genericTx, err := NewGenericTx(tx)
 	require.NoError(t, err)
 	sigBytes := genericTx.SigBytes()
@@ -88,7 +92,7 @@ func TestCreateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T)
 }
 
 func TestMintNonFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
-	tx := createMintFungibleTokenTxOrder(t, systemID)
+	tx := createMintNonFungibleTokenTxOrder(t, systemID)
 	genericTx, err := NewGenericTx(tx)
 	require.NoError(t, err)
 	hash := genericTx.Hash(gocrypto.SHA256)
@@ -104,6 +108,39 @@ func TestMintNonFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(data)
 	b.Write(dataUpdatePredicate)
 	require.Equal(t, b.Sum(nil), hash)
+}
+
+func TestTransferNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T) {
+	tx := createTransferNonFungibleTokenTxOrder(t, systemID)
+	genericTx, err := NewGenericTx(tx)
+	require.NoError(t, err)
+	hash := genericTx.Hash(gocrypto.SHA256)
+
+	b := gocrypto.SHA256.New()
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(ownerProof)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(newBearer)
+	b.Write(nonce)
+	b.Write(backlink)
+	b.Write(invariantPredicateSignature)
+	require.Equal(t, b.Sum(nil), hash)
+}
+
+func TestTransferNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	tx := createTransferNonFungibleTokenTxOrder(t, systemID)
+	genericTx, err := NewGenericTx(tx)
+	require.NoError(t, err)
+	sigBytes := genericTx.SigBytes()
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(newBearer)
+	b.Write(nonce)
+	b.Write(backlink)
+	require.Equal(t, b.Bytes(), sigBytes)
 }
 
 func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.Transaction {
@@ -124,7 +161,7 @@ func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *t
 	)
 }
 
-func createMintFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.Transaction {
+func createMintNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.Transaction {
 	return testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(systemIdentifier),
 		testtransaction.WithUnitId(unitID),
@@ -137,6 +174,21 @@ func createMintFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsy
 			Data:                            data,
 			DataUpdatePredicate:             dataUpdatePredicate,
 			TokenCreationPredicateSignature: tokenCreationPredicateSignature,
+		}),
+	)
+}
+
+func createTransferNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.Transaction {
+	return testtransaction.NewTransaction(t,
+		testtransaction.WithSystemID(systemIdentifier),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithTimeout(timeout),
+		testtransaction.WithOwnerProof(ownerProof),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                   newBearer,
+			Nonce:                       nonce,
+			Backlink:                    backlink,
+			InvariantPredicateSignature: invariantPredicateSignature,
 		}),
 	)
 }

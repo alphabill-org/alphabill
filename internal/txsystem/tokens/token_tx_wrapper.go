@@ -15,6 +15,7 @@ const (
 	protobufTypeUrlPrefix                       = "type.googleapis.com/alphabill.tokens.v1."
 	typeURLCreateNonFungibleTokenTypeAttributes = protobufTypeUrlPrefix + "CreateNonFungibleTokenTypeAttributes"
 	typeURLMintNonFungibleTokenAttributes       = protobufTypeUrlPrefix + "MintNonFungibleTokenAttributes"
+	typeURLTransferNonFungibleTokenAttributes   = protobufTypeUrlPrefix + "TransferNonFungibleTokenAttributes"
 )
 
 type (
@@ -32,6 +33,11 @@ type (
 	mintNonFungibleTokenWrapper struct {
 		wrapper
 		attributes *MintNonFungibleTokenAttributes
+	}
+
+	transferNonFungibleTokenWrapper struct {
+		wrapper
+		attributes *TransferNonFungibleTokenAttributes
 	}
 )
 
@@ -54,6 +60,16 @@ func NewGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 			return nil, errors.Wrapf(err, "invalid tx attributes")
 		}
 		return &mintNonFungibleTokenWrapper{
+			wrapper:    wrapper{transaction: tx},
+			attributes: pb,
+		}, nil
+	case typeURLTransferNonFungibleTokenAttributes:
+		pb := &TransferNonFungibleTokenAttributes{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid tx attributes")
+		}
+		return &transferNonFungibleTokenWrapper{
 			wrapper:    wrapper{transaction: tx},
 			attributes: pb,
 		}, nil
@@ -147,5 +163,29 @@ func (c *mintNonFungibleTokenWrapper) SigBytes() []byte {
 	b.Write([]byte(c.attributes.Uri))
 	b.Write(c.attributes.Data)
 	b.Write(c.attributes.DataUpdatePredicate)
+	return b.Bytes()
+}
+
+func (t *transferNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if t.wrapper.hashComputed(hashFunc) {
+		return t.wrapper.hashValue
+	}
+	hasher := hashFunc.New()
+	t.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(t.attributes.NewBearer)
+	hasher.Write(t.attributes.Nonce)
+	hasher.Write(t.attributes.Backlink)
+	hasher.Write(t.attributes.InvariantPredicateSignature)
+	t.wrapper.hashValue = hasher.Sum(nil)
+	t.wrapper.hashFunc = hashFunc
+	return t.wrapper.hashValue
+}
+
+func (t *transferNonFungibleTokenWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	t.wrapper.sigBytes(&b)
+	b.Write(t.attributes.NewBearer)
+	b.Write(t.attributes.Nonce)
+	b.Write(t.attributes.Backlink)
 	return b.Bytes()
 }

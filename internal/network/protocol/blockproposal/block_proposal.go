@@ -16,7 +16,7 @@ var (
 	ErrInvalidSystemIdentifier = errors.New("invalid system identifier")
 )
 
-func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBase crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier []byte, systemDescriptionHash []byte) error {
+func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, ucTrustBase map[string]crypto.Verifier, algorithm gocrypto.Hash, systemIdentifier []byte, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrBlockProposalIsNil
 	}

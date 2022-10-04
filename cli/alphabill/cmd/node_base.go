@@ -19,8 +19,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -126,12 +126,13 @@ func loadNetworkConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *sta
 
 func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer(
-		grpc.MaxSendMsgSize(cfg.MaxRecvMsgSize),
+		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
+		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
 		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
-	rpcServer, err := rpc.NewRpcServer(node)
+	rpcServer, err := rpc.NewRpcServer(node, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +155,11 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	if err != nil {
 		return nil, err
 	}
-
-	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.EncryptionKey)
+	if len(pg.RootValidators) < 1 {
+		return nil, errors.New("Root validator info is missing")
+	}
+	// Assume monolithic root chain for now and only extract the id of the first root node
+	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.RootValidators[0].EncryptionPublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +175,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	if err != nil {
 		return nil, err
 	}
-	blockStore, err := initBlockStore(cfg.DbFile)
+	blockStore, err := initNodeBlockStore(cfg.DbFile)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +195,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	return node, nil
 }
 
-func initBlockStore(dbFile string) (store.BlockStore, error) {
+func initNodeBlockStore(dbFile string) (store.BlockStore, error) {
 	if dbFile != "" {
 		return store.NewBoltBlockStore(dbFile)
 	} else {

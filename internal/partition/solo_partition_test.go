@@ -4,6 +4,8 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"strings"
 	"sync"
 	"testing"
@@ -25,8 +27,8 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,15 +100,18 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	// root genesis
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-
-	rootGenesis, partitionGenesis, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{nodeGenesis}, rootSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
+	require.NoError(t, err)
+	rootGenesis, partitionGenesis, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	if err != nil {
 		t.Error(err)
 	}
 	require.NoError(t, err)
 
 	// root chain
-	rc, err := rootchain.NewStateFromGenesis(rootGenesis, rootSigner)
+	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemStateStore(gocrypto.SHA256))
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
@@ -217,7 +222,7 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRou
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}
-	return u, u.Sign(sn.rootSigner)
+	return u, u.Sign("test", sn.rootSigner)
 }
 
 func (sn *SingleNodePartition) GetLatestBlock() *block.Block {
@@ -232,14 +237,14 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 	if err != nil {
 		return err
 	}
-	systemIds, err := sn.rootState.CreateUnicityCertificates()
+	newState, err := sn.rootState.CreateUnicityCertificates()
 	if err != nil {
 		return err
 	}
-	if len(systemIds) != 1 {
+	uc, f := newState.Certificates[p.SystemIdentifier(req.SystemIdentifier)]
+	if !f {
 		return errors.New("uc not created")
 	}
-	uc := sn.rootState.GetLatestUnicityCertificate(systemIds[0])
 	sn.eh.Reset()
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",

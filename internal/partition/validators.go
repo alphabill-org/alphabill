@@ -46,7 +46,7 @@ type (
 	DefaultUnicityCertificateValidator struct {
 		systemIdentifier      []byte
 		systemDescriptionHash []byte
-		trustBase             crypto.Verifier
+		rootTrustBase         map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
 	}
 
@@ -54,7 +54,7 @@ type (
 	DefaultBlockProposalValidator struct {
 		systemIdentifier      []byte
 		systemDescriptionHash []byte
-		trustBase             crypto.Verifier
+		rootTrustBase         map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
 	}
 
@@ -92,44 +92,44 @@ func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction, latestBl
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
 	systemDescription *genesis.SystemDescriptionRecord,
-	trustBase crypto.Verifier,
+	rootTrust map[string]crypto.Verifier,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}
-	if trustBase == nil {
-		return nil, certificates.ErrVerifierIsNil
+	if len(rootTrust) == 0 {
+		return nil, certificates.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultUnicityCertificateValidator{
 		systemIdentifier:      systemDescription.SystemIdentifier,
-		trustBase:             trustBase,
+		rootTrustBase:         rootTrust,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
 	}, nil
 }
 
 func (ucv *DefaultUnicityCertificateValidator) Validate(uc *certificates.UnicityCertificate) error {
-	return uc.IsValid(ucv.trustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
+	return uc.IsValid(ucv.rootTrustBase, ucv.algorithm, ucv.systemIdentifier, ucv.systemDescriptionHash)
 }
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
 	systemDescription *genesis.SystemDescriptionRecord,
-	trustBase crypto.Verifier,
+	rootTrust map[string]crypto.Verifier,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {
 	if err := systemDescription.IsValid(); err != nil {
 		return nil, err
 	}
-	if trustBase == nil {
-		return nil, certificates.ErrVerifierIsNil
+	if len(rootTrust) == 0 {
+		return nil, certificates.ErrRootValidatorInfoMissing
 	}
 	h := systemDescription.Hash(algorithm)
 	return &DefaultBlockProposalValidator{
 		systemIdentifier:      systemDescription.SystemIdentifier,
-		trustBase:             trustBase,
+		rootTrustBase:         rootTrust,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
 	}, nil
@@ -138,7 +138,7 @@ func NewDefaultBlockProposalValidator(
 func (bpv *DefaultBlockProposalValidator) Validate(bp *blockproposal.BlockProposal, nodeSignatureVerifier crypto.Verifier) error {
 	return bp.IsValid(
 		nodeSignatureVerifier,
-		bpv.trustBase,
+		bpv.rootTrustBase,
 		bpv.algorithm,
 		bpv.systemIdentifier,
 		bpv.systemDescriptionHash,

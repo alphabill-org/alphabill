@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/stretchr/testify/require"
 )
 

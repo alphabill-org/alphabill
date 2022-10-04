@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	gocrypto "crypto"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"path"
 	"sync"
 	"testing"
@@ -33,7 +35,7 @@ func TestRootChainInvalidRootKey_CannotBeStarted(t *testing.T) {
 	ctx, _ := async.WithWaitGroup(context.Background())
 
 	err := defaultRootChainRunFunc(ctx, conf)
-	require.ErrorContains(t, err, "invalid genesis")
+	require.ErrorContains(t, err, "invalid root validator sign key")
 }
 
 func validRootChainConfig() *rootChainConfig {
@@ -48,6 +50,7 @@ func validRootChainConfig() *rootChainConfig {
 		Address:     "/ip4/0.0.0.0/tcp/0",
 		T3Timeout:   900,
 		MaxRequests: 1000,
+		StateStore:  store.NewInMemStateStore(gocrypto.SHA256),
 	}
 	return conf
 }

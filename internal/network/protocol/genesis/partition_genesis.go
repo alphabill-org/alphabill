@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"bytes"
 	gocrypto "crypto"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -12,60 +11,74 @@ var ErrPartitionGenesisIsNil = errors.New("partition genesis is nil")
 var ErrRootChainEncryptionKeyMissing = errors.New("root encryption public key is missing")
 var ErrKeysAreMissing = errors.New("partition keys are missing")
 var ErrKeyIsNil = errors.New("key is nil")
+var ErrMissingRootValidators = errors.New("Missing root validators")
+var ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
 
-func (x *PartitionGenesis) IsValid(verifier crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
+func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
+	// linear search for id
+	for _, info := range x.RootValidators {
+		if info.NodeIdentifier == id {
+			return info
+		}
+	}
+	return nil
+}
+
+func (x *PartitionGenesis) IsValid(verifiers map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) error {
 	if x == nil {
 		return ErrPartitionGenesisIsNil
 	}
-	if verifier == nil {
-		return ErrVerifierIsNil
+	if len(verifiers) == 0 {
+		return errors.New(ErrVerifiersEmpty)
 	}
 	if len(x.Keys) < 1 {
 		return ErrKeysAreMissing
 	}
-	if len(x.EncryptionKey) < 1 {
-		return ErrRootChainEncryptionKeyMissing
+	if len(x.RootValidators) < 1 {
+		return ErrMissingRootValidators
 	}
-	_, err := crypto.NewVerifierSecp256k1(x.EncryptionKey)
+	// check that root validator public info is valid
+	for _, node := range x.RootValidators {
+		err := node.IsValid()
+		if err != nil {
+			return errors.Wrap(err, "invalid root validator public key info")
+		}
+	}
+	// make sure it is a list of unique node ids and keys
+	err := ValidatorInfoUnique(x.RootValidators)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "invalid root validator list")
 	}
+	// check partition validator public info is valid
 	for _, keyInfo := range x.Keys {
-		if keyInfo == nil {
-			return ErrKeyIsNil
-		}
-		if keyInfo.NodeIdentifier == "" {
-			return ErrNodeIdentifierIsEmpty
-		}
-		if len(keyInfo.SigningPublicKey) == 0 {
-			return ErrSigningPublicKeyIsInvalid
-		}
-		_, err := crypto.NewVerifierSecp256k1(keyInfo.SigningPublicKey)
+		err := keyInfo.IsValid()
 		if err != nil {
-			return err
+			return errors.Wrap(err, "invalid partition node validator public key info")
 		}
-		if len(keyInfo.EncryptionPublicKey) == 0 {
-			return ErrEncryptionPublicKeyIsInvalid
-		}
-		_, err = crypto.NewVerifierSecp256k1(keyInfo.EncryptionPublicKey)
-		if err != nil {
-			return err
-		}
+	}
+	// make sure it is a list of unique node ids and keys
+	err = ValidatorInfoUnique(x.Keys)
+	if err != nil {
+		return errors.Wrap(err, "invalid partition validator list")
 	}
 
+	if x.SystemDescriptionRecord == nil {
+		return ErrSystemDescriptionIsNil
+	}
 	if err := x.SystemDescriptionRecord.IsValid(); err != nil {
 		return err
 	}
-	pubKeyBytes, err := verifier.MarshalPublicKey()
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(pubKeyBytes, x.TrustBase) {
-		return errors.Errorf("invalid trust base. expected %X, got %X", pubKeyBytes, x.TrustBase)
+	if x.Certificate == nil {
+		return ErrPartitionUnicityCertificateIsNil
 	}
 	sdrHash := x.SystemDescriptionRecord.Hash(hashAlgorithm)
-	if err := x.Certificate.IsValid(verifier, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
+	// validate all signatures against known root keys
+	if err := x.Certificate.IsValid(verifiers, hashAlgorithm, x.SystemDescriptionRecord.SystemIdentifier, sdrHash); err != nil {
 		return err
+	}
+	// UC Seal must be signed by all validators
+	if len(x.RootValidators) != len(x.Certificate.UnicitySeal.Signatures) {
+		return errors.New("Unicity Certificate is not signed by all root validators")
 	}
 	return nil
 }

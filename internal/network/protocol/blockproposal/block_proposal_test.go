@@ -27,7 +27,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	}
 	type args struct {
 		nodeSignatureVerifier crypto.Verifier
-		ucTrustBase           crypto.Verifier
+		ucTrustBase           map[string]crypto.Verifier
 		algorithm             gocrypto.Hash
 		systemIdentifier      []byte
 		systemDescriptionHash []byte
@@ -48,7 +48,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
-				ucTrustBase:           trustBase,
+				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      systemIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -80,7 +80,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustBase,
+				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      []byte{0, 0, 0, 2},
 				systemDescriptionHash: test.RandomBytes(32),
@@ -97,7 +97,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustBase,
+				ucTrustBase:           map[string]crypto.Verifier{"1": trustBase},
 				algorithm:             gocrypto.SHA256,
 				systemIdentifier:      systemIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -122,7 +122,8 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 func TestBlockProposal_IsValid_BlockProposalIsNil(t *testing.T) {
 	var bp *BlockProposal
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	err := bp.IsValid(verifier, verifier, gocrypto.SHA256, systemIdentifier, test.RandomBytes(32))
+	ucTrustBase := map[string]crypto.Verifier{"1": verifier}
+	err := bp.IsValid(verifier, ucTrustBase, gocrypto.SHA256, systemIdentifier, test.RandomBytes(32))
 	require.ErrorIs(t, err, ErrBlockProposalIsNil)
 }
 
@@ -133,7 +134,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
-		Signature:            test.RandomBytes(32),
+		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
@@ -168,7 +169,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
-		Signature:            test.RandomBytes(32),
+		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,

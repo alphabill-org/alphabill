@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	"bytes"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -9,14 +10,14 @@ import (
 
 // requestStore keeps track of received consensus requests.
 type requestStore struct {
-	systemIdentifier string
-	requests         map[string]*certification.BlockCertificationRequest // all received requests. key is node identifier
-	hashCounts       map[string]uint                                     // counts of requests with matching State. key is IR hash string.
+	id         p.SystemIdentifier
+	requests   map[string]*certification.BlockCertificationRequest // all received requests. key is node identifier
+	hashCounts map[string]uint                                     // counts of requests with matching State. key is IR hash string.
 }
 
 // newRequestStore creates a new empty requestStore.
-func newRequestStore(systemIdentifier string) *requestStore {
-	s := &requestStore{systemIdentifier: systemIdentifier}
+func newRequestStore(systemIdentifier p.SystemIdentifier) *requestStore {
+	s := &requestStore{id: systemIdentifier}
 	s.reset()
 	return s
 }
@@ -34,7 +35,7 @@ func (rs *requestStore) add(nodeId string, req *certification.BlockCertification
 }
 
 func (rs *requestStore) reset() {
-	logger.Debug("Resetting request store for partition '%X'", rs.systemIdentifier)
+	logger.Debug("Resetting request store for partition '%X'", rs.id)
 	rs.requests = make(map[string]*certification.BlockCertificationRequest)
 	rs.hashCounts = make(map[string]uint)
 }

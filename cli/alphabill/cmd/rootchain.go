@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	gocrypto "crypto"
 	"path"
 	"time"
 
@@ -11,9 +12,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
 )
 
@@ -36,12 +38,18 @@ type rootChainConfig struct {
 
 	// root chain request channel capacity
 	MaxRequests uint
+
+	// path to Bolt storage file
+	DbFile string
+
+	StateStore rootchain.StateStore
 }
 
 // newRootChainCmd creates a new cobra command for root chain
 func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	config := &rootChainConfig{
-		Base: baseConfig,
+		Base:       baseConfig,
+		StateStore: store.NewInMemStateStore(gocrypto.SHA256),
 	}
 	var cmd = &cobra.Command{
 		Use:   "root",
@@ -52,6 +60,7 @@ func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 	}
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root chain key file")
 	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain)")
+	cmd.Flags().StringVarP(&config.DbFile, "db", "f", "", "path to the database file (default: $AB_HOME/rootchain/"+store.BoltRootChainStoreFileName+")")
 	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "rootchain address in libp2p multiaddress-format")
 	cmd.Flags().Uint64Var(&config.T3Timeout, "t3-timeout", 900, "how long root chain nodes wait for message from leader before initiating a new round")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "root chain request buffer capacity")
@@ -87,7 +96,17 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 
 	net, err := network.NewLibP2PRootChainNetwork(peer, config.MaxRequests, defaultSendCertificateTimeout)
 	if err != nil {
-		return nil
+		return err
+	}
+	if config.DbFile != "" {
+		storage, err := store.NewBoltStore(config.DbFile)
+		if err != nil {
+			return err
+		}
+		config.StateStore, err = store.NewPersistentStateStore(storage)
+		if err != nil {
+			return err
+		}
 	}
 	rc, err := rootchain.NewRootChain(
 		peer,
@@ -95,6 +114,7 @@ func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error
 		rk.SigningPrivateKey,
 		net,
 		rootchain.WithT3Timeout(time.Duration(config.T3Timeout)*time.Millisecond),
+		rootchain.WithStateStore(config.StateStore),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)

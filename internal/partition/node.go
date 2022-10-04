@@ -24,7 +24,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
@@ -40,6 +40,7 @@ const (
 	EventTypeBlockFinalized
 	EventTypeRecoveryStarted
 	EventTypeRecoveryFinished
+	EventTypeStateReverted
 )
 
 const t1TimerName = "t1"
@@ -166,21 +167,32 @@ func New(
 
 	go n.loop()
 
-	// TODO for some weird reason if nodes start behind the root chain, they do not start communicating until something is sent from the partition node side
-	go n.greetRootChain()
+	go n.handshakeLoop()
 
 	return n, nil
 }
 
-func (n *Node) greetRootChain() {
-	logger.Debug("Sending handshake to root chain")
-	_ = n.network.Send(network.OutputMessage{
-		Protocol: network.ProtocolHandshake,
-		Message: &handshake.Handshake{
-			SystemIdentifier: n.configuration.GetSystemIdentifier(),
-			NodeIdentifier:   n.leaderSelector.SelfID().String(),
-		},
-	}, []peer.ID{n.configuration.rootChainID})
+func (n *Node) handshakeLoop() {
+	for {
+		select {
+		case <-n.ctx.Done():
+			return
+		default:
+			logger.Trace("Sending handshake to root chain")
+			err := n.network.Send(network.OutputMessage{
+				Protocol: network.ProtocolHandshake,
+				Message: &handshake.Handshake{
+					SystemIdentifier: n.configuration.GetSystemIdentifier(),
+					NodeIdentifier:   n.leaderSelector.SelfID().String(),
+				},
+			}, []peer.ID{n.configuration.rootChainID})
+
+			if err != nil {
+				logger.Error("error sending handshake", err)
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
 }
 
 func initState(n *Node) error {
@@ -261,7 +273,7 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 
 	reportAndRevert := func(msg string, err error) {
 		logger.Error(msg, err)
-		n.transactionSystem.Revert()
+		n.revertState()
 	}
 
 	// make sure proposal extends the previous state
@@ -642,34 +654,38 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 				n.stopRecovery(uc)
 			}
 		}
-	} else if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) {
+	} else if bl, blockHash, err := n.proposalHash(n.pendingBlockProposal.Transactions, uc); bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.StateHash) && bytes.Equal(uc.InputRecord.BlockHash, blockHash) {
+		if err != nil {
+			return errors.Wrap(err, "block finalization: proposal hash calculation failed")
+		}
 		// UC certifies pending block proposal
-		err := n.finalizeBlock(n.pendingBlockProposal.Transactions, uc)
+		err = n.finalizeBlock(bl)
 		if err != nil {
 			return errors.Wrap(err, "block finalization failed")
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
-		n.transactionSystem.Revert()
+		n.revertState()
 		n.startNewRound(uc)
 		return ErrStateReverted
 	} else {
 		// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
-		logger.Warning("Reverting state tree.")
-		n.transactionSystem.Revert()
 		return n.startRecovery(uc)
 	}
 	n.startNewRound(uc)
 	return nil
 }
 
-// finalizeBlock creates the block and adds it to the blockStore.
-func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) error {
-	defer trackExecutionTime(time.Now(), "Block finalization")
+func (n *Node) revertState() {
+	logger.Warning("Reverting state")
+	n.sendEvent(EventTypeStateReverted, nil)
+	n.transactionSystem.Revert()
+}
+
+func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
 	latestBlock := n.blockStore.LatestBlock()
 	newHeight := latestBlock.BlockNumber + 1
-	logger.Info("Finalizing block #%v. TxCount: %v", newHeight, len(transactions))
 	b := &block.Block{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
 		BlockNumber:        newHeight,
@@ -679,13 +695,16 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 	}
 	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	if !bytes.Equal(blockHash, uc.InputRecord.BlockHash) {
-		return errors.Errorf("finalized block hash not equal to IR block hash. IR block hash %X, finalized block hash %X",
-			uc.InputRecord.BlockHash, blockHash)
-	}
-	err = n.blockStore.Add(b)
+	logger.Debug("Proposal hash: %X", blockHash)
+	return b, blockHash, nil
+}
+
+// finalizeBlock creates the block and adds it to the blockStore.
+func (n *Node) finalizeBlock(b *block.Block) error {
+	defer trackExecutionTime(time.Now(), "Block finalization")
+	err := n.blockStore.Add(b)
 	if err != nil {
 		return err
 	}
@@ -695,9 +714,9 @@ func (n *Node) finalizeBlock(transactions []txsystem.GenericTransaction, uc *cer
 }
 
 func (n *Node) handleT1TimeoutEvent() {
+	n.stopForwardingOrHandlingTransactions()
 	defer func() {
 		n.leaderSelector.UpdateLeader(nil)
-		n.stopForwardingOrHandlingTransactions()
 	}()
 	if n.status == recovering {
 		logger.Info("T1 timeout: node is recovering")
@@ -798,6 +817,8 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 
 		_, err := n.applyBlock(b.BlockNumber, b)
 		if err != nil {
+			n.revertState()
+			n.stopRecovery(n.GetLatestBlock().UnicityCertificate)
 			return errors.Wrapf(err, "recovery failed")
 		}
 
@@ -830,6 +851,7 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
 		// already recovering
 		return nil
 	}
+	n.revertState()
 	logger.Warning("Starting recovery")
 	n.status = recovering
 	n.stopForwardingOrHandlingTransactions()
@@ -952,10 +974,6 @@ func (n *Node) sendCertificationRequest() error {
 		Protocol: network.ProtocolBlockCertification,
 		Message:  req,
 	}, []peer.ID{n.configuration.rootChainID})
-}
-
-func (n *Node) StartRound() {
-	n.startNewRound(n.luc)
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {

@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	gocrypto "crypto"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"path"
 	"sync"
 	"testing"
@@ -48,6 +50,7 @@ func validRootChainConfig() *rootChainConfig {
 		Address:     "/ip4/0.0.0.0/tcp/0",
 		T3Timeout:   900,
 		MaxRequests: 1000,
+		StateStore:  store.NewInMemStateStore(gocrypto.SHA256),
 	}
 	return conf
 }

@@ -16,7 +16,7 @@ done
 build/alphabill root-genesis --home testab/rootchain -o testab/rootchain/genesis -p testab/money1/money/node-genesis.json -p testab/money2/money/node-genesis.json -p testab/money3/money/node-genesis.json -k testab/rootchain/keys.json -g
 
 #start root chain
-build/alphabill root --home testab/rootchain -k testab/rootchain/keys.json -g testab/rootchain/genesis/root-genesis.json > testab/rootchain/rootchain.log &
+build/alphabill root --home testab/rootchain -f testab/rootchain/rounds.db -k testab/rootchain/keys.json -g testab/rootchain/genesis/root-genesis.json > testab/rootchain/rootchain.log &
 
 port=26666
 # partition node addresses

@@ -7,16 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -27,7 +27,9 @@ import (
 var failingTransactionID = uint256.NewInt(5).Bytes32()
 
 type (
-	MockNode struct{}
+	MockNode struct {
+		maxBlockNumber uint64
+	}
 )
 
 func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
@@ -37,12 +39,12 @@ func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
 	return nil
 }
 
-func (mn *MockNode) GetBlock(_ uint64) (*block.Block, error) {
-	return &block.Block{BlockNumber: 1}, nil
+func (mn *MockNode) GetBlock(blockNumber uint64) (*block.Block, error) {
+	return &block.Block{BlockNumber: blockNumber}, nil
 }
 
 func (mn *MockNode) GetLatestBlock() *block.Block {
-	return &block.Block{BlockNumber: 1}
+	return &block.Block{BlockNumber: mn.maxBlockNumber}
 }
 
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
@@ -56,6 +58,30 @@ func TestNewRpcServer_Ok(t *testing.T) {
 	p, err := NewRpcServer(&MockNode{})
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
+}
+
+func TestRpcServer_GetBlocksOk(t *testing.T) {
+	p, err := NewRpcServer(&MockNode{maxBlockNumber: 12})
+	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
+	require.NoError(t, err)
+	require.Len(t, res.Blocks, 12)
+	require.EqualValues(t, 12, res.MaxBlockNumber)
+}
+
+func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
+	p, err := NewRpcServer(&MockNode{maxBlockNumber: 1})
+	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
+	require.NoError(t, err)
+	require.Len(t, res.Blocks, 1)
+	require.EqualValues(t, 1, res.MaxBlockNumber)
+}
+
+func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
+	p, err := NewRpcServer(&MockNode{maxBlockNumber: 7})
+	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
+	require.NoError(t, err)
+	require.Len(t, res.Blocks, 0)
+	require.EqualValues(t, 7, res.MaxBlockNumber)
 }
 
 func TestRpcServer_ProcessTransaction_Fails(t *testing.T) {

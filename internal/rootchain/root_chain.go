@@ -1,22 +1,25 @@
 package rootchain
 
 import (
+	"bytes"
 	"context"
+	gocrypto "crypto"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"time"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-
-	log "github.com/alphabill-org/alphabill/internal/logger"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
@@ -32,16 +35,18 @@ type (
 	}
 
 	RootChain struct {
-		ctx       context.Context
-		ctxCancel context.CancelFunc
-		net       Net
-		peer      *network.Peer // p2p network
-		state     *State        // state of the root chain. keeps everything needed for consensus.
-		timers    *timer.Timers // keeps track of T2 and T3 timers
+		ctx        context.Context
+		ctxCancel  context.CancelFunc
+		net        Net
+		peer       *network.Peer // p2p network
+		state      *State        // state of the root chain. keeps everything needed for consensus.
+		stateStore StateStore
+		timers     *timer.Timers // keeps track of T2 and T3 timers
 	}
 
 	rootChainConf struct {
-		t3Timeout time.Duration
+		t3Timeout  time.Duration
+		stateStore StateStore
 	}
 
 	Option func(c *rootChainConf)
@@ -53,32 +58,55 @@ func WithT3Timeout(timeout time.Duration) Option {
 	}
 }
 
+func WithStateStore(store StateStore) Option {
+	return func(c *rootChainConf) {
+		c.stateStore = store
+	}
+}
+
 // NewRootChain creates a new instance of the root chain.
 func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypto.Signer, net Net, opts ...Option) (*RootChain, error) {
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
-	log.SetContext(log.KeyNodeID, peer.ID().String())
+	selfId := peer.ID().String()
+	log.SetContext(log.KeyNodeID, selfId)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
-	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
-	s, err := NewStateFromGenesis(genesis, signer)
+	// todo root genesis: this will become obsolete when dynamic configuration is implemented??
+	// Locate local node from genesis info
+	nodeInfo := genesis.Root.FindPubKeyById(peer.ID().String())
+	if nodeInfo == nil {
+		logger.Info("Root node %v info not in genesis file", peer.ID().String())
+		return nil, errors.New("invalid root validator encode key")
+	}
+	ver, err := signer.Verifier()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	signPubKeyBytes, err := ver.MarshalPublicKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	// verify that the same public key is present in the genesis file
+	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
+		return nil, errors.Errorf("invalid root validator sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
 	}
 
+	logger.Info("Starting Root Chain. PeerId=%v; Addresses=%v", peer.ID(), peer.MultiAddresses())
 	conf := loadConf(opts)
 
+	s, err := NewState(genesis, selfId, signer, conf.stateStore)
 	if err != nil {
 		return nil, err
 	}
 
 	timers := timer.NewTimers()
 	timers.Start(t3TimerID, conf.t3Timeout)
-	for _, p := range genesis.Partitions {
-		for _, validator := range p.Nodes {
-			duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
+	for _, partition := range genesis.Partitions {
+		for _, validator := range partition.Nodes {
+			duration := time.Duration(partition.SystemDescriptionRecord.T2Timeout) * time.Millisecond
 			timers.Start(string(validator.BlockCertificationRequest.SystemIdentifier), duration)
 			break
 		}
@@ -170,38 +198,39 @@ func (rc *RootChain) loop() {
 			timerName := nt.Name()
 			if timerName == t3TimerID {
 				logger.Debug("Handling T3 timeout")
-				partitionIdentifiers, err := rc.state.CreateUnicityCertificates()
+				newState, err := rc.state.CreateUnicityCertificates()
 				if err != nil {
-					logger.Warning("Round %v failed: %v", rc.state.roundNumber, err)
+					logger.Warning("Round %v failed: %v", newState.LatestRound, err)
+					rc.timers.Restart(t3TimerID)
+					break
 				}
-				rc.sendUC(partitionIdentifiers)
+				rc.sendUC(newState.Certificates)
 				rc.timers.Restart(t3TimerID)
-				for _, identifier := range partitionIdentifiers {
-					logger.Debug("Restarting T2 timer: %X", []byte(identifier))
-					rc.timers.Restart(identifier)
+				for id := range newState.Certificates {
+					logger.Debug("Restarting T2 timer: %X", []byte(id))
+					rc.timers.Restart(string(id))
 				}
 			} else {
 				logger.Debug("Handling T2 timeout with a name '%X'", []byte(timerName))
-				rc.state.CopyOldInputRecords(timerName)
+				rc.state.CopyOldInputRecords(p.SystemIdentifier(timerName))
 				rc.timers.Restart(timerName)
 			}
 		}
 	}
 }
 
-func (rc *RootChain) sendUC(identifiers []string) {
-	for _, identifier := range identifiers {
-		uc := rc.state.latestUnicityCertificates.get(identifier)
+func (rc *RootChain) sendUC(certs map[p.SystemIdentifier]*certificates.UnicityCertificate) {
+	for id, uc := range certs {
 		if uc == nil {
 			// we don't have uc; continue with the next identifier
-			logger.Warning("Latest UC does not exist for partition: %v", identifier)
+			logger.Warning("Latest UC does not exist for partition: %v", id)
 			continue
 		}
 
-		partition := rc.state.partitionStore.get(identifier)
+		partition := rc.state.partitionStore.get(id)
 		if partition == nil {
 			// we don't have the partition information; continue with the next identifier
-			logger.Warning("Partition information does not exist for partition: %v", identifier)
+			logger.Warning("Partition information does not exist for partition: %v", id)
 			continue
 		}
 		var ids []peer.ID
@@ -229,7 +258,8 @@ func (rc *RootChain) sendUC(identifiers []string) {
 
 func loadConf(opts []Option) *rootChainConf {
 	conf := &rootChainConf{
-		t3Timeout: defaultT3Timeout,
+		t3Timeout:  defaultT3Timeout,
+		stateStore: store.NewInMemStateStore(gocrypto.SHA256),
 	}
 	for _, opt := range opts {
 		if opt == nil {

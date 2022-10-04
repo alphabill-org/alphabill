@@ -45,6 +45,7 @@ func TestRunVD(t *testing.T) {
 			RPCServer: &grpcServerConfiguration{
 				Address:        defaultServerAddr,
 				MaxRecvMsgSize: defaultMaxRecvMsgSize,
+				MaxSendMsgSize: defaultMaxSendMsgSize,
 			},
 		}
 		conf.RPCServer.Address = listenAddr
@@ -65,7 +66,11 @@ func TestRunVD(t *testing.T) {
 
 		// use same keys for signing and communication encryption.
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
-		_, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, rootSigner, verifier)
+		rootPubKeyBytes, err := verifier.MarshalPublicKey()
+		require.NoError(t, err)
+		pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+		require.NoError(t, err)
+		_, partitionGenesisFiles, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])

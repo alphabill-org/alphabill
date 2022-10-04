@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"math"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -14,7 +15,10 @@ type (
 		Address string `validate:"empty=false"`
 
 		// Maximum number of bytes the incoming message may be.
-		MaxRecvMsgSize int `validate:"gte=0" default:"256000"`
+		MaxRecvMsgSize int `validate:"gte=0" default:"4194304"`
+
+		// Maximum number of bytes the outgoing message may be.
+		MaxSendMsgSize int `validate:"gte=0" default:"2147483647"`
 
 		// MaxConnectionAgeMs is a duration for the maximum amount of time a
 		// connection may exist before it will be closed by sending a GoAway. A
@@ -25,20 +29,31 @@ type (
 		// MaxConnectionAgeGraceMs is an additive period after MaxConnectionAgeMs after
 		// which the connection will be forcibly closed.
 		MaxConnectionAgeGraceMs int64
+
+		// MaxGetBlocksBatchSize is the max allowed block count for the GetBlocks rpc function.
+		MaxGetBlocksBatchSize uint64
 	}
 )
 
 const (
-	defaultServerAddr     = ":9543"
-	defaultMaxRecvMsgSize = 256000
+	defaultServerAddr            = ":9543"
+	defaultMaxRecvMsgSize        = 1024 * 1024 * 4
+	defaultMaxSendMsgSize        = math.MaxInt32
+	defaultMaxGetBlocksBatchSize = 100
 )
 
 func (c *grpcServerConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Address, "server-address", defaultServerAddr, "The gRPC server listen address with port.")
 	cmd.Flags().IntVar(&c.MaxRecvMsgSize, "server-max-recv-msg-size", defaultMaxRecvMsgSize, "Maximum number of bytes the incoming message may be.")
+	cmd.Flags().IntVar(&c.MaxSendMsgSize, "server-max-send-msg-size", defaultMaxSendMsgSize, "Maximum number of bytes the outgoing message may be.")
 	cmd.Flags().Int64Var(&c.MaxConnectionAgeMs, "server-max-connection-age-ms", 0, "a duration for the maximum amount of time a connection may exist before it will be closed by sending a GoAway in milliseconds. 0 means forever.")
 	cmd.Flags().Int64Var(&c.MaxConnectionAgeGraceMs, "server-max-connection-age-grace-ms", 0, "is an additive period after MaxConnectionAgeMs after which the connection will be forcibly closed in milliseconds. 0 means no grace period.")
+	cmd.Flags().Uint64Var(&c.MaxGetBlocksBatchSize, "server-max-get-blocks-batch-size", defaultMaxGetBlocksBatchSize, "the max allowed block count for the GetBlocks rpc function.")
 	err := cmd.Flags().MarkHidden("server-max-recv-msg-size")
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.Flags().MarkHidden("server-max-send-msg-size")
 	if err != nil {
 		panic(err)
 	}

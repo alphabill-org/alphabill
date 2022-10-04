@@ -1,4 +1,21 @@
 {
+  "root": {
+    "root_validators": [
+      {
+        "node_identifier": "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm",
+        "signing_public_key": "AnJdIK9EqWwNh0SDxe5q9QxLjoi3lWVNWsizhywCppBA",
+        "encryption_public_key": "ArydEzLAl49KjvsyEZWF6YMb9W68MqC1a6QIvAJvl9OA"
+      }
+    ],
+    "consensus": {
+      "total_root_validators": 1,
+      "block_rate_ms": 900,
+      "hash_algorithm": 5,
+      "signatures": {
+        "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "pTKfHnS3UjzDbUGoW4gPWQBAweZDXmYbtJHRTV9Lm7IalDL3WDR2J+lhaKBcUyzF1ZbujFMxKHe2HmTHlqEAyAE="
+      }
+    }
+  },
   "partitions": [
     {
       "nodes": [
@@ -70,7 +87,9 @@
           "root_chain_round_number": 1,
           "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
           "hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA=",
-          "signature": "k4fL/IUVBwM0s1ee0Ab5q8N6Beiq3ryDs9f8dBEjLKxwn8tFSienUlFtJWSisxYm72YWRrgop4sRp5c7RHI1XwE="
+          "signatures": {
+            "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "k4fL/IUVBwM0s1ee0Ab5q8N6Beiq3ryDs9f8dBEjLKxwn8tFSienUlFtJWSisxYm72YWRrgop4sRp5c7RHI1XwE="
+          }
         }
       },
       "system_description_record": {
@@ -78,7 +97,5 @@
         "t2timeout": 2500
       }
     }
-  ],
-  "trust_base": "AnJdIK9EqWwNh0SDxe5q9QxLjoi3lWVNWsizhywCppBA",
-  "hash_algorithm": 5
+  ]
 }

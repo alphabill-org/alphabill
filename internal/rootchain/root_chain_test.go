@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	"bytes"
+	gocrypto "crypto"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,6 +31,14 @@ type node struct {
 	signingKey       crypto.Signer
 	signingPublicKey crypto.Verifier
 	peer             *network.Peer
+}
+
+var consensus = &genesis.ConsensusParams{
+	TotalRootValidators: 1,
+	BlockRateMs:         900,
+	ConsensusTimeoutMs:  nil,
+	QuorumThreshold:     nil,
+	HashAlgorithm:       uint32(gocrypto.SHA256),
 }
 
 func TestNewRootChain_Ok(t *testing.T) {
@@ -54,8 +63,10 @@ func TestPartitionReceivesUnicityCertificates(t *testing.T) {
 	rootNode := createNode(t)
 	verifier, err := crypto.NewVerifierSecp256k1(rootNode.GetEncryptionPublicKeyBytes(t))
 	require.NoError(t, err)
-
-	rootGenesis, _, err := NewGenesis([]*genesis.PartitionRecord{partitionRecord}, rootNode.signingKey, verifier)
+	rootPubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	id := rootNode.peer.ID()
+	rootGenesis, _, err := NewRootGenesis(id.String(), rootNode.signingKey, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 
 	mockNet := testnetwork.NewMockNetwork()
@@ -164,9 +175,12 @@ func initRootChain(t *testing.T, opts ...Option) (*RootChain, *network.Peer, cry
 	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	peer := testpeer.CreatePeer(t)
+	id := peer.ID()
 	_, _, partition, _ := createPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	rootGenesis, _, err := NewGenesis([]*genesis.PartitionRecord{partition}, rootSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	rootGenesis, _, err := NewRootGenesis(id.String(), rootSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
 	require.NoError(t, err)
 	rc, err := NewRootChain(peer, rootGenesis, rootSigner, testnetwork.NewMockNetwork(), opts...)
 	require.NoError(t, err)

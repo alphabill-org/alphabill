@@ -1,7 +1,7 @@
 package genesis
 
 import (
-	"strings"
+	gocrypto "crypto"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -14,23 +14,37 @@ import (
 )
 
 func TestRootGenesis_IsValid1(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
+	rootKeyInfo := &PublicKeyInfo{
+		NodeIdentifier:      "1",
+		SigningPublicKey:    pubKey,
+		EncryptionPublicKey: pubKey,
+	}
+	rootConsensus := &ConsensusParams{
+		TotalRootValidators: 1,
+		BlockRateMs:         900,
+		ConsensusTimeoutMs:  nil,
+		QuorumThreshold:     nil,
+		HashAlgorithm:       uint32(gocrypto.SHA256),
+		Signatures:          make(map[string][]byte),
+	}
+	err = rootConsensus.Sign("1", signer)
+	require.NoError(t, err)
 	type fields struct {
+		Root          *GenesisRootRecord
 		Partitions    []*GenesisPartitionRecord
-		TrustBase     []byte
 		HashAlgorithm uint32
 	}
 	type args struct {
 		verifier crypto.Verifier
 	}
 	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantErr    error
-		wantErrStr string
+		name    string
+		fields  fields
+		args    args
+		wantErr string
 	}{
 		{
 			name:    "verifier is nil",
@@ -38,19 +52,29 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 			wantErr: ErrVerifierIsNil,
 		},
 		{
-			name: "invalid trust base",
+			name: "invalid root validator info",
 			args: args{
 				verifier: verifier,
 			},
-			fields:     fields{TrustBase: nil},
-			wantErrStr: "invalid trust base",
+			fields: fields{
+				Root: &GenesisRootRecord{
+					RootValidators: []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
+					Consensus:      rootConsensus},
+			},
+			wantErr: "Missing public key info for node id",
 		},
 		{
 			name: "partitions not found",
 			args: args{
 				verifier: verifier,
 			},
-			fields:  fields{TrustBase: pubKey},
+			fields: fields{
+				Root: &GenesisRootRecord{
+					RootValidators: []*PublicKeyInfo{rootKeyInfo},
+					Consensus:      rootConsensus,
+				},
+				Partitions: nil,
+			},
 			wantErr: ErrPartitionsNotFound,
 		},
 		{
@@ -58,32 +82,32 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 			args: args{
 				verifier: verifier,
 			},
-			fields:  fields{TrustBase: pubKey, Partitions: []*GenesisPartitionRecord{nil}},
-			wantErr: ErrGenesisPartitionRecordIsNil,
+			fields: fields{
+				Root: &GenesisRootRecord{
+					RootValidators: []*PublicKeyInfo{rootKeyInfo},
+					Consensus:      rootConsensus,
+				},
+				Partitions: []*GenesisPartitionRecord{nil},
+			},
+			wantErr: ErrGenesisPartitionRecordIsNil.Error(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &RootGenesis{
-				Partitions:    tt.fields.Partitions,
-				TrustBase:     tt.fields.TrustBase,
-				HashAlgorithm: tt.fields.HashAlgorithm,
+				Root:       tt.fields.Root,
+				Partitions: tt.fields.Partitions,
 			}
-			err := x.IsValid(tt.args.verifier)
-			if tt.wantErr != nil {
-				require.Equal(t, tt.wantErr, err)
-			} else {
-				require.True(t, strings.Contains(err.Error(), tt.wantErrStr))
-			}
-
+			err := x.IsValid("1", tt.args.verifier)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
 
 func TestRootGenesis_IsValid_Nil(t *testing.T) {
 	var rg *RootGenesis = nil
-	err := rg.IsValid(nil)
-	require.ErrorIs(t, err, ErrRootGenesisIsNil)
+	err := rg.IsValid("", nil)
+	require.ErrorContains(t, err, ErrRootGenesisIsNil)
 }
 
 func TestRootGenesis(t *testing.T) {

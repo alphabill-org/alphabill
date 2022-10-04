@@ -29,7 +29,7 @@ message UnicitySeal {
   uint64 root_chain_round_number = 1;
   bytes previous_hash = 2;
   bytes hash = 3;
-  bytes signature = 4;
+  map<string, bytes> signatures = 4;
 }
 
 

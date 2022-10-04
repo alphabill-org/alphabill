@@ -2,13 +2,16 @@ package testserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"google.golang.org/grpc"
 )
 
@@ -18,12 +21,12 @@ type TestAlphabillServiceServer struct {
 	pubKey         []byte
 	maxBlockHeight uint64
 	processedTxs   []*txsystem.Transaction
-	blocks         map[uint64]func() *alphabill.GetBlockResponse
+	blocks         map[uint64]func() *block.Block
 	alphabill.UnimplementedAlphabillServiceServer
 }
 
 func NewTestAlphabillServiceServer() *TestAlphabillServiceServer {
-	return &TestAlphabillServiceServer{blocks: make(map[uint64]func() *alphabill.GetBlockResponse, 100)}
+	return &TestAlphabillServiceServer{blocks: make(map[uint64]func() *block.Block, 100)}
 }
 
 func (s *TestAlphabillServiceServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
@@ -40,7 +43,22 @@ func (s *TestAlphabillServiceServer) GetBlock(_ context.Context, req *alphabill.
 	if !f {
 		return &alphabill.GetBlockResponse{Block: nil, ErrorMessage: fmt.Sprintf("block with number %v not found", req.BlockNo)}, nil
 	}
-	return blockFunc(), nil
+	return &alphabill.GetBlockResponse{Block: blockFunc()}, nil
+}
+
+func (s *TestAlphabillServiceServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	blocks := make([]*block.Block, 0, req.BlockCount)
+	maxBlockNumber := util.Min(s.maxBlockHeight, req.BlockNumber+req.BlockCount-1)
+	for i := req.BlockNumber; i <= maxBlockNumber; i++ {
+		blockFunc, f := s.blocks[i]
+		if !f {
+			return nil, errors.New(fmt.Sprintf("block with number %v not found", i))
+		}
+		blocks = append(blocks, blockFunc())
+	}
+	return &alphabill.GetBlocksResponse{Blocks: blocks, MaxBlockNumber: s.maxBlockHeight}, nil
 }
 
 func (s *TestAlphabillServiceServer) GetMaxBlockNo(context.Context, *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
@@ -73,21 +91,21 @@ func (s *TestAlphabillServiceServer) GetProcessedTransactions() []*txsystem.Tran
 	return s.processedTxs
 }
 
-func (s *TestAlphabillServiceServer) GetBlocks() map[uint64]func() *alphabill.GetBlockResponse {
+func (s *TestAlphabillServiceServer) GetAllBlocks() map[uint64]func() *block.Block {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.blocks
 }
 
-func (s *TestAlphabillServiceServer) SetBlock(blockNo uint64, block *alphabill.GetBlockResponse) {
+func (s *TestAlphabillServiceServer) SetBlock(blockNo uint64, b *block.Block) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.blocks[blockNo] = func() *alphabill.GetBlockResponse {
-		return block
+	s.blocks[blockNo] = func() *block.Block {
+		return b
 	}
 }
 
-func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func() *alphabill.GetBlockResponse) {
+func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func() *block.Block) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.blocks[blockNo] = blockFunc

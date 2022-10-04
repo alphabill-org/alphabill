@@ -17,7 +17,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -129,7 +129,11 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	}
 	pn := createPartitionNode(t, nodeSigningKey, nodeEncryptionPubKey, systemID, p.ID())
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	_, pg, err := rootchain.NewGenesisFromPartitionNodes([]*genesis.PartitionNode{pn}, rootSigner, encPubKey)
+	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	require.NoError(t, err)
+	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+	require.NoError(t, err)
+	_, pg, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 	return pg[0]
 }
@@ -140,7 +144,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		genesis   *genesis.PartitionGenesis
-		trustBase crypto.Verifier
+		trustBase map[string]crypto.Verifier
 	}
 	type args struct {
 		txs txsystem.TransactionSystem
@@ -155,7 +159,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			name: "invalid genesis",
 			fields: fields{
 				genesis:   nil,
-				trustBase: rootVerifier,
+				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
 			},
 			args: args{
 				txs: &testtxsystem.CounterTxSystem{},
@@ -166,7 +170,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			name: "invalid genesis input record hash",
 			fields: fields{
 				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
-				trustBase: rootVerifier,
+				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
 			},
 			args: args{
 				txs: &testtxsystem.CounterTxSystem{
@@ -179,7 +183,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			name: "invalid genesis summary value",
 			fields: fields{
 				genesis:   createPartitionGenesis(t, nodeSigner, nodeVerifier, rootSigner, p),
-				trustBase: rootVerifier,
+				trustBase: map[string]crypto.Verifier{"test": rootVerifier},
 			},
 			args: args{
 				txs: &testtxsystem.CounterTxSystem{
@@ -194,7 +198,7 @@ func Test_isGenesisValid_NotOk(t *testing.T) {
 			c := &configuration{
 				hashAlgorithm: gocrypto.SHA256,
 				genesis:       tt.fields.genesis,
-				trustBase:     tt.fields.trustBase,
+				rootTrustBase: tt.fields.trustBase,
 			}
 			err := c.isGenesisValid(tt.args.txs)
 			require.Error(t, err)

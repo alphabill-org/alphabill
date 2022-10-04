@@ -4,18 +4,18 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"net"
 	"time"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	libp2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -76,16 +76,19 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	if err != nil {
 		return nil, err
 	}
+	peerID, err := peer.IDFromPublicKey(encPubKey)
+	if err != nil {
+		return nil, err
+	}
 	pubKeyBytes, err := encPubKey.Raw()
 	if err != nil {
 		return nil, err
 	}
-
-	verifier, err := crypto.NewVerifierSecp256k1(pubKeyBytes)
+	pr, err := rootchain.NewPartitionRecordFromNodes(nodeGenesisFiles)
 	if err != nil {
 		return nil, err
 	}
-	rootGenesis, partitionGenesisFiles, err := rootchain.NewGenesisFromPartitionNodes(nodeGenesisFiles, rootSigner, verifier)
+	rootGenesis, partitionGenesisFiles, err := rootchain.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +186,7 @@ func createNetworkPeers(count int) ([]*network.Peer, error) {
 
 	var peerInfo = make([]*network.PeerInfo, count)
 	for i := 0; i < count; i++ {
-		port, err := getFreePort()
+		port, err := net.GetFreePort()
 		if err != nil {
 			return nil, err
 		}
@@ -230,20 +233,6 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 		}
 	}
 	return keyPairs, nil
-}
-
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.

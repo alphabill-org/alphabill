@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -74,15 +73,13 @@ func TestTimeout(t *testing.T) {
 	client.config.RequestTimeoutMs = 10
 
 	// make GetBlock request wait for some time
-	server.SetBlockFunc(0, func() *alphabill.GetBlockResponse {
+	server.SetBlockFunc(0, func() *block.Block {
 		time.Sleep(100 * time.Millisecond)
-		return &alphabill.GetBlockResponse{
-			Block: &block.Block{
-				BlockNumber:        0,
-				PreviousBlockHash:  hash.Sum256([]byte{}),
-				Transactions:       []*txsystem.Transaction{},
-				UnicityCertificate: &certificates.UnicityCertificate{},
-			},
+		return &block.Block{
+			BlockNumber:        0,
+			PreviousBlockHash:  hash.Sum256([]byte{}),
+			Transactions:       []*txsystem.Transaction{},
+			UnicityCertificate: &certificates.UnicityCertificate{},
 		}
 	})
 

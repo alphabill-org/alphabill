@@ -174,7 +174,7 @@ func (w *vdTransaction) ToProtoBuf() *txsystem.Transaction {
 }
 
 func (w *vdTransaction) IsPrimary() bool {
-	return false
+	return true
 }
 
 func (w *vdTransaction) sigBytes(b bytes.Buffer) {

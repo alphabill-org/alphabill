@@ -4,113 +4,187 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/stretchr/testify/require"
 )
 
+var IR1 = &certificates.InputRecord{Hash: []byte{1}}
+var IR2 = &certificates.InputRecord{Hash: []byte{2}}
+var IR3 = &certificates.InputRecord{Hash: []byte{3}}
+var SysId1 = []byte{0, 0, 0, 1}
+var SysId2 = []byte{0, 0, 0, 2}
+
 var req1 = &certification.BlockCertificationRequest{
-	InputRecord: &certificates.InputRecord{Hash: []byte{1}},
+	InputRecord: IR1,
 }
 
 var req2 = &certification.BlockCertificationRequest{
-	InputRecord: &certificates.InputRecord{Hash: []byte{2}},
+	InputRecord: IR2,
 }
 
 var req3 = &certification.BlockCertificationRequest{
-	InputRecord: &certificates.InputRecord{Hash: []byte{3}},
+	InputRecord: IR3,
 }
 
+// Test internals
 func Test_requestStore_add(t *testing.T) {
-	rs := NewRequestStore("")
-	require.NoError(t, rs.Add("1", req1))
-	require.ErrorContains(t, rs.Add("1", req1), "duplicated request")
-	require.ErrorContains(t, rs.Add("1", req2), "equivocating request with different hash")
-	require.NoError(t, rs.Add("2", req2))
+	rs := newRequestStore()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))
+	require.ErrorContains(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}), "duplicated request")
+	require.ErrorContains(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR2}), "equivocating request with different hash")
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR2}))
 	require.Equal(t, 2, len(rs.requests))
 	require.Equal(t, 2, len(rs.hashCounts))
 }
 
 func Test_requestStore_isConsensusReceived(t *testing.T) {
-	rs := NewRequestStore("")
-	require.NoError(t, rs.Add("1", req1))
-	require.NoError(t, rs.Add("2", req2))
-	_, possible := rs.IsConsensusReceived(2)
+	rs := newRequestStore()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR2}))
+	_, possible := rs.isConsensusReceived(2)
 	require.False(t, possible)
 }
 
 func TestRequestStore_isConsensusReceived_SingleNode(t *testing.T) {
-	rs := NewRequestStore("")
-	require.NoError(t, rs.Add("1", req1))
-	ir, possible := rs.IsConsensusReceived(1)
+	rs := newRequestStore()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))
+	ir, possible := rs.isConsensusReceived(1)
 	require.True(t, possible)
 	require.Equal(t, req1.InputRecord, ir)
 }
 
 func TestRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
-	rs := NewRequestStore("")
-	require.NoError(t, rs.Add("1", req1))
-	require.NoError(t, rs.Add("2", req2))
-	_, possible := rs.IsConsensusReceived(2)
+	rs := newRequestStore()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR2}))
+	_, possible := rs.isConsensusReceived(2)
 	require.False(t, possible)
-	rs.Reset()
-	require.NoError(t, rs.Add("1", req1))
-	require.NoError(t, rs.Add("2", req1))
-	ir, possible := rs.IsConsensusReceived(2)
+	rs.reset()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR1}))
+	ir, possible := rs.isConsensusReceived(2)
 	require.True(t, possible)
 	require.Equal(t, req1.InputRecord, ir)
 }
 
 func TestRequestStore_isConsensusReceived_FiveNodes(t *testing.T) {
-	rs := NewRequestStore("")
-	require.NoError(t, rs.Add("1", req1))
-	ir, possible := rs.IsConsensusReceived(5)
+	rs := newRequestStore()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))
+	ir, possible := rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Nil(t, ir)
 
-	require.NoError(t, rs.Add("2", req1))
-	ir, possible = rs.IsConsensusReceived(5)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR1}))
+	ir, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Nil(t, ir)
-	require.NoError(t, rs.Add("3", req1))
-	ir, possible = rs.IsConsensusReceived(5)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "3", InputRecord: IR1}))
+	ir, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Equal(t, req1.InputRecord, ir)
 
-	require.NoError(t, rs.Add("4", req1))
-	ir, possible = rs.IsConsensusReceived(5)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "4", InputRecord: IR1}))
+	ir, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Equal(t, req1.InputRecord, ir)
 
-	require.NoError(t, rs.Add("5", req1))
-	ir, possible = rs.IsConsensusReceived(5)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "5", InputRecord: IR1}))
+	ir, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Equal(t, req1.InputRecord, ir)
 
 }
 
 func TestRequestStore_isConsensusNotPossible_FiveNodes(t *testing.T) {
-	rs := NewRequestStore("")
-	require.NoError(t, rs.Add("1", req1))
-	ir, possible := rs.IsConsensusReceived(5)
+	rs := newRequestStore()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))
+	ir, possible := rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Nil(t, ir)
 
-	require.NoError(t, rs.Add("2", req1))
-	ir, possible = rs.IsConsensusReceived(5)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: IR1}))
+	ir, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Nil(t, ir)
 
-	require.NoError(t, rs.Add("3", req2))
-	ir, possible = rs.IsConsensusReceived(5)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "3", InputRecord: IR2}))
+	ir, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
 	require.Nil(t, ir)
 
-	require.NoError(t, rs.Add("4", req2))
-	_, possible = rs.IsConsensusReceived(5)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "4", InputRecord: IR2}))
+	_, possible = rs.isConsensusReceived(5)
 	require.True(t, possible)
 
 	// 50/50 split, but validator 5 sends a unique req
-	require.NoError(t, rs.Add("5", req3))
-	_, possible = rs.IsConsensusReceived(5)
-	require.False(t, false)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "5", InputRecord: IR3}))
+	_, possible = rs.isConsensusReceived(5)
+	require.False(t, possible)
+}
+
+// Test interface
+func Test_CertStore_add(t *testing.T) {
+	cs := NewCertificationRequestStore()
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.ErrorContains(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}), "duplicated request")
+	require.ErrorContains(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR2}), "equivocating request with different hash")
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR2}))
+	_, possible := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
+	require.False(t, possible)
+}
+
+func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
+	cs := NewCertificationRequestStore()
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR2}))
+	_, possible := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
+	require.False(t, possible)
+	cs.Clear(p.SystemIdentifier(SysId1))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR1}))
+	ir, possible := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
+	require.True(t, possible)
+	require.Equal(t, req1.InputRecord, ir)
+}
+
+func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
+	cs := NewCertificationRequestStore()
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "1", InputRecord: IR2}))
+	_, possible := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
+	require.True(t, possible)
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "2", InputRecord: IR2}))
+	ir, possible := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
+	require.True(t, possible)
+	require.Equal(t, IR1, ir)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId1))), 2)
+	ir2, possible2 := cs.IsConsensusReceived(p.SystemIdentifier(SysId2), 2)
+	require.True(t, possible2)
+	require.Equal(t, IR2, ir2)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId2))), 2)
+	// Reset resets both stores
+	cs.Reset()
+	ir3, possible3 := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
+	require.True(t, possible3)
+	require.Nil(t, ir3)
+	ir4, possible4 := cs.IsConsensusReceived(p.SystemIdentifier(SysId2), 2)
+	require.True(t, possible4)
+	require.Nil(t, ir4)
+}
+
+func TestCertRequestStore_EmptyStore(t *testing.T) {
+	cs := NewCertificationRequestStore()
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId1))), 0)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId2))), 0)
+	// Reset resets both stores
+	require.NotPanics(t, func() { cs.Reset() })
+	require.NotPanics(t, func() { cs.Clear(p.SystemIdentifier(SysId1)) })
+	ir3, possible3 := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
+	require.True(t, possible3)
+	require.Nil(t, ir3)
+	ir4, possible4 := cs.IsConsensusReceived(p.SystemIdentifier(SysId2), 2)
+	require.True(t, possible4)
+	require.Nil(t, ir4)
 }

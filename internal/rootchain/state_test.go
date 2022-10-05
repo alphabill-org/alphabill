@@ -2,16 +2,16 @@ package rootchain
 
 import (
 	gocrypto "crypto"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
@@ -125,17 +125,17 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, 5, s.partitionStore.NodeCount(p.SystemIdentifier(partition1ID)))
 	require.Equal(t, 4, s.partitionStore.NodeCount(p.SystemIdentifier(partition2ID)))
 
-	require.Equal(t, 2, len(s.incomingRequests))
-	require.Equal(t, 5, len(s.incomingRequests[p.SystemIdentifier(partition1ID)].requests))
-	require.Equal(t, 4, len(s.incomingRequests[p.SystemIdentifier(partition2ID)].requests))
-	require.Equal(t, 1, len(s.incomingRequests[p.SystemIdentifier(partition1ID)].hashCounts))
-	require.Equal(t, 1, len(s.incomingRequests[p.SystemIdentifier(partition2ID)].hashCounts))
-
 	// prepare partition1 consensus
-	require.True(t, s.checkConsensus(s.incomingRequests[p.SystemIdentifier(partition1ID)]))
+	require.Equal(t, 5, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))
+	require.Equal(t, 4, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID))))
+	// check consensus
+	require.True(t, s.checkConsensus(p.SystemIdentifier(partition1ID)))
+	require.True(t, s.checkConsensus(p.SystemIdentifier(partition2ID)))
 
-	// prepare partition1 consensus
-	require.True(t, s.checkConsensus(s.incomingRequests[p.SystemIdentifier(partition2ID)]))
+	// verify result
+	require.Equal(t, 2, len(s.inputRecords))
+	require.Equal(t, partition1IR, s.inputRecords[p.SystemIdentifier(partition1ID)])
+	require.Equal(t, partition2IR, s.inputRecords[p.SystemIdentifier(partition2ID)])
 
 	// create certificates
 	_, err = s.CreateUnicityCertificates()
@@ -159,11 +159,8 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	// verify State after the round
 	require.Equal(t, uint64(1), state.LatestRound)
 	require.Equal(t, p1UC.UnicitySeal.Hash, state.LatestRootHash)
-	require.Equal(t, 2, len(s.incomingRequests))
-	require.Equal(t, 0, len(s.incomingRequests[p.SystemIdentifier(partition1ID)].requests))
-	require.Equal(t, 0, len(s.incomingRequests[p.SystemIdentifier(partition2ID)].requests))
-	require.Equal(t, 0, len(s.incomingRequests[p.SystemIdentifier(partition1ID)].hashCounts))
-	require.Equal(t, 0, len(s.incomingRequests[p.SystemIdentifier(partition2ID)].hashCounts))
+	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))
+	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID))))
 }
 
 func TestHandleInputRequestEvent_OlderUnicityCertificate(t *testing.T) {
@@ -331,7 +328,7 @@ func createStateAndExecuteRound(t *testing.T, partitions []*genesis.PartitionRec
 	require.NoError(t, err)
 	for _, pt := range partitions {
 		id := p.SystemIdentifier(pt.SystemDescriptionRecord.SystemIdentifier)
-		s2.checkConsensus(s2.incomingRequests[id])
+		s2.checkConsensus(id)
 	}
 	_, err = s2.CreateUnicityCertificates()
 	require.NoError(t, err)

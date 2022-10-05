@@ -14,6 +14,11 @@ const (
 	ProtocolLedgerReplicationReq  = "/ab/replication-req/0.0.1"
 	ProtocolLedgerReplicationResp = "/ab/replication-resp/0.0.1"
 	ProtocolHandshake             = "/ab/handshake/0.0.1"
+	ProtocolRootIrChangeReq       = "/ab/root-change-req/0.0.1"
+	ProtocolRootProposal          = "/ab/root-proposal/0.0.1"
+	ProtocolRootVote              = "/ab/root-vote/0.0.1"
+	ProtocolRootStateReq          = "/ab/root-state-req/0.0.1"
+	ProtocolRootStateResp         = "/ab/root-state-resp/0.0.1"
 
 	ErrStrPeerIsNil       = "peer is nil"
 	ErrStrProtocolIDEmpty = "protocol ID is empty"

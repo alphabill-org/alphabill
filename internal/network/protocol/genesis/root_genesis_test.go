@@ -61,7 +61,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 					RootValidators: []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
 					Consensus:      rootConsensus},
 			},
-			wantErr: "Missing public key info for node id",
+			wantErr: ErrPubKeyInfoSigningKeyIsInvalid,
 		},
 		{
 			name: "partitions not found",
@@ -90,6 +90,31 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 				Partitions: []*GenesisPartitionRecord{nil},
 			},
 			wantErr: ErrGenesisPartitionRecordIsNil.Error(),
+		},
+		{
+			name: "genesis partition record duplicate system id",
+			args: args{
+				verifier: verifier,
+			},
+			fields: fields{
+				Root: &GenesisRootRecord{
+					RootValidators: []*PublicKeyInfo{rootKeyInfo},
+					Consensus:      rootConsensus,
+				},
+				Partitions: []*GenesisPartitionRecord{
+					{
+						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
+						Certificate:             nil,
+						SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 1}, T2Timeout: 1000},
+					},
+					{
+						Nodes:                   []*PartitionNode{{NodeIdentifier: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil, T2Timeout: 1000}},
+						Certificate:             nil,
+						SystemDescriptionRecord: &SystemDescriptionRecord{SystemIdentifier: []byte{0, 0, 0, 1}, T2Timeout: 1000},
+					},
+				},
+			},
+			wantErr: "duplicated system identifier: ",
 		},
 	}
 	for _, tt := range tests {

@@ -5,8 +5,9 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"time"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -227,7 +228,7 @@ func (rc *RootChain) sendUC(certs map[p.SystemIdentifier]*certificates.UnicityCe
 			continue
 		}
 
-		partition := rc.state.partitionStore.get(id)
+		partition := rc.state.partitionStore.Get(id)
 		if partition == nil {
 			// we don't have the partition information; continue with the next identifier
 			logger.Warning("Partition information does not exist for partition: %v", id)

@@ -1,0 +1,250 @@
+package rootvalidator
+
+import (
+	"bytes"
+	"fmt"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
+
+	"github.com/alphabill-org/alphabill/internal/errors"
+	log "github.com/alphabill-org/alphabill/internal/logger"
+
+	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/leader"
+	"github.com/alphabill-org/alphabill/internal/timer"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p/core/peer"
+)
+
+type (
+	RootNet interface {
+		Send(msg network.OutputMessage, receivers []peer.ID) error
+		ReceivedChannel() <-chan network.ReceivedMessage
+	}
+
+	AtomicBroadcastManager struct {
+		peer         *network.Peer
+		store        StateStore
+		timers       *timer.Timers
+		net          RootNet
+		roundState   *RoundState
+		proposer     leader.Selector
+		rootVerifier *RootNodeVerifier
+		safety       *SafetyModule
+		// safety rules
+	}
+)
+
+func NewAtomicBroadcastManager(host *network.Peer, conf *RootNodeConf, stateStore StateStore, safetyModule *SafetyModule, net RootNet) (*AtomicBroadcastManager, error) {
+	// Sanity checks
+	if conf == nil {
+		return nil, errors.New("cannot start atomic broadcast handler, conf is nil")
+	}
+	if net == nil {
+		return nil, errors.New("network is nil")
+	}
+	selfId := host.ID().String()
+	log.SetContext(log.KeyNodeID, selfId)
+	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", host.ID(), host.MultiAddresses())
+	// Get node id's from cluster configuration and sort by alphabet
+	// All root validator nodes, node id to public key map
+	rootNodeIds := make([]peer.ID, 0, len(conf.RootTrustBase))
+	for id := range conf.RootTrustBase {
+		rootNodeIds = append(rootNodeIds, peer.ID(id))
+	}
+	l, err := leader.NewRotatingLeader(rootNodeIds, 1)
+	if err != nil {
+		return nil, err
+	}
+	rootVerifier, err := NewRootClusterVerifier(conf.RootTrustBase, conf.ConsensusThreshold)
+	if err != nil {
+		return nil, err
+	}
+	roundState := NewRoundState(conf.LocalTimeoutMs)
+	timers := timer.NewTimers()
+	timers.Start(localTimeoutId, roundState.GetRoundTimeout())
+	// read state
+	state, err := stateStore.Get()
+	if err != nil {
+		return nil, err
+	}
+	// Am I the next leader?
+	if l.GetLeaderForRound(state.LatestRound+1) == host.ID() {
+		// Start timer and wait for requests from partition nodes
+		timers.Start(blockRateId, conf.BlockRateMs)
+	}
+	return &AtomicBroadcastManager{
+		peer:         host,
+		store:        stateStore,
+		timers:       timers,
+		net:          net,
+		roundState:   roundState,
+		proposer:     l,
+		rootVerifier: rootVerifier,
+		safety:       safetyModule,
+	}, nil
+}
+
+func (a *AtomicBroadcastManager) Timers() *timer.Timers {
+	return a.timers
+}
+
+func (a *AtomicBroadcastManager) Receive() <-chan network.ReceivedMessage {
+	return a.net.ReceivedChannel()
+}
+
+func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedMessage) {
+	if msg.Message == nil {
+		logger.Warning("Root network received message is nil")
+		return
+	}
+	switch msg.Protocol {
+	case network.ProtocolRootIrChangeReq:
+		req, correctType := msg.Message.(*atomic_broadcast.IRChangeReqMsg)
+		if !correctType {
+			logger.Warning("Type %T not supported", msg.Message)
+		}
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling IR Change Request from root validator node"), req)
+		logger.Debug("IR change request received")
+		// Am I the next leader or current leader and have not yet proposed? If not, ignore.
+		// Buffer and wait for opportunity to make the next proposal
+		// Todo: Add handling
+		break
+	case network.ProtocolRootProposal:
+		req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
+		if !correctType {
+			logger.Warning("Type %T not supported", msg.Message)
+		}
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Proposal from %s", req.Block.Author), req)
+		logger.Debug("Atomic broadcast Proposal received")
+		a.onProposalMsg(req)
+		break
+	case network.ProtocolRootVote:
+		req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
+		if !correctType {
+			logger.Warning("Type %T not supported", msg.Message)
+		}
+		logger.Debug("Atomic broadcast Vote received")
+		a.onVoteMsg(req)
+		break
+	case network.ProtocolRootStateReq:
+		req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
+		if !correctType {
+			logger.Warning("Type %T not supported", msg.Message)
+		}
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block request"), req)
+		logger.Debug("Block/state Request")
+		// Send state, with proof (signed by other validators)
+		// Todo: add handling
+		break
+	case network.ProtocolRootStateResp:
+		req, correctType := msg.Message.(*atomic_broadcast.StateReplyMsg)
+		if !correctType {
+			logger.Warning("Type %T not supported", msg.Message)
+		}
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block"), req)
+		logger.Debug("Block/state reply")
+		// Verify and store
+		// Todo: Add handling
+		break
+	default:
+		logger.Warning("Protocol %s not supported.", msg.Protocol)
+		break
+	}
+}
+
+// OnTimeout handle timeouts
+func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
+	logger.Debug("Handling timeout %s", timerId)
+	// Has the validator voted in this round
+	voteMsg := a.roundState.GetVoted()
+	if voteMsg == nil {
+		// todo: generate empty proposal and execute it (not yet specified)
+		// remove below lines once able to generate a empty proposal and execute
+		a.timers.Restart(timerId)
+		return
+	}
+	// here voteMsg is not nil
+	// either validator has already voted in this round already or a dummy vote was created
+	if !voteMsg.IsTimeout() {
+		// todo: QC and timeout certificate persistence
+		// todo: Get highest QC from store
+		// add timeout with signature and resend vote
+		timeout := voteMsg.NewTimeout(nil)
+		// todo: Get TC from store
+		sig, err := a.safety.SignTimeout(timeout, nil)
+		if err != nil {
+			logger.Warning("Local timeout error")
+			a.timers.Restart(timerId)
+			return
+		}
+		// Add timeout to vote
+		voteMsg.AddTimeoutSignature(timeout, sig)
+	}
+	// Record vote
+	a.roundState.SetVoted(voteMsg)
+	// todo: broadcast vote
+	a.timers.Restart(timerId)
+}
+
+// onVoteMsg handle votes and timeout votes
+func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
+	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Vote from %s", vote.Author), vote)
+	// verify signature on vote
+	err := vote.Verify(a.rootVerifier)
+	if err != nil {
+		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
+	}
+	// Todo: Check state and synchronize
+	// Was the proposal received? If not, should we recover it? Or should it be included in the vote?
+
+	round := vote.VoteInfo.Proposed.Round
+	// Normal votes are only sent to the next leader,
+	// timeout votes are broadcast to everybody
+	if vote.IsTimeout() == false {
+		nextRound := round + 1
+		// verify that the validator is correct leader in next round
+		if a.proposer.IsValidLeader(a.peer.ID(), nextRound) == false {
+			logger.Warning("Received vote, validator is not leader in next round %v, vote ignored", nextRound)
+			return
+		}
+	}
+	// Todo: is consensus already achieved
+	// Store vote, check for QC and TC.
+	a.roundState.RegisterVote(vote, a.rootVerifier)
+	// If QC or TC: Store and create proposal if timing is correct
+	// Todo: Add handling
+}
+
+func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
+	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
+	// verify signature on proposal
+	err := proposal.Verify(a.rootVerifier)
+	if err != nil {
+		logger.Warning("Atomic broadcast proposal verify failed: %v", err)
+	}
+	logger.Info("Received proposal message from %v", proposal.Block.Author)
+	// Is from valid proposer
+	if a.proposer.IsValidLeader(peer.ID(proposal.Block.Author), proposal.Block.Round) == false {
+		logger.Warning("Proposal author %V is not a valid proposer for round %v, ignoring proposal",
+			proposal.Block.Author, proposal.Block.Round)
+		return
+	}
+	// Every proposal must carry a QC for previous round
+	// Process QC first
+	// Check state
+	if !bytes.Equal(proposal.Block.Qc.VoteInfo.Proposed.StateHash, []byte{1, 1, 1, 2}) {
+		// recovery needed
+	}
+	// Certify input, everything needs to be verified again as if received from partition node, since we cannot
+	// trust the proposer is honest
+
+	a.store.ExecuteProposedPayload(proposal.Block.Payload)
+	// todo: create vote store locally
+	// todo: broadcast vote
+}
+
+type RootStateWaitingForQc struct {
+	certs []*certificates.UnicityCertificate
+}

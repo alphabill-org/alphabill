@@ -1,8 +1,9 @@
 package rootchain
 
 import (
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
+
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 
@@ -77,16 +78,16 @@ func TestPartitionStore(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := newPartitionStore(tt.args.partitions)
-			require.Equal(t, tt.want.size, store.size())
+			store := NewPartitionStore(tt.args.partitions)
+			require.Equal(t, tt.want.size, store.Size())
 			for id, count := range tt.want.nodeCounts {
-				require.Equal(t, count, store.nodeCount(id))
+				require.Equal(t, count, store.NodeCount(id))
 			}
 			for _, id := range tt.want.containsPartitions {
-				require.NotNil(t, store.get(id))
+				require.NotNil(t, store.Get(id))
 			}
 			for _, id := range tt.want.doesNotContainPartitions {
-				require.Nil(t, store.get(id))
+				require.Nil(t, store.Get(id))
 			}
 		})
 	}

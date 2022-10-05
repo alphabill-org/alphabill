@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+import "certification.proto";
+import "certificates.proto";
+
+option go_package = "github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast;atomic_broadcast";
+
+message IRChangeReq {
+  // system identifier of the input record changed
+  bytes system_identifier = 1;
+  // IR change (quorum or no quorum possible of block certification requests)
+  repeated BlockCertificationRequest requests = 2;
+}
+
+message Payload {
+  // IR change requests with quorum or no quorum possible
+  repeated IRChangeReq irChangeQuorum = 1;
+  // Timeout vector
+  repeated bytes timeout_system_identifiers = 2;
+  // todo: no IRChangeQuorums and empty timeout vector - empty block, is this solution ok?
+}
+
+message BlockInfo {
+  // Epoch number corresponds to the set of validators that are active for this block. (not used)
+  uint64 epoch = 1;
+  // Consensus protocol monotonically increasing round number
+  uint64 round = 2;
+  // id or hash of block
+  bytes id = 3;
+  // root hash
+  bytes root_hash = 4;
+  // State hash h(UC[]) after applying changed IR records
+  bytes state_hash = 5;
+}
+
+// The ConsensusInfo is used both in VoteMsg reply and in QC which aggregates all VoteMsg replays
+message VoteInfo {
+    // Proposed block
+    BlockInfo proposed = 1;
+    // Parent block
+    BlockInfo parent = 2;
+}
+
+message CommitInfo {
+  // State to be committed
+  bytes commit_state_hash = 1;
+  // hash of VoteInfo
+  bytes vote_info_hash = 2;
+}
+
+message QuorumCert {
+  // Consensus data
+  VoteInfo vote_info = 1;
+  // Commit info
+  CommitInfo commit_info = 2;
+  // Node identifier to signature map (NB! aggregated signature schema in spec)
+  map<string, bytes> signatures = 3;
+}
+
+message BlockData {
+  // Epoch to establish valid configuration
+  uint64 epoch = 1;
+  // Root round number
+  uint64 round = 2;
+  // NodeIdentifier of the proposer
+  string author = 3;
+  // Payload that will trigger changes to the state
+  Payload payload = 4;
+  // quorum certificate for ancestor
+  // before payload can be applied check that local state matches state in qc
+  // qc.consensus.state_hash == h(UC[])
+  QuorumCert qc = 5;
+  // id hash of block, excluding the id
+  bytes id = 6;
+}
+
+message Timeout {
+  // Epoch to establish valid configuration
+  uint64 epoch = 1;
+  // Root round number
+  uint64 round = 2;
+  // Highest quorum certificate of the validator
+  QuorumCert hqc = 3;
+}
+
+message TimeoutWithSignature {
+  Timeout timeout = 1;
+  bytes signature = 2;
+}
+
+message TimeoutVote {
+  // round from timeout.hqc.consensus.round
+  uint64 hqc_round = 1;
+  bytes signature = 2;
+}
+
+message TimeoutCert {
+  // Round and epoch of the timeout event
+  Timeout timeout = 1;
+  // 2f+1 signatures from nodes confirming TC
+  map<string, TimeoutVote> signatures = 2;
+}
+
+message IRChangeReqMsg {
+  // Unique block certification requests with quorum present or quorum not possible.
+  repeated IRChangeReq requests = 1;
+}
+
+message ProposalMsg {
+  // Proposed change
+  BlockData block = 1;
+  // highest QC that serves as commit QC, to synchronise on committed state/block
+  QuorumCert high_commit_qc = 2;
+  // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
+  optional TimeoutCert last_round_tc = 3;
+  // Signature, sign(block_id)
+  optional bytes signature = 4;
+}
+
+// Message for both timeout and proposal vote
+message VoteMsg {
+  // Proposed block hash and resulting state hash
+  VoteInfo vote_info = 1;
+  // Commit info
+  CommitInfo commit_info = 2;
+  // Sync highest QC that serves as commit QC
+  QuorumCert high_commit_qc = 3;
+  // Voter node identifier
+  string author = 4;
+  // Vote signature on hash of consensus info
+  bytes signature = 5;
+  // When local timeout expires node may issue a timeout vote (also after voted for proposal).
+  // Timeout quorum is aggregated into a TimeoutCert (TC).
+  optional TimeoutWithSignature timeout_signature = 6;
+}
+
+// Recover state
+message StateRequestMsg {
+  bytes state_hash = 1;
+}
+
+message StateReplyMsg {
+  enum Status {
+    // All ok, latest included in reply
+    OK = 0;
+    // invalid state hash (in the future)
+    UNKNOWN_STATE = 1;
+  }
+  Status status = 1;
+  repeated UnicityCertificate uc = 2;
+  repeated QuorumCert qc = 3;
+}

@@ -121,9 +121,9 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, make([]byte, gocrypto.SHA256.Size()), state.LatestRootHash)
 
 	// partition store checks
-	require.Equal(t, 2, s.partitionStore.size())
-	require.Equal(t, 5, s.partitionStore.nodeCount(p.SystemIdentifier(partition1ID)))
-	require.Equal(t, 4, s.partitionStore.nodeCount(p.SystemIdentifier(partition2ID)))
+	require.Equal(t, 2, s.partitionStore.Size())
+	require.Equal(t, 5, s.partitionStore.NodeCount(p.SystemIdentifier(partition1ID)))
+	require.Equal(t, 4, s.partitionStore.NodeCount(p.SystemIdentifier(partition2ID)))
 
 	require.Equal(t, 2, len(s.incomingRequests))
 	require.Equal(t, 5, len(s.incomingRequests[p.SystemIdentifier(partition1ID)].requests))

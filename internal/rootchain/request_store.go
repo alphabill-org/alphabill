@@ -2,45 +2,79 @@ package rootchain
 
 import (
 	"bytes"
+
+	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 )
 
-// requestStore keeps track of received consensus requests.
-type requestStore struct {
+type CertificationRequestStore map[p.SystemIdentifier]*RequestStore
+
+// RequestStore keeps track of received consensus requests.
+type RequestStore struct {
 	id         p.SystemIdentifier
 	requests   map[string]*certification.BlockCertificationRequest // all received requests. key is node identifier
 	hashCounts map[string]uint                                     // counts of requests with matching State. key is IR hash string.
 }
 
-// newRequestStore creates a new empty requestStore.
-func newRequestStore(systemIdentifier p.SystemIdentifier) *requestStore {
-	s := &requestStore{id: systemIdentifier}
-	s.reset()
+// Get returns an existing store for systemid or registers and returns a new one if none existed
+func (c CertificationRequestStore) Get(id p.SystemIdentifier) *RequestStore {
+	store, f := c[id]
+	if !f {
+		store = NewRequestStore(id)
+		c[id] = store
+	}
+	return store
+}
+
+// Reset removed all incoming requests from all stores
+func (c CertificationRequestStore) Reset() {
+	for _, store := range c {
+		store.Reset()
+	}
+}
+
+// NewRequestStore creates a new empty requestStore.
+func NewRequestStore(systemIdentifier p.SystemIdentifier) *RequestStore {
+	s := &RequestStore{id: systemIdentifier}
+	s.Reset()
 	return s
 }
 
 // Add stores a new input record received from the node.
-func (rs *requestStore) add(nodeId string, req *certification.BlockCertificationRequest) {
+func (rs *RequestStore) Add(nodeId string, req *certification.BlockCertificationRequest) error {
+	prevReq, f := rs.requests[nodeId]
+	if f {
+		// Partition node tries to certify and equivocating request
+		if !bytes.Equal(prevReq.InputRecord.Hash, req.InputRecord.Hash) {
+			logger.Warning("Equivocating request with different hash: %v", req)
+			return errors.New("equivocating request with different hash")
+		} else {
+			logger.Debug("Duplicated request: %v", req)
+			return errors.New("duplicated request")
+		}
+	}
+	// remove to replace, but there should not be any since if f is true, then we do not get here?
 	if _, f := rs.requests[nodeId]; f {
-		rs.remove(nodeId)
+		rs.Remove(nodeId)
 	}
 	hashString := string(req.InputRecord.Hash)
 	rs.requests[nodeId] = req
 	count := rs.hashCounts[hashString]
 	rs.hashCounts[hashString] = count + 1
 	logger.Debug("Added new IR hash: %X, block hash: %X, total hash count: %v", req.InputRecord.Hash, req.InputRecord.BlockHash, rs.hashCounts[hashString])
+	return nil
 }
 
-func (rs *requestStore) reset() {
+func (rs *RequestStore) Reset() {
 	logger.Debug("Resetting request store for partition '%X'", rs.id)
 	rs.requests = make(map[string]*certification.BlockCertificationRequest)
 	rs.hashCounts = make(map[string]uint)
 }
 
-func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputRecord, bool) {
+func (rs *RequestStore) IsConsensusReceived(nrOfNodes int) (*certificates.InputRecord, bool) {
 	var h []byte
 	var c uint = 0
 	for hash, count := range rs.hashCounts {
@@ -76,7 +110,7 @@ func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputR
 	return nil, true
 }
 
-func (rs *requestStore) remove(nodeId string) {
+func (rs *RequestStore) Remove(nodeId string) {
 	oldReq, f := rs.requests[nodeId]
 	if !f {
 		return

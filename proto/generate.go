@@ -21,3 +21,5 @@ package proto
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/network/protocol/genesis/. genesis.proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/network/protocol/handshake/. handshake.proto
+
+//go:generate protoc -I=. --go_out=paths=source_relative:../internal/network/protocol/atomic_broadcast/. atomic_broadcast.proto

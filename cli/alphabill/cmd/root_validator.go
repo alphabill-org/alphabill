@@ -98,7 +98,6 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		return errors.Wrapf(err, "failed initiate rootvalidator validator network")
 	}
 	// Process partition node network
-	// TODO: Add persistent addresses to all validators, needed according to spec. right now?
 	prtHost, err := createHost(config.PartitionListener, keys.EncryptionPrivateKey)
 	if err != nil {
 		return errors.Wrap(err, "Partition listener creation failed")

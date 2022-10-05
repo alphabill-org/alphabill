@@ -5,12 +5,11 @@ import (
 	gocrypto "crypto"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const (
@@ -23,6 +22,17 @@ const (
 	ErrUnknownRequest             = "unknown request, sender not known"
 	ErrBothChangeQuorumAndTimeout = "invalid payload both IR change and timeout set at the same time"
 )
+
+type AtomicVerifier interface {
+	GetQuorumThreshold() uint32
+	VerifySignature(hash []byte, sig []byte, author peer.ID) error
+	VerifyBytes(bytes []byte, sig []byte, author peer.ID) error
+
+	ValidateQuorum(authors []string) error
+	VerifyQuorumSignatures(hash []byte, signatures map[string][]byte) error
+	GetVerifier(nodeId peer.ID) (crypto.Verifier, error)
+	GetVerifiers() map[string]crypto.Verifier
+}
 
 func (x *IRChangeReq) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
 	if len(x.SystemIdentifier) != 4 {
@@ -87,7 +97,7 @@ func (x *Payload) IsEmpty() bool {
 	return len(x.IrChangeQuorum) == 0 && len(x.TimeoutSystemIdentifiers) == 0
 }
 
-func (x *BlockData) IsValid(partitionTrust map[string]crypto.Verifier, v rootvalidator.RootVerifier) error {
+func (x *BlockData) IsValid(partitionTrust map[string]crypto.Verifier, v AtomicVerifier) error {
 	if x.Round < 1 {
 		return errors.New(ErrInvalidRound)
 	}

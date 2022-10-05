@@ -6,17 +6,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-type RootVerifier interface {
-	GetQuorumThreshold() uint32
-	VerifySignature(hash []byte, sig []byte, author peer.ID) error
-	VerifyBytes(bytes []byte, sig []byte, author peer.ID) error
-
-	ValidateQuorum(authors []string) error
-	VerifyQuorumSignatures(hash []byte, signatures map[string][]byte) error
-	GetVerifier(nodeId peer.ID) (crypto.Verifier, error)
-	GetVerifiers() map[string]crypto.Verifier
-}
-
 type RootNodeVerifier struct {
 	// holds a reference to config map
 	nodeToPubkeyMap map[string]crypto.Verifier

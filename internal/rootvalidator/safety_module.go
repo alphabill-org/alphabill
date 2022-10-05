@@ -45,7 +45,7 @@ func (s SafetyModule) SignVote() error {
 	panic("implement me")
 }
 
-func (s SafetyModule) MakeTimeout(timeout *atomic_broadcast.Timeout, certificate *TimeoutCertificate) ([]byte, error) {
+func (s SafetyModule) SignTimeout(timeout *atomic_broadcast.Timeout, certificate *TimeoutCertificate) ([]byte, error) {
 	//TODO implement me
 	panic("implement me")
 }

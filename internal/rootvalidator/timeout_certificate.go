@@ -73,7 +73,7 @@ func (t *Timeout) GetQcRound() uint64 {
 }
 
 // Verify verifies timeout vote received.
-func (t *Timeout) Verify(v RootVerifier) error {
+func (t *Timeout) Verify(v atomic_broadcast.AtomicVerifier) error {
 	// Make sure that the quorum certificate received with the vote does not have higher round than the round
 	// voted timeout
 	if t.Hqc.VoteInfo.Proposed.Round > t.Round {
@@ -131,7 +131,7 @@ func (x *TimeoutCertificate) getAuthors() []string {
 }
 
 // Verify timeout certificate
-func (x *TimeoutCertificate) Verify(v RootVerifier) error {
+func (x *TimeoutCertificate) Verify(v atomic_broadcast.AtomicVerifier) error {
 	// 1. verify stored quorum certificate is valid and contains quorum of signatures
 	err := x.timeout.Verify(v)
 	if err != nil {

@@ -3,9 +3,9 @@ package atomic_broadcast
 import (
 	"bytes"
 	gocrypto "crypto"
+	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 )
 
 const (
@@ -25,7 +25,7 @@ func NewTimeoutCertificate() {
 
 }
 
-func (x *QuorumCert) Verify(v rootvalidator.RootVerifier) error {
+func (x *QuorumCert) Verify(v AtomicVerifier) error {
 	// verify that QC is valid
 	if err := x.VoteInfo.IsValid(); err != nil {
 		return err
@@ -52,4 +52,14 @@ func (x *QuorumCert) Verify(v rootvalidator.RootVerifier) error {
 		errors.Wrap(err, "QC verify failed")
 	}
 	return nil
+}
+
+func (x *QuorumCert) AddToHasher(hasher hash.Hash) {
+	x.VoteInfo.AddToHasher(hasher)
+	hasher.Write(x.CommitInfo.Bytes())
+	// Add all signatures
+	for author, sig := range x.Signatures {
+		hasher.Write([]byte(author))
+		hasher.Write(sig)
+	}
 }

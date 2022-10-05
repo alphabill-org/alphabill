@@ -4,7 +4,6 @@ import (
 	"bytes"
 	gocrypto "crypto"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -58,7 +57,7 @@ func (x *VoteMsg) addSignature(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *VoteMsg) Verify(v rootvalidator.RootVerifier) error {
+func (x *VoteMsg) Verify(v AtomicVerifier) error {
 	if v == nil {
 		return errors.New(ErrVerifierIsNil)
 	}

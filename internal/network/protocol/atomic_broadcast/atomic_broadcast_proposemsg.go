@@ -3,8 +3,6 @@ package atomic_broadcast
 import (
 	gocrypto "crypto"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -34,7 +32,7 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *ProposalMsg) Verify(v rootvalidator.RootVerifier) error {
+func (x *ProposalMsg) Verify(v AtomicVerifier) error {
 	if v == nil {
 		return errors.New(ErrVerifierIsNil)
 	}

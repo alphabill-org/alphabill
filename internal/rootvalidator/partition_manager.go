@@ -107,7 +107,7 @@ func NewPartitionManager(g *genesis.RootGenesis, signer crypto.Signer, n Partiti
 		net:              n,
 		timers:           timers,
 		partitionStore:   rootchain.NewPartitionStore(g.GetPartitionRecords()),
-		incomingRequests: rootchain.CertificationRequestStore{},
+		incomingRequests: rootchain.NewCertificationRequestStore(),
 		signer:           signer,
 		verifier:         verifier}, nil
 }
@@ -200,11 +200,11 @@ func (p *PartitionManager) onBlockCertificationRequest(req *certification.BlockC
 		p.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
 		return
 	}
-	partitionRequests := p.incomingRequests.Get(systemIdentifier)
-	if err := partitionRequests.Add(req.NodeIdentifier, req); err != nil {
+	if err := p.incomingRequests.Add(req); err != nil {
+		logger.Warning("incoming request could not be stores: %v", err.Error())
 		return
 	}
-	ir, consensusPossible := partitionRequests.IsConsensusReceived(p.partitionStore.NodeCount(systemIdentifier))
+	ir, consensusPossible := p.incomingRequests.IsConsensusReceived(systemIdentifier, p.partitionStore.NodeCount(systemIdentifier))
 	if ir != nil || consensusPossible == false {
 		logger.Info("Forward certification requests to next root chain leader")
 		// Forward all requests to next root chain leader (use channel?)

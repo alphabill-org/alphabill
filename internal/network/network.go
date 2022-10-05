@@ -6,11 +6,11 @@ import (
 	uc "github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
@@ -169,8 +169,8 @@ func NewLibP2RootValidatorNetwork(self *Peer, capacity uint, sendTimeout time.Du
 		{protocolID: ProtocolRootIrChangeReq, timeout: sendTimeout},
 		{protocolID: ProtocolRootProposal, timeout: sendTimeout},
 		{protocolID: ProtocolRootVote, timeout: sendTimeout},
-		{protocolID: ProtocolRootBlockReg, timeout: sendTimeout},
-		{protocolID: ProtocolRootBlockResp, timeout: sendTimeout},
+		{protocolID: ProtocolRootStateReq, timeout: sendTimeout},
+		{protocolID: ProtocolRootStateResp, timeout: sendTimeout},
 	}
 	err = initSendProtocols(self, sendProtocolDescriptions, n)
 	if err != nil {
@@ -190,12 +190,12 @@ func NewLibP2RootValidatorNetwork(self *Peer, capacity uint, sendTimeout time.Du
 			typeFn:     func() proto.Message { return &atomic_broadcast.VoteMsg{} },
 		},
 		{
-			protocolID: ProtocolRootBlockReg,
-			typeFn:     func() proto.Message { return &atomic_broadcast.BlockRequestMsg{} },
+			protocolID: ProtocolRootStateReq,
+			typeFn:     func() proto.Message { return &atomic_broadcast.StateRequestMsg{} },
 		},
 		{
-			protocolID: ProtocolRootBlockResp,
-			typeFn:     func() proto.Message { return &atomic_broadcast.BlockReplyMsg{} },
+			protocolID: ProtocolRootStateResp,
+			typeFn:     func() proto.Message { return &atomic_broadcast.StateReplyMsg{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)

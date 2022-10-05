@@ -156,13 +156,15 @@ func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedM
 
 // OnTimeout handle timeouts
 func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
+	// always restart timer
+	defer a.timers.Restart(timerId)
+
 	logger.Debug("Handling timeout %s", timerId)
 	// Has the validator voted in this round
 	voteMsg := a.roundState.GetVoted()
 	if voteMsg == nil {
 		// todo: generate empty proposal and execute it (not yet specified)
 		// remove below lines once able to generate a empty proposal and execute
-		a.timers.Restart(timerId)
 		return
 	}
 	// here voteMsg is not nil
@@ -180,12 +182,14 @@ func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
 			return
 		}
 		// Add timeout to vote
-		voteMsg.AddTimeoutSignature(timeout, sig)
+		if err := voteMsg.AddTimeoutSignature(timeout, sig); err != nil {
+			logger.Warning("Atomic broadcast local timeout handing failed: %v", err)
+			return
+		}
 	}
 	// Record vote
 	a.roundState.SetVoted(voteMsg)
 	// todo: broadcast vote
-	a.timers.Restart(timerId)
 }
 
 // onVoteMsg handle votes and timeout votes
@@ -240,7 +244,7 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot
 	// trust the proposer is honest
 
-	a.store.ExecuteProposedPayload(proposal.Block.Payload)
+	//a.store.ExecuteProposedPayload(proposal.Block.Payload)
 	// todo: create vote store locally
 	// todo: broadcast vote
 }

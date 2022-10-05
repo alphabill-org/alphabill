@@ -21,7 +21,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
 	bl := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer()
+	transfer := testtransaction.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 
 	// prepare proposal
@@ -108,7 +108,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 	newBlock.BlockNumber = currentBlock.BlockNumber + 1
 	newBlock.PreviousBlockHash, _ = currentBlock.Hash(tp.partition.configuration.hashAlgorithm)
 	newBlock.Transactions = make([]*txsystem.Transaction, 1)
-	newBlock.Transactions[0] = testtransaction.RandomBillTransfer()
+	newBlock.Transactions[0] = testtransaction.RandomBillTransfer(t)
 
 	// send UC certifying new block
 	ir := newBlock.UnicityCertificate.InputRecord

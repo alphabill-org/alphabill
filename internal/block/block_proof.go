@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	gohash "hash"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
@@ -12,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -131,6 +133,29 @@ func (x *BlockProof) Verify(tx txsystem.GenericTransaction, verifiers map[string
 	default:
 		return aberrors.Wrap(ErrProofVerificationFailed, "unknown proof type "+x.ProofType.String())
 	}
+}
+
+func (x *BlockProof) Bytes() []byte {
+	var b bytes.Buffer
+	proofType := ProofType_value[x.ProofType.String()]
+	b.Write(util.Uint32ToBytes(uint32(proofType)))
+	b.Write(x.BlockHeaderHash)
+	b.Write(x.TransactionsHash)
+	b.Write(x.HashValue)
+	if x.BlockTreeHashChain != nil {
+		x.BlockTreeHashChain.addToBuffer(b)
+	}
+	if x.SecTreeHashChain != nil {
+		x.SecTreeHashChain.addToBuffer(b)
+	}
+	if x.UnicityCertificate != nil {
+		b.Write(x.UnicityCertificate.Bytes())
+	}
+	return b.Bytes()
+}
+
+func (x *BlockProof) AddToHasher(hasher gohash.Hash) {
+	hasher.Write(x.Bytes())
 }
 
 func (x *BlockProof) verifyUC(unitId *uint256.Int, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
@@ -255,4 +280,30 @@ func newSecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, secCha
 		SecTreeHashChain:   &SecTreeHashChain{Items: ToProtobuf(secChain)},
 		UnicityCertificate: b.UnicityCertificate,
 	}
+}
+
+func (x *BlockTreeHashChain) addToBuffer(b bytes.Buffer) {
+	for _, item := range x.Items {
+		item.addToBuffer(b)
+	}
+}
+
+func (x *SecTreeHashChain) addToBuffer(b bytes.Buffer) {
+	for _, item := range x.Items {
+		item.addToBuffer(b)
+	}
+}
+
+func (x *ChainItem) addToBuffer(b bytes.Buffer) {
+	b.Write(x.Val)
+	b.Write(x.Hash)
+}
+
+func (x *MerklePathItem) addToBuffer(b bytes.Buffer) {
+	if x.DirectionLeft {
+		b.WriteByte(1)
+	} else {
+		b.WriteByte(0)
+	}
+	b.Write(x.PathItem)
 }

@@ -236,9 +236,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.db.Do().GetAccountKey(0)
 
 	dcBills := []*bill{
-		{Id: uint256.NewInt(2), DcTx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(1), DcTx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(0), DcTx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(2), Tx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(1), Tx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(0), Tx: testtransaction.CreateRandomDcTx()},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 
@@ -321,7 +321,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 	require.NoError(t, err)
 
 	b.IsDcBill = true
-	b.DcTx = tx
+	b.Tx = tx
 	b.DcNonce = nonceB32[:]
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout

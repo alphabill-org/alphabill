@@ -228,7 +228,7 @@ func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*txsystem.Transaction) *an
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     dcTxs,
-		Proofs:          [][]byte{},
+		Proofs:          []*block.BlockProof{},
 		TargetValue:     3,
 	})
 	return tx

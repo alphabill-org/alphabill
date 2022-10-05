@@ -4,13 +4,12 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -135,7 +134,7 @@ func CreateRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     []*txsystem.Transaction{},
-		Proofs:          [][]byte{},
+		Proofs:          []*block.BlockProof{},
 		TargetValue:     100,
 	})
 	return tx

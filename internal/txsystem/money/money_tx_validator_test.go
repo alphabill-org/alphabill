@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
@@ -244,7 +245,7 @@ func newInvalidTargetValueSwap(t *testing.T) *swapWrapper {
 		OwnerCondition:  dcTransfer.TargetBearer(),
 		BillIdentifiers: [][]byte{transferId},
 		DcTransfers:     []*txsystem.Transaction{dcTransfer.transaction},
-		Proofs:          [][]byte{{9}, {10}},
+		Proofs:          []*block.BlockProof{},
 		TargetValue:     dcTransfer.TargetValue() - 1,
 	})
 	order.SystemId = systemIdentifier
@@ -342,7 +343,7 @@ func newInvalidTargetBearerSwap(t *testing.T) *swapWrapper {
 		OwnerCondition:  test.RandomBytes(32),
 		BillIdentifiers: [][]byte{transferId},
 		DcTransfers:     []*txsystem.Transaction{dcTransfer.transaction},
-		Proofs:          [][]byte{{9}, {10}},
+		Proofs:          []*block.BlockProof{},
 		TargetValue:     dcTransfer.TargetValue(),
 	})
 	tx, err := NewMoneyTx(systemIdentifier, order)
@@ -369,7 +370,7 @@ func newSwapOrder(dcTransfer *transferDCWrapper, transferDCID []byte) *SwapOrder
 		OwnerCondition:  dcTransfer.TargetBearer(),
 		BillIdentifiers: [][]byte{transferDCID},
 		DcTransfers:     []*txsystem.Transaction{dcTransfer.transaction},
-		Proofs:          [][]byte{{9}, {10}},
+		Proofs:          []*block.BlockProof{},
 		TargetValue:     dcTransfer.TargetValue(),
 	}
 }
@@ -383,7 +384,7 @@ func newSwapOrderWithDCTransfers(ownerCondition []byte, targetValue uint64, dcTr
 		OwnerCondition:  ownerCondition,
 		BillIdentifiers: transferDCIDs,
 		DcTransfers:     wrappedDcTransfers,
-		Proofs:          [][]byte{{9}, {10}},
+		Proofs:          []*block.BlockProof{},
 		TargetValue:     targetValue,
 	}
 }

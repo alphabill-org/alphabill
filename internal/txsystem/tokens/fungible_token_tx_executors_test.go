@@ -552,6 +552,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "invalid value",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+				Type:                        uint256.NewInt(existingTokenTypeUnitID).Bytes(),
 				Value:                       existingTokenValue - 1,
 				Nonce:                       test.RandomBytes(32),
 				Backlink:                    make([]byte, 32),
@@ -562,6 +563,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "invalid backlink",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+				Type:                        uint256.NewInt(existingTokenTypeUnitID).Bytes(),
 				Value:                       existingTokenValue,
 				Nonce:                       test.RandomBytes(32),
 				Backlink:                    test.RandomBytes(32),
@@ -572,12 +574,24 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+				Type:                        uint256.NewInt(existingTokenTypeUnitID).Bytes(),
 				Value:                       existingTokenValue,
 				Nonce:                       test.RandomBytes(32),
 				Backlink:                    make([]byte, 32),
 				InvariantPredicateSignature: script.PredicateAlwaysFalse(),
 			}),
 			wantErrStr: "script execution result yielded false or non-clean stack",
+		},
+		{
+			name: "invalid token type",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &BurnFungibleTokenAttributes{
+				Type:                        uint256.NewInt(42).Bytes(),
+				Value:                       existingTokenValue,
+				Nonce:                       test.RandomBytes(32),
+				Backlink:                    make([]byte, 32),
+				InvariantPredicateSignature: script.PredicateAlwaysFalse(),
+			}),
+			wantErrStr: "type of token to burn does not matches the actual type of the token",
 		},
 	}
 	for _, tt := range tests {
@@ -596,6 +610,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	}
 
 	transferAttributes := &BurnFungibleTokenAttributes{
+		Type:                        uint256.NewInt(existingTokenTypeUnitID).Bytes(),
 		Value:                       existingTokenValue,
 		Nonce:                       test.RandomBytes(32),
 		Backlink:                    make([]byte, 32),

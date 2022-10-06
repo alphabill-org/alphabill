@@ -223,6 +223,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	if !goerrors.Is(err, rma.ErrUnitNotFound) {
 		return err
 	}
+	// existence of the parent type is checked by the getChainedPredicate
 	predicate, err := m.getChainedPredicate(
 		tx.TypeID(),
 		func(d *fungibleTokenTypeData) []byte {
@@ -342,6 +343,11 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if !ok {
 		return errors.Errorf("unit %v is not fungible token data", unitID)
 	}
+
+	if !bytes.Equal(d.tokenType.Bytes(), tx.attributes.Type) {
+		return errors.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", d.tokenType.Bytes(), tx.attributes.Type)
+	}
+
 	if tx.attributes.Value != d.value {
 		return errors.Errorf("invalid token value: expected %v, got %v", d.value, tx.attributes.Value)
 	}

@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -113,15 +114,19 @@ func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
+	w.AddToHasher(hasher)
+
+	w.wrapper.hashValue = hasher.Sum(nil)
+	w.wrapper.hashFunc = hashFunc
+	return w.wrapper.hashValue
+}
+
+func (w *transferWrapper) AddToHasher(hasher hash.Hash) {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
 
 	hasher.Write(w.transfer.NewBearer)
 	hasher.Write(util.Uint64ToBytes(w.transfer.TargetValue))
 	hasher.Write(w.transfer.Backlink)
-
-	w.wrapper.hashValue = hasher.Sum(nil)
-	w.wrapper.hashFunc = hashFunc
-	return w.wrapper.hashValue
 }
 
 func (w *transferDCWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -129,15 +134,14 @@ func (w *transferDCWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-
-	w.addToHasher(hasher)
+	w.AddToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
 }
 
-func (w *transferDCWrapper) addToHasher(hasher hash.Hash) {
+func (w *transferDCWrapper) AddToHasher(hasher hash.Hash) {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
 	w.transferDC.addFieldsToHasher(hasher)
 }
@@ -147,12 +151,16 @@ func (w *billSplitWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	w.wrapper.addTransactionFieldsToHasher(hasher)
-	w.addAttributesToHasher(hasher)
+	w.AddToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *billSplitWrapper) AddToHasher(hasher hash.Hash) {
+	w.wrapper.addTransactionFieldsToHasher(hasher)
+	w.addAttributesToHasher(hasher)
 }
 
 func (w *billSplitWrapper) addAttributesToHasher(hasher hash.Hash) {
@@ -167,26 +175,26 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return w.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	w.wrapper.addTransactionFieldsToHasher(hasher)
-
-	hasher.Write(w.swap.OwnerCondition)
-	for _, bi := range w.swap.BillIdentifiers {
-		hasher.Write(bi)
-	}
-
-	for _, dt := range w.dcTransfers {
-		dt.addToHasher(hasher)
-	}
-
-	for _, p := range w.swap.Proofs {
-		hasher.Write(p)
-	}
-
-	hasher.Write(util.Uint64ToBytes(w.swap.TargetValue))
+	w.AddToHasher(hasher)
 
 	w.wrapper.hashValue = hasher.Sum(nil)
 	w.wrapper.hashFunc = hashFunc
 	return w.wrapper.hashValue
+}
+
+func (w *swapWrapper) AddToHasher(hasher hash.Hash) {
+	w.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(w.swap.OwnerCondition)
+	for _, bi := range w.swap.BillIdentifiers {
+		hasher.Write(bi)
+	}
+	for _, dt := range w.dcTransfers {
+		dt.AddToHasher(hasher)
+	}
+	for _, p := range w.swap.Proofs {
+		p.AddToHasher(hasher)
+	}
+	hasher.Write(util.Uint64ToBytes(w.swap.TargetValue))
 }
 
 func (w *transferWrapper) SigBytes() []byte {
@@ -230,7 +238,7 @@ func (w *swapWrapper) SigBytes() []byte {
 		b.Write(dcTx.SigBytes())
 	}
 	for _, proof := range w.Proofs() {
-		b.Write(proof)
+		b.Write(proof.Bytes())
 	}
 	b.Write(util.Uint64ToBytes(w.TargetValue()))
 	return b.Bytes()
@@ -267,9 +275,9 @@ func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 
-func (w *swapWrapper) OwnerCondition() []byte { return w.swap.OwnerCondition }
-func (w *swapWrapper) Proofs() [][]byte       { return w.swap.Proofs }
-func (w *swapWrapper) TargetValue() uint64    { return w.swap.TargetValue }
+func (w *swapWrapper) OwnerCondition() []byte      { return w.swap.OwnerCondition }
+func (w *swapWrapper) Proofs() []*block.BlockProof { return w.swap.Proofs }
+func (w *swapWrapper) TargetValue() uint64         { return w.swap.TargetValue }
 func (w *swapWrapper) DCTransfers() []TransferDC {
 	var sdt []TransferDC
 	for _, dt := range w.dcTransfers {
@@ -303,6 +311,10 @@ func (w *wrapper) OwnerProof() []byte {
 
 func (w *wrapper) ToProtoBuf() *txsystem.Transaction {
 	return w.transaction
+}
+
+func (w *wrapper) IsPrimary() bool {
+	return true
 }
 
 func (w *wrapper) sigBytes(b bytes.Buffer) {

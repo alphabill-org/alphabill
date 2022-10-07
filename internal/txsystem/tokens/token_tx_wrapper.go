@@ -231,14 +231,7 @@ func (c *createNonFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 		return c.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	c.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write([]byte(c.attributes.Symbol))
-	hasher.Write(c.attributes.ParentTypeId)
-	hasher.Write(c.attributes.SubTypeCreationPredicate)
-	hasher.Write(c.attributes.TokenCreationPredicate)
-	hasher.Write(c.attributes.InvariantPredicate)
-	hasher.Write(c.attributes.DataUpdatePredicate)
-	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
+	c.AddToHasher(hasher)
 	c.wrapper.hashValue = hasher.Sum(nil)
 	c.wrapper.hashFunc = hashFunc
 	return c.wrapper.hashValue
@@ -256,17 +249,27 @@ func (c *createNonFungibleTokenTypeWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
+func (c *createNonFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
+	c.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write([]byte(c.attributes.Symbol))
+	hasher.Write(c.attributes.ParentTypeId)
+	hasher.Write(c.attributes.SubTypeCreationPredicate)
+	hasher.Write(c.attributes.TokenCreationPredicate)
+	hasher.Write(c.attributes.InvariantPredicate)
+	hasher.Write(c.attributes.DataUpdatePredicate)
+	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
+}
+
+func (c *createNonFungibleTokenTypeWrapper) IsPrimary() bool {
+	return true
+}
+
 func (c *mintNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if c.wrapper.hashComputed(hashFunc) {
 		return c.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	c.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(c.attributes.Bearer)
-	hasher.Write(c.attributes.NftType)
-	hasher.Write([]byte(c.attributes.Uri))
-	hasher.Write(c.attributes.Data)
-	hasher.Write(c.attributes.DataUpdatePredicate)
+	c.AddToHasher(hasher)
 	c.wrapper.hashValue = hasher.Sum(nil)
 	c.wrapper.hashFunc = hashFunc
 	return c.wrapper.hashValue
@@ -283,16 +286,25 @@ func (c *mintNonFungibleTokenWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
+func (c *mintNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	c.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(c.attributes.Bearer)
+	hasher.Write(c.attributes.NftType)
+	hasher.Write([]byte(c.attributes.Uri))
+	hasher.Write(c.attributes.Data)
+	hasher.Write(c.attributes.DataUpdatePredicate)
+}
+
+func (c *mintNonFungibleTokenWrapper) IsPrimary() bool {
+	return true
+}
+
 func (t *transferNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if t.wrapper.hashComputed(hashFunc) {
 		return t.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	t.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(t.attributes.NewBearer)
-	hasher.Write(t.attributes.Nonce)
-	hasher.Write(t.attributes.Backlink)
-	hasher.Write(t.attributes.InvariantPredicateSignature)
+	t.AddToHasher(hasher)
 	t.wrapper.hashValue = hasher.Sum(nil)
 	t.wrapper.hashFunc = hashFunc
 	return t.wrapper.hashValue
@@ -307,15 +319,24 @@ func (t *transferNonFungibleTokenWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
+func (t *transferNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	t.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(t.attributes.NewBearer)
+	hasher.Write(t.attributes.Nonce)
+	hasher.Write(t.attributes.Backlink)
+	hasher.Write(t.attributes.InvariantPredicateSignature)
+}
+
+func (t *transferNonFungibleTokenWrapper) IsPrimary() bool {
+	return true
+}
+
 func (u *updateNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if u.wrapper.hashComputed(hashFunc) {
 		return u.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	u.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(u.attributes.Data)
-	hasher.Write(u.attributes.Backlink)
-	hasher.Write(u.attributes.DataUpdateSignature)
+	u.AddToHasher(hasher)
 	u.wrapper.hashValue = hasher.Sum(nil)
 	u.wrapper.hashFunc = hashFunc
 	return u.wrapper.hashValue
@@ -329,19 +350,23 @@ func (u *updateNonFungibleTokenWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
+func (u *updateNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	u.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(u.attributes.Data)
+	hasher.Write(u.attributes.Backlink)
+	hasher.Write(u.attributes.DataUpdateSignature)
+}
+
+func (u *updateNonFungibleTokenWrapper) IsPrimary() bool {
+	return true
+}
+
 func (c *createFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if c.wrapper.hashComputed(hashFunc) {
 		return c.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	c.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write([]byte(c.attributes.Symbol))
-	hasher.Write(c.attributes.ParentTypeId)
-	hasher.Write(util.Uint32ToBytes(c.attributes.DecimalPlaces))
-	hasher.Write(c.attributes.SubTypeCreationPredicate)
-	hasher.Write(c.attributes.TokenCreationPredicate)
-	hasher.Write(c.attributes.InvariantPredicate)
-	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
+	c.AddToHasher(hasher)
 	c.wrapper.hashValue = hasher.Sum(nil)
 	c.wrapper.hashFunc = hashFunc
 	return c.wrapper.hashValue
@@ -363,16 +388,27 @@ func (c *createFungibleTokenTypeWrapper) ParentTypeID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(c.attributes.ParentTypeId)
 }
 
+func (c *createFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
+	c.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write([]byte(c.attributes.Symbol))
+	hasher.Write(c.attributes.ParentTypeId)
+	hasher.Write(util.Uint32ToBytes(c.attributes.DecimalPlaces))
+	hasher.Write(c.attributes.SubTypeCreationPredicate)
+	hasher.Write(c.attributes.TokenCreationPredicate)
+	hasher.Write(c.attributes.InvariantPredicate)
+	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
+}
+
+func (c *createFungibleTokenTypeWrapper) IsPrimary() bool {
+	return true
+}
+
 func (m *mintFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if m.wrapper.hashComputed(hashFunc) {
 		return m.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	m.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(m.attributes.Bearer)
-	hasher.Write(m.attributes.Type)
-	hasher.Write(util.Uint64ToBytes(m.attributes.Value))
-	hasher.Write(m.attributes.TokenCreationPredicateSignature)
+	m.AddToHasher(hasher)
 	m.wrapper.hashValue = hasher.Sum(nil)
 	m.wrapper.hashFunc = hashFunc
 	return m.wrapper.hashValue
@@ -391,17 +427,24 @@ func (m *mintFungibleTokenWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
+func (m *mintFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	m.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(m.attributes.Bearer)
+	hasher.Write(m.attributes.Type)
+	hasher.Write(util.Uint64ToBytes(m.attributes.Value))
+	hasher.Write(m.attributes.TokenCreationPredicateSignature)
+}
+
+func (m *mintFungibleTokenWrapper) IsPrimary() bool {
+	return true
+}
+
 func (t *transferFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if t.wrapper.hashComputed(hashFunc) {
 		return t.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	t.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(t.attributes.NewBearer)
-	hasher.Write(util.Uint64ToBytes(t.attributes.Value))
-	hasher.Write(t.attributes.Nonce)
-	hasher.Write(t.attributes.Backlink)
-	hasher.Write(t.attributes.InvariantPredicateSignature)
+	t.AddToHasher(hasher)
 	t.wrapper.hashValue = hasher.Sum(nil)
 	t.wrapper.hashFunc = hashFunc
 	return t.wrapper.hashValue
@@ -417,13 +460,25 @@ func (t *transferFungibleTokenWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
+func (t *transferFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	t.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(t.attributes.NewBearer)
+	hasher.Write(util.Uint64ToBytes(t.attributes.Value))
+	hasher.Write(t.attributes.Nonce)
+	hasher.Write(t.attributes.Backlink)
+	hasher.Write(t.attributes.InvariantPredicateSignature)
+}
+
+func (t *transferFungibleTokenWrapper) IsPrimary() bool {
+	return true
+}
+
 func (s *splitFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if s.wrapper.hashComputed(hashFunc) {
 		return s.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	s.wrapper.addTransactionFieldsToHasher(hasher)
-	s.addAttributesToHasher(hasher)
+	s.AddToHasher(hasher)
 	s.wrapper.hashValue = hasher.Sum(nil)
 	s.wrapper.hashFunc = hashFunc
 	return s.wrapper.hashValue
@@ -456,17 +511,21 @@ func (s *splitFungibleTokenWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
+func (s *splitFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	s.wrapper.addTransactionFieldsToHasher(hasher)
+	s.addAttributesToHasher(hasher)
+}
+
+func (s *splitFungibleTokenWrapper) IsPrimary() bool {
+	return true
+}
+
 func (bw *burnFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if bw.wrapper.hashComputed(hashFunc) {
 		return bw.wrapper.hashValue
 	}
 	hasher := hashFunc.New()
-	bw.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(bw.attributes.Type)
-	hasher.Write(util.Uint64ToBytes(bw.attributes.Value))
-	hasher.Write(bw.attributes.Nonce)
-	hasher.Write(bw.attributes.Backlink)
-	hasher.Write(bw.attributes.InvariantPredicateSignature)
+	bw.AddToHasher(hasher)
 	bw.wrapper.hashValue = hasher.Sum(nil)
 	bw.wrapper.hashFunc = hashFunc
 	return bw.wrapper.hashValue
@@ -480,4 +539,17 @@ func (bw *burnFungibleTokenWrapper) SigBytes() []byte {
 	b.Write(bw.attributes.Nonce)
 	b.Write(bw.attributes.Backlink)
 	return b.Bytes()
+}
+
+func (bw *burnFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	bw.wrapper.addTransactionFieldsToHasher(hasher)
+	hasher.Write(bw.attributes.Type)
+	hasher.Write(util.Uint64ToBytes(bw.attributes.Value))
+	hasher.Write(bw.attributes.Nonce)
+	hasher.Write(bw.attributes.Backlink)
+	hasher.Write(bw.attributes.InvariantPredicateSignature)
+}
+
+func (bw *burnFungibleTokenWrapper) IsPrimary() bool {
+	return true
 }

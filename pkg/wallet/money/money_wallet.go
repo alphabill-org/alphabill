@@ -123,8 +123,8 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			return err
 		}
 		for _, acc := range w.accounts.getAll() {
-			for i, pbTx := range b.Transactions {
-				err = w.collectBills(dbTx, pbTx, b, i, &acc)
+			for _, pbTx := range b.Transactions {
+				err = w.collectBills(dbTx, pbTx, b, &acc)
 				if err != nil {
 					return err
 				}
@@ -361,7 +361,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 	return w.Wallet.SyncToMaxBlockNumber(ctx, blockNumber)
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, txIdx int, acc *account) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, acc *account) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -371,9 +371,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.Transfer:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -388,12 +389,12 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.TransferDC:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received TransferDC order")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
+				Tx:                  txPb,
 				TxHash:              tx.Hash(crypto.SHA256),
 				IsDcBill:            true,
-				DcTx:                txPb,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
 				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
@@ -418,9 +419,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if containsBill {
 			log.Info("received split order (existing bill)")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -429,9 +431,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -441,9 +444,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.Swap:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.OwnerCondition()) {
 			log.Info("received swap order")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -473,13 +477,17 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	return nil
 }
 
-func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill, accountIndex uint64) error {
-	blockProof, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
+func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, bi *bill, accountIndex uint64) error {
+	genericBlock, err := b.ToGenericBlock(txConverter)
 	if err != nil {
 		return err
 	}
-	bill.BlockProof = blockProof
-	return dbTx.SetBill(accountIndex, bill)
+	blockProof, err := block.NewPrimaryProof(genericBlock, bi.Id, crypto.SHA256)
+	if err != nil {
+		return err
+	}
+	bi.BlockProof = blockProof
+	return dbTx.SetBill(accountIndex, bi)
 }
 
 func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64, accountIndex uint64) error {

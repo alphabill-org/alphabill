@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -426,9 +427,8 @@ func createDCTransferAndSwapTxs(
 		OwnerCondition:  script.PredicateArgumentEmpty(),
 		BillIdentifiers: idsByteArray,
 		DcTransfers:     dcTransfers,
-		// TODO ledger proofs AB-211
-		Proofs:      [][]byte{{9}, {10}},
-		TargetValue: targetValue,
+		Proofs:          []*block.BlockProof{},
+		TargetValue:     targetValue,
 	}
 	// #nosec G104
 	tx.TransactionAttributes.MarshalFrom(bt)

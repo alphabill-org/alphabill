@@ -2,13 +2,13 @@ package partition
 
 import (
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -182,7 +182,8 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
-	blockHash, _ := block.Hash(gocrypto.SHA256)
+	genericBlock, _ := block.ToGenericBlock(txSystem)
+	blockHash, _ := genericBlock.Hash(gocrypto.SHA256)
 	block2 := tp.GetLatestBlock()
 	require.Equal(t, block.BlockNumber+1, block2.BlockNumber)
 	require.Equal(t, block.SystemIdentifier, block2.SystemIdentifier)

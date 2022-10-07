@@ -10,6 +10,7 @@ import (
 
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -165,7 +166,7 @@ func CreateRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     []*txsystem.Transaction{},
-		Proofs:          [][]byte{},
+		Proofs:          []*block.BlockProof{},
 		TargetValue:     100,
 	})
 	return tx

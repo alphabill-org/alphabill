@@ -106,14 +106,14 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 	// create new block
 	newBlock := proto.Clone(currentBlock).(*block.Block)
 	newBlock.BlockNumber = currentBlock.BlockNumber + 1
-	newBlock.PreviousBlockHash, _ = currentBlock.Hash(tp.partition.configuration.hashAlgorithm)
+	newBlock.PreviousBlockHash, _ = currentBlock.Hash(system, tp.partition.configuration.hashAlgorithm)
 	newBlock.Transactions = make([]*txsystem.Transaction, 1)
 	newBlock.Transactions[0] = testtransaction.RandomBillTransfer(t)
 
 	// send UC certifying new block
 	ir := newBlock.UnicityCertificate.InputRecord
 	ir.PreviousHash = ir.Hash
-	ir.BlockHash, _ = newBlock.Hash(tp.partition.configuration.hashAlgorithm)
+	ir.BlockHash, _ = newBlock.Hash(system, tp.partition.configuration.hashAlgorithm)
 	ir.Hash = state.Root()
 	ir.SummaryValue = state.Summary()
 

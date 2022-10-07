@@ -5,7 +5,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"sync"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
@@ -686,11 +686,11 @@ func (n *Node) revertState() {
 func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
 	latestBlock := n.blockStore.LatestBlock()
 	newHeight := latestBlock.BlockNumber + 1
-	b := &block.Block{
+	b := &block.GenericBlock{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
 		BlockNumber:        newHeight,
 		PreviousBlockHash:  latestBlock.UnicityCertificate.InputRecord.BlockHash,
-		Transactions:       toProtoBuf(transactions),
+		Transactions:       transactions,
 		UnicityCertificate: uc,
 	}
 	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
@@ -698,7 +698,7 @@ func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *cert
 		return nil, nil, err
 	}
 	logger.Debug("Proposal hash: %X", blockHash)
-	return b, blockHash, nil
+	return b.ToProtobuf(), blockHash, nil
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
@@ -1017,11 +1017,11 @@ func (n *Node) startHandleOrForwardTransactions() {
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, blockNumber uint64) ([]byte, error) {
-	b := block.Block{
+	b := block.GenericBlock{
 		SystemIdentifier:  n.configuration.GetSystemIdentifier(),
 		BlockNumber:       blockNumber,
 		PreviousBlockHash: prevBlockHash,
-		Transactions:      toProtoBuf(n.pendingBlockProposal.Transactions),
+		Transactions:      n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)
 }

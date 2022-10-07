@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/logger"
@@ -60,7 +61,7 @@ type (
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
 		DCTransfers() []TransferDC
-		Proofs() [][]byte
+		Proofs() []*block.BlockProof
 		TargetValue() uint64
 	}
 

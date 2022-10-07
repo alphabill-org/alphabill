@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -125,11 +126,12 @@ func TestWrapper_Swap(t *testing.T) {
 	var (
 		pbTransferDC            = newPBTransferDC(test.RandomBytes(32), test.RandomBytes(32), 777, test.RandomBytes(32))
 		pbTransferDCTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 444, pbTransferDC)
+		pbBlockProof            = &block.BlockProof{}
 		pbSwap                  = newPBSwap(
 			test.RandomBytes(32),
 			[][]byte{test.RandomBytes(10)},
 			[]*txsystem.Transaction{pbTransferDCTransaction},
-			[][]byte{test.RandomBytes(32)},
+			[]*block.BlockProof{pbBlockProof},
 			777)
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbSwap)
 	)
@@ -150,7 +152,10 @@ func TestWrapper_Swap(t *testing.T) {
 	for _, sdt := range swap.DCTransfers() {
 		requireTransferDCEquals(t, pbTransferDC, pbTransferDCTransaction, sdt)
 	}
-	assert.Equal(t, pbSwap.Proofs, swap.Proofs())
+	require.Len(t, swap.Proofs(), 1)
+	for _, proof := range swap.Proofs() {
+		require.Equal(t, pbBlockProof, proof)
+	}
 	assert.Equal(t, pbSwap.TargetValue, swap.TargetValue())
 
 	require.NotEmpty(t, swap.SigBytes())
@@ -254,7 +259,7 @@ func newPBBillSplit(amount uint64, targetBearer []byte, remainingValue uint64, b
 	}
 }
 
-func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*txsystem.Transaction, proofs [][]byte, targetValue uint64) *SwapOrder {
+func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*txsystem.Transaction, proofs []*block.BlockProof, targetValue uint64) *SwapOrder {
 	return &SwapOrder{
 		OwnerCondition:  ownerCondition,
 		BillIdentifiers: billIdentifiers,

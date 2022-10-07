@@ -73,15 +73,49 @@ func (x *GenericBlock) addTransactionsToHasher(hasher hash.Hash) {
 
 // blockTreeLeaves returns leaves for the ordered merkle tree
 func (x *GenericBlock) blockTreeLeaves(hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
-	leaves := make([]*omt.Data, len(x.Transactions))
-	identifiers := x.extractIdentifiers()
-	for i, unitId := range identifiers {
-		primTx, secTxs := x.extractTransactions(unitId)
-		h, err := unitHash(primTx, secTxs, hashAlgorithm)
+	type unitTxs struct {
+		unitId *uint256.Int
+		primTx txsystem.GenericTransaction
+		secTxs []txsystem.GenericTransaction
+	}
+	res := make(map[uint256.Int]*unitTxs, len(x.Transactions))
+	for _, tx := range x.Transactions {
+		// create unitTx map entry if not exists already
+		unitTx, exists := res[*tx.UnitID()]
+		if !exists {
+			unitTx = &unitTxs{
+				unitId: tx.UnitID(),
+			}
+			res[*tx.UnitID()] = unitTx
+		}
+
+		// add tx to primary or secondary list
+		if tx.IsPrimary() {
+			unitTx.primTx = tx
+		} else {
+			unitTx.secTxs = append(unitTx.secTxs, tx)
+		}
+	}
+
+	// get map values for sorting
+	var vals []*unitTxs
+	for _, v := range res {
+		vals = append(vals, v)
+	}
+
+	// sort values by unit id
+	sort.Slice(vals, func(i, j int) bool {
+		return vals[i].unitId.Cmp(vals[j].unitId) < 0
+	})
+
+	// create leaves from sorted grouped transactions
+	leaves := make([]*omt.Data, len(vals))
+	for i, unitTx := range vals {
+		h, err := unitHash(unitTx.primTx, unitTx.secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
 		}
-		unitIdBytes := unitId.Bytes32()
+		unitIdBytes := unitTx.unitId.Bytes32()
 		leaves[i] = &omt.Data{Val: unitIdBytes[:], Hash: h}
 	}
 	return leaves, nil

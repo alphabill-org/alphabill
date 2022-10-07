@@ -37,7 +37,8 @@ func (g *OnlySecondaryTx) IsPrimary() bool {
 func TestProofTypePrim(t *testing.T) {
 	hashAlgorithm := crypto.SHA256
 	b := &GenericBlock{}
-	for num := uint64(1); num <= 10; num++ {
+	var maxTx uint64 = 10
+	for num := uint64(1); num <= maxTx; num++ {
 		b.Transactions = append(b.Transactions, createPrimaryTx(num))
 	}
 	uc, verifier := createUC(t, b, hashAlgorithm)
@@ -54,7 +55,7 @@ func TestProofTypePrim(t *testing.T) {
 			"proof verification failed for tx_idx=%d", i)
 
 		// test proof does not verify for wrong transaction
-		tx = createPrimaryTx(11)
+		tx = createPrimaryTx(maxTx + 1)
 		err = p.Verify(tx, verifier, hashAlgorithm)
 		require.ErrorIs(t, err, ErrProofVerificationFailed)
 	}

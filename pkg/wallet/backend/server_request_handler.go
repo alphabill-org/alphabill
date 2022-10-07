@@ -125,8 +125,14 @@ func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	err = s.service.AddKey(pubkeyBytes)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		wlog.Error("error on POST /add-key ", err)
+		if errors.Is(err, ErrKeyAlreadyExists) {
+			wlog.Info("error on POST /add-key key ", req.Pubkey, " already exists")
+			w.WriteHeader(http.StatusBadRequest)
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			wlog.Error("error on POST /add-key ", err)
+		}
 		return
 	}
 	writeAsJson(w, &AddKeyResponse{})

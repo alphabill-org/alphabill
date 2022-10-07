@@ -55,7 +55,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 	switch tx := stx.(type) {
 	case moneytx.Transfer:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.NewBearer()) {
-			wlog.Info("received transfer order")
+			wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x)", tx.UnitID()))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
@@ -71,7 +71,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 	case moneytx.TransferDC:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
-			wlog.Info("received TransferDC order")
+			wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%x)", tx.UnitID()))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),
@@ -95,6 +95,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			return err
 		}
 		if containsBill {
+			wlog.Info(fmt.Sprintf("received split order (existing UnitID=%x)", tx.UnitID()))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.RemainingValue(),
@@ -105,6 +106,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
 			id := utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
+			wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", id))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    id,
 				Value: tx.Amount(),
@@ -115,6 +117,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 	case moneytx.Swap:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.OwnerCondition()) {
+			wlog.Info(fmt.Sprintf("received swap order (UnitID=%x)", tx.UnitID()))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txIdx, &Bill{
 				Id:    tx.UnitID(),
 				Value: tx.TargetValue(),

@@ -153,7 +153,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer(t)},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
@@ -188,7 +188,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer(t)},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)

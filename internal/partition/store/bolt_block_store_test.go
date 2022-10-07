@@ -22,7 +22,7 @@ func TestPersistentBlockStore_CanBeCreated(t *testing.T) {
 
 func TestPersistentBlockStore_AddGetBlock(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
-	tp := newDummyBlock(1)
+	tp := newDummyBlock(t, 1)
 
 	// add block
 	err := bs.Add(tp)
@@ -37,9 +37,9 @@ func TestPersistentBlockStore_AddGetBlock(t *testing.T) {
 func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 
-	tb1 := newDummyBlock(1)
-	tb2 := newDummyBlock(2)
-	tb3 := newDummyBlock(3)
+	tb1 := newDummyBlock(t, 1)
+	tb2 := newDummyBlock(t, 2)
+	tb3 := newDummyBlock(t, 3)
 
 	_ = bs.Add(tb1)
 	_ = bs.Add(tb2)
@@ -93,24 +93,24 @@ func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 
 	// try adding invalid block
-	invalidBlock := newDummyBlock(2)
+	invalidBlock := newDummyBlock(t, 2)
 	err := bs.Add(invalidBlock)
 	require.ErrorIs(t, err, errInvalidBlockNo)
 
 	// try adding valid block twice
-	validBlock := newDummyBlock(1)
+	validBlock := newDummyBlock(t, 1)
 	err = bs.Add(validBlock)
 	require.NoError(t, err)
 	err = bs.Add(validBlock)
 	require.ErrorIs(t, err, errInvalidBlockNo)
 }
 
-func newDummyBlock(blockNo uint64) *block.Block {
+func newDummyBlock(t *testing.T, blockNo uint64) *block.Block {
 	return &block.Block{
 		SystemIdentifier:   []byte{0},
 		BlockNumber:        blockNo,
 		PreviousBlockHash:  []byte{2},
-		Transactions:       []*txsystem.Transaction{testtransaction.RandomBillTransfer()},
+		Transactions:       []*txsystem.Transaction{testtransaction.RandomBillTransfer(t)},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 }

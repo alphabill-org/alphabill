@@ -26,20 +26,13 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.NotNil(t, network.RootChain)
 	require.Equal(t, 3, len(network.Nodes))
 
-	tx := randomTx(systemIdentifier)
+	tx := testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))
 	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	require.NoError(t, network.SubmitTx(tx))
 	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 
-	tx = randomTx(systemIdentifier)
+	tx = testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))
 	fmt.Printf("Broadcasting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.BroadcastTx(tx)
 	require.Eventually(t, BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
-}
-
-func randomTx(systemIdentifier []byte) *txsystem.Transaction {
-	tx := testtransaction.RandomBillTransfer()
-	tx.SystemId = systemIdentifier
-	tx.Timeout = 100
-	return tx
 }

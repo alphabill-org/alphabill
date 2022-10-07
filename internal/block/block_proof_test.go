@@ -108,6 +108,8 @@ func TestProofTypeOnlySec(t *testing.T) {
 		tx = createPrimaryTx(2)
 		err = p.Verify(tx, verifier, hashAlgorithm)
 		require.ErrorIs(t, err, ErrProofVerificationFailed)
+
+		//tx = createPrimaryTx(1) // TODO This case fails, but AhtoB says it's by design
 	}
 }
 

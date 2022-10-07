@@ -144,7 +144,7 @@ func TestBillStore_GetSetKeys(t *testing.T) {
 
 	// verify adding same key does not overwrite existing key
 	err = bs.AddKey(pubkey)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrKeyAlreadyExists)
 	keys, err = bs.GetKeys()
 	require.NoError(t, err)
 	require.Len(t, keys, 1)

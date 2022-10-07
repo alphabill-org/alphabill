@@ -30,6 +30,11 @@ func (m *mockWalletService) GetBlockProof(unitId []byte) (*BlockProof, error) {
 }
 
 func (m *mockWalletService) AddKey(pubkey []byte) error {
+	for _, key := range m.trackedKeys {
+		if bytes.Equal(key, pubkey) {
+			return ErrKeyAlreadyExists
+		}
+	}
 	m.trackedKeys = append(m.trackedKeys, pubkey)
 	return nil
 }
@@ -175,6 +180,20 @@ func TestAddKeyRequest_Ok(t *testing.T) {
 	require.Len(t, mockService.trackedKeys, 1)
 	pubkeyBytes, _ := hexutil.Decode(req.Pubkey)
 	require.Equal(t, mockService.trackedKeys[0], pubkeyBytes)
+}
+
+func TestAddKeyRequest_KeyAlreadyExists(t *testing.T) {
+	pubkey := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	pubkeyBytes, _ := hexutil.Decode(pubkey)
+	mockService := &mockWalletService{}
+	_ = mockService.AddKey(pubkeyBytes)
+	startServer(t, mockService)
+
+	req := &AddKeyRequest{Pubkey: pubkey}
+	res := &ErrorResponse{}
+	httpRes := doPost(t, "http://localhost:7777/admin/add-key", req, res)
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, res.Message, ErrKeyAlreadyExists.Error())
 }
 
 func doGet(t *testing.T, url string, response interface{}) *http.Response {

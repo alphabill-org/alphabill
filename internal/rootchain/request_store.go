@@ -2,40 +2,110 @@ package rootchain
 
 import (
 	"bytes"
+
+	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 )
 
-// requestStore keeps track of received consensus requests.
+type CertRequestStore map[p.SystemIdentifier]*requestStore
+
+// requestStore keeps track of received certification requests and counts state hashes.
 type requestStore struct {
-	id         p.SystemIdentifier
 	requests   map[string]*certification.BlockCertificationRequest // all received requests. key is node identifier
 	hashCounts map[string]uint                                     // counts of requests with matching State. key is IR hash string.
 }
 
+// NewCertificationRequestStore create new certification requests store
+func NewCertificationRequestStore() *CertRequestStore {
+	return &CertRequestStore{}
+}
+
+// Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
+// equivocating and in both cases error is returned. Clear or Reset in order to receive new requests
+func (c CertRequestStore) Add(request *certification.BlockCertificationRequest) error {
+	rs := c.get(p.SystemIdentifier(request.SystemIdentifier))
+	return rs.add(request)
+}
+
+// GetRequests returns all stored requests per system identifier
+func (c CertRequestStore) GetRequests(id p.SystemIdentifier) []*certification.BlockCertificationRequest {
+	rs := c.get(id)
+	allReq := make([]*certification.BlockCertificationRequest, 0, len(rs.requests))
+	for _, req := range rs.requests {
+		allReq = append(allReq, req)
+	}
+	return allReq
+}
+
+// IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
+func (c CertRequestStore) IsConsensusReceived(id p.SystemIdentifier, nrOfNodes int) (*certificates.InputRecord, bool) {
+	rs := c.get(id)
+	return rs.isConsensusReceived(nrOfNodes)
+}
+
+// get returns an existing store for system identifier or registers and returns a new one if none existed
+func (c CertRequestStore) get(id p.SystemIdentifier) *requestStore {
+	rs, f := c[id]
+	if !f {
+		rs = newRequestStore()
+		c[id] = rs
+	}
+	return rs
+}
+
+// Reset removed all incoming requests from all stores
+func (c CertRequestStore) Reset() {
+	for _, rs := range c {
+		rs.reset()
+	}
+}
+
+// Clear clears requests in one partition
+func (c CertRequestStore) Clear(id p.SystemIdentifier) {
+	rs := c.get(id)
+	logger.Debug("Resetting request store for partition '%X'", id)
+	rs.reset()
+}
+
 // newRequestStore creates a new empty requestStore.
-func newRequestStore(systemIdentifier p.SystemIdentifier) *requestStore {
-	s := &requestStore{id: systemIdentifier}
-	s.reset()
+func newRequestStore() *requestStore {
+	s := &requestStore{
+		requests:   make(map[string]*certification.BlockCertificationRequest),
+		hashCounts: make(map[string]uint)}
 	return s
 }
 
-// Add stores a new input record received from the node.
-func (rs *requestStore) add(nodeId string, req *certification.BlockCertificationRequest) {
-	if _, f := rs.requests[nodeId]; f {
-		rs.remove(nodeId)
+// add stores a new input record received from the node.
+func (rs *requestStore) add(req *certification.BlockCertificationRequest) error {
+	prevReq, f := rs.requests[req.NodeIdentifier]
+	if f {
+		// Partition node tries to certify and equivocating request
+		if !bytes.Equal(prevReq.InputRecord.Hash, req.InputRecord.Hash) {
+			logger.Warning("Equivocating request with different hash: %v", req)
+			return errors.New("equivocating request with different hash")
+		} else {
+			logger.Debug("Duplicated request: %v", req)
+			return errors.New("duplicated request")
+		}
+	}
+	// remove to replace
+	// todo: seems useless at the moment since if f is true, then we do not get here as error is returned before?
+	// todo: spec says that the request can be replaced with newer, but what makes a request newer, round number?
+	if _, f := rs.requests[req.NodeIdentifier]; f {
+		rs.remove(req.NodeIdentifier)
 	}
 	hashString := string(req.InputRecord.Hash)
-	rs.requests[nodeId] = req
+	rs.requests[req.NodeIdentifier] = req
 	count := rs.hashCounts[hashString]
 	rs.hashCounts[hashString] = count + 1
 	logger.Debug("Added new IR hash: %X, block hash: %X, total hash count: %v", req.InputRecord.Hash, req.InputRecord.BlockHash, rs.hashCounts[hashString])
+	return nil
 }
 
 func (rs *requestStore) reset() {
-	logger.Debug("Resetting request store for partition '%X'", rs.id)
 	rs.requests = make(map[string]*certification.BlockCertificationRequest)
 	rs.hashCounts = make(map[string]uint)
 }

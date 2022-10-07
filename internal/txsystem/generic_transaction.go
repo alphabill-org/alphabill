@@ -20,7 +20,7 @@ type (
 		Hash(hashFunc crypto.Hash) []byte
 		AddToHasher(hasher hash.Hash)
 		ToProtoBuf() *Transaction
-		SigBytes() []byte // TODO remove from the interface because it isn't needed by all partitions?
+		SigBytes() []byte
 		IsPrimary() bool
 	}
 

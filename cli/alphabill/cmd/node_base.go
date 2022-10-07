@@ -126,7 +126,8 @@ func loadNetworkConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *sta
 
 func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer(
-		grpc.MaxSendMsgSize(cfg.MaxRecvMsgSize),
+		grpc.MaxSendMsgSize(cfg.MaxSendMsgSize),
+		grpc.MaxRecvMsgSize(cfg.MaxRecvMsgSize),
 		grpc.KeepaliveParams(cfg.GrpcKeepAliveServerParameters()),
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())

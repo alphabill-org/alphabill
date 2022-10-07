@@ -110,6 +110,7 @@ func (w *WalletBackend) GetBlockProof(unitId []byte) (*BlockProof, error) {
 }
 
 // AddKey adds new public key to list of tracked keys.
+// Returns ErrKeyAlreadyExists error if key already exists.
 func (w *WalletBackend) AddKey(pubkey []byte) error {
 	return w.store.AddKey(NewPubkey(pubkey))
 }

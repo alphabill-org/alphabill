@@ -2,8 +2,11 @@ package backend
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/alphabill-org/alphabill/internal/util"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
 )
@@ -17,6 +20,10 @@ var (
 	metaBucket   = []byte("metaBucket")
 
 	blockNumberKey = []byte("blockNumberKey")
+)
+
+var (
+	ErrKeyAlreadyExists = errors.New("key already exists")
 )
 
 type BoltBillStore struct {
@@ -212,9 +219,10 @@ func (s *BoltBillStore) AddKey(k *Pubkey) error {
 			if err != nil {
 				return err
 			}
+			wlog.Info("adding new key to indexer: ", hexutil.Encode(k.Pubkey))
 			return keysBkt.Put(k.Pubkey, keyBytes)
 		}
-		return nil
+		return ErrKeyAlreadyExists
 	})
 }
 

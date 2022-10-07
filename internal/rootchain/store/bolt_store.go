@@ -3,7 +3,7 @@ package store
 import (
 	"encoding/json"
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/pkg/errors"
 	bolt "go.etcd.io/bbolt"
@@ -23,30 +23,24 @@ var (
 	latestRoundNumberKey = []byte("latestRoundNumberKey")
 )
 
-type BoltRootChainStore struct {
+type BoltStore struct {
 	db *bolt.DB
 }
 
-func NewBoltRootChainStore(dbFile string) (*BoltRootChainStore, error) {
+func NewBoltStore(dbFile string) (*BoltStore, error) {
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
 		return nil, err
 	}
-	s := &BoltRootChainStore{db: db}
+	s := &BoltStore{db: db}
 	err = s.createBuckets()
 	if err != nil {
 		return nil, err
 	}
-	err = s.initRound()
-	if err != nil {
-		return nil, err
-	}
-	logger.Info("Bolt DB initialised")
-
 	return s, err
 }
 
-func (s *BoltRootChainStore) createBuckets() error {
+func (s *BoltStore) createBuckets() error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(roundBucket)
 		if err != nil {
@@ -68,20 +62,7 @@ func (s *BoltRootChainStore) createBuckets() error {
 	})
 }
 
-func (s *BoltRootChainStore) initRound() error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		nr := tx.Bucket(roundBucket).Get(latestRoundNumberKey)
-		if nr == nil {
-			err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(1))
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-func (s *BoltRootChainStore) GetUC(id p.SystemIdentifier) *certificates.UnicityCertificate {
+func (s *BoltStore) GetUC(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {
 	var uc *certificates.UnicityCertificate
 	err := s.db.View(func(tx *bolt.Tx) error {
 		if ucJson := tx.Bucket(ucBucket).Get([]byte(id)); ucJson != nil {
@@ -90,24 +71,42 @@ func (s *BoltRootChainStore) GetUC(id p.SystemIdentifier) *certificates.UnicityC
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return uc
+	return uc, nil
 }
 
-func (s *BoltRootChainStore) UCCount() int {
+func (s *BoltStore) ReadAllUC() (map[protocol.SystemIdentifier]*certificates.UnicityCertificate, error) {
+	target := make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.Bucket(ucBucket).ForEach(func(k, v []byte) error {
+			var uc *certificates.UnicityCertificate
+			if err := json.Unmarshal(v, &uc); err != nil {
+				return err
+			}
+			target[protocol.SystemIdentifier(k)] = uc
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return target, nil
+}
+
+func (s *BoltStore) CountUC() (int, error) {
 	var keysCount int
 	err := s.db.View(func(tx *bolt.Tx) error {
 		keysCount = tx.Bucket(ucBucket).Stats().KeyN
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return -1, err
 	}
-	return keysCount
+	return keysCount, nil
 }
 
-func (s *BoltRootChainStore) AddIR(id p.SystemIdentifier, ir *certificates.InputRecord) {
+func (s *BoltStore) AddIR(id protocol.SystemIdentifier, ir *certificates.InputRecord) error {
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		val, err := json.Marshal(ir)
 		if err != nil {
@@ -120,11 +119,12 @@ func (s *BoltRootChainStore) AddIR(id p.SystemIdentifier, ir *certificates.Input
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
-func (s *BoltRootChainStore) GetIR(id p.SystemIdentifier) *certificates.InputRecord {
+func (s *BoltStore) GetIR(id protocol.SystemIdentifier) (*certificates.InputRecord, error) {
 	var ir *certificates.InputRecord
 	err := s.db.View(func(tx *bolt.Tx) error {
 		if ucJson := tx.Bucket(irBucket).Get([]byte(id)); ucJson != nil {
@@ -133,64 +133,72 @@ func (s *BoltRootChainStore) GetIR(id p.SystemIdentifier) *certificates.InputRec
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return ir
+	return ir, nil
 }
 
-func (s *BoltRootChainStore) GetAllIRs() map[p.SystemIdentifier]*certificates.InputRecord {
-	target := make(map[p.SystemIdentifier]*certificates.InputRecord)
+func (s *BoltStore) GetAllIRs() (map[protocol.SystemIdentifier]*certificates.InputRecord, error) {
+	target := make(map[protocol.SystemIdentifier]*certificates.InputRecord)
 	err := s.db.View(func(tx *bolt.Tx) error {
 		return tx.Bucket(irBucket).ForEach(func(k, v []byte) error {
 			var ir *certificates.InputRecord
 			if err := json.Unmarshal(v, &ir); err != nil {
 				return err
 			}
-			target[p.SystemIdentifier(k)] = ir
+			target[protocol.SystemIdentifier(k)] = ir
 			return nil
 		})
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return target
+	return target, nil
 }
 
-func (s *BoltRootChainStore) GetRoundNumber() uint64 {
+func (s *BoltStore) ReadLatestRoundNumber() (uint64, error) {
 	var roundNr uint64
 	err := s.db.View(func(tx *bolt.Tx) error {
-		roundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
+		val := tx.Bucket(roundBucket).Get(latestRoundNumberKey)
+		if val == nil {
+			return nil
+		}
+		roundNr = util.BytesToUint64(val)
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
-	return roundNr
+	return roundNr, nil
 }
 
-func (s *BoltRootChainStore) GetPreviousRoundRootHash() []byte {
+func (s *BoltStore) ReadLatestRoundRootHash() ([]byte, error) {
 	var hash []byte
 	err := s.db.View(func(tx *bolt.Tx) error {
 		hash = tx.Bucket(prevRoundHashBucket).Get(prevRoundHashKey)
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return hash
+	return hash, nil
 }
 
-func (s *BoltRootChainStore) SaveState(prevStateHash []byte, ucs []*certificates.UnicityCertificate, newRoundNumber uint64) {
+func (s *BoltStore) WriteState(newState RootState) error {
 	err := s.db.Update(func(tx *bolt.Tx) error {
-		prevRoundNr := util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
-		if prevRoundNr+1 != newRoundNumber {
-			return errors.Errorf("Inconsistent round number, current=%v, new=%v", prevRoundNr, newRoundNumber)
+		var latestRoundNr uint64
+		val := tx.Bucket(roundBucket).Get(latestRoundNumberKey)
+		if val != nil {
+			latestRoundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
 		}
-		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(newRoundNumber)); err != nil {
+		if latestRoundNr+1 != newState.LatestRound {
+			return errors.Errorf("Inconsistent round number, current=%v, new=%v", latestRoundNr, newState.LatestRound)
+		}
+		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(newState.LatestRound)); err != nil {
 			return err
 		}
 		certsBucket := tx.Bucket(ucBucket)
-		for _, cert := range ucs {
+		for _, cert := range newState.Certificates {
 			val, err := json.Marshal(cert)
 			if err != nil {
 				return err
@@ -204,9 +212,10 @@ func (s *BoltRootChainStore) SaveState(prevStateHash []byte, ucs []*certificates
 		_ = tx.DeleteBucket(irBucket)
 		_, _ = tx.CreateBucketIfNotExists(irBucket)
 
-		return tx.Bucket(prevRoundHashBucket).Put(prevRoundHashKey, prevStateHash)
+		return tx.Bucket(prevRoundHashBucket).Put(prevRoundHashKey, newState.LatestRootHash)
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }

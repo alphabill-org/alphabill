@@ -34,6 +34,7 @@ const (
 	logLevelCmdName       = "log-level"
 	walletLocationCmdName = "wallet-location"
 	keyCmdName            = "key"
+	quietCmdName          = "quiet"
 )
 
 type walletConfig struct {
@@ -243,6 +244,8 @@ func getPubKeysCmd(config *walletConfig) *cobra.Command {
 			return execGetPubKeysCmd(cmd, config)
 		},
 	}
+	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, e.g. account key numbers")
+	cmd.Flags().MarkHidden(quietCmdName)
 	addPasswordFlags(cmd)
 	return cmd
 }
@@ -258,8 +261,13 @@ func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	hideKeyNumber, _ := cmd.Flags().GetBool(quietCmdName)
 	for accIdx, accPubKey := range pubKeys {
-		consoleWriter.Println(fmt.Sprintf("#%d %s", accIdx+1, hexutil.Encode(accPubKey)))
+		if hideKeyNumber {
+			consoleWriter.Println(fmt.Sprintf("%s", hexutil.Encode(accPubKey)))
+		} else {
+			consoleWriter.Println(fmt.Sprintf("#%d %s", accIdx+1, hexutil.Encode(accPubKey)))
+		}
 	}
 	return nil
 }

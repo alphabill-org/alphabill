@@ -95,9 +95,11 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 	//	require.Equal(t, s1.latestUnicityCertificates, s2.latestUnicityCertificates)
 	//	require.Equal(t, s1.inputRecords, s2.inputRecords)
 	// Root genesis does not contain incoming requests,this is a runtime store
-	require.Empty(t, s1.incomingRequests)
-	// When state is constructed from partition genesis files, the incoming requests is initiated with partition requests
-	require.NotEmpty(t, s2.incomingRequests)
+	require.Empty(t, s1.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID)))
+	require.Empty(t, s1.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID)))
+	// When state is constructed from partition genesis files, the incoming requests are initiated with partition requests
+	require.Empty(t, s2.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID)))
+	require.Empty(t, s2.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID)))
 	require.Equal(t, s1.hashAlgorithm, s2.hashAlgorithm)
 	require.Equal(t, s1.signer, s2.signer)
 	require.Equal(t, s1.verifiers, s2.verifiers)

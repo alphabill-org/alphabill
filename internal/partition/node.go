@@ -422,6 +422,7 @@ func (n *Node) eventHandlerLoop() {
 }
 
 func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
+	logger.Debug("handleTxMessage, ctx nil: $s", n.txCtx == nil)
 	success, tx := convertType[*txsystem.Transaction](m.Message)
 	if !success {
 		return errors.Errorf("unsupported type: %T", m.Message)
@@ -439,6 +440,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 		return
 	}
 	newBlockNr := n.blockStore.LatestBlock().BlockNumber + 1
+	logger.Debug("startNewRound #%v", newBlockNr)
 	n.transactionSystem.BeginBlock(newBlockNr)
 	n.proposedTransactions = []txsystem.GenericTransaction{}
 	n.pendingBlockProposal = nil
@@ -450,6 +452,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
+	logger.Debug("handleOrForwardTransaction")
 	if err := n.txValidator.Validate(tx, n.blockStore.LatestBlock().BlockNumber); err != nil {
 		logger.Warning("Received invalid transaction: %v", err)
 		return true
@@ -703,7 +706,7 @@ func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *cert
 
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(b *block.Block) error {
-	defer trackExecutionTime(time.Now(), "Block finalization")
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block #%v finalization", b.BlockNumber))
 	err := n.blockStore.Add(b)
 	if err != nil {
 		return err
@@ -977,6 +980,7 @@ func (n *Node) sendCertificationRequest() error {
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
+	logger.Debug("SubmitTx, ctx nil: $s", n.txCtx == nil)
 	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {
 		return err
@@ -997,15 +1001,18 @@ func (n *Node) GetLatestBlock() *block.Block {
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {
+	logger.Info("stopForwardingOrHandlingTransactions")
 	if n.txCtx != nil {
 		n.txCancel()
 		n.txWaitGroup.Wait()
+		logger.Info("stopForwardingOrHandlingTransactions: after txWaitGroup.Wait()")
 		n.txCtx = nil
 		n.txCancel = nil
 	}
 }
 
 func (n *Node) startHandleOrForwardTransactions() {
+	logger.Info("startHandleOrForwardTransactions")
 	n.stopForwardingOrHandlingTransactions()
 	leader := n.leaderSelector.GetLeaderID()
 	if leader == UnknownLeader {

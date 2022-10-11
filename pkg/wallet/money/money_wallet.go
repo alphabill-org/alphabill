@@ -122,8 +122,10 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		for _, acc := range w.accounts.getAll() {
-			for _, pbTx := range b.Transactions {
+		allAccounts := w.accounts.getAll()
+		for _, pbTx := range b.Transactions {
+			log.Info("Transaction: ", pbTx)
+			for _, acc := range allAccounts {
 				err = w.collectBills(dbTx, pbTx, b, &acc)
 				if err != nil {
 					return err

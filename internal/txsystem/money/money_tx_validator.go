@@ -38,6 +38,7 @@ func validateAnyTransfer(data rma.UnitData, backlink []byte, targetValue uint64)
 		return txsystem.ErrInvalidDataType
 	}
 	if !bytes.Equal(backlink, bd.Backlink) {
+		log.Debug("validateAnyTransfer failed: expected bl: %X, actual: %X ", bd.Backlink, backlink)
 		return txsystem.ErrInvalidBacklink
 	}
 	if targetValue != bd.V {
@@ -52,6 +53,7 @@ func validateSplit(data rma.UnitData, tx Split) error {
 		return txsystem.ErrInvalidDataType
 	}
 	if !bytes.Equal(tx.Backlink(), bd.Backlink) {
+		log.Debug("validateSplit failed: expected bl: %X, actual: %X ", bd.Backlink, tx.Backlink())
 		return txsystem.ErrInvalidBacklink
 	}
 	// amount does not exceed value of the bill

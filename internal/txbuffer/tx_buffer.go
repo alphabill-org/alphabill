@@ -88,11 +88,13 @@ func (t *TxBuffer) Process(ctx context.Context, wg *sync.WaitGroup, process TxHa
 		select {
 		case <-ctx.Done():
 			wg.Done()
+			logger.Debug("txBuffer has stopped")
 			return
 		case tx := <-t.transactionsCh:
 			if tx == nil {
 				continue
 			}
+			logger.Debug("txBuffer is processing the tx")
 			if process(tx) {
 				t.remove(string(tx.Hash(t.hashAlgorithm)))
 			}

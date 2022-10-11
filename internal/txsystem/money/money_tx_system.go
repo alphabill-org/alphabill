@@ -137,6 +137,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 }
 
 func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
+	log.Debug("MTXS Execute")
 	bd, _ := m.revertibleState.GetUnit(gtx.UnitID())
 	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: bd, SystemIdentifier: m.systemIdentifier, BlockNumber: m.currentBlockNumber})
 	if err != nil {
@@ -147,6 +148,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		log.Debug("Processing transfer %v", tx)
 		err := m.validateTransferTx(tx)
 		if err != nil {
+			log.Debug("Transfer failed for bill %X, %s", tx.UnitID().Bytes(), err.Error())
 			return err
 		}
 		err = m.updateBillData(tx)
@@ -158,6 +160,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		log.Debug("Processing transferDC %v", tx)
 		err := m.validateTransferDCTx(tx)
 		if err != nil {
+			log.Debug("TransferDC failed for bill %X, %s", tx.UnitID().Bytes(), err.Error())
 			return err
 		}
 		err = m.updateBillData(tx)
@@ -173,9 +176,10 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitID())
 		return nil
 	case Split:
-		log.Debug("Processing split %v", tx)
+		log.Debug("Processing split %v with backlink=%X", tx, tx.Backlink())
 		err := m.validateSplitTx(tx)
 		if err != nil {
+			log.Debug("Split failed for bill %X, %s", tx.UnitID().Bytes(), err.Error())
 			return err
 		}
 		err = m.revertibleState.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
@@ -245,6 +249,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 }
 
 func (m *moneyTxSystem) State() (txsystem.State, error) {
+	log.Debug("MTXS State")
 	if m.revertibleState.ContainsUncommittedChanges() {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
@@ -255,14 +260,17 @@ func (m *moneyTxSystem) State() (txsystem.State, error) {
 }
 
 func (m *moneyTxSystem) BeginBlock(blockNr uint64) {
+	log.Debug("MTXS BeginBlock, block #%v", blockNr)
 	m.currentBlockNumber = blockNr
 }
 
 func (m *moneyTxSystem) Revert() {
+	log.Debug("MTXS Revert")
 	m.revertibleState.Revert()
 }
 
 func (m *moneyTxSystem) Commit() {
+	log.Debug("MTXS Commit")
 	m.revertibleState.Commit()
 }
 
@@ -272,6 +280,7 @@ func (m *moneyTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTra
 
 // EndBlock deletes dust bills from the state tree.
 func (m *moneyTxSystem) EndBlock() (txsystem.State, error) {
+	log.Debug("MTXS EndBlock")
 	dustBills := m.dustCollectorBills[m.currentBlockNumber]
 	var valueToTransfer uint64
 	for _, billID := range dustBills {

@@ -119,6 +119,7 @@ func New(config *Config) (*Tree, error) {
 
 // AddItem adds new element to the state. Id must not exist in the state.
 func (tree *Tree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
+	logger.Debug("RMA: AddItem, id=%X", id.Bytes())
 	exists := tree.exists(id)
 	if exists {
 		return errors.Errorf("cannot add item that already exists. ID: %d", id)
@@ -129,6 +130,7 @@ func (tree *Tree) AddItem(id *uint256.Int, owner Predicate, data UnitData, state
 
 // DeleteItem removes the item from the state
 func (tree *Tree) DeleteItem(id *uint256.Int) error {
+	logger.Debug("RMA: DeleteItem, id=%X", id.Bytes())
 	exists := tree.exists(id)
 	if !exists {
 		return errors.Errorf("deleting item that does not exist. ID %d", id)
@@ -139,11 +141,13 @@ func (tree *Tree) DeleteItem(id *uint256.Int) error {
 
 // SetOwner changes the owner of the item, leaves data as is.
 func (tree *Tree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
+	logger.Debug("RMA: SetOwner, id=%X", id.Bytes())
 	return tree.setOwner(id, owner, stateHash)
 }
 
 // UpdateData changes the data of the item, leaves owner as is.
 func (tree *Tree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
+	logger.Debug("RMA: UpdateData, id=%X", id.Bytes())
 	node, exists := tree.getNode(id)
 	if !exists {
 		return errors.Errorf(errStrItemDoesntExist, id)
@@ -154,6 +158,7 @@ func (tree *Tree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte
 }
 
 func (tree *Tree) GetUnit(id *uint256.Int) (*Unit, error) {
+	logger.Debug("RMA: GetUnit, id=%X", id.Bytes())
 	return tree.get(id)
 }
 
@@ -164,14 +169,17 @@ func (tree *Tree) ContainsUncommittedChanges() bool {
 // GetRootHash starts computation of the tree and returns the root node hash value.
 func (tree *Tree) GetRootHash() []byte {
 	if tree.root == nil {
+		logger.Debug("RMA: GetRootHash: nil")
 		return nil
 	}
 	tree.recompute(tree.root, tree.hashAlgorithm.New())
+	logger.Debug("RMA: GetRootHash: %X", tree.root.Hash)
 	return tree.root.Hash
 }
 
 // TotalValue starts computation of the tree and returns the SummaryValue of the root node.
 func (tree *Tree) TotalValue() SummaryValue {
+	logger.Debug("RMA: TotalValue")
 	if tree.root == nil {
 		return nil
 	}
@@ -183,11 +191,13 @@ func (tree *Tree) TotalValue() SummaryValue {
 // Changes done before the Commit cannot be reverted anymore.
 // Changes done after the last Commit can be reverted by Revert method.
 func (tree *Tree) Commit() {
+	logger.Debug("RMA: Commit")
 	tree.changes = []interface{}{}
 }
 
 // Revert reverts all changes since the last Commit.
 func (tree *Tree) Revert() {
+	logger.Debug("RMA: Revert")
 	for i := len(tree.changes) - 1; i >= 0; i-- {
 		change := tree.changes[i]
 		switch chg := change.(type) {

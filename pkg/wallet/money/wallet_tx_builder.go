@@ -2,6 +2,7 @@ package money
 
 import (
 	"bytes"
+	"fmt"
 	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -12,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -25,6 +27,8 @@ func createTransactions(pubKey []byte, amount uint64, bills []*bill, k *wallet.A
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].Value > bills[j].Value
 	})
+
+	log.Info(fmt.Sprintf("createTransactions, amount: %d, account=%X", amount, k.PubKeyHash))
 	for _, b := range bills {
 		remainingAmount := amount - accumulatedSum
 		tx, err := createTransaction(pubKey, k, remainingAmount, b, timeout)
@@ -49,6 +53,7 @@ func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *bi
 }
 
 func createTransferTx(pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
+	log.Info(fmt.Sprintf("createTransferTx, value: %d, backlink: %X", bill.Value, bill.TxHash))
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
@@ -76,6 +81,7 @@ func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 }
 
 func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
+	log.Info(fmt.Sprintf("createSplitTx, value: %d, backlink: %X", bill.Value-amount, bill.TxHash))
 	tx := createGenericTx(bill.getId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
 		Amount:         amount,

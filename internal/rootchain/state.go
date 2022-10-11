@@ -251,7 +251,9 @@ func (s *State) CreateUnicityCertificates() (*store.RootState, error) {
 		certs[identifier] = certificate
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
 		// clear requests for partition after new Unicity Certificate has been made
+		logger.Debug("Clearing incoming requests: %v ", len(s.incomingRequests.GetRequests(identifier)))
 		s.incomingRequests.Clear(identifier)
+		logger.Debug("Cleared incoming requests: %v ", len(s.incomingRequests.GetRequests(identifier)))
 	}
 	// Save state
 	newState := store.RootState{LatestRound: newRound, Certificates: certs, LatestRootHash: rootHash}

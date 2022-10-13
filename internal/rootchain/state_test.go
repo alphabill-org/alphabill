@@ -386,11 +386,11 @@ func TestHandleInputRequestEvent_ConsensusNotAchievedByAll(t *testing.T) {
 	require.NotEqual(t, p1r1.InputRecord.Hash, luc.InputRecord.Hash)
 	require.NotEqual(t, p1r2.InputRecord.Hash, luc.InputRecord.Hash)
 	require.Equal(t, p2r1.InputRecord.Hash, luc.InputRecord.Hash)
-	require.Equal(t, p2r1.InputRecord.Hash, luc.InputRecord.Hash)
-	require.Equal(t, p2r1.InputRecord.Hash, luc.InputRecord.Hash)
+	require.Equal(t, p2r2.InputRecord.Hash, luc.InputRecord.Hash)
+	require.Equal(t, p2r3.InputRecord.Hash, luc.InputRecord.Hash)
 	// partition 1 incoming requests are not yet cleared, it is still waiting for deciding request or timeout
 	require.Equal(t, 2, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))
-	// partition 2 consensus was achieved, UC's generated and therefore requests should now be cleared
+	// partition 2 consensus was achieved, UC was generated and therefore requests should now be cleared
 	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID))))
 	// input records get always cleared
 	require.Empty(t, s.inputRecords)

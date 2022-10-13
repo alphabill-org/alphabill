@@ -86,18 +86,20 @@ func TestNewStateFromGenesis_Ok(t *testing.T) {
 
 	s1, err := NewState(rootGenesis, "test", rootSigner, store.NewInMemStateStore(gocrypto.SHA256))
 	require.NoError(t, err)
-
+	// constructs state from partition record and generates UC's
 	s2 := createStateAndExecuteRound(t, partitions, rootSigner)
-	require.NoError(t, err)
-	//	require.Equal(t, s1.roundNumber, s2.roundNumber, 2)
-	//	require.Equal(t, s1.previousRoundRootHash, s2.previousRoundRootHash)
+	// At this point both states (from root genesis file and partition records + UC's) must be equal
 	require.Equal(t, s1.partitionStore, s2.partitionStore)
-	//	require.Equal(t, s1.latestUnicityCertificates, s2.latestUnicityCertificates)
-	//	require.Equal(t, s1.inputRecords, s2.inputRecords)
+	s1State, err := s1.store.Get()
+	require.NoError(t, err)
+	s2State, err := s2.store.Get()
+	require.Equal(t, s1State.LatestRound, s2State.LatestRound, 2)
+	require.Equal(t, s1State, s2State)
+	require.Empty(t, s1.inputRecords, s2.inputRecords)
 	// Root genesis does not contain incoming requests,this is a runtime store
+	// Incoming requests where cleared when UC's are generated, in the case the state was constructed from partition records
 	require.Empty(t, s1.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID)))
 	require.Empty(t, s1.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID)))
-	// When state is constructed from partition genesis files, the incoming requests are initiated with partition requests
 	require.Empty(t, s2.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID)))
 	require.Empty(t, s2.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID)))
 	require.Equal(t, s1.hashAlgorithm, s2.hashAlgorithm)
@@ -121,6 +123,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, uint64(0), state.LatestRound)
 	require.Equal(t, 0, len(state.Certificates))
 	require.Equal(t, make([]byte, gocrypto.SHA256.Size()), state.LatestRootHash)
+	require.Empty(t, s.inputRecords)
 
 	// partition store checks
 	require.Equal(t, 2, s.partitionStore.size())
@@ -161,6 +164,8 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	// verify State after the round
 	require.Equal(t, uint64(1), state.LatestRound)
 	require.Equal(t, p1UC.UnicitySeal.Hash, state.LatestRootHash)
+	// make sure input stores get cleared
+	require.Empty(t, s.inputRecords)
 	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))
 	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID))))
 }
@@ -322,6 +327,73 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 	require.NotEqual(t, req.InputRecord.Hash, luc.InputRecord.Hash)
 	require.NotEqual(t, r1.InputRecord.Hash, luc.InputRecord.Hash)
 	require.NotEqual(t, r2.InputRecord.Hash, luc.InputRecord.Hash)
+	// make sure input records get cleared
+	require.Empty(t, s.inputRecords)
+	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))
+}
+
+func TestHandleInputRequestEvent_ConsensusNotAchievedByAll(t *testing.T) {
+	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
+	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 3)
+	signers2, _, partition2, _ := createPartitionRecord(t, partition2IR, partition2ID, 3)
+
+	partitions := []*genesis.PartitionRecord{partition1, partition2}
+	s := createStateAndExecuteRound(t, partitions, rootSigner)
+	// partition 1 does not achieve consensus
+	p1r1 := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	p1r1.InputRecord.Hash = []byte{0, 0, 1}
+	require.NoError(t, p1r1.Sign(signers[0]))
+	uc, err := s.HandleBlockCertificationRequest(p1r1)
+	require.NoError(t, err)
+	require.Nil(t, uc)
+	p1r2 := CreateBlockCertificationRequest(t, partition1.Validators[1].NodeIdentifier, s, signers[0])
+	p1r2.InputRecord.Hash = []byte{1, 1, 1}
+	require.NoError(t, p1r2.Sign(signers[1]))
+	uc, err = s.HandleBlockCertificationRequest(p1r2)
+	require.NoError(t, err)
+	require.Nil(t, uc)
+	// partition 2 achieves consensus
+	p2r1 := CreateBlockCertificationRequest(t, partition2.Validators[0].NodeIdentifier, s, signers2[0])
+	p2r1.SystemIdentifier = partition2ID
+	p2r1.InputRecord.PreviousHash = partition2IR.Hash
+	p2r1.InputRecord.Hash = []byte{0, 0, 0}
+	require.NoError(t, p2r1.Sign(signers2[0]))
+	uc, err = s.HandleBlockCertificationRequest(p2r1)
+	require.NoError(t, err)
+	require.Nil(t, uc)
+	p2r2 := CreateBlockCertificationRequest(t, partition2.Validators[1].NodeIdentifier, s, signers2[1])
+	p2r2.SystemIdentifier = partition2ID
+	p2r2.InputRecord.PreviousHash = partition2IR.Hash
+	p2r2.InputRecord.Hash = []byte{0, 0, 0}
+	require.NoError(t, p2r2.Sign(signers2[1]))
+	uc, err = s.HandleBlockCertificationRequest(p2r2)
+	require.NoError(t, err)
+	require.Nil(t, uc)
+	p2r3 := CreateBlockCertificationRequest(t, partition2.Validators[2].NodeIdentifier, s, signers2[2])
+	p2r3.SystemIdentifier = partition2ID
+	p2r3.InputRecord.PreviousHash = partition2IR.Hash
+	p2r3.InputRecord.Hash = []byte{0, 0, 0}
+	require.NoError(t, p2r3.Sign(signers2[2]))
+	uc, err = s.HandleBlockCertificationRequest(p2r3)
+	require.NoError(t, err)
+	require.Nil(t, uc)
+	// Create UC's
+	state, err := s.CreateUnicityCertificates()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(state.Certificates))
+	luc, f := state.Certificates[p.SystemIdentifier(p2r1.SystemIdentifier)]
+	require.True(t, f)
+	require.NotEqual(t, p1r1.InputRecord.Hash, luc.InputRecord.Hash)
+	require.NotEqual(t, p1r2.InputRecord.Hash, luc.InputRecord.Hash)
+	require.Equal(t, p2r1.InputRecord.Hash, luc.InputRecord.Hash)
+	require.Equal(t, p2r1.InputRecord.Hash, luc.InputRecord.Hash)
+	require.Equal(t, p2r1.InputRecord.Hash, luc.InputRecord.Hash)
+	// partition 1 incoming requests are not yet cleared, it is still waiting for deciding request or timeout
+	require.Equal(t, 2, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))
+	// partition 2 consensus was achieved, UC's generated and therefore requests should now be cleared
+	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition2ID))))
+	// input records get always cleared
+	require.Empty(t, s.inputRecords)
 }
 
 func createStateAndExecuteRound(t *testing.T, partitions []*genesis.PartitionRecord, rootSigner crypto.Signer) *State {

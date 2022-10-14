@@ -14,7 +14,7 @@ do
       echo "sending from account $k to wallet $w"
       build/alphabill wallet send -a $w -u localhost:26766 --log-file ~/.alphabill/wallet1/log.log -l ~/.alphabill/wallet1/ -k $k -v 1
     done
-    sleep 3
+    sleep 1
 done
 
 build/alphabill wallet sync -u localhost:26768 --log-file ~/.alphabill/wallet1/log.log -l ~/.alphabill/wallet1/

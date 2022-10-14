@@ -59,8 +59,6 @@ build/alphabill wallet get-balance --log-level DEBUG --log-file $abHome/wallet1/
 echo "Get wallet 2 balance"
 build/alphabill wallet get-balance --log-level DEBUG --log-file $abHome/wallet2/w2.log -l $abHome/wallet2/
 
-exit
-
 echo "Give money to other keys in wallet 1"
 IFS=$'\n'
 keys_array=( $(build/alphabill wallet get-pubkeys -l $abHome/wallet1/ --quiet) )

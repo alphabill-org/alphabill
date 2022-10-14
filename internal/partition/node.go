@@ -48,6 +48,7 @@ const t1TimerName = "t1"
 var (
 	ErrNodeDoesNotHaveLatestBlock = errors.New("node does not have the latest block")
 	ErrStateReverted              = errors.New("state reverted")
+	ErrRoundNotStarted            = errors.New("rejecting transaction, round not started")
 )
 
 type (
@@ -77,7 +78,6 @@ type (
 		ctx                         context.Context
 		ctxCancel                   context.CancelFunc
 		network                     Net
-		txCtx                       context.Context
 		txCancel                    context.CancelFunc
 		txWaitGroup                 *sync.WaitGroup
 		txCh                        chan txsystem.GenericTransaction
@@ -422,7 +422,10 @@ func (n *Node) eventHandlerLoop() {
 }
 
 func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
-	logger.Debug("handleTxMessage, ctx nil: $s", n.txCtx == nil)
+	logger.Debug("handleTxMessage, ctx nil: $s", n.txCancel == nil)
+	if n.txCancel == nil {
+		return ErrRoundNotStarted
+	}
 	success, tx := convertType[*txsystem.Transaction](m.Message)
 	if !success {
 		return errors.Errorf("unsupported type: %T", m.Message)
@@ -1006,12 +1009,12 @@ func (n *Node) GetLatestBlock() *block.Block {
 
 func (n *Node) stopForwardingOrHandlingTransactions() {
 	logger.Info("stopForwardingOrHandlingTransactions")
-	if n.txCtx != nil {
-		n.txCancel()
+	if n.txCancel != nil {
+		txCancel := n.txCancel
+		n.txCancel = nil
+		txCancel()
 		n.txWaitGroup.Wait()
 		logger.Info("stopForwardingOrHandlingTransactions: after txWaitGroup.Wait()")
-		n.txCtx = nil
-		n.txCancel = nil
 	}
 }
 
@@ -1022,9 +1025,10 @@ func (n *Node) startHandleOrForwardTransactions() {
 	if leader == UnknownLeader {
 		return
 	}
-	n.txCtx, n.txCancel = context.WithCancel(context.Background())
+	txCtx, txCancel := context.WithCancel(context.Background())
+	n.txCancel = txCancel
 	n.txWaitGroup.Add(1)
-	go n.txBuffer.Process(n.txCtx, n.txWaitGroup, n.handleOrForwardTransaction)
+	go n.txBuffer.Process(txCtx, n.txWaitGroup, n.handleOrForwardTransaction)
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, blockNumber uint64) ([]byte, error) {

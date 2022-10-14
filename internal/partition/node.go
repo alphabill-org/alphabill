@@ -459,6 +459,7 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 	}
 	leader := n.leaderSelector.GetLeaderID()
 	if leader == n.leaderSelector.SelfID() {
+		logger.Debug("handleOrForwardTransaction: sending tx to channel")
 		n.txCh <- tx
 		return true
 	}
@@ -520,7 +521,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
-	logger.Debug("Handling block proposal, IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
+	logger.Debug("Handling block proposal, its UC IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	nodeSignatureVerifier, err := n.configuration.GetSigningPublicKey(prop.NodeIdentifier)
 	if err != nil {
 		return err
@@ -712,6 +713,9 @@ func (n *Node) finalizeBlock(b *block.Block) error {
 		return err
 	}
 	n.transactionSystem.Commit()
+	if state, err := n.transactionSystem.State(); err == nil {
+		logger.Debug("finalizeBlock: state hash: %X", state.Root())
+	}
 	n.sendEvent(EventTypeBlockFinalized, b)
 	return nil
 }
@@ -980,7 +984,7 @@ func (n *Node) sendCertificationRequest() error {
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
-	logger.Debug("SubmitTx, ctx nil: $s", n.txCtx == nil)
+	logger.Debug("SubmitTx, ctx nil: $s", n.txCancel == nil)
 	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {
 		return err

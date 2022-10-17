@@ -58,16 +58,16 @@ func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	p.partition.handleT1TimeoutEvent()
 	// send tx to the channel
 	p.partition.txCh <- transfer
+	// tx is added back to the buffer
+	require.Eventually(t, func() bool {
+		return bufferBefore+1 == p.partition.txBuffer.Count()
+	}, test.WaitDuration, test.WaitTick)
 	// make sure tx system remains untouched
 	stateAfter, err := s.State()
 	if err != nil {
 		require.NoError(t, err)
 	}
 	require.Equal(t, stateBefore.Root(), stateAfter.Root())
-	// tx is added back to the buffer
-	require.Eventually(t, func() bool {
-		return bufferBefore+1 == p.partition.txBuffer.Count()
-	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_HandleInvalidTxEvent(t *testing.T) {

@@ -96,7 +96,9 @@ func (t *TxBuffer) Process(ctx context.Context, wg *sync.WaitGroup, process TxHa
 			}
 			logger.Debug("txBuffer is processing the tx")
 			if process(tx) {
-				t.remove(string(tx.Hash(t.hashAlgorithm)))
+				h := tx.Hash(t.hashAlgorithm)
+				logger.Debug("txBuffer is removing the tx: %X", h)
+				t.remove(string(h))
 			}
 		}
 	}

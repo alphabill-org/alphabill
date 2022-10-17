@@ -48,7 +48,6 @@ const t1TimerName = "t1"
 var (
 	ErrNodeDoesNotHaveLatestBlock = errors.New("node does not have the latest block")
 	ErrStateReverted              = errors.New("state reverted")
-	ErrRoundNotStarted            = errors.New("rejecting transaction, round not started")
 )
 
 type (
@@ -322,11 +321,22 @@ func (n *Node) loop() {
 			logger.Info("Exiting partition node component main loop")
 			return
 		case tx, ok := <-n.txCh:
+			logger.Debug("loop: <-n.txCh (ok=%v), UnitID=%X", ok, tx.UnitID().Bytes())
 			if !ok {
 				logger.Warning("Tx channel closed, exiting main loop")
 				return
 			}
-			n.process(tx)
+			// round might not be active, but some transactions might still be in the channel
+			if n.txCancel == nil {
+				logger.Warning("No active round, adding tx back to the buffer, UnitID=%X", tx.UnitID().Bytes())
+				err := n.txBuffer.Add(tx)
+				if err != nil {
+					logger.Warning("Invalid transaction: %v", err)
+					n.sendEvent(EventTypeError, err)
+				}
+			} else {
+				n.process(tx)
+			}
 		case m, ok := <-n.network.ReceivedChannel():
 			if !ok {
 				logger.Warning("Received channel closed, exiting main loop")
@@ -422,10 +432,7 @@ func (n *Node) eventHandlerLoop() {
 }
 
 func (n *Node) handleTxMessage(m network.ReceivedMessage) error {
-	logger.Debug("handleTxMessage, ctx nil: $s", n.txCancel == nil)
-	if n.txCancel == nil {
-		return ErrRoundNotStarted
-	}
+	logger.Debug("handleTxMessage, ctx nil: $v", n.txCancel == nil)
 	success, tx := convertType[*txsystem.Transaction](m.Message)
 	if !success {
 		return errors.Errorf("unsupported type: %T", m.Message)
@@ -987,7 +994,7 @@ func (n *Node) sendCertificationRequest() error {
 }
 
 func (n *Node) SubmitTx(tx *txsystem.Transaction) error {
-	logger.Debug("SubmitTx, ctx nil: $s", n.txCancel == nil)
+	logger.Debug("SubmitTx, ctx nil: $v", n.txCancel == nil)
 	genTx, err := n.transactionSystem.ConvertTx(tx)
 	if err != nil {
 		return err

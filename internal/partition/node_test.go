@@ -44,6 +44,32 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 
+func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
+	s := &testtxsystem.CounterTxSystem{}
+	p := NewSingleNodePartition(t, s)
+	defer p.Close()
+	transfer := testtransaction.RandomGenericBillTransfer(t)
+	stateBefore, err := s.State()
+	if err != nil {
+		require.NoError(t, err)
+	}
+	bufferBefore := p.partition.txBuffer.Count()
+	// make sure no round is active
+	p.partition.handleT1TimeoutEvent()
+	// send tx to the channel
+	p.partition.txCh <- transfer
+	// make sure tx system remains untouched
+	stateAfter, err := s.State()
+	if err != nil {
+		require.NoError(t, err)
+	}
+	require.Equal(t, stateBefore.Root(), stateAfter.Root())
+	// tx is added back to the buffer
+	require.Eventually(t, func() bool {
+		return bufferBefore+1 == p.partition.txBuffer.Count()
+	}, test.WaitDuration, test.WaitTick)
+}
+
 func TestNode_HandleInvalidTxEvent(t *testing.T) {
 	pn := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer pn.Close()

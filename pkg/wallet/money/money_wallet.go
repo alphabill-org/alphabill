@@ -529,7 +529,7 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 				return err
 			}
 			timeout := maxBlockNumber + swapTimeoutBlockCount
-			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout, accountIndex)
+			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, dcMeta.BillIds, timeout, accountIndex)
 			if err != nil {
 				return err
 			}
@@ -584,7 +584,11 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			for _, v := range dcBillGroups {
 				if blockHeight >= v.dcTimeout {
 					swapTimeout := maxBlockNo + swapTimeoutBlockCount
-					err = w.swapDcBills(dbTx, v.dcBills, v.dcNonce, swapTimeout, accountIndex)
+					billIds, err := getBillIds(dbTx, accountIndex, v)
+					if err != nil {
+						return err
+					}
+					err = w.swapDcBills(dbTx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
 					if err != nil {
 						return err
 					}
@@ -611,8 +615,10 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			dcNonce := calculateDcNonce(bills)
 			dcTimeout := maxBlockNo + dcTimeoutBlockCount
 			var dcValueSum uint64
+			var billIds [][]byte
 			for _, b := range bills {
 				dcValueSum += b.Value
+				billIds = append(billIds, b.getId())
 				tx, err := createDustTx(k, b, dcNonce, dcTimeout)
 				if err != nil {
 					return err
@@ -630,6 +636,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
 			err = dbTx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{
 				DcValueSum: dcValueSum,
+				BillIds:    billIds,
 				DcTimeout:  dcTimeout,
 			})
 			if err != nil {
@@ -665,12 +672,12 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	return nil
 }
 
-func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, timeout uint64, accountIndex uint64) error {
+func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, billIds [][]byte, timeout uint64, accountIndex uint64) error {
 	k, err := tx.GetAccountKey(accountIndex)
 	if err != nil {
 		return err
 	}
-	swap, err := createSwapTx(k, dcBills, dcNonce, timeout)
+	swap, err := createSwapTx(k, dcBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
 	}
@@ -682,7 +689,7 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, time
 	if !res.Ok {
 		return errors.New("swap tx returned error code: " + res.Message)
 	}
-	return tx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{SwapTimeout: timeout})
+	return tx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{SwapTimeout: timeout, BillIds: billIds})
 }
 
 // isSwapInProgress returns true if there's a running dc process managed by the wallet, for the given account
@@ -761,6 +768,23 @@ func calculateDcNonce(bills []*bill) []byte {
 		hasher.Write(billId)
 	}
 	return hasher.Sum(nil)
+}
+
+// getBillIds returns billIds from dcMetadata, or parses ids from bills directly
+func getBillIds(dbTx TxContext, accountIndex uint64, v *dcBillGroup) ([][]byte, error) {
+	dcMeta, err := dbTx.GetDcMetadata(accountIndex, v.dcNonce)
+	if err != nil {
+		return nil, err
+	}
+	var billIds [][]byte
+	if dcMeta != nil {
+		billIds = dcMeta.BillIds
+	} else {
+		for _, dcBill := range v.dcBills {
+			billIds = append(billIds, dcBill.getId())
+		}
+	}
+	return billIds, nil
 }
 
 // groupDcBills groups bills together by dc nonce

@@ -227,13 +227,16 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
+	sum := uint64(0)
 	balances, err := w.GetBalances()
 	if err != nil {
 		return err
 	}
 	for accountIndex, accBalance := range balances {
+		sum += accBalance
 		consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accBalance))
 	}
+	consoleWriter.Println(sum)
 	return nil
 }
 

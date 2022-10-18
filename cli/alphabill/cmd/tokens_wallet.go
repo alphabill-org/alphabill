@@ -6,104 +6,104 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "token",
 		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand like create-type, send etc")
+			consoleWriter.Println("Error: must specify a subcommand like new-type, send etc")
 		},
 	}
-	cmd.AddCommand(tokenCmdCreateType(config))
-	cmd.AddCommand(tokenCmdCreateToken(config))
+	cmd.AddCommand(tokenCmdNewType(config))
+	cmd.AddCommand(tokenCmdNewToken(config))
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config))
 	return cmd
 }
 
-func tokenCmdCreateType(config *walletConfig) *cobra.Command {
+func tokenCmdNewType(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "create-type",
+		Use: "new-type",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
 	}
-	cmd.AddCommand(tokenCmdCreateTypeFungible(config))
-	cmd.AddCommand(tokenCmdCreateTypeNonFungible(config))
+	cmd.AddCommand(tokenCmdNewTypeFungible(config))
+	cmd.AddCommand(tokenCmdNewTypeNonFungible(config))
 	return cmd
 }
 
-func tokenCmdCreateTypeFungible(config *walletConfig) *cobra.Command {
+func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "fungible",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdCreateTypeFungible(cmd, config)
+			return execTokenCmdNewTypeFungible(cmd, config)
 		},
 	}
 	return cmd
 }
 
-func execTokenCmdCreateTypeFungible(cmd *cobra.Command, config *walletConfig) error {
+func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error {
 	// TODO
 	return nil
 }
 
-func tokenCmdCreateTypeNonFungible(config *walletConfig) *cobra.Command {
+func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "non-fungible",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdCreateTypeNonFungible(cmd, config)
+			return execTokenCmdNewTypeNonFungible(cmd, config)
 		},
 	}
 	return cmd
 }
 
-func execTokenCmdCreateTypeNonFungible(cmd *cobra.Command, config *walletConfig) error {
+func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) error {
 	// TODO
 	return nil
 }
 
-func tokenCmdCreateToken(config *walletConfig) *cobra.Command {
+func tokenCmdNewToken(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "create",
+		Use: "new",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
 	}
-	cmd.AddCommand(tokenCmdCreateTokenFungible(config))
-	cmd.AddCommand(tokenCmdCreateTokenNonFungible(config))
+	cmd.AddCommand(tokenCmdNewTokenFungible(config))
+	cmd.AddCommand(tokenCmdNewTokenNonFungible(config))
 	return cmd
 }
 
-func tokenCmdCreateTokenFungible(config *walletConfig) *cobra.Command {
+func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "fungible",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdCreateTokenFungible(cmd, config)
+			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
 	return cmd
 }
 
-func execTokenCmdCreateTokenFungible(cmd *cobra.Command, config *walletConfig) error {
+func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) error {
 	// TODO
 	return nil
 }
 
-func tokenCmdCreateTokenNonFungible(config *walletConfig) *cobra.Command {
+func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "non-fungible",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdCreateTokenNonFungible(cmd, config)
+			return execTokenCmdNewTokenNonFungible(cmd, config)
 		},
 	}
 	return cmd
 }
 
-func execTokenCmdCreateTokenNonFungible(cmd *cobra.Command, config *walletConfig) error {
+func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) error {
 	// TODO
 	return nil
 }
 
 func tokenCmdSend(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "create",
+		Use: "new",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},

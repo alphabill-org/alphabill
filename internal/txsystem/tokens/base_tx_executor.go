@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"crypto"
+	goerrors "errors"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
@@ -10,7 +11,7 @@ import (
 
 type baseTxExecutor[T rma.UnitData] struct {
 	zeroValue     T
-	state         *rma.Tree
+	state         TokenState
 	hashAlgorithm crypto.Hash
 }
 
@@ -42,4 +43,22 @@ func (b *baseTxExecutor[T]) getChainedPredicate(unitID *uint256.Int, predicateFn
 		parentID = parentIDFn(parentData)
 	}
 	return predicate, nil
+}
+
+func (b *baseTxExecutor[T]) getFungibleTokenData(unitID *uint256.Int) (*fungibleTokenData, error) {
+	if unitID.IsZero() {
+		return nil, errors.New(ErrStrUnitIDIsZero)
+	}
+	u, err := b.state.GetUnit(unitID)
+	if err != nil {
+		if goerrors.Is(err, rma.ErrUnitNotFound) {
+			return nil, errors.Wrapf(err, "unit %v does not exist", unitID)
+		}
+		return nil, err
+	}
+	d, ok := u.Data.(*fungibleTokenData)
+	if !ok {
+		return nil, errors.Errorf("unit %v is not fungible token data", unitID)
+	}
+	return d, nil
 }

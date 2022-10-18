@@ -4,6 +4,7 @@ import (
 	"context"
 	gocrypto "crypto"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/spf13/cobra"
@@ -52,9 +53,15 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return err
 	}
+
+	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	if err != nil {
+		return err
+	}
 	txs, err := tokens.New(
 		tokens.WithSystemIdentifier(pg.SystemDescriptionRecord.GetSystemIdentifier()),
 		tokens.WithHashAlgorithm(gocrypto.SHA256),
+		tokens.WithTrustBase(trustBase),
 	)
 	if err != nil {
 		return err

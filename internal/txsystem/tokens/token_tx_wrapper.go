@@ -5,12 +5,11 @@ import (
 	"crypto"
 	"hash"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -79,10 +78,10 @@ type (
 		attributes *BurnFungibleTokenAttributes
 	}
 
-	// TODO AB-347
 	joinFungibleTokenWrapper struct {
 		wrapper
-		attributes *JoinFungibleTokenAttributes
+		attributes       *JoinFungibleTokenAttributes
+		burnTransactions []*burnFungibleTokenWrapper
 	}
 )
 
@@ -91,108 +90,131 @@ func NewGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 	case typeURLCreateNonFungibleTokenTypeAttributes:
 		return convertToWrapper(
 			&CreateNonFungibleTokenTypeAttributes{},
-			func(a *CreateNonFungibleTokenTypeAttributes) txsystem.GenericTransaction {
+			func(a *CreateNonFungibleTokenTypeAttributes) (txsystem.GenericTransaction, error) {
 				return &createNonFungibleTokenTypeWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLMintNonFungibleTokenAttributes:
 		return convertToWrapper(
 			&MintNonFungibleTokenAttributes{},
-			func(a *MintNonFungibleTokenAttributes) txsystem.GenericTransaction {
+			func(a *MintNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
 				return &mintNonFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLTransferNonFungibleTokenAttributes:
 		return convertToWrapper(
 			&TransferNonFungibleTokenAttributes{},
-			func(a *TransferNonFungibleTokenAttributes) txsystem.GenericTransaction {
+			func(a *TransferNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
 				return &transferNonFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLUpdateNonFungibleTokenAttributes:
 		return convertToWrapper(
 			&UpdateNonFungibleTokenAttributes{},
-			func(a *UpdateNonFungibleTokenAttributes) txsystem.GenericTransaction {
+			func(a *UpdateNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
 				return &updateNonFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLCreateFungibleTokenTypeAttributes:
 		return convertToWrapper(
 			&CreateFungibleTokenTypeAttributes{},
-			func(a *CreateFungibleTokenTypeAttributes) txsystem.GenericTransaction {
+			func(a *CreateFungibleTokenTypeAttributes) (txsystem.GenericTransaction, error) {
 				return &createFungibleTokenTypeWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLMintFungibleTokenAttributes:
 		return convertToWrapper(
 			&MintFungibleTokenAttributes{},
-			func(a *MintFungibleTokenAttributes) txsystem.GenericTransaction {
+			func(a *MintFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
 				return &mintFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLTransferFungibleTokenAttributes:
 		return convertToWrapper(
 			&TransferFungibleTokenAttributes{},
-			func(a *TransferFungibleTokenAttributes) txsystem.GenericTransaction {
+			func(a *TransferFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
 				return &transferFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLSplitFungibleTokenAttributes:
 		return convertToWrapper(
 			&SplitFungibleTokenAttributes{},
-			func(a *SplitFungibleTokenAttributes) txsystem.GenericTransaction {
+			func(a *SplitFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
 				return &splitFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLBurnFungibleTokenAttributes:
 		return convertToWrapper(
 			&BurnFungibleTokenAttributes{},
-			func(a *BurnFungibleTokenAttributes) txsystem.GenericTransaction {
+			func(a *BurnFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
 				return &burnFungibleTokenWrapper{
 					wrapper:    wrapper{transaction: tx},
 					attributes: a,
-				}
+				}, nil
 			},
 			tx)
 	case typeURLJoinFungibleTokenAttributes:
-		// TODO AB-347
-		panic("not implemented")
+		return convertToWrapper(
+			&JoinFungibleTokenAttributes{},
+			func(a *JoinFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+				burnTransactions := a.BurnTransactions
+				lenBTxs := len(burnTransactions)
+				lenProofs := len(a.Proofs)
+				if lenProofs != lenBTxs {
+					return nil, errors.Errorf("invalid proofs count: expected %v, got %v", lenBTxs, lenProofs)
+				}
+				var bTxs = make([]*burnFungibleTokenWrapper, lenBTxs)
+				for i, btx := range burnTransactions {
+					genericBurnTx, err := NewGenericTx(btx)
+					if err != nil {
+						return nil, errors.Errorf("burn transaction with index %v is invalid: %v", i, err)
+					}
+					bTxs[i] = genericBurnTx.(*burnFungibleTokenWrapper)
+				}
+
+				return &joinFungibleTokenWrapper{
+					wrapper:          wrapper{transaction: tx},
+					attributes:       a,
+					burnTransactions: bTxs,
+				}, nil
+			},
+			tx)
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)
 	}
 }
 
 // convertToWrapper converts given tx to a generic transaction. attrType is the type of the tx attributes. createGenericTxFunc creates an instance of given generic transaction.
-func convertToWrapper[A proto.Message, G txsystem.GenericTransaction](attrType A, createGenericTxFunc func(a A) G, tx *txsystem.Transaction) (g G, err error) {
+func convertToWrapper[A proto.Message, G txsystem.GenericTransaction](attrType A, createGenericTxFunc func(a A) (G, error), tx *txsystem.Transaction) (g G, err error) {
 	err = tx.TransactionAttributes.UnmarshalTo(attrType)
 	if err != nil {
 		return g, errors.Wrapf(err, "invalid tx attributes")
 	}
-	return createGenericTxFunc(attrType), err
+	return createGenericTxFunc(attrType)
 }
 
 func (w *wrapper) UnitID() *uint256.Int              { return uint256.NewInt(0).SetBytes(w.transaction.UnitId) }
@@ -216,6 +238,10 @@ func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(w.transaction.UnitId)
 	hasher.Write(w.transaction.OwnerProof)
 	hasher.Write(util.Uint64ToBytes(w.transaction.Timeout))
+}
+
+func (w *wrapper) IsPrimary() bool {
+	return true
 }
 
 func (c *createNonFungibleTokenTypeWrapper) ParentTypeID() *uint256.Int {
@@ -260,10 +286,6 @@ func (c *createNonFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
 }
 
-func (c *createNonFungibleTokenTypeWrapper) IsPrimary() bool {
-	return true
-}
-
 func (c *mintNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if c.wrapper.hashComputed(hashFunc) {
 		return c.wrapper.hashValue
@@ -295,10 +317,6 @@ func (c *mintNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.attributes.DataUpdatePredicate)
 }
 
-func (c *mintNonFungibleTokenWrapper) IsPrimary() bool {
-	return true
-}
-
 func (t *transferNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if t.wrapper.hashComputed(hashFunc) {
 		return t.wrapper.hashValue
@@ -327,10 +345,6 @@ func (t *transferNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(t.attributes.InvariantPredicateSignature)
 }
 
-func (t *transferNonFungibleTokenWrapper) IsPrimary() bool {
-	return true
-}
-
 func (u *updateNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if u.wrapper.hashComputed(hashFunc) {
 		return u.wrapper.hashValue
@@ -355,10 +369,6 @@ func (u *updateNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(u.attributes.Data)
 	hasher.Write(u.attributes.Backlink)
 	hasher.Write(u.attributes.DataUpdateSignature)
-}
-
-func (u *updateNonFungibleTokenWrapper) IsPrimary() bool {
-	return true
 }
 
 func (c *createFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -399,10 +409,6 @@ func (c *createFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
 }
 
-func (c *createFungibleTokenTypeWrapper) IsPrimary() bool {
-	return true
-}
-
 func (m *mintFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if m.wrapper.hashComputed(hashFunc) {
 		return m.wrapper.hashValue
@@ -435,10 +441,6 @@ func (m *mintFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(m.attributes.TokenCreationPredicateSignature)
 }
 
-func (m *mintFungibleTokenWrapper) IsPrimary() bool {
-	return true
-}
-
 func (t *transferFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if t.wrapper.hashComputed(hashFunc) {
 		return t.wrapper.hashValue
@@ -467,10 +469,6 @@ func (t *transferFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(t.attributes.Nonce)
 	hasher.Write(t.attributes.Backlink)
 	hasher.Write(t.attributes.InvariantPredicateSignature)
-}
-
-func (t *transferFungibleTokenWrapper) IsPrimary() bool {
-	return true
 }
 
 func (s *splitFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -516,10 +514,6 @@ func (s *splitFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	s.addAttributesToHasher(hasher)
 }
 
-func (s *splitFungibleTokenWrapper) IsPrimary() bool {
-	return true
-}
-
 func (bw *burnFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if bw.wrapper.hashComputed(hashFunc) {
 		return bw.wrapper.hashValue
@@ -550,6 +544,40 @@ func (bw *burnFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(bw.attributes.InvariantPredicateSignature)
 }
 
-func (bw *burnFungibleTokenWrapper) IsPrimary() bool {
-	return true
+func (jw *joinFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if jw.wrapper.hashComputed(hashFunc) {
+		return jw.wrapper.hashValue
+	}
+	hasher := hashFunc.New()
+	jw.AddToHasher(hasher)
+	jw.wrapper.hashValue = hasher.Sum(nil)
+	jw.wrapper.hashFunc = hashFunc
+	return jw.wrapper.hashValue
+}
+
+func (jw *joinFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
+	attrs := jw.attributes
+	for _, tx := range jw.burnTransactions {
+		tx.AddToHasher(hasher)
+	}
+	for _, proof := range attrs.Proofs {
+		proof.AddToHasher(hasher)
+	}
+	hasher.Write(jw.attributes.Backlink)
+	hasher.Write(jw.attributes.InvariantPredicateSignature)
+}
+
+func (jw *joinFungibleTokenWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	jw.wrapper.sigBytes(&b)
+	attrs := jw.attributes
+	for _, tx := range jw.burnTransactions {
+		b.Write(tx.SigBytes())
+		b.Write(tx.OwnerProof())
+	}
+	for _, proof := range attrs.Proofs {
+		b.Write(proof.Bytes())
+	}
+	b.Write(jw.attributes.Backlink)
+	return b.Bytes()
 }

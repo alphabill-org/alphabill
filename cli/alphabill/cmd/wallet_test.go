@@ -45,13 +45,22 @@ func TestWalletCreateCmd(t *testing.T) {
 }
 
 func TestWalletGetBalanceCmd(t *testing.T) {
-	stdout := execCommand(t, "get-balance")
+	homedir := createNewTestWallet(t)
+	stdout := execCommand(t, homedir, "get-balance")
+	verifyStdout(t, stdout, "#1 0", "Total 0")
+}
 
-	verifyStdout(t, stdout, "#1 0")
+func TestWalletGetBalanceForKeyCmd(t *testing.T) {
+	homedir := createNewTestWallet(t)
+	addAccount(t, "wallet-test")
+	stdout := execCommand(t, homedir, "get-balance --key 2")
+	verifyStdout(t, stdout, "#2 0")
+	verifyStdoutNotExists(t, stdout, "Total 0")
 }
 
 func TestPubKeysCmd(t *testing.T) {
-	stdout := execCommand(t, "get-pubkeys")
+	homedir := createNewTestWallet(t)
+	stdout := execCommand(t, homedir, "get-pubkeys")
 	verifyStdout(t, stdout, "#1 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 }
 
@@ -274,7 +283,8 @@ func createNewNamedWallet(t *testing.T, name string, addr string) *money.Wallet 
 	return w
 }
 
-func createNewTestWallet(t *testing.T) {
+func createNewTestWallet(t *testing.T) string {
+	homeDir := setupTestHomeDir(t, "wallet-test")
 	walletDir := path.Join(os.TempDir(), "wallet-test", "wallet")
 	w, err := money.CreateNewWallet("dinosaur simple verify deliver bless ridge monkey design venue six problem lucky", money.WalletConfig{
 		DbPath: walletDir,
@@ -285,6 +295,7 @@ func createNewTestWallet(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.RemoveAll(walletDir)
 	})
+	return homeDir
 }
 
 func verifyStdout(t *testing.T, consoleWriter *testConsoleWriter, expectedLines ...string) {
@@ -293,13 +304,15 @@ func verifyStdout(t *testing.T, consoleWriter *testConsoleWriter, expectedLines 
 	}
 }
 
-func execCommand(t *testing.T, command string) *testConsoleWriter {
+func verifyStdoutNotExists(t *testing.T, consoleWriter *testConsoleWriter, expectedLines ...string) {
+	for _, expectedLine := range expectedLines {
+		require.NotContains(t, consoleWriter.lines, expectedLine)
+	}
+}
+
+func execCommand(t *testing.T, homeDir, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
-
-	homeDir := setupTestHomeDir(t, "wallet-test")
-
-	createNewTestWallet(t)
 
 	cmd := New()
 	args := "wallet --home " + homeDir + " " + command

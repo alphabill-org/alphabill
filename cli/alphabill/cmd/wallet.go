@@ -216,6 +216,8 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 			return execGetBalanceCmd(cmd, config)
 		},
 	}
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which key balance to query "+
+		"(by default returns all key balances including total balance over all keys)")
 	addPasswordFlags(cmd)
 	return cmd
 }
@@ -227,16 +229,28 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	sum := uint64(0)
-	balances, err := w.GetBalances()
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
 	}
-	for accountIndex, accBalance := range balances {
-		sum += accBalance
-		consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accBalance))
+	if accountNumber == 0 {
+		sum := uint64(0)
+		balances, err := w.GetBalances()
+		if err != nil {
+			return err
+		}
+		for accountIndex, accBalance := range balances {
+			sum += accBalance
+			consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accBalance))
+		}
+		consoleWriter.Println(fmt.Sprintf("Total %d", sum))
+	} else {
+		balance, err := w.GetBalance(accountNumber - 1)
+		if err != nil {
+			return err
+		}
+		consoleWriter.Println(fmt.Sprintf("#%d %d", accountNumber, balance))
 	}
-	consoleWriter.Println(sum)
 	return nil
 }
 

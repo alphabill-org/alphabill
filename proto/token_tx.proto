@@ -1,6 +1,9 @@
 syntax = "proto3";
 package alphabill.tokens.v1;
 
+import "transaction.proto";
+import "block_proof.proto";
+
 option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/tokens/;tokens";
 
 message CreateNonFungibleTokenTypeAttributes {
@@ -120,13 +123,12 @@ message BurnFungibleTokenAttributes {
 }
 
 message JoinFungibleTokenAttributes {
-  //  the transaction that burned the source token;
-  bytes burn_tx = 1;
-  // the the ledger proof of 'burn_tx'
-  bytes ledger_proof = 2;
-  bytes nonce = 3;
+  // the transactions that burned the source tokens;
+  repeated Transaction burn_transactions = 1;
+  // block proofs for burn transactions
+  repeated BlockProof proofs = 2;
   // the backlink to the previous transaction with this token
-  bytes backlink = 4;
+  bytes backlink = 3;
   // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 5;
+  bytes invariant_predicate_signature = 4;
 }

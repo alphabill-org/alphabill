@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -17,14 +18,31 @@ const (
 	maxDecimalPlaces = 8
 
 	ErrStrSystemIdentifierIsNil = "system identifier is nil"
+	ErrStrStateIsNil            = "state is nil"
 	ErrStrUnitIDIsZero          = "unit ID cannot be zero"
 	ErrStrInvalidSymbolName     = "symbol name exceeds the allowed maximum length of 64 bytes"
 )
 
 type (
+	TokenState interface {
+		revertibleState
+		AddItem(id *uint256.Int, owner rma.Predicate, data rma.UnitData, stateHash []byte) error
+		DeleteItem(id *uint256.Int) error
+		SetOwner(id *uint256.Int, owner rma.Predicate, stateHash []byte) error
+		UpdateData(id *uint256.Int, f rma.UpdateFunction, stateHash []byte) error
+		GetUnit(id *uint256.Int) (*rma.Unit, error)
+	}
+
+	revertibleState interface {
+		ContainsUncommittedChanges() bool
+		GetRootHash() []byte
+		Commit()
+		Revert()
+	}
+
 	tokensTxSystem struct {
 		systemIdentifier   []byte
-		state              *rma.Tree
+		state              TokenState
 		hashAlgorithm      crypto.Hash
 		currentBlockNumber uint64
 		executors          map[reflect.Type]txExecutor
@@ -36,25 +54,26 @@ type (
 )
 
 func New(opts ...Option) (*tokensTxSystem, error) {
-	options := defaultOptions()
+	options, err := defaultOptions()
+	if err != nil {
+		return nil, err
+	}
 	for _, opt := range opts {
 		opt(options)
 	}
 	if options.systemIdentifier == nil {
 		return nil, errors.New(ErrStrSystemIdentifierIsNil)
 	}
-	state, err := rma.New(&rma.Config{
-		HashAlgorithm: options.hashAlgorithm,
-	})
-	if err != nil {
-		return nil, err
+
+	if options.state == nil {
+		return nil, errors.New(ErrStrStateIsNil)
 	}
 
 	txs := &tokensTxSystem{
 		systemIdentifier: options.systemIdentifier,
 		hashAlgorithm:    options.hashAlgorithm,
-		state:            state,
-		executors:        initExecutors(state, options),
+		state:            options.state,
+		executors:        initExecutors(options.state, options),
 	}
 	logger.Info("TokensTransactionSystem initialized: systemIdentifier=%X, hashAlgorithm=%v", options.systemIdentifier, options.hashAlgorithm)
 	return txs, nil
@@ -107,7 +126,7 @@ func (t *tokensTxSystem) getState() txsystem.State {
 	return txsystem.NewStateSummary(t.state.GetRootHash(), zeroSummaryValue.Bytes())
 }
 
-func initExecutors(state *rma.Tree, options *Options) map[reflect.Type]txExecutor {
+func initExecutors(state TokenState, options *Options) map[reflect.Type]txExecutor {
 	executors := make(map[reflect.Type]txExecutor)
 	// non-fungible token tx executors
 	commonNFTTxExecutor := &baseTxExecutor[*nonFungibleTokenTypeData]{
@@ -129,6 +148,7 @@ func initExecutors(state *rma.Tree, options *Options) map[reflect.Type]txExecuto
 	executors[reflect.TypeOf(&transferFungibleTokenWrapper{})] = &transferFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
 	executors[reflect.TypeOf(&splitFungibleTokenWrapper{})] = &splitFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
 	executors[reflect.TypeOf(&burnFungibleTokenWrapper{})] = &burnFungibleTokenTxExecutor{commonFungibleTokenTxExecutor}
+	executors[reflect.TypeOf(&joinFungibleTokenWrapper{})] = &joinFungibleTokenTxExecutor{baseTxExecutor: commonFungibleTokenTxExecutor, trustBase: options.trustBase}
 
 	return executors
 }

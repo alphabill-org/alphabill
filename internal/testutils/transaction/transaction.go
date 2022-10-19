@@ -19,12 +19,14 @@ import (
 
 var moneySystemID = []byte{0, 0, 0, 0}
 
-var defaultTx = &txsystem.Transaction{
-	SystemId:              moneySystemID,
-	TransactionAttributes: new(anypb.Any),
-	UnitId:                randomBytes(3),
-	Timeout:               1000,
-	OwnerProof:            randomBytes(3),
+func defaultTx() *txsystem.Transaction {
+	return &txsystem.Transaction{
+		SystemId:              moneySystemID,
+		TransactionAttributes: new(anypb.Any),
+		UnitId:                randomBytes(3),
+		Timeout:               10,
+		OwnerProof:            randomBytes(3),
+	}
 }
 
 type Option func(*txsystem.Transaction) error
@@ -66,11 +68,11 @@ func WithAttributes(attr proto.Message) Option {
 }
 
 func NewTransaction(t *testing.T, options ...Option) *txsystem.Transaction {
-	tx := *defaultTx
+	tx := defaultTx()
 	for _, o := range options {
-		require.NoError(t, o(&tx))
+		require.NoError(t, o(tx))
 	}
-	return &tx
+	return tx
 }
 
 func NewGenericTransaction(t *testing.T, c ConvertTx, options ...Option) txsystem.GenericTransaction {

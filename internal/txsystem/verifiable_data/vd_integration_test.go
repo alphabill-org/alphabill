@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -14,7 +15,7 @@ import (
 var systemIdentifier = []byte{0, 0, 0, 1}
 
 func TestVDPartition_Ok(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func() txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := New(systemIdentifier)
 		require.NoError(t, err)
 		return system
@@ -34,7 +35,7 @@ func TestVDPartition_Ok(t *testing.T) {
 }
 
 func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func() txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
 		system, err := New(systemIdentifier)
 		require.NoError(t, err)
 		return system

@@ -48,20 +48,20 @@ func (mn *MockNode) GetLatestBlock() *block.Block {
 }
 
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
-	p, err := NewRpcServer(nil)
+	p, err := NewGRPCServer(nil)
 	assert.Nil(t, p)
 	assert.NotNil(t, err)
 	assert.True(t, strings.Contains(err.Error(), errstr.NilArgument))
 }
 
 func TestNewRpcServer_Ok(t *testing.T) {
-	p, err := NewRpcServer(&MockNode{})
+	p, err := NewGRPCServer(&MockNode{})
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 }
 
 func TestRpcServer_GetBlocksOk(t *testing.T) {
-	p, err := NewRpcServer(&MockNode{maxBlockNumber: 12})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 12})
 	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 12})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 12)
@@ -69,7 +69,7 @@ func TestRpcServer_GetBlocksOk(t *testing.T) {
 }
 
 func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
-	p, err := NewRpcServer(&MockNode{maxBlockNumber: 1})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 1})
 	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 1, BlockCount: 1})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 1)
@@ -77,7 +77,7 @@ func TestRpcServer_GetBlocksSingleBlock(t *testing.T) {
 }
 
 func TestRpcServer_FetchNonExistentBlocks_DoesNotPanic(t *testing.T) {
-	p, err := NewRpcServer(&MockNode{maxBlockNumber: 7})
+	p, err := NewGRPCServer(&MockNode{maxBlockNumber: 7})
 	res, err := p.GetBlocks(nil, &alphabill.GetBlocksRequest{BlockNumber: 73, BlockCount: 100})
 	require.NoError(t, err)
 	require.Len(t, res.Blocks, 0)
@@ -109,7 +109,7 @@ func createRpcClient(t *testing.T, ctx context.Context) (*grpc.ClientConn, alpha
 	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
-	rpcServer, _ := NewRpcServer(&MockNode{})
+	rpcServer, _ := NewGRPCServer(&MockNode{})
 	alphabill.RegisterAlphabillServiceServer(grpcServer, rpcServer)
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

@@ -6,14 +6,13 @@ import (
 	"net"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/partition/store"
-
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/starter"
@@ -40,7 +39,7 @@ type startNodeConfiguration struct {
 	DbFile           string
 }
 
-func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration) error {
+func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
 	node, err := startNode(ctx, txs, nodeCfg)
 	if err != nil {
 		return err
@@ -53,25 +52,63 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 	if err != nil {
 		return err
 	}
+	restServer, err := initRESTServer(node, restServerConf)
+	if err != nil {
+		return err
+	}
 	starterFunc := func(ctx context.Context) {
 		async.MakeWorker("grpc transport layer server", func(ctx context.Context) future.Value {
 			go func() {
 				log.Info("Starting gRPC server on %s", rpcServerConf.Address)
 				err = grpcServer.Serve(listener)
 				if err != nil {
-					log.Error("Server exited with erroneous situation: %s", err)
+					log.Error("gRPC Server exited with erroneous situation: %s", err)
 				} else {
-					log.Info("Server exited successfully")
+					log.Info("gRPC Server exited successfully")
 				}
 			}()
+			if restServer != nil {
+				go func() {
+					log.Info("Starting REST server on %s", restServer.Addr)
+					err = restServer.ListenAndServe()
+					if err != nil {
+						log.Error("REST server exited with erroneous situation: %s", err)
+					} else {
+						log.Info("REST server exited successfully")
+					}
+				}()
+			}
 			<-ctx.Done()
 			grpcServer.GracefulStop()
+			if restServer != nil {
+				e := restServer.Close()
+				if e != nil {
+					log.Error("Failed to close REST server: %v", err)
+				}
+			}
 			node.Close()
 			return nil
 		}).Start(ctx)
 	}
 	// StartAndWait waits until ctx.waitgroup is done OR sigterm cancels signal OR timeout (not used here)
 	return starter.StartAndWait(ctx, name, starterFunc)
+}
+
+func initRESTServer(node *partition.Node, conf *restServerConfiguration) (*rpc.RestServer, error) {
+	if conf.IsAddressEmpty() {
+		// Address not configured.
+		return nil, nil
+	}
+	rs, err := rpc.NewRESTServer(node, conf.Address, conf.MaxBodyBytes)
+	if err != nil {
+		return nil, err
+	}
+	rs.ReadTimeout = conf.ReadTimeout
+	rs.ReadHeaderTimeout = conf.ReadHeaderTimeout
+	rs.WriteTimeout = conf.WriteTimeout
+	rs.IdleTimeout = conf.IdleTimeout
+	rs.MaxHeaderBytes = conf.MaxHeaderBytes
+	return rs, nil
 }
 
 func loadNetworkConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.Peer, error) {
@@ -132,7 +169,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
-	rpcServer, err := rpc.NewRpcServer(node, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
+	rpcServer, err := rpc.NewGRPCServer(node, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
 	if err != nil {
 		return nil, err
 	}

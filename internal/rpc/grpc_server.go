@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	rpcServer struct {
+	grpcServer struct {
 		alphabill.UnimplementedAlphabillServiceServer
 		node                  partitionNode
 		maxGetBlocksBatchSize uint64
@@ -25,7 +25,7 @@ type (
 	}
 )
 
-func NewRpcServer(node partitionNode, opts ...Option) (*rpcServer, error) {
+func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -36,13 +36,13 @@ func NewRpcServer(node partitionNode, opts ...Option) (*rpcServer, error) {
 	if options.maxGetBlocksBatchSize < 1 {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, "server-max-get-blocks-batch-size cannot be less than one")
 	}
-	return &rpcServer{
+	return &grpcServer{
 		node:                  node,
 		maxGetBlocksBatchSize: options.maxGetBlocksBatchSize,
 	}, nil
 }
 
-func (r *rpcServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (r *grpcServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	err := r.node.SubmitTx(tx)
 	if err != nil {
 		return &txsystem.TransactionResponse{
@@ -56,7 +56,7 @@ func (r *rpcServer) ProcessTransaction(_ context.Context, tx *txsystem.Transacti
 	}, nil
 }
 
-func (r *rpcServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
+func (r *grpcServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) (*alphabill.GetBlockResponse, error) {
 	b, err := r.node.GetBlock(req.BlockNo)
 	if err != nil {
 		return &alphabill.GetBlockResponse{ErrorMessage: err.Error()}, err
@@ -64,12 +64,12 @@ func (r *rpcServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest) 
 	return &alphabill.GetBlockResponse{Block: b}, nil
 }
 
-func (r *rpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
+func (r *grpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
 	maxBlockNumber := r.node.GetLatestBlock().GetBlockNumber()
 	return &alphabill.GetMaxBlockNoResponse{BlockNo: maxBlockNumber}, nil
 }
 
-func (r *rpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
+func (r *grpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
 	latestBlock := r.node.GetLatestBlock()
 	err := verifyRequest(req)
 	if err != nil {

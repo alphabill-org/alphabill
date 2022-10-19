@@ -50,7 +50,7 @@ func TestWalletGetBalanceCmd(t *testing.T) {
 	verifyStdout(t, stdout, "#1 0", "Total 0")
 }
 
-func TestWalletGetBalanceKeyCmd(t *testing.T) {
+func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	addAccount(t, "wallet-test")
 	stdout := execCommand(t, homedir, "get-balance --key 2")
@@ -58,10 +58,34 @@ func TestWalletGetBalanceKeyCmd(t *testing.T) {
 	verifyStdoutNotExists(t, stdout, "Total 0")
 }
 
-func TestWalletGetBalanceTotalCmd(t *testing.T) {
+func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	stdout := execCommand(t, homedir, "get-balance --total")
 	verifyStdout(t, stdout, "Total 0")
+	verifyStdoutNotExists(t, stdout, "#1 0")
+}
+
+func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
+	homedir := createNewTestWallet(t)
+
+	// verify quiet flag does nothing if no key or total flag is not provided
+	stdout := execCommand(t, homedir, "get-balance --quiet")
+	verifyStdout(t, stdout, "#1 0")
+	verifyStdout(t, stdout, "Total 0")
+
+	// verify quiet with total
+	stdout = execCommand(t, homedir, "get-balance --quiet --total")
+	verifyStdout(t, stdout, "0")
+	verifyStdoutNotExists(t, stdout, "#1 0")
+
+	// verify quiet with key
+	stdout = execCommand(t, homedir, "get-balance --quiet --key 1")
+	verifyStdout(t, stdout, "0")
+	verifyStdoutNotExists(t, stdout, "Total 0")
+
+	// verify quiet with key and total (total trumps key)
+	stdout = execCommand(t, homedir, "get-balance --quiet --key 1 --total")
+	verifyStdout(t, stdout, "0")
 	verifyStdoutNotExists(t, stdout, "#1 0")
 }
 

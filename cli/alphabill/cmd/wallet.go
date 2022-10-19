@@ -221,6 +221,9 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 		"(by default returns all key balances including total balance over all keys)")
 	cmd.Flags().BoolP(totalCmdName, "t", false,
 		"if specified shows only total balance over all accounts")
+	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, "+
+		"e.g. account key numbers, can only be used together with key or total flag")
+	_ = cmd.Flags().MarkHidden(quietCmdName)
 	addPasswordFlags(cmd)
 	return cmd
 }
@@ -240,6 +243,13 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	quiet, err := cmd.Flags().GetBool(quietCmdName)
+	if err != nil {
+		return err
+	}
+	if !total && accountNumber == 0 {
+		quiet = false // quiet is supposed to work only when total or key flag is provided
+	}
 	if accountNumber == 0 {
 		sum := uint64(0)
 		balances, err := w.GetBalances()
@@ -249,16 +259,28 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		for accountIndex, accountBalance := range balances {
 			sum += accountBalance
 			if !total {
-				consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accountBalance))
+				if quiet {
+					consoleWriter.Println(accountBalance)
+				} else {
+					consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accountBalance))
+				}
 			}
 		}
-		consoleWriter.Println(fmt.Sprintf("Total %d", sum))
+		if quiet {
+			consoleWriter.Println(sum)
+		} else {
+			consoleWriter.Println(fmt.Sprintf("Total %d", sum))
+		}
 	} else {
 		balance, err := w.GetBalance(accountNumber - 1)
 		if err != nil {
 			return err
 		}
-		consoleWriter.Println(fmt.Sprintf("#%d %d", accountNumber, balance))
+		if quiet {
+			consoleWriter.Println(balance)
+		} else {
+			consoleWriter.Println(fmt.Sprintf("#%d %d", accountNumber, balance))
+		}
 	}
 	return nil
 }
@@ -271,7 +293,7 @@ func getPubKeysCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, e.g. account key numbers")
-	cmd.Flags().MarkHidden(quietCmdName)
+	_ = cmd.Flags().MarkHidden(quietCmdName)
 	addPasswordFlags(cmd)
 	return cmd
 }

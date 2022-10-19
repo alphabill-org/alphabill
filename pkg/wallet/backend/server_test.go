@@ -155,7 +155,7 @@ func TestBlockProofRequest_InvalidBillID(t *testing.T) {
 	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=1000", res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, "hex string without 0x prefix", res.Message)
+	require.Equal(t, errInvalidBillIDFormat.Error(), res.Message)
 }
 
 func TestBlockProofRequest_LeadingZerosBillId(t *testing.T) {
@@ -165,7 +165,17 @@ func TestBlockProofRequest_LeadingZerosBillId(t *testing.T) {
 	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=0x01", res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, "hex number with leading zero digits", res.Message)
+	require.Equal(t, errInvalidBillIDFormat.Error(), res.Message)
+}
+
+func TestBlockProofRequest_BillIdLargerThan32Bytes(t *testing.T) {
+	startServer(t, &mockWalletService{})
+
+	res := &ErrorResponse{}
+	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=0x00000000000000000000000000000000000000000000000000000000000", res)
+
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, errInvalidBillIDFormat.Error(), res.Message)
 }
 
 func TestAddKeyRequest_Ok(t *testing.T) {
@@ -193,7 +203,18 @@ func TestAddKeyRequest_KeyAlreadyExists(t *testing.T) {
 	res := &ErrorResponse{}
 	httpRes := doPost(t, "http://localhost:7777/admin/add-key", req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, res.Message, ErrKeyAlreadyExists.Error())
+	require.Equal(t, res.Message, "pubkey already exists")
+}
+
+func TestAddKeyRequest_InvalidKey(t *testing.T) {
+	mockService := &mockWalletService{}
+	startServer(t, mockService)
+
+	req := &AddKeyRequest{Pubkey: "0x00"}
+	res := &ErrorResponse{}
+	httpRes := doPost(t, "http://localhost:7777/admin/add-key", req, res)
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, res.Message, "pubkey hex string must be 68 characters long (with 0x prefix)")
 }
 
 func doGet(t *testing.T, url string, response interface{}) *http.Response {

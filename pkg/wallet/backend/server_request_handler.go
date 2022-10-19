@@ -40,6 +40,14 @@ type (
 	}
 )
 
+var (
+	errMissingPubKeyQueryParam = errors.New("missing required pubkey query parameter")
+	errInvalidPubKeyLength     = errors.New("pubkey hex string must be 68 characters long (with 0x prefix)")
+	errInvalidPubKeyFormat     = errors.New("invalid pubkey format")
+	errMissingBillIDQueryParam = errors.New("missing required bill_id query parameter")
+	errInvalidBillIDFormat     = errors.New("bill_id must be in hex format with prefix 0x, not have any leading zeros and be max of 32 bytes in size")
+)
+
 func (s *RequestHandler) router() *mux.Router {
 	// TODO add request/response headers middleware
 	r := mux.NewRouter().StrictSlash(true)
@@ -114,7 +122,7 @@ func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: err.Error()})
+		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
 		return
 	}
 	pubkeyBytes, err := decodePubKeyHex(req.Pubkey)
@@ -128,7 +136,7 @@ func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, ErrKeyAlreadyExists) {
 			wlog.Info("error on POST /add-key key ", req.Pubkey, " already exists")
 			w.WriteHeader(http.StatusBadRequest)
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
+			writeAsJson(w, ErrorResponse{Message: "pubkey already exists"})
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 			wlog.Error("error on POST /add-key ", err)
@@ -149,11 +157,11 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 func parseBillId(r *http.Request) ([]byte, error) {
 	billIdHex := r.URL.Query().Get("bill_id")
 	if billIdHex == "" {
-		return nil, errors.New("missing required bill_id query parameter")
+		return nil, errMissingBillIDQueryParam
 	}
 	billId256, err := uint256.FromHex(billIdHex)
 	if err != nil {
-		return nil, err
+		return nil, errInvalidBillIDFormat
 	}
 	billIdBytes := billId256.Bytes32()
 	return billIdBytes[:], nil
@@ -162,14 +170,18 @@ func parseBillId(r *http.Request) ([]byte, error) {
 func parsePubKey(r *http.Request) ([]byte, error) {
 	pubKey := r.URL.Query().Get("pubkey")
 	if pubKey == "" {
-		return nil, errors.New("missing required pubkey query parameter")
+		return nil, errMissingPubKeyQueryParam
 	}
 	return decodePubKeyHex(pubKey)
 }
 
 func decodePubKeyHex(pubKey string) ([]byte, error) {
 	if len(pubKey) != 68 {
-		return nil, errors.New("pubkey hex string must be 68 characters long (with 0x prefix)")
+		return nil, errInvalidPubKeyLength
 	}
-	return hexutil.Decode(pubKey)
+	bytes, err := hexutil.Decode(pubKey)
+	if err != nil {
+		return nil, errInvalidPubKeyFormat
+	}
+	return bytes, nil
 }

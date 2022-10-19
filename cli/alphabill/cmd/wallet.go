@@ -293,7 +293,6 @@ func getPubKeysCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, e.g. account key numbers")
-	_ = cmd.Flags().MarkHidden(quietCmdName)
 	addPasswordFlags(cmd)
 	return cmd
 }

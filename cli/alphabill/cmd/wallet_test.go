@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -211,7 +212,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
-	network, err := testpartition.NewNetwork(1, func() txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(1, func(map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,

@@ -111,21 +111,22 @@ func createDustTx(k *wallet.AccountKey, bill *bill, nonce []byte, timeout uint64
 	return tx, nil
 }
 
-func createSwapTx(k *wallet.AccountKey, dcBills []*bill, dcNonce []byte, timeout uint64) (*txsystem.Transaction, error) {
+func createSwapTx(k *wallet.AccountKey, dcBills []*bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
 	// sort bills by ids in ascending order
+	sort.Slice(billIds, func(i, j int) bool {
+		return bytes.Compare(billIds[i], billIds[j]) < 0
+	})
 	sort.Slice(dcBills, func(i, j int) bool {
 		return bytes.Compare(dcBills[i].getId(), dcBills[j].getId()) < 0
 	})
 
-	var billIds [][]byte
 	var dustTransferProofs []*block.BlockProof
 	var dustTransferOrders []*txsystem.Transaction
 	var billValueSum uint64
 	for _, b := range dcBills {
-		billIds = append(billIds, b.getId())
 		dustTransferOrders = append(dustTransferOrders, b.Tx)
 		dustTransferProofs = append(dustTransferProofs, b.BlockProof)
 		billValueSum += b.Value

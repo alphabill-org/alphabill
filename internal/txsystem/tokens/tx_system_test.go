@@ -47,9 +47,9 @@ func TestNewTokenTxSystem_NilSystemIdentifier(t *testing.T) {
 	require.Nil(t, txs)
 }
 
-func TestNewTokenTxSystem_UnsupportedHashAlgorithm(t *testing.T) {
-	txs, err := New(WithHashAlgorithm(gocrypto.SHA1))
-	require.ErrorContains(t, err, "invalid hash algorithm")
+func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
+	txs, err := New(WithState(nil))
+	require.ErrorContains(t, err, ErrStrStateIsNil)
 	require.Nil(t, txs)
 }
 

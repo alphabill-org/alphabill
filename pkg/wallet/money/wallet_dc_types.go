@@ -8,9 +8,10 @@ import (
 
 // dcMetadata container for grouping dcMetadata by nonce, persisted to db
 type dcMetadata struct {
-	DcValueSum  uint64 `json:"dcValueSum"` // only set by wallet managed dc job
-	DcTimeout   uint64 `json:"dcTimeout"`
-	SwapTimeout uint64 `json:"swapTimeout"`
+	DcValueSum  uint64   `json:"dcValueSum"` // only set by wallet managed dc job
+	BillIds     [][]byte `json:"billIds"`
+	DcTimeout   uint64   `json:"dcTimeout"`
+	SwapTimeout uint64   `json:"swapTimeout"`
 }
 
 // dcBillGroup helper struct for grouped dc bills and their aggregate data

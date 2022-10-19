@@ -2,10 +2,12 @@ package testpartition
 
 import (
 	"context"
+	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
@@ -14,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/holiman/uint256"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
@@ -29,7 +32,7 @@ type AlphabillPartition struct {
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
 // transaction system and a root chain.
-func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.TransactionSystem, systemIdentifier []byte) (*AlphabillPartition, error) {
+func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem, systemIdentifier []byte) (*AlphabillPartition, error) {
 	if partitionNodes < 1 {
 		return nil, errors.New("invalid count of partition Nodes")
 	}
@@ -44,25 +47,11 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	if err != nil {
 		return nil, err
 	}
-
+	var transactionSystems []txsystem.TransactionSystem
 	// create partition genesis file
 	var nodeGenesisFiles = make([]*genesis.PartitionNode, partitionNodes)
-	for i := 0; i < partitionNodes; i++ {
-		nodeGenesis, err := partition.NewNodeGenesis(
-			txSystemProvider(),
-			partition.WithPeerID(nodePeers[i].ID()),
-			partition.WithSigningKey(signers[i]),
-			partition.WithEncryptionPubKey(nodePeers[i].Configuration().KeyPair.PublicKey),
-			partition.WithSystemIdentifier(systemIdentifier),
-			partition.WithT2Timeout(2500),
-		)
-		if err != nil {
-			return nil, err
-		}
-		nodeGenesisFiles[i] = nodeGenesis
-	}
 
-	// create root genesis
+	// create root keys
 	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
 	if err != nil {
 		return nil, err
@@ -71,7 +60,6 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	rootPeer, err := network.NewPeer(&network.PeerConfiguration{
 		Address: "/ip4/127.0.0.1/tcp/0",
 	})
-
 	encPubKey, err := rootPeer.PublicKey()
 	if err != nil {
 		return nil, err
@@ -84,6 +72,32 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 	if err != nil {
 		return nil, err
 	}
+
+	trustBase := make(map[string]crypto.Verifier)
+	trustBase[peerID.String()], err = rootSigner.Verifier()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < partitionNodes; i++ {
+		transactionSystem := txSystemProvider(trustBase)
+		nodeGenesis, err := partition.NewNodeGenesis(
+			transactionSystem,
+			partition.WithPeerID(nodePeers[i].ID()),
+			partition.WithSigningKey(signers[i]),
+			partition.WithEncryptionPubKey(nodePeers[i].Configuration().KeyPair.PublicKey),
+			partition.WithSystemIdentifier(systemIdentifier),
+			partition.WithT2Timeout(2500),
+		)
+		if err != nil {
+			return nil, err
+		}
+		nodeGenesisFiles[i] = nodeGenesis
+		transactionSystems = append(transactionSystems, transactionSystem)
+		transactionSystem.Revert()
+	}
+
+	// create root genesis
 	pr, err := rootchain.NewPartitionRecordFromNodes(nodeGenesisFiles)
 	if err != nil {
 		return nil, err
@@ -116,7 +130,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func() txsystem.Transaction
 		n, err := partition.New(
 			peer,
 			signers[i],
-			txSystemProvider(),
+			transactionSystems[i],
 			partitionGenesis,
 			pn,
 			partition.WithContext(ctx),
@@ -153,6 +167,38 @@ func (a *AlphabillPartition) BroadcastTx(tx *txsystem.Transaction) error {
 // SubmitTx sends transactions to the first node.
 func (a *AlphabillPartition) SubmitTx(tx *txsystem.Transaction) error {
 	return a.Nodes[0].SubmitTx(tx)
+}
+
+type TxConverter func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+
+func (c TxConverter) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return c(tx)
+}
+
+func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter TxConverter) (*block.GenericBlock, *block.BlockProof, error) {
+	for _, n := range a.Nodes {
+		height := n.GetLatestBlock().GetBlockNumber()
+		for i := uint64(0); i < height; i++ {
+			b, err := n.GetBlock(height - i)
+			if err != nil || b == nil {
+				continue
+			}
+			for _, t := range b.Transactions {
+				if proto.Equal(t, tx) {
+					genBlock, err := b.ToGenericBlock(txConverter)
+					if err != nil {
+						return nil, nil, err
+					}
+					proof, err := block.NewPrimaryProof(genBlock, uint256.NewInt(0).SetBytes(tx.UnitId), gocrypto.SHA256)
+					if err != nil {
+						return nil, nil, err
+					}
+					return genBlock, proof, nil
+				}
+			}
+		}
+	}
+	return nil, nil, errors.New("tx not found")
 }
 
 func (a *AlphabillPartition) Close() error {

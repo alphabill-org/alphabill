@@ -104,7 +104,8 @@ func (n *nonFungibleTokenTypeData) Value() rma.SummaryValue {
 }
 
 func (n *nonFungibleTokenData) AddToHasher(hasher hash.Hash) {
-	hasher.Write(n.nftType.Bytes())
+	nftTypeID := n.nftType.Bytes32()
+	hasher.Write(nftTypeID[:])
 	hasher.Write([]byte(n.uri))
 	hasher.Write(n.data)
 	hasher.Write(n.dataUpdatePredicate)
@@ -118,7 +119,8 @@ func (n *nonFungibleTokenData) Value() rma.SummaryValue {
 
 func (f *fungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(f.symbol))
-	hasher.Write(f.parentTypeId.Bytes())
+	parentTypeID := f.parentTypeId.Bytes32()
+	hasher.Write(parentTypeID[:])
 	hasher.Write(util.Uint32ToBytes(f.decimalPlaces))
 	hasher.Write(f.subTypeCreationPredicate)
 	hasher.Write(f.tokenCreationPredicate)
@@ -130,7 +132,8 @@ func (f *fungibleTokenTypeData) Value() rma.SummaryValue {
 }
 
 func (f *fungibleTokenData) AddToHasher(hasher hash.Hash) {
-	hasher.Write(f.tokenType.Bytes())
+	tokenTypeID := f.tokenType.Bytes32()
+	hasher.Write(tokenTypeID[:])
 	hasher.Write(util.Uint64ToBytes(f.value))
 	hasher.Write(util.Uint64ToBytes(f.t))
 	hasher.Write(f.backlink)

@@ -50,12 +50,19 @@ func TestWalletGetBalanceCmd(t *testing.T) {
 	verifyStdout(t, stdout, "#1 0", "Total 0")
 }
 
-func TestWalletGetBalanceForKeyCmd(t *testing.T) {
+func TestWalletGetBalanceKeyCmd(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	addAccount(t, "wallet-test")
 	stdout := execCommand(t, homedir, "get-balance --key 2")
 	verifyStdout(t, stdout, "#2 0")
 	verifyStdoutNotExists(t, stdout, "Total 0")
+}
+
+func TestWalletGetBalanceTotalCmd(t *testing.T) {
+	homedir := createNewTestWallet(t)
+	stdout := execCommand(t, homedir, "get-balance --total")
+	verifyStdout(t, stdout, "Total 0")
+	verifyStdoutNotExists(t, stdout, "#1 0")
 }
 
 func TestPubKeysCmd(t *testing.T) {

@@ -34,6 +34,7 @@ const (
 	logLevelCmdName       = "log-level"
 	walletLocationCmdName = "wallet-location"
 	keyCmdName            = "key"
+	totalCmdName          = "total"
 	quietCmdName          = "quiet"
 )
 
@@ -218,6 +219,8 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which key balance to query "+
 		"(by default returns all key balances including total balance over all keys)")
+	cmd.Flags().BoolP(totalCmdName, "t", false,
+		"if specified shows only total balance over all accounts")
 	addPasswordFlags(cmd)
 	return cmd
 }
@@ -233,15 +236,21 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	total, err := cmd.Flags().GetBool(totalCmdName)
+	if err != nil {
+		return err
+	}
 	if accountNumber == 0 {
 		sum := uint64(0)
 		balances, err := w.GetBalances()
 		if err != nil {
 			return err
 		}
-		for accountIndex, accBalance := range balances {
-			sum += accBalance
-			consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accBalance))
+		for accountIndex, accountBalance := range balances {
+			sum += accountBalance
+			if !total {
+				consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accountBalance))
+			}
 		}
 		consoleWriter.Println(fmt.Sprintf("Total %d", sum))
 	} else {

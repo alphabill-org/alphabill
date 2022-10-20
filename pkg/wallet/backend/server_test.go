@@ -77,13 +77,42 @@ func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
 }
 
+func TestListBillsRequest_SortedByOrderNumber(t *testing.T) {
+	mockService := &mockWalletService{
+		bills: []*Bill{
+			{
+				Id:          uint256.NewInt(2),
+				Value:       2,
+				OrderNumber: 2,
+			},
+			{
+				Id:          uint256.NewInt(1),
+				Value:       1,
+				OrderNumber: 1,
+			},
+		},
+	}
+	startServer(t, mockService)
+
+	res := &ListBillsResponse{}
+	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, 2, res.Total)
+	require.Len(t, res.Bills, 2)
+	require.EqualValues(t, res.Bills[0].Value, 1)
+	require.EqualValues(t, res.Bills[1].Value, 2)
+}
+
 func TestListBillsRequest_Paging(t *testing.T) {
 	// given set of bills
 	var bills []*Bill
 	for i := uint64(0); i < 200; i++ {
 		bills = append(bills, &Bill{
-			Id:    uint256.NewInt(i),
-			Value: i,
+			Id:          uint256.NewInt(i),
+			Value:       i,
+			OrderNumber: i,
 		})
 	}
 	mockService := &mockWalletService{bills: bills}

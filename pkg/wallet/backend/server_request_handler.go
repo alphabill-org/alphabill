@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -85,10 +86,9 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if offset+limit > len(bills) {
 		limit = len(bills) - offset
 	}
-	// TODO add counter to bill struct and do sort for paging
-	//sort.Slice(bills, func(i, j int) bool {
-	//	return bills[i].Id.Lt(bills[j].Id)
-	//})
+	sort.Slice(bills, func(i, j int) bool {
+		return bills[i].OrderNumber < bills[j].OrderNumber
+	})
 	res := &ListBillsResponse{Bills: bills[offset : offset+limit], Total: len(bills)}
 	writeAsJson(w, res)
 }

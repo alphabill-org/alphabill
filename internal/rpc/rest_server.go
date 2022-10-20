@@ -76,10 +76,15 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 func writeError(w http.ResponseWriter, e error, statusCode int) {
 	w.WriteHeader(statusCode)
 	w.Header().Set(headerContentType, applicationJson)
+	var errStr = e.Error()
+	aberror, ok := e.(*errors.AlphabillError)
+	if ok {
+		errStr = aberror.Message()
+	}
 	err := json.NewEncoder(w).Encode(
 		struct {
 			Error string `json:"error"`
-		}{e.Error()})
+		}{errStr})
 	if err != nil {
 		logger.Warning("Failed to encode error message: %v", err)
 	}

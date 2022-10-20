@@ -21,20 +21,22 @@ import (
 )
 
 const (
-	walletBackendDir  = "wallet-backend"
-	serverAddrCmdName = "server-addr"
-	dbFileCmdName     = "db"
-	pubkeysCmdName    = "pubkeys"
+	walletBackendDir   = "wallet-backend"
+	serverAddrCmdName  = "server-addr"
+	dbFileCmdName      = "db"
+	pubkeysCmdName     = "pubkeys"
+	listBillsPageLimit = "list-bills-page-limit"
 )
 
 type walletBackendConfig struct {
-	Base         *baseConfiguration
-	AlphabillUrl string
-	ServerAddr   string
-	DbFile       string
-	Pubkeys      []string
-	LogLevel     string
-	LogFile      string
+	Base               *baseConfiguration
+	AlphabillUrl       string
+	ServerAddr         string
+	DbFile             string
+	Pubkeys            []string
+	LogLevel           string
+	LogFile            string
+	ListBillsPageLimit int
 }
 
 func (c *walletBackendConfig) GetPubKeys() ([][]byte, error) {
@@ -101,6 +103,7 @@ func startCmd(ctx context.Context, config *walletBackendConfig) *cobra.Command {
 	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "wallet backend server address")
 	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/wallet-backend/"+backend.BoltBillStoreFileName+")")
 	cmd.Flags().StringSliceVarP(&config.Pubkeys, pubkeysCmdName, "p", nil, "pubkeys to index (more keys can be added to running service through web api)")
+	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
 	return cmd
 }
 
@@ -136,7 +139,7 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 		wg.Done()
 	}()
 
-	server := backend.NewHttpServer(config.ServerAddr, service)
+	server := backend.NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, service)
 	err = server.Start()
 	if err != nil {
 		service.Shutdown()

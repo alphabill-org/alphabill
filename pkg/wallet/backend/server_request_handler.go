@@ -15,7 +15,8 @@ import (
 
 type (
 	RequestHandler struct {
-		service WalletBackendService
+		service            WalletBackendService
+		listBillsPageLimit int
 	}
 
 	ListBillsResponse struct {
@@ -78,7 +79,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		wlog.Error("error on GET /list-bills ", err)
 		return
 	}
-	limit, offset := parsePagingParams(r)
+	limit, offset := s.parsePagingParams(r)
 	// if offset and data go out of bounds just return what we have
 	if offset > len(bills) {
 		offset = len(bills)
@@ -200,13 +201,13 @@ func decodePubKeyHex(pubKey string) ([]byte, error) {
 	return bytes, nil
 }
 
-func parsePagingParams(r *http.Request) (int, int) {
+func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
 	limit := parseInt(r.URL.Query().Get("limit"), 100)
 	if limit < 0 {
 		limit = 0
 	}
 	if limit > 100 {
-		limit = 100
+		limit = s.listBillsPageLimit
 	}
 	offset := parseInt(r.URL.Query().Get("offset"), 0)
 	if offset < 0 {

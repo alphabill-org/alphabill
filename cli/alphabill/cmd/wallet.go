@@ -259,11 +259,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		for accountIndex, accountBalance := range balances {
 			sum += accountBalance
 			if !total {
-				if quiet {
-					consoleWriter.Println(accountBalance)
-				} else {
-					consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accountBalance))
-				}
+				consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accountBalance))
 			}
 		}
 		if quiet {

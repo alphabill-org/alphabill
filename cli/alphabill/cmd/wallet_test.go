@@ -84,7 +84,7 @@ func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
 	verifyStdout(t, stdout, "0")
 	verifyStdoutNotExists(t, stdout, "Total 0")
 
-	// verify quiet with key and total (total trumps key)
+	// verify quiet with key and total (total is not shown if key is provided)
 	stdout = execCommand(t, homedir, "get-balance --quiet --key 1 --total")
 	verifyStdout(t, stdout, "0")
 	verifyStdoutNotExists(t, stdout, "#1 0")

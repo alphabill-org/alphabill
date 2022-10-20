@@ -1,6 +1,20 @@
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	twallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	"github.com/spf13/cobra"
+)
+
+const (
+	cmdFlagSymbol              = "symbol"
+	cmdFlagDecimals            = "decimals"
+	cmdFlagParentType          = "parent-type"
+	cmdFlagCreationInput       = "creation-input"
+	cmdFlagSybtypeClause       = "subtype-clause"
+	cmdFlagMintClause          = "mint-clause"
+	cmdFlagInheritBearerClause = "inherit-bearer-clause"
+)
 
 func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
@@ -14,6 +28,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config))
+	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	return cmd
 }
 
@@ -24,8 +39,19 @@ func tokenCmdNewType(config *walletConfig) *cobra.Command {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
 	}
-	cmd.AddCommand(tokenCmdNewTypeFungible(config))
-	cmd.AddCommand(tokenCmdNewTypeNonFungible(config))
+	cmd.AddCommand(addCommonTypeFlags(tokenCmdNewTypeFungible(config)))
+	cmd.AddCommand(addCommonTypeFlags(tokenCmdNewTypeNonFungible(config)))
+	return cmd
+}
+
+func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
+	cmd.Flags().String(cmdFlagSymbol, "", "token symbol (mandatory)")
+	_ = cmd.MarkFlagRequired(cmdFlagSymbol)
+	cmd.Flags().String(cmdFlagParentType, "0x0", "unit identifier of a parent type-node in hexadecimal format, must start with 0x (optional)")
+	cmd.Flags().String(cmdFlagCreationInput, "empty", "input to satisfy the parent types minting clause (mandatory with --parent-type)")
+	cmd.Flags().String(cmdFlagSybtypeClause, "true", "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
+	cmd.Flags().String(cmdFlagMintClause, "ptpkh", "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
+	cmd.Flags().String(cmdFlagInheritBearerClause, "true", "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	return cmd
 }
 
@@ -36,11 +62,38 @@ func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTypeFungible(cmd, config)
 		},
 	}
+	cmd.Flags().Uint32(cmdFlagDecimals, 8, "token decimal (optional)")
 	return cmd
 }
 
 func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	symbol, err := cmd.Flags().GetString(cmdFlagSymbol)
+	if err != nil {
+		return err
+	}
+	decimals, err := cmd.Flags().GetUint32(cmdFlagDecimals)
+	if err != nil {
+		return err
+	}
+	a := &tokens.CreateFungibleTokenTypeAttributes{
+		Symbol:                            symbol,
+		DecimalPlaces:                     decimals,
+		ParentTypeId:                      nil,
+		SubTypeCreationPredicateSignature: nil,
+		SubTypeCreationPredicate:          nil,
+		TokenCreationPredicate:            nil,
+		InvariantPredicate:                nil,
+	}
+	err = tw.NewFungibleType(a)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -181,8 +234,12 @@ func tokenCmdListFungible(config *walletConfig) *cobra.Command {
 }
 
 func execTokenCmdListFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
-	return nil
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+	return tw.ListTokens()
 }
 
 func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
@@ -198,4 +255,21 @@ func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
 func execTokenCmdListNonFungible(cmd *cobra.Command, config *walletConfig) error {
 	// TODO
 	return nil
+}
+
+func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*twallet.TokensWallet, error) {
+	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
+	if err != nil {
+		return nil, err
+	}
+	mw, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
+	if err != nil {
+		return nil, err
+	}
+
+	tw, err := twallet.Load(mw)
+	if err != nil {
+		return nil, err
+	}
+	return tw, nil
 }

@@ -67,6 +67,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
+		wlog.Debug("error parsing GET /list-bills request ", err)
 		return
 	}
 	bills, err := s.service.GetBills(pk)
@@ -84,6 +85,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
+		wlog.Debug("error parsing GET /balance request ", err)
 		return
 	}
 	bills, err := s.service.GetBills(pk)
@@ -105,6 +107,7 @@ func (s *RequestHandler) blockProofFunc(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
+		wlog.Debug("error parsing GET /block-proof request ", err)
 		return
 	}
 	p, err := s.service.GetBlockProof(billId)
@@ -123,12 +126,14 @@ func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
+		wlog.Debug("error decoding GET /add-key request ", err)
 		return
 	}
 	pubkeyBytes, err := decodePubKeyHex(req.Pubkey)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
+		wlog.Debug("error parsing GET /balance request ", err)
 		return
 	}
 	err = s.service.AddKey(pubkeyBytes)

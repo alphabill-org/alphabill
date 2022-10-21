@@ -66,6 +66,13 @@ func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
 	verifyStdoutNotExists(t, stdout, "#1 0")
 }
 
+func TestWalletGetBalanceCmdTotalWithKeyFlag(t *testing.T) {
+	homedir := createNewTestWallet(t)
+	stdout := execCommand(t, homedir, "get-balance --key 1 --total")
+	verifyStdout(t, stdout, "#1 0")
+	verifyStdoutNotExists(t, stdout, "Total 0")
+}
+
 func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 

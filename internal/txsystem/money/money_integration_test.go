@@ -26,7 +26,7 @@ var (
 )
 
 func TestPartition_Ok(t *testing.T) {
-	network, err := testpartition.NewNetwork(3, func(_ map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(3, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := NewMoneyTxSystem(
 			crypto.SHA256,
 			&InitialBill{
@@ -35,6 +35,7 @@ func TestPartition_Ok(t *testing.T) {
 				Owner: script.PredicateAlwaysTrue(),
 			},
 			0,
+			SchemeOpts.TrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system

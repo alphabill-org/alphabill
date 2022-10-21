@@ -2,6 +2,9 @@ package money
 
 import (
 	"crypto"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"sort"
 	"testing"
 
@@ -59,7 +62,7 @@ func TestNewMoneyScheme_InvalidInitialBillID(t *testing.T) {
 }
 
 func TestExecute_TransferOk(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+	rmaTree, txSystem, _ := createRMATreeAndTxSystem(t)
 	unit, data := getBill(t, rmaTree, initialBill.ID)
 
 	transferOk, err := NewMoneyTx(systemIdentifier, createBillTransfer(initialBill.ID, initialBill.Value, script.PredicateAlwaysTrue(), nil))
@@ -78,7 +81,7 @@ func TestExecute_TransferOk(t *testing.T) {
 }
 
 func TestExecute_SplitOk(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+	rmaTree, txSystem, _ := createRMATreeAndTxSystem(t)
 	totalValue := rmaTree.TotalValue()
 	initBill, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
@@ -113,7 +116,7 @@ func TestExecute_SplitOk(t *testing.T) {
 }
 
 func TestExecute_TransferDCOk(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+	rmaTree, txSystem, _ := createRMATreeAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
@@ -140,7 +143,8 @@ func TestExecute_TransferDCOk(t *testing.T) {
 }
 
 func TestExecute_SwapOk(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 99
 	amount := initialBill.Value - remaining
@@ -153,7 +157,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	splitWrapper := splitOk.(*billSplitWrapper)
 	splitBillID := txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree)
+	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree, signer)
 
 	for _, dcTransfer := range dcTransfers {
 		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
@@ -232,7 +236,7 @@ func TestBillSummary_AddToHasher(t *testing.T) {
 }
 
 func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	remaining := initBillData.V
 	var splitBillIDs = make([]*uint256.Int, 10)
@@ -256,7 +260,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	sort.Slice(splitBillIDs, func(i, j int) bool {
 		return splitBillIDs[i].Lt(splitBillIDs[j])
 	})
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, rmaTree)
+	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, splitBillIDs, rmaTree, signer)
 
 	for _, dcTransfer := range dcTransfers {
 		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
@@ -286,10 +290,10 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{initialBill.ID}, rmaTree)
+	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{initialBill.ID}, rmaTree, signer)
 
 	for _, dcTransfer := range dcTransfers {
 		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
@@ -300,11 +304,11 @@ func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
 	tx, err := NewMoneyTx(systemIdentifier, swapTx)
 	require.NoError(t, err)
 	err = txSystem.Execute(tx)
-	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
+	require.ErrorContains(t, err, ErrSwapInsufficientDCMoneySupply)
 }
 
 func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
@@ -319,7 +323,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	splitWrapper := splitOk.(*billSplitWrapper)
 	splitBillID := txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 
-	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree)
+	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree, signer)
 
 	err = rmaTree.AddItem(uint256.NewInt(0).SetBytes(swapTx.UnitId), script.PredicateAlwaysTrue(), &BillData{}, []byte{})
 	require.NoError(t, err)
@@ -332,11 +336,11 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	tx, err := NewMoneyTx(systemIdentifier, swapTx)
 	require.NoError(t, err)
 	err = txSystem.Execute(tx)
-	require.ErrorIs(t, err, ErrSwapBillAlreadyExists)
+	require.ErrorContains(t, err, ErrSwapBillAlreadyExists)
 }
 
 func TestRegisterData_Revert(t *testing.T) {
-	rmaTree, txSystem := createRMATreeAndTxSystem(t)
+	rmaTree, txSystem, _ := createRMATreeAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 
 	vdState, err := txSystem.State()
@@ -392,7 +396,8 @@ func createBillTransfer(fromID *uint256.Int, value uint64, bearer []byte, backli
 func createDCTransferAndSwapTxs(
 	t *testing.T,
 	ids []*uint256.Int, // bills to swap
-	rmaTree *rma.Tree) ([]*txsystem.Transaction, *txsystem.Transaction) {
+	rmaTree *rma.Tree,
+	signer abcrypto.Signer) ([]*txsystem.Transaction, *txsystem.Transaction) {
 	t.Helper()
 
 	// calculate new bill ID
@@ -407,12 +412,17 @@ func createDCTransferAndSwapTxs(
 
 	// create dc transfers
 	dcTransfers := make([]*txsystem.Transaction, len(ids))
+	proofs := make([]*block.BlockProof, len(ids))
+
 	var targetValue uint64 = 0
 	for i, id := range ids {
 		_, billData := getBill(t, rmaTree, id)
 		// NB! dc transfer nonce must be equal to swap tx unit id
 		targetValue += billData.V
 		dcTransfers[i] = createDCTransfer(id, billData.V, billData.Backlink, newBillID)
+		tx, err := NewMoneyTx(systemIdentifier, dcTransfers[i])
+		require.NoError(t, err)
+		proofs[i] = testblock.CreateProof(t, tx, signer, id)
 	}
 
 	tx := &txsystem.Transaction{
@@ -427,7 +437,7 @@ func createDCTransferAndSwapTxs(
 		OwnerCondition:  script.PredicateArgumentEmpty(),
 		BillIdentifiers: idsByteArray,
 		DcTransfers:     dcTransfers,
-		Proofs:          []*block.BlockProof{},
+		Proofs:          proofs,
 		TargetValue:     targetValue,
 	}
 	// #nosec G104
@@ -484,18 +494,21 @@ func createNonMoneyTx() *txsystem.Transaction {
 	}
 }
 
-func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem) {
+func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem, abcrypto.Signer) {
 	rmaTree, err := rma.New(&rma.Config{
 		HashAlgorithm:     crypto.SHA256,
 		RecordingDisabled: false,
 	})
 	require.NoError(t, err)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := map[string]abcrypto.Verifier{"test": verifier}
 	mss, err := NewMoneyTxSystem(
 		crypto.SHA256,
 		initialBill,
 		initialDustCollectorMoneyAmount,
 		SchemeOpts.RevertibleState(rmaTree),
+		SchemeOpts.TrustBase(trustBase),
 	)
 	require.NoError(t, err)
-	return rmaTree, mss
+	return rmaTree, mss, signer
 }

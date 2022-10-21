@@ -3,16 +3,14 @@ package tokens
 import (
 	gocrypto "crypto"
 	"fmt"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -687,9 +685,9 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		Backlink:                    make([]byte, 32),
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	})
-	proofInvalidSource := createProof(t, burnTxInvalidSource, signer, uint256.NewInt(existingTokenUnitID))
-	proofBurnTx2 := createProof(t, burnTx2, signer, uint256.NewInt(existingTokenUnitID2))
-	emptyBlockProof := createProof(t, nil, signer, uint256.NewInt(existingTokenUnitID))
+	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer, uint256.NewInt(existingTokenUnitID))
+	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer, uint256.NewInt(existingTokenUnitID2))
+	emptyBlockProof := testblock.CreateProof(t, nil, signer, uint256.NewInt(existingTokenUnitID))
 
 	tests := []struct {
 		name       string
@@ -772,36 +770,6 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			require.ErrorContains(t, executor.Execute(tt.tx, 10), tt.wantErrStr)
 		})
 	}
-}
-
-func createProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.Signer, unitID *uint256.Int) *block.BlockProof {
-	b := &block.GenericBlock{}
-	if tx != nil {
-		b.Transactions = []txsystem.GenericTransaction{tx}
-	}
-	b.UnicityCertificate = createUC(t, b, signer)
-	p, err := block.NewPrimaryProof(b, unitID, gocrypto.SHA256)
-	require.NoError(t, err)
-	return p
-}
-
-func createUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *certificates.UnicityCertificate {
-	blockHash, _ := b.Hash(gocrypto.SHA256)
-	ir := &certificates.InputRecord{
-		PreviousHash: make([]byte, 32),
-		Hash:         make([]byte, 32),
-		BlockHash:    blockHash,
-		SummaryValue: make([]byte, 32),
-	}
-	uc := testcertificates.CreateUnicityCertificate(
-		t,
-		signer,
-		ir,
-		&genesis.SystemDescriptionRecord{SystemIdentifier: make([]byte, 4)},
-		1,
-		make([]byte, 32),
-	)
-	return uc
 }
 
 func initState(t *testing.T) *rma.Tree {

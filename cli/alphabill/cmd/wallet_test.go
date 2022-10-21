@@ -172,11 +172,12 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
-	network, err := testpartition.NewNetwork(1, func(map[string]abcrypto.Verifier) txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,
 			10000,
+			moneytx.SchemeOpts.TrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system

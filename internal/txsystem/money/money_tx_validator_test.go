@@ -2,7 +2,11 @@ package money
 
 import (
 	"crypto"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"testing"
+
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -16,34 +20,34 @@ func TestTransfer(t *testing.T) {
 		name string
 		bd   *BillData
 		tx   *transferWrapper
-		res  error
+		err  string
 	}{
 		{
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(t, 100, []byte{6}),
-			res:  nil,
+			err:  "",
 		},
 		{
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(t, 101, []byte{6}),
-			res:  ErrInvalidBillValue,
+			err:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(t, 100, []byte{5}),
-			res:  txsystem.ErrInvalidBacklink,
+			err:  txsystem.ErrInvalidBacklink.Error(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTransfer(tt.bd, tt.tx)
-			if tt.res == nil {
+			if tt.err == "" {
 				require.NoError(t, err)
 			} else {
-				require.ErrorIs(t, err, tt.res)
+				require.ErrorContains(t, err, tt.err)
 			}
 		})
 	}
@@ -54,34 +58,34 @@ func TestTransferDC(t *testing.T) {
 		name string
 		bd   *BillData
 		tx   *transferDCWrapper
-		res  error
+		err  string
 	}{
 		{
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(t, 100, []byte{6}, []byte{1}, test.RandomBytes(32)),
-			res:  nil,
+			err:  "",
 		},
 		{
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(t, 101, []byte{6}, []byte{1}, test.RandomBytes(32)),
-			res:  ErrInvalidBillValue,
+			err:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(t, 100, []byte{5}, []byte{1}, test.RandomBytes(32)),
-			res:  txsystem.ErrInvalidBacklink,
+			err:  txsystem.ErrInvalidBacklink.Error(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTransferDC(tt.bd, tt.tx)
-			if tt.res == nil {
+			if tt.err == "" {
 				require.NoError(t, err)
 			} else {
-				require.ErrorIs(t, err, tt.res)
+				require.ErrorContains(t, err, tt.err)
 			}
 		})
 	}
@@ -92,105 +96,123 @@ func TestSplit(t *testing.T) {
 		name string
 		bd   *BillData
 		tx   *billSplitWrapper
-		res  error
+		err  string
 	}{
 		{
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 50, []byte{6}),
-			res:  nil,
+			err:  "",
 		},
 		{
 			name: "AmountExceedsBillValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 101, 100, []byte{6}),
-			res:  ErrInvalidBillValue,
+			err:  ErrInvalidBillValue,
 		},
 		{
 			name: "AmountEqualsBillValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 100, 0, []byte{6}),
-			res:  ErrInvalidBillValue,
+			err:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidRemainingValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 51, []byte{6}),
-			res:  ErrInvalidBillValue,
+			err:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 50, []byte{5}),
-			res:  txsystem.ErrInvalidBacklink,
+			err:  txsystem.ErrInvalidBacklink.Error(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateSplit(tt.bd, tt.tx)
-			if tt.res == nil {
+			if tt.err == "" {
 				require.NoError(t, err)
 			} else {
-				require.ErrorIs(t, err, tt.res)
+				require.ErrorContains(t, err, tt.err)
 			}
 		})
 	}
 }
 
 func TestSwap(t *testing.T) {
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+
 	tests := []struct {
 		name string
 		tx   *swapWrapper
-		res  error
+		err  string
 	}{
 		{
 			name: "Ok",
-			tx:   newValidSwap(t),
-			res:  nil,
+			tx:   newValidSwap(t, signer),
+			err:  "",
 		},
 		{
 			name: "InvalidTargetValue",
 			tx:   newInvalidTargetValueSwap(t),
-			res:  ErrSwapInvalidTargetValue,
+			err:  ErrSwapInvalidTargetValue,
 		},
 		{
 			name: "InvalidBillIdentifiers",
-			tx:   newInvalidBillIdentifierSwap(t),
-			res:  ErrSwapInvalidBillIdentifiers,
+			tx:   newInvalidBillIdentifierSwap(t, signer),
+			err:  ErrSwapInvalidBillIdentifiers,
 		},
 		{
 			name: "InvalidBillId",
-			tx:   newInvalidBillIdSwap(t),
-			res:  ErrSwapInvalidBillId,
+			tx:   newInvalidBillIdSwap(t, signer),
+			err:  ErrSwapInvalidBillId,
 		},
 		{
 			name: "DustTransfersInDescBillIdOrder",
-			tx:   newSwapWithDescBillOrder(t),
-			res:  ErrSwapDustTransfersInvalidOrder,
+			tx:   newSwapWithDescBillOrder(t, signer),
+			err:  ErrSwapDustTransfersInvalidOrder,
 		},
 		{
 			name: "DustTransfersInEqualBillIdOrder",
-			tx:   newSwapOrderWithEqualBillIds(t),
-			res:  ErrSwapDustTransfersInvalidOrder,
+			tx:   newSwapOrderWithEqualBillIds(t, signer),
+			err:  ErrSwapDustTransfersInvalidOrder,
 		},
 		{
 			name: "InvalidNonce",
-			tx:   newInvalidNonceSwap(t),
-			res:  ErrSwapInvalidNonce,
+			tx:   newInvalidNonceSwap(t, signer),
+			err:  ErrSwapInvalidNonce,
 		},
 		{
 			name: "InvalidTargetBearer",
-			tx:   newInvalidTargetBearerSwap(t),
-			res:  ErrSwapInvalidTargetBearer,
+			tx:   newInvalidTargetBearerSwap(t, signer),
+			err:  ErrSwapInvalidTargetBearer,
+		},
+		{
+			name: "InvalidProofsNil",
+			tx:   newDcProofsNilSwap(t),
+			err:  "invalid count of proofs",
+		},
+		{
+			name: "InvalidEmptyDcProof",
+			tx:   newEmptyDcProofsSwap(t),
+			err:  "proof verification failed unicity certificate is nil",
+		},
+		{
+			name: "InvalidDcProofInvalid",
+			tx:   newInvalidDcProofsSwap(t),
+			err:  "invalid unicity seal signature",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSwap(tt.tx, crypto.SHA256)
-			if tt.res == nil {
+			trustBase := map[string]abcrypto.Verifier{"test": verifier}
+			err := validateSwap(tt.tx, crypto.SHA256, trustBase)
+			if tt.err == "" {
 				require.NoError(t, err)
 			} else {
-				require.ErrorIs(t, err, tt.res)
+				require.ErrorContains(t, err, tt.err)
 			}
 		})
 	}
@@ -255,26 +277,28 @@ func newInvalidTargetValueSwap(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
-func newInvalidBillIdentifierSwap(t *testing.T) *swapWrapper {
+func newInvalidBillIdentifierSwap(t *testing.T, signer abcrypto.Signer) *swapWrapper {
 	id := uint256.NewInt(1)
 	id32 := id.Bytes32()
 	transferId := id32[:]
 	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, test.RandomBytes(3), swapId)
-	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
+	proofs := []*block.BlockProof{testblock.CreateProof(t, dcTransfer, signer, id)}
+	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId, proofs))
 	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
 }
 
-func newInvalidBillIdSwap(t *testing.T) *swapWrapper {
+func newInvalidBillIdSwap(t *testing.T, signer abcrypto.Signer) *swapWrapper {
 	id := uint256.NewInt(1)
 	id32 := id.Bytes32()
 	transferId := id32[:]
 	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
-	order := newPBTransactionOrder([]byte{0}, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
+	proofs := []*block.BlockProof{testblock.CreateProof(t, dcTransfer, signer, id)}
+	order := newPBTransactionOrder([]byte{0}, []byte{3}, 2, newSwapOrder(dcTransfer, transferId, proofs))
 	order.SystemId = systemIdentifier
 	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
@@ -282,31 +306,35 @@ func newInvalidBillIdSwap(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
-func newInvalidNonceSwap(t *testing.T) *swapWrapper {
+func newInvalidNonceSwap(t *testing.T, signer abcrypto.Signer) *swapWrapper {
 	id := uint256.NewInt(1)
 	id32 := id.Bytes32()
 	transferId := id32[:]
 	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, []byte{0})
-	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
+	proofs := []*block.BlockProof{testblock.CreateProof(t, dcTransfer, signer, id)}
+
+	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId, proofs))
 	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
 }
 
-func newSwapWithDescBillOrder(t *testing.T) *swapWrapper {
+func newSwapWithDescBillOrder(t *testing.T, signer abcrypto.Signer) *swapWrapper {
 	// create swap tx with two dust transfers in descending order of bill ids
 	billIds := []*uint256.Int{uint256.NewInt(2), uint256.NewInt(1)}
 	swapId := calculateSwapID(billIds...)
 	dcTransfers := make([]*transferDCWrapper, len(billIds))
 	transferIds := make([][]byte, len(billIds))
+	proofs := make([]*block.BlockProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
 		bytes32 := billIds[i].Bytes32()
 		transferIds[i] = bytes32[:]
 		dcTransfers[i] = newTransferDC(t, 100, []byte{6}, bytes32[:], swapId)
+		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer, billIds[i])
 	}
-	swapTx := newSwapOrderWithDCTransfers([]byte{4}, 200, dcTransfers, transferIds)
+	swapTx := newSwapOrderWithDCTransfers([]byte{4}, 200, dcTransfers, transferIds, proofs)
 	swapTxProto := newPBTransactionOrder(swapId, []byte{4}, 2, swapTx)
 	tx, err := NewMoneyTx(systemIdentifier, swapTxProto)
 	require.NoError(t, err)
@@ -314,18 +342,20 @@ func newSwapWithDescBillOrder(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
-func newSwapOrderWithEqualBillIds(t *testing.T) *swapWrapper {
+func newSwapOrderWithEqualBillIds(t *testing.T, signer abcrypto.Signer) *swapWrapper {
 	// create swap tx with two dust transfers with equal bill ids
 	billIds := []*uint256.Int{uint256.NewInt(1), uint256.NewInt(1)}
 	swapId := calculateSwapID(billIds...)
 	dcTransfers := make([]*transferDCWrapper, len(billIds))
 	transferIds := make([][]byte, len(billIds))
+	proofs := make([]*block.BlockProof, len(billIds))
 	for i := 0; i < len(billIds); i++ {
 		bytes32 := billIds[i].Bytes32()
 		transferIds[i] = bytes32[:]
 		dcTransfers[i] = newTransferDC(t, 100, []byte{6}, bytes32[:], swapId)
+		proofs[i] = testblock.CreateProof(t, dcTransfers[i], signer, billIds[i])
 	}
-	swapTx := newSwapOrderWithDCTransfers([]byte{4}, 200, dcTransfers, transferIds)
+	swapTx := newSwapOrderWithDCTransfers([]byte{4}, 200, dcTransfers, transferIds, proofs)
 	swapTxProto := newPBTransactionOrder(swapId, []byte{4}, 2, swapTx)
 	tx, err := NewMoneyTx(systemIdentifier, swapTxProto)
 	require.NoError(t, err)
@@ -333,7 +363,7 @@ func newSwapOrderWithEqualBillIds(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
-func newInvalidTargetBearerSwap(t *testing.T) *swapWrapper {
+func newInvalidTargetBearerSwap(t *testing.T, signer abcrypto.Signer) *swapWrapper {
 	id := uint256.NewInt(1)
 	id32 := id.Bytes32()
 	transferId := id32[:]
@@ -343,7 +373,7 @@ func newInvalidTargetBearerSwap(t *testing.T) *swapWrapper {
 		OwnerCondition:  test.RandomBytes(32),
 		BillIdentifiers: [][]byte{transferId},
 		DcTransfers:     []*txsystem.Transaction{dcTransfer.transaction},
-		Proofs:          []*block.BlockProof{},
+		Proofs:          []*block.BlockProof{testblock.CreateProof(t, dcTransfer, signer, id)},
 		TargetValue:     dcTransfer.TargetValue(),
 	})
 	tx, err := NewMoneyTx(systemIdentifier, order)
@@ -352,30 +382,73 @@ func newInvalidTargetBearerSwap(t *testing.T) *swapWrapper {
 	return tx.(*swapWrapper)
 }
 
-func newValidSwap(t *testing.T) *swapWrapper {
+func newDcProofsNilSwap(t *testing.T) *swapWrapper {
 	id := uint256.NewInt(1)
 	id32 := id.Bytes32()
 	transferId := id32[:]
 	swapId := calculateSwapID(id)
 	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
-	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId))
+	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId, nil))
 	tx, err := NewMoneyTx(systemIdentifier, order)
 	require.NoError(t, err)
 	require.IsType(t, tx, &swapWrapper{})
 	return tx.(*swapWrapper)
 }
 
-func newSwapOrder(dcTransfer *transferDCWrapper, transferDCID []byte) *SwapOrder {
+func newEmptyDcProofsSwap(t *testing.T) *swapWrapper {
+	id := uint256.NewInt(1)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
+	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
+	proofs := []*block.BlockProof{&block.BlockProof{}}
+	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId, proofs))
+	tx, err := NewMoneyTx(systemIdentifier, order)
+	require.NoError(t, err)
+	require.IsType(t, tx, &swapWrapper{})
+	return tx.(*swapWrapper)
+}
+
+func newInvalidDcProofsSwap(t *testing.T) *swapWrapper {
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	id := uint256.NewInt(1)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
+	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
+	proofs := []*block.BlockProof{testblock.CreateProof(t, dcTransfer, signer, id)}
+	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId, proofs))
+	tx, err := NewMoneyTx(systemIdentifier, order)
+	require.NoError(t, err)
+	require.IsType(t, tx, &swapWrapper{})
+	return tx.(*swapWrapper)
+}
+
+func newValidSwap(t *testing.T, signer abcrypto.Signer) *swapWrapper {
+	id := uint256.NewInt(1)
+	id32 := id.Bytes32()
+	transferId := id32[:]
+	swapId := calculateSwapID(id)
+	dcTransfer := newTransferDC(t, 100, []byte{6}, transferId, swapId)
+	proofs := []*block.BlockProof{testblock.CreateProof(t, dcTransfer, signer, id)}
+	order := newPBTransactionOrder(swapId, []byte{3}, 2, newSwapOrder(dcTransfer, transferId, proofs))
+	tx, err := NewMoneyTx(systemIdentifier, order)
+	require.NoError(t, err)
+	require.IsType(t, tx, &swapWrapper{})
+	return tx.(*swapWrapper)
+}
+
+func newSwapOrder(dcTransfer *transferDCWrapper, transferDCID []byte, proof []*block.BlockProof) *SwapOrder {
 	return &SwapOrder{
 		OwnerCondition:  dcTransfer.TargetBearer(),
 		BillIdentifiers: [][]byte{transferDCID},
 		DcTransfers:     []*txsystem.Transaction{dcTransfer.transaction},
-		Proofs:          []*block.BlockProof{},
+		Proofs:          proof,
 		TargetValue:     dcTransfer.TargetValue(),
 	}
 }
 
-func newSwapOrderWithDCTransfers(ownerCondition []byte, targetValue uint64, dcTransfers []*transferDCWrapper, transferDCIDs [][]byte) *SwapOrder {
+func newSwapOrderWithDCTransfers(ownerCondition []byte, targetValue uint64, dcTransfers []*transferDCWrapper, transferDCIDs [][]byte, proofs []*block.BlockProof) *SwapOrder {
 	wrappedDcTransfers := make([]*txsystem.Transaction, len(dcTransfers))
 	for i, dcTransfer := range dcTransfers {
 		wrappedDcTransfers[i] = dcTransfer.transaction
@@ -384,7 +457,7 @@ func newSwapOrderWithDCTransfers(ownerCondition []byte, targetValue uint64, dcTr
 		OwnerCondition:  ownerCondition,
 		BillIdentifiers: transferDCIDs,
 		DcTransfers:     wrappedDcTransfers,
-		Proofs:          []*block.BlockProof{},
+		Proofs:          proofs,
 		TargetValue:     targetValue,
 	}
 }

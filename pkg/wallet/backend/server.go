@@ -22,8 +22,8 @@ type (
 	}
 )
 
-func NewHttpServer(addr string, service WalletBackendService) *WalletBackendHttpServer {
-	handler := &RequestHandler{service: service}
+func NewHttpServer(addr string, listBillsPageLimit int, service WalletBackendService) *WalletBackendHttpServer {
+	handler := &RequestHandler{service: service, listBillsPageLimit: listBillsPageLimit}
 	server := &WalletBackendHttpServer{server: &http.Server{Addr: addr, Handler: handler.router()}}
 	return server
 }

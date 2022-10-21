@@ -77,6 +77,102 @@ func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
 }
 
+func TestListBillsRequest_SortedByOrderNumber(t *testing.T) {
+	mockService := &mockWalletService{
+		bills: []*Bill{
+			{
+				Id:          uint256.NewInt(2),
+				Value:       2,
+				OrderNumber: 2,
+			},
+			{
+				Id:          uint256.NewInt(1),
+				Value:       1,
+				OrderNumber: 1,
+			},
+		},
+	}
+	startServer(t, mockService)
+
+	res := &ListBillsResponse{}
+	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, 2, res.Total)
+	require.Len(t, res.Bills, 2)
+	require.EqualValues(t, res.Bills[0].Value, 1)
+	require.EqualValues(t, res.Bills[1].Value, 2)
+}
+
+func TestListBillsRequest_Paging(t *testing.T) {
+	// given set of bills
+	var bills []*Bill
+	for i := uint64(0); i < 200; i++ {
+		bills = append(bills, &Bill{
+			Id:          uint256.NewInt(i),
+			Value:       i,
+			OrderNumber: i,
+		})
+	}
+	mockService := &mockWalletService{bills: bills}
+	startServer(t, mockService)
+
+	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
+
+	// verify by default first 100 elements are returned
+	res := &ListBillsResponse{}
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, len(bills), res.Total)
+	require.Len(t, res.Bills, 100)
+	require.EqualValues(t, res.Bills[0].Value, 0)
+	require.EqualValues(t, res.Bills[99].Value, 99)
+
+	// verify offset=100 returns next 100 elements
+	res = &ListBillsResponse{}
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=100", pk), res)
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, len(bills), res.Total)
+	require.Len(t, res.Bills, 100)
+	require.EqualValues(t, res.Bills[0].Value, 100)
+	require.EqualValues(t, res.Bills[99].Value, 199)
+
+	// verify limit limits result size
+	res = &ListBillsResponse{}
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=100&limit=50", pk), res)
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, len(bills), res.Total)
+	require.Len(t, res.Bills, 50)
+	require.EqualValues(t, res.Bills[0].Value, 100)
+	require.EqualValues(t, res.Bills[49].Value, 149)
+
+	// verify out of bounds offset returns nothing
+	res = &ListBillsResponse{}
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=200", pk), res)
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, len(bills), res.Total)
+	require.Len(t, res.Bills, 0)
+
+	// verify limit gets capped to 100
+	res = &ListBillsResponse{}
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=0&limit=200", pk), res)
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, len(bills), res.Total)
+	require.Len(t, res.Bills, 100)
+	require.EqualValues(t, res.Bills[0].Value, 0)
+	require.EqualValues(t, res.Bills[99].Value, 99)
+
+	// verify out of bounds offset+limit return all available data
+	res = &ListBillsResponse{}
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=190&limit=100", pk), res)
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, len(bills), res.Total)
+	require.Len(t, res.Bills, 10)
+	require.EqualValues(t, res.Bills[0].Value, 190)
+	require.EqualValues(t, res.Bills[9].Value, 199)
+}
+
 func TestBalanceRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
 		bills: []*Bill{{
@@ -246,7 +342,7 @@ func doPost(t *testing.T, url string, req interface{}, res interface{}) *http.Re
 }
 
 func startServer(t *testing.T, mockService *mockWalletService) {
-	server := NewHttpServer(":7777", mockService)
+	server := NewHttpServer(":7777", 100, mockService)
 	err := server.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {

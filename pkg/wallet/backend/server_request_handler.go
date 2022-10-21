@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
+	"strconv"
 
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -13,10 +15,12 @@ import (
 
 type (
 	RequestHandler struct {
-		service WalletBackendService
+		service            WalletBackendService
+		listBillsPageLimit int
 	}
 
 	ListBillsResponse struct {
+		Total int     `json:"total"`
 		Bills []*Bill `json:"bills"`
 	}
 
@@ -76,7 +80,18 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		wlog.Error("error on GET /list-bills ", err)
 		return
 	}
-	res := &ListBillsResponse{Bills: bills}
+	limit, offset := s.parsePagingParams(r)
+	// if offset and data go out of bounds just return what we have
+	if offset > len(bills) {
+		offset = len(bills)
+	}
+	if offset+limit > len(bills) {
+		limit = len(bills) - offset
+	}
+	sort.Slice(bills, func(i, j int) bool {
+		return bills[i].OrderNumber < bills[j].OrderNumber
+	})
+	res := &ListBillsResponse{Bills: bills[offset : offset+limit], Total: len(bills)}
 	writeAsJson(w, res)
 }
 
@@ -189,4 +204,30 @@ func decodePubKeyHex(pubKey string) ([]byte, error) {
 		return nil, errInvalidPubKeyFormat
 	}
 	return bytes, nil
+}
+
+func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
+	limit := parseInt(r.URL.Query().Get("limit"), s.listBillsPageLimit)
+	if limit < 0 {
+		limit = 0
+	}
+	if limit > s.listBillsPageLimit {
+		limit = s.listBillsPageLimit
+	}
+	offset := parseInt(r.URL.Query().Get("offset"), 0)
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
+}
+
+func parseInt(str string, def int) int {
+	if str == "" {
+		return def
+	}
+	num, err := strconv.Atoi(str)
+	if err != nil {
+		return def
+	}
+	return num
 }

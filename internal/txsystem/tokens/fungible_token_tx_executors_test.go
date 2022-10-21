@@ -3,7 +3,6 @@ package tokens
 import (
 	gocrypto "crypto"
 	"fmt"
-	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -11,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"

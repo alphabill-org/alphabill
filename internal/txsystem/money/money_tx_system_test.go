@@ -2,16 +2,16 @@ package money
 
 import (
 	"crypto"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"sort"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -143,7 +143,6 @@ func TestExecute_TransferDCOk(t *testing.T) {
 }
 
 func TestExecute_SwapOk(t *testing.T) {
-
 	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 99

@@ -2,14 +2,13 @@ package money
 
 import (
 	"crypto"
-	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"testing"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
 	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"

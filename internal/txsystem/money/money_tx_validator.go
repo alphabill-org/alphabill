@@ -138,7 +138,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 
 	// done in validateGenericTransaction function
 
-	// TODO XX. verify ledger proof https://guardtime.atlassian.net/browse/AB-50???
+	// TODO XX. verify ledger proof https://guardtime.atlassian.net/browse/AB-50 ???
 
 	return nil
 }

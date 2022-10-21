@@ -3,14 +3,15 @@ package backend
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/mux"
-	"github.com/holiman/uint256"
 )
 
 type (
@@ -20,8 +21,8 @@ type (
 	}
 
 	ListBillsResponse struct {
-		Total int     `json:"total"`
-		Bills []*Bill `json:"bills"`
+		Total int       `json:"total"`
+		Bills []*BillVM `json:"bills"`
 	}
 
 	BalanceResponse struct {
@@ -29,7 +30,9 @@ type (
 	}
 
 	BlockProofResponse struct {
-		BlockProof *BlockProof `json:"blockProof"`
+		BillId      string            `json:"billId"`
+		BlockNumber uint64            `json:"blockNumber"`
+		BlockProof  *block.BlockProof `json:"blockProof"`
 	}
 
 	AddKeyRequest struct {
@@ -42,14 +45,18 @@ type (
 	ErrorResponse struct {
 		Message string `json:"message"`
 	}
+
+	BillVM struct {
+		Id    string `json:"id"`
+		Value uint64 `json:"value"`
+	}
 )
 
 var (
 	errMissingPubKeyQueryParam = errors.New("missing required pubkey query parameter")
 	errInvalidPubKeyLength     = errors.New("pubkey hex string must be 68 characters long (with 0x prefix)")
-	errInvalidPubKeyFormat     = errors.New("invalid pubkey format")
 	errMissingBillIDQueryParam = errors.New("missing required bill_id query parameter")
-	errInvalidBillIDFormat     = errors.New("bill_id must be in hex format with prefix 0x, not have any leading zeros and be max of 32 bytes in size")
+	errInvalidBillIDLength     = errors.New("bill_id hex string must be 66 characters long (with 0x prefix)")
 )
 
 func (s *RequestHandler) router() *mux.Router {
@@ -69,9 +76,13 @@ func (s *RequestHandler) router() *mux.Router {
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKey(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: err.Error()})
 		wlog.Debug("error parsing GET /list-bills request ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
+		}
 		return
 	}
 	bills, err := s.service.GetBills(pk)
@@ -81,26 +92,27 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit, offset := s.parsePagingParams(r)
-	// if offset and data go out of bounds just return what we have
+	// if offset and limit go out of bounds just return what we have
 	if offset > len(bills) {
 		offset = len(bills)
 	}
 	if offset+limit > len(bills) {
 		limit = len(bills) - offset
 	}
-	sort.Slice(bills, func(i, j int) bool {
-		return bills[i].OrderNumber < bills[j].OrderNumber
-	})
-	res := &ListBillsResponse{Bills: bills[offset : offset+limit], Total: len(bills)}
+	res := newListBillsResponse(bills, limit, offset)
 	writeAsJson(w, res)
 }
 
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKey(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: err.Error()})
 		wlog.Debug("error parsing GET /balance request ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
+		}
 		return
 	}
 	bills, err := s.service.GetBills(pk)
@@ -120,18 +132,28 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 func (s *RequestHandler) blockProofFunc(w http.ResponseWriter, r *http.Request) {
 	billId, err := parseBillId(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: err.Error()})
 		wlog.Debug("error parsing GET /block-proof request ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			writeAsJson(w, ErrorResponse{Message: "invalid bill id format"})
+		}
 		return
 	}
 	p, err := s.service.GetBlockProof(billId)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
 		wlog.Error("error on GET /block-proof ", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	res := &BlockProofResponse{p}
+	if p == nil {
+		wlog.Debug("GET /block-proof does not exist ", fmt.Sprintf("%X\n", billId))
+		w.WriteHeader(400)
+		writeAsJson(w, ErrorResponse{Message: "block proof does not exist for given bill id"})
+		return
+	}
+	res := newBlockProofResponse(p)
 	writeAsJson(w, res)
 }
 
@@ -166,25 +188,27 @@ func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, &AddKeyResponse{})
 }
 
+func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
+	limit := parseInt(r.URL.Query().Get("limit"), s.listBillsPageLimit)
+	if limit < 0 {
+		limit = 0
+	}
+	if limit > s.listBillsPageLimit {
+		limit = s.listBillsPageLimit
+	}
+	offset := parseInt(r.URL.Query().Get("offset"), 0)
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
+}
+
 func writeAsJson(w http.ResponseWriter, res interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(res)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-}
-
-func parseBillId(r *http.Request) ([]byte, error) {
-	billIdHex := r.URL.Query().Get("bill_id")
-	if billIdHex == "" {
-		return nil, errMissingBillIDQueryParam
-	}
-	billId256, err := uint256.FromHex(billIdHex)
-	if err != nil {
-		return nil, errInvalidBillIDFormat
-	}
-	billIdBytes := billId256.Bytes32()
-	return billIdBytes[:], nil
 }
 
 func parsePubKey(r *http.Request) ([]byte, error) {
@@ -201,24 +225,28 @@ func decodePubKeyHex(pubKey string) ([]byte, error) {
 	}
 	bytes, err := hexutil.Decode(pubKey)
 	if err != nil {
-		return nil, errInvalidPubKeyFormat
+		return nil, err
 	}
 	return bytes, nil
 }
 
-func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
-	limit := parseInt(r.URL.Query().Get("limit"), s.listBillsPageLimit)
-	if limit < 0 {
-		limit = 0
+func parseBillId(r *http.Request) ([]byte, error) {
+	billIdHex := r.URL.Query().Get("bill_id")
+	if billIdHex == "" {
+		return nil, errMissingBillIDQueryParam
 	}
-	if limit > s.listBillsPageLimit {
-		limit = s.listBillsPageLimit
+	return decodeBillIdHex(billIdHex)
+}
+
+func decodeBillIdHex(billID string) ([]byte, error) {
+	if len(billID) != 66 {
+		return nil, errInvalidBillIDLength
 	}
-	offset := parseInt(r.URL.Query().Get("offset"), 0)
-	if offset < 0 {
-		offset = 0
+	billIdBytes, err := hexutil.Decode(billID)
+	if err != nil {
+		return nil, err
 	}
-	return limit, offset
+	return billIdBytes, nil
 }
 
 func parseInt(str string, def int) int {
@@ -230,4 +258,33 @@ func parseInt(str string, def int) int {
 		return def
 	}
 	return num
+}
+
+func newBlockProofResponse(p *BlockProof) *BlockProofResponse {
+	bytes32 := p.BillId.Bytes32()
+	return &BlockProofResponse{
+		BillId:      hexutil.Encode(bytes32[:]),
+		BlockNumber: p.BlockNumber,
+		BlockProof:  p.BlockProof,
+	}
+}
+
+func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
+	sort.Slice(bills, func(i, j int) bool {
+		return bills[i].OrderNumber < bills[j].OrderNumber
+	})
+	billVMs := toBillVMList(bills)
+	return &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(bills)}
+}
+
+func toBillVMList(bills []*Bill) []*BillVM {
+	billVMs := make([]*BillVM, len(bills))
+	for i, b := range bills {
+		bytes32 := b.Id.Bytes32()
+		billVMs[i] = &BillVM{
+			Id:    hexutil.Encode(bytes32[:]),
+			Value: b.Value,
+		}
+	}
+	return billVMs
 }

@@ -53,7 +53,9 @@ func TestListBillsRequest_Ok(t *testing.T) {
 	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
-	require.Equal(t, mockService.bills, res.Bills)
+	require.Len(t, res.Bills, 1)
+	require.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000001", res.Bills[0].Id)
+	require.EqualValues(t, 1, res.Bills[0].Value)
 }
 
 func TestListBillsRequest_NilPubKey(t *testing.T) {
@@ -214,7 +216,7 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 func TestBlockProofRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
 		proof: &BlockProof{
-			BillId:      uint256.NewInt(0),
+			BillId:      uint256.NewInt(1),
 			BlockNumber: 1,
 			BlockProof: &block.BlockProof{
 				BlockHeaderHash: []byte{0},
@@ -227,14 +229,16 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 	startServer(t, mockService)
 
 	res := &BlockProofResponse{}
-	billId := "0x1"
+	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
 	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/block-proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
-	require.Equal(t, mockService.proof, res.BlockProof)
+	require.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000001", res.BillId)
+	require.EqualValues(t, mockService.proof.BlockNumber, res.BlockNumber)
+	require.Equal(t, mockService.proof.BlockProof, res.BlockProof)
 }
 
-func TestBlockProofRequest_NilBillId(t *testing.T) {
+func TestBlockProofRequest_MissingBillId(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
 	res := &ErrorResponse{}
@@ -244,34 +248,37 @@ func TestBlockProofRequest_NilBillId(t *testing.T) {
 	require.Equal(t, "missing required bill_id query parameter", res.Message)
 }
 
-func TestBlockProofRequest_InvalidBillID(t *testing.T) {
+func TestBlockProofRequest_InvalidBillIdLength(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
+	// verify bill id larger than 32 bytes returns error
 	res := &ErrorResponse{}
-	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=1000", res)
-
+	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=0x000000000000000000000000000000000000000000000000000000000000000001", res)
 	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, errInvalidBillIDFormat.Error(), res.Message)
+	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+
+	// verify bill id smaller than 32 bytes returns error
+	res = &ErrorResponse{}
+	httpRes = doGet(t, "http://localhost:7777/block-proof?bill_id=0x01", res)
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+
+	// verify bill id with correct length but missing prefix returns error
+	res = &ErrorResponse{}
+	httpRes = doGet(t, "http://localhost:7777/block-proof?bill_id=0000000000000000000000000000000000000000000000000000000000000001", res)
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 }
 
-func TestBlockProofRequest_LeadingZerosBillId(t *testing.T) {
+func TestBlockProofRequest_ProofDoesNotExist(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
 	res := &ErrorResponse{}
-	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=0x01", res)
+	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/block-proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, errInvalidBillIDFormat.Error(), res.Message)
-}
-
-func TestBlockProofRequest_BillIdLargerThan32Bytes(t *testing.T) {
-	startServer(t, &mockWalletService{})
-
-	res := &ErrorResponse{}
-	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=0x00000000000000000000000000000000000000000000000000000000000", res)
-
-	require.Equal(t, 400, httpRes.StatusCode)
-	require.Equal(t, errInvalidBillIDFormat.Error(), res.Message)
+	require.Equal(t, "block proof does not exist for given bill id", res.Message)
 }
 
 func TestAddKeyRequest_Ok(t *testing.T) {

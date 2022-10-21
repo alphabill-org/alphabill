@@ -271,10 +271,9 @@ func (s *BoltBillStore) initMetaData() error {
 }
 
 func (s *BoltBillStore) getMaxBillOrderNumber(tx *bolt.Tx, pubKey []byte) uint64 {
-	billOrderNumber := uint64(0)
 	billOrderNumberBytes := tx.Bucket(metaBucket).Get(pubKey)
 	if billOrderNumberBytes != nil {
-		billOrderNumber = util.BytesToUint64(billOrderNumberBytes)
+		return util.BytesToUint64(billOrderNumberBytes)
 	}
-	return billOrderNumber
+	return 0
 }

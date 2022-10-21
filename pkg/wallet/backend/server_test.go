@@ -342,7 +342,7 @@ func doPost(t *testing.T, url string, req interface{}, res interface{}) *http.Re
 }
 
 func startServer(t *testing.T, mockService *mockWalletService) {
-	server := NewHttpServer(":7777", mockService)
+	server := NewHttpServer(":7777", 100, mockService)
 	err := server.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {

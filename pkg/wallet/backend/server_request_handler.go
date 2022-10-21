@@ -202,11 +202,11 @@ func decodePubKeyHex(pubKey string) ([]byte, error) {
 }
 
 func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
-	limit := parseInt(r.URL.Query().Get("limit"), 100)
+	limit := parseInt(r.URL.Query().Get("limit"), s.listBillsPageLimit)
 	if limit < 0 {
 		limit = 0
 	}
-	if limit > 100 {
+	if limit > s.listBillsPageLimit {
 		limit = s.listBillsPageLimit
 	}
 	offset := parseInt(r.URL.Query().Get("offset"), 0)

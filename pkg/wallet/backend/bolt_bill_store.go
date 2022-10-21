@@ -17,7 +17,7 @@ var (
 	billsBucket  = []byte("billsBucket")  // pubkey => bucket[bill_id]=bill
 	proofsBucket = []byte("proofsBucket") // bill_id => block_proof
 	keysBucket   = []byte("keysBucket")   // pubkey => hashed pubkey
-	metaBucket   = []byte("metaBucket")
+	metaBucket   = []byte("metaBucket")   // block_number_key => block_number_val; pubkey => pubkey_block_order_number
 
 	blockNumberKey = []byte("blockNumberKey")
 )
@@ -102,7 +102,13 @@ func (s *BoltBillStore) AddBill(pubKey []byte, b *Bill) error {
 		if err != nil {
 			return err
 		}
+		billOrderNumber := s.getMaxBillOrderNumber(tx, pubKey)
+		b.OrderNumber = billOrderNumber + 1
 		billBytes, err := json.Marshal(b)
+		if err != nil {
+			return err
+		}
+		err = tx.Bucket(metaBucket).Put(pubKey, util.Uint64ToBytes(b.OrderNumber))
 		if err != nil {
 			return err
 		}
@@ -117,6 +123,8 @@ func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *Bill, proof *BlockPro
 		if err != nil {
 			return err
 		}
+		billOrderNumber := s.getMaxBillOrderNumber(tx, pubKey)
+		b.OrderNumber = billOrderNumber + 1
 		billBytes, err := json.Marshal(b)
 		if err != nil {
 			return err
@@ -127,6 +135,10 @@ func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *Bill, proof *BlockPro
 			return err
 		}
 		val, err := json.Marshal(proof)
+		if err != nil {
+			return err
+		}
+		err = tx.Bucket(metaBucket).Put(pubKey, util.Uint64ToBytes(b.OrderNumber))
 		if err != nil {
 			return err
 		}
@@ -256,4 +268,12 @@ func (s *BoltBillStore) initMetaData() error {
 		}
 		return nil
 	})
+}
+
+func (s *BoltBillStore) getMaxBillOrderNumber(tx *bolt.Tx, pubKey []byte) uint64 {
+	billOrderNumberBytes := tx.Bucket(metaBucket).Get(pubKey)
+	if billOrderNumberBytes != nil {
+		return util.BytesToUint64(billOrderNumberBytes)
+	}
+	return 0
 }

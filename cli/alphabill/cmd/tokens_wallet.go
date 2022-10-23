@@ -1,8 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	twallet "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +29,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config))
+	cmd.AddCommand(tokenCmdSync(config))
 	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	return cmd
 }
@@ -223,41 +225,62 @@ func tokenCmdList(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
-func tokenCmdListFungible(config *walletConfig) *cobra.Command {
+func tokenCmdSync(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "fungible",
+		Use: "sync",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdListFungible(cmd, config)
+			return execTokenCmdSync(cmd, config)
 		},
 	}
+	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	return cmd
 }
 
-func execTokenCmdListFungible(cmd *cobra.Command, config *walletConfig) error {
+func execTokenCmdSync(cmd *cobra.Command, config *walletConfig) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
 	}
 	defer tw.Shutdown()
-	return tw.ListTokens()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return tw.Sync(ctx)
+}
+
+func tokenCmdListFungible(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "fungible",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdList(cmd, config, t.Token|t.Fungible)
+		},
+	}
+	return cmd
+}
+
+func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error {
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return tw.ListTokens(ctx, kind)
 }
 
 func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "non-fungible",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdListNonFungible(cmd, config)
+			return execTokenCmdList(cmd, config, t.Token|t.NonFungible)
 		},
 	}
 	return cmd
 }
 
-func execTokenCmdListNonFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
-	return nil
-}
-
-func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*twallet.TokensWallet, error) {
+func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet, error) {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return nil, err
@@ -267,7 +290,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*twallet.Tokens
 		return nil, err
 	}
 
-	tw, err := twallet.Load(mw)
+	tw, err := t.Load(mw)
 	if err != nil {
 		return nil, err
 	}

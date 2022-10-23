@@ -53,6 +53,46 @@ type (
 	}
 )
 
+// token tx type interfaces
+type (
+	CreateNonFungibleTokenType interface {
+		txsystem.GenericTransaction
+		ParentTypeID() *uint256.Int
+		//Hash(hashFunc crypto.Hash) []byte
+	}
+	MintNonFungibleToken interface {
+		txsystem.GenericTransaction
+		NFTTypeID() *uint256.Int
+	}
+	TransferNonFungibleToken interface {
+		txsystem.GenericTransaction
+	}
+	UpdateNonFungibleToken interface {
+		txsystem.GenericTransaction
+	}
+	CreateFungibleTokenType interface {
+		txsystem.GenericTransaction
+		ParentTypeID() *uint256.Int
+	}
+	MintFungibleToken interface {
+		txsystem.GenericTransaction
+		TypeID() *uint256.Int
+	}
+	TransferFungibleToken interface {
+		txsystem.GenericTransaction
+	}
+	SplitFungibleToken interface {
+		txsystem.GenericTransaction
+		HashForIdCalculation(hashFunc crypto.Hash) []byte
+	}
+	BurnFungibleToken interface {
+		txsystem.GenericTransaction
+	}
+	JoinFungibleToken interface {
+		txsystem.GenericTransaction
+	}
+)
+
 func New(opts ...Option) (*tokensTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {

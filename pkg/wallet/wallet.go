@@ -26,7 +26,7 @@ var (
 // Wallet To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
 type Wallet struct {
-	blockProcessor  BlockProcessor
+	BlockProcessor  BlockProcessor
 	config          Config
 	AlphabillClient client.ABClient
 	syncFlag        *syncFlagWrapper
@@ -60,7 +60,7 @@ func (b *Builder) SetABClient(abc client.ABClient) *Builder {
 
 func (b *Builder) Build() *Wallet {
 	w := &Wallet{syncFlag: newSyncFlagWrapper()}
-	w.blockProcessor = b.bp
+	w.BlockProcessor = b.bp
 	if b.abc != nil {
 		w.AlphabillClient = b.abc
 	} else {
@@ -207,8 +207,8 @@ func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<-
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		if w.blockProcessor != nil {
-			err := w.blockProcessor.ProcessBlock(b)
+		if w.BlockProcessor != nil {
+			err := w.BlockProcessor.ProcessBlock(b)
 			if err != nil {
 				return err
 			}

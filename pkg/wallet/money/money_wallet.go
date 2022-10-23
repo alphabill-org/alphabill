@@ -847,3 +847,7 @@ func saveKeys(db Db, keys *wallet.Keys, walletPass string) error {
 		return tx.SetMaxAccountIndex(0)
 	})
 }
+
+func (w *Wallet) GetConfig() WalletConfig {
+	return w.config
+}

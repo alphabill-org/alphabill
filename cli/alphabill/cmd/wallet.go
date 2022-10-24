@@ -223,7 +223,6 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 		"if specified shows only total balance over all accounts")
 	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, "+
 		"e.g. account key numbers, can only be used together with key or total flag")
-	_ = cmd.Flags().MarkHidden(quietCmdName)
 	addPasswordFlags(cmd)
 	return cmd
 }

@@ -126,7 +126,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTok
 	// signature satisfies the predicate obtained by concatenating all the
 	// sub-type creation clauses along the type inheritance chain.
 	predicate, err := c.getChainedPredicate(
-		tx.ParentTypeID(),
+		tx.parentTypeIdInt(),
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.subTypeCreationPredicate
 		},

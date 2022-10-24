@@ -93,7 +93,7 @@ func (d *txSystem) Execute(tx txsystem.GenericTransaction) error {
 		tx.UnitID(),
 		script.PredicateAlwaysFalse(),
 		&unit{
-			dataHash:    hasherUtil.Sum256(tx.UnitID().Bytes()),
+			dataHash:    hasherUtil.Sum256(util.Uint256ToBytes(tx.UnitID())),
 			blockNumber: d.currentBlockNumber,
 		},
 		h,

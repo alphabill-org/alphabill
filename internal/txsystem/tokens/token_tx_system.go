@@ -57,9 +57,15 @@ type (
 type (
 	CreateNonFungibleTokenType interface {
 		txsystem.GenericTransaction
-		ParentTypeID() *uint256.Int
-		//Hash(hashFunc crypto.Hash) []byte
+		ParentTypeId() []byte
+		Symbol() string
+		SubTypeCreationPredicate() []byte
+		TokenCreationPredicate() []byte
+		InvariantPredicate() []byte
+		DataUpdatePredicate() []byte
+		SubTypeCreationPredicateSignature() []byte
 	}
+
 	MintNonFungibleToken interface {
 		txsystem.GenericTransaction
 		NFTTypeID() *uint256.Int
@@ -72,7 +78,13 @@ type (
 	}
 	CreateFungibleTokenType interface {
 		txsystem.GenericTransaction
-		ParentTypeID() *uint256.Int
+		ParentTypeId() []byte
+		Symbol() string
+		DecimalPlaces() uint32
+		SubTypeCreationPredicate() []byte
+		TokenCreationPredicate() []byte
+		InvariantPredicate() []byte
+		SubTypeCreationPredicateSignature() []byte
 	}
 	MintFungibleToken interface {
 		txsystem.GenericTransaction

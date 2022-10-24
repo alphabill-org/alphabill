@@ -31,7 +31,8 @@ type (
 	tokenId []byte
 
 	token struct {
-		Id tokenId `json:"id"`
+		Id   tokenId   `json:"id"`
+		Kind TokenKind `json:"kind"`
 	}
 )
 

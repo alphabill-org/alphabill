@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -96,12 +97,12 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 			}
 			log.Info(fmt.Sprintf("pub keys: %v", len(pubKeys)))
 			for _, tx := range b.Transactions {
-				for _, accPubKey := range pubKeys {
-					err = w.fetchTokens(txc, tx, accPubKey)
-					if err != nil {
-						return err
-					}
+				//for _, accPubKey := range pubKeys {
+				err = w.fetchTokens(txc, tx, 0, nil)
+				if err != nil {
+					return err
 				}
+				//}
 				log.Info(fmt.Sprintf("tx with UnitID=%X", tx.UnitId))
 			}
 		}
@@ -110,15 +111,20 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 	})
 }
 
-func (w *TokensWallet) fetchTokens(txc TokenTxContext, tx *txsystem.Transaction, key PublicKey) error {
+func (w *TokensWallet) fetchTokens(txc TokenTxContext, tx *txsystem.Transaction, accIdx uint64, key PublicKey) error {
 	gtx, err := w.txs.ConvertTx(tx)
 	if err != nil {
 		return err
 	}
 	log.Info("Converted tx: ", gtx)
+	id := util.Uint256ToBytes(gtx.UnitID())
 	switch ctx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		log.Info("Token tx: CreateFungibleTokenType")
+		txc.SetToken(accIdx, &token{
+			Id:   id,
+			Kind: TokenType | Fungible,
+		})
 	case tokens.MintFungibleToken:
 		log.Info("Token tx: MintFungibleToken")
 	case tokens.TransferFungibleToken:
@@ -150,7 +156,9 @@ func (w *TokensWallet) Sync(ctx context.Context) error {
 		return err
 	}
 	log.Info("Synchronizing tokens from block #", latestBlockNumber)
-	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
+	err = w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
+	log.Info("SyncToMaxBlockNumber returned")
+	return err
 }
 
 func (w *TokensWallet) NewFungibleType(attrs *tokens.CreateFungibleTokenTypeAttributes) error {

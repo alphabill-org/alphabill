@@ -1,6 +1,9 @@
 package util
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"github.com/holiman/uint256"
+)
 
 func Uint64ToBytes(i uint64) []byte {
 	bytes := make([]byte, 8)
@@ -16,4 +19,9 @@ func Uint32ToBytes(i uint32) []byte {
 	bytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(bytes, i)
 	return bytes
+}
+
+func Uint256ToBytes(i *uint256.Int) []byte {
+	b := i.Bytes32()
+	return b[:]
 }

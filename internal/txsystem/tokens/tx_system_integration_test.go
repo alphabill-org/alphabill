@@ -2,6 +2,7 @@ package tokens
 
 import (
 	gocrypto "crypto"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -12,7 +13,7 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +32,7 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
 				Symbol:                   "Test",
-				ParentTypeId:             uint256.NewInt(0).Bytes(),
+				ParentTypeId:             util.Uint256ToBytes(uint256.NewInt(0)),
 				SubTypeCreationPredicate: script.PredicateAlwaysTrue(),
 				TokenCreationPredicate:   script.PredicateAlwaysTrue(),
 				InvariantPredicate:       script.PredicateAlwaysTrue(),
@@ -47,7 +48,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	var (
 		hashAlgorithm       = gocrypto.SHA256
 		states              []TokenState
-		zeroID                     = uint256.NewInt(0).Bytes()
+		zeroID                     = util.Uint256ToBytes(uint256.NewInt(0))
 		fungibleTokenTypeID        = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 		fungibleTokenID1           = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
 		totalValue          uint64 = 1000
@@ -152,9 +153,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 	verifyProof(t, splitTx1, network, trustBase, hashAlgorithm)
 
-	sUnitID1 := util.SameShardId(uint256.NewInt(0).SetBytes(fungibleTokenID1), split1GenTx.(*splitFungibleTokenWrapper).HashForIdCalculation(hashAlgorithm))
+	sUnitID1 := txutil.SameShardId(uint256.NewInt(0).SetBytes(fungibleTokenID1), split1GenTx.(*splitFungibleTokenWrapper).HashForIdCalculation(hashAlgorithm))
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
-		unitID:     sUnitID1.Bytes(),
+		unitID:     util.Uint256ToBytes(sUnitID1),
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   zeroBacklink,
 		bearer:     script.PredicateAlwaysTrue(),
@@ -187,9 +188,9 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	sUnitID2 := util.SameShardId(uint256.NewInt(0).SetBytes(fungibleTokenID1), splitGenTx2.(*splitFungibleTokenWrapper).HashForIdCalculation(hashAlgorithm))
+	sUnitID2 := txutil.SameShardId(uint256.NewInt(0).SetBytes(fungibleTokenID1), splitGenTx2.(*splitFungibleTokenWrapper).HashForIdCalculation(hashAlgorithm))
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
-		unitID:     sUnitID2.Bytes(),
+		unitID:     util.Uint256ToBytes(sUnitID2),
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   zeroBacklink,
 		bearer:     script.PredicateAlwaysTrue(),
@@ -226,7 +227,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// burn token x 2
 	burnTx := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
-		testtransaction.WithUnitId(sUnitID1.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(sUnitID1)),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
 				Type:                        fungibleTokenTypeID,
@@ -244,7 +245,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
-		unitID:     sUnitID1.Bytes(),
+		unitID:     util.Uint256ToBytes(sUnitID1),
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   burnGenTx.Hash(hashAlgorithm),
 		bearer:     []byte{0},
@@ -253,7 +254,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	burnTx2 := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
-		testtransaction.WithUnitId(sUnitID2.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(sUnitID2)),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
 				Type:                        fungibleTokenTypeID,
@@ -271,7 +272,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
-		unitID:     sUnitID2.Bytes(),
+		unitID:     util.Uint256ToBytes(sUnitID2),
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   burnGenTx2.Hash(hashAlgorithm),
 		bearer:     []byte{0},

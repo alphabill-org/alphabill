@@ -219,7 +219,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 		return err
 	}
 
-	parentUnitID := tx.ParentTypeID()
+	parentUnitID := tx.ParentTypeIdInt()
 	if !parentUnitID.IsZero() {
 		_, parentData, err := c.getUnit(parentUnitID)
 		if err != nil {
@@ -230,7 +230,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 		}
 	}
 	predicate, err := c.getChainedPredicate(
-		tx.ParentTypeID(),
+		tx.ParentTypeIdInt(),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.subTypeCreationPredicate
 		},

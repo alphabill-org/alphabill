@@ -29,12 +29,16 @@ var failingTransactionID = uint256.NewInt(5).Bytes32()
 type (
 	MockNode struct {
 		maxBlockNumber uint64
+		transactions   []*txsystem.Transaction
 	}
 )
 
 func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
 	if bytes.Equal(tx.UnitId, failingTransactionID[:]) {
 		return errors.New("failed")
+	}
+	if tx != nil {
+		mn.transactions = append(mn.transactions, tx)
 	}
 	return nil
 }

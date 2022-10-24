@@ -58,5 +58,5 @@ func runVDNode(ctx context.Context, cfg *vdConfiguration) error {
 	if err != nil {
 		return err
 	}
-	return defaultNodeRunFunc(ctx, "vd node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer)
+	return defaultNodeRunFunc(ctx, "vd node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer, verifiable_data.TransactionTypes)
 }

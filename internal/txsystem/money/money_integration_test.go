@@ -2,7 +2,6 @@ package money
 
 import (
 	"crypto"
-	"fmt"
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
@@ -51,14 +50,12 @@ func TestPartition_Ok(t *testing.T) {
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx := createBillTransfer(uint256.NewInt(1), total, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), nil)
-	fmt.Printf("Submitting tx: %v, UnitId=%x\n", transferInitialBillTx, transferInitialBillTx.UnitId)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// split initial bill from pubKey1 to pubKey2
 	tx := createSplitTx(transferInitialBillTx, 1000, total-1000)
-	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
@@ -106,7 +103,6 @@ func TestPartition_SwapOk(t *testing.T) {
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx := createBillTransfer(uint256.NewInt(1), total, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), nil)
-	fmt.Printf("Submitting tx: %v, UnitId=%x\n", transferInitialBillTx, transferInitialBillTx.UnitId)
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
@@ -117,7 +113,6 @@ func TestPartition_SwapOk(t *testing.T) {
 	for i, _ := range splitTxs {
 		total = total - amount
 		splitTxs[i] = createSplitTx(prev, amount, total)
-		fmt.Printf("Submitting tx: %v, UnitId=%x\n", splitTxs[i], splitTxs[i].UnitId)
 		amount++
 		prev = splitTxs[i]
 		err = network.SubmitTx(splitTxs[i])

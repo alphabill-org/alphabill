@@ -57,7 +57,7 @@ func TestProofTypePrim(t *testing.T) {
 		// test proof does not verify for wrong transaction
 		tx = createPrimaryTx(maxTx + 1)
 		err = p.Verify(tx, verifier, hashAlgorithm)
-		require.ErrorContains(t, err, ErrProofVerificationFailed)
+		require.ErrorIs(t, err, ErrProofVerificationFailed)
 	}
 }
 
@@ -80,7 +80,7 @@ func TestProofTypeSec(t *testing.T) {
 
 		// test proof does not verify invalid tx
 		nonExistentTxInBlock := createSecondaryTx(2)
-		require.ErrorContains(t, p.Verify(nonExistentTxInBlock, verifier, hashAlgorithm), ErrProofVerificationFailed,
+		require.ErrorIs(t, p.Verify(nonExistentTxInBlock, verifier, hashAlgorithm), ErrProofVerificationFailed,
 			"proof verification should fail for non existent tx in a block")
 	}
 }
@@ -108,7 +108,7 @@ func TestProofTypeOnlySec(t *testing.T) {
 		// test proof does not verify for wrong transaction
 		tx = createPrimaryTx(2)
 		err = p.Verify(tx, verifier, hashAlgorithm)
-		require.ErrorContains(t, err, ErrProofVerificationFailed)
+		require.ErrorIs(t, err, ErrProofVerificationFailed)
 
 		//tx = createPrimaryTx(1) // TODO This case fails, but AhtoB says it's by design
 	}

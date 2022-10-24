@@ -360,12 +360,12 @@ func (m *moneyTxSystem) validateSwapTx(tx Swap) error {
 		return txsystem.ErrInvalidDataType
 	}
 	if dcMoneySupplyBill.V < tx.TargetValue() {
-		return errors.New(ErrSwapInsufficientDCMoneySupply)
+		return ErrSwapInsufficientDCMoneySupply
 	}
 	// 4.there exists no bill with identifier
 	_, err = m.revertibleState.GetUnit(tx.UnitID())
 	if err == nil {
-		return errors.New(ErrSwapBillAlreadyExists)
+		return ErrSwapBillAlreadyExists
 	}
 	return validateSwap(tx, m.hashAlgorithm, m.trustBase)
 }

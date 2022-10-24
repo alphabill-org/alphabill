@@ -303,7 +303,7 @@ func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
 	tx, err := NewMoneyTx(systemIdentifier, swapTx)
 	require.NoError(t, err)
 	err = txSystem.Execute(tx)
-	require.ErrorContains(t, err, ErrSwapInsufficientDCMoneySupply)
+	require.ErrorIs(t, err, ErrSwapInsufficientDCMoneySupply)
 }
 
 func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
@@ -335,7 +335,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	tx, err := NewMoneyTx(systemIdentifier, swapTx)
 	require.NoError(t, err)
 	err = txSystem.Execute(tx)
-	require.ErrorContains(t, err, ErrSwapBillAlreadyExists)
+	require.ErrorIs(t, err, ErrSwapBillAlreadyExists)
 }
 
 func TestRegisterData_Revert(t *testing.T) {

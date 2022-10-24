@@ -12,19 +12,19 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const (
-	ErrInvalidBillValue = "transaction value must be equal to bill value"
+var (
+	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
 
 	// swap tx specific validity conditions
-	ErrSwapInvalidTargetValue        = "target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction"
-	ErrSwapInsufficientDCMoneySupply = "insufficient DC-money supply"
-	ErrSwapBillAlreadyExists         = "swapped bill id already exists"
-	ErrSwapInvalidBillIdentifiers    = "all bill identifiers in dust transfer orders must exist in transaction bill identifiers"
-	ErrSwapInvalidBillId             = "bill id is not properly computed"
-	ErrSwapDustTransfersInvalidOrder = "transfer orders are not listed in strictly increasing order of bill identifiers"
-	ErrSwapInvalidNonce              = "dust transfer orders do not contain proper nonce"
-	ErrSwapInvalidTargetBearer       = "dust transfer orders do not contain proper target bearer"
-	ErrInvalidProofType              = "invalid proof type"
+	ErrSwapInvalidTargetValue        = errors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
+	ErrSwapInsufficientDCMoneySupply = errors.New("insufficient DC-money supply")
+	ErrSwapBillAlreadyExists         = errors.New("swapped bill id already exists")
+	ErrSwapInvalidBillIdentifiers    = errors.New("all bill identifiers in dust transfer orders must exist in transaction bill identifiers")
+	ErrSwapInvalidBillId             = errors.New("bill id is not properly computed")
+	ErrSwapDustTransfersInvalidOrder = errors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
+	ErrSwapInvalidNonce              = errors.New("dust transfer orders do not contain proper nonce")
+	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
+	ErrInvalidProofType              = errors.New("invalid proof type")
 )
 
 func validateTransfer(data rma.UnitData, tx Transfer) error {
@@ -44,7 +44,7 @@ func validateAnyTransfer(data rma.UnitData, backlink []byte, targetValue uint64)
 		return txsystem.ErrInvalidBacklink
 	}
 	if targetValue != bd.V {
-		return errors.New(ErrInvalidBillValue)
+		return ErrInvalidBillValue
 	}
 	return nil
 }
@@ -59,11 +59,11 @@ func validateSplit(data rma.UnitData, tx Split) error {
 	}
 	// amount does not exceed value of the bill
 	if tx.Amount() >= bd.V {
-		return errors.New(ErrInvalidBillValue)
+		return ErrInvalidBillValue
 	}
 	// remaining value equals the previous value minus the amount
 	if tx.RemainingValue() != bd.V-tx.Amount() {
-		return errors.New(ErrInvalidBillValue)
+		return ErrInvalidBillValue
 	}
 	return nil
 }
@@ -75,7 +75,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 	expectedSum := tx.TargetValue()
 	actualSum := sumDcTransferValues(tx)
 	if expectedSum != actualSum {
-		return errors.New(ErrSwapInvalidTargetValue)
+		return ErrSwapInvalidTargetValue
 	}
 
 	// 3. there is suffiecient DC-money supply
@@ -86,7 +86,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 	for _, dcTx := range tx.DCTransfers() {
 		exists := billIdInList(dcTx.UnitID(), tx.BillIdentifiers())
 		if !exists {
-			return errors.New(ErrSwapInvalidBillIdentifiers)
+			return ErrSwapInvalidBillIdentifiers
 		}
 	}
 
@@ -94,7 +94,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 	expectedBillId := hashBillIds(tx, hashAlgorithm)
 	unitIdBytes := tx.UnitID().Bytes32()
 	if !bytes.Equal(unitIdBytes[:], expectedBillId) {
-		return errors.New(ErrSwapInvalidBillId)
+		return ErrSwapInvalidBillId
 	}
 
 	// 7. bills were transfered to DC (validate dc transfer type)
@@ -114,18 +114,18 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 	for i, dcTx := range dustTransfers {
 		if i > 0 {
 			if !dcTx.UnitID().Gt(prevDcTx.UnitID()) {
-				return errors.New(ErrSwapDustTransfersInvalidOrder)
+				return ErrSwapDustTransfersInvalidOrder
 			}
 		}
 		if !bytes.Equal(dcTx.Nonce(), unitIdBytes[:]) {
-			return errors.New(ErrSwapInvalidNonce)
+			return ErrSwapInvalidNonce
 		}
 		if !bytes.Equal(dcTx.TargetBearer(), tx.OwnerCondition()) {
-			return errors.New(ErrSwapInvalidTargetBearer)
+			return ErrSwapInvalidTargetBearer
 		}
 		proof := proofs[i]
 		if proof.ProofType != block.ProofType_PRIM {
-			return errors.New(ErrInvalidProofType)
+			return ErrInvalidProofType
 		}
 		// verify proof itself
 		err := proof.Verify(dcTx, trustBase, hashAlgorithm)

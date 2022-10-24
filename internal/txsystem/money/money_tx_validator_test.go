@@ -19,34 +19,34 @@ func TestTransfer(t *testing.T) {
 		name string
 		bd   *BillData
 		tx   *transferWrapper
-		err  string
+		res  error
 	}{
 		{
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(t, 100, []byte{6}),
-			err:  "",
+			res:  nil,
 		},
 		{
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(t, 101, []byte{6}),
-			err:  ErrInvalidBillValue,
+			res:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(t, 100, []byte{5}),
-			err:  txsystem.ErrInvalidBacklink.Error(),
+			res:  txsystem.ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTransfer(tt.bd, tt.tx)
-			if tt.err == "" {
+			if tt.res == nil {
 				require.NoError(t, err)
 			} else {
-				require.ErrorContains(t, err, tt.err)
+				require.ErrorIs(t, err, tt.res)
 			}
 		})
 	}
@@ -57,34 +57,34 @@ func TestTransferDC(t *testing.T) {
 		name string
 		bd   *BillData
 		tx   *transferDCWrapper
-		err  string
+		res  error
 	}{
 		{
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(t, 100, []byte{6}, []byte{1}, test.RandomBytes(32)),
-			err:  "",
+			res:  nil,
 		},
 		{
 			name: "InvalidBalance",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(t, 101, []byte{6}, []byte{1}, test.RandomBytes(32)),
-			err:  ErrInvalidBillValue,
+			res:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(t, 100, []byte{5}, []byte{1}, test.RandomBytes(32)),
-			err:  txsystem.ErrInvalidBacklink.Error(),
+			res:  txsystem.ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateTransferDC(tt.bd, tt.tx)
-			if tt.err == "" {
+			if tt.res == nil {
 				require.NoError(t, err)
 			} else {
-				require.ErrorContains(t, err, tt.err)
+				require.ErrorIs(t, err, tt.res)
 			}
 		})
 	}
@@ -95,46 +95,46 @@ func TestSplit(t *testing.T) {
 		name string
 		bd   *BillData
 		tx   *billSplitWrapper
-		err  string
+		res  error
 	}{
 		{
 			name: "Ok",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 50, []byte{6}),
-			err:  "",
+			res:  nil,
 		},
 		{
 			name: "AmountExceedsBillValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 101, 100, []byte{6}),
-			err:  ErrInvalidBillValue,
+			res:  ErrInvalidBillValue,
 		},
 		{
 			name: "AmountEqualsBillValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 100, 0, []byte{6}),
-			err:  ErrInvalidBillValue,
+			res:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidRemainingValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 51, []byte{6}),
-			err:  ErrInvalidBillValue,
+			res:  ErrInvalidBillValue,
 		},
 		{
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 50, []byte{5}),
-			err:  txsystem.ErrInvalidBacklink.Error(),
+			res:  txsystem.ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateSplit(tt.bd, tt.tx)
-			if tt.err == "" {
+			if tt.res == nil {
 				require.NoError(t, err)
 			} else {
-				require.ErrorContains(t, err, tt.err)
+				require.ErrorIs(t, err, tt.res)
 			}
 		})
 	}
@@ -156,37 +156,37 @@ func TestSwap(t *testing.T) {
 		{
 			name: "InvalidTargetValue",
 			tx:   newInvalidTargetValueSwap(t),
-			err:  ErrSwapInvalidTargetValue,
+			err:  ErrSwapInvalidTargetValue.Error(),
 		},
 		{
 			name: "InvalidBillIdentifiers",
 			tx:   newInvalidBillIdentifierSwap(t, signer),
-			err:  ErrSwapInvalidBillIdentifiers,
+			err:  ErrSwapInvalidBillIdentifiers.Error(),
 		},
 		{
 			name: "InvalidBillId",
 			tx:   newInvalidBillIdSwap(t, signer),
-			err:  ErrSwapInvalidBillId,
+			err:  ErrSwapInvalidBillId.Error(),
 		},
 		{
 			name: "DustTransfersInDescBillIdOrder",
 			tx:   newSwapWithDescBillOrder(t, signer),
-			err:  ErrSwapDustTransfersInvalidOrder,
+			err:  ErrSwapDustTransfersInvalidOrder.Error(),
 		},
 		{
 			name: "DustTransfersInEqualBillIdOrder",
 			tx:   newSwapOrderWithEqualBillIds(t, signer),
-			err:  ErrSwapDustTransfersInvalidOrder,
+			err:  ErrSwapDustTransfersInvalidOrder.Error(),
 		},
 		{
 			name: "InvalidNonce",
 			tx:   newInvalidNonceSwap(t, signer),
-			err:  ErrSwapInvalidNonce,
+			err:  ErrSwapInvalidNonce.Error(),
 		},
 		{
 			name: "InvalidTargetBearer",
 			tx:   newInvalidTargetBearerSwap(t, signer),
-			err:  ErrSwapInvalidTargetBearer,
+			err:  ErrSwapInvalidTargetBearer.Error(),
 		},
 		{
 			name: "InvalidProofsNil",
@@ -196,7 +196,7 @@ func TestSwap(t *testing.T) {
 		{
 			name: "InvalidEmptyDcProof",
 			tx:   newEmptyDcProofsSwap(t),
-			err:  "proof verification failed unicity certificate is nil",
+			err:  "unicity certificate is nil",
 		},
 		{
 			name: "InvalidDcProofInvalid",

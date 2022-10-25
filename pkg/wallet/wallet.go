@@ -132,15 +132,15 @@ func (w *Wallet) syncLedger(ctx context.Context, lastBlockNumber uint64, syncFor
 		} else {
 			err = w.fetchBlocksUntilMaxBlock(ctx, lastBlockNumber, ch)
 		}
-		log.Info("closing block receiver channel")
+		log.Debug("closing block receiver channel")
 		close(ch)
 
-		log.Info("block receiver goroutine finished")
+		log.Debug("block receiver goroutine finished")
 		return err
 	})
 	errGroup.Go(func() error {
 		err := w.processBlocks(ch)
-		log.Info("block processor goroutine finished")
+		log.Debug("block processor goroutine finished")
 		return err
 	})
 	err := errGroup.Wait()

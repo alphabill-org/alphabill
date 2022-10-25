@@ -213,11 +213,19 @@ func (w *Wallet) GetBalances() ([]uint64, error) {
 
 // GetPublicKey returns public key of the wallet (compressed secp256k1 key 33 bytes)
 func (w *Wallet) GetPublicKey(accountIndex uint64) ([]byte, error) {
-	key, err := w.db.Do().GetAccountKey(accountIndex)
+	key, err := w.GetAccountKey(accountIndex)
 	if err != nil {
 		return nil, err
 	}
 	return key.PubKey, nil
+}
+
+func (w *Wallet) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
+	key, err := w.db.Do().GetAccountKey(accountIndex)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 // GetPublicKeys returns public keys of the wallet, indexed by account indexes

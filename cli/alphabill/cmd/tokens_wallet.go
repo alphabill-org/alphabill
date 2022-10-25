@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/spf13/cobra"
@@ -49,6 +50,12 @@ func tokenCmdNewType(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
+func addCommonAccountFlags(cmd *cobra.Command) *cobra.Command {
+	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
+	addPasswordFlags(cmd)
+	return cmd
+}
+
 func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().String(cmdFlagSymbol, "", "token symbol (mandatory)")
 	_ = cmd.MarkFlagRequired(cmdFlagSymbol)
@@ -91,9 +98,9 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		DecimalPlaces:                     decimals,
 		ParentTypeId:                      nil,
 		SubTypeCreationPredicateSignature: nil,
-		SubTypeCreationPredicate:          nil,
-		TokenCreationPredicate:            nil,
-		InvariantPredicate:                nil,
+		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
+		InvariantPredicate:                script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -127,8 +134,8 @@ func tokenCmdNewToken(config *walletConfig) *cobra.Command {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
 	}
-	cmd.AddCommand(tokenCmdNewTokenFungible(config))
-	cmd.AddCommand(tokenCmdNewTokenNonFungible(config))
+	cmd.AddCommand(addCommonAccountFlags(tokenCmdNewTokenFungible(config)))
+	cmd.AddCommand(addCommonAccountFlags(tokenCmdNewTokenNonFungible(config)))
 	return cmd
 }
 
@@ -148,6 +155,10 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 }
 
 func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
@@ -170,11 +181,11 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		Bearer:                          nil,
 		Type:                            typeId,
 		Value:                           amount,
-		TokenCreationPredicateSignature: nil,
+		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleToken(ctx, a)
+	id, err := tw.NewFungibleToken(ctx, accountNumber-1, a)
 	if err != nil {
 		return err
 	}

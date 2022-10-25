@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -15,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"strings"
 )
 
 type (
@@ -49,7 +51,13 @@ type (
 		txs           block.TxConverter
 		blockListener wallet.BlockProcessor
 	}
+
+	BlockListener func(b *block.Block) error
 )
+
+func (l BlockListener) ProcessBlock(b *block.Block) error {
+	return l(b)
+}
 
 func Load(mw *money.Wallet) (*TokensWallet, error) {
 	config := mw.GetConfig()
@@ -208,6 +216,25 @@ func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.Create
 		return nil, err
 	}
 
+	return id, w.syncToUnit(ctx, id)
+}
+
+func (w *TokensWallet) NewFungibleToken(ctx context.Context, accIdx uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
+	log.Info(fmt.Sprintf("Creating new fungible token"))
+	key, err := w.mw.GetAccountKey(accIdx)
+	if err != nil {
+		return nil, err
+	}
+	attrs.Bearer = script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256)
+	id, err := w.sendTx(attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	return id, w.syncToUnit(ctx, id)
+}
+
+func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId) error {
 	ctx, cancel := context.WithCancel(ctx)
 
 	log.Info(fmt.Sprintf("Request sent, waiting the tx to be finalized"))
@@ -228,18 +255,7 @@ func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.Create
 		cancel()
 	}()
 
-	return id, w.SyncUntilCanceled(ctx)
-}
-
-type BlockListener func(b *block.Block) error
-
-func (l BlockListener) ProcessBlock(b *block.Block) error {
-	return l(b)
-}
-
-func (w *TokensWallet) NewFungibleToken(ctx context.Context, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
-	log.Info(fmt.Sprintf("Creating new fungible token"))
-	return w.sendTx(attrs)
+	return w.SyncUntilCanceled(ctx)
 }
 
 func randomId() (TokenId, error) {
@@ -305,7 +321,7 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountId
 		if len(tokens) > 0 {
 			log.Info(fmt.Sprintf("Account #%v (key '%X') tokens: ", idx+1, key))
 			for _, token := range tokens {
-				log.Info(fmt.Sprintf("Id=%X, kind: %v", token.Id, token.Kind))
+				log.Info(fmt.Sprintf("Id=%X, kind: %s", token.Id, token.Kind.pretty()))
 			}
 		}
 	}
@@ -323,4 +339,22 @@ func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 		Timeout:               timeout,
 		// OwnerProof is added after whole transaction is built
 	}
+}
+
+func (k *TokenKind) pretty() string {
+	if *k&Any > 0 {
+		return "[any]"
+	}
+	res := make([]string, 0)
+	if *k&TokenType > 0 {
+		res = append(res, "type")
+	} else {
+		res = append(res, "token")
+	}
+	if *k&Fungible > 0 {
+		res = append(res, "fungible")
+	} else {
+		res = append(res, "non-fungible")
+	}
+	return "[" + strings.Join(res, ",") + "]"
 }

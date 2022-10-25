@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/spf13/cobra"
@@ -15,6 +16,8 @@ const (
 	cmdFlagSybtypeClause       = "subtype-clause"
 	cmdFlagMintClause          = "mint-clause"
 	cmdFlagInheritBearerClause = "inherit-bearer-clause"
+	cmdFlagAmount              = "amount"
+	cmdFlagType                = "type"
 )
 
 func tokenCmd(config *walletConfig) *cobra.Command {
@@ -92,10 +95,13 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		TokenCreationPredicate:            nil,
 		InvariantPredicate:                nil,
 	}
-	err = tw.NewFungibleType(a)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	id, err := tw.NewFungibleType(ctx, a)
 	if err != nil {
 		return err
 	}
+	consoleWriter.Println(fmt.Sprintf("Created new fungible token type with id=%X", id))
 	return nil
 }
 
@@ -133,11 +139,47 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
+	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
+	_ = cmd.MarkFlagRequired(cmdFlagAmount)
+	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
+	_ = cmd.MarkFlagRequired(cmdFlagType)
+	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")
 	return cmd
 }
 
 func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	amount, err := cmd.Flags().GetUint64(cmdFlagAmount)
+	if err != nil {
+		return err
+	}
+	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	if err != nil {
+		return err
+	}
+	//input, err := cmd.Flags().GetString(cmdFlagCreationInput)
+	//if err != nil {
+	//	return err
+	//}
+	a := &tokens.MintFungibleTokenAttributes{
+		Bearer:                          nil,
+		Type:                            typeId,
+		Value:                           amount,
+		TokenCreationPredicateSignature: nil,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	id, err := tw.NewFungibleToken(ctx, a)
+	if err != nil {
+		return err
+	}
+
+	consoleWriter.Println(fmt.Sprintf("Created new fungible token with id=%X", id))
 	return nil
 }
 
@@ -267,7 +309,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	return tw.ListTokens(ctx, kind)
+	return tw.ListTokens(ctx, kind, t.AllAccounts)
 }
 
 func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {

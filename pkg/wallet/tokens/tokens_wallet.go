@@ -20,6 +20,9 @@ import (
 type (
 	PublicKey []byte
 	TokenKind uint
+
+	TokenId     []byte
+	TokenTypeId []byte
 )
 
 const (
@@ -31,7 +34,8 @@ const (
 )
 
 const (
-	txTimeoutBlockCount = 100
+	txTimeoutBlockCount     = 100
+	AllAccounts         int = -1
 )
 
 var (
@@ -40,9 +44,10 @@ var (
 
 type (
 	TokensWallet struct {
-		mw  *money.Wallet
-		db  *tokensDb
-		txs block.TxConverter
+		mw            *money.Wallet
+		db            *tokensDb
+		txs           block.TxConverter
+		blockListener wallet.BlockProcessor
 	}
 )
 
@@ -61,7 +66,7 @@ func Load(mw *money.Wallet) (*TokensWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &TokensWallet{mw, db, txs}
+	w := &TokensWallet{mw, db, txs, nil}
 	w.mw.Wallet = wallet.New().
 		SetBlockProcessor(w).
 		SetABClient(mw.AlphabillClient).
@@ -97,21 +102,31 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 			}
 			log.Info(fmt.Sprintf("pub keys: %v", len(pubKeys)))
 			for _, tx := range b.Transactions {
-				//for _, accPubKey := range pubKeys {
-				err = w.fetchTokens(txc, tx, 0, nil)
-				if err != nil {
-					return err
+				for idx, accPubKey := range pubKeys {
+					err = w.readTx(txc, tx, uint64(idx), accPubKey)
+					if err != nil {
+						return err
+					}
 				}
-				//}
 				log.Info(fmt.Sprintf("tx with UnitID=%X", tx.UnitId))
 			}
+		}
+
+		lst := w.blockListener
+		if lst != nil {
+			go func() {
+				err := lst.ProcessBlock(b)
+				if err != nil {
+					log.Info(fmt.Sprintf("Failed to process a block #%v with blockListener", b.BlockNumber))
+				}
+			}()
 		}
 
 		return txc.SetBlockNumber(b.BlockNumber)
 	})
 }
 
-func (w *TokensWallet) fetchTokens(txc TokenTxContext, tx *txsystem.Transaction, accIdx uint64, key PublicKey) error {
+func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accIdx uint64, key PublicKey) error {
 	gtx, err := w.txs.ConvertTx(tx)
 	if err != nil {
 		return err
@@ -121,28 +136,46 @@ func (w *TokensWallet) fetchTokens(txc TokenTxContext, tx *txsystem.Transaction,
 	switch ctx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		log.Info("Token tx: CreateFungibleTokenType")
-		txc.SetToken(accIdx, &token{
+		err := txc.SetToken(accIdx, &token{
 			Id:   id,
 			Kind: TokenType | Fungible,
 		})
+		if err != nil {
+			return err
+		}
 	case tokens.MintFungibleToken:
 		log.Info("Token tx: MintFungibleToken")
+		err := txc.SetToken(accIdx, &token{
+			Id:   id,
+			Kind: Token | Fungible,
+		})
+		if err != nil {
+			return err
+		}
 	case tokens.TransferFungibleToken:
 		log.Info("Token tx: TransferFungibleToken")
+		// TODO remove token if bearer is someone else
 	case tokens.SplitFungibleToken:
 		log.Info("Token tx: SplitFungibleToken")
+		// TODO
 	case tokens.BurnFungibleToken:
 		log.Info("Token tx: BurnFungibleToken")
+		// TODO
 	case tokens.JoinFungibleToken:
 		log.Info("Token tx: JoinFungibleToken")
+		// TODO
 	case tokens.CreateNonFungibleTokenType:
 		log.Info("Token tx: CreateNonFungibleTokenType")
+		// TODO
 	case tokens.MintNonFungibleToken:
 		log.Info("Token tx: MintNonFungibleToken")
+		// TODO
 	case tokens.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
+		// TODO
 	case tokens.UpdateNonFungibleToken:
 		log.Info("Token tx: UpdateNonFungibleToken")
+		// TODO
 	default:
 		log.Warning(fmt.Sprintf("received unknown token transaction type, skipped processing: %s", ctx))
 		return nil
@@ -156,43 +189,125 @@ func (w *TokensWallet) Sync(ctx context.Context) error {
 		return err
 	}
 	log.Info("Synchronizing tokens from block #", latestBlockNumber)
-	err = w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
-	log.Info("SyncToMaxBlockNumber returned")
-	return err
+	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
 }
 
-func (w *TokensWallet) NewFungibleType(attrs *tokens.CreateFungibleTokenTypeAttributes) error {
+func (w *TokensWallet) SyncUntilCanceled(ctx context.Context) error {
+	latestBlockNumber, err := w.db.Do().GetBlockNumber()
+	if err != nil {
+		return err
+	}
+	log.Info("Synchronizing tokens from block #", latestBlockNumber)
+	return w.mw.Wallet.Sync(ctx, latestBlockNumber)
+}
+
+func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes) (TokenId, error) {
+	log.Info(fmt.Sprintf("Creating new fungible token type"))
+	id, err := w.sendTx(attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	log.Info(fmt.Sprintf("Request sent, waiting the tx to be finalized"))
+	var bl BlockListener = func(b *block.Block) error {
+		log.Info(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
+		for _, tx := range b.Transactions {
+			if bytes.Equal(tx.UnitId, id) {
+				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", id, b.BlockNumber))
+				cancel()
+			}
+		}
+		return nil
+	}
+	w.blockListener = bl
+
+	defer func() {
+		w.blockListener = nil
+		cancel()
+	}()
+
+	return id, w.SyncUntilCanceled(ctx)
+}
+
+type BlockListener func(b *block.Block) error
+
+func (l BlockListener) ProcessBlock(b *block.Block) error {
+	return l(b)
+}
+
+func (w *TokensWallet) NewFungibleToken(ctx context.Context, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
+	log.Info(fmt.Sprintf("Creating new fungible token"))
+	return w.sendTx(attrs)
+}
+
+func randomId() (TokenId, error) {
 	id := make([]byte, 32)
 	_, err := rand.Read(id)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	return id, nil
+}
+
+func (w *TokensWallet) sendTx(attrs proto.Message) (TokenId, error) {
+	id, err := randomId()
+	if err != nil {
+		return nil, err
 	}
 
 	blockNumber, err := w.mw.GetMaxBlockNumber()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	log.Info(fmt.Sprintf("Creating new type with UnitID=%X", id))
+	log.Info(fmt.Sprintf("New UnitID=%X", id))
 	gtx := createGenericTx(id, blockNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(gtx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	res, err := w.mw.SendTransaction(gtx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !res.Ok {
-		return errors.New("tx submission returned error code: " + res.Message)
+		return nil, errors.New("tx submission returned error code: " + res.Message)
 	}
-	return nil
+	return id, nil
 }
 
-func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind) error {
+func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountIdx int) error {
 
 	err := w.Sync(ctx)
 	if err != nil {
 		return err
+	}
+
+	var pubKeys [][]byte
+	if accountIdx > AllAccounts {
+		pubKeys[0], err = w.mw.GetPublicKey(uint64(accountIdx))
+		if err != nil {
+			return err
+		}
+	} else {
+		pubKeys, err = w.mw.GetPublicKeys()
+		if err != nil {
+			return err
+		}
+	}
+
+	for idx, key := range pubKeys {
+		tokens, err := w.db.Do().GetTokens(uint64(idx))
+		if err != nil {
+			return err
+		}
+		if len(tokens) > 0 {
+			log.Info(fmt.Sprintf("Account #%v (key '%X') tokens: ", idx+1, key))
+			for _, token := range tokens {
+				log.Info(fmt.Sprintf("Id=%X, kind: %v", token.Id, token.Kind))
+			}
+		}
 	}
 	if kind&(Token|Fungible) != 0 {
 		// TODO

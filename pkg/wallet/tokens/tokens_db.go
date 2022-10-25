@@ -3,6 +3,7 @@ package tokens
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	bolt "go.etcd.io/bbolt"
@@ -11,8 +12,9 @@ import (
 )
 
 var (
-	accountBillsBucket = []byte("accountTokens")
-	metaBucket         = []byte("meta")
+	accountsBucket      = []byte("accounts")
+	accountTokensBucket = []byte("accountTokens")
+	metaBucket          = []byte("meta")
 )
 
 var (
@@ -28,11 +30,21 @@ var (
 const tokensFileName = "tokens.db"
 
 type (
-	tokenId []byte
-
 	token struct {
-		Id   tokenId   `json:"id"`
-		Kind TokenKind `json:"kind"`
+		Id     TokenId     `json:"id"`
+		Kind   TokenKind   `json:"kind"`
+		Symbol string      `json:"symbol"`
+		TypeId TokenTypeId `json:"typeId"`
+	}
+
+	fungibleToken struct {
+		token
+		Amount uint64 `json:"amount"`
+	}
+
+	nonFungibleToken struct {
+		token
+		Uri string `json:"uri"`
 	}
 )
 
@@ -48,8 +60,8 @@ type TokenTxContext interface {
 	SetBlockNumber(blockNumber uint64) error
 
 	SetToken(accountIndex uint64, token *token) error
-	ContainsToken(accountIndex uint64, id tokenId) (bool, error)
-	RemoveToken(accountIndex uint64, id tokenId) error
+	ContainsToken(accountIndex uint64, id TokenId) (bool, error)
+	RemoveToken(accountIndex uint64, id TokenId) error
 	GetTokens(accountIndex uint64) ([]*token, error)
 }
 
@@ -64,28 +76,71 @@ type tokensDbTx struct {
 }
 
 func (t *tokensDbTx) SetToken(accountIndex uint64, token *token) error {
+	return t.withTx(t.tx, func(tx *bolt.Tx) error {
+		val, err := json.Marshal(token)
+		if err != nil {
+			return err
+		}
+		log.Info(fmt.Sprintf("adding token: id=%X, for account=%d", token.Id, accountIndex))
+		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		return bkt.Put(token.Id, val)
+	}, true)
+}
+
+func ensureTokenBucket(tx *bolt.Tx, accountIndex []byte) (*bolt.Bucket, error) {
+	b, err := tx.CreateBucketIfNotExists(accountsBucket)
+	if err != nil {
+		return nil, err
+	}
+	b, err = b.CreateBucketIfNotExists(accountIndex)
+	if err != nil {
+		return nil, err
+	}
+	b, err = b.CreateBucketIfNotExists(accountTokensBucket)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (t *tokensDbTx) ContainsToken(accountIndex uint64, id TokenId) (bool, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (t *tokensDbTx) ContainsToken(accountIndex uint64, id tokenId) (bool, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (t *tokensDbTx) RemoveToken(accountIndex uint64, id tokenId) error {
+func (t *tokensDbTx) RemoveToken(accountIndex uint64, id TokenId) error {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (t *tokensDbTx) GetTokens(accountIndex uint64) ([]*token, error) {
-	//TODO implement me
-	panic("implement me")
+	var tokens []*token
+	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
+		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		return bkt.ForEach(func(k, v []byte) error {
+			t, err := parseToken(v)
+			if err != nil {
+				return err
+			}
+			tokens = append(tokens, t)
+			return nil
+		})
+	}, true)
+	if err != nil {
+		return nil, err
+	}
+	return tokens, nil
 }
 
-func (w *tokensDbTx) GetBlockNumber() (uint64, error) {
+func (t *tokensDbTx) GetBlockNumber() (uint64, error) {
 	var res uint64
-	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		blockHeightBytes := tx.Bucket(metaBucket).Get(blockHeightKeyName)
 		if blockHeightBytes == nil {
 			return nil
@@ -99,8 +154,8 @@ func (w *tokensDbTx) GetBlockNumber() (uint64, error) {
 	return res, nil
 }
 
-func (w *tokensDbTx) SetBlockNumber(blockHeight uint64) error {
-	return w.withTx(w.tx, func(tx *bolt.Tx) error {
+func (t *tokensDbTx) SetBlockNumber(blockHeight uint64) error {
+	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		return tx.Bucket(metaBucket).Put(blockHeightKeyName, util.Uint64ToBytes(blockHeight))
 	}, true)
 }
@@ -144,19 +199,23 @@ func (w *tokensDb) Close() {
 	}
 }
 
-func (w *tokensDbTx) withTx(dbTx *bolt.Tx, myFunc func(tx *bolt.Tx) error, writeTx bool) error {
+func (t *tokensDbTx) withTx(dbTx *bolt.Tx, myFunc func(tx *bolt.Tx) error, writeTx bool) error {
 	if dbTx != nil {
 		return myFunc(dbTx)
 	} else if writeTx {
-		return w.db.db.Update(myFunc)
+		return t.db.db.Update(myFunc)
 	} else {
-		return w.db.db.View(myFunc)
+		return t.db.db.View(myFunc)
 	}
 }
 
 func (w *tokensDb) createBuckets() error {
 	return w.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(metaBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(accountsBucket)
 		if err != nil {
 			return err
 		}

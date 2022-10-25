@@ -476,16 +476,32 @@ func (m *mintFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	return m.wrapper.hashValue
 }
 
-func (m *mintFungibleTokenWrapper) TypeID() *uint256.Int {
-	return uint256.NewInt(0).SetBytes(m.attributes.Type)
+func (m *mintFungibleTokenWrapper) TypeIdInt() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(m.TypeId())
+}
+
+func (m *mintFungibleTokenWrapper) TypeId() []byte {
+	return m.attributes.Type
+}
+
+func (m *mintFungibleTokenWrapper) Value() uint64 {
+	return m.attributes.Value
+}
+
+func (m *mintFungibleTokenWrapper) Bearer() []byte {
+	return m.attributes.Bearer
+}
+
+func (m *mintFungibleTokenWrapper) TokenCreationPredicateSignature() []byte {
+	return m.attributes.TokenCreationPredicateSignature
 }
 
 func (m *mintFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	m.wrapper.sigBytes(&b)
-	b.Write(m.attributes.Bearer)
-	b.Write(m.attributes.Type)
-	b.Write(util.Uint64ToBytes(m.attributes.Value))
+	b.Write(m.Bearer())
+	b.Write(m.TypeId())
+	b.Write(util.Uint64ToBytes(m.Value()))
 	return b.Bytes()
 }
 

@@ -88,7 +88,11 @@ type (
 	}
 	MintFungibleToken interface {
 		txsystem.GenericTransaction
-		TypeID() *uint256.Int
+		TypeIdInt() *uint256.Int
+		TypeId() []byte
+		Value() uint64
+		Bearer() []byte
+		TokenCreationPredicateSignature() []byte
 	}
 	TransferFungibleToken interface {
 		txsystem.GenericTransaction

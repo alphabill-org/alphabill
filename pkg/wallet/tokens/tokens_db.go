@@ -35,16 +35,8 @@ type (
 		Kind   TokenKind   `json:"kind"`
 		Symbol string      `json:"symbol"`
 		TypeId TokenTypeId `json:"typeId"`
-	}
-
-	fungibleToken struct {
-		token
-		Amount uint64 `json:"amount"`
-	}
-
-	nonFungibleToken struct {
-		token
-		Uri string `json:"uri"`
+		Amount uint64      `json:"amount"`
+		Uri    string      `json:"uri"`
 	}
 )
 

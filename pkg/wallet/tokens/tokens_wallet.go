@@ -145,8 +145,9 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accI
 	case tokens.CreateFungibleTokenType:
 		log.Info("Token tx: CreateFungibleTokenType")
 		err := txc.SetToken(accIdx, &token{
-			Id:   id,
-			Kind: TokenType | Fungible,
+			Id:     id,
+			Kind:   TokenType | Fungible,
+			Symbol: ctx.Symbol(),
 		})
 		if err != nil {
 			return err
@@ -154,8 +155,10 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accI
 	case tokens.MintFungibleToken:
 		log.Info("Token tx: MintFungibleToken")
 		err := txc.SetToken(accIdx, &token{
-			Id:   id,
-			Kind: Token | Fungible,
+			Id:     id,
+			Kind:   Token | Fungible,
+			TypeId: ctx.TypeId(),
+			Amount: ctx.Value(),
 		})
 		if err != nil {
 			return err

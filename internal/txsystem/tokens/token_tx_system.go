@@ -96,6 +96,11 @@ type (
 	}
 	TransferFungibleToken interface {
 		txsystem.GenericTransaction
+		NewBearer() []byte
+		Value() uint64
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
 	}
 	SplitFungibleToken interface {
 		txsystem.GenericTransaction

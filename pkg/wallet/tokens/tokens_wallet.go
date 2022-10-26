@@ -111,8 +111,12 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 			}
 			log.Info(fmt.Sprintf("pub keys: %v", len(accounts)))
 			for _, tx := range b.Transactions {
-				for idx, account := range accounts {
-					err = w.readTx(txc, tx, uint64(idx), account.PubKeyHash)
+				for n := 0; n <= len(accounts); n++ {
+					var keyHashes *wallet.KeyHashes = nil
+					if n > 0 {
+						keyHashes = accounts[n-1].PubKeyHash
+					}
+					err = w.readTx(txc, tx, uint64(n), keyHashes)
 					if err != nil {
 						return err
 					}
@@ -135,7 +139,7 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 	})
 }
 
-func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accIdx uint64, key *wallet.KeyHashes) error {
+func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint64, key *wallet.KeyHashes) error {
 	gtx, err := w.txs.ConvertTx(tx)
 	if err != nil {
 		return err
@@ -146,38 +150,45 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accI
 
 	switch ctx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
-		log.Info("Token tx: CreateFungibleTokenType")
-		err := txc.SetToken(accIdx, &token{
-			Id:     id,
-			Kind:   TokenType | Fungible,
-			Symbol: ctx.Symbol(),
+		log.Info("CreateFungibleTokenType tx")
+		err := txc.AddTokenType(&tokenType{
+			Id:            id,
+			Kind:          TokenType | Fungible,
+			Symbol:        ctx.Symbol(),
+			ParentTypeId:  ctx.ParentTypeId(),
+			DecimalPlaces: ctx.DecimalPlaces(),
 		})
 		if err != nil {
 			return err
 		}
 	case tokens.MintFungibleToken:
-		log.Info("Token tx: MintFungibleToken")
-		if wallet.VerifyP2PKHOwner(key, ctx.Bearer()) {
-			err := txc.SetToken(accIdx, &token{
+		log.Info("MintFungibleToken tx")
+		if checkOwner(accNr, key, ctx.Bearer()) {
+			tType, err := txc.GetTokenType(ctx.TypeId())
+			if err != nil {
+				return err
+			}
+			err = txc.SetToken(accNr, &token{
 				Id:       id,
 				Kind:     Token | Fungible,
 				TypeId:   ctx.TypeId(),
 				Amount:   ctx.Value(),
 				Backlink: txHash,
+				Symbol:   tType.Symbol,
 			})
 			if err != nil {
 				return err
 			}
 		} else {
-			err := txc.RemoveToken(accIdx, id)
+			err := txc.RemoveToken(accNr, id)
 			if err != nil {
 				return err
 			}
 		}
 	case tokens.TransferFungibleToken:
-		log.Info("Token tx: TransferFungibleToken")
-		if wallet.VerifyP2PKHOwner(key, ctx.NewBearer()) {
-			err := txc.SetToken(accIdx, &token{
+		log.Info("TransferFungibleToken tx")
+		if checkOwner(accNr, key, ctx.NewBearer()) {
+			err := txc.SetToken(accNr, &token{
 				Id:       id,
 				Kind:     Token | Fungible,
 				Amount:   ctx.Value(),
@@ -187,7 +198,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accI
 				return err
 			}
 		} else {
-			err := txc.RemoveToken(accIdx, id)
+			err := txc.RemoveToken(accNr, id)
 			if err != nil {
 				return err
 			}
@@ -218,6 +229,14 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accI
 		return nil
 	}
 	return nil
+}
+
+func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []byte) bool {
+	if accNr == alwaysTrueTokensAccountNumber {
+		return bytes.Equal(script.PredicateAlwaysTrue(), bearerPredicate)
+	} else {
+		return wallet.VerifyP2PKHOwner(pubkeyHashes, bearerPredicate)
+	}
 }
 
 func (w *TokensWallet) Sync(ctx context.Context) error {
@@ -269,7 +288,7 @@ func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint6
 
 	log.Info(fmt.Sprintf("Request sent, waiting the tx to be finalized"))
 	var bl BlockListener = func(b *block.Block) error {
-		log.Info(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
+		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
 		if b.BlockNumber > timeout {
 			log.Info(fmt.Sprintf("Timeout is reached (#%v), tx not found for UnitID=%X", b.BlockNumber, id))
 			cancel()
@@ -327,42 +346,69 @@ func (w *TokensWallet) sendTx(attrs proto.Message) (TokenId, uint64, error) {
 	return id, gtx.Timeout, nil
 }
 
-func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountIdx int) error {
+func (w *TokensWallet) ListTokenTypes(ctx context.Context) ([]string, error) {
+	err := w.Sync(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	types, err := w.db.Do().GetTokenTypes()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]string, len(types))
+	for _, t := range types {
+		m := fmt.Sprintf("Id=%X, symbol=%s, kind: %s", t.Id, t.Symbol, t.Kind.pretty())
+		log.Info(m)
+		res = append(res, m)
+	}
+	return res, nil
+}
+
+func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) ([]string, error) {
 
 	err := w.Sync(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var pubKeys [][]byte
-	if accountIdx > AllAccounts {
-		pubKeys[0], err = w.mw.GetPublicKey(uint64(accountIdx))
+	if accountNumber > AllAccounts+1 {
+		pubKeys[0], err = w.mw.GetPublicKey(uint64(accountNumber - 1))
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		pubKeys, err = w.mw.GetPublicKeys()
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	for idx, key := range pubKeys {
-		tokens, err := w.db.Do().GetTokens(uint64(idx))
+	res := make([]string, len(pubKeys)+1)
+	for n := 0; n <= len(pubKeys); n++ {
+		tokens, err := w.db.Do().GetTokens(uint64(n))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(tokens) > 0 {
-			log.Info(fmt.Sprintf("Account #%v (key '%X') tokens: ", idx+1, key))
+			// TODO filter by kind
+			var m string
+			if n == alwaysTrueTokensAccountNumber {
+				m = fmt.Sprintf("Tokens spendable by anyone: ")
+			} else {
+				m = fmt.Sprintf("Account #%v (key '%X') tokens: ", n, pubKeys[n-1])
+			}
+			log.Info(m)
+			res = append(res, m)
 			for _, token := range tokens {
-				log.Info(fmt.Sprintf("Id=%X, kind: %s", token.Id, token.Kind.pretty()))
+				m = fmt.Sprintf("Id=%X, symbol=%s, kind: %s", token.Id, token.Symbol, token.Kind.pretty())
+				log.Info(m)
+				res = append(res, m)
 			}
 		}
 	}
-	if kind&(Token|Fungible) != 0 {
-		// TODO
-	}
-	return nil
+	return res, nil
 }
 
 func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {

@@ -261,7 +261,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	}
 	// existence of the parent type is checked by the getChainedPredicate
 	predicate, err := m.getChainedPredicate(
-		tx.TypeID(),
+		tx.TypeIdInt(),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},

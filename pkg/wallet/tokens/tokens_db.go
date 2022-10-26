@@ -14,6 +14,7 @@ import (
 var (
 	accountsBucket      = []byte("accounts")
 	accountTokensBucket = []byte("accountTokens")
+	tokenTypes          = []byte("tokenTypes")
 	metaBucket          = []byte("meta")
 )
 
@@ -27,16 +28,28 @@ var (
 	errAccountNotFound       = errors.New("account does not exist")
 )
 
-const tokensFileName = "tokens.db"
+const (
+	tokensFileName                = "tokens.db"
+	alwaysTrueTokensAccountNumber = 0
+)
 
 type (
+	tokenType struct {
+		Id            TokenId     `json:"id"`
+		ParentTypeId  TokenTypeId `json:"typeId"`
+		Kind          TokenKind   `json:"kind"`
+		Symbol        string      `json:"symbol"`
+		DecimalPlaces uint32      `json:"decimalPlaces"`
+	}
+
 	token struct {
-		Id     TokenId     `json:"id"`
-		Kind   TokenKind   `json:"kind"`
-		Symbol string      `json:"symbol"`
-		TypeId TokenTypeId `json:"typeId"`
-		Amount uint64      `json:"amount"`
-		Uri    string      `json:"uri"`
+		Id       TokenId     `json:"id"`
+		Kind     TokenKind   `json:"kind"`
+		Symbol   string      `json:"symbol"`
+		TypeId   TokenTypeId `json:"typeId"`
+		Amount   uint64      `json:"amount"`
+		Uri      string      `json:"uri"`
+		Backlink []byte      `json:"backlink"`
 	}
 )
 
@@ -51,10 +64,15 @@ type TokenTxContext interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
-	SetToken(accountIndex uint64, token *token) error
-	ContainsToken(accountIndex uint64, id TokenId) (bool, error)
-	RemoveToken(accountIndex uint64, id TokenId) error
-	GetTokens(accountIndex uint64) ([]*token, error)
+	AddTokenType(token *tokenType) error
+	GetTokenType(typeId TokenTypeId) (*tokenType, error)
+	GetTokenTypes() ([]*tokenType, error)
+	// SetToken accountNumber == 0 is the one for "always true" predicates
+	// keys with accountIndex from the money wallet have tokens here under accountNumber which is accountIndex+1
+	SetToken(accountNumber uint64, token *token) error
+	ContainsToken(accountNumber uint64, id TokenId) (bool, error)
+	RemoveToken(accountNumber uint64, id TokenId) error
+	GetTokens(accountNumber uint64) ([]*token, error)
 }
 
 type tokensDb struct {
@@ -67,14 +85,61 @@ type tokensDbTx struct {
 	tx *bolt.Tx
 }
 
-func (t *tokensDbTx) SetToken(accountIndex uint64, token *token) error {
+func (t *tokensDbTx) AddTokenType(tType *tokenType) error {
+	return t.withTx(t.tx, func(tx *bolt.Tx) error {
+		val, err := json.Marshal(tType)
+		if err != nil {
+			return err
+		}
+		log.Info(fmt.Sprintf("adding token type: id=%X, symbol=%s", tType.Id, tType.Symbol))
+		return tx.Bucket(tokenTypes).Put(tType.Id, val)
+	}, true)
+}
+
+func (t *tokensDbTx) GetTokenType(typeId TokenTypeId) (*tokenType, error) {
+	var tokenType *tokenType
+	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
+		res, err := parseTokenType(tx.Bucket(tokenTypes).Get(typeId))
+		if err != nil {
+			return err
+		}
+		tokenType = res
+		return nil
+	}, false)
+
+	if err != nil {
+		panic(err)
+	}
+	return tokenType, nil
+}
+
+func (t *tokensDbTx) GetTokenTypes() ([]*tokenType, error) {
+	var types []*tokenType
+	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
+		return tx.Bucket(tokenTypes).ForEach(func(k, v []byte) error {
+			t, err := parseTokenType(v)
+			if err != nil {
+				return err
+			}
+			types = append(types, t)
+			return nil
+		})
+	}, false)
+
+	if err != nil {
+		panic(err)
+	}
+	return types, nil
+}
+
+func (t *tokensDbTx) SetToken(accountNumber uint64, token *token) error {
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(token)
 		if err != nil {
 			return err
 		}
-		log.Info(fmt.Sprintf("adding token: id=%X, for account=%d", token.Id, accountIndex))
-		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountIndex))
+		log.Info(fmt.Sprintf("adding token: id=%X, for account=%d", token.Id, accountNumber))
+		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
 		if err != nil {
 			return err
 		}
@@ -82,12 +147,12 @@ func (t *tokensDbTx) SetToken(accountIndex uint64, token *token) error {
 	}, true)
 }
 
-func ensureTokenBucket(tx *bolt.Tx, accountIndex []byte) (*bolt.Bucket, error) {
+func ensureTokenBucket(tx *bolt.Tx, accountNumber []byte) (*bolt.Bucket, error) {
 	b, err := tx.CreateBucketIfNotExists(accountsBucket)
 	if err != nil {
 		return nil, err
 	}
-	b, err = b.CreateBucketIfNotExists(accountIndex)
+	b, err = b.CreateBucketIfNotExists(accountNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -98,15 +163,15 @@ func ensureTokenBucket(tx *bolt.Tx, accountIndex []byte) (*bolt.Bucket, error) {
 	return b, nil
 }
 
-func (t *tokensDbTx) ContainsToken(accountIndex uint64, id TokenId) (bool, error) {
+func (t *tokensDbTx) ContainsToken(accountNumber uint64, id TokenId) (bool, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (t *tokensDbTx) RemoveToken(accountIndex uint64, id TokenId) error {
+func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenId) error {
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
-		log.Info(fmt.Sprintf("removing token: id=%X, for account=%d", id, accountIndex))
-		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountIndex))
+		log.Info(fmt.Sprintf("removing token: id=%X, for account=%d", id, accountNumber))
+		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
 		if err != nil {
 			return err
 		}
@@ -114,10 +179,10 @@ func (t *tokensDbTx) RemoveToken(accountIndex uint64, id TokenId) error {
 	}, true)
 }
 
-func (t *tokensDbTx) GetTokens(accountIndex uint64) ([]*token, error) {
+func (t *tokensDbTx) GetTokens(accountNumber uint64) ([]*token, error) {
 	var tokens []*token
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
-		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountIndex))
+		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
 		if err != nil {
 			return err
 		}
@@ -217,6 +282,10 @@ func (w *tokensDb) createBuckets() error {
 		if err != nil {
 			return err
 		}
+		_, err = tx.CreateBucketIfNotExists(tokenTypes)
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -239,6 +308,15 @@ func openTokensDb(walletDir string) (*tokensDb, error) {
 		return nil, err
 	}
 	return w, nil
+}
+
+func parseTokenType(v []byte) (*tokenType, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var t *tokenType
+	err := json.Unmarshal(v, &t)
+	return t, err
 }
 
 func parseToken(v []byte) (*token, error) {

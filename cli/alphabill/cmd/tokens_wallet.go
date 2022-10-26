@@ -33,6 +33,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config))
+	cmd.AddCommand(tokenCmdListTypes(config))
 	cmd.AddCommand(tokenCmdSync(config))
 	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	return cmd
@@ -185,7 +186,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleToken(ctx, accountNumber-1, a)
+	id, err := tw.NewFungibleToken(ctx, accountNumber, a)
 	if err != nil {
 		return err
 	}
@@ -228,6 +229,10 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendFungible(cmd, config)
 		},
 	}
+	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
+	_ = cmd.MarkFlagRequired(cmdFlagAmount)
+	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
+	_ = cmd.MarkFlagRequired(cmdFlagType)
 	return cmd
 }
 
@@ -320,7 +325,14 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	return tw.ListTokens(ctx, kind, t.AllAccounts)
+	res, err := tw.ListTokens(ctx, kind, t.AllAccounts)
+	if err != nil {
+		return err
+	}
+	for _, m := range res {
+		consoleWriter.Println(m)
+	}
+	return nil
 }
 
 func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
@@ -331,6 +343,35 @@ func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func tokenCmdListTypes(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "list-types",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdListTypes(cmd, config)
+		},
+	}
+	return cmd
+}
+
+func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	res, err := tw.ListTokenTypes(ctx)
+	if err != nil {
+		return err
+	}
+	for _, m := range res {
+		consoleWriter.Println(m)
+	}
+	return nil
 }
 
 func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet, error) {

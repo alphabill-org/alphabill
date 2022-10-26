@@ -168,9 +168,10 @@ func New(config *Config) (*Tree, error) {
 func (tree *Tree) AtomicUpdate(actions ...Action) error {
 	chIndex := len(tree.changes)
 	var err error
-	for _, action := range actions {
+	for i, action := range actions {
 		if err = action(tree); err != nil {
 			// discontinue, if any action fails
+			err = errors.Wrap(err, fmt.Sprintf("%d. update failed", i+1))
 			break
 		}
 	}

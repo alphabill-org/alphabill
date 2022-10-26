@@ -334,7 +334,8 @@ func TestAtomicUpdateRollback1stFails(t *testing.T) {
 		UpdateData(uint256.NewInt(5), updateFunc, stateHash), // change non-existing id to generate error
 		UpdateData(id, updateFunc, stateHash),
 	)
-	require.ErrorContains(t, err, "does not exist")
+	require.ErrorContains(t, err, "1. update failed")
+	require.ErrorContains(t, err, "item 5 does not exist")
 	// both get rolled back, so changes len is still 1
 	require.Equal(t, 1, len(tr.changes))
 	unit, err := tr.get(id)
@@ -361,7 +362,8 @@ func TestAtomicUpdateRollback2ndFails(t *testing.T) {
 	err = tr.AtomicUpdate(
 		UpdateData(id, updateFunc, stateHash),
 		UpdateData(uint256.NewInt(5), updateFunc, stateHash)) // change non-existing id to generate error
-	require.ErrorContains(t, err, "does not exist")
+	require.ErrorContains(t, err, "2. update failed")
+	require.ErrorContains(t, err, "item 5 does not exist")
 	// both get rolled back, so changes len is still 1
 	require.Equal(t, 1, len(tr.changes))
 	unit, err := tr.get(id)

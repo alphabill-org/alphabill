@@ -809,37 +809,37 @@ func initState(t *testing.T) *rma.Tree {
 		HashAlgorithm: gocrypto.SHA256,
 	})
 
-	state.AddItem(existingTokenTypeUnitID, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
+	state.AtomicUpdate(rma.AddItem(existingTokenTypeUnitID, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA",
 		parentTypeId:             uint256.NewInt(0),
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		invariantPredicate:       script.PredicateAlwaysTrue(),
-	}, make([]byte, 32))
+	}, make([]byte, 32)))
 	require.NoError(t, err)
-	state.AddItem(existingTokenTypeUnitID2, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
+	state.AtomicUpdate(rma.AddItem(existingTokenTypeUnitID2, script.PredicateAlwaysTrue(), &fungibleTokenTypeData{
 		symbol:                   "ALPHA2",
 		parentTypeId:             uint256.NewInt(0),
 		decimalPlaces:            5,
 		subTypeCreationPredicate: script.PredicateAlwaysTrue(),
 		tokenCreationPredicate:   script.PredicateAlwaysTrue(),
 		invariantPredicate:       script.PredicateAlwaysTrue(),
-	}, make([]byte, 32))
+	}, make([]byte, 32)))
 	require.NoError(t, err)
-	err = state.AddItem(uint256.NewInt(existingTokenUnitID), script.PredicateAlwaysTrue(), &fungibleTokenData{
+	err = state.AtomicUpdate(rma.AddItem(uint256.NewInt(existingTokenUnitID), script.PredicateAlwaysTrue(), &fungibleTokenData{
 		tokenType: existingTokenTypeUnitID,
 		value:     existingTokenValue,
 		t:         0,
 		backlink:  make([]byte, 32),
-	}, make([]byte, 32))
+	}, make([]byte, 32)))
 	require.NoError(t, err)
-	err = state.AddItem(uint256.NewInt(existingTokenUnitID2), script.PredicateAlwaysTrue(), &fungibleTokenData{
+	err = state.AtomicUpdate(rma.AddItem(uint256.NewInt(existingTokenUnitID2), script.PredicateAlwaysTrue(), &fungibleTokenData{
 		tokenType: existingTokenTypeUnitID2,
 		value:     existingTokenValue,
 		t:         0,
 		backlink:  make([]byte, 32),
-	}, make([]byte, 32))
+	}, make([]byte, 32)))
 	require.NoError(t, err)
 	return state
 }

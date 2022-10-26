@@ -159,42 +159,6 @@ func New(config *Config) (*Tree, error) {
 	}, nil
 }
 
-// AddItem adds new element to the state. Id must not exist in the state.
-func (tree *Tree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
-	exists := tree.exists(id)
-	if exists {
-		return errors.Errorf("cannot add item that already exists. ID: %d", id)
-	}
-	tree.set(id, owner, data, stateHash)
-	return nil
-}
-
-// DeleteItem removes the item from the state
-func (tree *Tree) DeleteItem(id *uint256.Int) error {
-	exists := tree.exists(id)
-	if !exists {
-		return errors.Errorf("deleting item that does not exist. ID %d", id)
-	}
-	tree.removeNode(id)
-	return nil
-}
-
-// SetOwner changes the owner of the item, leaves data as is.
-func (tree *Tree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
-	return tree.setOwner(id, owner, stateHash)
-}
-
-// UpdateData changes the data of the item, leaves owner as is.
-func (tree *Tree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
-	node, exists := tree.getNode(id)
-	if !exists {
-		return errors.Errorf(errStrItemDoesntExist, id)
-	}
-	data := f(node.Content.Data)
-	tree.set(id, node.Content.Bearer, data, stateHash)
-	return nil
-}
-
 func (tree *Tree) AtomicUpdate(actions ...Action) error {
 	chIndex := len(tree.changes)
 	var err error

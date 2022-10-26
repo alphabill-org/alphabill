@@ -89,15 +89,15 @@ func (d *txSystem) Execute(tx txsystem.GenericTransaction) error {
 		return ErrOwnerProofPresent
 	}
 	h := tx.Hash(d.hashAlgorithm)
-	err := d.stateTree.AddItem(
-		tx.UnitID(),
-		script.PredicateAlwaysFalse(),
-		&unit{
-			dataHash:    hasherUtil.Sum256(tx.UnitID().Bytes()),
-			blockNumber: d.currentBlockNumber,
-		},
-		h,
-	)
+	err := d.stateTree.AtomicUpdate(
+		rma.AddItem(tx.UnitID(),
+			script.PredicateAlwaysFalse(),
+			&unit{
+				dataHash:    hasherUtil.Sum256(tx.UnitID().Bytes()),
+				blockNumber: d.currentBlockNumber,
+			},
+			h,
+		))
 	if err != nil {
 		return errors.Wrapf(err, "could not add item: %v", err)
 	}

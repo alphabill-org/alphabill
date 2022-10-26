@@ -212,20 +212,58 @@ func TestHashing(t *testing.T) {
 	require.Equal(t, expectedRootHash, actualRootHash)
 }
 
-func TestAddItem(t *testing.T) {
+func TestUpdateAddItem(t *testing.T) {
 	tr, _ := New(defaultConfig())
 	id := uint256.NewInt(4)
 	data := TestData(5)
 	owner := Predicate{1, 2, 3}
 	stateHash := []byte("state hash")
-	err := tr.AddItem(id, owner, data, stateHash)
+	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
 	require.NoError(t, err)
 
 	unit, err := tr.get(id)
 	requireEqual(t, owner, data, stateHash, unit)
 
-	err = tr.AddItem(id, owner, data, stateHash)
+	err = tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
 	require.Error(t, err, "Adding existing item must fail")
+}
+
+func TestUpdateSetOwner(t *testing.T) {
+	tr, _ := New(defaultConfig())
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	owner := Predicate{1, 2, 3}
+
+	stateHash := []byte("state hash")
+	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
+	require.NoError(t, err)
+
+	unit, err := tr.get(id)
+	requireEqual(t, owner, data, stateHash, unit)
+	newOwner := Predicate{1, 2, 4}
+	err = tr.AtomicUpdate(SetOwner(id, newOwner, stateHash))
+	require.NoError(t, err)
+	unit, err = tr.get(id)
+	require.NoError(t, err)
+	requireEqual(t, newOwner, data, stateHash, unit)
+
+}
+
+func TestUpdateDeleteItem(t *testing.T) {
+	tr, _ := New(defaultConfig())
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	owner := Predicate{1, 2, 3}
+	stateHash := []byte("state hash")
+	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
+	require.NoError(t, err)
+	err = tr.AtomicUpdate(DeleteItem(id))
+	require.NoError(t, err)
+	unit, err := tr.get(id)
+	require.Nil(t, unit)
+	require.ErrorContains(t, err, ErrUnitNotFound.Error())
+	err = tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
+	require.NoError(t, err)
 }
 
 func TestUpdateData(t *testing.T) {
@@ -240,13 +278,13 @@ func TestUpdateData(t *testing.T) {
 		return newData
 	}
 
-	err := tr.UpdateData(id, updateFunc, stateHash)
+	err := tr.AtomicUpdate(UpdateData(id, updateFunc, stateHash))
 	require.Error(t, err, "updating non existing node must fail")
 
-	err = tr.AddItem(id, owner, data, stateHash)
+	err = tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
 	require.NoError(t, err)
 
-	err = tr.UpdateData(id, updateFunc, stateHash)
+	err = tr.AtomicUpdate(UpdateData(id, updateFunc, stateHash))
 	require.NoError(t, err)
 	unit, err := tr.get(id)
 	require.NoError(t, err)
@@ -265,7 +303,8 @@ func TestAtomicUpdateOk(t *testing.T) {
 		return newData
 	}
 	require.Equal(t, 0, len(tr.changes))
-	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash),
+	err := tr.AtomicUpdate(
+		AddItem(id, owner, data, stateHash),
 		UpdateData(id, updateFunc, stateHash))
 	require.NoError(t, err)
 	// add and recompute, plus update so 3 changes
@@ -276,7 +315,7 @@ func TestAtomicUpdateOk(t *testing.T) {
 	requireEqual(t, owner, newData, stateHash, unit)
 }
 
-func TestAtomicUpdateRollback(t *testing.T) {
+func TestAtomicUpdateRollback1stFails(t *testing.T) {
 	tr, _ := New(defaultConfig())
 	id := uint256.NewInt(4)
 	data := TestData(5)
@@ -291,7 +330,36 @@ func TestAtomicUpdateRollback(t *testing.T) {
 	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(tr.changes))
-	err = tr.AtomicUpdate(UpdateData(id, updateFunc, stateHash),
+	err = tr.AtomicUpdate(
+		UpdateData(uint256.NewInt(5), updateFunc, stateHash), // change non-existing id to generate error
+		UpdateData(id, updateFunc, stateHash),
+	)
+	require.ErrorContains(t, err, "does not exist")
+	// both get rolled back, so changes len is still 1
+	require.Equal(t, 1, len(tr.changes))
+	unit, err := tr.get(id)
+	require.NoError(t, err)
+	// and data unit data is still original data
+	requireEqual(t, owner, data, stateHash, unit)
+}
+
+func TestAtomicUpdateRollback2ndFails(t *testing.T) {
+	tr, _ := New(defaultConfig())
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	newData := TestData(6)
+	owner := Predicate{1, 2, 3}
+	stateHash := []byte("state hash")
+
+	updateFunc := func(data UnitData) UnitData {
+		return newData
+	}
+
+	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(tr.changes))
+	err = tr.AtomicUpdate(
+		UpdateData(id, updateFunc, stateHash),
 		UpdateData(uint256.NewInt(5), updateFunc, stateHash)) // change non-existing id to generate error
 	require.ErrorContains(t, err, "does not exist")
 	// both get rolled back, so changes len is still 1

@@ -321,7 +321,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree)
 
-	err = rmaTree.AddItem(uint256.NewInt(0).SetBytes(swapTx.UnitId), script.PredicateAlwaysTrue(), &BillData{}, []byte{})
+	err = rmaTree.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(swapTx.UnitId), script.PredicateAlwaysTrue(), &BillData{}, []byte{}))
 	require.NoError(t, err)
 	for _, dcTransfer := range dcTransfers {
 		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)

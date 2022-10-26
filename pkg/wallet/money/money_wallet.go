@@ -228,9 +228,17 @@ func (w *Wallet) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) 
 	return key, nil
 }
 
+func (w *Wallet) GetAccountKeys() ([]*wallet.AccountKey, error) {
+	accKeys, err := w.db.Do().GetAccountKeys()
+	if err != nil {
+		return nil, err
+	}
+	return accKeys, nil
+}
+
 // GetPublicKeys returns public keys of the wallet, indexed by account indexes
 func (w *Wallet) GetPublicKeys() ([][]byte, error) {
-	accKeys, err := w.db.Do().GetAccountKeys()
+	accKeys, err := w.GetAccountKeys()
 	if err != nil {
 		return nil, err
 	}

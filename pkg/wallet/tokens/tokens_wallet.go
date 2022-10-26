@@ -3,6 +3,7 @@ package tokens
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -104,14 +105,14 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 			log.Info("processing non-empty block: ", b.BlockNumber)
 
 			// lists tokens for all keys and with 'always true' predicate
-			pubKeys, err := w.mw.GetPublicKeys()
+			accounts, err := w.mw.GetAccountKeys()
 			if err != nil {
 				return err
 			}
-			log.Info(fmt.Sprintf("pub keys: %v", len(pubKeys)))
+			log.Info(fmt.Sprintf("pub keys: %v", len(accounts)))
 			for _, tx := range b.Transactions {
-				for idx, accPubKey := range pubKeys {
-					err = w.readTx(txc, tx, uint64(idx), accPubKey)
+				for idx, account := range accounts {
+					err = w.readTx(txc, tx, uint64(idx), account.PubKeyHash)
 					if err != nil {
 						return err
 					}
@@ -134,13 +135,15 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 	})
 }
 
-func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accIdx uint64, key PublicKey) error {
+func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accIdx uint64, key *wallet.KeyHashes) error {
 	gtx, err := w.txs.ConvertTx(tx)
 	if err != nil {
 		return err
 	}
-	log.Info("Converted tx: ", gtx)
 	id := util.Uint256ToBytes(gtx.UnitID())
+	txHash := gtx.Hash(crypto.SHA256)
+	log.Info(fmt.Sprintf("Converted tx: UnitId=%X, TxId=%X", id, txHash))
+
 	switch ctx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		log.Info("Token tx: CreateFungibleTokenType")
@@ -154,18 +157,41 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accI
 		}
 	case tokens.MintFungibleToken:
 		log.Info("Token tx: MintFungibleToken")
-		err := txc.SetToken(accIdx, &token{
-			Id:     id,
-			Kind:   Token | Fungible,
-			TypeId: ctx.TypeId(),
-			Amount: ctx.Value(),
-		})
-		if err != nil {
-			return err
+		if wallet.VerifyP2PKHOwner(key, ctx.Bearer()) {
+			err := txc.SetToken(accIdx, &token{
+				Id:       id,
+				Kind:     Token | Fungible,
+				TypeId:   ctx.TypeId(),
+				Amount:   ctx.Value(),
+				Backlink: txHash,
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			err := txc.RemoveToken(accIdx, id)
+			if err != nil {
+				return err
+			}
 		}
 	case tokens.TransferFungibleToken:
 		log.Info("Token tx: TransferFungibleToken")
-		// TODO remove token if bearer is someone else
+		if wallet.VerifyP2PKHOwner(key, ctx.NewBearer()) {
+			err := txc.SetToken(accIdx, &token{
+				Id:       id,
+				Kind:     Token | Fungible,
+				Amount:   ctx.Value(),
+				Backlink: txHash,
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			err := txc.RemoveToken(accIdx, id)
+			if err != nil {
+				return err
+			}
+		}
 	case tokens.SplitFungibleToken:
 		log.Info("Token tx: SplitFungibleToken")
 		// TODO

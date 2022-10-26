@@ -240,35 +240,40 @@ func (w *TokensWallet) SyncUntilCanceled(ctx context.Context) error {
 
 func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes) (TokenId, error) {
 	log.Info(fmt.Sprintf("Creating new fungible token type"))
-	id, err := w.sendTx(attrs)
+	id, to, err := w.sendTx(attrs)
 	if err != nil {
 		return nil, err
 	}
 
-	return id, w.syncToUnit(ctx, id)
+	return id, w.syncToUnit(ctx, id, to)
 }
 
-func (w *TokensWallet) NewFungibleToken(ctx context.Context, accIdx uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
+func (w *TokensWallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
 	log.Info(fmt.Sprintf("Creating new fungible token"))
+	accIdx := accNr - 1
 	key, err := w.mw.GetAccountKey(accIdx)
 	if err != nil {
 		return nil, err
 	}
 	attrs.Bearer = script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256)
-	id, err := w.sendTx(attrs)
+	id, to, err := w.sendTx(attrs)
 	if err != nil {
 		return nil, err
 	}
 
-	return id, w.syncToUnit(ctx, id)
+	return id, w.syncToUnit(ctx, id, to)
 }
 
-func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId) error {
+func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint64) error {
 	ctx, cancel := context.WithCancel(ctx)
 
 	log.Info(fmt.Sprintf("Request sent, waiting the tx to be finalized"))
 	var bl BlockListener = func(b *block.Block) error {
 		log.Info(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
+		if b.BlockNumber > timeout {
+			log.Info(fmt.Sprintf("Timeout is reached (#%v), tx not found for UnitID=%X", b.BlockNumber, id))
+			cancel()
+		}
 		for _, tx := range b.Transactions {
 			if bytes.Equal(tx.UnitId, id) {
 				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", id, b.BlockNumber))
@@ -296,30 +301,30 @@ func randomId() (TokenId, error) {
 	return id, nil
 }
 
-func (w *TokensWallet) sendTx(attrs proto.Message) (TokenId, error) {
+func (w *TokensWallet) sendTx(attrs proto.Message) (TokenId, uint64, error) {
 	id, err := randomId()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	blockNumber, err := w.mw.GetMaxBlockNumber()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	log.Info(fmt.Sprintf("New UnitID=%X", id))
 	gtx := createGenericTx(id, blockNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(gtx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	res, err := w.mw.SendTransaction(gtx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if !res.Ok {
-		return nil, errors.New("tx submission returned error code: " + res.Message)
+		return nil, 0, errors.New("tx submission returned error code: " + res.Message)
 	}
-	return id, nil
+	return id, gtx.Timeout, nil
 }
 
 func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountIdx int) error {

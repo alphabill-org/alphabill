@@ -34,6 +34,9 @@ echo "mainKey2=$mainKey2"
 echo "Create new token type"
 build/alphabill wallet token new-type fungible --symbol AB -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
 
+echo "List token types"
+build/alphabill wallet token list-types -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
+
 echo "Mint new token"
 # currently requires to manually copy token type id from the previous step and to paste for the --type flag to mint the token
 #build/alphabill wallet token new fungible -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/

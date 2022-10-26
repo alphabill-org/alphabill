@@ -108,6 +108,7 @@ type (
 	Action func(tree *Tree) error
 )
 
+// AddItem adds new element to the state. Id must not exist in the state
 func AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) Action {
 	return func(tree *Tree) error {
 		exists := tree.exists(id)
@@ -119,6 +120,7 @@ func AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) 
 	}
 }
 
+// DeleteItem removes the item from the state
 func DeleteItem(id *uint256.Int) Action {
 	return func(tree *Tree) error {
 		exists := tree.exists(id)
@@ -130,12 +132,14 @@ func DeleteItem(id *uint256.Int) Action {
 	}
 }
 
+// SetOwner changes the owner of the item, leaves data as is
 func SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) Action {
 	return func(tree *Tree) error {
 		return tree.setOwner(id, owner, stateHash)
 	}
 }
 
+// UpdateData changes the data of the item, leaves owner as is.
 func UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) Action {
 	return func(tree *Tree) error {
 		node, exists := tree.getNode(id)
@@ -159,6 +163,8 @@ func New(config *Config) (*Tree, error) {
 	}, nil
 }
 
+// AtomicUpdate applies changes to the state tree. If any of the change functions
+// returns an error all of them will be rolled back
 func (tree *Tree) AtomicUpdate(actions ...Action) error {
 	chIndex := len(tree.changes)
 	var err error
@@ -221,7 +227,7 @@ func (tree *Tree) Revert() {
 }
 
 ///////// private methods \\\\\\\\\\\\\
-// Revert reverts n changes since the last Commit.
+// Revert reverts/rolls back 'nofChanges' from the state changes stack
 func (tree *Tree) revert(nofChanges int) {
 	totalChanges := len(tree.changes)
 	for i := 0; i < totalChanges && i < nofChanges; i++ {
@@ -231,6 +237,7 @@ func (tree *Tree) revert(nofChanges int) {
 	tree.changes = tree.changes[:totalChanges-nofChanges]
 }
 
+// rollback reverts a change
 func (tree *Tree) rollback(change interface{}) {
 	switch chg := change.(type) {
 	case *changeNode:

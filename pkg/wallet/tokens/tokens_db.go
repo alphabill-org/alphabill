@@ -138,7 +138,7 @@ func (t *tokensDbTx) SetToken(accountNumber uint64, token *token) error {
 		if err != nil {
 			return err
 		}
-		log.Info(fmt.Sprintf("adding token: id=%X, for account=%d", token.Id, accountNumber))
+		log.Info(fmt.Sprintf("adding token: id=%X, for account=%d, bl=%X", token.Id, accountNumber, token.Backlink))
 		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
 		if err != nil {
 			return err

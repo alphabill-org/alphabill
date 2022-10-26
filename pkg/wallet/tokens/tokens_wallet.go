@@ -173,7 +173,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 				Kind:     Token | Fungible,
 				TypeId:   ctx.TypeId(),
 				Amount:   ctx.Value(),
-				Backlink: txHash,
+				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
 				Symbol:   tType.Symbol,
 			})
 			if err != nil {
@@ -321,6 +321,7 @@ func randomId() (TokenId, error) {
 }
 
 func (w *TokensWallet) sendTx(unitId TokenId, attrs proto.Message) (TokenId, uint64, error) {
+	log.Info("Sending token tx")
 	if unitId == nil {
 		id, err := randomId()
 		if err != nil {
@@ -429,6 +430,9 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	} else {
 		bearer = script.PredicateAlwaysTrue()
 	}
+
+	log.Info(fmt.Sprintf("Creating transfer with bl=%X", t.Backlink))
+
 	attrs := &tokens.TransferFungibleTokenAttributes{
 		NewBearer:                   bearer,
 		Value:                       t.Amount,

@@ -104,8 +104,14 @@ func (t *tokensDbTx) ContainsToken(accountIndex uint64, id TokenId) (bool, error
 }
 
 func (t *tokensDbTx) RemoveToken(accountIndex uint64, id TokenId) error {
-	//TODO implement me
-	panic("implement me")
+	return t.withTx(t.tx, func(tx *bolt.Tx) error {
+		log.Info(fmt.Sprintf("removing token: id=%X, for account=%d", id, accountIndex))
+		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		return bkt.Delete(id)
+	}, true)
 }
 
 func (t *tokensDbTx) GetTokens(accountIndex uint64) ([]*token, error) {

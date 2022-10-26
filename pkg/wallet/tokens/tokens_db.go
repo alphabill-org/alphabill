@@ -70,8 +70,8 @@ type TokenTxContext interface {
 	// SetToken accountNumber == 0 is the one for "always true" predicates
 	// keys with accountIndex from the money wallet have tokens here under accountNumber which is accountIndex+1
 	SetToken(accountNumber uint64, token *token) error
-	ContainsToken(accountNumber uint64, id TokenId) (bool, error)
 	RemoveToken(accountNumber uint64, id TokenId) error
+	GetToken(accountNumber uint64, tokenId TokenId) (*token, bool, error)
 	GetTokens(accountNumber uint64) ([]*token, error)
 }
 
@@ -163,11 +163,6 @@ func ensureTokenBucket(tx *bolt.Tx, accountNumber []byte) (*bolt.Bucket, error) 
 	return b, nil
 }
 
-func (t *tokensDbTx) ContainsToken(accountNumber uint64, id TokenId) (bool, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenId) error {
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		log.Info(fmt.Sprintf("removing token: id=%X, for account=%d", id, accountNumber))
@@ -177,6 +172,27 @@ func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenId) error {
 		}
 		return bkt.Delete(id)
 	}, true)
+}
+
+func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*token, bool, error) {
+	var tok *token
+	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
+		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
+		if err != nil {
+			return err
+		}
+		res, err := parseToken(bkt.Get(tokenId))
+		if err != nil {
+			return err
+		}
+		tok = res
+		return nil
+	}, true)
+
+	if err != nil {
+		panic(err)
+	}
+	return tok, tok != nil, nil
 }
 
 func (t *tokensDbTx) GetTokens(accountNumber uint64) ([]*token, error) {

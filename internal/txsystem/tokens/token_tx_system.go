@@ -136,7 +136,7 @@ func New(opts ...Option) (*tokensTxSystem, error) {
 		state:            options.state,
 		executors:        initExecutors(options.state, options),
 	}
-	logger.Info("TokensTransactionSystem initialized: systemIdentifier=%X, hashAlgorithm=%v", options.systemIdentifier, options.hashAlgorithm)
+	logger.Debug("TokensTransactionSystem initialized: systemIdentifier=%X, hashAlgorithm=%v", options.systemIdentifier, options.hashAlgorithm)
 	return txs, nil
 }
 

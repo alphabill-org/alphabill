@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -19,6 +20,7 @@ const (
 	cmdFlagInheritBearerClause = "inherit-bearer-clause"
 	cmdFlagAmount              = "amount"
 	cmdFlagType                = "type"
+	cmdFlagToken               = "token"
 )
 
 func tokenCmd(config *walletConfig) *cobra.Command {
@@ -30,6 +32,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.AddCommand(tokenCmdNewType(config))
 	cmd.AddCommand(tokenCmdNewToken(config))
+	cmd.AddCommand(tokenCmdTransfer(config))
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config))
@@ -210,9 +213,71 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	return nil
 }
 
+func tokenCmdTransfer(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "transfer",
+		Run: func(cmd *cobra.Command, args []string) {
+			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
+		},
+	}
+	cmd.AddCommand(tokenCmdTransferFungible(config))
+	//cmd.AddCommand(tokenCmdTransferNonFungible(config))
+	return cmd
+}
+
+func tokenCmdTransferFungible(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "fungible",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdTransferFungible(cmd, config)
+		},
+	}
+	cmd.Flags().BytesHex(cmdFlagToken, nil, "unit identifier of token (hex)")
+	_ = cmd.MarkFlagRequired(cmdFlagToken)
+	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
+	_ = cmd.MarkFlagRequired(addressCmdName)
+	return addCommonAccountFlags(cmd)
+}
+
+func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagToken)
+	if err != nil {
+		return err
+	}
+
+	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
+	if err != nil {
+		return err
+	}
+	var pubKey []byte
+	if pubKeyHex == "true" {
+		pubKey = nil // this will assign 'always true' predicate
+	} else {
+		pk, ok := pubKeyHexToBytes(pubKeyHex)
+		if !ok {
+			return errors.New("address in not in valid format")
+		}
+		pubKey = pk
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return tw.Transfer(ctx, accountNumber, tokenId, pubKey)
+}
+
 func tokenCmdSend(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "new",
+		Use: "send",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},

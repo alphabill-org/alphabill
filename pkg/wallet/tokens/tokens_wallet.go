@@ -259,7 +259,7 @@ func (w *TokensWallet) SyncUntilCanceled(ctx context.Context) error {
 
 func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes) (TokenId, error) {
 	log.Info(fmt.Sprintf("Creating new fungible token type"))
-	id, to, err := w.sendTx(attrs)
+	id, to, err := w.sendTx(nil, attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func (w *TokensWallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs
 		return nil, err
 	}
 	attrs.Bearer = script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256)
-	id, to, err := w.sendTx(attrs)
+	id, to, err := w.sendTx(nil, attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -320,18 +320,21 @@ func randomId() (TokenId, error) {
 	return id, nil
 }
 
-func (w *TokensWallet) sendTx(attrs proto.Message) (TokenId, uint64, error) {
-	id, err := randomId()
-	if err != nil {
-		return nil, 0, err
+func (w *TokensWallet) sendTx(unitId TokenId, attrs proto.Message) (TokenId, uint64, error) {
+	if unitId == nil {
+		id, err := randomId()
+		if err != nil {
+			return nil, 0, err
+		}
+		log.Info(fmt.Sprintf("New UnitID=%X", id))
+		unitId = id
 	}
 
 	blockNumber, err := w.mw.GetMaxBlockNumber()
 	if err != nil {
 		return nil, 0, err
 	}
-	log.Info(fmt.Sprintf("New UnitID=%X", id))
-	gtx := createGenericTx(id, blockNumber+txTimeoutBlockCount)
+	gtx := createGenericTx(unitId, blockNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(gtx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
 		return nil, 0, err
@@ -343,7 +346,7 @@ func (w *TokensWallet) sendTx(attrs proto.Message) (TokenId, uint64, error) {
 	if !res.Ok {
 		return nil, 0, errors.New("tx submission returned error code: " + res.Message)
 	}
-	return id, gtx.Timeout, nil
+	return unitId, gtx.Timeout, nil
 }
 
 func (w *TokensWallet) ListTokenTypes(ctx context.Context) ([]string, error) {
@@ -409,6 +412,36 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 		}
 	}
 	return res, nil
+}
+
+func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId []byte, receiverPubKey []byte) error {
+	t, found, err := w.db.Do().GetToken(accountNumber, tokenId)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New(fmt.Sprintf("token with id=%X not found under account #%v", tokenId, accountNumber))
+	}
+
+	var bearer []byte
+	if receiverPubKey != nil {
+		bearer = script.PredicatePayToPublicKeyHashDefault(receiverPubKey)
+	} else {
+		bearer = script.PredicateAlwaysTrue()
+	}
+	attrs := &tokens.TransferFungibleTokenAttributes{
+		NewBearer:                   bearer,
+		Value:                       t.Amount,
+		Backlink:                    t.Backlink,
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+
+	_, timeout, err := w.sendTx(tokenId, attrs)
+	if err != nil {
+		return err
+	}
+
+	return w.syncToUnit(ctx, tokenId, timeout)
 }
 
 func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {

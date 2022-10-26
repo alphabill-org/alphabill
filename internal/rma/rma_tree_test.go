@@ -253,6 +253,55 @@ func TestUpdateData(t *testing.T) {
 	requireEqual(t, owner, newData, stateHash, unit)
 }
 
+func TestAtomicUpdateOk(t *testing.T) {
+	tr, _ := New(defaultConfig())
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	newData := TestData(6)
+	owner := Predicate{1, 2, 3}
+	stateHash := []byte("state hash")
+
+	updateFunc := func(data UnitData) UnitData {
+		return newData
+	}
+	require.Equal(t, 0, len(tr.changes))
+	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash),
+		UpdateData(id, updateFunc, stateHash))
+	require.NoError(t, err)
+	// add and recompute, plus update so 3 changes
+	require.True(t, len(tr.changes) >= 2)
+	unit, err := tr.get(id)
+	require.NoError(t, err)
+	// and data unit data is still original data
+	requireEqual(t, owner, newData, stateHash, unit)
+}
+
+func TestAtomicUpdateRollback(t *testing.T) {
+	tr, _ := New(defaultConfig())
+	id := uint256.NewInt(4)
+	data := TestData(5)
+	newData := TestData(6)
+	owner := Predicate{1, 2, 3}
+	stateHash := []byte("state hash")
+
+	updateFunc := func(data UnitData) UnitData {
+		return newData
+	}
+
+	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(tr.changes))
+	err = tr.AtomicUpdate(UpdateData(id, updateFunc, stateHash),
+		UpdateData(uint256.NewInt(5), updateFunc, stateHash)) // change non-existing id to generate error
+	require.ErrorContains(t, err, "does not exist")
+	// both get rolled back, so changes len is still 1
+	require.Equal(t, 1, len(tr.changes))
+	unit, err := tr.get(id)
+	require.NoError(t, err)
+	// and data unit data is still original data
+	requireEqual(t, owner, data, stateHash, unit)
+}
+
 func TestSetNode_Overwrite(t *testing.T) {
 	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))

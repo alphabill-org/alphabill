@@ -104,7 +104,49 @@ type (
 		targetNode *Node
 		oldVal     SummaryValue
 	}
+
+	Action func(tree *Tree) error
 )
+
+func AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) Action {
+	return func(tree *Tree) error {
+		exists := tree.exists(id)
+		if exists {
+			return errors.Errorf("cannot add item that already exists. ID: %d", id)
+		}
+		tree.set(id, owner, data, stateHash)
+		return nil
+	}
+}
+
+func DeleteItem(id *uint256.Int) Action {
+	return func(tree *Tree) error {
+		exists := tree.exists(id)
+		if !exists {
+			return errors.Errorf("deleting item that does not exist. ID %d", id)
+		}
+		tree.removeNode(id)
+		return nil
+	}
+}
+
+func SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) Action {
+	return func(tree *Tree) error {
+		return tree.setOwner(id, owner, stateHash)
+	}
+}
+
+func UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) Action {
+	return func(tree *Tree) error {
+		node, exists := tree.getNode(id)
+		if !exists {
+			return errors.Errorf(errStrItemDoesntExist, id)
+		}
+		data := f(node.Content.Data)
+		tree.set(id, node.Content.Bearer, data, stateHash)
+		return nil
+	}
+}
 
 // New creates new RMA Tree
 func New(config *Config) (*Tree, error) {
@@ -153,6 +195,26 @@ func (tree *Tree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte
 	return nil
 }
 
+func (tree *Tree) AtomicUpdate(actions ...Action) error {
+	chIndex := len(tree.changes)
+	var err error
+	for _, action := range actions {
+		if err = action(tree); err != nil {
+			// discontinue, if any action fails
+			break
+		}
+	}
+	if err != nil {
+		// revert to state before the function
+		toRollback := len(tree.changes) - chIndex
+		if toRollback > 0 {
+			tree.revert(toRollback)
+		}
+		return err
+	}
+	return nil
+}
+
 func (tree *Tree) GetUnit(id *uint256.Int) (*Unit, error) {
 	return tree.get(id)
 }
@@ -189,31 +251,43 @@ func (tree *Tree) Commit() {
 // Revert reverts all changes since the last Commit.
 func (tree *Tree) Revert() {
 	for i := len(tree.changes) - 1; i >= 0; i-- {
-		change := tree.changes[i]
-		switch chg := change.(type) {
-		case *changeNode:
-			*chg.targetPointer = chg.oldVal
-		case *changeBalance:
-			chg.targetNode.balance = chg.oldVal
-		case *changeContent:
-			chg.targetNode.Content = chg.oldVal
-		case *changeMinKeyMinVal:
-			*chg.minKey = chg.oldMinKey
-			*chg.minVal = chg.oldMinVal
-		case *changeRecompute:
-			chg.targetNode.recompute = chg.oldVal
-		case *changeSummaryValue:
-			chg.targetNode.SummaryValue = chg.oldVal
-		case *changeHash:
-			chg.targetNode.Hash = chg.oldVal
-		default:
-			panic(fmt.Sprintf("invalid type %T", chg))
-		}
+		tree.rollback(tree.changes[i])
 	}
 	tree.Commit()
 }
 
 ///////// private methods \\\\\\\\\\\\\
+// Revert reverts n changes since the last Commit.
+func (tree *Tree) revert(nofChanges int) {
+	totalChanges := len(tree.changes)
+	for i := 0; i < totalChanges && i < nofChanges; i++ {
+		tree.rollback(tree.changes[totalChanges-1-i])
+	}
+	// pop rolled back changes
+	tree.changes = tree.changes[:totalChanges-nofChanges]
+}
+
+func (tree *Tree) rollback(change interface{}) {
+	switch chg := change.(type) {
+	case *changeNode:
+		*chg.targetPointer = chg.oldVal
+	case *changeBalance:
+		chg.targetNode.balance = chg.oldVal
+	case *changeContent:
+		chg.targetNode.Content = chg.oldVal
+	case *changeMinKeyMinVal:
+		*chg.minKey = chg.oldMinKey
+		*chg.minVal = chg.oldMinVal
+	case *changeRecompute:
+		chg.targetNode.recompute = chg.oldVal
+	case *changeSummaryValue:
+		chg.targetNode.SummaryValue = chg.oldVal
+	case *changeHash:
+		chg.targetNode.Hash = chg.oldVal
+	default:
+		panic(fmt.Sprintf("invalid type %T", chg))
+	}
+}
 
 func (tree *Tree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := tree.getNode(id)

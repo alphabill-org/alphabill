@@ -153,7 +153,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		return m.revertibleState.SetOwner(tx.UnitID(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
+		return m.revertibleState.AtomicUpdate(rma.SetOwner(tx.UnitID(), tx.NewBearer(), tx.Hash(m.hashAlgorithm)))
 	case TransferDC:
 		log.Debug("Processing transferDC %v", tx)
 		err := m.validateTransferDCTx(tx)
@@ -164,7 +164,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		err = m.revertibleState.SetOwner(tx.UnitID(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.AtomicUpdate(rma.SetOwner(tx.UnitID(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm)))
 		if err != nil {
 			return err
 		}
@@ -178,31 +178,27 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		err = m.revertibleState.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
-			bd, ok := data.(*BillData)
-			if !ok {
-				// No change in case of incorrect data type.
-				return data
-			}
-			return &BillData{
-				V:        bd.V - tx.Amount(),
+		h := tx.Hash(m.hashAlgorithm)
+		newItemId := txutil.SameShardId(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
+		return m.revertibleState.AtomicUpdate(
+			rma.UpdateData(tx.UnitID(),
+				func(data rma.UnitData) (newData rma.UnitData) {
+					bd, ok := data.(*BillData)
+					if !ok {
+						// No change in case of incorrect data type.
+						return data
+					}
+					return &BillData{
+						V:        bd.V - tx.Amount(),
+						T:        m.currentBlockNumber,
+						Backlink: tx.Hash(m.hashAlgorithm),
+					}
+				}, h),
+			rma.AddItem(newItemId, tx.TargetBearer(), &BillData{
+				V:        tx.Amount(),
 				T:        m.currentBlockNumber,
 				Backlink: tx.Hash(m.hashAlgorithm),
-			}
-		}, tx.Hash(m.hashAlgorithm))
-		if err != nil {
-			return errors.Wrap(err, "could not update data")
-		}
-
-		newItemId := txutil.SameShardId(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
-		err = m.revertibleState.AddItem(newItemId, tx.TargetBearer(), &BillData{
-			V:        tx.Amount(),
-			T:        m.currentBlockNumber,
-			Backlink: tx.Hash(m.hashAlgorithm),
-		}, tx.Hash(m.hashAlgorithm))
-		if err != nil {
-			return errors.Wrap(err, "could not add item")
-		}
+			}, h))
 	case Swap:
 		log.Debug("Processing swap %v", tx)
 		err := m.validateSwapTx(tx)
@@ -216,32 +212,24 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		// TODO verify ledger proofs AB-211
 
 		// reduce dc-money supply by n
-		err = m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data rma.UnitData) (newData rma.UnitData) {
+		dcUpdateFn := func(data rma.UnitData) (newData rma.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				return bd
 			}
 			bd.V -= n
 			return bd
-		}, []byte{})
-		if err != nil {
-			return err
 		}
-
-		// create a new bill with value n and owner condition a
-		err = m.revertibleState.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
-			V:        n,
-			T:        m.currentBlockNumber,
-			Backlink: tx.Hash(m.hashAlgorithm),
-		}, tx.Hash(m.hashAlgorithm))
-		if err != nil {
-			return errors.Wrap(err, "could not add item")
-		}
-		return nil
+		return m.revertibleState.AtomicUpdate(
+			rma.UpdateData(dustCollectorMoneySupplyID, dcUpdateFn, []byte{}),
+			rma.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
+				V:        n,
+				T:        m.currentBlockNumber,
+				Backlink: tx.Hash(m.hashAlgorithm),
+			}, tx.Hash(m.hashAlgorithm)))
 	default:
 		return errors.Errorf("unknown type %T", gtx)
 	}
-	return nil
 }
 
 func (m *moneyTxSystem) State() (txsystem.State, error) {

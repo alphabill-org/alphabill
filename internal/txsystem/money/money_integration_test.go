@@ -117,9 +117,9 @@ func TestPartition_SwapOk(t *testing.T) {
 		prev = splitTxs[i]
 		err = network.SubmitTx(splitTxs[i])
 		require.NoError(t, err)
+		// wait for transaction to be added to block
+		require.Eventually(t, testpartition.BlockchainContainsTx(splitTxs[i], network), test.WaitDuration, test.WaitTick)
 	}
-	// wait for last
-	require.Eventually(t, testpartition.BlockchainContainsTx(splitTxs[len(splitTxs)-1], network), test.WaitDuration, test.WaitTick)
 	// create dust payments from splits
 	dcBillIds := make([]*uint256.Int, len(splitTxs))
 	for i, splitTx := range splitTxs {

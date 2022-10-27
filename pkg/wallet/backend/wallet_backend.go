@@ -20,8 +20,10 @@ type (
 	}
 
 	Bill struct {
-		Id    *uint256.Int
-		Value uint64
+		Id    *uint256.Int `json:"id"`
+		Value uint64       `json:"value"`
+		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
+		OrderNumber uint64 `json:"orderNumber"`
 	}
 
 	BlockProof struct {

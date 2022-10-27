@@ -212,7 +212,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		// TODO verify ledger proofs AB-211
 
 		// reduce dc-money supply by n
-		dcUpdateFn := func(data rma.UnitData) (newData rma.UnitData) {
+		decDustCollectorSupplyFn := func(data rma.UnitData) (newData rma.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
 				return bd
@@ -221,7 +221,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return bd
 		}
 		return m.revertibleState.AtomicUpdate(
-			rma.UpdateData(dustCollectorMoneySupplyID, dcUpdateFn, []byte{}),
+			rma.UpdateData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn, []byte{}),
 			rma.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
 				V:        n,
 				T:        m.currentBlockNumber,

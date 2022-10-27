@@ -78,12 +78,14 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		Value: params.InitialBillValue,
 		Owner: script.PredicateAlwaysTrue(),
 	}
+	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 
 	txs, err := money.NewMoneyTxSystem(
 		crypto.SHA256,
 		ib,
 		params.DcMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(pg.GetSystemDescriptionRecord().GetSystemIdentifier()),
+		money.SchemeOpts.TrustBase(trustBase),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to start money transaction system")

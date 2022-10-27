@@ -23,6 +23,7 @@ var (
 	ErrVerifierIsNil           = errors.New("verifier is nil")
 	ErrBlockIsNil              = errors.New("block is nil")
 	ErrUnitIdIsNil             = errors.New("unit id is nil")
+	ErrUCIsNil                 = errors.New("unicity certificate is nil")
 )
 
 // NewPrimaryProof creates primary proof for given unit and block.
@@ -159,6 +160,9 @@ func (x *BlockProof) AddToHasher(hasher gohash.Hash) {
 }
 
 func (x *BlockProof) verifyUC(unitId *uint256.Int, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	if x.UnicityCertificate == nil {
+		return ErrUCIsNil
+	}
 	sysid := x.UnicityCertificate.UnicityTreeCertificate.SystemIdentifier
 	sdr := x.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
 	err := x.UnicityCertificate.IsValid(verifiers, hashAlgorithm, sysid, sdr)

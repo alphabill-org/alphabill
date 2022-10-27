@@ -28,6 +28,8 @@ func TestWalletBackendCli(t *testing.T) {
 		Value: 10000,
 		Owner: script.PredicateAlwaysTrue(),
 	}
+	initialBillBytes32 := initialBill.ID.Bytes32()
+	initialBillHex := hexutil.Encode(initialBillBytes32[:])
 	network := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, defaultServerAddr)
 
@@ -71,11 +73,11 @@ func TestWalletBackendCli(t *testing.T) {
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	require.EqualValues(t, initialBill.Value, resListBills.Bills[0].Value)
-	require.EqualValues(t, initialBill.ID, resListBills.Bills[0].Id)
+	require.EqualValues(t, hexutil.Encode(initialBillBytes32[:]), resListBills.Bills[0].Id)
 
 	// verify block-proof
 	resBlockProof := &backend.BlockProofResponse{}
-	httpRes = doGet(t, fmt.Sprintf("http://%s/block-proof?bill_id=%s", serverAddr, initialBill.ID.Hex()), resBlockProof)
+	httpRes = doGet(t, fmt.Sprintf("http://%s/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.NotNil(t, resBlockProof.BlockProof)
 }

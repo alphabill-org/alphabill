@@ -209,10 +209,8 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-
 		// set n as the target value
 		n := tx.TargetValue()
-
 		// reduce dc-money supply by n
 		decDustCollectorSupplyFn := func(data rma.UnitData) (newData rma.UnitData) {
 			bd, ok := data.(*BillData)

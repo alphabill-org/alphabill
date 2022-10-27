@@ -5,6 +5,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/logger"
@@ -85,6 +86,7 @@ type (
 		// Contains the bill identifiers transferred to the dust collector. The key of the map is the block number when the
 		// bill is deleted and its value is transferred to the dust collector.
 		dustCollectorBills map[uint64][]*uint256.Int
+		trustBase          map[string]abcrypto.Verifier
 	}
 )
 
@@ -102,6 +104,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 	options := Options{
 		revertibleState:  defaultTree,
 		systemIdentifier: []byte{0, 0, 0, 0},
+		trustBase:        make(map[string]abcrypto.Verifier),
 	}
 	for _, o := range customOpts {
 		o(&options)
@@ -113,6 +116,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 		revertibleState:    options.revertibleState,
 		dustCollectorBills: make(map[uint64][]*uint256.Int),
 		currentBlockNumber: uint64(0),
+		trustBase:          options.trustBase,
 	}
 
 	err = txs.revertibleState.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -212,8 +216,6 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 
 		// set n as the target value
 		n := tx.TargetValue()
-
-		// TODO verify ledger proofs AB-211
 
 		// reduce dc-money supply by n
 		err = m.revertibleState.UpdateData(dustCollectorMoneySupplyID, func(data rma.UnitData) (newData rma.UnitData) {
@@ -348,7 +350,7 @@ func (m *moneyTxSystem) validateSplitTx(tx Split) error {
 }
 
 func (m *moneyTxSystem) validateSwapTx(tx Swap) error {
-	// 2. there is sufficient DC-money supply
+	// 3. there is sufficient DC-money supply
 	dcMoneySupply, err := m.revertibleState.GetUnit(dustCollectorMoneySupplyID)
 	if err != nil {
 		return err
@@ -360,12 +362,12 @@ func (m *moneyTxSystem) validateSwapTx(tx Swap) error {
 	if dcMoneySupplyBill.V < tx.TargetValue() {
 		return ErrSwapInsufficientDCMoneySupply
 	}
-	// 3.there exists no bill with identifier
+	// 4.there exists no bill with identifier
 	_, err = m.revertibleState.GetUnit(tx.UnitID())
 	if err == nil {
 		return ErrSwapBillAlreadyExists
 	}
-	return validateSwap(tx, m.hashAlgorithm)
+	return validateSwap(tx, m.hashAlgorithm, m.trustBase)
 }
 
 // GetRootHash starts root hash value computation and returns it.

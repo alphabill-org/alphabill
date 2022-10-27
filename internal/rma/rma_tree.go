@@ -54,18 +54,16 @@ type (
 	}
 
 	Config struct {
-		HashAlgorithm     crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
-		RecordingDisabled bool        // Optional, set to true, to disable keeping track of changes.
+		HashAlgorithm crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
 	}
 
 	// Tree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL
 	// tree manner and Merkle proofs can be generated.
 	Tree struct {
-		hashAlgorithm    crypto.Hash   // Hash algorithm used for calculating the tree hash root and the proofs.
-		shardId          []byte        // ID of the shard.
-		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
-		root             *Node         // root is the top node of the tree.
-		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
+		hashAlgorithm crypto.Hash   // Hash algorithm used for calculating the tree hash root and the proofs.
+		shardId       []byte        // ID of the shard.
+		root          *Node         // root is the top node of the tree.
+		changes       []interface{} // changes keep track of changes.
 	}
 
 	changeNode struct {
@@ -158,8 +156,7 @@ func New(config *Config) (*Tree, error) {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
 	return &Tree{
-		hashAlgorithm:    config.HashAlgorithm,
-		recordingEnabled: !config.RecordingDisabled,
+		hashAlgorithm: config.HashAlgorithm,
 	}, nil
 }
 
@@ -535,75 +532,61 @@ func (tree *Tree) rotate(c int, s *Node) *Node {
 }
 
 func (tree *Tree) assignNode(target **Node, source *Node) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeNode{
-			targetPointer: target,
-			oldVal:        *target,
-		})
-	}
+	tree.changes = append(tree.changes, &changeNode{
+		targetPointer: target,
+		oldVal:        *target,
+	})
 	*target = source
 }
 
 func (tree *Tree) assignBalance(target *Node, balance int) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeBalance{
-			targetNode: target,
-			oldVal:     target.balance,
-		})
-	}
+	tree.changes = append(tree.changes, &changeBalance{
+		targetNode: target,
+		oldVal:     target.balance,
+	})
 	target.balance = balance
 }
 
 func (tree *Tree) assignContent(target *Node, content *Unit) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeContent{
-			targetNode: target,
-			oldVal:     target.Content,
-		})
-	}
+	tree.changes = append(tree.changes, &changeContent{
+		targetNode: target,
+		oldVal:     target.Content,
+	})
 	target.Content = content
 }
 
 func (tree *Tree) assignMinKeyMinVal(minKey **uint256.Int, id *uint256.Int, minVal **Unit, content *Unit) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeMinKeyMinVal{
-			minKey:    minKey,
-			oldMinKey: *minKey,
-			minVal:    minVal,
-			oldMinVal: *minVal,
-		})
-	}
+	tree.changes = append(tree.changes, &changeMinKeyMinVal{
+		minKey:    minKey,
+		oldMinKey: *minKey,
+		minVal:    minVal,
+		oldMinVal: *minVal,
+	})
 	*minKey = id
 	*minVal = content
 }
 
 func (tree *Tree) assignRecompute(target *Node, recompute bool) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeRecompute{
-			targetNode: target,
-			oldVal:     target.recompute,
-		})
-	}
+	tree.changes = append(tree.changes, &changeRecompute{
+		targetNode: target,
+		oldVal:     target.recompute,
+	})
 	target.recompute = recompute
 }
 
 func (tree *Tree) assignSummaryValue(target *Node, summary SummaryValue) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeSummaryValue{
-			targetNode: target,
-			oldVal:     target.SummaryValue,
-		})
-	}
+	tree.changes = append(tree.changes, &changeSummaryValue{
+		targetNode: target,
+		oldVal:     target.SummaryValue,
+	})
 	target.SummaryValue = summary
 }
 
 func (tree *Tree) assignHash(target *Node, hash []byte) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeHash{
-			targetNode: target,
-			oldVal:     target.Hash,
-		})
-	}
+	tree.changes = append(tree.changes, &changeHash{
+		targetNode: target,
+		oldVal:     target.Hash,
+	})
 	target.Hash = hash
 }
 

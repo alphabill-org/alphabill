@@ -381,40 +381,6 @@ func TestAtomicUpdateRollback2ndFails(t *testing.T) {
 	requireEqual(t, owner, data, stateHash, unit)
 }
 
-// no rollback if recording is disabled
-func TestAtomicUpdateRecordingDisabled(t *testing.T) {
-	recordingDisabled := &Config{
-		HashAlgorithm:     crypto.SHA256,
-		RecordingDisabled: true,
-	}
-	tr, _ := New(recordingDisabled)
-	id := uint256.NewInt(4)
-	data := TestData(5)
-	newData := TestData(6)
-	owner := Predicate{1, 2, 3}
-	stateHash := []byte("state hash")
-
-	updateFunc := func(data UnitData) UnitData {
-		return newData
-	}
-
-	err := tr.AtomicUpdate(AddItem(id, owner, data, stateHash))
-	require.NoError(t, err)
-	require.Equal(t, 0, len(tr.changes))
-	err = tr.AtomicUpdate(
-		UpdateData(id, updateFunc, stateHash),
-		UpdateData(uint256.NewInt(5), updateFunc, stateHash), // change non-existing id to generate error
-	)
-	require.ErrorContains(t, err, "2. update failed")
-	require.ErrorContains(t, err, "item 5 does not exist")
-	// no rollback, because recording of changes is disabled
-	require.Equal(t, 0, len(tr.changes))
-	unit, err := tr.get(id)
-	require.NoError(t, err)
-	// data stands changed, because there recording is disabled
-	requireEqual(t, owner, newData, stateHash, unit)
-}
-
 func TestSetNode_Overwrite(t *testing.T) {
 	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))

@@ -26,8 +26,7 @@ const initialDustCollectorMoneyAmount uint64 = 100
 
 func TestNewMoneyScheme(t *testing.T) {
 	mockRevertibleState, err := rma.New(&rma.Config{
-		HashAlgorithm:     crypto.SHA256,
-		RecordingDisabled: false,
+		HashAlgorithm: crypto.SHA256,
 	})
 	require.NoError(t, err)
 
@@ -495,8 +494,7 @@ func createNonMoneyTx() *txsystem.Transaction {
 
 func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem, abcrypto.Signer) {
 	rmaTree, err := rma.New(&rma.Config{
-		HashAlgorithm:     crypto.SHA256,
-		RecordingDisabled: false,
+		HashAlgorithm: crypto.SHA256,
 	})
 	require.NoError(t, err)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)

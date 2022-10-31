@@ -66,7 +66,7 @@ func (x *RoundState) GetCurrentRound() uint64 {
 }
 
 func (x *RoundState) SetVoted(vote *atomic_broadcast.VoteMsg) {
-	if vote.VoteInfo.Proposed.Round == x.currentRound {
+	if vote.VoteInfo.Round == x.currentRound {
 		x.voteSent = vote
 	}
 }
@@ -82,22 +82,22 @@ func (x *RoundState) GetRoundTimeout() time.Duration {
 
 func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
 	// If the vote is not about the current round then ignore
-	if vote.VoteInfo.Proposed.Round != x.currentRound {
+	if vote.VoteInfo.Round != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
-			x.currentRound, vote.VoteInfo.Proposed.Round)
+			x.currentRound, vote.VoteInfo.Round)
 		return nil, nil
 	}
 	return x.pendingVotes.InsertVote(vote, verifier)
 }
 
 func (x *RoundState) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
-	if qc.VoteInfo.Proposed.Round < x.currentRound {
+	if qc.VoteInfo.Round < x.currentRound {
 		return false
 	}
 	// last vote is now obsolete
 	x.voteSent = nil
 	x.lastRoundTC = nil
-	x.currentRound = qc.VoteInfo.Proposed.Round + 1
+	x.currentRound = qc.VoteInfo.Round + 1
 	return true
 }
 

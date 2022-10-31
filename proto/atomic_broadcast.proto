@@ -23,25 +23,22 @@ message Payload {
   repeated CertificationReqWithProof requests = 1;
 }
 
-message BlockInfo {
-  // Epoch number corresponds to the set of validators that are active for this block. (not used)
-  uint64 epoch = 1;
-  // Consensus protocol monotonically increasing round number
-  uint64 round = 2;
-  // id or hash of block
-  bytes id = 3;
-  // root hash
-  bytes root_hash = 4;
-  // State hash h(UC[]) after applying changed IR records
-  bytes state_hash = 5;
-}
-
 // The ConsensusInfo is used both in VoteMsg reply and in QC which aggregates all VoteMsg replays
 message VoteInfo {
-    // Proposed block
-    BlockInfo proposed = 1;
-    // Parent block
-    BlockInfo parent = 2;
+  // id or hash of block
+  bytes id = 1;
+  // Consensus protocol monotonically increasing round number
+  uint64 round = 2;
+  // Epoch number corresponds to the set of validators that are active for this block. (not used)
+  uint64 epoch = 3;
+  // timestamp
+  uint64 timestamp = 4;
+  // parent block/proposal id
+  bytes parent_id = 5;
+  // parent block round number
+  uint64 parent_round = 6;
+  // speculative execution state h(root hash || round number)
+  bytes exec_state_id = 7;
 }
 
 message CommitInfo {

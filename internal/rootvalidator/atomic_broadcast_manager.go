@@ -225,7 +225,7 @@ func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// Todo: Check state and synchronize
 	// Was the proposal received? If not, should we recover it? Or should it be included in the vote?
 
-	round := vote.VoteInfo.Proposed.Round
+	round := vote.VoteInfo.Round
 	// Normal votes are only sent to the next leader,
 	// timeout votes are broadcast to everybody
 	if vote.IsTimeout() == false {
@@ -239,12 +239,12 @@ func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// Store vote, check for QC and TC.
 	qc, tc := a.roundState.RegisterVote(vote, a.rootVerifier)
 	if qc != nil {
-		logger.Warning("Round %v quorum achieved", vote.VoteInfo.Proposed.Round)
+		logger.Warning("Round %v quorum achieved", vote.VoteInfo.Round)
 		// advance round
 		a.processCertificateQC(qc)
 	}
 	if tc != nil {
-		logger.Warning("Round %v timeout quorum achieved", vote.VoteInfo.Proposed.Round)
+		logger.Warning("Round %v timeout quorum achieved", vote.VoteInfo.Round)
 		a.roundState.AdvanceRoundTC(tc)
 	}
 	// If QC or TC: Store and create proposal if timing is correct
@@ -274,7 +274,7 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 	}
 
 	// Check state
-	if !bytes.Equal(proposal.Block.Qc.VoteInfo.Proposed.StateHash, a.stateLedger.GetCurrentStateHash()) {
+	if !bytes.Equal(proposal.Block.Qc.VoteInfo.ExecStateId, a.stateLedger.GetCurrentStateHash()) {
 		logger.Error("Recovery not yet implemented")
 	}
 	// speculatively execute proposal
@@ -292,21 +292,12 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 	// send vote
 	vote := &atomic_broadcast.VoteMsg{
 		VoteInfo: &atomic_broadcast.VoteInfo{
-			Proposed: &atomic_broadcast.BlockInfo{
-				Epoch:     proposal.Block.Epoch,
-				Round:     proposal.Block.Round,
-				Id:        proposal.Block.Id,
-				RootHash:  executionResult.LatestRootHash,
-				StateHash: a.stateLedger.GetProposedStateHash(),
-			},
-			// copy parent from attached QC, which this proposal extends
-			Parent: &atomic_broadcast.BlockInfo{
-				Epoch:     proposal.Block.Qc.VoteInfo.Proposed.Epoch,
-				Round:     proposal.Block.Qc.VoteInfo.Proposed.Round,
-				Id:        proposal.Block.Qc.VoteInfo.Proposed.Id,
-				RootHash:  proposal.Block.Qc.VoteInfo.Proposed.RootHash,
-				StateHash: proposal.Block.Qc.VoteInfo.Proposed.StateHash,
-			},
+			Id:          proposal.Block.Id,
+			Round:       proposal.Block.Round,
+			Epoch:       proposal.Block.Epoch,
+			ParentId:    proposal.Block.Qc.VoteInfo.Id,
+			ParentRound: proposal.Block.Qc.VoteInfo.Round,
+			ExecStateId: a.stateLedger.GetProposedStateHash(),
 		},
 		HighCommitQc:     a.stateLedger.HighCommitQC,
 		Author:           string(a.peer.ID()),

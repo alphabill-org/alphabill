@@ -21,10 +21,6 @@ func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *CommitInfo, signatures
 	}
 }
 
-func NewTimeoutCertificate() {
-
-}
-
 func (x *QuorumCert) Verify(v AtomicVerifier) error {
 	// verify that QC is valid
 	if err := x.VoteInfo.IsValid(); err != nil {

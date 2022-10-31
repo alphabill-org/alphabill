@@ -14,15 +14,17 @@ var (
 	ErrInvalidVoteInfoHash = errors.New("invalid vote info hash")
 )
 
-func (x *BlockInfo) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(x.Epoch))
-	hasher.Write(util.Uint64ToBytes(x.Round))
+func (x *VoteInfo) AddToHasher(hasher hash.Hash) {
 	hasher.Write(x.Id)
-	hasher.Write(x.RootHash)
-	hasher.Write(x.StateHash)
+	hasher.Write(util.Uint64ToBytes(x.Round))
+	hasher.Write(util.Uint64ToBytes(x.Epoch))
+	hasher.Write(util.Uint64ToBytes(x.Timestamp))
+	hasher.Write(x.ParentId)
+	hasher.Write(util.Uint64ToBytes(x.ParentRound))
+	hasher.Write(x.ExecStateId)
 }
 
-func (x *BlockInfo) IsValid() error {
+func (x *VoteInfo) IsValid() error {
 	// Todo: epoch is validation rule not yet known
 	if x.Round < 1 {
 		return ErrInvalidRound
@@ -30,28 +32,10 @@ func (x *BlockInfo) IsValid() error {
 	if len(x.Id) < 1 {
 		return ErrInvalidBlockHash
 	}
-	if len(x.RootHash) < 1 {
-		return ErrInvalidRootHash
-	}
-	if len(x.StateHash) < 1 {
+	if len(x.ExecStateId) < 1 {
 		return ErrInvalidStateHash
 	}
 	return nil
-}
-
-func (x *VoteInfo) IsValid() error {
-	if err := x.Proposed.IsValid(); err != nil {
-		return err
-	}
-	if err := x.Parent.IsValid(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (x *VoteInfo) AddToHasher(hasher hash.Hash) {
-	x.Proposed.AddToHasher(hasher)
-	x.Parent.AddToHasher(hasher)
 }
 
 func (x *CommitInfo) IsValid() error {

@@ -252,6 +252,19 @@ func (n *LibP2PNetwork) Send(out OutputMessage, receivers []peer.ID) error {
 
 func (n *LibP2PNetwork) send(protocol *SendProtocol, m proto.Message, receivers []peer.ID) {
 	for _, receiver := range receivers {
+		// loop-back for self messages
+		if receiver == n.self.ID() {
+			if _, f := n.receiveProtocols[protocol.protocolID]; !f {
+				logger.Warning("Loop-back failed message receive protocol %v not supported", protocol.protocolID)
+				continue
+			}
+			n.ReceivedMsgCh <- ReceivedMessage{
+				From:     n.self.ID(),
+				Protocol: protocol.protocolID,
+				Message:  m,
+			}
+			continue
+		}
 		err := protocol.Send(m, receiver)
 		if err != nil {
 			logger.Warning("Failed to send message to peer %v: %v", receiver, err)

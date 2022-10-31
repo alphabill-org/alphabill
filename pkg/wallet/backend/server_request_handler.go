@@ -11,7 +11,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+)
+
+const (
+	contentType = "Content-Type"
 )
 
 type (
@@ -62,13 +67,19 @@ var (
 func (s *RequestHandler) router() *mux.Router {
 	// TODO add request/response headers middleware
 	r := mux.NewRouter().StrictSlash(true)
-	r.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET")
-	r.HandleFunc("/balance", s.balanceFunc).Methods("GET")
-	r.HandleFunc("/block-proof", s.blockProofFunc).Methods("GET")
+
+	// add cors middleware
+	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
+	// OPTIONS method needs to be explicitly defined for each handler func
+	r.Use(handlers.CORS(handlers.AllowedHeaders([]string{contentType})))
+
+	r.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
+	r.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
+	r.HandleFunc("/block-proof", s.blockProofFunc).Methods("GET", "OPTIONS")
 
 	// TODO authorization
 	ra := r.PathPrefix("/admin/").Subrouter()
-	ra.HandleFunc("/add-key", s.addKeyFunc).Methods("POST")
+	ra.HandleFunc("/add-key", s.addKeyFunc).Methods("POST", "OPTIONS")
 
 	return r
 }

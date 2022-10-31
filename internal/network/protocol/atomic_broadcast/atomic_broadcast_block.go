@@ -1,26 +1,24 @@
 package atomic_broadcast
 
 import (
-	"bytes"
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-const (
-	ErrInvalidRound               = "invalid round number"
-	ErrInvalidEpoch               = "invalid epoch number"
-	ErrInvalidSystemId            = "invalid system identifier"
-	ErrMissingPayload             = "proposed block is missing payload"
-	ErrMissingQuorumCertificate   = "proposed block is missing quorum certificate"
-	ErrIncompatibleReq            = "different system identifier and request system identifier"
-	ErrUnknownRequest             = "unknown request, sender not known"
-	ErrBothChangeQuorumAndTimeout = "invalid payload both IR change and timeout set at the same time"
+var (
+	ErrInvalidRound             = errors.New("invalid round number")
+	ErrInvalidEpoch             = errors.New("invalid epoch number")
+	ErrInvalidSystemId          = errors.New("invalid system identifier")
+	ErrMissingPayload           = errors.New("proposed block is missing payload")
+	ErrMissingQuorumCertificate = errors.New("proposed block is missing quorum certificate")
+	ErrIncompatibleReq          = errors.New("different system identifier and request system identifier")
+	ErrUnknownRequest           = errors.New("unknown request, sender not known")
 )
 
 type AtomicVerifier interface {
@@ -34,81 +32,49 @@ type AtomicVerifier interface {
 	GetVerifiers() map[string]crypto.Verifier
 }
 
-func (x *IRChangeReq) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
-	if len(x.SystemIdentifier) != 4 {
-		return errors.New(ErrInvalidSystemId)
-	}
-	for _, req := range x.Requests {
-		if bytes.Equal(req.SystemIdentifier, x.SystemIdentifier) == false {
-			return errors.New(ErrIncompatibleReq)
-		}
-		ver, f := partitionTrustBase[req.NodeIdentifier]
-		if !f {
-			return errors.New(ErrUnknownRequest)
-		}
-		if err := req.IsValid(ver); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (x *IRChangeReq) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.SystemIdentifier)
-	array := x.GetRequests()
-	for _, req := range array {
-		hasher.Write(req.Bytes())
-	}
-}
-
 func (x *Payload) AddToHasher(hasher hash.Hash) {
-	array := x.IrChangeQuorum
-	for _, ir := range array {
-		ir.AddToHasher(hasher)
+	certRequests := x.Requests
+	for _, r := range certRequests {
+		r.AddToHasher(hasher)
 	}
 }
 
 func (x *Payload) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
-	sysIdMap := map[string]protocol.SystemIdentifier{}
-	// Verify all IR change request quorums are valid
-	if len(x.IrChangeQuorum) > 0 {
-		for _, q := range x.IrChangeQuorum {
-			if err := q.IsValid(partitionTrustBase); err != nil {
-				return err
-			}
-			sysIdMap[string(q.SystemIdentifier)] = protocol.SystemIdentifier(q.SystemIdentifier)
+	// there can only be one request per system identifier in a block
+	sysIdSet := map[string]bool{}
+
+	for _, req := range x.Requests {
+		if err := req.IsValid(partitionTrustBase); err != nil {
+			return fmt.Errorf("payload contains invalid request from system id %X, err %w", req.SystemIdentifier, err)
 		}
-	}
-	// Check timeout systemId array:
-	// 1. check that system ID is valid
-	// 2. check that both IR change and timeout for the same system ID are not set at the same time
-	for _, systemId := range x.TimeoutSystemIdentifiers {
-		if len(systemId) != 4 {
-			return errors.New(ErrInvalidSystemId)
+		// If reason is timeout, then there is no proof
+		if req.CertReason == CertificationReqWithProof_T2_TIMEOUT && len(req.Requests) > 0 {
+			return fmt.Errorf("payload is not valid, invalid timeout request")
 		}
-		if _, f := sysIdMap[string(systemId)]; f == true {
-			return errors.New(ErrBothChangeQuorumAndTimeout)
+		if _, found := sysIdSet[string(req.SystemIdentifier)]; found {
+			return fmt.Errorf("payload is not valid, duplicate request for system identifier %X", req.SystemIdentifier)
 		}
+		sysIdSet[string(req.SystemIdentifier)] = true
 	}
 	return nil
 }
 
 func (x *Payload) IsEmpty() bool {
-	return len(x.IrChangeQuorum) == 0 && len(x.TimeoutSystemIdentifiers) == 0
+	return len(x.Requests) == 0
 }
 
 func (x *BlockData) IsValid(partitionTrust map[string]crypto.Verifier, v AtomicVerifier) error {
 	if x.Round < 1 {
-		return errors.New(ErrInvalidRound)
+		return ErrInvalidRound
 	}
 	if x.Epoch < 1 {
-		return errors.New(ErrInvalidEpoch)
+		return ErrInvalidEpoch
 	}
 	if x.Payload == nil {
-		return errors.New(ErrMissingPayload)
+		return ErrMissingPayload
 	}
 	if x.Qc == nil {
-		return errors.New(ErrMissingQuorumCertificate)
+		return ErrMissingQuorumCertificate
 	}
 	// expensive op's
 	if err := x.Payload.IsValid(partitionTrust); err != nil {
@@ -122,9 +88,11 @@ func (x *BlockData) IsValid(partitionTrust map[string]crypto.Verifier, v AtomicV
 
 func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
 	hasher := algo.New()
-	hasher.Write(util.Uint64ToBytes(x.Epoch))
-	hasher.Write(util.Uint64ToBytes(x.Round))
+	// Block ID is defined as block hash, so hence it is not included
 	hasher.Write([]byte(x.Author))
+	hasher.Write(util.Uint64ToBytes(x.Round))
+	hasher.Write(util.Uint64ToBytes(x.Epoch))
+	hasher.Write(util.Uint64ToBytes(x.Timestamp))
 	x.Payload.AddToHasher(hasher)
 	x.Qc.AddToHasher(hasher)
 	return hasher.Sum(nil), nil

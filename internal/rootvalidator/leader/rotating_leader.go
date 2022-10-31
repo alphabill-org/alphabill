@@ -7,14 +7,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-// Selector provides interface to different leader selection algorithms
-type Selector interface {
-	// IsValidLeader returns valid leader for round/view number
-	IsValidLeader(author peer.ID, round uint64) bool
-	// GetLeaderForRound returns valid leader (node id) for round/view number
-	GetLeaderForRound(round uint64) peer.ID
-}
-
 type RotatingLeader struct {
 	rootNodeIds []peer.ID
 	nofRounds   uint32
@@ -40,13 +32,17 @@ func NewRotatingLeader(rootNodes []peer.ID, contRounds uint32) (*RotatingLeader,
 	return &RotatingLeader{rootNodeIds: rootNodes, nofRounds: contRounds}, nil
 }
 
-func (r RotatingLeader) IsValidLeader(author peer.ID, round uint64) bool {
+func (r *RotatingLeader) IsValidLeader(author peer.ID, round uint64) bool {
 	if r.GetLeaderForRound(round) != author {
 		return false
 	}
 	return true
 }
 
-func (r RotatingLeader) GetLeaderForRound(round uint64) peer.ID {
+func (r *RotatingLeader) GetLeaderForRound(round uint64) peer.ID {
 	return r.rootNodeIds[uint32(round/uint64(r.nofRounds))%uint32(len(r.rootNodeIds))]
+}
+
+func (r *RotatingLeader) GetRootNodes() []peer.ID {
+	return r.rootNodeIds
 }

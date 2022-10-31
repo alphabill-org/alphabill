@@ -1,17 +1,17 @@
 package atomic_broadcast
 
 import (
+	"errors"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-const (
-	ErrInvalidBlockHash    = "invalid block hash"
-	ErrInvalidRootHash     = "invalid root hash"
-	ErrInvalidStateHash    = "invalid state hash"
-	ErrInvalidVoteInfoHash = "invalid vote info hash"
+var (
+	ErrInvalidBlockHash    = errors.New("invalid block hash")
+	ErrInvalidRootHash     = errors.New("invalid root hash")
+	ErrInvalidStateHash    = errors.New("invalid state hash")
+	ErrInvalidVoteInfoHash = errors.New("invalid vote info hash")
 )
 
 func (x *BlockInfo) AddToHasher(hasher hash.Hash) {
@@ -25,16 +25,16 @@ func (x *BlockInfo) AddToHasher(hasher hash.Hash) {
 func (x *BlockInfo) IsValid() error {
 	// Todo: epoch is validation rule not yet known
 	if x.Round < 1 {
-		return errors.New(ErrInvalidRound)
+		return ErrInvalidRound
 	}
 	if len(x.Id) < 1 {
-		return errors.New(ErrInvalidBlockHash)
+		return ErrInvalidBlockHash
 	}
 	if len(x.RootHash) < 1 {
-		return errors.New(ErrInvalidRootHash)
+		return ErrInvalidRootHash
 	}
 	if len(x.StateHash) < 1 {
-		return errors.New(ErrInvalidStateHash)
+		return ErrInvalidStateHash
 	}
 	return nil
 }
@@ -56,7 +56,7 @@ func (x *VoteInfo) AddToHasher(hasher hash.Hash) {
 
 func (x *CommitInfo) IsValid() error {
 	if len(x.VoteInfoHash) < 1 {
-		return errors.New(ErrInvalidVoteInfoHash)
+		return ErrInvalidVoteInfoHash
 	}
 	// CommitStateHash can be nil, this is legal
 	return nil

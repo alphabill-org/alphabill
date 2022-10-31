@@ -20,7 +20,7 @@ type (
 		HashToSignatures map[string]*ConsensusWithSignatures
 		// Tracks all timout votes for this round
 		// if 2f+1 or threshold votes, then TC is formed
-		TimeoutCert *TimeoutCertificate
+		TimeoutCert *atomic_broadcast.TimeoutCert
 		// Helper, to avoid duplicate votes
 		AuthorToVote map[peer.ID]*atomic_broadcast.VoteMsg
 	}
@@ -34,7 +34,7 @@ func NewVoteRegister() *VoteRegister {
 	}
 }
 
-func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *TimeoutCertificate) {
+func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
 	// Get hash of consensus structure
 	commitInfoHash := vote.CommitInfo.Hash(crypto.SHA256)
 
@@ -79,17 +79,16 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 		qc := atomic_broadcast.NewQuorumCertificate(quorum.voteInfo, quorum.commitInfo, quorum.signatures)
 		return qc, nil
 	}
-
 	// Check TC
 	if vote.IsTimeout() {
 		// Create partial timeout cert on first vote received
 		if v.TimeoutCert == nil {
-			v.TimeoutCert = NewTimeoutCertificate(vote)
+			v.TimeoutCert = atomic_broadcast.NewPartialTimeoutCertificate(vote)
 		}
 		// append signature
 		v.TimeoutCert.AddSignature(vote.Author, vote.TimeoutSignature)
 		// Check if TC can be formed
-		if verifier.GetQuorumThreshold() >= uint32(len(*v.TimeoutCert.GetSignatures())) {
+		if verifier.GetQuorumThreshold() >= uint32(len(v.TimeoutCert.GetSignatures())) {
 			return nil, v.TimeoutCert
 		}
 	}

@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
@@ -39,7 +38,7 @@ type (
 		store            StateStore
 		net              PartitionNet
 		timers           *timer.Timers
-		partitionStore   *rootchain.PartitionStore
+		partitionStore   rootchain.PartitionStore
 		incomingRequests rootchain.CertificationRequestStore
 		hashAlgorithm    gocrypto.Hash // hash algorithm
 		signer           crypto.Signer // private key of the root validator
@@ -51,65 +50,39 @@ func (p *PartitionManager) Timers() *timer.Timers {
 	return p.timers
 }
 
-func NewPartitionManager(g *genesis.RootGenesis, signer crypto.Signer, n PartitionNet, stateStore StateStore) (*PartitionManager, error) {
-	_, verifier, err := rootchain.GetPublicKeyAndVerifier(signer)
+func NewPartitionManager(signer crypto.Signer, n PartitionNet, stateStore StateStore, pStore rootchain.PartitionStore) (*PartitionManager, error) {
+	_, v, err := rootchain.GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid rootvalidator private key")
-	}
-	if err = g.Verify(); err != nil {
-		return nil, errors.Wrap(err, "invalid genesis")
 	}
 	if stateStore == nil {
 		return nil, errors.New("root chain store is nil")
 	}
-	// Init from genesis file is done only once
+	// Check state is initiated
 	state, err := stateStore.Get()
 	if err != nil {
 		return nil, err
 	}
-	storeInitiated := state.LatestRound > 0
-	// load/store unicity certificates and register partitions from root genesis file
-	partitionStore := rootchain.PartitionStore{}
-	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
-	for _, partition := range g.Partitions {
-		identifier := partition.GetSystemIdentifierString()
-		partitionStore[identifier] = &genesis.PartitionRecord{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Validators:              partition.Nodes,
-		}
-		certs[identifier] = partition.Certificate
-		// In case the store is already initiated, check if partition identifier is known
-		if storeInitiated {
-			if _, f := state.Certificates[identifier]; !f {
-				return nil, errors.Errorf("invalid genesis, new partition %v detected", identifier)
-			}
-		}
-	}
-	// If not initiated, save genesis file to store
-	if !storeInitiated {
-		if err := stateStore.Save(store.RootState{LatestRound: g.GetRoundNumber(), Certificates: certs, LatestRootHash: g.GetRoundHash()}); err != nil {
-			return nil, err
-		}
+	if state.LatestRound < 1 {
+		return nil, errors.New("error state not initated")
 	}
 
 	timers := timer.NewTimers()
 	// Start a t2 timer per partition
-	for _, p := range g.Partitions {
-		for _, validator := range p.Nodes {
-			duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
-			timers.Start(string(validator.BlockCertificationRequest.SystemIdentifier), duration)
-			break
-		}
+	for _, p := range pStore {
+		duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
+		timers.Start(string(p.SystemDescriptionRecord.SystemIdentifier), duration)
+		break
 	}
 
 	return &PartitionManager{
 		store:            stateStore,
 		net:              n,
 		timers:           timers,
-		partitionStore:   rootchain.NewPartitionStore(g.GetPartitionRecords()),
+		partitionStore:   pStore,
 		incomingRequests: rootchain.NewCertificationRequestStore(),
 		signer:           signer,
-		verifier:         verifier}, nil
+		verifier:         v}, nil
 }
 
 // OnTimeout handle t2 timers
@@ -166,7 +139,8 @@ func (p *PartitionManager) GetLatestUnicityCertificate(id protocol.SystemIdentif
 	return luc, nil
 }
 
-// OnBlockCertificationRequest handle certification requests from partition nodes
+// OnBlockCertificationRequest handle certification requests from partition nodes.
+// Partition nodes can only extend the stored/certified state
 func (p *PartitionManager) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	verifier, err := p.getPartitionVerifier(req.SystemIdentifier, req.NodeIdentifier)
 	if err != nil {
@@ -206,7 +180,7 @@ func (p *PartitionManager) onBlockCertificationRequest(req *certification.BlockC
 	}
 	ir, consensusPossible := p.incomingRequests.IsConsensusReceived(systemIdentifier, p.partitionStore.NodeCount(systemIdentifier))
 	if ir != nil || consensusPossible == false {
-		logger.Info("Forward certification requests to next root chain leader")
+		logger.Info("Forward quorum proof for certification")
 		// Forward all requests to next root chain leader (use channel?)
 		// Todo: call atomic broadcast
 		return

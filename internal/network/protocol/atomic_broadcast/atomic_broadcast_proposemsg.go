@@ -42,7 +42,26 @@ func (x *ProposalMsg) Verify(v AtomicVerifier) error {
 	}
 	err = v.VerifySignature(hash, x.Signature, peer.ID(x.Block.Author))
 	if err != nil {
-		return errors.Wrap(err, "Proposal verification failed")
+		return errors.Wrap(err, "proposal verification failed")
 	}
+	// Check certificates
+	if err := x.Block.Qc.Verify(v); err != nil {
+		return errors.Wrap(err, "proposal verification failed")
+	}
+	// If there is a high commit QC certificate (is this optional at all)
+	if x.HighCommitQc == nil {
+		return errors.New("proposal is missing commit certificate")
+	}
+	if err := x.HighCommitQc.Verify(v); err != nil {
+		return errors.Wrap(err, "proposal verification failed")
+	}
+	// Optional timeout certificate
+	if x.LastRoundTc != nil {
+		if err := x.LastRoundTc.Verify(v); err != nil {
+			return errors.Wrap(err, "proposal verification failed")
+		}
+	}
+	// todo: Check if block is valid
+	//	if x.Block.IsValid()
 	return nil
 }

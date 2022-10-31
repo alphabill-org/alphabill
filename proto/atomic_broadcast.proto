@@ -5,19 +5,22 @@ import "certificates.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast;atomic_broadcast";
 
-message IRChangeReq {
+message CertificationReqWithProof {
+  enum CERT_REASON{
+    QUORUM = 0;
+    QUORUM_NOT_POSSIBLE = 1;
+    T2_TIMEOUT = 2;
+  }
   // system identifier of the input record changed
   bytes system_identifier = 1;
+  CERT_REASON certReason = 2;
   // IR change (quorum or no quorum possible of block certification requests)
-  repeated BlockCertificationRequest requests = 2;
+  repeated BlockCertificationRequest requests = 3;
 }
 
 message Payload {
   // IR change requests with quorum or no quorum possible
-  repeated IRChangeReq irChangeQuorum = 1;
-  // Timeout vector
-  repeated bytes timeout_system_identifiers = 2;
-  // todo: no IRChangeQuorums and empty timeout vector - empty block, is this solution ok?
+  repeated CertificationReqWithProof requests = 1;
 }
 
 message BlockInfo {
@@ -58,20 +61,22 @@ message QuorumCert {
 }
 
 message BlockData {
-  // Epoch to establish valid configuration
-  uint64 epoch = 1;
-  // Root round number
-  uint64 round = 2;
+  // id hash of block, excluding the id
+  bytes id = 1;
   // NodeIdentifier of the proposer
-  string author = 3;
+  string author = 2;
+  // Root round number
+  uint64 round = 3;
+  // Epoch to establish valid configuration
+  uint64 epoch = 4;
+  // timestamp
+  uint64 timestamp = 5;
   // Payload that will trigger changes to the state
-  Payload payload = 4;
+  Payload payload = 6;
   // quorum certificate for ancestor
   // before payload can be applied check that local state matches state in qc
-  // qc.consensus.state_hash == h(UC[])
-  QuorumCert qc = 5;
-  // id hash of block, excluding the id
-  bytes id = 6;
+  // qc.vote_info.proposed.state_hash == h(UC[])
+  QuorumCert qc = 7;
 }
 
 message Timeout {
@@ -102,8 +107,14 @@ message TimeoutCert {
 }
 
 message IRChangeReqMsg {
+  // state hash for synchronization
+  bytes state_hash = 1;
   // Unique block certification requests with quorum present or quorum not possible.
-  repeated IRChangeReq requests = 1;
+  CertificationReqWithProof request = 2;
+  // Author who issued the IR change request
+  string author = 4;
+  // Signed message to authenticate sender
+  bytes signature = 5;
 }
 
 message ProposalMsg {

@@ -32,10 +32,16 @@ type (
 		timeoutCalculator TimeoutCalculator
 		// Collection of votes (when node is the next leader)
 		pendingVotes *VoteRegister
+		// Last round timeout certificate
+		lastRoundTC *atomic_broadcast.TimeoutCert
 		// Vote sent locally for the current round.
 		voteSent *atomic_broadcast.VoteMsg
 	}
 )
+
+func (x *RoundState) LastRoundTC() *atomic_broadcast.TimeoutCert {
+	return x.lastRoundTC
+}
 
 func (x ExponentialTimeInterval) GetNextTimeout(roundIndexAfterCommit uint64) time.Duration {
 	// Not the correct equation yet
@@ -50,6 +56,8 @@ func NewRoundState(localTimeout time.Duration) *RoundState {
 		roundTimeout:       time.Now(),
 		timeoutCalculator:  ExponentialTimeInterval{baseMs: localTimeout, exponent: 0},
 		pendingVotes:       NewVoteRegister(),
+		lastRoundTC:        nil,
+		voteSent:           nil,
 	}
 }
 
@@ -72,7 +80,7 @@ func (x *RoundState) GetRoundTimeout() time.Duration {
 	return newTimeout
 }
 
-func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *TimeoutCertificate) {
+func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.Proposed.Round != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
@@ -80,4 +88,26 @@ func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 		return nil, nil
 	}
 	return x.pendingVotes.InsertVote(vote, verifier)
+}
+
+func (x *RoundState) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
+	if qc.VoteInfo.Proposed.Round < x.currentRound {
+		return false
+	}
+	// last vote is now obsolete
+	x.voteSent = nil
+	x.lastRoundTC = nil
+	x.currentRound = qc.VoteInfo.Proposed.Round + 1
+	return true
+}
+
+func (x *RoundState) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
+	// no timeout cert or is from old view/round - ignore
+	if tc == nil || tc.Timeout.Round < x.currentRound {
+		return
+	}
+	// last vote is now obsolete
+	x.voteSent = nil
+	x.lastRoundTC = tc
+	x.currentRound = tc.Timeout.Round + 1
 }

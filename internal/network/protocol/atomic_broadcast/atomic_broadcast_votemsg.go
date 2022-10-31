@@ -31,13 +31,6 @@ func (x *CommitInfo) Hash(hash gocrypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 
-func NewVoteMessage(author string, voteInfo *VoteInfo, info *CommitInfo, hCommitQc *QuorumCert, signer crypto.Signer) *VoteMsg {
-	voteMsg := &VoteMsg{VoteInfo: voteInfo, CommitInfo: info, HighCommitQc: hCommitQc, Author: author}
-	// sign
-	voteMsg.addSignature(signer)
-	return voteMsg
-}
-
 func (x *VoteMsg) IsTimeout() bool {
 	if x.TimeoutSignature == nil {
 		return false
@@ -45,7 +38,7 @@ func (x *VoteMsg) IsTimeout() bool {
 	return true
 }
 
-func (x *VoteMsg) addSignature(signer crypto.Signer) error {
+func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 	if signer == nil {
 		return errors.New(ErrSignerIsNil)
 	}

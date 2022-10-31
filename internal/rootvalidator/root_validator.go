@@ -5,6 +5,10 @@ import (
 	gocrypto "crypto"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/rootchain"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
@@ -28,6 +32,7 @@ type (
 		LocalTimeoutMs     time.Duration
 		ConsensusThreshold uint32
 		RootTrustBase      map[string]crypto.Verifier
+		HashAlgorithm      gocrypto.Hash
 		stateStore         StateStore
 	}
 	Option func(c *RootNodeConf)
@@ -38,7 +43,7 @@ type (
 		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
 		rootHost         *network.Peer // p2p network host for root validators
-		store            StateStore
+		partitionStore   rootchain.PartitionStore
 		partitionManager *PartitionManager
 		consensusManager *AtomicBroadcastManager // Handles root validator communication and consensus.
 	}
@@ -54,7 +59,7 @@ func WithStateStore(store StateStore) Option {
 func NewRootValidatorNode(
 	prt *network.Peer,
 	rootHost *network.Peer,
-	genesis *genesis.RootGenesis,
+	g *genesis.RootGenesis,
 	signer crypto.Signer,
 	pNet PartitionNet,
 	rNet RootNet,
@@ -73,24 +78,52 @@ func NewRootValidatorNode(
 	if rNet == nil {
 		return nil, errors.New("network is nil")
 	}
-	if genesis == nil {
+	if g == nil {
 		return nil, errors.New("root chain genesis is nil")
 	}
-	err := genesis.Verify()
+	err := g.Verify()
 	if err != nil {
 		return nil, errors.New("invalid root genesis file")
 	}
 	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", prt.ID(), prt.MultiAddresses())
-	configuration := loadConf(genesis.Root, opts)
+	configuration := loadConf(g.Root, opts)
+	// Load/initiate state store
+	stateStore := configuration.stateStore
+	state, err := stateStore.Get()
+	// Init from genesis file is done only once
+	storeInitiated := state.LatestRound > 0
+	// load/store unicity certificates and register partitions from root genesis file
+	partitionStore := rootchain.PartitionStore{}
+	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
+	for _, partition := range g.Partitions {
+		identifier := partition.GetSystemIdentifierString()
+		partitionStore[identifier] = &genesis.PartitionRecord{
+			SystemDescriptionRecord: partition.SystemDescriptionRecord,
+			Validators:              partition.Nodes,
+		}
+		certs[identifier] = partition.Certificate
+		// In case the store is already initiated, check if partition identifier is known
+		if storeInitiated {
+			if _, f := state.Certificates[identifier]; !f {
+				return nil, errors.Errorf("invalid genesis, new partition %v detected", identifier)
+			}
+		}
+	}
+	// If not initiated, save genesis file to store
+	if !storeInitiated {
+		if err := stateStore.Save(store.RootState{LatestRound: g.GetRoundNumber(), Certificates: certs, LatestRootHash: g.GetRoundHash()}); err != nil {
+			return nil, err
+		}
+	}
 
 	safety := NewSafetyModule(signer)
 	// New partition manager, receives requests and responds
-	p, err := NewPartitionManager(genesis, signer, pNet, configuration.stateStore)
+	p, err := NewPartitionManager(signer, pNet, stateStore, partitionStore)
 	if err != nil {
 		return nil, err
 	}
 	// Create new root validator protocol handler
-	r, err := NewAtomicBroadcastManager(rootHost, configuration, configuration.stateStore, safety, rNet)
+	r, err := NewAtomicBroadcastManager(rootHost, configuration, stateStore, partitionStore, safety, rNet)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +131,7 @@ func NewRootValidatorNode(
 	node := &Validator{
 		conf:             configuration,
 		partitionHost:    prt,
-		store:            configuration.stateStore,
+		partitionStore:   partitionStore,
 		partitionManager: p,
 		consensusManager: r,
 	}
@@ -173,6 +206,7 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *RootNodeCo
 		LocalTimeoutMs:     localTimeout,
 		ConsensusThreshold: quorumThreshold,
 		RootTrustBase:      rootTrustBase,
+		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
 		stateStore:         store.NewInMemStateStore(gocrypto.SHA256),
 	}
 	for _, opt := range opts {

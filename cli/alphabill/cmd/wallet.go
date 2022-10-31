@@ -34,6 +34,8 @@ const (
 	logLevelCmdName       = "log-level"
 	walletLocationCmdName = "wallet-location"
 	keyCmdName            = "key"
+	totalCmdName          = "total"
+	quietCmdName          = "quiet"
 )
 
 type walletConfig struct {
@@ -215,6 +217,12 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 			return execGetBalanceCmd(cmd, config)
 		},
 	}
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which key balance to query "+
+		"(by default returns all key balances including total balance over all keys)")
+	cmd.Flags().BoolP(totalCmdName, "t", false,
+		"if specified shows only total balance over all accounts")
+	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, "+
+		"e.g. account key numbers, can only be used together with key or total flag")
 	addPasswordFlags(cmd)
 	return cmd
 }
@@ -226,12 +234,48 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	balances, err := w.GetBalances()
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
 	}
-	for accountIndex, accBalance := range balances {
-		consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accBalance))
+	total, err := cmd.Flags().GetBool(totalCmdName)
+	if err != nil {
+		return err
+	}
+	quiet, err := cmd.Flags().GetBool(quietCmdName)
+	if err != nil {
+		return err
+	}
+	if !total && accountNumber == 0 {
+		quiet = false // quiet is supposed to work only when total or key flag is provided
+	}
+	if accountNumber == 0 {
+		sum := uint64(0)
+		balances, err := w.GetBalances()
+		if err != nil {
+			return err
+		}
+		for accountIndex, accountBalance := range balances {
+			sum += accountBalance
+			if !total {
+				consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accountBalance))
+			}
+		}
+		if quiet {
+			consoleWriter.Println(sum)
+		} else {
+			consoleWriter.Println(fmt.Sprintf("Total %d", sum))
+		}
+	} else {
+		balance, err := w.GetBalance(accountNumber - 1)
+		if err != nil {
+			return err
+		}
+		if quiet {
+			consoleWriter.Println(balance)
+		} else {
+			consoleWriter.Println(fmt.Sprintf("#%d %d", accountNumber, balance))
+		}
 	}
 	return nil
 }
@@ -243,6 +287,7 @@ func getPubKeysCmd(config *walletConfig) *cobra.Command {
 			return execGetPubKeysCmd(cmd, config)
 		},
 	}
+	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, e.g. account key numbers")
 	addPasswordFlags(cmd)
 	return cmd
 }
@@ -258,8 +303,13 @@ func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	hideKeyNumber, _ := cmd.Flags().GetBool(quietCmdName)
 	for accIdx, accPubKey := range pubKeys {
-		consoleWriter.Println(fmt.Sprintf("#%d %s", accIdx+1, hexutil.Encode(accPubKey)))
+		if hideKeyNumber {
+			consoleWriter.Println(fmt.Sprintf("%s", hexutil.Encode(accPubKey)))
+		} else {
+			consoleWriter.Println(fmt.Sprintf("#%d %s", accIdx+1, hexutil.Encode(accPubKey)))
+		}
 	}
 	return nil
 }

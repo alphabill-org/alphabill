@@ -1,6 +1,7 @@
 package hash
 
 import (
+	"crypto"
 	"crypto/sha256"
 	"crypto/sha512"
 )
@@ -21,4 +22,13 @@ func Sum256(data []byte) []byte {
 func Sum512(data []byte) []byte {
 	hsh := sha512.Sum512(data)
 	return hsh[:]
+}
+
+// Sum hashes together arbitary data units
+func Sum(hashAlgorithm crypto.Hash, hashes ...[]byte) []byte {
+	hasher := hashAlgorithm.New()
+	for _, hash := range hashes {
+		hasher.Write(hash)
+	}
+	return hasher.Sum(nil)
 }

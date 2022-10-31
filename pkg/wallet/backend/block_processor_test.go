@@ -74,8 +74,12 @@ func verifyProof(t *testing.T, proof *BlockProof, billId *uint256.Int) {
 	require.EqualValues(t, 1, proof.BlockNumber)
 	require.Equal(t, billId, proof.BillId)
 
-	require.NotNil(t, proof.BlockProof)
-	require.NotNil(t, proof.BlockProof.BlockHeaderHash)
-	require.NotNil(t, proof.BlockProof.MerkleProof)
-	require.NotNil(t, proof.BlockProof.UnicityCertificate)
+	blockProof := proof.BlockProof
+	require.NotNil(t, blockProof)
+	require.NotNil(t, blockProof.BlockHeaderHash)
+	require.NotNil(t, blockProof.TransactionsHash)
+	require.NotNil(t, blockProof.HashValue)
+	require.NotNil(t, blockProof.BlockTreeHashChain)
+	require.Nil(t, blockProof.SecTreeHashChain)
+	require.NotNil(t, blockProof.UnicityCertificate)
 }

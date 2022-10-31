@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -236,13 +237,17 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.db.Do().GetAccountKey(0)
 
 	dcBills := []*bill{
-		{Id: uint256.NewInt(2), DcTx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(1), DcTx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(0), DcTx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(2), Tx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(1), Tx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(0), Tx: testtransaction.CreateRandomDcTx()},
 	}
 	dcNonce := calculateDcNonce(dcBills)
+	var dcBillIds [][]byte
+	for _, dcBill := range dcBills {
+		dcBillIds = append(dcBillIds, dcBill.getId())
+	}
 
-	tx, err := createSwapTx(k, dcBills, dcNonce, 10)
+	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
 	require.NoError(t, err)
 	swapTx := parseSwapTx(t, tx)
 
@@ -287,6 +292,82 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	}
 }
 
+func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
+	// create wallet with three bills
+	_ = log.InitStdoutLogger(log.INFO)
+	w, mockClient := CreateTestWallet(t)
+	b1 := addBill(t, w, 1)
+	b2 := addBill(t, w, 2)
+	b3 := addBill(t, w, 3)
+
+	// when dc runs
+	err := w.collectDust(context.Background(), false, 0)
+	require.NoError(t, err)
+
+	// then metadata is updated
+	dcNonce := calculateExpectedDcNonce(t, w)
+	verifyBlockHeight(t, w, 0)
+	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 6, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
+
+	// and three dc txs are broadcast
+	dcTxs := mockClient.GetRecordedTransactions()
+	require.Len(t, dcTxs, 3)
+	for _, tx := range dcTxs {
+		require.NotNil(t, parseDcTx(t, tx))
+	}
+
+	// when 2 of 3 dc bills are confirmed before timeout
+	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)
+	_ = w.db.Do().SetBlockNumber(dcTimeoutBlockCount - 1)
+	b := &block.Block{
+		SystemIdentifier:   alphabillMoneySystemId,
+		BlockNumber:        dcTimeoutBlockCount,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
+		Transactions:       dcTxs[0:2],
+		UnicityCertificate: &certificates.UnicityCertificate{},
+	}
+	err = w.ProcessBlock(b)
+	require.NoError(t, err)
+
+	// then swap should be broadcast
+	require.Len(t, mockClient.GetRecordedTransactions(), 4)
+
+	// and swap should contain all bill ids
+	tx := mockClient.GetRecordedTransactions()[3]
+	swapTx := parseSwapTx(t, tx)
+	require.EqualValues(t, dcNonce, tx.UnitId)
+	require.Len(t, swapTx.BillIdentifiers, 3)
+	require.Equal(t, b1.Id, uint256.NewInt(0).SetBytes(swapTx.BillIdentifiers[0]))
+	require.Equal(t, b2.Id, uint256.NewInt(0).SetBytes(swapTx.BillIdentifiers[1]))
+	require.Equal(t, b3.Id, uint256.NewInt(0).SetBytes(swapTx.BillIdentifiers[2]))
+	require.Len(t, swapTx.DcTransfers, 2)
+	require.Equal(t, dcTxs[0], swapTx.DcTransfers[0])
+	require.Equal(t, dcTxs[1], swapTx.DcTransfers[1])
+
+	// and metadata is updated
+	swapTimeout := uint64(dcTimeoutBlockCount + swapTimeoutBlockCount)
+	verifyDcMetadata(t, w, dcNonce, &dcMetadata{SwapTimeout: swapTimeout})
+
+	// when swap timeout is reached
+	mockClient.SetMaxBlockNumber(swapTimeout)
+	_ = w.db.Do().SetBlockNumber(swapTimeout - 1)
+	b = &block.Block{
+		SystemIdentifier:   alphabillMoneySystemId,
+		BlockNumber:        swapTimeout,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
+		Transactions:       []*txsystem.Transaction{},
+		UnicityCertificate: &certificates.UnicityCertificate{},
+	}
+	err = w.ProcessBlock(b)
+	require.NoError(t, err)
+
+	// then swap is broadcast with same bill ids
+	require.Len(t, mockClient.GetRecordedTransactions(), 5)
+	tx2 := mockClient.GetRecordedTransactions()[4]
+	swapTx2 := parseSwapTx(t, tx2)
+	require.Equal(t, swapTx.BillIdentifiers, swapTx2.BillIdentifiers)
+}
+
 func addBills(t *testing.T, w *Wallet) {
 	addBill(t, w, 1)
 	addBill(t, w, 2)
@@ -321,7 +402,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 	require.NoError(t, err)
 
 	b.IsDcBill = true
-	b.DcTx = tx
+	b.Tx = tx
 	b.DcNonce = nonceB32[:]
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout

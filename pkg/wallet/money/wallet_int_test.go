@@ -13,6 +13,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rpc"
@@ -343,11 +344,12 @@ func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
-	network, err := testpartition.NewNetwork(1, func() txsystem.TransactionSystem {
+	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,
 			10000,
+			moneytx.SchemeOpts.TrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system

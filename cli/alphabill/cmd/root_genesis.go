@@ -58,11 +58,11 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	cmd.Flags().StringSliceVarP(&config.PartitionNodeGenesisFiles, partitionRecordFile, "p", []string{}, "path to partition node genesis files")
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	// Consensus params
-	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
-	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", 900, "minimal UC rate")
-	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", 10000, "time to vote for timeout in round (only distributed root chain)")
-	cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
-	//	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
+	//cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
+	//cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", 900, "Unicity Certificate rate")
+	//cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", 10000, "time to vote for timeout in round (only distributed root chain)")
+	//cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
+	//cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
 
 	err := cmd.MarkFlagRequired(partitionRecordFile)
 	if err != nil {
@@ -129,11 +129,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 		return err
 	}
 
-	rg, pg, err := rootchain.NewRootGenesis(peerID.String(), keys.SigningPrivateKey, encPubKeyBytes, pr,
-		rootchain.WithTotalNodes(config.TotalNodes),
-		rootchain.WithBlockRate(config.BlockRateMs),
-		rootchain.WithConsensusTimeout(config.ConsensusTimeoutMs),
-		rootchain.WithQuorumThreshold(config.QuorumThreshold))
+	rg, pg, err := rootchain.NewRootGenesis(peerID.String(), keys.SigningPrivateKey, encPubKeyBytes, pr)
 
 	if err != nil {
 		return err

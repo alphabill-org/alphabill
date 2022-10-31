@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/proof"
 )
 
 var ErrNilData = errors.New("merkle tree input data is nil")
@@ -63,32 +62,6 @@ func EvalMerklePath(merklePath []*PathItem, leaf Data, hashAlgorithm crypto.Hash
 		hasher.Reset()
 	}
 	return h
-}
-
-// ToProtobuf utility function that converts []mt.PathItem to proof.BlockMerkleProof
-func ToProtobuf(srcPathItmes []*PathItem) *proof.BlockMerkleProof {
-	dstPathItems := make([]*proof.MerklePathItem, len(srcPathItmes))
-	for i, srcPathItem := range srcPathItmes {
-		dstPathItems[i] = &proof.MerklePathItem{
-			DirectionLeft: srcPathItem.DirectionLeft,
-			PathItem:      srcPathItem.Hash,
-		}
-	}
-	return &proof.BlockMerkleProof{
-		PathItems: dstPathItems,
-	}
-}
-
-// FromProtobuf utility function that converts proof.BlockMerkleProof to []mt.PathItem
-func FromProtobuf(proof *proof.BlockMerkleProof) []*PathItem {
-	dstPathItems := make([]*PathItem, len(proof.PathItems))
-	for i, srcPathItem := range proof.PathItems {
-		dstPathItems[i] = &PathItem{
-			Hash:          srcPathItem.PathItem,
-			DirectionLeft: srcPathItem.DirectionLeft,
-		}
-	}
-	return dstPathItems
 }
 
 // GetRootHash returns the root Hash of the Merkle Tree.
@@ -167,7 +140,7 @@ func (s *MerkleTree) output(node *node, prefix string, isTail bool, str *string)
 
 func createMerkleTree(data []Data, hashAlgorithm crypto.Hash) *node {
 	if len(data) == 0 {
-		return nil
+		return &node{hash: make([]byte, hashAlgorithm.Size())}
 	}
 	if len(data) == 1 {
 		return &node{hash: data[0].Hash(hashAlgorithm)}

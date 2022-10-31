@@ -258,6 +258,7 @@ func (s *State) CreateUnicityCertificates() (*store.RootState, error) {
 	if err := s.store.Save(newState); err != nil {
 		return nil, err
 	}
+	s.inputRecords = make(map[p.SystemIdentifier]*certificates.InputRecord)
 	return &newState, nil
 }
 

@@ -10,7 +10,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 )
 
-type CertRequestStore map[p.SystemIdentifier]*requestStore
+type CertRequestStore struct {
+	store map[p.SystemIdentifier]*requestStore
+}
 
 // requestStore keeps track of received certification requests and counts state hashes.
 type requestStore struct {
@@ -20,18 +22,20 @@ type requestStore struct {
 
 // NewCertificationRequestStore create new certification requests store
 func NewCertificationRequestStore() *CertRequestStore {
-	return &CertRequestStore{}
+	return &CertRequestStore{
+		store: make(map[p.SystemIdentifier]*requestStore),
+	}
 }
 
 // Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
 // equivocating and in both cases error is returned. Clear or Reset in order to receive new requests
-func (c CertRequestStore) Add(request *certification.BlockCertificationRequest) error {
+func (c *CertRequestStore) Add(request *certification.BlockCertificationRequest) error {
 	rs := c.get(p.SystemIdentifier(request.SystemIdentifier))
 	return rs.add(request)
 }
 
 // GetRequests returns all stored requests per system identifier
-func (c CertRequestStore) GetRequests(id p.SystemIdentifier) []*certification.BlockCertificationRequest {
+func (c *CertRequestStore) GetRequests(id p.SystemIdentifier) []*certification.BlockCertificationRequest {
 	rs := c.get(id)
 	allReq := make([]*certification.BlockCertificationRequest, 0, len(rs.requests))
 	for _, req := range rs.requests {
@@ -41,30 +45,30 @@ func (c CertRequestStore) GetRequests(id p.SystemIdentifier) []*certification.Bl
 }
 
 // IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
-func (c CertRequestStore) IsConsensusReceived(id p.SystemIdentifier, nrOfNodes int) (*certificates.InputRecord, bool) {
+func (c *CertRequestStore) IsConsensusReceived(id p.SystemIdentifier, nrOfNodes int) (*certificates.InputRecord, bool) {
 	rs := c.get(id)
 	return rs.isConsensusReceived(nrOfNodes)
 }
 
 // get returns an existing store for system identifier or registers and returns a new one if none existed
-func (c CertRequestStore) get(id p.SystemIdentifier) *requestStore {
-	rs, f := c[id]
+func (c *CertRequestStore) get(id p.SystemIdentifier) *requestStore {
+	rs, f := c.store[id]
 	if !f {
 		rs = newRequestStore()
-		c[id] = rs
+		c.store[id] = rs
 	}
 	return rs
 }
 
 // Reset removed all incoming requests from all stores
-func (c CertRequestStore) Reset() {
-	for _, rs := range c {
+func (c *CertRequestStore) Reset() {
+	for _, rs := range c.store {
 		rs.reset()
 	}
 }
 
 // Clear clears requests in one partition
-func (c CertRequestStore) Clear(id p.SystemIdentifier) {
+func (c *CertRequestStore) Clear(id p.SystemIdentifier) {
 	rs := c.get(id)
 	logger.Debug("Resetting request store for partition '%X'", id)
 	rs.reset()

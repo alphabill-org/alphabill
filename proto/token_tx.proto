@@ -1,0 +1,134 @@
+syntax = "proto3";
+package alphabill.tokens.v1;
+
+import "transaction.proto";
+import "block_proof.proto";
+
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/tokens/;tokens";
+
+message CreateNonFungibleTokenTypeAttributes {
+  // is the symbol (short name) of this token type, up to 32 characters in the UTF-8 encoding; note that the symbols are not guaranteed to be unique;
+  string symbol = 1;
+  // identifies the parent type that this type derives from; 0 indicates there is no parent type;
+  bytes parent_type_id = 2;
+  // the predicate clause that controls defining new sub-types of this type;
+  bytes sub_type_creation_predicate = 3;
+  // the predicate clause that controls creating new tokens of this type
+  bytes token_creation_predicate = 4;
+  // the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their bearer predicates;
+  bytes invariant_predicate = 5;
+  // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
+  bytes data_update_predicate = 6;
+  // the input to satisfy the sub-type creation predicate.
+  bytes sub_type_creation_predicate_signature = 7;
+}
+
+message MintNonFungibleTokenAttributes {
+  // the initial bearer predicate of the new token
+  bytes bearer = 1;
+  // identifies the type of the new token;
+  bytes nft_type = 2;
+  // the optional URI of an external resource associated with the new token
+  string uri = 3;
+  // the optional data associated with the new token
+  bytes data = 4;
+  // the data update predicate of the new token;
+  bytes data_update_predicate = 5;
+  // the input to satisfy the token creation predicate.
+  bytes token_creation_predicate_signature = 7;
+}
+
+message TransferNonFungibleTokenAttributes {
+  // the new bearer predicate of the token
+  bytes new_bearer = 1;
+  // optional nonce
+  bytes nonce = 2;
+  //the backlink to the previous transaction with the token
+  bytes backlink = 3;
+  // the input to satisfy the token type invariant predicate
+  bytes invariant_predicate_signature = 4;
+}
+
+message UpdateNonFungibleTokenAttributes {
+  // the new data to replace the data currently associated with the token
+  bytes data = 1;
+  // the backlink to the previous transaction with the token
+  bytes backlink = 2;
+  //  the input to satisfy the token data update predicate.
+  bytes data_update_signature = 4;
+}
+
+message CreateFungibleTokenTypeAttributes {
+  // is the symbol (short name) of this token type
+  string symbol = 1;
+  // identifies the parent type that the new type derives from; 0 indicates there is no parent type;
+  bytes parent_type_id = 2;
+  // is the number of decimal places to display for values of tokens of the new type;
+  uint32 decimalPlaces = 3;
+  // the predicate clause that controls defining new sub-types of this type;
+  bytes sub_type_creation_predicate = 4;
+  // the predicate clause that controls creating new tokens of this type
+  bytes token_creation_predicate = 5;
+  // the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their bearer predicates;
+  bytes invariant_predicate = 6;
+  // the input to satisfy the sub-type creation predicate.
+  bytes sub_type_creation_predicate_signature = 7;
+}
+
+message MintFungibleTokenAttributes {
+  // the initial bearer predicate of the new token
+  bytes bearer = 1;
+  // identifies the type of the new token;
+  bytes type = 2;
+  // the value of the new token;
+  uint64 value = 3;
+  // the input to satisfy the token creation predicate.
+  bytes token_creation_predicate_signature = 4;
+}
+
+message TransferFungibleTokenAttributes {
+  // the initial bearer predicate of the new token
+  bytes new_bearer = 1;
+  // the value to transfer
+  uint64 value = 2;
+  bytes nonce = 3;
+  // the backlink to the previous transaction with this token
+  bytes backlink = 4;
+  // the input to satisfy the token type invariant predicate
+  bytes invariant_predicate_signature = 5;
+}
+
+message SplitFungibleTokenAttributes {
+  // the bearer predicate of the new token;
+  bytes new_bearer = 1;
+  // the value of the new token
+  uint64 value = 2;
+  bytes nonce = 3;
+  // the backlink to the previous transaction with this token
+  bytes backlink = 4;
+  // the input to satisfy the token type invariant predicate
+  bytes invariant_predicate_signature = 5;
+}
+
+message BurnFungibleTokenAttributes {
+  // identifies the type of the token to burn;
+  bytes type = 1;
+  // the value to burn
+  uint64 value = 2;
+  bytes nonce = 3;
+  // the backlink to the previous transaction with this token
+  bytes backlink = 4;
+  // the input to satisfy the token type invariant predicate
+  bytes invariant_predicate_signature = 5;
+}
+
+message JoinFungibleTokenAttributes {
+  // the transactions that burned the source tokens;
+  repeated Transaction burn_transactions = 1;
+  // block proofs for burn transactions
+  repeated BlockProof proofs = 2;
+  // the backlink to the previous transaction with this token
+  bytes backlink = 3;
+  // the input to satisfy the token type invariant predicate
+  bytes invariant_predicate_signature = 4;
+}

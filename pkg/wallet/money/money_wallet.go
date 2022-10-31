@@ -123,8 +123,8 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			return err
 		}
 		for _, acc := range w.accounts.getAll() {
-			for i, pbTx := range b.Transactions {
-				err = w.collectBills(dbTx, pbTx, b, i, &acc)
+			for _, pbTx := range b.Transactions {
+				err = w.collectBills(dbTx, pbTx, b, &acc)
 				if err != nil {
 					return err
 				}
@@ -361,7 +361,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 	return w.Wallet.SyncToMaxBlockNumber(ctx, blockNumber)
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, txIdx int, acc *account) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, acc *account) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -371,9 +371,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.Transfer:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -388,12 +389,12 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.TransferDC:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received TransferDC order")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
+				Tx:                  txPb,
 				TxHash:              tx.Hash(crypto.SHA256),
 				IsDcBill:            true,
-				DcTx:                txPb,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
 				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
@@ -418,9 +419,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if containsBill {
 			log.Info("received split order (existing bill)")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -429,9 +431,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -441,9 +444,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.Swap:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.OwnerCondition()) {
 			log.Info("received swap order")
-			err := w.saveWithProof(dbTx, b, txIdx, &bill{
+			err := w.saveWithProof(dbTx, b, &bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
+				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -473,13 +477,17 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	return nil
 }
 
-func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txIdx int, bill *bill, accountIndex uint64) error {
-	blockProof, err := wallet.ExtractBlockProof(b, txIdx, crypto.SHA256)
+func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, bi *bill, accountIndex uint64) error {
+	genericBlock, err := b.ToGenericBlock(txConverter)
 	if err != nil {
 		return err
 	}
-	bill.BlockProof = blockProof
-	return dbTx.SetBill(accountIndex, bill)
+	blockProof, err := block.NewPrimaryProof(genericBlock, bi.Id, crypto.SHA256)
+	if err != nil {
+		return err
+	}
+	bi.BlockProof = blockProof
+	return dbTx.SetBill(accountIndex, bi)
 }
 
 func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64, accountIndex uint64) error {
@@ -521,7 +529,7 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 				return err
 			}
 			timeout := maxBlockNumber + swapTimeoutBlockCount
-			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, timeout, accountIndex)
+			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, dcMeta.BillIds, timeout, accountIndex)
 			if err != nil {
 				return err
 			}
@@ -576,7 +584,11 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			for _, v := range dcBillGroups {
 				if blockHeight >= v.dcTimeout {
 					swapTimeout := maxBlockNo + swapTimeoutBlockCount
-					err = w.swapDcBills(dbTx, v.dcBills, v.dcNonce, swapTimeout, accountIndex)
+					billIds, err := getBillIds(dbTx, accountIndex, v)
+					if err != nil {
+						return err
+					}
+					err = w.swapDcBills(dbTx, v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
 					if err != nil {
 						return err
 					}
@@ -603,8 +615,10 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			dcNonce := calculateDcNonce(bills)
 			dcTimeout := maxBlockNo + dcTimeoutBlockCount
 			var dcValueSum uint64
+			var billIds [][]byte
 			for _, b := range bills {
 				dcValueSum += b.Value
+				billIds = append(billIds, b.getId())
 				tx, err := createDustTx(k, b, dcNonce, dcTimeout)
 				if err != nil {
 					return err
@@ -622,6 +636,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
 			err = dbTx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{
 				DcValueSum: dcValueSum,
+				BillIds:    billIds,
 				DcTimeout:  dcTimeout,
 			})
 			if err != nil {
@@ -657,12 +672,12 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	return nil
 }
 
-func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, timeout uint64, accountIndex uint64) error {
+func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, billIds [][]byte, timeout uint64, accountIndex uint64) error {
 	k, err := tx.GetAccountKey(accountIndex)
 	if err != nil {
 		return err
 	}
-	swap, err := createSwapTx(k, dcBills, dcNonce, timeout)
+	swap, err := createSwapTx(k, dcBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
 	}
@@ -674,7 +689,7 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*bill, dcNonce []byte, time
 	if !res.Ok {
 		return errors.New("swap tx returned error code: " + res.Message)
 	}
-	return tx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{SwapTimeout: timeout})
+	return tx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{SwapTimeout: timeout, BillIds: billIds})
 }
 
 // isSwapInProgress returns true if there's a running dc process managed by the wallet, for the given account
@@ -753,6 +768,23 @@ func calculateDcNonce(bills []*bill) []byte {
 		hasher.Write(billId)
 	}
 	return hasher.Sum(nil)
+}
+
+// getBillIds returns billIds from dcMetadata, or parses ids from bills directly
+func getBillIds(dbTx TxContext, accountIndex uint64, v *dcBillGroup) ([][]byte, error) {
+	dcMeta, err := dbTx.GetDcMetadata(accountIndex, v.dcNonce)
+	if err != nil {
+		return nil, err
+	}
+	var billIds [][]byte
+	if dcMeta != nil {
+		billIds = dcMeta.BillIds
+	} else {
+		for _, dcBill := range v.dcBills {
+			billIds = append(billIds, dcBill.getId())
+		}
+	}
+	return billIds, nil
 }
 
 // groupDcBills groups bills together by dc nonce

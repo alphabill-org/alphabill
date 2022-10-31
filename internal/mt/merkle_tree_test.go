@@ -28,7 +28,7 @@ func TestNewMTWithEmptyData(t *testing.T) {
 	smt, err := New(crypto.SHA256, []Data{})
 	require.NoError(t, err)
 	require.NotNil(t, smt)
-	require.Nil(t, smt.GetRootHash())
+	require.Equal(t, make([]byte, 32), smt.GetRootHash())
 }
 
 func TestNewMTWithSingleNode(t *testing.T) {

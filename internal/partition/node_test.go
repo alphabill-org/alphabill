@@ -2,13 +2,13 @@ package partition
 
 import (
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -44,6 +44,32 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 
+func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
+	s := &testtxsystem.CounterTxSystem{}
+	p := NewSingleNodePartition(t, s)
+	defer p.Close()
+	transfer := testtransaction.RandomGenericBillTransfer(t)
+	stateBefore, err := s.State()
+	if err != nil {
+		require.NoError(t, err)
+	}
+	bufferBefore := p.partition.txBuffer.Count()
+	// make sure no round is active
+	p.partition.handleT1TimeoutEvent()
+	// send tx to the channel
+	p.partition.txCh <- transfer
+	// tx is added back to the buffer
+	require.Eventually(t, func() bool {
+		return bufferBefore+1 == p.partition.txBuffer.Count()
+	}, test.WaitDuration, test.WaitTick)
+	// make sure tx system remains untouched
+	stateAfter, err := s.State()
+	if err != nil {
+		require.NoError(t, err)
+	}
+	require.Equal(t, stateBefore.Root(), stateAfter.Root())
+}
+
 func TestNode_HandleInvalidTxEvent(t *testing.T) {
 	pn := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer pn.Close()
@@ -64,7 +90,7 @@ func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 	message := network.ReceivedMessage{
 		From:     "test-from",
 		Protocol: network.ProtocolInputForward,
-		Message:  testtransaction.RandomBillTransfer(),
+		Message:  testtransaction.RandomBillTransfer(t),
 	}
 	err := pn.partition.handleTxMessage(message)
 	require.ErrorContains(t, err, "invalid tx")
@@ -75,7 +101,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	tp.partition.startNewRound(tp.partition.luc)
-	transfer := testtransaction.RandomBillTransfer()
+	transfer := testtransaction.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -91,7 +117,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	block1 := tp.GetLatestBlock()
 	require.True(t, ContainsTransaction(block1, transfer))
 
-	tx1 := testtransaction.RandomBillTransfer()
+	tx1 := testtransaction.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(tx1))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -103,7 +129,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 		return false
 	}, test.WaitDuration, test.WaitTick)
 	tp.eh.Reset()
-	tx2 := testtransaction.RandomBillTransfer()
+	tx2 := testtransaction.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(tx2))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -134,7 +160,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer()
+	transfer := testtransaction.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))
@@ -182,7 +208,8 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
-	blockHash, _ := block.Hash(gocrypto.SHA256)
+	genericBlock, _ := block.ToGenericBlock(txSystem)
+	blockHash, _ := genericBlock.Hash(gocrypto.SHA256)
 	block2 := tp.GetLatestBlock()
 	require.Equal(t, block.BlockNumber+1, block2.BlockNumber)
 	require.Equal(t, block.SystemIdentifier, block2.SystemIdentifier)
@@ -305,7 +332,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	defer tp.Close()
 	block := tp.GetLatestBlock()
 
-	transfer := testtransaction.RandomBillTransfer()
+	transfer := testtransaction.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 
 	// create block proposal
@@ -337,7 +364,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer()
+	transfer := testtransaction.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))
@@ -350,7 +377,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer()
+	transfer := testtransaction.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))
@@ -370,7 +397,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer()
+	transfer := testtransaction.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))

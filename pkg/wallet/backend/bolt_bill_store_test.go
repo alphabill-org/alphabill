@@ -6,10 +6,11 @@ import (
 	"path"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/proof"
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
 )
 
 func TestBillStore_CanBeCreated(t *testing.T) {
@@ -60,6 +61,20 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bills, 3)
 
+	// test order number is added to bills
+	for i, b := range bills {
+		require.EqualValues(t, i+1, b.OrderNumber)
+	}
+
+	// test max order number is updated
+	var maxOrderNumber uint64
+	err = bs.db.View(func(tx *bolt.Tx) error {
+		maxOrderNumber = bs.getMaxBillOrderNumber(tx, pubKey)
+		return nil
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, maxOrderNumber)
+
 	// test contains bill ok
 	f, err := bs.ContainsBill(pubKey, uint256.NewInt(1))
 	require.NoError(t, err)
@@ -89,7 +104,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	expectedBlockProof := &BlockProof{
 		BillId:      billId,
 		BlockNumber: 1,
-		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
+		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
 	}
 	err = bs.SetBlockProof(expectedBlockProof)
 	require.NoError(t, err)
@@ -110,7 +125,7 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 	p := &BlockProof{
 		BillId:      b.Id,
 		BlockNumber: 1,
-		BlockProof:  &proof.BlockProof{BlockHeaderHash: []byte{1}},
+		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
 	}
 	err := bs.AddBillWithProof(pubKey, b, p)
 	require.NoError(t, err)

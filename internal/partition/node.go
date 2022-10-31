@@ -5,7 +5,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"sync"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
@@ -77,7 +77,6 @@ type (
 		ctx                         context.Context
 		ctxCancel                   context.CancelFunc
 		network                     Net
-		txCtx                       context.Context
 		txCancel                    context.CancelFunc
 		txWaitGroup                 *sync.WaitGroup
 		txCh                        chan txsystem.GenericTransaction
@@ -326,7 +325,17 @@ func (n *Node) loop() {
 				logger.Warning("Tx channel closed, exiting main loop")
 				return
 			}
-			n.process(tx)
+			// round might not be active, but some transactions might still be in the channel
+			if n.txCancel == nil {
+				logger.Warning("No active round, adding tx back to the buffer, UnitID=%X", tx.UnitID().Bytes())
+				err := n.txBuffer.Add(tx)
+				if err != nil {
+					logger.Warning("Invalid transaction: %v", err)
+					n.sendEvent(EventTypeError, err)
+				}
+			} else {
+				n.process(tx)
+			}
 		case m, ok := <-n.network.ReceivedChannel():
 			if !ok {
 				logger.Warning("Received channel closed, exiting main loop")
@@ -517,7 +526,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
-	logger.Debug("Handling block proposal, IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
+	logger.Debug("Handling block proposal, its UC IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	nodeSignatureVerifier, err := n.configuration.GetSigningPublicKey(prop.NodeIdentifier)
 	if err != nil {
 		return err
@@ -686,11 +695,11 @@ func (n *Node) revertState() {
 func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
 	latestBlock := n.blockStore.LatestBlock()
 	newHeight := latestBlock.BlockNumber + 1
-	b := &block.Block{
+	b := &block.GenericBlock{
 		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
 		BlockNumber:        newHeight,
 		PreviousBlockHash:  latestBlock.UnicityCertificate.InputRecord.BlockHash,
-		Transactions:       toProtoBuf(transactions),
+		Transactions:       transactions,
 		UnicityCertificate: uc,
 	}
 	blockHash, err := b.Hash(n.configuration.hashAlgorithm)
@@ -698,12 +707,12 @@ func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *cert
 		return nil, nil, err
 	}
 	logger.Debug("Proposal hash: %X", blockHash)
-	return b, blockHash, nil
+	return b.ToProtobuf(), blockHash, nil
 }
 
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(b *block.Block) error {
-	defer trackExecutionTime(time.Now(), "Block finalization")
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block #%v finalization", b.BlockNumber))
 	err := n.blockStore.Add(b)
 	if err != nil {
 		return err
@@ -997,11 +1006,11 @@ func (n *Node) GetLatestBlock() *block.Block {
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {
-	if n.txCtx != nil {
-		n.txCancel()
-		n.txWaitGroup.Wait()
-		n.txCtx = nil
+	if n.txCancel != nil {
+		txCancel := n.txCancel
 		n.txCancel = nil
+		txCancel()
+		n.txWaitGroup.Wait()
 	}
 }
 
@@ -1011,17 +1020,18 @@ func (n *Node) startHandleOrForwardTransactions() {
 	if leader == UnknownLeader {
 		return
 	}
-	n.txCtx, n.txCancel = context.WithCancel(context.Background())
+	txCtx, txCancel := context.WithCancel(context.Background())
+	n.txCancel = txCancel
 	n.txWaitGroup.Add(1)
-	go n.txBuffer.Process(n.txCtx, n.txWaitGroup, n.handleOrForwardTransaction)
+	go n.txBuffer.Process(txCtx, n.txWaitGroup, n.handleOrForwardTransaction)
 }
 
 func (n *Node) hashProposedBlock(prevBlockHash []byte, blockNumber uint64) ([]byte, error) {
-	b := block.Block{
+	b := block.GenericBlock{
 		SystemIdentifier:  n.configuration.GetSystemIdentifier(),
 		BlockNumber:       blockNumber,
 		PreviousBlockHash: prevBlockHash,
-		Transactions:      toProtoBuf(n.pendingBlockProposal.Transactions),
+		Transactions:      n.pendingBlockProposal.Transactions,
 	}
 	return b.Hash(n.configuration.hashAlgorithm)
 }

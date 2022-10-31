@@ -141,6 +141,8 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	_, possible := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
 	require.False(t, possible)
 	cs.Clear(p.SystemIdentifier(SysId1))
+	// test all requests cleared
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId1)))
 	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
 	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR1}))
 	ir, possible := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
@@ -166,12 +168,29 @@ func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId2))), 2)
 	// Reset resets both stores
 	cs.Reset()
+	// test all requests cleared
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId1)))
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId2)))
 	ir3, possible3 := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
 	require.True(t, possible3)
 	require.Nil(t, ir3)
 	ir4, possible4 := cs.IsConsensusReceived(p.SystemIdentifier(SysId2), 2)
 	require.True(t, possible4)
 	require.Nil(t, ir4)
+}
+
+func TestCertRequestStore_clearOne(t *testing.T) {
+	cs := NewCertificationRequestStore()
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "1", InputRecord: IR2}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "2", InputRecord: IR2}))
+	cs.Clear(p.SystemIdentifier(SysId1))
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId1)))
+	ir2, possible2 := cs.IsConsensusReceived(p.SystemIdentifier(SysId2), 2)
+	require.True(t, possible2)
+	require.Equal(t, IR2, ir2)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId2))), 2)
 }
 
 func TestCertRequestStore_EmptyStore(t *testing.T) {
@@ -181,6 +200,7 @@ func TestCertRequestStore_EmptyStore(t *testing.T) {
 	// Reset resets both stores
 	require.NotPanics(t, func() { cs.Reset() })
 	require.NotPanics(t, func() { cs.Clear(p.SystemIdentifier(SysId1)) })
+	require.NotPanics(t, func() { cs.Clear(p.SystemIdentifier([]byte{1, 1, 1, 1, 1, 1})) })
 	ir3, possible3 := cs.IsConsensusReceived(p.SystemIdentifier(SysId1), 2)
 	require.True(t, possible3)
 	require.Nil(t, ir3)

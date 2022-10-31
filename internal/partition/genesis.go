@@ -130,7 +130,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	zeroHash := make([]byte, c.hashAlgorithm.Size())
 
 	// first block
-	b := &block.Block{
+	b := &block.GenericBlock{
 		SystemIdentifier:  c.systemIdentifier,
 		BlockNumber:       1,
 		PreviousBlockHash: nil,

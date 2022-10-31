@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/proof"
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
@@ -20,14 +20,16 @@ type (
 	}
 
 	Bill struct {
-		Id    *uint256.Int
-		Value uint64
+		Id    *uint256.Int `json:"id"`
+		Value uint64       `json:"value"`
+		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
+		OrderNumber uint64 `json:"orderNumber"`
 	}
 
 	BlockProof struct {
 		BillId      *uint256.Int      `json:"billId"`
 		BlockNumber uint64            `json:"blockNumber"`
-		BlockProof  *proof.BlockProof `json:"blockProof"`
+		BlockProof  *block.BlockProof `json:"blockProof"`
 	}
 
 	Pubkey struct {

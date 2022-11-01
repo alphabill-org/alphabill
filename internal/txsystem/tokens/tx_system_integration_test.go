@@ -133,7 +133,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
 				NewBearer:                   script.PredicateAlwaysTrue(),
-				Value:                       splitValue1,
+				TargetValue:                 splitValue1,
 				Nonce:                       test.RandomBytes(32),
 				Backlink:                    make([]byte, 32),
 				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
@@ -168,7 +168,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
 				NewBearer:                   script.PredicateAlwaysTrue(),
-				Value:                       splitValue2,
+				TargetValue:                 splitValue2,
 				Nonce:                       nil,
 				Backlink:                    split1GenTx.Hash(hashAlgorithm),
 				InvariantPredicateSignature: script.PredicateArgumentEmpty(),

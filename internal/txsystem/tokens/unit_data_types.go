@@ -70,7 +70,7 @@ func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.Unit
 func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
 	attr := tx.attributes
 	return &nonFungibleTokenData{
-		nftType:             tx.NFTTypeID(),
+		nftType:             tx.NFTTypeIdInt(),
 		uri:                 attr.Uri,
 		data:                attr.Data,
 		dataUpdatePredicate: attr.DataUpdatePredicate,

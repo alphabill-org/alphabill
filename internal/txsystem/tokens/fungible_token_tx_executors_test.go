@@ -447,7 +447,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "invalid value",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &SplitFungibleTokenAttributes{
 				NewBearer:                   script.PredicateAlwaysTrue(),
-				Value:                       existingTokenValue + 1,
+				TargetValue:                 existingTokenValue + 1,
 				Nonce:                       test.RandomBytes(32),
 				Backlink:                    make([]byte, 32),
 				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
@@ -458,7 +458,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "invalid backlink",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &SplitFungibleTokenAttributes{
 				NewBearer:                   script.PredicateAlwaysTrue(),
-				Value:                       existingTokenValue,
+				TargetValue:                 existingTokenValue,
 				Nonce:                       test.RandomBytes(32),
 				Backlink:                    test.RandomBytes(32),
 				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
@@ -469,7 +469,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			name: "invalid token invariant predicate argument",
 			tx: createTx(t, uint256.NewInt(existingTokenUnitID), &SplitFungibleTokenAttributes{
 				NewBearer:                   script.PredicateAlwaysTrue(),
-				Value:                       existingTokenValue,
+				TargetValue:                 existingTokenValue,
 				Nonce:                       test.RandomBytes(32),
 				Backlink:                    make([]byte, 32),
 				InvariantPredicateSignature: script.PredicateAlwaysFalse(),
@@ -495,7 +495,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	var remainingValue uint64 = 10
 	transferAttributes := &SplitFungibleTokenAttributes{
 		NewBearer:                   script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
-		Value:                       existingTokenValue - remainingValue,
+		TargetValue:                 existingTokenValue - remainingValue,
 		Nonce:                       test.RandomBytes(32),
 		Backlink:                    make([]byte, 32),
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),

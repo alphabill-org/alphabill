@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"crypto"
+	"github.com/alphabill-org/alphabill/internal/block"
 	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -65,14 +66,30 @@ type (
 
 	MintNonFungibleToken interface {
 		txsystem.GenericTransaction
-		NFTTypeID() *uint256.Int
+		NFTTypeId() []byte
+		NFTTypeIdInt() *uint256.Int
+		Bearer() []byte
+		URI() string
+		Data() []byte
+		DataUpdatePredicate() []byte
+		TokenCreationPredicateSignature() []byte
 	}
+
 	TransferNonFungibleToken interface {
 		txsystem.GenericTransaction
+		NewBearer() []byte
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
 	}
+
 	UpdateNonFungibleToken interface {
 		txsystem.GenericTransaction
+		Data() []byte
+		Backlink() []byte
+		DataUpdateSignature() []byte
 	}
+
 	CreateFungibleTokenType interface {
 		txsystem.GenericTransaction
 		ParentTypeId() []byte
@@ -83,6 +100,7 @@ type (
 		InvariantPredicate() []byte
 		SubTypeCreationPredicateSignature() []byte
 	}
+
 	MintFungibleToken interface {
 		txsystem.GenericTransaction
 		TypeIdInt() *uint256.Int
@@ -91,6 +109,7 @@ type (
 		Bearer() []byte
 		TokenCreationPredicateSignature() []byte
 	}
+
 	TransferFungibleToken interface {
 		txsystem.GenericTransaction
 		NewBearer() []byte
@@ -99,6 +118,7 @@ type (
 		Backlink() []byte
 		InvariantPredicateSignature() []byte
 	}
+
 	SplitFungibleToken interface {
 		txsystem.GenericTransaction
 		HashForIdCalculation(hashFunc crypto.Hash) []byte
@@ -108,11 +128,22 @@ type (
 		Backlink() []byte
 		InvariantPredicateSignature() []byte
 	}
+
 	BurnFungibleToken interface {
 		txsystem.GenericTransaction
+		TypeId() []byte
+		Value() uint64
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
 	}
+
 	JoinFungibleToken interface {
 		txsystem.GenericTransaction
+		BurnTransactions() []BurnFungibleToken
+		BlockProofs() []*block.BlockProof
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
 	}
 )
 

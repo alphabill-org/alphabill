@@ -3,7 +3,6 @@ package tokens
 import (
 	"bytes"
 	goerrors "errors"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -180,7 +179,7 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 				}
 				var sum uint64 = 0
 				for _, burnTransaction := range tx.burnTransactions {
-					sum += burnTransaction.attributes.Value
+					sum += burnTransaction.Value()
 				}
 				return &fungibleTokenData{
 					tokenType: d.tokenType,
@@ -360,18 +359,18 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 		return err
 	}
 	transactions := tx.burnTransactions
-	proofs := tx.attributes.Proofs
+	proofs := tx.BlockProofs()
 	if len(transactions) != len(proofs) {
 		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
 	for i, btx := range transactions {
 		tokenTypeID := d.tokenType.Bytes32()
-		if !bytes.Equal(btx.attributes.Type, tokenTypeID[:]) {
-			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.attributes.Type)
+		if !bytes.Equal(btx.TypeId(), tokenTypeID[:]) {
+			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeId())
 		}
 
-		if !bytes.Equal(btx.attributes.Nonce, tx.attributes.Backlink) {
-			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.attributes.Nonce, tx.attributes.Backlink)
+		if !bytes.Equal(btx.Nonce(), tx.attributes.Backlink) {
+			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.Nonce(), tx.Backlink())
 		}
 		proof := proofs[i]
 		if proof.ProofType != block.ProofType_PRIM {
@@ -383,8 +382,8 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 			return errors.Wrap(err, "proof is not valid")
 		}
 	}
-	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
-		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
+	if !bytes.Equal(d.backlink, tx.Backlink()) {
+		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.Backlink())
 	}
 	predicate, err := j.getChainedPredicate(
 		d.tokenType,

@@ -41,7 +41,7 @@ type startNodeConfiguration struct {
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, txTypes map[string]proto.Message) error {
-	node, err := startNode(ctx, txs, nodeCfg)
+	self, node, err := startNode(ctx, txs, nodeCfg)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 	if err != nil {
 		return err
 	}
-	restServer, err := initRESTServer(node, restServerConf, txTypes)
+	restServer, err := initRESTServer(node, self, restServerConf, txTypes)
 	if err != nil {
 		return err
 	}
@@ -95,12 +95,12 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 	return starter.StartAndWait(ctx, name, starterFunc)
 }
 
-func initRESTServer(node *partition.Node, conf *restServerConfiguration, txTypes map[string]proto.Message) (*rpc.RestServer, error) {
+func initRESTServer(node *partition.Node, self *network.Peer, conf *restServerConfiguration, txTypes map[string]proto.Message) (*rpc.RestServer, error) {
 	if conf.IsAddressEmpty() {
 		// Address not configured.
 		return nil, nil
 	}
-	rs, err := rpc.NewRESTServer(node, conf.Address, txTypes, conf.MaxBodyBytes)
+	rs, err := rpc.NewRESTServer(node, conf.Address, txTypes, conf.MaxBodyBytes, self)
 	if err != nil {
 		return nil, err
 	}
@@ -179,43 +179,43 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*partition.Node, error) {
+func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
 	p, err := loadNetworkConfiguration(keys, pg, cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(pg.RootValidators) < 1 {
-		return nil, errors.New("Root validator info is missing")
+		return nil, nil, errors.New("Root validator info is missing")
 	}
 	// Assume monolithic root chain for now and only extract the id of the first root node
 	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.RootValidators[0].EncryptionPublicKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	newMultiAddr, err := multiaddr.NewMultiaddr(cfg.RootChainAddress)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	n, err := network.NewLibP2PValidatorNetwork(p, network.DefaultValidatorNetOptions)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	blockStore, err := initNodeBlockStore(cfg.DbFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	node, err := partition.New(
 		p,
@@ -228,9 +228,9 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		partition.WithBlockStore(blockStore),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return node, nil
+	return p, node, nil
 }
 
 func initNodeBlockStore(dbFile string) (store.BlockStore, error) {

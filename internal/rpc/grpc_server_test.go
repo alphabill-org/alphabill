@@ -51,6 +51,10 @@ func (mn *MockNode) GetLatestBlock() *block.Block {
 	return &block.Block{BlockNumber: mn.maxBlockNumber}
 }
 
+func (mn *MockNode) SystemIdentifier() []byte {
+	return []byte{0, 1, 0, 0}
+}
+
 func TestNewRpcServer_PartitionNodeMissing(t *testing.T) {
 	p, err := NewGRPCServer(nil)
 	assert.Nil(t, p)

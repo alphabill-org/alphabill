@@ -6,10 +6,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
+	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
+
+var receivedTransactionsGRPCMeter = metrics.GetOrRegisterCounter("transactions/grpc/received")
+var receivedInvalidTransactionsGRPCMeter = metrics.GetOrRegisterCounter("transactions/grpc/invalid")
 
 type (
 	grpcServer struct {
@@ -22,6 +26,7 @@ type (
 		SubmitTx(tx *txsystem.Transaction) error
 		GetBlock(blockNr uint64) (*block.Block, error)
 		GetLatestBlock() *block.Block
+		SystemIdentifier() []byte
 	}
 )
 
@@ -43,8 +48,10 @@ func NewGRPCServer(node partitionNode, opts ...Option) (*grpcServer, error) {
 }
 
 func (r *grpcServer) ProcessTransaction(_ context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+	receivedTransactionsGRPCMeter.Inc(1)
 	err := r.node.SubmitTx(tx)
 	if err != nil {
+		receivedInvalidTransactionsGRPCMeter.Inc(1)
 		return &txsystem.TransactionResponse{
 			Ok:      false,
 			Message: err.Error(),

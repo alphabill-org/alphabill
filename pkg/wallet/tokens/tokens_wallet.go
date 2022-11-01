@@ -174,7 +174,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 			}
 			err = txc.SetToken(accNr, &token{
 				Id:       id,
-				Kind:     Token | Fungible,
+				Kind:     FungibleToken,
 				TypeId:   ctx.TypeId(),
 				Amount:   ctx.Value(),
 				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
@@ -194,7 +194,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 		if checkOwner(accNr, key, ctx.NewBearer()) {
 			err := txc.SetToken(accNr, &token{
 				Id:       id,
-				Kind:     Token | Fungible,
+				Kind:     FungibleToken,
 				Amount:   ctx.Value(),
 				Backlink: txHash,
 			})
@@ -552,6 +552,7 @@ func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, t
 		return w.split(ctx, closestMatch, targetAmount, receiverPubKey)
 	} else {
 		// TODO perform multiple tx
+		panic("not implemented")
 	}
 	return nil
 }

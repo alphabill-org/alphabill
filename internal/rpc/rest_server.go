@@ -135,8 +135,8 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeError(w http.ResponseWriter, e error, statusCode int) {
-	w.WriteHeader(statusCode)
 	w.Header().Set(headerContentType, applicationJson)
+	w.WriteHeader(statusCode)
 	var errStr = e.Error()
 	aberror, ok := e.(*errors.AlphabillError)
 	if ok {

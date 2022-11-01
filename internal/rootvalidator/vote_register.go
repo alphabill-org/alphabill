@@ -11,7 +11,7 @@ import (
 type (
 	ConsensusWithSignatures struct {
 		voteInfo   *atomic_broadcast.VoteInfo
-		commitInfo *atomic_broadcast.CommitInfo
+		commitInfo *atomic_broadcast.LedgerCommitInfo
 		signatures map[string][]byte
 	}
 
@@ -36,13 +36,13 @@ func NewVoteRegister() *VoteRegister {
 
 func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
 	// Get hash of consensus structure
-	commitInfoHash := vote.CommitInfo.Hash(crypto.SHA256)
+	commitInfoHash := vote.LedgerCommitInfo.Hash(crypto.SHA256)
 
 	// has the author already voted in this round?
 	prevVote, voted := v.AuthorToVote[peer.ID(vote.Author)]
 	if voted {
 		// Check if vote has changed
-		if !bytes.Equal(commitInfoHash, prevVote.CommitInfo.Hash(crypto.SHA256)) {
+		if !bytes.Equal(commitInfoHash, prevVote.LedgerCommitInfo.Hash(crypto.SHA256)) {
 			// new equivocating vote, this is a security event
 			logger.Warning("Received equivocating vote from %v, round %v",
 				vote.Author, vote.VoteInfo.Round)
@@ -66,7 +66,7 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 	// Create new entry if not present
 	if _, present := v.HashToSignatures[string(commitInfoHash)]; !present {
 		v.HashToSignatures[string(commitInfoHash)] = &ConsensusWithSignatures{
-			commitInfo: vote.CommitInfo,
+			commitInfo: vote.LedgerCommitInfo,
 			voteInfo:   vote.VoteInfo,
 			signatures: make(map[string][]byte),
 		}

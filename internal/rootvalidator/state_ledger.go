@@ -56,10 +56,10 @@ func (p *StateLedger) ProcessQc(qc *atomic_broadcast.QuorumCert) {
 		return
 	}
 	// If the QC commits a state
-	if len(qc.CommitInfo.CommitStateHash) != 0 {
+	if len(qc.LedgerCommitInfo.CommitStateId) != 0 {
 		// Proposed state to pending state
 		// Commit pending state if it has the same state hash
-		if bytes.Equal(p.pendingCertification.GetStateHash(p.hashAlgorithm), qc.CommitInfo.CommitStateHash) {
+		if bytes.Equal(p.pendingCertification.GetStateHash(p.hashAlgorithm), qc.LedgerCommitInfo.CommitStateId) {
 			//todo: append second QC and commit to DB, but needs the new UnicitySeal structure
 		}
 		p.HighCommitQC = qc

@@ -11,26 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-func NewCommitInfo(commitStateHash []byte, voteInfo *VoteInfo, hash gocrypto.Hash) *CommitInfo {
-	hasher := hash.New()
-	voteInfo.AddToHasher(hasher)
-	return &CommitInfo{CommitStateHash: commitStateHash, VoteInfoHash: hasher.Sum(nil)}
-}
-
-func (x *CommitInfo) Bytes() []byte {
-	var b bytes.Buffer
-	b.Write(x.CommitStateHash)
-	b.Write(x.VoteInfoHash)
-	return b.Bytes()
-}
-
-func (x *CommitInfo) Hash(hash gocrypto.Hash) []byte {
-	hasher := hash.New()
-	hasher.Write(x.CommitStateHash)
-	hasher.Write(x.VoteInfoHash)
-	return hasher.Sum(nil)
-}
-
 func (x *VoteMsg) IsTimeout() bool {
 	if x.TimeoutSignature == nil {
 		return false
@@ -42,7 +22,7 @@ func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 	if signer == nil {
 		return errors.New(ErrSignerIsNil)
 	}
-	signature, err := signer.SignBytes(x.CommitInfo.Bytes())
+	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
 	if err != nil {
 		return err
 	}
@@ -60,14 +40,14 @@ func (x *VoteMsg) Verify(v AtomicVerifier) error {
 	// Verify hash of vote info
 	hasher := gocrypto.SHA256.New()
 	x.VoteInfo.AddToHasher(hasher)
-	if !bytes.Equal(hasher.Sum(nil), x.CommitInfo.VoteInfoHash) {
+	if !bytes.Equal(hasher.Sum(nil), x.LedgerCommitInfo.VoteInfoHash) {
 		return errors.New("vote info hash verification failed")
 	}
 	if len(x.Author) == 0 {
 		return errors.New("Vote message is missing author")
 	}
 	// verify signature
-	if err := v.VerifyBytes(x.CommitInfo.Bytes(), x.Signature, peer.ID(x.Author)); err != nil {
+	if err := v.VerifyBytes(x.LedgerCommitInfo.Bytes(), x.Signature, peer.ID(x.Author)); err != nil {
 		return errors.Wrap(err, "Vote message signature verification failed")
 	}
 	return nil

@@ -41,18 +41,18 @@ message VoteInfo {
   bytes exec_state_id = 7;
 }
 
-message CommitInfo {
-  // State to be committed
-  bytes commit_state_hash = 1;
+message LedgerCommitInfo {
   // hash of VoteInfo
-  bytes vote_info_hash = 2;
+  bytes vote_info_hash = 1;
+  // State to be committed
+  bytes commit_state_id = 2;
 }
 
 message QuorumCert {
   // Consensus data
   VoteInfo vote_info = 1;
   // Commit info
-  CommitInfo commit_info = 2;
+  LedgerCommitInfo ledger_commit_info = 2;
   // Node identifier to signature map (NB! aggregated signature schema in spec)
   map<string, bytes> signatures = 3;
 }
@@ -130,7 +130,7 @@ message VoteMsg {
   // Proposed block hash and resulting state hash
   VoteInfo vote_info = 1;
   // Commit info
-  CommitInfo commit_info = 2;
+  LedgerCommitInfo ledger_commit_info = 2;
   // Sync highest QC that serves as commit QC
   QuorumCert high_commit_qc = 3;
   // Voter node identifier
@@ -144,7 +144,7 @@ message VoteMsg {
 
 // Recover state
 message StateRequestMsg {
-  bytes state_hash = 1;
+  uint64 round = 1;
 }
 
 message StateReplyMsg {

@@ -55,7 +55,7 @@ func (s SafetyModule) SignVote(msg *atomic_broadcast.VoteMsg, lastRoundTC *atomi
 	s.updateHighestQcRound(qcRound)
 	s.increaseHigestVoteRound(votingRound)
 	// Attach commit info and vote
-	msg.CommitInfo = atomic_broadcast.NewCommitInfo(s.isCommitCandidate(msg.VoteInfo), msg.VoteInfo, gocrypto.SHA256)
+	msg.LedgerCommitInfo = atomic_broadcast.NewCommitInfo(s.isCommitCandidate(msg.VoteInfo), msg.VoteInfo, gocrypto.SHA256)
 	// signs commit info hash
 	if err := msg.AddSignature(s.privateKey); err != nil {
 		return err

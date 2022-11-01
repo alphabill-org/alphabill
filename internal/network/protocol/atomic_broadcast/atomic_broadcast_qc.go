@@ -13,11 +13,11 @@ const (
 	ErrSealNotSignedByQuorum = "seal not signed by quorum"
 )
 
-func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *CommitInfo, signatures map[string][]byte) *QuorumCert {
+func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, signatures map[string][]byte) *QuorumCert {
 	return &QuorumCert{
-		VoteInfo:   voteInfo,
-		CommitInfo: commitInfo,
-		Signatures: signatures,
+		VoteInfo:         voteInfo,
+		LedgerCommitInfo: commitInfo,
+		Signatures:       signatures,
 	}
 }
 
@@ -27,13 +27,13 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 		return err
 	}
 	// Check Consensus info
-	if err := x.CommitInfo.IsValid(); err != nil {
+	if err := x.LedgerCommitInfo.IsValid(); err != nil {
 		return err
 	}
 	// check vote info hash
 	hasher := gocrypto.SHA256.New()
 	x.VoteInfo.AddToHasher(hasher)
-	if !bytes.Equal(hasher.Sum(nil), x.CommitInfo.VoteInfoHash) {
+	if !bytes.Equal(hasher.Sum(nil), x.LedgerCommitInfo.VoteInfoHash) {
 		return errors.New("vote info hash verification failed")
 	}
 	// verify that it is signed by quorum
@@ -42,7 +42,7 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 		return errors.New(ErrSealNotSignedByQuorum)
 	}
 	hasher.Reset()
-	hasher.Write(x.CommitInfo.Bytes())
+	hasher.Write(x.LedgerCommitInfo.Bytes())
 	err := v.VerifyQuorumSignatures(hasher.Sum(nil), x.Signatures)
 	if err != nil {
 		errors.Wrap(err, "QC verify failed")
@@ -52,7 +52,7 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 
 func (x *QuorumCert) AddToHasher(hasher hash.Hash) {
 	x.VoteInfo.AddToHasher(hasher)
-	hasher.Write(x.CommitInfo.Bytes())
+	hasher.Write(x.LedgerCommitInfo.Bytes())
 	// Add all signatures
 	for author, sig := range x.Signatures {
 		hasher.Write([]byte(author))

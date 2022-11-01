@@ -47,8 +47,8 @@ type (
 		Kind     TokenKind   `json:"kind"`
 		Symbol   string      `json:"symbol"`
 		TypeId   TokenTypeId `json:"typeId"`
-		Amount   uint64      `json:"amount"`
-		Uri      string      `json:"uri"`
+		Amount   uint64      `json:"amount"` // fungible only
+		Uri      string      `json:"uri"`    // nft only
 		Backlink []byte      `json:"backlink"`
 	}
 )
@@ -181,7 +181,11 @@ func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*token, bo
 		if err != nil {
 			return err
 		}
-		res, err := parseToken(bkt.Get(tokenId))
+		raw := bkt.Get(tokenId)
+		if raw == nil {
+			return nil
+		}
+		res, err := parseToken(raw)
 		if err != nil {
 			return err
 		}

@@ -584,26 +584,46 @@ func (s *splitFungibleTokenWrapper) HashForIdCalculation(hashFunc crypto.Hash) [
 }
 
 func (s *splitFungibleTokenWrapper) addAttributesToHasher(hasher hash.Hash) {
-	hasher.Write(s.attributes.NewBearer)
-	hasher.Write(util.Uint64ToBytes(s.attributes.Value))
-	hasher.Write(s.attributes.Nonce)
-	hasher.Write(s.attributes.Backlink)
-	hasher.Write(s.attributes.InvariantPredicateSignature)
+	hasher.Write(s.NewBearer())
+	hasher.Write(util.Uint64ToBytes(s.TargetValue()))
+	hasher.Write(s.Nonce())
+	hasher.Write(s.Backlink())
+	hasher.Write(s.InvariantPredicateSignature())
 }
 
 func (s *splitFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	s.wrapper.sigBytes(&b)
-	b.Write(s.attributes.NewBearer)
-	b.Write(util.Uint64ToBytes(s.attributes.Value))
-	b.Write(s.attributes.Nonce)
-	b.Write(s.attributes.Backlink)
+	b.Write(s.NewBearer())
+	b.Write(util.Uint64ToBytes(s.TargetValue()))
+	b.Write(s.Nonce())
+	b.Write(s.Backlink())
 	return b.Bytes()
 }
 
 func (s *splitFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	s.wrapper.addTransactionFieldsToHasher(hasher)
 	s.addAttributesToHasher(hasher)
+}
+
+func (s *splitFungibleTokenWrapper) NewBearer() []byte {
+	return s.attributes.NewBearer
+}
+
+func (s *splitFungibleTokenWrapper) TargetValue() uint64 {
+	return s.attributes.TargetValue
+}
+
+func (s *splitFungibleTokenWrapper) Nonce() []byte {
+	return s.attributes.Nonce
+}
+
+func (s *splitFungibleTokenWrapper) Backlink() []byte {
+	return s.attributes.Backlink
+}
+
+func (s *splitFungibleTokenWrapper) InvariantPredicateSignature() []byte {
+	return s.attributes.InvariantPredicateSignature
 }
 
 func (bw *burnFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {

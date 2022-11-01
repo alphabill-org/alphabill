@@ -105,6 +105,11 @@ type (
 	SplitFungibleToken interface {
 		txsystem.GenericTransaction
 		HashForIdCalculation(hashFunc crypto.Hash) []byte
+		NewBearer() []byte
+		TargetValue() uint64
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
 	}
 	BurnFungibleToken interface {
 		txsystem.GenericTransaction
@@ -136,7 +141,6 @@ func New(opts ...Option) (*tokensTxSystem, error) {
 		state:            options.state,
 		executors:        initExecutors(options.state, options),
 	}
-	logger.Debug("TokensTransactionSystem initialized: systemIdentifier=%X, hashAlgorithm=%v", options.systemIdentifier, options.hashAlgorithm)
 	return txs, nil
 }
 

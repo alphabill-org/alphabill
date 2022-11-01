@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -34,6 +36,8 @@ const (
 	Token
 	Fungible
 	NonFungible
+	FungibleToken    = Token | Fungible
+	NonFungibleToken = Token | NonFungible
 )
 
 const (
@@ -204,8 +208,45 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 			}
 		}
 	case tokens.SplitFungibleToken:
-		log.Info("Token tx: SplitFungibleToken")
-		// TODO
+		log.Info("SplitFungibleToken tx")
+		tok, found, err := txc.GetToken(accNr, id)
+		if err != nil {
+			return err
+		}
+		var tokenInfo TokenTypeInfo
+		if found {
+			tokenInfo = tok
+			log.Info("SplitFungibleToken updating existing unit")
+			err := txc.SetToken(accNr, &token{
+				Id:       id,
+				Symbol:   tok.Symbol,
+				TypeId:   tok.TypeId,
+				Kind:     tok.Kind,
+				Amount:   tok.Amount - ctx.TargetValue(),
+				Backlink: txHash,
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			tokenInfo = &token{}
+		}
+
+		if checkOwner(accNr, key, ctx.NewBearer()) {
+			newId := txutil.SameShardIdBytes(ctx.UnitID(), ctx.HashForIdCalculation(crypto.SHA256))
+			log.Info(fmt.Sprintf("SplitFungibleToken: adding new unit from split, new UnitId=%X", newId))
+			err := txc.SetToken(accNr, &token{
+				Id:       newId,
+				Symbol:   tokenInfo.GetSymbol(),
+				TypeId:   tokenInfo.GetTypeId(),
+				Kind:     FungibleToken,
+				Amount:   ctx.TargetValue(),
+				Backlink: txHash,
+			})
+			if err != nil {
+				return err
+			}
+		}
 	case tokens.BurnFungibleToken:
 		log.Info("Token tx: BurnFungibleToken")
 		// TODO
@@ -406,7 +447,7 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 			log.Info(m)
 			res = append(res, m)
 			for _, token := range tokens {
-				m = fmt.Sprintf("Id=%X, symbol=%s, kind: %s", token.Id, token.Symbol, token.Kind.pretty())
+				m = fmt.Sprintf("Id=%X, symbol=%s, value=%v, kind: %s", token.Id, token.Symbol, token.Amount, token.Kind.pretty())
 				log.Info(m)
 				res = append(res, m)
 			}
@@ -415,7 +456,7 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 	return res, nil
 }
 
-func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId []byte, receiverPubKey []byte) error {
+func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey []byte) error {
 	t, found, err := w.db.Do().GetToken(accountNumber, tokenId)
 	if err != nil {
 		return err
@@ -426,7 +467,7 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 
 	var bearer []byte
 	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(receiverPubKey)
+		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
 	} else {
 		bearer = script.PredicateAlwaysTrue()
 	}
@@ -448,6 +489,73 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	return w.syncToUnit(ctx, tokenId, timeout)
 }
 
+func (w *TokensWallet) split(ctx context.Context, token *token, amount uint64, receiverPubKey []byte) error {
+	if amount >= token.Amount {
+		return errors.New(fmt.Sprintf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.Id))
+	}
+
+	var bearer []byte
+	if receiverPubKey != nil {
+		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
+	} else {
+		bearer = script.PredicateAlwaysTrue()
+	}
+
+	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
+
+	attrs := &tokens.SplitFungibleTokenAttributes{
+		NewBearer:                   bearer,
+		TargetValue:                 amount,
+		Backlink:                    token.Backlink,
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+
+	_, timeout, err := w.sendTx(token.Id, attrs)
+	if err != nil {
+		return err
+	}
+
+	return w.syncToUnit(ctx, token.Id, timeout)
+}
+
+func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeId, targetAmount uint64, receiverPubKey []byte) error {
+	tokens, err := w.db.Do().GetTokens(accountNumber)
+	if err != nil {
+		return err
+	}
+	fungibleTokens := make([]*token, 0)
+	var totalBalance uint64 = 0
+	// find the best unit candidate for transfer or split, value must be equal or larger than the target amount
+	var closestMatch *token = nil
+	for _, token := range tokens {
+		if token.isFungible() && typeId.equal(token.TypeId) {
+			fungibleTokens = append(fungibleTokens, token)
+			totalBalance += token.Amount
+			if closestMatch == nil {
+				closestMatch = token
+			} else {
+				prevDiff := closestMatch.Amount - targetAmount
+				currDiff := token.Amount - targetAmount
+				// this should work with overflow nicely
+				if prevDiff > currDiff {
+					closestMatch = token
+				}
+			}
+		}
+	}
+	if targetAmount > totalBalance {
+		return errors.New(fmt.Sprintf("insufficient value: got %v, need %v", totalBalance, targetAmount))
+	}
+	if closestMatch.Amount == targetAmount {
+		return w.Transfer(ctx, accountNumber, closestMatch.Id, receiverPubKey)
+	} else if closestMatch.Amount > targetAmount {
+		return w.split(ctx, closestMatch, targetAmount, receiverPubKey)
+	} else {
+		// TODO perform multiple tx
+	}
+	return nil
+}
+
 func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 	return &txsystem.Transaction{
 		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
@@ -458,20 +566,49 @@ func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 	}
 }
 
+func (t *token) isFungible() bool {
+	return t.Kind&FungibleToken == FungibleToken
+}
+
 func (k *TokenKind) pretty() string {
-	if *k&Any > 0 {
+	if *k&Any != 0 {
 		return "[any]"
 	}
 	res := make([]string, 0)
-	if *k&TokenType > 0 {
+	if *k&TokenType != 0 {
 		res = append(res, "type")
 	} else {
 		res = append(res, "token")
 	}
-	if *k&Fungible > 0 {
+	if *k&Fungible != 0 {
 		res = append(res, "fungible")
 	} else {
 		res = append(res, "non-fungible")
 	}
 	return "[" + strings.Join(res, ",") + "]"
+}
+
+func (t TokenTypeId) equal(to TokenTypeId) bool {
+	return bytes.Equal(t, to)
+}
+
+type TokenTypeInfo interface {
+	GetSymbol() string
+	GetTypeId() TokenTypeId
+}
+
+func (tp *tokenType) GetSymbol() string {
+	return tp.Symbol
+}
+
+func (tp *tokenType) GetTypeId() TokenTypeId {
+	return TokenTypeId(tp.Id)
+}
+
+func (t *token) GetSymbol() string {
+	return t.Symbol
+}
+
+func (t *token) GetTypeId() TokenTypeId {
+	return t.TypeId
 }

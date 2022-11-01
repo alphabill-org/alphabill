@@ -20,7 +20,7 @@ const (
 	cmdFlagInheritBearerClause = "inherit-bearer-clause"
 	cmdFlagAmount              = "amount"
 	cmdFlagType                = "type"
-	cmdFlagToken               = "token"
+	cmdFlagTokenId             = "token-identifier"
 )
 
 func tokenCmd(config *walletConfig) *cobra.Command {
@@ -232,8 +232,8 @@ func tokenCmdTransferFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdTransferFungible(cmd, config)
 		},
 	}
-	cmd.Flags().BytesHex(cmdFlagToken, nil, "unit identifier of token (hex)")
-	_ = cmd.MarkFlagRequired(cmdFlagToken)
+	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
+	_ = cmd.MarkFlagRequired(cmdFlagTokenId)
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
 	_ = cmd.MarkFlagRequired(addressCmdName)
 	return addCommonAccountFlags(cmd)
@@ -250,7 +250,7 @@ func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) erro
 	}
 	defer tw.Shutdown()
 
-	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagToken)
+	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagTokenId)
 	if err != nil {
 		return err
 	}
@@ -265,7 +265,7 @@ func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) erro
 	} else {
 		pk, ok := pubKeyHexToBytes(pubKeyHex)
 		if !ok {
-			return errors.New("address in not in valid format")
+			return errors.New(fmt.Sprintf("address in not in valid format: %s", pubKeyHex))
 		}
 		pubKey = pk
 	}
@@ -298,12 +298,50 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 	_ = cmd.MarkFlagRequired(cmdFlagAmount)
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.MarkFlagRequired(cmdFlagType)
-	return cmd
+	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
+	_ = cmd.MarkFlagRequired(addressCmdName)
+	return addCommonAccountFlags(cmd)
 }
 
 func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
-	return nil
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	if err != nil {
+		return err
+	}
+
+	targetValue, err := cmd.Flags().GetUint64(cmdFlagAmount)
+	if err != nil {
+		return err
+	}
+
+	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
+	if err != nil {
+		return err
+	}
+	var pubKey []byte
+	if pubKeyHex == "true" {
+		pubKey = nil // this will assign 'always true' predicate
+	} else {
+		pk, ok := pubKeyHexToBytes(pubKeyHex)
+		if !ok {
+			return errors.New(fmt.Sprintf("address in not in valid format: %s", pubKeyHex))
+		}
+		pubKey = pk
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return tw.SendFungible(ctx, accountNumber, typeId, targetValue, pubKey)
 }
 
 func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
@@ -355,7 +393,6 @@ func tokenCmdSync(config *walletConfig) *cobra.Command {
 			return execTokenCmdSync(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	return cmd
 }
 

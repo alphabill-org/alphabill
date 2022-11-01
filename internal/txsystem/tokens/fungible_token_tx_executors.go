@@ -119,7 +119,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 	txHash := tx.Hash(s.hashAlgorithm)
 	err = s.state.AddItem(newTokenID, tx.attributes.NewBearer, &fungibleTokenData{
 		tokenType: d.tokenType,
-		value:     tx.attributes.Value,
+		value:     tx.attributes.TargetValue,
 		t:         0,
 		backlink:  make([]byte, s.hashAlgorithm.Size()),
 	}, txHash)
@@ -134,7 +134,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 		}
 		return &fungibleTokenData{
 			tokenType: d.tokenType,
-			value:     d.value - tx.attributes.Value,
+			value:     d.value - tx.attributes.TargetValue,
 			t:         currentBlockNr,
 			backlink:  txHash,
 		}
@@ -310,8 +310,8 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	if d.value < tx.attributes.Value {
-		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.Value)
+	if d.value < tx.attributes.TargetValue {
+		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
 	}
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)

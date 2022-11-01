@@ -276,7 +276,7 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 
 func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	txs.state.AddItem(parent1Identifier, script.PredicateAlwaysTrue(), &mockUnitData{}, []byte{})
+	txs.state.AtomicUpdate(rma.AddItem(parent1Identifier, script.PredicateAlwaysTrue(), &mockUnitData{}, []byte{}))
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,

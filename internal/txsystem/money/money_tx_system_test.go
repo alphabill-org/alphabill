@@ -26,8 +26,7 @@ const initialDustCollectorMoneyAmount uint64 = 100
 
 func TestNewMoneyScheme(t *testing.T) {
 	mockRevertibleState, err := rma.New(&rma.Config{
-		HashAlgorithm:     crypto.SHA256,
-		RecordingDisabled: false,
+		HashAlgorithm: crypto.SHA256,
 	})
 	require.NoError(t, err)
 
@@ -324,7 +323,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree, signer)
 
-	err = rmaTree.AddItem(uint256.NewInt(0).SetBytes(swapTx.UnitId), script.PredicateAlwaysTrue(), &BillData{}, []byte{})
+	err = rmaTree.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(swapTx.UnitId), script.PredicateAlwaysTrue(), &BillData{}, []byte{}))
 	require.NoError(t, err)
 	for _, dcTransfer := range dcTransfers {
 		tx, err := NewMoneyTx(systemIdentifier, dcTransfer)
@@ -495,8 +494,7 @@ func createNonMoneyTx() *txsystem.Transaction {
 
 func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem, abcrypto.Signer) {
 	rmaTree, err := rma.New(&rma.Config{
-		HashAlgorithm:     crypto.SHA256,
-		RecordingDisabled: false,
+		HashAlgorithm: crypto.SHA256,
 	})
 	require.NoError(t, err)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)

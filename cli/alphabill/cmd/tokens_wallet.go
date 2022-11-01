@@ -79,6 +79,8 @@ func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().Uint32(cmdFlagDecimals, 8, "token decimal (optional)")
+	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
+	_ = cmd.Flags().MarkHidden(cmdFlagType)
 	return cmd
 }
 
@@ -89,6 +91,10 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	defer tw.Shutdown()
 
+	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	if err != nil {
+		return err
+	}
 	symbol, err := cmd.Flags().GetString(cmdFlagSymbol)
 	if err != nil {
 		return err
@@ -108,7 +114,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleType(ctx, a)
+	id, err := tw.NewFungibleType(ctx, a, typeId)
 	if err != nil {
 		return err
 	}

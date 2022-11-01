@@ -32,12 +32,14 @@ echo "mainKey2=$mainKey2"
 # NB! assumes nodes are running
 
 echo "Create new token type"
-build/alphabill wallet token new-type fungible --symbol AB -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
+typeId=1111111111111111111111111111111111111111111111111111111111111111
+#7D392644BDB35B30A621037E841C909E118161B0061D1B1A3E37E8B6B795C448
+build/alphabill wallet token new-type fungible --symbol AB --type $typeId -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
 
 echo "List token types"
 build/alphabill wallet token list-types -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
 
-echo "Mint new token"
+#echo "Mint new token"
 # currently requires to manually copy token type id from the previous step and to paste for the --type flag to mint the token
 #build/alphabill wallet token new fungible -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
 #build/alphabill wallet token new fungible -u localhost:27766 --log-level DEBUG -l ~/.alphabill/wallet1/ --type 2653480555E1D001E7DB561D11D6F47DA87F61B385F14138B2D466063FA7A6C0 --amount 1000

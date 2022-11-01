@@ -298,9 +298,9 @@ func (w *TokensWallet) SyncUntilCanceled(ctx context.Context) error {
 	return w.mw.Wallet.Sync(ctx, latestBlockNumber)
 }
 
-func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes) (TokenId, error) {
+func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeId) (TokenId, error) {
 	log.Info(fmt.Sprintf("Creating new fungible token type"))
-	id, to, err := w.sendTx(nil, attrs)
+	id, to, err := w.sendTx(TokenId(typeId), attrs)
 	if err != nil {
 		return nil, err
 	}

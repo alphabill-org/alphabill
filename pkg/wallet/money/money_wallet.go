@@ -40,6 +40,13 @@ var (
 	ErrInvalidPassword      = errors.New("invalid password")
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
 	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
+	ErrFailedToBroadcastTx  = errors.New("failed to broadcast transaction(s)")
+	ErrTxRetryCanceled      = errors.New("user canceled tx retry")
+)
+
+var (
+	txBufferFullErrMsg = "tx buffer is full"
+	maxTxFailedTries   = 3
 )
 
 type (
@@ -339,11 +346,30 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) error {
 		return err
 	}
 	for _, tx := range txs {
-		res, err := w.SendTransaction(tx)
-		if err != nil {
-			return err
-		}
-		if !res.Ok {
+		failedTries := 0
+		for {
+			res, err := w.SendTransaction(tx)
+			if err != nil {
+				return err
+			}
+			if res.Ok {
+				break
+			}
+			if res.Message == txBufferFullErrMsg {
+				failedTries += 1
+				if failedTries >= maxTxFailedTries {
+					return ErrFailedToBroadcastTx
+				}
+				log.Info("tx buffer full, waiting 1s to retry...")
+				timer := time.NewTimer(time.Second)
+				select {
+				case <-timer.C:
+					continue
+				case <-ctx.Done():
+					timer.Stop()
+					return ErrTxRetryCanceled
+				}
+			}
 			return errors.New("payment returned error code: " + res.Message)
 		}
 	}

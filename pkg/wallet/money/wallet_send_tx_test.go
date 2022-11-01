@@ -2,10 +2,12 @@ package money
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -195,4 +197,72 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 	btTx := parseBillTransferTx(t, mockClient.GetRecordedTransactions()[0])
 	require.EqualValues(t, 100, btTx.TargetValue)
+}
+
+func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
+	// setup wallet
+	w, mockClient := CreateTestWallet(t)
+	b := bill{
+		Id:     uint256.NewInt(0),
+		Value:  100,
+		TxHash: hash.Sum256([]byte{0x01}),
+	}
+	_ = w.db.Do().SetBill(0, &b)
+
+	// make server return TxBufferFullErrMessage
+	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
+
+	// send tx
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	var sendError error
+	go func() {
+		sendError = w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
+		wg.Done()
+	}()
+
+	// verify txs are broadcasted multiple times
+	require.Eventually(t, func() bool {
+		return len(mockClient.GetRecordedTransactions()) == maxTxFailedTries
+	}, test.WaitDuration, test.WaitTick)
+
+	// wait for send goroutine to finish
+	wg.Wait()
+
+	// and verify send tx error
+	require.ErrorIs(t, sendError, ErrFailedToBroadcastTx)
+}
+
+func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
+	// setup wallet
+	w, mockClient := CreateTestWallet(t)
+	b := bill{
+		Id:     uint256.NewInt(0),
+		Value:  100,
+		TxHash: hash.Sum256([]byte{0x01}),
+	}
+	_ = w.db.Do().SetBill(0, &b)
+
+	// make server return TxBufferFullErrMessage
+	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
+
+	// send tx
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	var sendError error
+	go func() {
+		sendError = w.Send(ctx, SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
+		wg.Done()
+	}()
+
+	// when context is canceled
+	cancel()
+
+	// then sendError returns immediately
+	wg.Wait()
+	require.ErrorIs(t, sendError, ErrTxRetryCanceled)
+
+	// and only the initial transaction should be broadcast
+	require.Len(t, mockClient.GetRecordedTransactions(), 1)
 }

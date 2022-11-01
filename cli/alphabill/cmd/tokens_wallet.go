@@ -261,19 +261,9 @@ func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) erro
 		return err
 	}
 
-	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
+	pubKey, err := getPubKeyBytes(cmd)
 	if err != nil {
 		return err
-	}
-	var pubKey []byte
-	if pubKeyHex == "true" {
-		pubKey = nil // this will assign 'always true' predicate
-	} else {
-		pk, ok := pubKeyHexToBytes(pubKeyHex)
-		if !ok {
-			return errors.New(fmt.Sprintf("address in not in valid format: %s", pubKeyHex))
-		}
-		pubKey = pk
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -309,6 +299,25 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 	return addCommonAccountFlags(cmd)
 }
 
+// getPubKeyBytes returns 'nil' for flag value 'true', must be interpreted as 'always true' predicate
+func getPubKeyBytes(cmd *cobra.Command) ([]byte, error) {
+	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
+	if err != nil {
+		return nil, err
+	}
+	var pubKey []byte
+	if pubKeyHex == "true" {
+		pubKey = nil // this will assign 'always true' predicate
+	} else {
+		pk, ok := pubKeyHexToBytes(pubKeyHex)
+		if !ok {
+			return nil, errors.New(fmt.Sprintf("address in not in valid format: %s", pubKeyHex))
+		}
+		pubKey = pk
+	}
+	return pubKey, nil
+}
+
 func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
@@ -330,19 +339,9 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
+	pubKey, err := getPubKeyBytes(cmd)
 	if err != nil {
 		return err
-	}
-	var pubKey []byte
-	if pubKeyHex == "true" {
-		pubKey = nil // this will assign 'always true' predicate
-	} else {
-		pk, ok := pubKeyHexToBytes(pubKeyHex)
-		if !ok {
-			return errors.New(fmt.Sprintf("address in not in valid format: %s", pubKeyHex))
-		}
-		pubKey = pk
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

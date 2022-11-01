@@ -50,13 +50,8 @@ func (c *createFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTransact
 		return err
 	}
 	h := tx.Hash(c.hashAlgorithm)
-	return c.state.AddItem(
-		tx.UnitID(),
-		script.PredicateAlwaysTrue(),
-		newFungibleTokenTypeData(tx),
-		h,
-	)
-	return nil
+	return c.state.AtomicUpdate(
+		rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newFungibleTokenTypeData(tx), h))
 }
 
 func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _ uint64) error {
@@ -68,13 +63,8 @@ func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _
 		return err
 	}
 	h := tx.Hash(m.hashAlgorithm)
-	return m.state.AddItem(
-		tx.UnitID(),
-		tx.attributes.Bearer,
-		newFungibleTokenData(tx, m.hashAlgorithm),
-		h,
-	)
-	return nil
+	return m.state.AtomicUpdate(
+		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newFungibleTokenData(tx, m.hashAlgorithm), h))
 }
 
 func (t *transferFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -86,18 +76,18 @@ func (t *transferFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransactio
 		return err
 	}
 	h := tx.Hash(t.hashAlgorithm)
-	if err := t.state.SetOwner(tx.UnitID(), tx.attributes.NewBearer, h); err != nil {
-		return err
-	}
-	return t.state.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
-		d, ok := data.(*fungibleTokenData)
-		if !ok {
-			return data
-		}
-		d.t = currentBlockNr
-		d.backlink = tx.Hash(t.hashAlgorithm)
-		return data
-	}, h)
+	return t.state.AtomicUpdate(
+		rma.SetOwner(tx.UnitID(), tx.attributes.NewBearer, h),
+		rma.UpdateData(tx.UnitID(),
+			func(data rma.UnitData) (newData rma.UnitData) {
+				d, ok := data.(*fungibleTokenData)
+				if !ok {
+					return data
+				}
+				d.t = currentBlockNr
+				d.backlink = tx.Hash(t.hashAlgorithm)
+				return data
+			}, h))
 }
 
 func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -117,28 +107,29 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 	newTokenID := util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(s.hashAlgorithm))
 	logger.Debug("Adding a fungible token with ID %v", newTokenID)
 	txHash := tx.Hash(s.hashAlgorithm)
-	err = s.state.AddItem(newTokenID, tx.attributes.NewBearer, &fungibleTokenData{
-		tokenType: d.tokenType,
-		value:     tx.attributes.TargetValue,
-		t:         0,
-		backlink:  make([]byte, s.hashAlgorithm.Size()),
-	}, txHash)
-	if err != nil {
-		return err
-	}
-	return s.state.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
-		d, ok := data.(*fungibleTokenData)
-		if !ok {
-			// No change in case of incorrect data type.
-			return data
-		}
-		return &fungibleTokenData{
-			tokenType: d.tokenType,
-			value:     d.value - tx.attributes.TargetValue,
-			t:         currentBlockNr,
-			backlink:  txHash,
-		}
-	}, txHash)
+	return s.state.AtomicUpdate(
+		rma.AddItem(newTokenID,
+			tx.attributes.NewBearer,
+			&fungibleTokenData{
+				tokenType: d.tokenType,
+				value:     tx.attributes.TargetValue,
+				t:         0,
+				backlink:  make([]byte, s.hashAlgorithm.Size()),
+			}, txHash),
+		rma.UpdateData(tx.UnitID(),
+			func(data rma.UnitData) (newData rma.UnitData) {
+				d, ok := data.(*fungibleTokenData)
+				if !ok {
+					// No change in case of incorrect data type.
+					return data
+				}
+				return &fungibleTokenData{
+					tokenType: d.tokenType,
+					value:     d.value - tx.attributes.TargetValue,
+					t:         currentBlockNr,
+					backlink:  txHash,
+				}
+			}, txHash))
 }
 
 func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -151,22 +142,22 @@ func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 	}
 	unitID := tx.UnitID()
 	h := tx.Hash(b.hashAlgorithm)
-	if err := b.state.SetOwner(unitID, []byte{0}, h); err != nil {
-		return err
-	}
-	return b.state.UpdateData(unitID, func(data rma.UnitData) rma.UnitData {
-		d, ok := data.(*fungibleTokenData)
-		if !ok {
-			// No change in case of incorrect data type.
-			return data
-		}
-		return &fungibleTokenData{
-			tokenType: d.tokenType,
-			value:     d.value,
-			t:         currentBlockNr,
-			backlink:  h,
-		}
-	}, h)
+	return b.state.AtomicUpdate(
+		rma.SetOwner(unitID, []byte{0}, h),
+		rma.UpdateData(unitID,
+			func(data rma.UnitData) rma.UnitData {
+				d, ok := data.(*fungibleTokenData)
+				if !ok {
+					// No change in case of incorrect data type.
+					return data
+				}
+				return &fungibleTokenData{
+					tokenType: d.tokenType,
+					value:     d.value,
+					t:         currentBlockNr,
+					backlink:  h,
+				}
+			}, h))
 }
 
 func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -179,23 +170,25 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 	}
 	unitID := tx.UnitID()
 	h := tx.Hash(j.hashAlgorithm)
-	return j.state.UpdateData(unitID, func(data rma.UnitData) rma.UnitData {
-		d, ok := data.(*fungibleTokenData)
-		if !ok {
-			// No change in case of incorrect data type.
-			return data
-		}
-		var sum uint64 = 0
-		for _, burnTransaction := range tx.burnTransactions {
-			sum += burnTransaction.attributes.Value
-		}
-		return &fungibleTokenData{
-			tokenType: d.tokenType,
-			value:     d.value + sum,
-			t:         currentBlockNr,
-			backlink:  h,
-		}
-	}, h)
+	return j.state.AtomicUpdate(
+		rma.UpdateData(unitID,
+			func(data rma.UnitData) rma.UnitData {
+				d, ok := data.(*fungibleTokenData)
+				if !ok {
+					// No change in case of incorrect data type.
+					return data
+				}
+				var sum uint64 = 0
+				for _, burnTransaction := range tx.burnTransactions {
+					sum += burnTransaction.attributes.Value
+				}
+				return &fungibleTokenData{
+					tokenType: d.tokenType,
+					value:     d.value + sum,
+					t:         currentBlockNr,
+					backlink:  h,
+				}
+			}, h))
 }
 
 func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenTypeWrapper) error {

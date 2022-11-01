@@ -26,10 +26,7 @@ const (
 type (
 	TokenState interface {
 		revertibleState
-		AddItem(id *uint256.Int, owner rma.Predicate, data rma.UnitData, stateHash []byte) error
-		DeleteItem(id *uint256.Int) error
-		SetOwner(id *uint256.Int, owner rma.Predicate, stateHash []byte) error
-		UpdateData(id *uint256.Int, f rma.UpdateFunction, stateHash []byte) error
+		AtomicUpdate(actions ...rma.Action) error
 		GetUnit(id *uint256.Int) (*rma.Unit, error)
 	}
 

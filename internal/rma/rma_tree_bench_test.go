@@ -14,15 +14,12 @@ func BenchmarkSetNode(b *testing.B) {
 	benchData := []struct {
 		treeSize      int
 		batchSize     int
-		trackChanges  bool
 		includeRevert bool
 	}{
-		{treeSize: 1_000_000, batchSize: 50_000, trackChanges: false},
-		{treeSize: 1_000_000, batchSize: 50_000, trackChanges: true, includeRevert: false},
-		{treeSize: 1_000_000, batchSize: 50_000, trackChanges: true, includeRevert: true},
-		{treeSize: 10_000_000, batchSize: 50_000, trackChanges: false},
-		{treeSize: 10_000_000, batchSize: 50_000, trackChanges: true, includeRevert: false},
-		{treeSize: 10_000_000, batchSize: 50_000, trackChanges: true, includeRevert: true},
+		{treeSize: 1_000_000, batchSize: 50_000, includeRevert: false},
+		{treeSize: 1_000_000, batchSize: 50_000, includeRevert: true},
+		{treeSize: 10_000_000, batchSize: 50_000, includeRevert: false},
+		{treeSize: 10_000_000, batchSize: 50_000, includeRevert: true},
 	}
 
 	content := &Unit{
@@ -32,7 +29,7 @@ func BenchmarkSetNode(b *testing.B) {
 	}
 
 	for _, bd := range benchData {
-		at, _ := New(&Config{HashAlgorithm: crypto.SHA256, RecordingDisabled: !bd.trackChanges})
+		at, _ := New(&Config{HashAlgorithm: crypto.SHA256})
 
 		for i := 0; i < bd.treeSize; i++ {
 			at.setNode(uint256.NewInt(uint64(i)), content)
@@ -45,7 +42,7 @@ func BenchmarkSetNode(b *testing.B) {
 		idCounter := bd.treeSize
 
 		b.ReportAllocs()
-		b.Run(fmt.Sprintf("tree(%s%s)-%d-batch-%d", trackingLabel(bd.trackChanges), incRevertLabel(bd.includeRevert), bd.treeSize, bd.batchSize), func(b *testing.B) {
+		b.Run(fmt.Sprintf("tree(%s)-%d-batch-%d", incRevertLabel(bd.includeRevert), bd.treeSize, bd.batchSize), func(b *testing.B) {
 
 			for n := 0; n < b.N; n++ {
 				for i := idCounter; i < idCounter+bd.batchSize; i++ {
@@ -60,13 +57,6 @@ func BenchmarkSetNode(b *testing.B) {
 			}
 		})
 	}
-}
-
-func trackingLabel(trackChanges bool) string {
-	if trackChanges {
-		return "tracking"
-	}
-	return "no-track"
 }
 
 func incRevertLabel(includeRevert bool) string {

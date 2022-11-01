@@ -54,18 +54,16 @@ type (
 	}
 
 	Config struct {
-		HashAlgorithm     crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
-		RecordingDisabled bool        // Optional, set to true, to disable keeping track of changes.
+		HashAlgorithm crypto.Hash // Mandatory, hash algorithm used for calculating the tree hash root and the proofs.
 	}
 
 	// Tree Revertible Merkle AVL Tree. Holds any type of units. Changes can be reverted, tree is balanced in AVL
 	// tree manner and Merkle proofs can be generated.
 	Tree struct {
-		hashAlgorithm    crypto.Hash   // Hash algorithm used for calculating the tree hash root and the proofs.
-		shardId          []byte        // ID of the shard.
-		recordingEnabled bool          // recordingEnabled controls if changes are recorded or not.
-		root             *Node         // root is the top node of the tree.
-		changes          []interface{} // changes keep track of changes. Only used if recordingEnabled is true.
+		hashAlgorithm crypto.Hash   // Hash algorithm used for calculating the tree hash root and the proofs.
+		shardId       []byte        // ID of the shard.
+		root          *Node         // root is the top node of the tree.
+		changes       []interface{} // changes keep track of changes.
 	}
 
 	changeNode struct {
@@ -104,7 +102,53 @@ type (
 		targetNode *Node
 		oldVal     SummaryValue
 	}
+
+	Action func(tree *Tree) error
 )
+
+// AddItem adds new element to the state. Id must not exist in the state
+func AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) Action {
+	return func(tree *Tree) error {
+		exists := tree.exists(id)
+		if exists {
+			return errors.Errorf("cannot add item that already exists. ID: %d", id)
+		}
+		tree.set(id, owner, data, stateHash)
+		return nil
+	}
+}
+
+// DeleteItem removes the item from the state
+func DeleteItem(id *uint256.Int) Action {
+	return func(tree *Tree) error {
+		exists := tree.exists(id)
+		if !exists {
+			return errors.Errorf("deleting item that does not exist. ID %d", id)
+		}
+		tree.removeNode(id)
+		return nil
+	}
+}
+
+// SetOwner changes the owner of the item, leaves data as is
+func SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) Action {
+	return func(tree *Tree) error {
+		return tree.setOwner(id, owner, stateHash)
+	}
+}
+
+// UpdateData changes the data of the item, leaves owner as is.
+func UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) Action {
+	return func(tree *Tree) error {
+		node, exists := tree.getNode(id)
+		if !exists {
+			return errors.Errorf(errStrItemDoesntExist, id)
+		}
+		data := f(node.Content.Data)
+		tree.set(id, node.Content.Bearer, data, stateHash)
+		return nil
+	}
+}
 
 // New creates new RMA Tree
 func New(config *Config) (*Tree, error) {
@@ -112,44 +156,30 @@ func New(config *Config) (*Tree, error) {
 		return nil, errors.New(errStrInvalidHashAlgorithm)
 	}
 	return &Tree{
-		hashAlgorithm:    config.HashAlgorithm,
-		recordingEnabled: !config.RecordingDisabled,
+		hashAlgorithm: config.HashAlgorithm,
 	}, nil
 }
 
-// AddItem adds new element to the state. Id must not exist in the state.
-func (tree *Tree) AddItem(id *uint256.Int, owner Predicate, data UnitData, stateHash []byte) error {
-	exists := tree.exists(id)
-	if exists {
-		return errors.Errorf("cannot add item that already exists. ID: %d", id)
+// AtomicUpdate applies changes to the state tree. If any of the change functions
+// returns an error all of them will be rolled back
+func (tree *Tree) AtomicUpdate(actions ...Action) error {
+	chIndex := len(tree.changes)
+	var err error
+	for i, action := range actions {
+		if err = action(tree); err != nil {
+			// discontinue, if any action fails
+			err = errors.Wrap(err, fmt.Sprintf("%d. update failed", i+1))
+			break
+		}
 	}
-	tree.set(id, owner, data, stateHash)
-	return nil
-}
-
-// DeleteItem removes the item from the state
-func (tree *Tree) DeleteItem(id *uint256.Int) error {
-	exists := tree.exists(id)
-	if !exists {
-		return errors.Errorf("deleting item that does not exist. ID %d", id)
+	if err != nil {
+		// revert to state before the function
+		toRollback := len(tree.changes) - chIndex
+		if toRollback > 0 {
+			tree.revert(toRollback)
+		}
+		return err
 	}
-	tree.removeNode(id)
-	return nil
-}
-
-// SetOwner changes the owner of the item, leaves data as is.
-func (tree *Tree) SetOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
-	return tree.setOwner(id, owner, stateHash)
-}
-
-// UpdateData changes the data of the item, leaves owner as is.
-func (tree *Tree) UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) error {
-	node, exists := tree.getNode(id)
-	if !exists {
-		return errors.Errorf(errStrItemDoesntExist, id)
-	}
-	data := f(node.Content.Data)
-	tree.set(id, node.Content.Bearer, data, stateHash)
 	return nil
 }
 
@@ -189,31 +219,44 @@ func (tree *Tree) Commit() {
 // Revert reverts all changes since the last Commit.
 func (tree *Tree) Revert() {
 	for i := len(tree.changes) - 1; i >= 0; i-- {
-		change := tree.changes[i]
-		switch chg := change.(type) {
-		case *changeNode:
-			*chg.targetPointer = chg.oldVal
-		case *changeBalance:
-			chg.targetNode.balance = chg.oldVal
-		case *changeContent:
-			chg.targetNode.Content = chg.oldVal
-		case *changeMinKeyMinVal:
-			*chg.minKey = chg.oldMinKey
-			*chg.minVal = chg.oldMinVal
-		case *changeRecompute:
-			chg.targetNode.recompute = chg.oldVal
-		case *changeSummaryValue:
-			chg.targetNode.SummaryValue = chg.oldVal
-		case *changeHash:
-			chg.targetNode.Hash = chg.oldVal
-		default:
-			panic(fmt.Sprintf("invalid type %T", chg))
-		}
+		tree.rollback(tree.changes[i])
 	}
 	tree.Commit()
 }
 
 ///////// private methods \\\\\\\\\\\\\
+// Revert reverts/rolls back 'nofChanges' from the state changes stack
+func (tree *Tree) revert(nofChanges int) {
+	totalChanges := len(tree.changes)
+	for i := 0; i < totalChanges && i < nofChanges; i++ {
+		tree.rollback(tree.changes[totalChanges-1-i])
+	}
+	// pop rolled back changes
+	tree.changes = tree.changes[:totalChanges-nofChanges]
+}
+
+// rollback reverts a change
+func (tree *Tree) rollback(change interface{}) {
+	switch chg := change.(type) {
+	case *changeNode:
+		*chg.targetPointer = chg.oldVal
+	case *changeBalance:
+		chg.targetNode.balance = chg.oldVal
+	case *changeContent:
+		chg.targetNode.Content = chg.oldVal
+	case *changeMinKeyMinVal:
+		*chg.minKey = chg.oldMinKey
+		*chg.minVal = chg.oldMinVal
+	case *changeRecompute:
+		chg.targetNode.recompute = chg.oldVal
+	case *changeSummaryValue:
+		chg.targetNode.SummaryValue = chg.oldVal
+	case *changeHash:
+		chg.targetNode.Hash = chg.oldVal
+	default:
+		panic(fmt.Sprintf("invalid type %T", chg))
+	}
+}
 
 func (tree *Tree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := tree.getNode(id)
@@ -489,75 +532,61 @@ func (tree *Tree) rotate(c int, s *Node) *Node {
 }
 
 func (tree *Tree) assignNode(target **Node, source *Node) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeNode{
-			targetPointer: target,
-			oldVal:        *target,
-		})
-	}
+	tree.changes = append(tree.changes, &changeNode{
+		targetPointer: target,
+		oldVal:        *target,
+	})
 	*target = source
 }
 
 func (tree *Tree) assignBalance(target *Node, balance int) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeBalance{
-			targetNode: target,
-			oldVal:     target.balance,
-		})
-	}
+	tree.changes = append(tree.changes, &changeBalance{
+		targetNode: target,
+		oldVal:     target.balance,
+	})
 	target.balance = balance
 }
 
 func (tree *Tree) assignContent(target *Node, content *Unit) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeContent{
-			targetNode: target,
-			oldVal:     target.Content,
-		})
-	}
+	tree.changes = append(tree.changes, &changeContent{
+		targetNode: target,
+		oldVal:     target.Content,
+	})
 	target.Content = content
 }
 
 func (tree *Tree) assignMinKeyMinVal(minKey **uint256.Int, id *uint256.Int, minVal **Unit, content *Unit) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeMinKeyMinVal{
-			minKey:    minKey,
-			oldMinKey: *minKey,
-			minVal:    minVal,
-			oldMinVal: *minVal,
-		})
-	}
+	tree.changes = append(tree.changes, &changeMinKeyMinVal{
+		minKey:    minKey,
+		oldMinKey: *minKey,
+		minVal:    minVal,
+		oldMinVal: *minVal,
+	})
 	*minKey = id
 	*minVal = content
 }
 
 func (tree *Tree) assignRecompute(target *Node, recompute bool) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeRecompute{
-			targetNode: target,
-			oldVal:     target.recompute,
-		})
-	}
+	tree.changes = append(tree.changes, &changeRecompute{
+		targetNode: target,
+		oldVal:     target.recompute,
+	})
 	target.recompute = recompute
 }
 
 func (tree *Tree) assignSummaryValue(target *Node, summary SummaryValue) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeSummaryValue{
-			targetNode: target,
-			oldVal:     target.SummaryValue,
-		})
-	}
+	tree.changes = append(tree.changes, &changeSummaryValue{
+		targetNode: target,
+		oldVal:     target.SummaryValue,
+	})
 	target.SummaryValue = summary
 }
 
 func (tree *Tree) assignHash(target *Node, hash []byte) {
-	if tree.recordingEnabled {
-		tree.changes = append(tree.changes, &changeHash{
-			targetNode: target,
-			oldVal:     target.Hash,
-		})
-	}
+	tree.changes = append(tree.changes, &changeHash{
+		targetNode: target,
+		oldVal:     target.Hash,
+	})
 	target.Hash = hash
 }
 

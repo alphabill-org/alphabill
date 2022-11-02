@@ -68,6 +68,7 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 			consoleWriter.Println("Error: must specify a subcommand like create, sync, send etc")
 		},
 	}
+	walletCmd.AddCommand(newWalletBillsCmd(config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(syncCmd(config))
 	walletCmd.AddCommand(getBalanceCmd(config))

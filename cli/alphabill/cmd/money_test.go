@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -102,6 +103,22 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 					MaxRecvMsgSize:          66,
 					MaxConnectionAgeMs:      77,
 					MaxConnectionAgeGraceMs: 88,
+				}
+				return sc
+			}(),
+		},
+		{
+			args: "money --rest-server-address=srv:1111 --rest-server-read-timeout=10s --rest-server-read-header-timeout=11s --rest-server-write-timeout=12s --rest-server-idle-timeout=13s --rest-server-max-header=14 --rest-server-max-body=15",
+			expectedConfig: func() *moneyNodeConfiguration {
+				sc := defaultMoneyNodeConfiguration()
+				sc.RESTServer = &restServerConfiguration{
+					Address:           "srv:1111",
+					ReadTimeout:       10 * time.Second,
+					ReadHeaderTimeout: 11 * time.Second,
+					WriteTimeout:      12 * time.Second,
+					IdleTimeout:       13 * time.Second,
+					MaxHeaderBytes:    14,
+					MaxBodyBytes:      15,
 				}
 				return sc
 			}(),
@@ -243,6 +260,15 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			MaxGetBlocksBatchSize: defaultMaxGetBlocksBatchSize,
 			MaxRecvMsgSize:        defaultMaxRecvMsgSize,
 			MaxSendMsgSize:        defaultMaxSendMsgSize,
+		},
+		RESTServer: &restServerConfiguration{
+			Address:           "",
+			ReadTimeout:       0,
+			ReadHeaderTimeout: 0,
+			WriteTimeout:      0,
+			IdleTimeout:       0,
+			MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
+			MaxBodyBytes:      MaxBodyBytes,
 		},
 	}
 }

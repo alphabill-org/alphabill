@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -48,6 +49,8 @@ const t1TimerName = "t1"
 var (
 	ErrNodeDoesNotHaveLatestBlock = errors.New("node does not have the latest block")
 	ErrStateReverted              = errors.New("state reverted")
+
+	transactionsCounter = metrics.GetOrRegisterCounter("partition/node/transaction/handled")
 )
 
 type (
@@ -718,6 +721,7 @@ func (n *Node) finalizeBlock(b *block.Block) error {
 		return err
 	}
 	n.transactionSystem.Commit()
+	transactionsCounter.Inc(int64(len(b.Transactions)))
 	n.sendEvent(EventTypeBlockFinalized, b)
 	return nil
 }
@@ -1003,6 +1007,10 @@ func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
 
 func (n *Node) GetLatestBlock() *block.Block {
 	return n.blockStore.LatestBlock()
+}
+
+func (n *Node) SystemIdentifier() []byte {
+	return n.configuration.GetSystemIdentifier()
 }
 
 func (n *Node) stopForwardingOrHandlingTransactions() {

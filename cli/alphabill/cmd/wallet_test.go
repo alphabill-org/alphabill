@@ -143,12 +143,13 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 
 	// send two transactions (two bills) to wallet-2
 	stdout := execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	stdout = execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-1", initialBill.Value-2, 0)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	// verify wallet-1 balance is decreased
+	verifyTotalBalance(t, "wallet-1", initialBill.Value-2)
 
 	// verify wallet-2 received said bills
 	waitForBalance(t, "wallet-2", 2, 0)
@@ -159,11 +160,16 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 
 	// send wallet-2 bill back to wallet-1
 	stdout = execWalletCmd(t, "wallet-2", "send --amount 1 --address "+hexutil.Encode(w1PubKey))
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet-2", 1, 0)
-	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
-} /*
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
+	// verify wallet-2 balance is reduced
+	verifyTotalBalance(t, "wallet-2", 1)
+
+	// verify wallet-1 balance is increased
+	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
+}
+
+/*
 Test scenario:
 start network and rpc server and send initial bill to wallet account 1
 add two accounts to wallet
@@ -182,12 +188,13 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	w := createNewNamedWallet(t, "wallet", ":9543")
+	walletName := "wallet"
+	w := createNewNamedWallet(t, walletName, ":9543")
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
 
-	pubKey2Hex := addAccount(t, "wallet")
-	pubKey3Hex := addAccount(t, "wallet")
+	pubKey2Hex := addAccount(t, walletName)
+	pubKey3Hex := addAccount(t, walletName)
 
 	// transfer initial bill to wallet
 	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
@@ -197,25 +204,29 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet account 1
-	waitForBalance(t, "wallet", initialBill.Value, 0)
+	waitForBalance(t, walletName, initialBill.Value, 0)
 
 	// send two transactions (two bills) to wallet account 2
-	stdout := execWalletCmd(t, "wallet", "send --amount 1 --address "+pubKey2Hex)
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet", 1, 1)
+	stdout := execWalletCmd(t, walletName, "send --amount 1 --address "+pubKey2Hex)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
-	stdout = execWalletCmd(t, "wallet", "send --amount 1 --address "+pubKey2Hex)
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet", 2, 1)
+	stdout = execWalletCmd(t, walletName, "send --amount 1 --address "+pubKey2Hex)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	// verify account 1 balance is decreased
+	verifyAccountBalance(t, walletName, initialBill.Value-2, 0)
+
+	// verify account 2 balance is increased
+	waitForBalance(t, walletName, 2, 1)
 
 	// swap account 2 bills
-	stdout = execWalletCmd(t, "wallet", "collect-dust")
+	stdout = execWalletCmd(t, walletName, "collect-dust")
 	verifyStdout(t, stdout, "Dust collection finished successfully.")
 
 	// send account 2 bills to account 3
-	stdout = execWalletCmd(t, "wallet", "send --amount 2 --key 2 --address "+pubKey3Hex)
-	verifyStdout(t, stdout, "Successfully sent transaction(s)")
-	waitForBalance(t, "wallet", 2, 2)
+	stdout = execWalletCmd(t, walletName, "send --amount 2 --key 2 --address "+pubKey3Hex)
+	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+	waitForBalance(t, walletName, 2, 2)
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
@@ -270,6 +281,16 @@ func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, acc
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)
+}
+
+func verifyTotalBalance(t *testing.T, walletName string, expectedBalance uint64) {
+	stdout := execWalletCmd(t, walletName, "get-balance")
+	verifyStdout(t, stdout, fmt.Sprintf("Total %d", expectedBalance))
+}
+
+func verifyAccountBalance(t *testing.T, walletName string, expectedBalance, accountIndex uint64) {
+	stdout := execWalletCmd(t, walletName, "get-balance")
+	verifyStdout(t, stdout, fmt.Sprintf("#%d %d", accountIndex+1, expectedBalance))
 }
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex

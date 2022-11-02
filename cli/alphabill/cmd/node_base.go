@@ -6,14 +6,13 @@ import (
 	"net"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/partition/store"
-
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/starter"
@@ -25,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type baseNodeConfiguration struct {
@@ -40,8 +40,8 @@ type startNodeConfiguration struct {
 	DbFile           string
 }
 
-func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration) error {
-	node, err := startNode(ctx, txs, nodeCfg)
+func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration, txTypes map[string]proto.Message) error {
+	self, node, err := startNode(ctx, txs, nodeCfg)
 	if err != nil {
 		return err
 	}
@@ -53,25 +53,63 @@ func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.Transacti
 	if err != nil {
 		return err
 	}
+	restServer, err := initRESTServer(node, self, restServerConf, txTypes)
+	if err != nil {
+		return err
+	}
 	starterFunc := func(ctx context.Context) {
 		async.MakeWorker("grpc transport layer server", func(ctx context.Context) future.Value {
 			go func() {
 				log.Info("Starting gRPC server on %s", rpcServerConf.Address)
 				err = grpcServer.Serve(listener)
 				if err != nil {
-					log.Error("Server exited with erroneous situation: %s", err)
+					log.Error("gRPC Server exited with erroneous situation: %s", err)
 				} else {
-					log.Info("Server exited successfully")
+					log.Info("gRPC Server exited successfully")
 				}
 			}()
+			if restServer != nil {
+				go func() {
+					log.Info("Starting REST server on %s", restServer.Addr)
+					err = restServer.ListenAndServe()
+					if err != nil {
+						log.Error("REST server exited with erroneous situation: %s", err)
+					} else {
+						log.Info("REST server exited successfully")
+					}
+				}()
+			}
 			<-ctx.Done()
 			grpcServer.GracefulStop()
+			if restServer != nil {
+				e := restServer.Close()
+				if e != nil {
+					log.Error("Failed to close REST server: %v", err)
+				}
+			}
 			node.Close()
 			return nil
 		}).Start(ctx)
 	}
 	// StartAndWait waits until ctx.waitgroup is done OR sigterm cancels signal OR timeout (not used here)
 	return starter.StartAndWait(ctx, name, starterFunc)
+}
+
+func initRESTServer(node *partition.Node, self *network.Peer, conf *restServerConfiguration, txTypes map[string]proto.Message) (*rpc.RestServer, error) {
+	if conf.IsAddressEmpty() {
+		// Address not configured.
+		return nil, nil
+	}
+	rs, err := rpc.NewRESTServer(node, conf.Address, txTypes, conf.MaxBodyBytes, self)
+	if err != nil {
+		return nil, err
+	}
+	rs.ReadTimeout = conf.ReadTimeout
+	rs.ReadHeaderTimeout = conf.ReadHeaderTimeout
+	rs.WriteTimeout = conf.WriteTimeout
+	rs.IdleTimeout = conf.IdleTimeout
+	rs.MaxHeaderBytes = conf.MaxHeaderBytes
+	return rs, nil
 }
 
 func loadNetworkConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.Peer, error) {
@@ -132,7 +170,7 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	)
 	grpc_health_v1.RegisterHealthServer(grpcServer, health.NewServer())
 
-	rpcServer, err := rpc.NewRpcServer(node, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
+	rpcServer, err := rpc.NewGRPCServer(node, rpc.WithMaxGetBlocksBatchSize(cfg.MaxGetBlocksBatchSize))
 	if err != nil {
 		return nil, err
 	}
@@ -141,43 +179,43 @@ func initRPCServer(node *partition.Node, cfg *grpcServerConfiguration) (*grpc.Se
 	return grpcServer, nil
 }
 
-func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*partition.Node, error) {
+func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNodeConfiguration) (*network.Peer, *partition.Node, error) {
 	keys, err := LoadKeys(cfg.KeyFile, false, false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pg, err := loadPartitionGenesis(cfg.Genesis)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
 	p, err := loadNetworkConfiguration(keys, pg, cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(pg.RootValidators) < 1 {
-		return nil, errors.New("Root validator info is missing")
+		return nil, nil, errors.New("Root validator info is missing")
 	}
 	// Assume monolithic root chain for now and only extract the id of the first root node
 	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(pg.RootValidators[0].EncryptionPublicKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	newMultiAddr, err := multiaddr.NewMultiaddr(cfg.RootChainAddress)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	n, err := network.NewLibP2PValidatorNetwork(p, network.DefaultValidatorNetOptions)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	blockStore, err := initNodeBlockStore(cfg.DbFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	node, err := partition.New(
 		p,
@@ -190,9 +228,9 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		partition.WithBlockStore(blockStore),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return node, nil
+	return p, node, nil
 }
 
 func initNodeBlockStore(dbFile string) (store.BlockStore, error) {

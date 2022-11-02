@@ -17,6 +17,7 @@ type (
 		CfgFile string
 		// Logger configuration file URL.
 		LogCfgFile string
+		Metrics    bool
 	}
 )
 
@@ -35,12 +36,15 @@ const (
 	keyHome = "home"
 	// The configuration key for config file name.
 	keyConfig = "config"
+	// Enables or disables metrics collection
+	keyMetrics = "metrics"
 )
 
 func (r *baseConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", alphabillHomeDir()))
 	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
 	cmd.PersistentFlags().StringVar(&r.LogCfgFile, "logger-config", defaultLoggerConfigFile, "logger config file URL. Considered absolute if starts with '/'. Otherwise relative from $AB_HOME.")
+	cmd.PersistentFlags().BoolVar(&r.Metrics, keyMetrics, false, "Enables metrics collection.")
 }
 
 func (r *baseConfiguration) initConfigFileLocation() {

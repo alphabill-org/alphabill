@@ -14,18 +14,43 @@ import (
 )
 
 const (
+	TypeCreateNonFungibleTokenTypeAttributes = "CreateNonFungibleTokenTypeAttributes"
+	TypeMintNonFungibleTokenAttributes       = "MintNonFungibleTokenAttributes"
+	TypeTransferNonFungibleTokenAttributes   = "TransferNonFungibleTokenAttributes"
+	TypeUpdateNonFungibleTokenAttributes     = "UpdateNonFungibleTokenAttributes"
+	TypeCreateFungibleTokenTypeAttributes    = "CreateFungibleTokenTypeAttributes"
+	TypeMintFungibleTokenAttributes          = "MintFungibleTokenAttributes"
+	TypeTransferFungibleTokenAttributes      = "TransferFungibleTokenAttributes"
+	TypeSplitFungibleTokenAttributes         = "SplitFungibleTokenAttributes"
+	TypeBurnFungibleTokenAttributes          = "BurnFungibleTokenAttributes"
+	TypeJoinFungibleTokenAttributes          = "JoinFungibleTokenAttributes"
+
 	protobufTypeUrlPrefix                       = "type.googleapis.com/alphabill.tokens.v1."
-	typeURLCreateNonFungibleTokenTypeAttributes = protobufTypeUrlPrefix + "CreateNonFungibleTokenTypeAttributes"
-	typeURLMintNonFungibleTokenAttributes       = protobufTypeUrlPrefix + "MintNonFungibleTokenAttributes"
-	typeURLTransferNonFungibleTokenAttributes   = protobufTypeUrlPrefix + "TransferNonFungibleTokenAttributes"
-	typeURLUpdateNonFungibleTokenAttributes     = protobufTypeUrlPrefix + "UpdateNonFungibleTokenAttributes"
-	typeURLCreateFungibleTokenTypeAttributes    = protobufTypeUrlPrefix + "CreateFungibleTokenTypeAttributes"
-	typeURLMintFungibleTokenAttributes          = protobufTypeUrlPrefix + "MintFungibleTokenAttributes"
-	typeURLTransferFungibleTokenAttributes      = protobufTypeUrlPrefix + "TransferFungibleTokenAttributes"
-	typeURLSplitFungibleTokenAttributes         = protobufTypeUrlPrefix + "SplitFungibleTokenAttributes"
-	typeURLBurnFungibleTokenAttributes          = protobufTypeUrlPrefix + "BurnFungibleTokenAttributes"
-	typeURLJoinFungibleTokenAttributes          = protobufTypeUrlPrefix + "JoinFungibleTokenAttributes"
+	typeURLCreateNonFungibleTokenTypeAttributes = protobufTypeUrlPrefix + TypeCreateNonFungibleTokenTypeAttributes
+	typeURLMintNonFungibleTokenAttributes       = protobufTypeUrlPrefix + TypeMintNonFungibleTokenAttributes
+	typeURLTransferNonFungibleTokenAttributes   = protobufTypeUrlPrefix + TypeTransferNonFungibleTokenAttributes
+	typeURLUpdateNonFungibleTokenAttributes     = protobufTypeUrlPrefix + TypeUpdateNonFungibleTokenAttributes
+	typeURLCreateFungibleTokenTypeAttributes    = protobufTypeUrlPrefix + TypeCreateFungibleTokenTypeAttributes
+	typeURLMintFungibleTokenAttributes          = protobufTypeUrlPrefix + TypeMintFungibleTokenAttributes
+	typeURLTransferFungibleTokenAttributes      = protobufTypeUrlPrefix + TypeTransferFungibleTokenAttributes
+	typeURLSplitFungibleTokenAttributes         = protobufTypeUrlPrefix + TypeSplitFungibleTokenAttributes
+	typeURLBurnFungibleTokenAttributes          = protobufTypeUrlPrefix + TypeBurnFungibleTokenAttributes
+	typeURLJoinFungibleTokenAttributes          = protobufTypeUrlPrefix + TypeJoinFungibleTokenAttributes
 )
+
+// TransactionTypes contains all transaction types supported by the user token partition.
+var TransactionTypes = map[string]proto.Message{
+	TypeCreateNonFungibleTokenTypeAttributes: &CreateNonFungibleTokenTypeAttributes{},
+	TypeMintNonFungibleTokenAttributes:       &MintNonFungibleTokenAttributes{},
+	TypeTransferNonFungibleTokenAttributes:   &TransferNonFungibleTokenAttributes{},
+	TypeUpdateNonFungibleTokenAttributes:     &UpdateNonFungibleTokenAttributes{},
+	TypeCreateFungibleTokenTypeAttributes:    &CreateFungibleTokenTypeAttributes{},
+	TypeMintFungibleTokenAttributes:          &MintFungibleTokenAttributes{},
+	TypeTransferFungibleTokenAttributes:      &TransferFungibleTokenAttributes{},
+	TypeSplitFungibleTokenAttributes:         &SplitFungibleTokenAttributes{},
+	TypeBurnFungibleTokenAttributes:          &BurnFungibleTokenAttributes{},
+	TypeJoinFungibleTokenAttributes:          &JoinFungibleTokenAttributes{},
+}
 
 type (
 	wrapper struct {

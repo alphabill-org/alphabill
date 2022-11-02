@@ -5,15 +5,16 @@ import (
 	"crypto"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/logger"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	hasherUtil "github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const zeroSummaryValue = rma.Uint64SummaryValue(0)
@@ -22,6 +23,11 @@ var (
 	ErrOwnerProofPresent = errors.New("'register data' transaction cannot have an owner proof")
 	log                  = logger.CreateForPackage()
 	zeroRootHash         = make([]byte, 32)
+
+	// TransactionTypes contains all transaction types supported by the VD partition.
+	TransactionTypes = map[string]proto.Message{
+		"Register": &anypb.Any{},
+	}
 )
 
 type (

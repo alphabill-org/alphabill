@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -57,7 +58,24 @@ type (
 		conf       *PeerConfiguration
 		validators []peer.ID
 	}
+
+	metricsNotifiee struct {
+	}
 )
+
+var openConnectionsCounter = metrics.GetOrRegisterCounter("network/connections/open")
+
+func (m *metricsNotifiee) Listen(network.Network, ma.Multiaddr) {}
+
+func (m *metricsNotifiee) ListenClose(network.Network, ma.Multiaddr) {}
+
+func (m *metricsNotifiee) Connected(network.Network, network.Conn) {
+	openConnectionsCounter.Inc(1)
+}
+
+func (m *metricsNotifiee) Disconnected(network.Network, network.Conn) {
+	openConnectionsCounter.Dec(1)
+}
 
 // NewPeer constructs a new peer node with given configuration. If no peer key is provided, it generates a random
 // Secp256k1 key-pair and derives a new identity from it. If no transport and listen addresses are provided, the node
@@ -99,6 +117,7 @@ func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 	if err != nil {
 		return nil, err
 	}
+	h.Network().Notify(&metricsNotifiee{})
 	p := &Peer{host: h, conf: conf}
 
 	// validator identifiers
@@ -115,7 +134,6 @@ func NewPeer(conf *PeerConfiguration) (*Peer, error) {
 	}
 
 	logger.Debug("Host ID=%v, addresses=%v", h.ID(), h.Addrs())
-
 	return p, nil
 }
 

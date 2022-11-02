@@ -45,7 +45,7 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 		if !bytes.Equal(commitInfoHash, prevVote.LedgerCommitInfo.Hash(crypto.SHA256)) {
 			// new equivocating vote, this is a security event
 			logger.Warning("Received equivocating vote from %v, round %v",
-				vote.Author, vote.VoteInfo.Round)
+				vote.Author, vote.VoteInfo.RootRound)
 			// Todo: Add return error, how do we register this event
 			return nil, nil
 		}
@@ -53,12 +53,12 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 		newTimeoutVote := vote.IsTimeout() && !prevVote.IsTimeout()
 		if !newTimeoutVote {
 			logger.Warning("Received duplicate vote from %v, round %v",
-				vote.Author, vote.VoteInfo.Round)
+				vote.Author, vote.VoteInfo.RootRound)
 			return nil, nil
 		}
 		// Author voted timeout, proceed
 		logger.Info("Received timout vote from %v, round %v",
-			vote.Author, vote.VoteInfo.Round)
+			vote.Author, vote.VoteInfo.RootRound)
 	}
 	// Store vote from author
 	v.AuthorToVote[peer.ID(vote.Author)] = vote

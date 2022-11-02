@@ -45,21 +45,21 @@ func (x *LedgerCommitInfo) IsValid() error {
 }
 
 func (x *VoteInfo) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.Id)
-	hasher.Write(util.Uint64ToBytes(x.Round))
+	hasher.Write(x.BlockId)
+	hasher.Write(util.Uint64ToBytes(x.RootRound))
 	hasher.Write(util.Uint64ToBytes(x.Epoch))
 	hasher.Write(util.Uint64ToBytes(x.Timestamp))
-	hasher.Write(x.ParentId)
+	hasher.Write(x.ParentBlockId)
 	hasher.Write(util.Uint64ToBytes(x.ParentRound))
 	hasher.Write(x.ExecStateId)
 }
 
 func (x *VoteInfo) IsValid() error {
 	// Todo: epoch is validation rule not yet known
-	if x.Round < 1 {
+	if x.RootRound < 1 {
 		return ErrInvalidRound
 	}
-	if len(x.Id) < 1 {
+	if len(x.BlockId) < 1 {
 		return ErrInvalidBlockHash
 	}
 	if len(x.ExecStateId) < 1 {

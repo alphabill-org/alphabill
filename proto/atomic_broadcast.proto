@@ -26,15 +26,15 @@ message Payload {
 // The ConsensusInfo is used both in VoteMsg reply and in QC which aggregates all VoteMsg replays
 message VoteInfo {
   // id or hash of block
-  bytes id = 1;
+  bytes block_id = 1;
   // Consensus protocol monotonically increasing round number
-  uint64 round = 2;
+  uint64 root_round = 2;
   // Epoch number corresponds to the set of validators that are active for this block. (not used)
   uint64 epoch = 3;
   // timestamp
   uint64 timestamp = 4;
   // parent block/proposal id
-  bytes parent_id = 5;
+  bytes parent_block_id = 5;
   // parent block round number
   uint64 parent_round = 6;
   // speculative execution state h(root hash || round number)
@@ -104,14 +104,14 @@ message TimeoutCert {
 }
 
 message IRChangeReqMsg {
-  // state hash for synchronization
-  bytes state_hash = 1;
   // Unique block certification requests with quorum present or quorum not possible.
-  CertificationReqWithProof request = 2;
+  CertificationReqWithProof request = 1;
+  // state hash for synchronization
+  bytes exec_state_id = 2;
   // Author who issued the IR change request
-  string author = 4;
+  string author = 3;
   // Signed message to authenticate sender
-  bytes signature = 5;
+  bytes signature = 4;
 }
 
 message ProposalMsg {
@@ -140,6 +140,11 @@ message VoteMsg {
   // When local timeout expires node may issue a timeout vote (also after voted for proposal).
   // Timeout quorum is aggregated into a TimeoutCert (TC).
   optional TimeoutWithSignature timeout_signature = 6;
+}
+
+message TimeoutMsg {
+  Timeout timeout = 1;
+  bytes signature = 2;
 }
 
 // Recover state

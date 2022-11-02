@@ -55,7 +55,7 @@ func (x *VoteMsg) Verify(v AtomicVerifier) error {
 
 // NewTimeout creates new Timeout for timeout vote
 func (x *VoteMsg) NewTimeout(qc *QuorumCert) *Timeout {
-	return &Timeout{Epoch: x.VoteInfo.Epoch, Round: x.VoteInfo.Round, Hqc: qc}
+	return &Timeout{Epoch: x.VoteInfo.Epoch, Round: x.VoteInfo.RootRound, Hqc: qc}
 }
 
 // AddTimeoutSignature adds timeout signature to vote message, turning it into a timeout vote

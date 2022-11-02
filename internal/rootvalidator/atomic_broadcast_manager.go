@@ -63,6 +63,10 @@ func NewAtomicBroadcastManager(host *network.Peer, conf *RootNodeConf, stateStor
 	for id := range conf.RootTrustBase {
 		rootNodeIds = append(rootNodeIds, peer.ID(id))
 	}
+	lastState, err := stateStore.Get()
+	if err != nil {
+		return nil, err
+	}
 	l, err := leader.NewRotatingLeader(rootNodeIds, 1)
 	if err != nil {
 		return nil, err
@@ -71,7 +75,7 @@ func NewAtomicBroadcastManager(host *network.Peer, conf *RootNodeConf, stateStor
 	if err != nil {
 		return nil, err
 	}
-	roundState := NewRoundState(conf.LocalTimeoutMs)
+	roundState := NewRoundState(lastState.LatestRound, conf.LocalTimeoutMs)
 	timers := timer.NewTimers()
 	timers.Start(localTimeoutId, roundState.GetRoundTimeout())
 	// read state
@@ -199,8 +203,7 @@ func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
 	}
 	// Record vote
 	a.roundState.SetVoted(voteMsg)
-	// todo: self id handling for broadcast, will it work?
-	// send vote to the next leader
+	// broadcast timeout vote
 	allValidators := a.proposer.GetRootNodes()
 	receivers := make([]peer.ID, len(allValidators))
 	receivers = append(receivers, allValidators...)
@@ -225,7 +228,7 @@ func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// Todo: Check state and synchronize
 	// Was the proposal received? If not, should we recover it? Or should it be included in the vote?
 
-	round := vote.VoteInfo.Round
+	round := vote.VoteInfo.RootRound
 	// Normal votes are only sent to the next leader,
 	// timeout votes are broadcast to everybody
 	if vote.IsTimeout() == false {
@@ -239,12 +242,12 @@ func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// Store vote, check for QC and TC.
 	qc, tc := a.roundState.RegisterVote(vote, a.rootVerifier)
 	if qc != nil {
-		logger.Warning("Round %v quorum achieved", vote.VoteInfo.Round)
+		logger.Warning("Round %v quorum achieved", vote.VoteInfo.RootRound)
 		// advance round
 		a.processCertificateQC(qc)
 	}
 	if tc != nil {
-		logger.Warning("Round %v timeout quorum achieved", vote.VoteInfo.Round)
+		logger.Warning("Round %v timeout quorum achieved", vote.VoteInfo.RootRound)
 		a.roundState.AdvanceRoundTC(tc)
 	}
 	// If QC or TC: Store and create proposal if timing is correct
@@ -272,7 +275,7 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 			proposal.Block.Author, proposal.Block.Round)
 		return
 	}
-
+	// Proposal is
 	// Check state
 	if !bytes.Equal(proposal.Block.Qc.VoteInfo.ExecStateId, a.stateLedger.GetCurrentStateHash()) {
 		logger.Error("Recovery not yet implemented")
@@ -292,12 +295,12 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 	// send vote
 	vote := &atomic_broadcast.VoteMsg{
 		VoteInfo: &atomic_broadcast.VoteInfo{
-			Id:          proposal.Block.Id,
-			Round:       proposal.Block.Round,
-			Epoch:       proposal.Block.Epoch,
-			ParentId:    proposal.Block.Qc.VoteInfo.Id,
-			ParentRound: proposal.Block.Qc.VoteInfo.Round,
-			ExecStateId: a.stateLedger.GetProposedStateHash(),
+			BlockId:       proposal.Block.Id,
+			RootRound:     proposal.Block.Round,
+			Epoch:         proposal.Block.Epoch,
+			ParentBlockId: proposal.Block.Qc.VoteInfo.BlockId,
+			ParentRound:   proposal.Block.Qc.VoteInfo.RootRound,
+			ExecStateId:   a.stateLedger.GetProposedStateHash(),
 		},
 		HighCommitQc:     a.stateLedger.HighCommitQC,
 		Author:           string(a.peer.ID()),

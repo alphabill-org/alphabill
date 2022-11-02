@@ -65,7 +65,7 @@ func (x *CertificationReqWithProof) Bytes() []byte {
 }
 
 func (x *IRChangeReqMsg) IsValid(rootTrustBase, partitionTrustBase map[string]crypto.Verifier) error {
-	if len(x.StateHash) == 0 {
+	if len(x.ExecStateId) == 0 {
 		return ErrMissingStateHash
 	}
 	if len(x.Author) == 0 {
@@ -90,14 +90,14 @@ func (x *IRChangeReqMsg) IsValid(rootTrustBase, partitionTrustBase map[string]cr
 }
 
 func (x *IRChangeReqMsg) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.StateHash)
+	hasher.Write(x.ExecStateId)
 	x.Request.AddToHasher(hasher)
 	hasher.Write([]byte(x.Author))
 }
 
 func (x *IRChangeReqMsg) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(x.StateHash)
+	b.Write(x.ExecStateId)
 	b.Write(x.Request.Bytes())
 	b.Write([]byte(x.Author))
 	return b.Bytes()

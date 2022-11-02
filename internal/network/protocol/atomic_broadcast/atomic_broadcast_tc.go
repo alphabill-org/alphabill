@@ -38,7 +38,7 @@ func (t *TimeoutSigned) Hash(algo gocrypto.Hash) []byte {
 func (x *Timeout) Verify(v AtomicVerifier) error {
 	// Make sure that the quorum certificate received with the vote does not have higher round than the round
 	// voted timeout
-	if x.Hqc.VoteInfo.Round > x.Round {
+	if x.Hqc.VoteInfo.RootRound > x.Round {
 		return errors.New("Malformed timeout, consensus round is bigger that timeout round")
 	}
 	// Verify attached quorum certificate
@@ -63,9 +63,9 @@ func (x *TimeoutCert) GetAuthors() []string {
 func (x *TimeoutCert) AddSignature(author string, signedTimeout *TimeoutWithSignature) {
 	// Todo: Make sure that both epoch and round are from current epoch and round
 	// Keep the highest QC certificate
-	hqcRound := signedTimeout.Timeout.Hqc.VoteInfo.Round
+	hqcRound := signedTimeout.Timeout.Hqc.VoteInfo.RootRound
 	// If received highest QC round was bigger than previously seen, replace timeout struct
-	if hqcRound > x.Timeout.Hqc.VoteInfo.Round {
+	if hqcRound > x.Timeout.Hqc.VoteInfo.RootRound {
 		x.Timeout = signedTimeout.Timeout
 	}
 	x.Signatures[author] = &TimeoutVote{HqcRound: hqcRound, Signature: signedTimeout.Signature}
@@ -86,7 +86,7 @@ func (x *TimeoutCert) Verify(v AtomicVerifier) error {
 	}
 	maxSignedRound := uint64(0)
 	// Extract attached the highest QC round number and compare it later to the round extracted from signatures
-	highQcRound := x.Timeout.Hqc.VoteInfo.Round
+	highQcRound := x.Timeout.Hqc.VoteInfo.RootRound
 	// 3. Check all signatures and remember the max QC round over all the signatures received
 	for author, timeoutSig := range x.Signatures {
 		// verify signature

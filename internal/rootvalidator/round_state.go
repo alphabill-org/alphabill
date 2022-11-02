@@ -1,6 +1,7 @@
 package rootvalidator
 
 import (
+	"math"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
@@ -10,10 +11,13 @@ type (
 	TimeoutCalculator interface {
 		GetNextTimeout(roundIndexAfterCommit uint64) time.Duration
 	}
-
+	// ExponentialTimeInterval exponential back-off
+	// baseMs * exponentBase^"commit gap"
+	// If max exponent is set to 0, then it will output constant value baseMs
 	ExponentialTimeInterval struct {
-		baseMs   time.Duration
-		exponent float64
+		baseMs       time.Duration
+		exponentBase float64
+		maxExponent  uint8
 	}
 
 	// RoundState tracks the current round/view number. The number is incremented when new quorum are
@@ -43,18 +47,26 @@ func (x *RoundState) LastRoundTC() *atomic_broadcast.TimeoutCert {
 	return x.lastRoundTC
 }
 
-func (x ExponentialTimeInterval) GetNextTimeout(roundIndexAfterCommit uint64) time.Duration {
-	// Not the correct equation yet
-	return x.baseMs + (400 * time.Duration(roundIndexAfterCommit) * time.Millisecond)
+func min(x, y uint64) uint64 {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) time.Duration {
+	exp := min(uint64(x.maxExponent), roundsAfterLastCommit)
+	mul := math.Pow(x.exponentBase, float64(exp))
+	return x.baseMs * time.Duration(math.Ceil(mul))
 }
 
 // NewRoundState Needs to be constructed from last QC!
-func NewRoundState(localTimeout time.Duration) *RoundState {
+func NewRoundState(lastRound uint64, localTimeout time.Duration) *RoundState {
 	return &RoundState{
-		highCommittedRound: 0,
-		currentRound:       0,
-		roundTimeout:       time.Now(),
-		timeoutCalculator:  ExponentialTimeInterval{baseMs: localTimeout, exponent: 0},
+		highCommittedRound: lastRound,
+		currentRound:       lastRound + 1,
+		roundTimeout:       time.Now().Add(localTimeout),
+		timeoutCalculator:  ExponentialTimeInterval{baseMs: localTimeout, exponentBase: 1.2, maxExponent: 0},
 		pendingVotes:       NewVoteRegister(),
 		lastRoundTC:        nil,
 		voteSent:           nil,
@@ -66,7 +78,7 @@ func (x *RoundState) GetCurrentRound() uint64 {
 }
 
 func (x *RoundState) SetVoted(vote *atomic_broadcast.VoteMsg) {
-	if vote.VoteInfo.Round == x.currentRound {
+	if vote.VoteInfo.RootRound == x.currentRound {
 		x.voteSent = vote
 	}
 }
@@ -75,29 +87,28 @@ func (x *RoundState) GetVoted() *atomic_broadcast.VoteMsg {
 }
 
 func (x *RoundState) GetRoundTimeout() time.Duration {
-	newTimeout := x.timeoutCalculator.GetNextTimeout(x.highCommittedRound)
-	x.roundTimeout = time.Now().Add(newTimeout)
-	return newTimeout
+	return x.roundTimeout.Sub(time.Now())
 }
 
 func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
 	// If the vote is not about the current round then ignore
-	if vote.VoteInfo.Round != x.currentRound {
+	if vote.VoteInfo.RootRound != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
-			x.currentRound, vote.VoteInfo.Round)
+			x.currentRound, vote.VoteInfo.RootRound)
 		return nil, nil
 	}
 	return x.pendingVotes.InsertVote(vote, verifier)
 }
 
 func (x *RoundState) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
-	if qc.VoteInfo.Round < x.currentRound {
+	if qc.VoteInfo.RootRound < x.currentRound {
 		return false
 	}
 	// last vote is now obsolete
 	x.voteSent = nil
 	x.lastRoundTC = nil
-	x.currentRound = qc.VoteInfo.Round + 1
+	x.highCommittedRound = qc.VoteInfo.RootRound
+	x.startNewRound(qc.VoteInfo.RootRound + 1)
 	return true
 }
 
@@ -109,5 +120,10 @@ func (x *RoundState) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
 	// last vote is now obsolete
 	x.voteSent = nil
 	x.lastRoundTC = tc
-	x.currentRound = tc.Timeout.Round + 1
+	x.startNewRound(tc.Timeout.Round + 1)
+}
+
+func (x *RoundState) startNewRound(round uint64) {
+	x.currentRound = round
+	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.highCommittedRound))
 }

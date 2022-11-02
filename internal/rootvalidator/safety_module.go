@@ -26,7 +26,7 @@ func IsConsecutive(blockRound, round uint64) bool {
 }
 
 func isSaveToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
-	return IsConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.Round //  GetQcRound()
+	return IsConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound //  GetQcRound()
 }
 
 func NewSafetyModule(signer crypto.Signer) *SafetyModule {
@@ -48,7 +48,7 @@ func (s *SafetyModule) IsSafeToVote(blockRound, qcRound uint64, tc *atomic_broad
 
 func (s SafetyModule) SignVote(msg *atomic_broadcast.VoteMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
 	qcRound := msg.VoteInfo.ParentRound
-	votingRound := msg.VoteInfo.Round
+	votingRound := msg.VoteInfo.RootRound
 	if s.IsSafeToVote(votingRound, qcRound, lastRoundTC) == false {
 		return errors.New("Not safe to vote")
 	}
@@ -64,7 +64,7 @@ func (s SafetyModule) SignVote(msg *atomic_broadcast.VoteMsg, lastRoundTC *atomi
 }
 
 func (s SafetyModule) SignTimeout(timeout *atomic_broadcast.Timeout, lastRoundTC *atomic_broadcast.TimeoutCert) ([]byte, error) {
-	qcRound := timeout.Hqc.VoteInfo.Round
+	qcRound := timeout.Hqc.VoteInfo.RootRound
 	round := timeout.Round
 	if !s.isSafeToTimeout(round, qcRound, lastRoundTC) {
 		return nil, errors.New("not safe to timeout")
@@ -106,7 +106,7 @@ func (s *SafetyModule) isCommitCandidate(info *atomic_broadcast.VoteInfo) []byte
 	if info == nil {
 		return nil
 	}
-	if IsConsecutive(info.Round, info.ParentRound) {
+	if IsConsecutive(info.RootRound, info.ParentRound) {
 		return info.ExecStateId
 	}
 	return nil

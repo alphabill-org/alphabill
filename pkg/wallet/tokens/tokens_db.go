@@ -35,7 +35,7 @@ const (
 
 type (
 	tokenType struct {
-		Id            TokenId     `json:"id"`
+		Id            TokenTypeId `json:"id"`
 		ParentTypeId  TokenTypeId `json:"typeId"`
 		Kind          TokenKind   `json:"kind"`
 		Symbol        string      `json:"symbol"`

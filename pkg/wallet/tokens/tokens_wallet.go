@@ -249,22 +249,67 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 		}
 	case tokens.BurnFungibleToken:
 		log.Info("Token tx: BurnFungibleToken")
-		// TODO
+		panic("not implemented") // TODO
 	case tokens.JoinFungibleToken:
 		log.Info("Token tx: JoinFungibleToken")
-		// TODO
+		panic("not implemented") // TODO
 	case tokens.CreateNonFungibleTokenType:
 		log.Info("Token tx: CreateNonFungibleTokenType")
-		// TODO
+		err := txc.AddTokenType(&tokenType{
+			Id:           id,
+			Kind:         TokenType | NonFungible,
+			Symbol:       ctx.Symbol(),
+			ParentTypeId: ctx.ParentTypeId(),
+		})
+		if err != nil {
+			return err
+		}
 	case tokens.MintNonFungibleToken:
 		log.Info("Token tx: MintNonFungibleToken")
-		// TODO
+		if checkOwner(accNr, key, ctx.Bearer()) {
+			tType, err := txc.GetTokenType(ctx.NFTTypeId())
+			if err != nil {
+				return err
+			}
+			err = txc.SetToken(accNr, &token{
+				Id:       id,
+				Kind:     NonFungibleToken,
+				TypeId:   tType.Id,
+				Uri:      ctx.URI(),
+				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
+				Symbol:   tType.Symbol,
+				//ctx.Data() // TODO
+				//ctx.DataUpdatePredicate()
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			err := txc.RemoveToken(accNr, id)
+			if err != nil {
+				return err
+			}
+		}
 	case tokens.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
-		// TODO
+		if checkOwner(accNr, key, ctx.NewBearer()) {
+			err := txc.SetToken(accNr, &token{
+				Id:       id,
+				Kind:     NonFungibleToken,
+				Backlink: txHash,
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			err := txc.RemoveToken(accNr, id)
+			if err != nil {
+				return err
+			}
+		}
 	case tokens.UpdateNonFungibleToken:
 		log.Info("Token tx: UpdateNonFungibleToken")
-		// TODO
+		panic("not implemented") // TODO
 	default:
 		log.Warning(fmt.Sprintf("received unknown token transaction type, skipped processing: %s", ctx))
 		return nil
@@ -300,23 +345,40 @@ func (w *TokensWallet) SyncUntilCanceled(ctx context.Context) error {
 
 func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeId) (TokenId, error) {
 	log.Info(fmt.Sprintf("Creating new fungible token type"))
+	return w.newType(ctx, attrs, typeId)
+}
+
+func (w *TokensWallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeId) (TokenId, error) {
+	log.Info(fmt.Sprintf("Creating new NFT type"))
+	return w.newType(ctx, attrs, typeId)
+}
+
+func (w *TokensWallet) newType(ctx context.Context, attrs proto.Message, typeId TokenTypeId) (TokenId, error) {
 	id, to, err := w.sendTx(TokenId(typeId), attrs)
 	if err != nil {
 		return nil, err
 	}
-
 	return id, w.syncToUnit(ctx, id, to)
 }
 
 func (w *TokensWallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
 	log.Info(fmt.Sprintf("Creating new fungible token"))
+	return w.newToken(ctx, accNr, attrs, nil)
+}
+
+func (w *TokensWallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenId) (TokenId, error) {
+	log.Info(fmt.Sprintf("Creating new NFT"))
+	return w.newToken(ctx, accNr, attrs, tokenId)
+}
+
+func (w *TokensWallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenId) (TokenId, error) {
 	accIdx := accNr - 1
 	key, err := w.mw.GetAccountKey(accIdx)
 	if err != nil {
 		return nil, err
 	}
-	attrs.Bearer = script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256)
-	id, to, err := w.sendTx(nil, attrs)
+	attrs.SetBearer(script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256))
+	id, to, err := w.sendTx(tokenId, attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -477,6 +539,38 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	attrs := &tokens.TransferFungibleTokenAttributes{
 		NewBearer:                   bearer,
 		Value:                       t.Amount,
+		Backlink:                    t.Backlink,
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+
+	_, timeout, err := w.sendTx(tokenId, attrs)
+	if err != nil {
+		return err
+	}
+
+	return w.syncToUnit(ctx, tokenId, timeout)
+}
+
+func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey []byte) error {
+	t, found, err := w.db.Do().GetToken(accountNumber, tokenId)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New(fmt.Sprintf("token with id=%X not found under account #%v", tokenId, accountNumber))
+	}
+
+	var bearer []byte
+	if receiverPubKey != nil {
+		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
+	} else {
+		bearer = script.PredicateAlwaysTrue()
+	}
+
+	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", t.Backlink))
+
+	attrs := &tokens.TransferNonFungibleTokenAttributes{
+		NewBearer:                   bearer,
 		Backlink:                    t.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}

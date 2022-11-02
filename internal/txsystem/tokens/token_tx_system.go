@@ -3,6 +3,7 @@ package tokens
 import (
 	"crypto"
 	"github.com/alphabill-org/alphabill/internal/block"
+	"google.golang.org/protobuf/proto"
 	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -145,7 +146,21 @@ type (
 		Backlink() []byte
 		InvariantPredicateSignature() []byte
 	}
+
+	AttrWithBearer interface {
+		proto.Message
+		SetBearer([]byte)
+		GetBearer() []byte
+	}
 )
+
+func (x *MintFungibleTokenAttributes) SetBearer(b []byte) {
+	x.Bearer = b
+}
+
+func (x *MintNonFungibleTokenAttributes) SetBearer(b []byte) {
+	x.Bearer = b
+}
 
 func New(opts ...Option) (*tokensTxSystem, error) {
 	options, err := defaultOptions()

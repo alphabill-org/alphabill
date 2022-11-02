@@ -21,6 +21,9 @@ const (
 	cmdFlagAmount              = "amount"
 	cmdFlagType                = "type"
 	cmdFlagTokenId             = "token-identifier"
+	cmdFlagTokenURI            = "token-uri"
+	cmdFlagTokenData           = "data"
+	cmdFlagTokenDataUpdate     = "data-update"
 )
 
 func tokenCmd(config *walletConfig) *cobra.Command {
@@ -129,11 +132,41 @@ func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTypeNonFungible(cmd, config)
 		},
 	}
+	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
+	_ = cmd.Flags().MarkHidden(cmdFlagType)
 	return cmd
 }
 
 func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	if err != nil {
+		return err
+	}
+	symbol, err := cmd.Flags().GetString(cmdFlagSymbol)
+	if err != nil {
+		return err
+	}
+	a := &tokens.CreateNonFungibleTokenTypeAttributes{
+		Symbol:                            symbol,
+		ParentTypeId:                      nil,
+		SubTypeCreationPredicateSignature: nil,
+		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
+		InvariantPredicate:                script.PredicateAlwaysTrue(),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	id, err := tw.NewNonFungibleType(ctx, a, typeId)
+	if err != nil {
+		return err
+	}
+	consoleWriter.Println(fmt.Sprintf("Created new NFT type with id=%X", id))
 	return nil
 }
 
@@ -183,12 +216,12 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	//input, err := cmd.Flags().GetString(cmdFlagCreationInput)
-	//if err != nil {
-	//	return err
-	//}
+	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput)
+	if err != nil {
+		return err
+	}
 	a := &tokens.MintFungibleTokenAttributes{
-		Bearer:                          nil,
+		Bearer:                          nil, // will be set in the wallet
 		Type:                            typeId,
 		Value:                           amount,
 		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
@@ -211,11 +244,64 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenNonFungible(cmd, config)
 		},
 	}
+	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
+	_ = cmd.MarkFlagRequired(cmdFlagType)
+	cmd.Flags().String(cmdFlagTokenURI, "https://alphabill.org/nft", "URI to associated resource, ie. jpg file on IPFS") // TODO
+	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
+	cmd.Flags().BytesHex(cmdFlagTokenDataUpdate, nil, "data update predicate (hex)")
+	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")
+	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
+	cmd.Flags().MarkHidden(cmdFlagTokenId)
 	return cmd
 }
 
 func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	if err != nil {
+		return err
+	}
+	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagTokenId)
+	if err != nil {
+		return err
+	}
+	uri, err := cmd.Flags().GetString(cmdFlagTokenURI)
+	if err != nil {
+		return err
+	}
+	data, err := cmd.Flags().GetBytesHex(cmdFlagTokenData)
+	if err != nil {
+		return err
+	}
+	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput)
+	if err != nil {
+		return err
+	}
+	a := &tokens.MintNonFungibleTokenAttributes{
+		Bearer:                          nil, // will be set in the wallet
+		NftType:                         typeId,
+		Uri:                             uri,
+		Data:                            data,
+		DataUpdatePredicate:             script.PredicateAlwaysTrue(),
+		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	id, err := tw.NewNFT(ctx, accountNumber, a, tokenId)
+	if err != nil {
+		return err
+	}
+
+	consoleWriter.Println(fmt.Sprintf("Created new fungible token with id=%X", id))
 	return nil
 }
 
@@ -227,7 +313,6 @@ func tokenCmdTransfer(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(tokenCmdTransferFungible(config))
-	//cmd.AddCommand(tokenCmdTransferNonFungible(config))
 	return cmd
 }
 
@@ -356,12 +441,37 @@ func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendNonFungible(cmd, config)
 		},
 	}
-	return cmd
+	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
+	_ = cmd.MarkFlagRequired(cmdFlagTokenId)
+	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
+	_ = cmd.MarkFlagRequired(addressCmdName)
+	return addCommonAccountFlags(cmd)
 }
 
 func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
-	return nil
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagTokenId)
+	if err != nil {
+		return err
+	}
+
+	pubKey, err := getPubKeyBytes(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return tw.TransferNFT(ctx, accountNumber, tokenId, pubKey)
 }
 
 func tokenCmdDC(config *walletConfig) *cobra.Command {

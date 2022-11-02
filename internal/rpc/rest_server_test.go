@@ -8,32 +8,55 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/stretchr/testify/require"
 )
 
 const MaxBodySize int64 = 1 << 20 // 1 MB
 
 func TestNewRESTServer_PartitionNodeIsNil(t *testing.T) {
-	s, err := NewRESTServer(nil, "", money.TransactionTypes, MaxBodySize)
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(nil, "", money.TransactionTypes, MaxBodySize, peer)
 	require.ErrorContains(t, err, "partition node is nil")
+	require.Nil(t, s)
+}
+func TestNewRESTServer_PeerIsNil(t *testing.T) {
+	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize, nil)
+	require.ErrorContains(t, err, "peer is nil")
 	require.Nil(t, s)
 }
 
 func TestNewRESTServer_OK(t *testing.T) {
-	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize)
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize, peer)
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	require.NotNil(t, s.Server)
 	require.NotNil(t, s.node)
 }
 
+func TestMetrics_OK(t *testing.T) {
+	node := &MockNode{}
+	metrics.Enabled = true
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(node, "", money.TransactionTypes, MaxBodySize, peer)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/metrics", nil)
+	recorder := httptest.NewRecorder()
+	s.Handler.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "transactions_grpc_received")
+}
+
 func TestNewRESTServer_SubmitTx(t *testing.T) {
 	node := &MockNode{}
-	s, err := NewRESTServer(node, "", money.TransactionTypes, MaxBodySize)
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(node, "", money.TransactionTypes, MaxBodySize, peer)
 	require.NoError(t, err)
-	jsonRequest := &Request{
+	jsonRequest := &SubmitTx{
 		SystemId:        []byte{0, 0, 0, 0},
 		UnitId:          []byte{0, 0, 0, 1},
 		TransactionType: money.TypeTransferOrder,
@@ -48,7 +71,7 @@ func TestNewRESTServer_SubmitTx(t *testing.T) {
 	transferTx, err := json.Marshal(jsonRequest)
 
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/transactions", bytes.NewReader(transferTx))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(transferTx))
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
@@ -70,7 +93,8 @@ func TestNewRESTServer_SubmitTx(t *testing.T) {
 }
 
 func TestNewRESTServer_NotFound(t *testing.T) {
-	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize)
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize, peer)
 	require.NoError(t, err)
 
 	transferTx, err := json.Marshal(testtransaction.RandomBillTransfer(t))
@@ -84,10 +108,11 @@ func TestNewRESTServer_NotFound(t *testing.T) {
 }
 
 func TestNewRESTServer_InvalidTx(t *testing.T) {
-	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize)
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize, peer)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/transactions", bytes.NewReader(test.RandomBytes(102)))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(test.RandomBytes(102)))
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
@@ -97,15 +122,39 @@ func TestNewRESTServer_InvalidTx(t *testing.T) {
 }
 
 func TestNewRESTServer_RequestBodyTooLarge(t *testing.T) {
-	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, 10)
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, 10, peer)
 	require.NoError(t, err)
 	transferTx, err := json.Marshal(testtransaction.RandomBillTransfer(t))
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/transactions", bytes.NewReader(transferTx))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(transferTx))
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
 	s.Handler.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "http: request body too large")
+}
+
+func TestRESTServer_RequestInfo(t *testing.T) {
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, 10, peer)
+	require.NoError(t, err)
+	transferTx, err := json.Marshal(testtransaction.RandomBillTransfer(t))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/info", bytes.NewReader(transferTx))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	s.Handler.ServeHTTP(recorder, req)
+	response := &infoResponse{}
+	err = json.NewDecoder(recorder.Body).Decode(response)
+	require.NoError(t, err)
+	require.Equal(t, "00010000", response.SystemID)
+	require.Equal(t, peer.ID().String(), response.Self.Identifier)
+	require.Equal(t, 1, len(response.Self.Addresses))
+	require.Equal(t, peer.MultiAddresses(), response.Self.Addresses)
+	require.Equal(t, 0, len(response.OpenConnections))
+	require.Equal(t, 0, len(response.PartitionValidators))
+	require.Equal(t, 0, len(response.RootValidators))
 }

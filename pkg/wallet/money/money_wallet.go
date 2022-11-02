@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -34,8 +35,18 @@ var (
 	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
 	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	ErrInvalidAmount        = errors.New("invalid amount")
+	ErrInvalidAccountIndex  = errors.New("invalid account index")
 	ErrInvalidPassword      = errors.New("invalid password")
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
+	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
+	ErrFailedToBroadcastTx  = errors.New("failed to broadcast transaction(s)")
+	ErrTxRetryCanceled      = errors.New("user canceled tx retry")
+)
+
+var (
+	txBufferFullErrMsg = "tx buffer is full"
+	maxTxFailedTries   = 3
 )
 
 type (
@@ -47,6 +58,13 @@ type (
 		dustCollectorJob *cron.Cron
 		dcWg             *dcWaitGroup
 		accounts         *accounts
+	}
+
+	SendCmd struct {
+		ReceiverPubKey      []byte
+		Amount              uint64
+		WaitForConfirmation bool
+		AccountIndex        uint64
 	}
 )
 
@@ -283,12 +301,12 @@ func (w *Wallet) AddAccount() (uint64, []byte, error) {
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritzing larger bills.
-func (w *Wallet) Send(receiverPubKey []byte, amount uint64, accountIndex uint64) error {
-	if len(receiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
-		return ErrInvalidPubKey
+func (w *Wallet) Send(ctx context.Context, cmd SendCmd) error {
+	if err := cmd.isValid(); err != nil {
+		return err
 	}
 
-	swapInProgress, err := w.isSwapInProgress(w.db.Do(), accountIndex)
+	swapInProgress, err := w.isSwapInProgress(w.db.Do(), cmd.AccountIndex)
 	if err != nil {
 		return err
 	}
@@ -296,11 +314,11 @@ func (w *Wallet) Send(receiverPubKey []byte, amount uint64, accountIndex uint64)
 		return ErrSwapInProgress
 	}
 
-	balance, err := w.GetBalance(accountIndex)
+	balance, err := w.GetBalance(cmd.AccountIndex)
 	if err != nil {
 		return err
 	}
-	if amount > balance {
+	if cmd.Amount > balance {
 		return ErrInsufficientBalance
 	}
 
@@ -313,27 +331,52 @@ func (w *Wallet) Send(receiverPubKey []byte, amount uint64, accountIndex uint64)
 		return err
 	}
 
-	k, err := w.db.Do().GetAccountKey(accountIndex)
+	k, err := w.db.Do().GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return err
 	}
 
-	bills, err := w.db.Do().GetBills(accountIndex)
+	bills, err := w.db.Do().GetBills(cmd.AccountIndex)
 	if err != nil {
 		return err
 	}
 
-	txs, err := createTransactions(receiverPubKey, amount, bills, k, timeout)
+	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
 	if err != nil {
 		return err
 	}
 	for _, tx := range txs {
-		res, err := w.SendTransaction(tx)
+		failedTries := 0
+		for {
+			res, err := w.SendTransaction(tx)
+			if err != nil {
+				return err
+			}
+			if res.Ok {
+				break
+			}
+			if res.Message == txBufferFullErrMsg {
+				failedTries += 1
+				if failedTries >= maxTxFailedTries {
+					return ErrFailedToBroadcastTx
+				}
+				log.Info("tx buffer full, waiting 1s to retry...")
+				timer := time.NewTimer(time.Second)
+				select {
+				case <-timer.C:
+					continue
+				case <-ctx.Done():
+					timer.Stop()
+					return ErrTxRetryCanceled
+				}
+			}
+			return errors.New("payment returned error code: " + res.Message)
+		}
+	}
+	if cmd.WaitForConfirmation {
+		err = w.waitForConfirmation(ctx, txs, maxBlockNo, timeout, cmd.AccountIndex)
 		if err != nil {
 			return err
-		}
-		if !res.Ok {
-			return errors.New("payment returned error code: " + res.Message)
 		}
 	}
 	return nil
@@ -719,6 +762,63 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 			}
 		}
 	})
+}
+
+func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxBlockNumber, timeout, accountIndex uint64) error {
+	log.Info("waiting for confirmation(s)...")
+	blockNumber := maxBlockNumber
+	pendingTxsMap := make(map[string]*txsystem.Transaction, len(pendingTxs))
+	for _, tx := range pendingTxs {
+		pendingTxsMap[tx.String()] = tx
+	}
+	for blockNumber <= timeout {
+		b, err := w.AlphabillClient.GetBlock(blockNumber)
+		if err != nil {
+			return err
+		}
+		if b == nil {
+			// wait for some time before retrying to fetch new block
+			timer := time.NewTimer(100 * time.Millisecond)
+			select {
+			case <-timer.C:
+				continue
+			case <-ctx.Done():
+				timer.Stop()
+				return nil
+			}
+		}
+		for _, tx := range b.Transactions {
+			_, isConfirmed := pendingTxsMap[tx.String()]
+			if isConfirmed {
+				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
+				delete(pendingTxsMap, tx.String())
+
+				err = w.collectBills(w.db.Do(), tx, b, &w.accounts.getAll()[accountIndex])
+				if err != nil {
+					return err
+				}
+			}
+		}
+		if len(pendingTxsMap) == 0 {
+			log.Info("transaction(s) confirmed")
+			return nil
+		}
+		blockNumber += 1
+	}
+	return ErrTxFailedToConfirm
+}
+
+func (s *SendCmd) isValid() error {
+	if len(s.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+		return ErrInvalidPubKey
+	}
+	if s.Amount < 0 {
+		return ErrInvalidAmount
+	}
+	if s.AccountIndex < 0 {
+		return ErrInvalidAccountIndex
+	}
+	return nil
 }
 
 func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet, err error) {

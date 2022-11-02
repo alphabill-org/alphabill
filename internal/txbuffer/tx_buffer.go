@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
 
@@ -14,6 +15,10 @@ var (
 	ErrInvalidMaxSize = errors.New("invalid maximum size")
 	ErrTxIsNil        = errors.New("tx is nil")
 	ErrTxInBuffer     = errors.New("tx already in tx buffer")
+
+	transactionsCounter          = metrics.GetOrRegisterCounter("transaction/buffer/size")
+	transactionsRejectedCounter  = metrics.GetOrRegisterCounter("transaction/buffer/rejected/full")
+	transactionsDuplicateCounter = metrics.GetOrRegisterCounter("transaction/buffer/rejected/duplicate")
 )
 
 type (
@@ -66,6 +71,7 @@ func (t *TxBuffer) Add(tx txsystem.GenericTransaction) error {
 	defer t.mutex.Unlock()
 
 	if t.count >= t.maxSize {
+		transactionsRejectedCounter.Inc(1)
 		return ErrTxBufferFull
 	}
 
@@ -75,11 +81,13 @@ func (t *TxBuffer) Add(tx txsystem.GenericTransaction) error {
 
 	_, found := t.transactions[txId]
 	if found {
+		transactionsDuplicateCounter.Inc(1)
 		return ErrTxInBuffer
 	}
 	t.transactions[txId] = tx
 	t.count++
 	t.transactionsCh <- tx
+	transactionsCounter.Inc(1)
 	return nil
 }
 
@@ -108,6 +116,7 @@ func (t *TxBuffer) remove(id string) {
 	if found {
 		delete(t.transactions, id)
 		t.count--
+		transactionsCounter.Dec(1)
 	}
 }
 

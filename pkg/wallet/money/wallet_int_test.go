@@ -379,7 +379,7 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 
 func initRPCServer(node *partition.Node) (*grpc.Server, error) {
 	grpcServer := grpc.NewServer()
-	rpcServer, err := rpc.NewRpcServer(node)
+	rpcServer, err := rpc.NewGRPCServer(node)
 	if err != nil {
 		return nil, err
 	}

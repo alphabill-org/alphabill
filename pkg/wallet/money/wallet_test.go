@@ -3,6 +3,7 @@ package money
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -122,12 +123,12 @@ func TestWallet_GetBalance(t *testing.T) {
 
 func TestWallet_GetBalances(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
-	_ = w.db.Do().SetBill(0, &bill{Id: uint256.NewInt(0), Value: 1})
-	_ = w.db.Do().SetBill(0, &bill{Id: uint256.NewInt(1), Value: 1})
+	_ = w.db.Do().SetBill(0, &Bill{Id: uint256.NewInt(0), Value: 1})
+	_ = w.db.Do().SetBill(0, &Bill{Id: uint256.NewInt(1), Value: 1})
 
 	_, _, _ = w.AddAccount()
-	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(2), Value: 2})
-	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(3), Value: 2})
+	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(2), Value: 2})
+	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(3), Value: 2})
 
 	balances, err := w.GetBalances()
 	require.NoError(t, err)
@@ -323,6 +324,17 @@ func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 
 	// verify database is not created
 	require.False(t, util.FileExists(path.Join(os.TempDir(), walletFileName)))
+}
+
+func TestWalletGetBills_Ok(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	addBill(t, w, 100)
+	addBill(t, w, 200)
+	bills, err := w.GetBills(0)
+	require.NoError(t, err)
+	require.Len(t, bills, 2)
+	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000064", fmt.Sprintf("%X", bills[0].GetId()))
+	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetId()))
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {

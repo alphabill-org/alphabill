@@ -29,7 +29,7 @@ func TestWalletSendFunction(t *testing.T) {
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 
 	// test abclient returns error
-	b := bill{
+	b := Bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
@@ -54,7 +54,7 @@ func TestWalletSendFunction(t *testing.T) {
 
 	// test another account
 	_, _, _ = w.AddAccount()
-	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(55555), Value: 50})
+	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(55555), Value: 50})
 	err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount, AccountIndex: 1})
 	require.NoError(t, err)
 }
@@ -62,7 +62,7 @@ func TestWalletSendFunction(t *testing.T) {
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
-	b := &bill{
+	b := &Bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
@@ -90,12 +90,12 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
-	b1 := &bill{
+	b1 := &Bill{
 		Id:     uint256.NewInt(1),
 		Value:  1,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	b2 := &bill{
+	b2 := &Bill{
 		Id:     uint256.NewInt(2),
 		Value:  2,
 		TxHash: hash.Sum256([]byte{0x02}),
@@ -127,12 +127,12 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
-	b1 := &bill{
+	b1 := &Bill{
 		Id:     uint256.NewInt(1),
 		Value:  1,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	b2 := &bill{
+	b2 := &Bill{
 		Id:     uint256.NewInt(2),
 		Value:  2,
 		TxHash: hash.Sum256([]byte{0x02}),
@@ -168,7 +168,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
-	b := &bill{
+	b := &Bill{
 		Id:     uint256.NewInt(1),
 		Value:  1,
 		TxHash: hash.Sum256([]byte{0x01}),
@@ -202,7 +202,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	// setup wallet
 	w, mockClient := CreateTestWallet(t)
-	b := bill{
+	b := Bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
@@ -236,7 +236,7 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 	// setup wallet
 	w, mockClient := CreateTestWallet(t)
-	b := bill{
+	b := Bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),

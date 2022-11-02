@@ -217,14 +217,14 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 }
 
 func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
-	bills := []*bill{
+	bills := []*Bill{
 		{Id: uint256.NewInt(2)},
 		{Id: uint256.NewInt(1)},
 		{Id: uint256.NewInt(0)},
 	}
 	hasher := crypto.SHA256.New()
 	for i := len(bills) - 1; i >= 0; i-- {
-		hasher.Write(bills[i].getId())
+		hasher.Write(bills[i].GetId())
 	}
 	expectedNonce := hasher.Sum(nil)
 
@@ -236,7 +236,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 	k, _ := w.db.Do().GetAccountKey(0)
 
-	dcBills := []*bill{
+	dcBills := []*Bill{
 		{Id: uint256.NewInt(2), Tx: testtransaction.CreateRandomDcTx()},
 		{Id: uint256.NewInt(1), Tx: testtransaction.CreateRandomDcTx()},
 		{Id: uint256.NewInt(0), Tx: testtransaction.CreateRandomDcTx()},
@@ -244,7 +244,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
 	for _, dcBill := range dcBills {
-		dcBillIds = append(dcBillIds, dcBill.getId())
+		dcBillIds = append(dcBillIds, dcBill.GetId())
 	}
 
 	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
@@ -262,9 +262,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 
 func TestExpiredDcBillsGetDeleted(t *testing.T) {
 	w, _ := CreateTestWallet(t)
-	b1 := &bill{Id: uint256.NewInt(0), IsDcBill: false}
-	b2 := &bill{Id: uint256.NewInt(1), IsDcBill: true, DcExpirationTimeout: 10}
-	b3 := &bill{Id: uint256.NewInt(2), IsDcBill: true, DcExpirationTimeout: 20}
+	b1 := &Bill{Id: uint256.NewInt(0), IsDcBill: false}
+	b2 := &Bill{Id: uint256.NewInt(1), IsDcBill: true, DcExpirationTimeout: 10}
+	b3 := &Bill{Id: uint256.NewInt(2), IsDcBill: true, DcExpirationTimeout: 20}
 	_ = w.db.Do().SetBill(0, b1)
 	_ = w.db.Do().SetBill(0, b2)
 	_ = w.db.Do().SetBill(0, b3)
@@ -373,8 +373,8 @@ func addBills(t *testing.T, w *Wallet) {
 	addBill(t, w, 2)
 }
 
-func addBill(t *testing.T, w *Wallet, value uint64) *bill {
-	b1 := bill{
+func addBill(t *testing.T, w *Wallet, value uint64) *Bill {
+	b1 := Bill{
 		Id:     uint256.NewInt(value),
 		Value:  value,
 		TxHash: hash.Sum256([]byte{byte(value)}),
@@ -389,9 +389,9 @@ func addDcBills(t *testing.T, w *Wallet, nonce *uint256.Int, timeout uint64) {
 	addDcBill(t, w, nonce, 2, timeout)
 }
 
-func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeout uint64) *bill {
+func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeout uint64) *Bill {
 	nonceB32 := nonce.Bytes32()
-	b := bill{
+	b := Bill{
 		Id:     uint256.NewInt(value),
 		Value:  value,
 		TxHash: hash.Sum256([]byte{byte(value)}),

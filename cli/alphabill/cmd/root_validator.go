@@ -3,9 +3,14 @@ package cmd
 import (
 	"bytes"
 	"context"
+	gocrypto "crypto"
 	"path"
 	"sort"
 	"time"
+
+	"github.com/alphabill-org/alphabill/internal/rootchain"
+
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
@@ -41,14 +46,21 @@ type validatorConfig struct {
 	// root validator addresses
 	Validators map[string]string
 
+	// path to Bolt storage file
+	DbFile string
+
 	// validator partition certification request channel capacity
 	MaxRequests uint
+
+	// persistent storage
+	StateStore rootchain.StateStore
 }
 
 // newRootValidatorCmd creates a new cobra command for root validator chain
 func newRootValidatorCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	config := &validatorConfig{
-		Base: baseConfig,
+		Base:       baseConfig,
+		StateStore: store.NewInMemStateStore(gocrypto.SHA256),
 	}
 	var cmd = &cobra.Command{
 		Use:   "root-validator",
@@ -59,6 +71,7 @@ func newRootValidatorCmd(ctx context.Context, baseConfig *baseConfiguration) *co
 	}
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root validator validator key file")
 	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain)")
+	cmd.Flags().StringVarP(&config.DbFile, "db", "f", "", "path to the database file (default: $AB_HOME/rootchain/"+store.BoltRootChainStoreFileName+")")
 	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/25666", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringVar(&config.RootListener, "root-listener", "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root validator identifiers and addresses. must contain all genesis validator addresses")
@@ -106,6 +119,16 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	if err != nil {
 		return errors.Wrap(err, "Failed to initiate partition network")
 	}
+	if config.DbFile != "" {
+		storage, err := store.NewBoltStore(config.DbFile)
+		if err != nil {
+			return err
+		}
+		config.StateStore, err = store.NewPersistentStateStore(storage)
+		if err != nil {
+			return err
+		}
+	}
 	validator, err := rootvalidator.NewRootValidatorNode(
 		prtHost,
 		rootHost,
@@ -113,6 +136,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		keys.SigningPrivateKey,
 		partitionNet,
 		rootNet,
+		rootvalidator.WithStateStore(config.StateStore),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)

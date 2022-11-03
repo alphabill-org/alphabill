@@ -4,7 +4,6 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
-	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -38,7 +37,7 @@ type (
 		store            StateStore
 		net              PartitionNet
 		timers           *timer.Timers
-		partitionStore   rootchain.PartitionStore
+		partitionStore   *rootchain.PartitionStore
 		incomingRequests rootchain.CertificationRequestStore
 		hashAlgorithm    gocrypto.Hash // hash algorithm
 		signer           crypto.Signer // private key of the root validator
@@ -50,7 +49,7 @@ func (p *PartitionManager) Timers() *timer.Timers {
 	return p.timers
 }
 
-func NewPartitionManager(signer crypto.Signer, n PartitionNet, stateStore StateStore, pStore rootchain.PartitionStore) (*PartitionManager, error) {
+func NewPartitionManager(signer crypto.Signer, n PartitionNet, stateStore StateStore, pStore *rootchain.PartitionStore) (*PartitionManager, error) {
 	_, v, err := rootchain.GetPublicKeyAndVerifier(signer)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid rootvalidator private key")
@@ -68,12 +67,6 @@ func NewPartitionManager(signer crypto.Signer, n PartitionNet, stateStore StateS
 	}
 
 	timers := timer.NewTimers()
-	// Start a t2 timer per partition
-	for _, p := range pStore {
-		duration := time.Duration(p.SystemDescriptionRecord.T2Timeout) * time.Millisecond
-		timers.Start(string(p.SystemDescriptionRecord.SystemIdentifier), duration)
-		break
-	}
 
 	return &PartitionManager{
 		store:            stateStore,
@@ -188,17 +181,15 @@ func (p *PartitionManager) onBlockCertificationRequest(req *certification.BlockC
 }
 
 func (p *PartitionManager) getPartitionVerifier(systemId []byte, nodeId string) (crypto.Verifier, error) {
-	pRecord := p.partitionStore.Get(proto.SystemIdentifier(systemId))
-	if pRecord == nil {
-		return nil, errors.Errorf("unknown SystemIdentifier %X", systemId)
+	tb, err := p.partitionStore.GetTrustBase(proto.SystemIdentifier(systemId))
+	if err != nil {
+		return nil, err
 	}
-	node := pRecord.GetPartitionNode(nodeId)
-	if node == nil {
+	ver, f := tb[nodeId]
+	if !f {
 		return nil, errors.Errorf("unknown node identifier %v", nodeId)
 	}
-	verifier, err := crypto.NewVerifierSecp256k1(node.SigningPublicKey)
-
-	return verifier, err
+	return ver, nil
 }
 
 func (p *PartitionManager) sendResponse(nodeId string, uc *certificates.UnicityCertificate) {

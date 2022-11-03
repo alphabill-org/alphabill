@@ -46,7 +46,7 @@ type (
 )
 
 func NewAtomicBroadcastManager(host *network.Peer, conf *RootNodeConf, stateStore StateStore,
-	partitionStore rootchain.PartitionStore, safetyModule *SafetyModule, net RootNet) (*AtomicBroadcastManager, error) {
+	partitionStore *rootchain.PartitionStore, safetyModule *SafetyModule, net RootNet) (*AtomicBroadcastManager, error) {
 	// Sanity checks
 	if conf == nil {
 		return nil, errors.New("cannot start atomic broadcast handler, conf is nil")
@@ -125,10 +125,11 @@ func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedM
 			logger.Warning("Type %T not supported", msg.Message)
 		}
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling IR Change Request from root validator node"), req)
-		logger.Debug("IR change request received")
+		logger.Debug("IR change request from %v", msg.From)
 		// Am I the next leader or current leader and have not yet proposed? If not, ignore.
 		// Buffer and wait for opportunity to make the next proposal
 		// Todo: Add handling
+
 		break
 	case network.ProtocolRootProposal:
 		req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
@@ -136,7 +137,7 @@ func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedM
 			logger.Warning("Type %T not supported", msg.Message)
 		}
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Proposal from %s", req.Block.Author), req)
-		logger.Debug("Atomic broadcast Proposal received")
+		logger.Debug("Proposal received from %v", msg.From)
 		a.onProposalMsg(req)
 		break
 	case network.ProtocolRootVote:
@@ -144,7 +145,7 @@ func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedM
 		if !correctType {
 			logger.Warning("Type %T not supported", msg.Message)
 		}
-		logger.Debug("Atomic broadcast Vote received")
+		logger.Debug("Vote received from %v", msg.From)
 		a.onVoteMsg(req)
 		break
 	case network.ProtocolRootStateReq:
@@ -153,7 +154,7 @@ func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedM
 			logger.Warning("Type %T not supported", msg.Message)
 		}
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block request"), req)
-		logger.Debug("Block/state Request")
+		logger.Debug("State request from", msg.From)
 		// Send state, with proof (signed by other validators)
 		// Todo: add handling
 		break
@@ -163,12 +164,12 @@ func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedM
 			logger.Warning("Type %T not supported", msg.Message)
 		}
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block"), req)
-		logger.Debug("Block/state reply")
+		logger.Debug("State reply from %v", msg.From)
 		// Verify and store
 		// Todo: Add handling
 		break
 	default:
-		logger.Warning("Protocol %s not supported.", msg.Protocol)
+		logger.Warning("Unknown protocol req %s from %v", msg.Protocol, msg.From)
 		break
 	}
 }
@@ -217,6 +218,19 @@ func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
 	}
 }
 
+// OnIRChange handle timeouts
+func (a *AtomicBroadcastManager) OnIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
+	// Am I the next leader
+	// todo: I am leader now, but have not yet proposed, should still accept requests - throttling
+	if a.proposer.IsValidLeader(a.peer.ID(), a.roundState.GetCurrentRound()+1) == false {
+		logger.Warning("Validator is not leader in next round %v, IR change req ignored",
+			a.roundState.GetCurrentRound()+1)
+		return
+	}
+	// Store
+
+}
+
 // onVoteMsg handle votes and timeout votes
 func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Vote from %s", vote.Author), vote)
@@ -250,9 +264,8 @@ func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		logger.Warning("Round %v timeout quorum achieved", vote.VoteInfo.RootRound)
 		a.roundState.AdvanceRoundTC(tc)
 	}
-	// If QC or TC: Store and create proposal if timing is correct
-	// Todo: Add handling for proposal
-
+	// This node is the new leader in this round/view, generate proposal
+	a.processNewRoundEvent()
 }
 
 func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
@@ -268,7 +281,6 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 	a.processCertificateQC(proposal.Block.Qc)
 	a.processCertificateQC(proposal.HighCommitQc)
 	a.roundState.AdvanceRoundTC(proposal.LastRoundTc)
-	//	a.roundState.ProcessTimeoutCertificate(proposal.LastRoundTc)
 	// Is from valid proposer
 	if a.proposer.IsValidLeader(peer.ID(proposal.Block.Author), proposal.Block.Round) == false {
 		logger.Warning("Proposal author %V is not a valid proposer for round %v, ignoring proposal",
@@ -326,4 +338,8 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 func (a *AtomicBroadcastManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
 	a.stateLedger.ProcessQc(qc)
 	a.roundState.AdvanceRoundQC(qc)
+}
+
+func (a *AtomicBroadcastManager) processNewRoundEvent() {
+
 }

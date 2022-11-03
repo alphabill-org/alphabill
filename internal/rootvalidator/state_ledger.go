@@ -25,7 +25,7 @@ type StateLedger struct {
 	HighQC               *atomic_broadcast.QuorumCert // highest QC seen
 	HighCommitQC         *atomic_broadcast.QuorumCert // highest QC serving as commit certificate
 	stateStore           StateStore                   // certified and committed states
-	partitionStore       rootchain.PartitionStore     // partition store
+	partitionStore       *rootchain.PartitionStore    // partition store
 	hashAlgorithm        gocrypto.Hash                // hash algorithm
 }
 
@@ -33,7 +33,7 @@ func (p *StateLedger) ProposedState() *store.RootState {
 	return p.proposedState
 }
 
-func NewStateLedger(stateStore StateStore, partStore rootchain.PartitionStore, hash gocrypto.Hash) (*StateLedger, error) {
+func NewStateLedger(stateStore StateStore, partStore *rootchain.PartitionStore, hash gocrypto.Hash) (*StateLedger, error) {
 	if stateStore == nil {
 		return nil, errors.New(ErrStr)
 	}
@@ -95,13 +95,13 @@ func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 		// todo: verify that it extends from previous certified state and there is no intermediate change in process
 		systemId := protocol.SystemIdentifier(certReqs.SystemIdentifier)
 		// Find if the id is known
-		partRec := p.partitionStore.Get(systemId)
-		if partRec == nil {
+		sysDesc, err := p.partitionStore.GetSystemDescription(systemId)
+		if err != nil {
 			logger.Warning("Payload contains unknown partition %X, ignoring", systemId)
 			// Still process the rest and vote, it is better to vote differently than send nothing
 			continue
 		}
-		sdrh := partRec.SystemDescriptionRecord.Hash(p.hashAlgorithm)
+		sdrh := sysDesc.Hash(p.hashAlgorithm)
 		for _, req := range certReqs.Requests {
 			if systemId != protocol.SystemIdentifier(req.SystemIdentifier) {
 				return errors.New("invalid payload")
@@ -128,22 +128,15 @@ func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 		case atomic_broadcast.CertificationReqWithProof_T2_TIMEOUT:
 			// timout does not carry proof in form of certification requests
 			// validate timeout against round number (or timestamp in unicity seal)
-			timeoutId := protocol.SystemIdentifier(certReqs.SystemIdentifier)
-			cert, found := lastState.Certificates[timeoutId]
+			cert, found := lastState.Certificates[systemId]
 			if !found {
-				return errors.Errorf("missing state for partition id: %X", timeoutId)
-			}
-			partRec := p.partitionStore.Get(timeoutId)
-			if partRec == nil {
-				logger.Warning("Payload contains unknown partition %X, ignoring", timeoutId)
-				// Still process the rest and vote, it is better to vote differently than send nothing
-				continue
+				return errors.Errorf("missing state for partition id: %X", systemId)
 			}
 			// verify timeout ok
 			lucAgeInRounds := round - cert.UnicitySeal.RootChainRoundNumber
-			if lucAgeInRounds*500 < uint64(partRec.SystemDescriptionRecord.T2Timeout) {
+			if lucAgeInRounds*500 < uint64(sysDesc.T2Timeout) {
 				logger.Warning("Payload invalid timeout id %X, time from latest UC %v, timeout %v, ignoring",
-					timeoutId, lucAgeInRounds*500, partRec.SystemDescriptionRecord.T2Timeout)
+					systemId, lucAgeInRounds*500, sysDesc.T2Timeout)
 				continue
 			}
 			// copy last input record

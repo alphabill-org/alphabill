@@ -62,14 +62,10 @@ func NewState(g *genesis.RootGenesis, self string, signer crypto.Signer, stateSt
 	}
 	storeInitiated := state.LatestRound > 0
 	// load/store unicity certificates and register partitions from root genesis file
-	partitionStore := PartitionStore{}
+	partitionStore, err := NewPartitionStoreFromGenesis(g.Partitions)
 	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
 	for _, partition := range g.Partitions {
 		identifier := partition.GetSystemIdentifierString()
-		partitionStore[identifier] = &genesis.PartitionRecord{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Validators:              partition.Nodes,
-		}
 		certs[identifier] = partition.Certificate
 		// In case the store is already initiated, check if partition identifier is known
 		if storeInitiated {
@@ -86,7 +82,7 @@ func NewState(g *genesis.RootGenesis, self string, signer crypto.Signer, stateSt
 	}
 
 	return &State{
-		partitionStore:   &partitionStore,
+		partitionStore:   partitionStore,
 		store:            stateStore,
 		inputRecords:     make(map[p.SystemIdentifier]*certificates.InputRecord),
 		incomingRequests: NewCertificationRequestStore(),
@@ -118,7 +114,7 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, nodeId 
 
 	// Create a temporary state store for genesis generation
 	stateStore := store.NewInMemStateStore(hashAlgorithm)
-	partitionStore := PartitionStore{}
+	partitionStore := NewEmptyPartitionStore()
 
 	for _, partition := range partitions {
 		util.WriteDebugJsonLog(logger, "RootChain genesis is", partition)
@@ -134,12 +130,15 @@ func NewStateFromPartitionRecords(partitions []*genesis.PartitionRecord, nodeId 
 			}
 			logger.Debug("Node %v added to the partition %X.", v.NodeIdentifier, identifier)
 		}
-		partitionStore[identifier] = partition
+		err := partitionStore.AddPartition(partition)
+		if err != nil {
+			return nil, errors.Wrap(err, "add partition failed")
+		}
 		logger.Debug("Partition %X initialized.", identifier)
 	}
 
 	return &State{
-		partitionStore:   &partitionStore,
+		partitionStore:   partitionStore,
 		store:            stateStore,
 		inputRecords:     make(map[p.SystemIdentifier]*certificates.InputRecord),
 		incomingRequests: requestStore,
@@ -230,7 +229,12 @@ func (s *State) CreateUnicityCertificates() (*store.RootState, error) {
 			panic(err)
 		}
 		identifier := p.SystemIdentifier(d.SystemIdentifier)
-		sdrHash := s.partitionStore.Get(identifier).SystemDescriptionRecord.Hash(s.hashAlgorithm)
+		sysDes, err := s.partitionStore.GetSystemDescription(identifier)
+		if err != nil {
+			// impossible
+			return nil, err
+		}
+		sdrHash := sysDes.Hash(s.hashAlgorithm)
 
 		certificate := &certificates.UnicityCertificate{
 			InputRecord: d.InputRecord,
@@ -289,7 +293,11 @@ func (s *State) toUnicityTreeData(records map[p.SystemIdentifier]*certificates.I
 	data := make([]*unicitytree.Data, len(records))
 	i := 0
 	for key, r := range records {
-		systemDescriptionRecord := s.partitionStore.Get(key).SystemDescriptionRecord
+		systemDescriptionRecord, err := s.partitionStore.GetSystemDescription(key)
+		if err != nil {
+			// impossible, refactor needed
+			continue
+		}
 		data[i] = &unicitytree.Data{
 			SystemIdentifier:            systemDescriptionRecord.SystemIdentifier,
 			InputRecord:                 r,
@@ -313,18 +321,14 @@ func (s *State) isInputRecordValid(req *certification.BlockCertificationRequest)
 	if req == nil {
 		return errors.New("input record is nil")
 	}
-	partition := s.partitionStore.Get(p.SystemIdentifier(req.SystemIdentifier))
-	if partition == nil {
+	tb, err := s.partitionStore.GetTrustBase(p.SystemIdentifier(req.SystemIdentifier))
+	if err != nil {
 		return errors.Errorf("unknown SystemIdentifier %X", req.SystemIdentifier)
 	}
 	nodeIdentifier := req.NodeIdentifier
-	node := partition.GetPartitionNode(nodeIdentifier)
-	if node == nil {
+	verifier, f := tb[nodeIdentifier]
+	if !f {
 		return errors.Errorf("unknown node identifier %v", nodeIdentifier)
-	}
-	verifier, err := crypto.NewVerifierSecp256k1(node.SigningPublicKey)
-	if err != nil {
-		return errors.Wrapf(err, "node %v has invalid signing public key %X", nodeIdentifier, node.SigningPublicKey)
 	}
 	if err := req.IsValid(verifier); err != nil {
 		return errors.Wrapf(err, "invalid InputRequest request")

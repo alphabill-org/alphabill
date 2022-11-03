@@ -228,23 +228,23 @@ func (rc *RootChain) sendUC(certs map[p.SystemIdentifier]*certificates.UnicityCe
 			continue
 		}
 
-		partition := rc.state.partitionStore.Get(id)
-		if partition == nil {
+		nodes, err := rc.state.partitionStore.GetNodes(id)
+		if err != nil {
 			// we don't have the partition information; continue with the next identifier
-			logger.Warning("Partition information does not exist for partition: %v", id)
+			logger.Warning("Partition information does not exist for partition: %v", err)
 			continue
 		}
 		var ids []peer.ID
-		for _, v := range partition.Validators {
-			nodeID, err := peer.Decode(v.NodeIdentifier)
+		for _, v := range nodes {
+			nodeID, err := peer.Decode(v)
 			if err != nil {
-				logger.Warning("Invalid validator ID %v: %v", v.NodeIdentifier, err)
+				logger.Warning("Invalid validator ID %v: %v", v, err)
 				continue
 			}
 			ids = append(ids, nodeID)
 		}
 
-		err := rc.net.Send(
+		err = rc.net.Send(
 			network.OutputMessage{
 				Protocol: network.ProtocolUnicityCertificates,
 				Message:  uc,

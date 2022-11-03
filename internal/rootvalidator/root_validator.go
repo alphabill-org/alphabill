@@ -43,7 +43,7 @@ type (
 		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
 		rootHost         *network.Peer // p2p network host for root validators
-		partitionStore   rootchain.PartitionStore
+		partitionStore   *rootchain.PartitionStore
 		partitionManager *PartitionManager
 		consensusManager *AtomicBroadcastManager // Handles root validator communication and consensus.
 	}
@@ -93,14 +93,13 @@ func NewRootValidatorNode(
 	// Init from genesis file is done only once
 	storeInitiated := state.LatestRound > 0
 	// load/store unicity certificates and register partitions from root genesis file
-	partitionStore := rootchain.PartitionStore{}
+	partitionStore, err := rootchain.NewPartitionStoreFromGenesis(g.Partitions)
+	if err != nil {
+		return nil, err
+	}
 	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
 	for _, partition := range g.Partitions {
 		identifier := partition.GetSystemIdentifierString()
-		partitionStore[identifier] = &genesis.PartitionRecord{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Validators:              partition.Nodes,
-		}
 		certs[identifier] = partition.Certificate
 		// In case the store is already initiated, check if partition identifier is known
 		if storeInitiated {

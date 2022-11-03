@@ -33,13 +33,11 @@ echo "mainKey2=$mainKey2"
 
 echo "Create new fungible token type"
 typeId1=1000000000000000000000000000000000000000000000000000000000000000
-#1111111111111111111111111111111111111111111111111111111111111110
 
 build/alphabill wallet token new-type fungible --symbol AB --type $typeId1 -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
 
 echo "Create new NFT type"
 typeId2=2000000000000000000000000000000000000000000000000000000000000000
-#2222222222222222222222222222222222222222222222222222222222222220
 build/alphabill wallet token new-type non-fungible --symbol ABNFT --type $typeId2 -u localhost:27766 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/
 
 

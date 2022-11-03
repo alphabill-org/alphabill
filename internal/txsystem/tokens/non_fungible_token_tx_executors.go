@@ -140,14 +140,16 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if unitID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
-	uri := tx.attributes.Uri
-	if len(uri) > uriMaxSize {
-		return errors.Errorf("URI exceeds the maximum allowed size of %v KB", uriMaxSize)
+	uri := tx.URI()
+	if uri != "" {
+		if len(uri) > uriMaxSize {
+			return errors.Errorf("URI exceeds the maximum allowed size of %v KB", uriMaxSize)
+		}
+		if !util.IsValidURI(uri) {
+			return errors.Errorf("URI %s is invalid", uri)
+		}
 	}
-	if !util.IsValidURI(uri) {
-		return errors.Errorf("URI %s is invalid", uri)
-	}
-	if len(tx.attributes.Data) > dataMaxSize {
+	if len(tx.Data()) > dataMaxSize {
 		return errors.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
 	u, err := m.state.GetUnit(unitID)

@@ -246,7 +246,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.MarkFlagRequired(cmdFlagType)
-	cmd.Flags().String(cmdFlagTokenURI, "https://alphabill.org/nft", "URI to associated resource, ie. jpg file on IPFS") // TODO
+	cmd.Flags().String(cmdFlagTokenURI, "", "URI to associated resource, ie. jpg file on IPFS")
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().BytesHex(cmdFlagTokenDataUpdate, nil, "data update predicate (hex)")
 	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")

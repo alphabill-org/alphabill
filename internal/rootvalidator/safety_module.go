@@ -11,7 +11,7 @@ import (
 type SafetyModule struct {
 	highestVotedRound uint64
 	highestQcRound    uint64
-	privateKey        crypto.Signer
+	signer            crypto.Signer
 }
 
 func max(a, b uint64) uint64 {
@@ -26,11 +26,18 @@ func IsConsecutive(blockRound, round uint64) bool {
 }
 
 func isSaveToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
-	return IsConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound //  GetQcRound()
+	if !IsConsecutive(blockRound, tc.Timeout.Round) {
+		return false
+	}
+	if qcRound < tc.Timeout.Hqc.VoteInfo.RootRound {
+		return false
+	}
+	//return IsConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound //  GetQcRound()
+	return true
 }
 
 func NewSafetyModule(signer crypto.Signer) *SafetyModule {
-	return &SafetyModule{highestVotedRound: 0, highestQcRound: 0, privateKey: signer}
+	return &SafetyModule{highestVotedRound: 0, highestQcRound: 0, signer: signer}
 }
 
 func (s *SafetyModule) IsSafeToVote(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
@@ -57,7 +64,7 @@ func (s SafetyModule) SignVote(msg *atomic_broadcast.VoteMsg, lastRoundTC *atomi
 	// Attach commit info and vote
 	msg.LedgerCommitInfo = atomic_broadcast.NewCommitInfo(s.isCommitCandidate(msg.VoteInfo), msg.VoteInfo, gocrypto.SHA256)
 	// signs commit info hash
-	if err := msg.AddSignature(s.privateKey); err != nil {
+	if err := msg.AddSignature(s.signer); err != nil {
 		return err
 	}
 	return nil
@@ -73,7 +80,7 @@ func (s SafetyModule) SignTimeout(timeout *atomic_broadcast.Timeout, lastRoundTC
 	s.increaseHigestVoteRound(round)
 	// Sign timeout
 	signTimeout := atomic_broadcast.NewTimeoutSign(round, timeout.GetEpoch(), qcRound)
-	signature, err := s.privateKey.SignHash(signTimeout.Hash(gocrypto.SHA256))
+	signature, err := s.signer.SignHash(signTimeout.Hash(gocrypto.SHA256))
 	if err != nil {
 		return nil, err
 	}

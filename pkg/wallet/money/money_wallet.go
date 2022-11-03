@@ -348,29 +348,36 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) error {
 	for _, tx := range txs {
 		failedTries := 0
 		for {
+			// node side error is incuded in both res.Message and err.Error()
+			// we prefer res.Message here
 			res, err := w.SendTransaction(tx)
+			if res == nil && err == nil {
+				return errors.New("send transaction returned nil response with nil error")
+			}
+			if res != nil {
+				if res.Ok {
+					break
+				}
+				if res.Message == txBufferFullErrMsg {
+					failedTries += 1
+					if failedTries >= maxTxFailedTries {
+						return ErrFailedToBroadcastTx
+					}
+					log.Info("tx buffer full, waiting 1s to retry...")
+					timer := time.NewTimer(time.Second)
+					select {
+					case <-timer.C:
+						continue
+					case <-ctx.Done():
+						timer.Stop()
+						return ErrTxRetryCanceled
+					}
+				}
+				return errors.New("payment returned error code: " + res.Message)
+			}
 			if err != nil {
 				return err
 			}
-			if res.Ok {
-				break
-			}
-			if res.Message == txBufferFullErrMsg {
-				failedTries += 1
-				if failedTries >= maxTxFailedTries {
-					return ErrFailedToBroadcastTx
-				}
-				log.Info("tx buffer full, waiting 1s to retry...")
-				timer := time.NewTimer(time.Second)
-				select {
-				case <-timer.C:
-					continue
-				case <-ctx.Done():
-					timer.Stop()
-					return ErrTxRetryCanceled
-				}
-			}
-			return errors.New("payment returned error code: " + res.Message)
 		}
 	}
 	if cmd.WaitForConfirmation {

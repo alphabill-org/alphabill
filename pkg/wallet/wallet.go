@@ -2,10 +2,10 @@ package wallet
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -17,27 +17,36 @@ const (
 	prefetchBlockCount          = 100
 	sleepTimeAtMaxBlockHeightMs = 500
 	blockDownloadMaxBatchSize   = 100
+	maxTxFailedTries            = 3
+	txBufferFullErrMsg          = "tx buffer is full"
 )
 
 var (
 	ErrWalletAlreadySynchronizing = errors.New("wallet is already synchronizing")
+	ErrFailedToBroadcastTx        = errors.New("failed to broadcast transaction")
+	ErrTxRetryCanceled            = errors.New("user canceled tx retry")
 )
 
-// Wallet To synchronize wallet with a node call Sync.
-// Shutdown needs to be called to release resources used by wallet.
-type Wallet struct {
-	blockProcessor  BlockProcessor
-	config          Config
-	AlphabillClient client.ABClient
-	syncFlag        *syncFlagWrapper
-}
-
-type Builder struct {
-	bp      BlockProcessor
-	abcConf client.AlphabillClientConfig
-	// overrides abcConf
-	abc client.ABClient
-}
+type (
+	// Wallet To synchronize wallet with a node call Sync.
+	// Shutdown needs to be called to release resources used by wallet.
+	Wallet struct {
+		blockProcessor  BlockProcessor
+		config          Config
+		AlphabillClient client.ABClient
+		syncFlag        *syncFlagWrapper
+	}
+	Builder struct {
+		bp      BlockProcessor
+		abcConf client.AlphabillClientConfig
+		// overrides abcConf
+		abc client.ABClient
+	}
+	SendOpts struct {
+		// RetryOnFullTxBuffer retries to send transaction when tx buffer is full
+		RetryOnFullTxBuffer bool
+	}
+)
 
 func New() *Builder {
 	return &Builder{}
@@ -89,8 +98,12 @@ func (w *Wallet) GetMaxBlockNumber() (uint64, error) {
 }
 
 // SendTransaction broadcasts transaction to configured node.
-func (w *Wallet) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
-	return w.AlphabillClient.SendTransaction(tx)
+// Returns nil if transaction was successfully accepted by node, otherwise returns error.
+func (w *Wallet) SendTransaction(ctx context.Context, tx *txsystem.Transaction, opts *SendOpts) error {
+	if opts == nil || !opts.RetryOnFullTxBuffer {
+		return w.sendTx(ctx, tx, 1)
+	}
+	return w.sendTx(ctx, tx, maxTxFailedTries)
 }
 
 // Shutdown terminates connection to alphabill node and cancels any background goroutines.
@@ -215,4 +228,41 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 		}
 	}
 	return nil
+}
+
+func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetries int) error {
+	failedTries := 0
+	for {
+		// node side error is incuded in both res.Message and err.Error(),
+		// we use res.Message here to check if tx passed
+		res, err := w.AlphabillClient.SendTransaction(tx)
+		if res == nil && err == nil {
+			return errors.New("send transaction returned nil response with nil error")
+		}
+		if res != nil {
+			if res.Ok {
+				log.Debug("successfully sent transaction")
+				return nil
+			}
+			if res.Message == txBufferFullErrMsg {
+				failedTries += 1
+				if failedTries >= maxRetries {
+					return ErrFailedToBroadcastTx
+				}
+				log.Debug("tx buffer full, waiting 1s to retry...")
+				timer := time.NewTimer(time.Second)
+				select {
+				case <-timer.C:
+					continue
+				case <-ctx.Done():
+					timer.Stop()
+					return ErrTxRetryCanceled
+				}
+			}
+			return errors.New("transaction returned error code: " + res.Message)
+		}
+		if err != nil {
+			return err
+		}
+	}
 }

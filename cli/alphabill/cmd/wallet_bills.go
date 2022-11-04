@@ -26,13 +26,27 @@ var (
 
 type (
 	BillProofDTO struct {
-		Tx    *txsystem.Transaction `json:"tx"`
-		Proof *block.BlockProof     `json:"proof"`
+		Id     []byte                `json:"id"`
+		Value  uint64                `json:"value"`
+		TxHash []byte                `json:"txHash"`
+		Tx     *txsystem.Transaction `json:"tx"`
+		Proof  *block.BlockProof     `json:"proof"`
 	}
 	BillProofsDTO struct {
 		Bills []*BillProofDTO `json:"bills"`
 	}
 )
+
+func newBillProofDTO(b *money.Bill) *BillProofDTO {
+	b32 := b.Id.Bytes32()
+	return &BillProofDTO{
+		Id:     b32[:],
+		Value:  b.Value,
+		TxHash: b.TxHash,
+		Tx:     b.Tx,
+		Proof:  b.BlockProof,
+	}
+}
 
 // newWalletBillsCmd creates a new cobra command for the wallet bills component.
 func newWalletBillsCmd(config *walletConfig) *cobra.Command {
@@ -95,7 +109,7 @@ func exportCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bill proofs to export")
-	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill-id in hex format (without 0x prefix)")
+	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
 	cmd.Flags().IntP(billOrderNumberCmdName, "n", 0, "bill order number (from list command output)")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "output directory for bills, directory is created if it does not exist (default: CWD)")
 	return cmd
@@ -168,8 +182,7 @@ func exportBill(b *money.Bill, outputPath string) error {
 	billId := b.Id.Bytes32()
 	filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
 	outputFile := path.Join(outputPath, filename)
-	proof := &BillProofDTO{Tx: b.Tx, Proof: b.BlockProof}
-	err := util.WriteJsonFile(outputFile, proof)
+	err := util.WriteJsonFile(outputFile, newBillProofDTO(b))
 	if err != nil {
 		return err
 	}
@@ -180,7 +193,7 @@ func exportBill(b *money.Bill, outputPath string) error {
 func exportBills(bills []*money.Bill, outputPath string) error {
 	var billsDTO []*BillProofDTO
 	for _, b := range bills {
-		billsDTO = append(billsDTO, &BillProofDTO{Tx: b.Tx, Proof: b.BlockProof})
+		billsDTO = append(billsDTO, newBillProofDTO(b))
 	}
 	outputFile := path.Join(outputPath, "bills.json")
 	err := util.WriteJsonFile(outputFile, &BillProofsDTO{Bills: billsDTO})

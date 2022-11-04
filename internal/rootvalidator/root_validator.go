@@ -56,8 +56,7 @@ type (
 	}
 
 	RootNodeConf struct {
-		stateStore       StateStoreRd
-		consensusManager ConsensusManager
+		stateStore StateStoreRd
 	}
 	Option func(c *RootNodeConf)
 
@@ -79,14 +78,9 @@ func WithStateStore(store StateStoreRd) Option {
 	}
 }
 
-func WithConsensusManager(consensus ConsensusManager) Option {
-	return func(c *RootNodeConf) {
-		c.consensusManager = consensus
-	}
-}
-
 // NewRootValidatorNode creates a new instance of the root validator node
 func NewRootValidatorNode(
+	consensus ConsensusManager,
 	partitionStore PartitionStoreRd,
 	prt *network.Peer,
 	pNet PartitionNet,
@@ -105,7 +99,7 @@ func NewRootValidatorNode(
 		conf:             configuration,
 		partitionHost:    prt,
 		partitionStore:   partitionStore,
-		consensusManager: configuration.consensusManager,
+		consensusManager: consensus,
 	}
 	node.ctx, node.ctxCancel = context.WithCancel(context.Background())
 	// Start consensus manager

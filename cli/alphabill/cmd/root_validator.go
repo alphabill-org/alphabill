@@ -145,17 +145,22 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		return errors.Wrapf(err, "failed initiate root validator validator network")
 	}
 	// Create distributed consensus manager
-	consensusMgr, err := consensus.NewDistributedAbConsensusManager(rootHost, rootGenesis.Root,
-		config.StateStore, partitionStore, keys.SigningPrivateKey, rootNet)
+	consensusMgr, err := consensus.NewDistributedAbConsensusManager(
+		rootHost,
+		rootGenesis.Root,
+		partitionStore,
+		keys.SigningPrivateKey,
+		rootNet,
+		consensus.WithStateStore(config.StateStore))
 	if err != nil {
 		return errors.Wrapf(err, "failed to init consensus manager")
 	}
 	validator, err := rootvalidator.NewRootValidatorNode(
+		consensusMgr,
 		partitionStore,
 		prtHost,
 		partitionNet,
 		rootvalidator.WithStateStore(config.StateStore),
-		rootvalidator.WithConsensusManager(consensusMgr),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "root validator failed to start: %v", err)

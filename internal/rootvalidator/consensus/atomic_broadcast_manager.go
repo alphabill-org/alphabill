@@ -63,6 +63,7 @@ type (
 		ConsensusThreshold uint32
 		RootTrustBase      map[string]crypto.Verifier
 		HashAlgorithm      gocrypto.Hash
+		stateStore         StateStore
 	}
 
 	Option func(c *AbConsensusConfig)
@@ -73,7 +74,6 @@ type (
 		certReqCh    chan IRChangeRequest
 		certResultCh chan certificates.UnicityCertificate
 		peer         *network.Peer
-		store        StateStore
 		timers       *timer.Timers
 		net          RootNet
 		roundState   *RoundState
@@ -83,6 +83,12 @@ type (
 		stateLedger  *StateLedger
 	}
 )
+
+func WithStateStore(store StateStore) Option {
+	return func(c *AbConsensusConfig) {
+		c.stateStore = store
+	}
+}
 
 func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensusConfig {
 	rootTrustBase, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
@@ -103,12 +109,14 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensu
 	if genesisRoot.Consensus.QuorumThreshold != nil {
 		quorumThreshold = *genesisRoot.Consensus.QuorumThreshold
 	}
+	hashAlgo := gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm)
 	conf := &AbConsensusConfig{
 		BlockRateMs:        time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
 		LocalTimeoutMs:     localTimeout,
 		ConsensusThreshold: quorumThreshold,
 		RootTrustBase:      rootTrustBase,
-		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
+		HashAlgorithm:      hashAlgo,
+		stateStore:         store.NewInMemStateStore(hashAlgo),
 	}
 	for _, opt := range opts {
 		if opt == nil {
@@ -119,7 +127,7 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensu
 	return conf
 }
 
-func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord, stateStore StateStore,
+func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord,
 	partitionStore PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*AtomicBroadcastManager, error) {
 	// Sanity checks
 	if genesisRoot == nil {
@@ -139,7 +147,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	for id := range conf.RootTrustBase {
 		rootNodeIds = append(rootNodeIds, peer.ID(id))
 	}
-	lastState, err := stateStore.Get()
+	lastState, err := conf.stateStore.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -155,11 +163,11 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	timers := timer.NewTimers()
 	timers.Start(localTimeoutId, roundState.GetRoundTimeout())
 	// read state
-	state, err := stateStore.Get()
+	state, err := conf.stateStore.Get()
 	if err != nil {
 		return nil, err
 	}
-	ledger, err := NewStateLedger(stateStore, partitionStore, conf.HashAlgorithm)
+	ledger, err := NewStateLedger(conf.stateStore, partitionStore, conf.HashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +180,6 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		certReqCh:    make(chan IRChangeRequest, 1),
 		certResultCh: make(chan certificates.UnicityCertificate, 1),
 		peer:         host,
-		store:        stateStore,
 		timers:       timers,
 		net:          net,
 		roundState:   roundState,

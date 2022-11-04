@@ -283,7 +283,7 @@ func (x *DistributedConsensusManager) loop() {
 			}
 		case req, ok := <-x.certReqCh:
 			if !ok {
-				logger.Warning("certification channel closed, exiting distributed consensus main loop %v", req)
+				logger.Warning("certification channel closed, exiting distributed consensus main loop %v")
 				return
 			}
 			logger.Debug("IR change request from partition")

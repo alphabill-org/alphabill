@@ -1,4 +1,4 @@
-package consensus
+package monolithic_consensus
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/timer"
@@ -27,7 +29,20 @@ const (
 )
 
 type (
-	monoConsensusConfig struct {
+	PartitionStore interface {
+		NodeCount(id p.SystemIdentifier) int
+		GetNodes(id p.SystemIdentifier) ([]string, error)
+		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
+		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
+		GetSystemDescriptions() []*genesis.SystemDescriptionRecord
+	}
+
+	StateStore interface {
+		Save(state store.RootState) error
+		Get() (store.RootState, error)
+	}
+
+	consensusConfig struct {
 		hashAlgo   gocrypto.Hash
 		t3Timeout  time.Duration
 		stateStore StateStore
@@ -36,10 +51,10 @@ type (
 	MonolithicConsensusManager struct {
 		ctx          context.Context
 		ctxCancel    context.CancelFunc
-		certReqCh    chan IRChangeRequest
+		certReqCh    chan consensus.IRChangeRequest
 		certResultCh chan certificates.UnicityCertificate
 		timers       *timer.Timers
-		conf         *monoConsensusConfig
+		conf         *consensusConfig
 		selfId       string // node identifier
 		partitions   PartitionStore
 		inputRecords map[p.SystemIdentifier]*certificates.InputRecord
@@ -47,30 +62,30 @@ type (
 		verifier     map[string]crypto.Verifier
 	}
 
-	MonoOption func(c *monoConsensusConfig)
+	Option func(c *consensusConfig)
 )
 
-func WithT3Timeout(timeout time.Duration) MonoOption {
-	return func(c *monoConsensusConfig) {
+func WithT3Timeout(timeout time.Duration) Option {
+	return func(c *consensusConfig) {
 		c.t3Timeout = timeout
 	}
 }
 
-func WithStateStorage(store StateStore) MonoOption {
-	return func(c *monoConsensusConfig) {
+func WithStateStorage(store StateStore) Option {
+	return func(c *consensusConfig) {
 		c.stateStore = store
 	}
 }
 
-func WithHashAlgo(algo gocrypto.Hash) MonoOption {
-	return func(c *monoConsensusConfig) {
+func WithHashAlgo(algo gocrypto.Hash) Option {
+	return func(c *consensusConfig) {
 		c.hashAlgo = algo
 	}
 }
 
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
 func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionStore,
-	signer crypto.Signer, opts ...MonoOption) (*MonolithicConsensusManager, error) {
+	signer crypto.Signer, opts ...Option) (*MonolithicConsensusManager, error) {
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
@@ -80,11 +95,11 @@ func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionS
 	if err != nil {
 		return nil, err
 	}
-	config := loadMonoConf(opts)
+	config := loadConf(opts)
 	timers := timer.NewTimers()
 
 	consensusManager := &MonolithicConsensusManager{
-		certReqCh:    make(chan IRChangeRequest, ChannelBuffer),
+		certReqCh:    make(chan consensus.IRChangeRequest, ChannelBuffer),
 		certResultCh: make(chan certificates.UnicityCertificate, ChannelBuffer),
 		timers:       timers,
 		conf:         config,
@@ -98,7 +113,7 @@ func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionS
 	return consensusManager, nil
 }
 
-func (x *MonolithicConsensusManager) RequestCertification() chan<- IRChangeRequest {
+func (x *MonolithicConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
 	return x.certReqCh
 }
 
@@ -130,7 +145,7 @@ func (x *MonolithicConsensusManager) loop() {
 			return
 		case req, ok := <-x.certReqCh:
 			if !ok {
-				logger.Warning("certification channel closed, exiting consensus main loop %v", req)
+				logger.Warning("certification channel closed, exiting consensus main loop")
 				return
 			}
 			logger.Debug("IR change request from partition")
@@ -266,8 +281,8 @@ func (x *MonolithicConsensusManager) createUnicitySeal(newRound uint64, newRootH
 	return u, u.Sign(x.selfId, x.signer)
 }
 
-func loadMonoConf(opts []MonoOption) *monoConsensusConfig {
-	conf := &monoConsensusConfig{
+func loadConf(opts []Option) *consensusConfig {
+	conf := &consensusConfig{
 		hashAlgo:   defaultHash,
 		t3Timeout:  defaultT3Timeout,
 		stateStore: store.NewInMemStateStore(gocrypto.SHA256),

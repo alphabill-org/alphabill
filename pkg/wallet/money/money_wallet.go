@@ -229,6 +229,12 @@ func (w *Wallet) GetBalances() ([]uint64, error) {
 	return w.db.Do().GetBalances()
 }
 
+// GetBill returns bill for the given bill id.
+// If bill does not exist returns error "bill does not exist".
+func (w *Wallet) GetBill(accountIndex uint64, billId []byte) (*Bill, error) {
+	return w.db.Do().GetBill(accountIndex, billId)
+}
+
 // GetBills returns all bills owned by the wallet for the given account.
 func (w *Wallet) GetBills(accountIndex uint64) ([]*Bill, error) {
 	return w.db.Do().GetBills(accountIndex)

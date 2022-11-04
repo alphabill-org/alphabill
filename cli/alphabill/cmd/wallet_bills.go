@@ -96,7 +96,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		return nil
 	}
 	for i, b := range bills {
-		consoleWriter.Println(fmt.Sprintf("#%d 0x%X", i+1, b.Id.Bytes32()))
+		consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", i+1, b.Id.Bytes32(), b.Value))
 	}
 	return nil
 }

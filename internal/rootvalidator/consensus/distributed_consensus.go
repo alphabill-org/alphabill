@@ -50,6 +50,7 @@ type (
 		GetNodes(id p.SystemIdentifier) ([]string, error)
 		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
 		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
+		GetSystemDescriptions() []*genesis.SystemDescriptionRecord
 	}
 
 	StateStore interface {

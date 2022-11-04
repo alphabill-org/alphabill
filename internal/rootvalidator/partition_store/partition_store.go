@@ -93,6 +93,18 @@ func (ps *PartitionStore) AddPartition(partition *genesis.PartitionRecord) error
 	return nil
 }
 
+func (ps *PartitionStore) GetSystemDescriptions() []*genesis.SystemDescriptionRecord {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	descriptions := make([]*genesis.SystemDescriptionRecord, len(ps.partitions))
+	i := 0
+	for _, info := range ps.partitions {
+		descriptions[i] = info.SystemDescription
+		i++
+	}
+	return descriptions
+}
+
 // Size returns the number of partition in the partition store.
 func (ps *PartitionStore) Size() int {
 	ps.mu.Lock()

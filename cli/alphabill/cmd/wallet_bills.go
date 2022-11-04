@@ -90,6 +90,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	bills = filterDcBills(bills)
 	if len(bills) == 0 {
 		consoleWriter.Println("Wallet is empty.")
 		return nil
@@ -163,6 +164,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
+		bills = filterDcBills(bills)
 		billIndex := billOrderNumber - 1
 		if billIndex >= len(bills) {
 			return errBillOrderNumberOutOfBounds
@@ -202,4 +204,14 @@ func exportBills(bills []*money.Bill, outputPath string) error {
 	}
 	consoleWriter.Println("Exported bills to: " + outputFile)
 	return nil
+}
+
+func filterDcBills(bills []*money.Bill) []*money.Bill {
+	var normalBills []*money.Bill
+	for _, b := range bills {
+		if !b.IsDcBill {
+			normalBills = append(normalBills, b)
+		}
+	}
+	return normalBills
 }

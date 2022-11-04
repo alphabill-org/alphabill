@@ -10,9 +10,29 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
+	"google.golang.org/protobuf/proto"
 )
 
-const protobufTypeUrlPrefix = "type.googleapis.com/rpc."
+const (
+	TypeTransferOrder   = "TransferOrder"
+	TypeTransferDCOrder = "TransferDCOrder"
+	TypeSplitOrder      = "SplitOrder"
+	TypeSwapOrder       = "SwapOrder"
+
+	protobufTypeUrlPrefix  = "type.googleapis.com/rpc."
+	typeURLTransferOrder   = protobufTypeUrlPrefix + TypeTransferOrder
+	typeURLTransferDCOrder = protobufTypeUrlPrefix + TypeTransferDCOrder
+	typeURLSplitOrder      = protobufTypeUrlPrefix + TypeSplitOrder
+	typeURLSwapOrder       = protobufTypeUrlPrefix + TypeSwapOrder
+)
+
+// TransactionTypes contains all transaction types supported by the money partition.
+var TransactionTypes = map[string]proto.Message{
+	TypeTransferOrder:   &TransferOrder{},
+	TypeTransferDCOrder: &TransferDCOrder{},
+	TypeSplitOrder:      &SplitOrder{},
+	TypeSwapOrder:       &SwapOrder{},
+}
 
 type (
 	wrapper struct {
@@ -51,7 +71,7 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 	}
 
 	switch tx.TransactionAttributes.TypeUrl {
-	case protobufTypeUrlPrefix + "TransferOrder":
+	case typeURLTransferOrder:
 		pb := &TransferOrder{}
 		// This is slow operation, involves reflection. Would be good to do this only once.
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
@@ -62,7 +82,7 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 			wrapper:  wrapper{transaction: tx},
 			transfer: pb,
 		}, nil
-	case protobufTypeUrlPrefix + "TransferDCOrder":
+	case typeURLTransferDCOrder:
 		pb := &TransferDCOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
@@ -72,7 +92,7 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 			wrapper:    wrapper{transaction: tx},
 			transferDC: pb,
 		}, nil
-	case protobufTypeUrlPrefix + "SplitOrder":
+	case typeURLSplitOrder:
 		pb := &SplitOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
@@ -82,7 +102,7 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 			wrapper:   wrapper{transaction: tx},
 			billSplit: pb,
 		}, nil
-	case protobufTypeUrlPrefix + "SwapOrder":
+	case typeURLSwapOrder:
 		pb := &SwapOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {

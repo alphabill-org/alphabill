@@ -39,12 +39,8 @@ func (c *createNonFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTrans
 		return err
 	}
 	h := tx.Hash(c.hashAlgorithm)
-	return c.state.AddItem(
-		tx.UnitID(),
-		script.PredicateAlwaysTrue(),
-		newNonFungibleTokenTypeData(tx),
-		h,
-	)
+	return c.state.AtomicUpdate(
+		rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(tx), h))
 }
 
 func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _ uint64) error {
@@ -56,12 +52,8 @@ func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction
 		return err
 	}
 	h := tx.Hash(m.hashAlgorithm)
-	return m.state.AddItem(
-		tx.UnitID(),
-		tx.attributes.Bearer,
-		newNonFungibleTokenData(tx, m.hashAlgorithm),
-		h,
-	)
+	return m.state.AtomicUpdate(
+		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newNonFungibleTokenData(tx, m.hashAlgorithm), h))
 }
 
 func (t *transferNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -73,18 +65,17 @@ func (t *transferNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransac
 		return err
 	}
 	h := tx.Hash(t.hashAlgorithm)
-	if err := t.state.SetOwner(tx.UnitID(), tx.attributes.NewBearer, h); err != nil {
-		return err
-	}
-	return t.state.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
-		d, ok := data.(*nonFungibleTokenData)
-		if !ok {
+	return t.state.AtomicUpdate(
+		rma.SetOwner(tx.UnitID(), tx.attributes.NewBearer, h),
+		rma.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
+			d, ok := data.(*nonFungibleTokenData)
+			if !ok {
+				return data
+			}
+			d.t = currentBlockNr
+			d.backlink = tx.Hash(t.hashAlgorithm)
 			return data
-		}
-		d.t = currentBlockNr
-		d.backlink = tx.Hash(t.hashAlgorithm)
-		return data
-	}, h)
+		}, h))
 }
 
 func (te *updateNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -96,16 +87,17 @@ func (te *updateNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransact
 		return err
 	}
 	h := tx.Hash(te.hashAlgorithm)
-	return te.state.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
-		d, ok := data.(*nonFungibleTokenData)
-		if !ok {
+	return te.state.AtomicUpdate(
+		rma.UpdateData(tx.UnitID(), func(data rma.UnitData) (newData rma.UnitData) {
+			d, ok := data.(*nonFungibleTokenData)
+			if !ok {
+				return data
+			}
+			d.data = tx.attributes.Data
+			d.t = currentBlockNr
+			d.backlink = tx.Hash(te.hashAlgorithm)
 			return data
-		}
-		d.data = tx.attributes.Data
-		d.t = currentBlockNr
-		d.backlink = tx.Hash(te.hashAlgorithm)
-		return data
-	}, h)
+		}, h))
 }
 
 func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTokenTypeWrapper) error {

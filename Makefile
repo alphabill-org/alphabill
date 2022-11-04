@@ -26,10 +26,10 @@ tools:
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
 
 .PHONY: \
-	all
-	clean
-	generate
-	tools
-	test
-	build
+	all \
+	clean \
+	generate \
+	tools \
+	test \
+	build \
 	gosec

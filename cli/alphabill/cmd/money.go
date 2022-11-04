@@ -17,8 +17,9 @@ import (
 type (
 	moneyNodeConfiguration struct {
 		baseNodeConfiguration
-		Node      *startNodeConfiguration
-		RPCServer *grpcServerConfiguration
+		Node       *startNodeConfiguration
+		RPCServer  *grpcServerConfiguration
+		RESTServer *restServerConfiguration
 	}
 
 	// moneyNodeRunnable is the function that is run after configuration is loaded.
@@ -35,8 +36,9 @@ func newMoneyNodeCmd(ctx context.Context, baseConfig *baseConfiguration, nodeRun
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:      &startNodeConfiguration{},
-		RPCServer: &grpcServerConfiguration{},
+		Node:       &startNodeConfiguration{},
+		RPCServer:  &grpcServerConfiguration{},
+		RESTServer: &restServerConfiguration{},
 	}
 	var nodeCmd = &cobra.Command{
 		Use:   "money",
@@ -58,6 +60,7 @@ func newMoneyNodeCmd(ctx context.Context, baseConfig *baseConfiguration, nodeRun
 	nodeCmd.Flags().StringVarP(&config.Node.Genesis, "genesis", "g", "", "path to the partition genesis file : $AB_HOME/money/partition-genesis.json)")
 
 	config.RPCServer.addConfigurationFlags(nodeCmd)
+	config.RESTServer.addConfigurationFlags(nodeCmd)
 	return nodeCmd
 }
 
@@ -90,5 +93,5 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to start money transaction system")
 	}
-	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer)
+	return defaultNodeRunFunc(ctx, "money node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer, money.TransactionTypes)
 }

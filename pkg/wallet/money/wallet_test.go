@@ -77,51 +77,6 @@ func TestWalletCanBeCreatedFromSeed(t *testing.T) {
 	verifyTestWallet(t, w)
 }
 
-func TestWalletSendFunction(t *testing.T) {
-	w, mockClient := CreateTestWallet(t)
-	invalidPubKey := make([]byte, 32)
-	validPubKey := make([]byte, 33)
-	amount := uint64(50)
-
-	// test ErrInvalidPubKey
-	err := w.Send(invalidPubKey, amount, 0)
-	require.ErrorIs(t, err, ErrInvalidPubKey)
-
-	// test ErrInsufficientBalance
-	err = w.Send(validPubKey, amount, 0)
-	require.ErrorIs(t, err, ErrInsufficientBalance)
-
-	// test abclient returns error
-	b := bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
-	}
-	err = w.db.Do().SetBill(0, &b)
-	require.NoError(t, err)
-	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: "some error"})
-	err = w.Send(validPubKey, amount, 0)
-	require.ErrorContains(t, err, "payment returned error code: some error")
-	mockClient.SetTxResponse(nil)
-
-	// test ErrSwapInProgress
-	nonce := calculateExpectedDcNonce(t, w)
-	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
-	err = w.Send(validPubKey, amount, 0)
-	require.ErrorIs(t, err, ErrSwapInProgress)
-	setDcMetadata(t, w, nonce, nil)
-
-	// test ok response
-	err = w.Send(validPubKey, amount, 0)
-	require.NoError(t, err)
-
-	// test another account
-	_, _, _ = w.AddAccount()
-	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(55555), Value: 50})
-	err = w.Send(validPubKey, amount, 1)
-	require.NoError(t, err)
-}
-
 func TestWallet_GetPublicKey(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
 	pubKey, err := w.GetPublicKey(0)
@@ -344,22 +299,6 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	for _, b := range bills {
 		require.NotNil(t, b.BlockProof)
 	}
-}
-
-func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
-	// create wallet with single bill
-	w, mockClient := CreateTestWallet(t)
-	addBill(t, w, 100)
-	receiverPubKey := make([]byte, 33)
-
-	// when whole balance is spent
-	err := w.Send(receiverPubKey, 100, 0)
-	require.NoError(t, err)
-
-	// then bill transfer order should be sent
-	require.Len(t, mockClient.GetRecordedTransactions(), 1)
-	btTx := parseBillTransferTx(t, mockClient.GetRecordedTransactions()[0])
-	require.EqualValues(t, 100, btTx.TargetValue)
 }
 
 func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {

@@ -13,8 +13,9 @@ import (
 type (
 	tokensConfiguration struct {
 		baseNodeConfiguration
-		Node      *startNodeConfiguration
-		RPCServer *grpcServerConfiguration
+		Node       *startNodeConfiguration
+		RPCServer  *grpcServerConfiguration
+		RESTServer *restServerConfiguration
 	}
 )
 
@@ -23,8 +24,9 @@ func newTokensNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
 		},
-		Node:      &startNodeConfiguration{},
-		RPCServer: &grpcServerConfiguration{},
+		Node:       &startNodeConfiguration{},
+		RPCServer:  &grpcServerConfiguration{},
+		RESTServer: &restServerConfiguration{},
 	}
 
 	var nodeCmd = &cobra.Command{
@@ -44,7 +46,7 @@ func newTokensNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra
 	nodeCmd.Flags().StringVarP(&config.Node.DbFile, "db", "f", "", "path to the database file (default: $AB_HOME/tokens/"+store.BoltBlockStoreFileName+")")
 
 	config.RPCServer.addConfigurationFlags(nodeCmd)
-
+	config.RESTServer.addConfigurationFlags(nodeCmd)
 	return nodeCmd
 }
 
@@ -66,5 +68,5 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return err
 	}
-	return defaultNodeRunFunc(ctx, "tokens node", txs, cfg.Node, cfg.RPCServer)
+	return defaultNodeRunFunc(ctx, "tokens node", txs, cfg.Node, cfg.RPCServer, cfg.RESTServer, tokens.TransactionTypes)
 }

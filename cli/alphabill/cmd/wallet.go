@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"syscall"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -34,6 +35,7 @@ const (
 	logLevelCmdName       = "log-level"
 	walletLocationCmdName = "wallet-location"
 	keyCmdName            = "key"
+	waitForConfCmdName    = "wait-for-confirmation"
 	totalCmdName          = "total"
 	quietCmdName          = "quiet"
 )
@@ -46,7 +48,7 @@ type walletConfig struct {
 }
 
 // newWalletCmd creates a new cobra command for the wallet component.
-func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	config := &walletConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "wallet",
@@ -71,7 +73,7 @@ func newWalletCmd(_ context.Context, baseConfig *baseConfiguration) *cobra.Comma
 	walletCmd.AddCommand(syncCmd(config))
 	walletCmd.AddCommand(getBalanceCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
-	walletCmd.AddCommand(sendCmd(config))
+	walletCmd.AddCommand(sendCmd(ctx, config))
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
@@ -159,24 +161,26 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func sendCmd(config *walletConfig) *cobra.Command {
+func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "send",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSendCmd(cmd, config)
+			return execSendCmd(ctx, cmd, config)
 		},
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
 	cmd.Flags().Uint64P(amountCmdName, "v", 0, "the amount to send to the receiver")
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
+	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
+	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
 	addPasswordFlags(cmd)
 	_ = cmd.MarkFlagRequired(addressCmdName)
 	_ = cmd.MarkFlagRequired(amountCmdName)
 	return cmd
 }
 
-func execSendCmd(cmd *cobra.Command, config *walletConfig) error {
+func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return err
@@ -202,11 +206,23 @@ func execSendCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	err = w.Send(pubKey, amount, accountNumber-1)
+	waitForConfStr, err := cmd.Flags().GetString(waitForConfCmdName)
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println("Successfully sent transaction(s)")
+	waitForConf, err := strconv.ParseBool(waitForConfStr)
+	if err != nil {
+		return err
+	}
+	err = w.Send(ctx, money.SendCmd{ReceiverPubKey: pubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
+	if err != nil {
+		return err
+	}
+	if waitForConf {
+		consoleWriter.Println("Successfully confirmed transaction(s)")
+	} else {
+		consoleWriter.Println("Successfully sent transaction(s)")
+	}
 	return nil
 }
 

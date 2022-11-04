@@ -45,7 +45,6 @@ func TestPersistentRootStore(t *testing.T) {
 	for _, tt := range tests {
 		t.Run("db|"+tt.desc, func(t *testing.T) {
 			testNew(t, tt.store)
-			testIR(t, tt.store)
 			testNextRound(t, tt.store)
 			testBadNextRound(t, tt.store)
 		})
@@ -60,23 +59,6 @@ func testNew(t *testing.T, rs *BoltStore) {
 	round, err := rs.ReadLatestRoundNumber()
 	require.NoError(t, err)
 	require.Equal(t, round, uint64(1))
-}
-
-func testIR(t *testing.T, rs *BoltStore) {
-	ir := &certificates.InputRecord{
-		Hash: []byte{1, 2, 3},
-	}
-	all, err := rs.GetAllIRs()
-	require.NoError(t, err)
-	require.Empty(t, all)
-
-	require.NoError(t, rs.AddIR(sysId, ir))
-	ir1, err := rs.GetIR(sysId)
-	require.NoError(t, err)
-	require.Equal(t, ir, ir1)
-	all, err = rs.GetAllIRs()
-	require.NoError(t, err)
-	require.Len(t, all, 1)
 }
 
 func testNextRound(t *testing.T, rs *BoltStore) {

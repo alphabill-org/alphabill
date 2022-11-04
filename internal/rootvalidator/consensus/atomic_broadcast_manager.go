@@ -83,7 +83,7 @@ type (
 	}
 )
 
-func loadConsensusConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensusConfig {
+func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensusConfig {
 	rootTrustBase, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
 	if err != nil {
 		return nil
@@ -125,7 +125,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
 	}
 	// load configuration
-	conf := loadConsensusConf(genesisRoot, opts)
+	conf := loadConf(genesisRoot, opts)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}

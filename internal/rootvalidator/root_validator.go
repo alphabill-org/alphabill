@@ -1,39 +1,49 @@
 package rootvalidator
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
-	"time"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
-	"github.com/libp2p/go-libp2p/core/peer"
-)
-
-const (
-	defaultRoundTimeout = 1000 * time.Millisecond
-	defaultLocalTimeout = 10000 * time.Millisecond
-	// local timeout
-	blockRateId    = "block-rate"
-	localTimeoutId = "local-timeout"
 )
 
 type (
+	CertificationRequest struct {
+		Requests []*certification.BlockCertificationRequest
+	}
+	ConsensusManager interface {
+		RequestCertification() chan<- CertificationRequest
+		CertificationResult() <-chan certificates.UnicityCertificate
+		Start()
+		Stop()
+	}
+
+	PartitionNet interface {
+		Send(msg network.OutputMessage, receivers []peer.ID) error
+		ReceivedChannel() <-chan network.ReceivedMessage
+	}
+
+	StateStoreRd interface {
+		Get() (store.RootState, error)
+	}
+
 	RootNodeConf struct {
-		BlockRateMs        time.Duration
-		LocalTimeoutMs     time.Duration
-		ConsensusThreshold uint32
-		RootTrustBase      map[string]crypto.Verifier
-		HashAlgorithm      gocrypto.Hash
-		stateStore         StateStore
+		stateStore       StateStoreRd
+		consensusManager ConsensusManager
 	}
 	Option func(c *RootNodeConf)
 
@@ -42,106 +52,57 @@ type (
 		ctxCancel        context.CancelFunc
 		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
-		rootHost         *network.Peer // p2p network host for root validators
 		partitionStore   *rootchain.PartitionStore
-		partitionManager *PartitionManager
-		consensusManager *AtomicBroadcastManager // Handles root validator communication and consensus.
+		incomingRequests rootchain.CertificationRequestStore
+		net              PartitionNet
+		consensusManager ConsensusManager
 	}
 )
 
-func WithStateStore(store StateStore) Option {
+func WithStateStore(store StateStoreRd) Option {
 	return func(c *RootNodeConf) {
 		c.stateStore = store
 	}
 }
 
+func WithConsensusManager(consensus ConsensusManager) Option {
+	return func(c *RootNodeConf) {
+		c.consensusManager = consensus
+	}
+}
+
 // NewRootValidatorNode creates a new instance of the root validator node
 func NewRootValidatorNode(
+	partitionStore *rootchain.PartitionStore,
 	prt *network.Peer,
-	rootHost *network.Peer,
-	g *genesis.RootGenesis,
-	signer crypto.Signer,
 	pNet PartitionNet,
-	rNet RootNet,
 	opts ...Option,
 ) (*Validator, error) {
 	if prt == nil {
 		return nil, errors.New("partition listener is nil")
 	}
-	if rootHost == nil {
-		return nil, errors.New("Root host is nil")
-	}
 	log.SetContext(log.KeyNodeID, prt.ID().String())
 	if pNet == nil {
 		return nil, errors.New("network is nil")
 	}
-	if rNet == nil {
-		return nil, errors.New("network is nil")
-	}
-	if g == nil {
-		return nil, errors.New("root chain genesis is nil")
-	}
-	err := g.Verify()
-	if err != nil {
-		return nil, errors.New("invalid root genesis file")
-	}
 	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", prt.ID(), prt.MultiAddresses())
-	configuration := loadConf(g.Root, opts)
-	// Load/initiate state store
-	stateStore := configuration.stateStore
-	state, err := stateStore.Get()
-	// Init from genesis file is done only once
-	storeInitiated := state.LatestRound > 0
-	// load/store unicity certificates and register partitions from root genesis file
-	partitionStore, err := rootchain.NewPartitionStoreFromGenesis(g.Partitions)
-	if err != nil {
-		return nil, err
-	}
-	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
-	for _, partition := range g.Partitions {
-		identifier := partition.GetSystemIdentifierString()
-		certs[identifier] = partition.Certificate
-		// In case the store is already initiated, check if partition identifier is known
-		if storeInitiated {
-			if _, f := state.Certificates[identifier]; !f {
-				return nil, errors.Errorf("invalid genesis, new partition %v detected", identifier)
-			}
-		}
-	}
-	// If not initiated, save genesis file to store
-	if !storeInitiated {
-		if err := stateStore.Save(store.RootState{LatestRound: g.GetRoundNumber(), Certificates: certs, LatestRootHash: g.GetRoundHash()}); err != nil {
-			return nil, err
-		}
-	}
-
-	safety := NewSafetyModule(signer)
-	// New partition manager, receives requests and responds
-	p, err := NewPartitionManager(signer, pNet, stateStore, partitionStore)
-	if err != nil {
-		return nil, err
-	}
-	// Create new root validator protocol handler
-	r, err := NewAtomicBroadcastManager(rootHost, configuration, stateStore, partitionStore, safety, rNet)
-	if err != nil {
-		return nil, err
-	}
-
+	configuration := loadConf(opts)
 	node := &Validator{
 		conf:             configuration,
 		partitionHost:    prt,
 		partitionStore:   partitionStore,
-		partitionManager: p,
-		consensusManager: r,
+		consensusManager: configuration.consensusManager,
 	}
 	node.ctx, node.ctxCancel = context.WithCancel(context.Background())
+	// Start consensus manager
+	node.consensusManager.Start()
+	// Start receiving messages from partition nodes
 	go node.loop()
 	return node, nil
 }
 
 func (v *Validator) Close() {
-	v.partitionManager.Timers().WaitClose()
-	v.consensusManager.Timers().WaitClose()
+	v.consensusManager.Stop()
 	v.ctxCancel()
 }
 
@@ -152,61 +113,51 @@ func (v *Validator) loop() {
 		case <-v.ctx.Done():
 			logger.Info("Exiting root validator main loop")
 			return
-		case m, ok := <-v.partitionManager.Receive():
+		case msg, ok := <-v.net.ReceivedChannel():
 			if !ok {
 				logger.Warning("Partition received channel closed, exiting root validator main loop")
 				return
 			}
-			v.partitionManager.OnPartitionMessage(&m)
-		case m, ok := <-v.consensusManager.Receive():
-			if !ok {
-				logger.Warning("Root network received channel closed, exiting root validator main loop")
+			if msg.Message == nil {
+				logger.Warning("Received partition message is nil")
 				return
 			}
-			v.consensusManager.OnAtomicBroadcastMessage(&m)
-		// handle timeouts
-		case nt := <-v.consensusManager.Timers().C:
-			if nt == nil {
-				continue
+			switch msg.Protocol {
+			case network.ProtocolBlockCertification:
+				req, correctType := msg.Message.(*certification.BlockCertificationRequest)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					return
+				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from prt-listener %s", req.NodeIdentifier), req)
+				logger.Debug("Handling Block Certification Request from prt-listener %s, IR hash %X, Block Hash %X", req.NodeIdentifier, req.InputRecord.Hash, req.InputRecord.BlockHash)
+				v.onBlockCertificationRequest(req)
+				break
+			case network.ProtocolHandshake:
+				req, correctType := msg.Message.(*handshake.Handshake)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					return
+				}
+				util.WriteDebugJsonLog(logger, "Received handshake", req)
+				break
+			default:
+				logger.Warning("Protocol %s not supported.", msg.Protocol)
+				break
 			}
-			timerName := nt.Name()
-			v.consensusManager.OnTimeout(timerName)
-		case nt := <-v.partitionManager.Timers().C:
-			if nt == nil {
-				continue
+		case uc, ok := <-v.consensusManager.CertificationResult():
+			if !ok {
+				logger.Warning("Consensus channel closed, exiting loop")
+				return
 			}
-			timerName := nt.Name()
-			v.partitionManager.OnTimeout(timerName)
+			v.onCertificationResult(&uc)
 		}
 	}
 }
 
-func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *RootNodeConf {
-	rootTrustBase, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
-	if err != nil {
-		return nil
-	}
-	nodesMap := make(map[peer.ID][]byte)
-	for _, n := range genesisRoot.RootValidators {
-		nodesMap[peer.ID(n.NodeIdentifier)] = n.SigningPublicKey
-	}
-	localTimeout := defaultLocalTimeout
-	quorumThreshold := genesis.GetMinQuorumThreshold(uint32(len(nodesMap)))
-	// Is consensus timeout specified?
-	if genesisRoot.Consensus.ConsensusTimeoutMs != nil {
-		localTimeout = time.Duration(*genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond
-	}
-	// Is consensus threshold specified
-	if genesisRoot.Consensus.QuorumThreshold != nil {
-		quorumThreshold = *genesisRoot.Consensus.QuorumThreshold
-	}
+func loadConf(opts []Option) *RootNodeConf {
 	conf := &RootNodeConf{
-		BlockRateMs:        time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
-		LocalTimeoutMs:     localTimeout,
-		ConsensusThreshold: quorumThreshold,
-		RootTrustBase:      rootTrustBase,
-		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
-		stateStore:         store.NewInMemStateStore(gocrypto.SHA256),
+		stateStore: store.NewInMemStateStore(gocrypto.SHA256),
 	}
 	for _, opt := range opts {
 		if opt == nil {
@@ -215,4 +166,103 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *RootNodeCo
 		opt(conf)
 	}
 	return conf
+}
+
+func (v *Validator) getLatestUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {
+	state, err := v.conf.stateStore.Get()
+	if err != nil {
+		return nil, err
+	}
+	luc, f := state.Certificates[id]
+	if !f {
+		return nil, errors.Errorf("no certificate found for system id %X", id)
+	}
+	return luc, nil
+}
+
+func (v *Validator) sendResponse(nodeId string, uc *certificates.UnicityCertificate) {
+	peerID, err := peer.Decode(nodeId)
+	if err != nil {
+		logger.Warning("Invalid node identifier: '%s'", nodeId)
+		return
+	}
+	logger.Info("Sending unicity certificate to '%s', IR Hash: %X, Block Hash: %X", nodeId, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
+	err = v.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolUnicityCertificates,
+			Message:  uc,
+		},
+		[]peer.ID{peerID},
+	)
+	if err != nil {
+		logger.Warning("Failed to send unicity certificate: %v", err)
+	}
+}
+
+// OnBlockCertificationRequest handle certification requests from partition nodes.
+// Partition nodes can only extend the stored/certified state
+func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
+	tb, err := v.partitionStore.GetTrustBase(proto.SystemIdentifier(req.SystemIdentifier))
+	if err != nil {
+		logger.Warning("invalid block certification request: %v", err)
+		return
+	}
+	verifier, f := tb[req.NodeIdentifier]
+	if !f {
+		logger.Warning("block certification request from unknown node: %v", req.NodeIdentifier)
+		return
+	}
+	err = req.IsValid(verifier)
+	if err != nil {
+		logger.Warning("block certification request signature verification failed: %v", err)
+		return
+	}
+	systemIdentifier := proto.SystemIdentifier(req.SystemIdentifier)
+	latestUnicityCertificate, err := v.getLatestUnicityCertificate(systemIdentifier)
+	seal := latestUnicityCertificate.UnicitySeal
+	if req.RootRoundNumber < seal.RootChainRoundNumber {
+		// Older UC, return current.
+		logger.Warning("old request: root validator round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
+		// Send latestUnicityCertificate
+		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
+		return
+	} else if req.RootRoundNumber > seal.RootChainRoundNumber {
+		// should not happen, partition has newer UC
+		logger.Warning("partition has never unicity certificate: root validator round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
+		// send latestUnicityCertificate
+		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
+		return
+	} else if !bytes.Equal(req.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
+		// Extending of unknown State.
+		logger.Warning("request extends unknown state: expected hash: %v, got: %v", seal.Hash, req.InputRecord.PreviousHash)
+		// send latestUnicityCertificate
+		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
+		return
+	}
+	if err := v.incomingRequests.Add(req); err != nil {
+		logger.Warning("incoming request could not be stores: %v", err.Error())
+		return
+	}
+	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(systemIdentifier, v.partitionStore.NodeCount(systemIdentifier))
+	if ir != nil || consensusPossible == false {
+		logger.Info("Forward quorum proof for certification")
+		// Forward all requests to next root chain leader (use channel?)
+		v.consensusManager.RequestCertification() <- CertificationRequest{}
+		return
+	}
+}
+
+func (v *Validator) onCertificationResult(certificate *certificates.UnicityCertificate) {
+	sysId := proto.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
+	// remember to clear the incoming buffer to accept new requests
+	defer v.incomingRequests.Clear(sysId)
+
+	nodes, err := v.partitionStore.GetNodes(sysId)
+	if err != nil {
+		logger.Info("Unable to send response to partition nodes: %v", err)
+		return
+	}
+	for _, node := range nodes {
+		v.sendResponse(node, certificate)
+	}
 }

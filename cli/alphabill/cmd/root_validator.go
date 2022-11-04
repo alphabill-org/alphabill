@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
@@ -16,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"github.com/alphabill-org/alphabill/internal/starter"
@@ -101,23 +103,18 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	if err != nil {
 		return errors.Wrapf(err, "failed to read keys %s", config.KeyFile)
 	}
-	// Initiate Root validator network
-	rootHost, err := loadRootNetworkConfiguration(keys, rootGenesis.Root.RootValidators, config)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create rootvalidator host")
-	}
-	rootNet, err := network.NewLibP2RootValidatorNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
-	if err != nil {
-		return errors.Wrapf(err, "failed initiate rootvalidator validator network")
+	// check if genesis file is valid and exit early if is not
+	if err := rootGenesis.Verify(); err != nil {
+		return errors.Wrap(err, "root genesis verification failed")
 	}
 	// Process partition node network
 	prtHost, err := createHost(config.PartitionListener, keys.EncryptionPrivateKey)
 	if err != nil {
-		return errors.Wrap(err, "Partition listener creation failed")
+		return errors.Wrap(err, "partition listener creation failed")
 	}
 	partitionNet, err := network.NewLibP2PRootChainNetwork(prtHost, config.MaxRequests, defaultNetworkTimeout)
 	if err != nil {
-		return errors.Wrap(err, "Failed to initiate partition network")
+		return errors.Wrap(err, "failed to initiate partition network")
 	}
 	if config.DbFile != "" {
 		storage, err := store.NewBoltStore(config.DbFile)
@@ -129,14 +126,37 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 			return err
 		}
 	}
+	// Initiate state store
+	err = initiateStateStore(config.StateStore, rootGenesis)
+	if err != nil {
+		return errors.Wrap(err, "failed to initiate state store")
+	}
+	// Initiate partition store
+	partitionStore, err := rootchain.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	if err != nil {
+		return errors.Wrap(err, "failed to initiate partition store")
+	}
+	// Initiate Root validator network
+	rootHost, err := loadRootNetworkConfiguration(keys, rootGenesis.Root.RootValidators, config)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create rootvalidator host")
+	}
+	rootNet, err := network.NewLibP2RootValidatorNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
+	if err != nil {
+		return errors.Wrapf(err, "failed initiate root validator validator network")
+	}
+	// Create distributed consensus manager
+	consensus, err := rootvalidator.NewAtomicBroadcastManager(rootHost, rootGenesis.Root,
+		config.StateStore, partitionStore, keys.SigningPrivateKey, rootNet)
+	if err != nil {
+		return errors.Wrapf(err, "failed to init consensus manager")
+	}
 	validator, err := rootvalidator.NewRootValidatorNode(
+		partitionStore,
 		prtHost,
-		rootHost,
-		rootGenesis,
-		keys.SigningPrivateKey,
 		partitionNet,
-		rootNet,
 		rootvalidator.WithStateStore(config.StateStore),
+		rootvalidator.WithConsensusManager(consensus),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "rootchain failed to start: %v", err)
@@ -194,6 +214,27 @@ func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKe
 		PersistentPeers: persistentPeers,
 	}
 	return network.NewPeer(conf)
+}
+
+func initiateStateStore(stateStore rootchain.StateStore, rg *genesis.RootGenesis) error {
+	state, err := stateStore.Get()
+	if err != nil {
+		return err
+	}
+	// Init from genesis file is done only once
+	if state.LatestRound > 0 {
+		return nil
+	}
+	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
+	for _, partition := range rg.Partitions {
+		identifier := partition.GetSystemIdentifierString()
+		certs[identifier] = partition.Certificate
+	}
+	// If not initiated, save genesis file to store
+	if err := stateStore.Save(store.RootState{LatestRound: rg.GetRoundNumber(), Certificates: certs, LatestRootHash: rg.GetRoundHash()}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {

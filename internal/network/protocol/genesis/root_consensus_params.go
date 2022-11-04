@@ -3,6 +3,7 @@ package genesis
 import (
 	"bytes"
 	gocrypto "crypto"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -134,7 +135,6 @@ func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
 		return errors.New(ErrConsensusNotSigned)
 	}
 	// If there are more signatures, then we will give more detailed info below on what id is missing
-	// todo: consider that verification is costly, so perhaps it would still make sense to escape early
 	if len(x.Signatures) < len(verifiers) {
 		return errors.New(ErrConsensusIsNotSignedByAll)
 	}

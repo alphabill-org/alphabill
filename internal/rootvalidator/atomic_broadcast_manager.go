@@ -2,7 +2,17 @@ package rootvalidator
 
 import (
 	"bytes"
+	"context"
+	gocrypto "crypto"
 	"fmt"
+	"time"
+
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
+
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 
@@ -15,6 +25,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
+)
+
+const (
+	// local timeout
+	blockRateId         = "block-rate"
+	localTimeoutId      = "local-timeout"
+	defaultRoundTimeout = 500 * time.Millisecond
+	defaultLocalTimeout = 10000 * time.Millisecond
 )
 
 type (
@@ -32,7 +50,26 @@ type (
 		GetRootNodes() []peer.ID
 	}
 
+	StateStore interface {
+		Save(state store.RootState) error
+		Get() (store.RootState, error)
+	}
+
+	ConsensusConf struct {
+		BlockRateMs        time.Duration
+		LocalTimeoutMs     time.Duration
+		ConsensusThreshold uint32
+		RootTrustBase      map[string]crypto.Verifier
+		HashAlgorithm      gocrypto.Hash
+	}
+
+	ConsensusOption func(c *ConsensusConf)
+
 	AtomicBroadcastManager struct {
+		ctx          context.Context
+		ctxCancel    context.CancelFunc
+		certReqCh    chan CertificationRequest
+		certResultCh chan certificates.UnicityCertificate
 		peer         *network.Peer
 		store        StateStore
 		timers       *timer.Timers
@@ -45,12 +82,49 @@ type (
 	}
 )
 
-func NewAtomicBroadcastManager(host *network.Peer, conf *RootNodeConf, stateStore StateStore,
-	partitionStore *rootchain.PartitionStore, safetyModule *SafetyModule, net RootNet) (*AtomicBroadcastManager, error) {
-	// Sanity checks
-	if conf == nil {
-		return nil, errors.New("cannot start atomic broadcast handler, conf is nil")
+func loadConsensusConf(genesisRoot *genesis.GenesisRootRecord, opts []ConsensusOption) *ConsensusConf {
+	rootTrustBase, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
+	if err != nil {
+		return nil
 	}
+	nodesMap := make(map[peer.ID][]byte)
+	for _, n := range genesisRoot.RootValidators {
+		nodesMap[peer.ID(n.NodeIdentifier)] = n.SigningPublicKey
+	}
+	localTimeout := defaultLocalTimeout
+	quorumThreshold := genesis.GetMinQuorumThreshold(uint32(len(nodesMap)))
+	// Is consensus timeout specified?
+	if genesisRoot.Consensus.ConsensusTimeoutMs != nil {
+		localTimeout = time.Duration(*genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond
+	}
+	// Is consensus threshold specified
+	if genesisRoot.Consensus.QuorumThreshold != nil {
+		quorumThreshold = *genesisRoot.Consensus.QuorumThreshold
+	}
+	conf := &ConsensusConf{
+		BlockRateMs:        time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
+		LocalTimeoutMs:     localTimeout,
+		ConsensusThreshold: quorumThreshold,
+		RootTrustBase:      rootTrustBase,
+		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
+	}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(conf)
+	}
+	return conf
+}
+
+func NewAtomicBroadcastManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord, stateStore StateStore,
+	partitionStore *rootchain.PartitionStore, signer crypto.Signer, net RootNet, opts ...ConsensusOption) (*AtomicBroadcastManager, error) {
+	// Sanity checks
+	if genesisRoot == nil {
+		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
+	}
+	// load configuration
+	conf := loadConsensusConf(genesisRoot, opts)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
@@ -92,7 +166,9 @@ func NewAtomicBroadcastManager(host *network.Peer, conf *RootNodeConf, stateStor
 		// Start timer and wait for requests from partition nodes
 		timers.Start(blockRateId, conf.BlockRateMs)
 	}
-	return &AtomicBroadcastManager{
+	consensusManager := &AtomicBroadcastManager{
+		certReqCh:    make(chan CertificationRequest, 1),
+		certResultCh: make(chan certificates.UnicityCertificate, 4),
 		peer:         host,
 		store:        stateStore,
 		timers:       timers,
@@ -100,85 +176,128 @@ func NewAtomicBroadcastManager(host *network.Peer, conf *RootNodeConf, stateStor
 		roundState:   roundState,
 		proposer:     l,
 		rootVerifier: rootVerifier,
-		safety:       safetyModule,
+		safety:       NewSafetyModule(signer),
 		stateLedger:  ledger,
-	}, nil
-}
-
-func (a *AtomicBroadcastManager) Timers() *timer.Timers {
-	return a.timers
-}
-
-func (a *AtomicBroadcastManager) Receive() <-chan network.ReceivedMessage {
-	return a.net.ReceivedChannel()
-}
-
-func (a *AtomicBroadcastManager) OnAtomicBroadcastMessage(msg *network.ReceivedMessage) {
-	if msg.Message == nil {
-		logger.Warning("Root network received message is nil")
-		return
 	}
-	switch msg.Protocol {
-	case network.ProtocolRootIrChangeReq:
-		req, correctType := msg.Message.(*atomic_broadcast.IRChangeReqMsg)
-		if !correctType {
-			logger.Warning("Type %T not supported", msg.Message)
-		}
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling IR Change Request from root validator node"), req)
-		logger.Debug("IR change request from %v", msg.From)
-		// Am I the next leader or current leader and have not yet proposed? If not, ignore.
-		// Buffer and wait for opportunity to make the next proposal
-		// Todo: Add handling
+	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
+	return consensusManager, nil
+}
 
-		break
-	case network.ProtocolRootProposal:
-		req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
-		if !correctType {
-			logger.Warning("Type %T not supported", msg.Message)
+func (a *AtomicBroadcastManager) RequestCertification() chan<- CertificationRequest {
+	return a.certReqCh
+}
+
+func (a *AtomicBroadcastManager) CertificationResult() <-chan certificates.UnicityCertificate {
+	return a.certResultCh
+}
+
+func (a *AtomicBroadcastManager) Start() {
+	go a.loop()
+}
+
+func (a *AtomicBroadcastManager) Stop() {
+	a.timers.WaitClose()
+	a.ctxCancel()
+}
+
+func (a *AtomicBroadcastManager) loop() {
+	for {
+		select {
+		case <-a.ctx.Done():
+			logger.Info("Exiting distributed consensus manager main loop")
+			return
+		case msg, ok := <-a.net.ReceivedChannel():
+			if !ok {
+				logger.Warning("Root network received channel closed, exiting distributed consensus main loop")
+				return
+			}
+			if msg.Message == nil {
+				logger.Warning("Root network received message is nil")
+				return
+			}
+			switch msg.Protocol {
+			case network.ProtocolRootIrChangeReq:
+				req, correctType := msg.Message.(*atomic_broadcast.IRChangeReqMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling IR Change Request from root validator node"), req)
+				logger.Debug("IR change request from %v", msg.From)
+				// Am I the next leader or current leader and have not yet proposed? If not, ignore.
+				// Buffer and wait for opportunity to make the next proposal
+				// Todo: Add handling
+				a.onIRChange(req)
+				break
+			case network.ProtocolRootProposal:
+				req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Proposal from %s", req.Block.Author), req)
+				logger.Debug("Proposal received from %v", msg.From)
+				a.onProposalMsg(req)
+				break
+			case network.ProtocolRootVote:
+				req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+				}
+				logger.Debug("Vote received from %v", msg.From)
+				a.onVoteMsg(req)
+				break
+			case network.ProtocolRootStateReq:
+				req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block request"), req)
+				logger.Debug("State request from", msg.From)
+				// Send state, with proof (signed by other validators)
+				// Todo: add handling
+				break
+			case network.ProtocolRootStateResp:
+				req, correctType := msg.Message.(*atomic_broadcast.StateReplyMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block"), req)
+				logger.Debug("State reply from %v", msg.From)
+				// Verify and store
+				// Todo: Add handling
+				break
+			default:
+				logger.Warning("Unknown protocol req %s from %v", msg.Protocol, msg.From)
+				break
+			}
+		case req, ok := <-a.certReqCh:
+			if !ok {
+				logger.Warning("certification channel closed, exiting distributed consensus main loop %v", req)
+				return
+			}
+
+		// handle timeouts
+		case nt := <-a.timers.C:
+			if nt == nil {
+				continue
+			}
+			timerId := nt.Name()
+			switch {
+			case timerId == localTimeoutId:
+				logger.Warning("handle local timeout")
+				a.onLocalTimeout()
+				a.timers.Restart(timerId)
+			case timerId == blockRateId:
+				logger.Warning("Throttling not yet implemented")
+			default:
+				logger.Warning("Unknown timer %v", timerId)
+			}
 		}
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Proposal from %s", req.Block.Author), req)
-		logger.Debug("Proposal received from %v", msg.From)
-		a.onProposalMsg(req)
-		break
-	case network.ProtocolRootVote:
-		req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
-		if !correctType {
-			logger.Warning("Type %T not supported", msg.Message)
-		}
-		logger.Debug("Vote received from %v", msg.From)
-		a.onVoteMsg(req)
-		break
-	case network.ProtocolRootStateReq:
-		req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
-		if !correctType {
-			logger.Warning("Type %T not supported", msg.Message)
-		}
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block request"), req)
-		logger.Debug("State request from", msg.From)
-		// Send state, with proof (signed by other validators)
-		// Todo: add handling
-		break
-	case network.ProtocolRootStateResp:
-		req, correctType := msg.Message.(*atomic_broadcast.StateReplyMsg)
-		if !correctType {
-			logger.Warning("Type %T not supported", msg.Message)
-		}
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block"), req)
-		logger.Debug("State reply from %v", msg.From)
-		// Verify and store
-		// Todo: Add handling
-		break
-	default:
-		logger.Warning("Unknown protocol req %s from %v", msg.Protocol, msg.From)
-		break
 	}
 }
 
-// OnTimeout handle timeouts
-func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
+// onLocalTimeout handle timeouts
+func (a *AtomicBroadcastManager) onLocalTimeout() {
 	// always restart timer
-	defer a.timers.Restart(timerId)
-	logger.Debug("Handling timeout %s", timerId)
 	// Has the validator voted in this round
 	voteMsg := a.roundState.GetVoted()
 	if voteMsg == nil {
@@ -208,6 +327,7 @@ func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
 	allValidators := a.proposer.GetRootNodes()
 	receivers := make([]peer.ID, len(allValidators))
 	receivers = append(receivers, allValidators...)
+	logger.Info("Broadcasting timeout vote")
 	err := a.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
@@ -218,8 +338,8 @@ func (a *AtomicBroadcastManager) OnTimeout(timerId string) {
 	}
 }
 
-// OnIRChange handle timeouts
-func (a *AtomicBroadcastManager) OnIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
+// onIRChange handles IR change request from other root nodes
+func (a *AtomicBroadcastManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
 	// Am I the next leader
 	// todo: I am leader now, but have not yet proposed, should still accept requests - throttling
 	if a.proposer.IsValidLeader(a.peer.ID(), a.roundState.GetCurrentRound()+1) == false {

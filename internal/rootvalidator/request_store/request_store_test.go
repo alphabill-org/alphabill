@@ -1,4 +1,4 @@
-package rootvalidator
+package request_store
 
 import (
 	"testing"

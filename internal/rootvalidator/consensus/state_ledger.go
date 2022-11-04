@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -18,20 +18,20 @@ import (
 const ErrStr = "state store is nil"
 
 type StateLedger struct {
-	proposedState        *store.RootState              // last proposed state
-	pendingCertification *store.RootState              // state waiting for second QC
-	HighQC               *atomic_broadcast.QuorumCert  // highest QC seen
-	HighCommitQC         *atomic_broadcast.QuorumCert  // highest QC serving as commit certificate
-	stateStore           StateStore                    // certified and committed states
-	partitionStore       *rootvalidator.PartitionStore // partition store
-	hashAlgorithm        gocrypto.Hash                 // hash algorithm
+	proposedState        *store.RootState             // last proposed state
+	pendingCertification *store.RootState             // state waiting for second QC
+	HighQC               *atomic_broadcast.QuorumCert // highest QC seen
+	HighCommitQC         *atomic_broadcast.QuorumCert // highest QC serving as commit certificate
+	stateStore           StateStore                   // certified and committed states
+	partitionStore       PartitionStore               // partition store
+	hashAlgorithm        gocrypto.Hash                // hash algorithm
 }
 
 func (p *StateLedger) ProposedState() *store.RootState {
 	return p.proposedState
 }
 
-func NewStateLedger(stateStore StateStore, partStore *rootvalidator.PartitionStore, hash gocrypto.Hash) (*StateLedger, error) {
+func NewStateLedger(stateStore StateStore, partStore PartitionStore, hash gocrypto.Hash) (*StateLedger, error) {
 	if stateStore == nil {
 		return nil, errors.New(ErrStr)
 	}
@@ -77,7 +77,7 @@ func (p *StateLedger) ProcessTc(tc *atomic_broadcast.TimeoutCert) {
 func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast.Payload) error {
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot
 	// trust the proposer is honest
-	requests := rootvalidator.NewCertificationRequestStore()
+	requests := request_store.NewCertificationRequestStore()
 	if req == nil {
 		return errors.New("no payload")
 	}
@@ -112,18 +112,18 @@ func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 
 		// match request type to proof
 		switch certReqs.CertReason {
-		case atomic_broadcast.CertificationReqWithProof_QUORUM:
+		case atomic_broadcast.IRChangeReqMsg_QUORUM:
 			if inputRecord == nil {
 				return errors.New("invalid certification request proof, expected quorum not achieved")
 			}
 			break
 
-		case atomic_broadcast.CertificationReqWithProof_QUORUM_NOT_POSSIBLE:
+		case atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE:
 			if inputRecord != nil && consensusPossible == false {
 				return errors.New("invalid certification request proof, no quorum achieved")
 			}
 			break
-		case atomic_broadcast.CertificationReqWithProof_T2_TIMEOUT:
+		case atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT:
 			// timout does not carry proof in form of certification requests
 			// validate timeout against round number (or timestamp in unicity seal)
 			cert, found := lastState.Certificates[systemId]

@@ -6,6 +6,8 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -23,11 +25,8 @@ import (
 )
 
 type (
-	CertificationRequest struct {
-		Requests []*certification.BlockCertificationRequest
-	}
 	ConsensusManager interface {
-		RequestCertification() chan<- CertificationRequest
+		RequestCertification() chan<- consensus.IRChangeRequest
 		CertificationResult() <-chan certificates.UnicityCertificate
 		Start()
 		Stop()
@@ -259,11 +258,30 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 		return
 	}
 	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(systemIdentifier, v.partitionStore.NodeCount(systemIdentifier))
-	if ir != nil || consensusPossible == false {
-		logger.Info("Forward quorum proof for certification")
-		// Forward all requests to next root chain leader (use channel?)
-		v.consensusManager.RequestCertification() <- CertificationRequest{}
-		return
+	// In case of quorum or no quorum possible forward the IR change request to consensus manager
+	if ir != nil {
+		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", systemIdentifier.Bytes(), ir.Hash)
+		requests := v.incomingRequests.GetRequests(systemIdentifier)
+		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
+			SystemIdentifier: systemIdentifier,
+			Reason:           consensus.Quorum,
+			IR:               *ir,
+			Requests:         requests}
+	} else if !consensusPossible {
+		logger.Debug("Consensus not possible for partition %X.", systemIdentifier.Bytes())
+		// Get last unicity certificate for the partition
+		luc, err := v.getLatestUnicityCertificate(systemIdentifier)
+		if err != nil {
+			logger.Error("Cannot re-certify partition: SystemIdentifier: %X, error: %v", systemIdentifier.Bytes(), err.Error())
+			return
+		}
+		// repeat IR for repeat UC
+		requests := v.incomingRequests.GetRequests(systemIdentifier)
+		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
+			SystemIdentifier: systemIdentifier,
+			Reason:           consensus.Quorum,
+			IR:               *luc.InputRecord,
+			Requests:         requests}
 	}
 }
 

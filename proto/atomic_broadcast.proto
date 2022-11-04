@@ -5,7 +5,7 @@ import "certificates.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast;atomic_broadcast";
 
-message CertificationReqWithProof {
+message IRChangeReqMsg {
   enum CERT_REASON{
     QUORUM = 0;
     QUORUM_NOT_POSSIBLE = 1;
@@ -20,7 +20,7 @@ message CertificationReqWithProof {
 
 message Payload {
   // IR change requests with quorum or no quorum possible
-  repeated CertificationReqWithProof requests = 1;
+  repeated IRChangeReqMsg requests = 1;
 }
 
 // The ConsensusInfo is used both in VoteMsg reply and in QC which aggregates all VoteMsg replays
@@ -101,17 +101,6 @@ message TimeoutCert {
   Timeout timeout = 1;
   // 2f+1 signatures from nodes confirming TC
   map<string, TimeoutVote> signatures = 2;
-}
-
-message IRChangeReqMsg {
-  // Unique block certification requests with quorum present or quorum not possible.
-  CertificationReqWithProof request = 1;
-  // state hash for synchronization
-  bytes exec_state_id = 2;
-  // Author who issued the IR change request
-  string author = 3;
-  // Signed message to authenticate sender
-  bytes signature = 4;
 }
 
 message ProposalMsg {

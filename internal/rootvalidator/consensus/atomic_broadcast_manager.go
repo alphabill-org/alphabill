@@ -7,22 +7,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/leader"
-
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
-
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
-
 	"github.com/alphabill-org/alphabill/internal/network"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/leader"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -51,6 +45,13 @@ type (
 		GetRootNodes() []peer.ID
 	}
 
+	PartitionStore interface {
+		NodeCount(id p.SystemIdentifier) int
+		GetNodes(id p.SystemIdentifier) ([]string, error)
+		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
+		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
+	}
+
 	StateStore interface {
 		Save(state store.RootState) error
 		Get() (store.RootState, error)
@@ -69,7 +70,7 @@ type (
 	AtomicBroadcastManager struct {
 		ctx          context.Context
 		ctxCancel    context.CancelFunc
-		certReqCh    chan rootvalidator.CertificationRequest
+		certReqCh    chan IRChangeRequest
 		certResultCh chan certificates.UnicityCertificate
 		peer         *network.Peer
 		store        StateStore
@@ -119,7 +120,7 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensu
 }
 
 func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord, stateStore StateStore,
-	partitionStore *rootvalidator.PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*AtomicBroadcastManager, error) {
+	partitionStore PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*AtomicBroadcastManager, error) {
 	// Sanity checks
 	if genesisRoot == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -168,8 +169,8 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		timers.Start(blockRateId, conf.BlockRateMs)
 	}
 	consensusManager := &AtomicBroadcastManager{
-		certReqCh:    make(chan rootvalidator.CertificationRequest, 1),
-		certResultCh: make(chan certificates.UnicityCertificate, 4),
+		certReqCh:    make(chan IRChangeRequest, 1),
+		certResultCh: make(chan certificates.UnicityCertificate, 1),
 		peer:         host,
 		store:        stateStore,
 		timers:       timers,
@@ -184,7 +185,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	return consensusManager, nil
 }
 
-func (a *AtomicBroadcastManager) RequestCertification() chan<- rootvalidator.CertificationRequest {
+func (a *AtomicBroadcastManager) RequestCertification() chan<- IRChangeRequest {
 	return a.certReqCh
 }
 
@@ -276,7 +277,29 @@ func (a *AtomicBroadcastManager) loop() {
 				logger.Warning("certification channel closed, exiting distributed consensus main loop %v", req)
 				return
 			}
+			logger.Debug("IR change request from partition")
+			// must be forwarded to the next round leader
+			receivers := make([]peer.ID, 1)
+			receivers = append(receivers, a.proposer.GetLeaderForRound(a.roundState.GetCurrentRound()+1))
+			// send vote
+			// assume positive case as this will be most common
+			reason := atomic_broadcast.IRChangeReqMsg_QUORUM
+			if req.Reason == QuorumNotPossible {
+				reason = atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE
+			}
+			irReq := &atomic_broadcast.IRChangeReqMsg{
+				SystemIdentifier: req.SystemIdentifier.Bytes(),
+				CertReason:       reason,
+				Requests:         req.Requests}
 
+			err := a.net.Send(
+				network.OutputMessage{
+					Protocol: network.ProtocolRootVote,
+					Message:  irReq,
+				}, receivers)
+			if err != nil {
+				logger.Warning("Failed to forward IR Change request: %v", err)
+			}
 		// handle timeouts
 		case nt := <-a.timers.C:
 			if nt == nil {
@@ -343,13 +366,13 @@ func (a *AtomicBroadcastManager) onLocalTimeout() {
 // onIRChange handles IR change request from other root nodes
 func (a *AtomicBroadcastManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
 	// Am I the next leader
-	// todo: I am leader now, but have not yet proposed, should still accept requests - throttling
+	// todo: I am leader now, but have not yet proposed -> should still accept requests (throttling)
 	if a.proposer.IsValidLeader(a.peer.ID(), a.roundState.GetCurrentRound()+1) == false {
 		logger.Warning("Validator is not leader in next round %v, IR change req ignored",
 			a.roundState.GetCurrentRound()+1)
 		return
 	}
-	// Store
+	// todo: buffer req
 
 }
 

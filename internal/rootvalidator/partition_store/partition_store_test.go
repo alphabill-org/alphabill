@@ -1,4 +1,4 @@
-package rootvalidator
+package partition_store
 
 import (
 	"testing"

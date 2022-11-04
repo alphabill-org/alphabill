@@ -19,7 +19,7 @@ var (
 	ErrUnknownSigner     = errors.New("unknown author")
 )
 
-func (x *CertificationReqWithProof) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
+func (x *IRChangeReqMsg) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
 	if len(x.SystemIdentifier) != 4 {
 		return ErrInvalidSystemId
 	}
@@ -46,7 +46,7 @@ func (x *CertificationReqWithProof) IsValid(partitionTrustBase map[string]crypto
 	return nil
 }
 
-func (x *CertificationReqWithProof) AddToHasher(hasher hash.Hash) {
+func (x *IRChangeReqMsg) AddToHasher(hasher hash.Hash) {
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write(util.Uint32ToBytes(uint32(x.CertReason)))
 	for _, req := range x.Requests {
@@ -54,7 +54,7 @@ func (x *CertificationReqWithProof) AddToHasher(hasher hash.Hash) {
 	}
 }
 
-func (x *CertificationReqWithProof) Bytes() []byte {
+func (x *IRChangeReqMsg) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemIdentifier)
 	b.Write(util.Uint32ToBytes(uint32(x.CertReason)))
@@ -62,55 +62,4 @@ func (x *CertificationReqWithProof) Bytes() []byte {
 		b.Write(req.Bytes())
 	}
 	return b.Bytes()
-}
-
-func (x *IRChangeReqMsg) IsValid(rootTrustBase, partitionTrustBase map[string]crypto.Verifier) error {
-	if len(x.ExecStateId) == 0 {
-		return ErrMissingStateHash
-	}
-	if len(x.Author) == 0 {
-		return ErrMissingAuthor
-	}
-	// verify message, before looking into the request
-	// 1. Find author from trust base
-	v, found := rootTrustBase[x.Author]
-	if !found {
-		return ErrUnknownSigner
-	}
-	// 2. Verify signature
-	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
-		return err
-	}
-
-	// Is request valid
-	if err := x.Request.IsValid(partitionTrustBase); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (x *IRChangeReqMsg) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.ExecStateId)
-	x.Request.AddToHasher(hasher)
-	hasher.Write([]byte(x.Author))
-}
-
-func (x *IRChangeReqMsg) Bytes() []byte {
-	var b bytes.Buffer
-	b.Write(x.ExecStateId)
-	b.Write(x.Request.Bytes())
-	b.Write([]byte(x.Author))
-	return b.Bytes()
-}
-
-func (x *IRChangeReqMsg) Sign(signer crypto.Signer) error {
-	if signer == nil {
-		return errors.New("signer is nil")
-	}
-	signature, err := signer.SignBytes(x.Bytes())
-	if err != nil {
-		return err
-	}
-	x.Signature = signature
-	return nil
 }

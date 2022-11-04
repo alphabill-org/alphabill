@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -129,7 +131,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		return errors.Wrap(err, "failed to initiate state store")
 	}
 	// Initiate partition store
-	partitionStore, err := rootvalidator.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	if err != nil {
 		return errors.Wrap(err, "failed to initiate partition store")
 	}

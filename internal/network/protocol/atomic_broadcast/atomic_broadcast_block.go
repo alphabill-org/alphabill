@@ -48,7 +48,7 @@ func (x *Payload) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
 			return fmt.Errorf("payload contains invalid request from system id %X, err %w", req.SystemIdentifier, err)
 		}
 		// If reason is timeout, then there is no proof
-		if req.CertReason == CertificationReqWithProof_T2_TIMEOUT && len(req.Requests) > 0 {
+		if req.CertReason == IRChangeReqMsg_T2_TIMEOUT && len(req.Requests) > 0 {
 			return fmt.Errorf("payload is not valid, invalid timeout request")
 		}
 		if _, found := sysIdSet[string(req.SystemIdentifier)]; found {

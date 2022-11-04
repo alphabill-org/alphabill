@@ -56,7 +56,7 @@ type (
 		Get() (store.RootState, error)
 	}
 
-	ConsensusConf struct {
+	AbConsensusConfig struct {
 		BlockRateMs        time.Duration
 		LocalTimeoutMs     time.Duration
 		ConsensusThreshold uint32
@@ -64,7 +64,7 @@ type (
 		HashAlgorithm      gocrypto.Hash
 	}
 
-	ConsensusOption func(c *ConsensusConf)
+	Option func(c *AbConsensusConfig)
 
 	AtomicBroadcastManager struct {
 		ctx          context.Context
@@ -83,7 +83,7 @@ type (
 	}
 )
 
-func loadConsensusConf(genesisRoot *genesis.GenesisRootRecord, opts []ConsensusOption) *ConsensusConf {
+func loadConsensusConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensusConfig {
 	rootTrustBase, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
 	if err != nil {
 		return nil
@@ -102,7 +102,7 @@ func loadConsensusConf(genesisRoot *genesis.GenesisRootRecord, opts []ConsensusO
 	if genesisRoot.Consensus.QuorumThreshold != nil {
 		quorumThreshold = *genesisRoot.Consensus.QuorumThreshold
 	}
-	conf := &ConsensusConf{
+	conf := &AbConsensusConfig{
 		BlockRateMs:        time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
 		LocalTimeoutMs:     localTimeout,
 		ConsensusThreshold: quorumThreshold,
@@ -118,8 +118,8 @@ func loadConsensusConf(genesisRoot *genesis.GenesisRootRecord, opts []ConsensusO
 	return conf
 }
 
-func NewAtomicBroadcastManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord, stateStore StateStore,
-	partitionStore *rootvalidator.PartitionStore, signer crypto.Signer, net RootNet, opts ...ConsensusOption) (*AtomicBroadcastManager, error) {
+func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord, stateStore StateStore,
+	partitionStore *rootvalidator.PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*AtomicBroadcastManager, error) {
 	// Sanity checks
 	if genesisRoot == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -222,7 +222,7 @@ func (a *AtomicBroadcastManager) loop() {
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling IR Change Request from root validator node"), req)
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling IR Change Request"), req)
 				logger.Debug("IR change request from %v", msg.From)
 				// Am I the next leader or current leader and have not yet proposed? If not, ignore.
 				// Buffer and wait for opportunity to make the next proposal
@@ -243,6 +243,7 @@ func (a *AtomicBroadcastManager) loop() {
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
 				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Vote from %s", req.Author), req)
 				logger.Debug("Vote received from %v", msg.From)
 				a.onVoteMsg(req)
 				break
@@ -251,7 +252,7 @@ func (a *AtomicBroadcastManager) loop() {
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block request"), req)
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery request"), req)
 				logger.Debug("State request from", msg.From)
 				// Send state, with proof (signed by other validators)
 				// Todo: add handling
@@ -261,7 +262,7 @@ func (a *AtomicBroadcastManager) loop() {
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received block"), req)
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery response"), req)
 				logger.Debug("State reply from %v", msg.From)
 				// Verify and store
 				// Todo: Add handling
@@ -354,7 +355,6 @@ func (a *AtomicBroadcastManager) onIRChange(irChange *atomic_broadcast.IRChangeR
 
 // onVoteMsg handle votes and timeout votes
 func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
-	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Vote from %s", vote.Author), vote)
 	// verify signature on vote
 	err := vote.Verify(a.rootVerifier)
 	if err != nil {
@@ -462,5 +462,5 @@ func (a *AtomicBroadcastManager) processCertificateQC(qc *atomic_broadcast.Quoru
 }
 
 func (a *AtomicBroadcastManager) processNewRoundEvent() {
-
+	// todo: to implement
 }

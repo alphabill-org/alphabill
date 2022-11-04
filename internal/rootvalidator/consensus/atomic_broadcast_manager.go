@@ -1,4 +1,4 @@
-package rootvalidator
+package consensus
 
 import (
 	"bytes"
@@ -7,21 +7,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/leader"
+
+	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 
-	"github.com/alphabill-org/alphabill/internal/rootchain"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
 
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/leader"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -68,7 +69,7 @@ type (
 	AtomicBroadcastManager struct {
 		ctx          context.Context
 		ctxCancel    context.CancelFunc
-		certReqCh    chan CertificationRequest
+		certReqCh    chan rootvalidator.CertificationRequest
 		certResultCh chan certificates.UnicityCertificate
 		peer         *network.Peer
 		store        StateStore
@@ -118,7 +119,7 @@ func loadConsensusConf(genesisRoot *genesis.GenesisRootRecord, opts []ConsensusO
 }
 
 func NewAtomicBroadcastManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord, stateStore StateStore,
-	partitionStore *rootchain.PartitionStore, signer crypto.Signer, net RootNet, opts ...ConsensusOption) (*AtomicBroadcastManager, error) {
+	partitionStore *rootvalidator.PartitionStore, signer crypto.Signer, net RootNet, opts ...ConsensusOption) (*AtomicBroadcastManager, error) {
 	// Sanity checks
 	if genesisRoot == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -167,7 +168,7 @@ func NewAtomicBroadcastManager(host *network.Peer, genesisRoot *genesis.GenesisR
 		timers.Start(blockRateId, conf.BlockRateMs)
 	}
 	consensusManager := &AtomicBroadcastManager{
-		certReqCh:    make(chan CertificationRequest, 1),
+		certReqCh:    make(chan rootvalidator.CertificationRequest, 1),
 		certResultCh: make(chan certificates.UnicityCertificate, 4),
 		peer:         host,
 		store:        stateStore,
@@ -183,7 +184,7 @@ func NewAtomicBroadcastManager(host *network.Peer, genesisRoot *genesis.GenesisR
 	return consensusManager, nil
 }
 
-func (a *AtomicBroadcastManager) RequestCertification() chan<- CertificationRequest {
+func (a *AtomicBroadcastManager) RequestCertification() chan<- rootvalidator.CertificationRequest {
 	return a.certReqCh
 }
 

@@ -1,4 +1,4 @@
-package rootvalidator
+package consensus
 
 import (
 	"bytes"

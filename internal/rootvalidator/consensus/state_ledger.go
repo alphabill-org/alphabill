@@ -1,4 +1,4 @@
-package rootvalidator
+package consensus
 
 import (
 	"bytes"
@@ -6,34 +6,32 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
-	"github.com/alphabill-org/alphabill/internal/util"
-
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const ErrStr = "state store is nil"
 
 type StateLedger struct {
-	proposedState        *store.RootState             // last proposed state
-	pendingCertification *store.RootState             // state waiting for second QC
-	HighQC               *atomic_broadcast.QuorumCert // highest QC seen
-	HighCommitQC         *atomic_broadcast.QuorumCert // highest QC serving as commit certificate
-	stateStore           StateStore                   // certified and committed states
-	partitionStore       *rootchain.PartitionStore    // partition store
-	hashAlgorithm        gocrypto.Hash                // hash algorithm
+	proposedState        *store.RootState              // last proposed state
+	pendingCertification *store.RootState              // state waiting for second QC
+	HighQC               *atomic_broadcast.QuorumCert  // highest QC seen
+	HighCommitQC         *atomic_broadcast.QuorumCert  // highest QC serving as commit certificate
+	stateStore           StateStore                    // certified and committed states
+	partitionStore       *rootvalidator.PartitionStore // partition store
+	hashAlgorithm        gocrypto.Hash                 // hash algorithm
 }
 
 func (p *StateLedger) ProposedState() *store.RootState {
 	return p.proposedState
 }
 
-func NewStateLedger(stateStore StateStore, partStore *rootchain.PartitionStore, hash gocrypto.Hash) (*StateLedger, error) {
+func NewStateLedger(stateStore StateStore, partStore *rootvalidator.PartitionStore, hash gocrypto.Hash) (*StateLedger, error) {
 	if stateStore == nil {
 		return nil, errors.New(ErrStr)
 	}
@@ -79,7 +77,7 @@ func (p *StateLedger) ProcessTc(tc *atomic_broadcast.TimeoutCert) {
 func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast.Payload) error {
 	// Certify input, everything needs to be verified again as if received from partition node, since we cannot
 	// trust the proposer is honest
-	requests := rootchain.NewCertificationRequestStore()
+	requests := rootvalidator.NewCertificationRequestStore()
 	if req == nil {
 		return errors.New("no payload")
 	}

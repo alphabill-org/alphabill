@@ -2,14 +2,19 @@ package store
 
 import (
 	gocrypto "crypto"
+	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"sync"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const (
+	ErrStateIsNil                  = "err state is nil"
+	ErrInvalidRound                = "err invalid round number"
+	ErrInvalidRootHash             = "invalid root hash"
+	ErrInvalidCertificates         = "missing unicity certificates"
 	ErrIllegalNewRound             = "illegal new round number in new state"
 	ErrPersistentStoreBackendIsNil = "persistent store backend is nil"
 )
@@ -38,6 +43,31 @@ func (r *RootState) Update(newState RootState) {
 	for id, uc := range newState.Certificates {
 		r.Certificates[id] = uc
 	}
+}
+
+func (r RootState) GetStateHash(hash gocrypto.Hash) []byte {
+	hasher := hash.New()
+	hasher.Write(util.Uint64ToBytes(r.LatestRound))
+	for _, uc := range r.Certificates {
+		uc.AddToHasher(hasher)
+	}
+	return hasher.Sum(nil)
+}
+
+func (r *RootState) IsValid() error {
+	if r == nil {
+		return errors.New(ErrStateIsNil)
+	}
+	if r.LatestRound < 1 {
+		return errors.New(ErrInvalidRound)
+	}
+	if len(r.LatestRootHash) < gocrypto.SHA256.Size() {
+		return errors.New(ErrInvalidRootHash)
+	}
+	if len(r.Certificates) == 0 {
+		return errors.New(ErrInvalidCertificates)
+	}
+	return nil
 }
 
 // NewInMemStateStore stores state in volatile memory only, everything is lost on exit

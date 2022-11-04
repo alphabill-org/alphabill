@@ -126,9 +126,9 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Empty(t, s.inputRecords)
 
 	// partition store checks
-	require.Equal(t, 2, s.partitionStore.Size())
-	require.Equal(t, 5, s.partitionStore.NodeCount(p.SystemIdentifier(partition1ID)))
-	require.Equal(t, 4, s.partitionStore.NodeCount(p.SystemIdentifier(partition2ID)))
+	require.Equal(t, 2, s.partitionStore.size())
+	require.Equal(t, 5, s.partitionStore.nodeCount(p.SystemIdentifier(partition1ID)))
+	require.Equal(t, 4, s.partitionStore.nodeCount(p.SystemIdentifier(partition2ID)))
 
 	// prepare partition1 consensus
 	require.Equal(t, 5, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))

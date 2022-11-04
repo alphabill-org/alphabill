@@ -5,9 +5,8 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"time"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -228,23 +227,23 @@ func (rc *RootChain) sendUC(certs map[p.SystemIdentifier]*certificates.UnicityCe
 			continue
 		}
 
-		nodes, err := rc.state.partitionStore.GetNodes(id)
-		if err != nil {
+		partition := rc.state.partitionStore.get(id)
+		if partition == nil {
 			// we don't have the partition information; continue with the next identifier
-			logger.Warning("Partition information does not exist for partition: %v", err)
+			logger.Warning("Partition information does not exist for partition: %v", id)
 			continue
 		}
 		var ids []peer.ID
-		for _, v := range nodes {
-			nodeID, err := peer.Decode(v)
+		for _, v := range partition.Validators {
+			nodeID, err := peer.Decode(v.NodeIdentifier)
 			if err != nil {
-				logger.Warning("Invalid validator ID %v: %v", v, err)
+				logger.Warning("Invalid validator ID %v: %v", v.NodeIdentifier, err)
 				continue
 			}
 			ids = append(ids, nodeID)
 		}
 
-		err = rc.net.Send(
+		err := rc.net.Send(
 			network.OutputMessage{
 				Protocol: network.ProtocolUnicityCertificates,
 				Message:  uc,

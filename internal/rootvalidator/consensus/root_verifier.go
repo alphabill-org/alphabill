@@ -1,4 +1,4 @@
-package rootvalidator
+package consensus
 
 import (
 	"github.com/alphabill-org/alphabill/internal/crypto"

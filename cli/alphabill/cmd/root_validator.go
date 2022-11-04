@@ -8,18 +8,16 @@ import (
 	"sort"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
-
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
-
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -28,7 +26,6 @@ import (
 )
 
 const defaultNetworkTimeout = 300 * time.Millisecond
-const defaultRoundTimeout = 1000 * time.Millisecond
 
 type validatorConfig struct {
 	Base *baseConfiguration
@@ -55,7 +52,7 @@ type validatorConfig struct {
 	MaxRequests uint
 
 	// persistent storage
-	StateStore rootchain.StateStore
+	StateStore consensus.StateStore
 }
 
 // newRootValidatorCmd creates a new cobra command for root validator chain
@@ -132,7 +129,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		return errors.Wrap(err, "failed to initiate state store")
 	}
 	// Initiate partition store
-	partitionStore, err := rootchain.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := rootvalidator.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	if err != nil {
 		return errors.Wrap(err, "failed to initiate partition store")
 	}
@@ -146,7 +143,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		return errors.Wrapf(err, "failed initiate root validator validator network")
 	}
 	// Create distributed consensus manager
-	consensus, err := rootvalidator.NewAtomicBroadcastManager(rootHost, rootGenesis.Root,
+	consensus, err := consensus.NewAtomicBroadcastManager(rootHost, rootGenesis.Root,
 		config.StateStore, partitionStore, keys.SigningPrivateKey, rootNet)
 	if err != nil {
 		return errors.Wrapf(err, "failed to init consensus manager")
@@ -159,7 +156,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		rootvalidator.WithConsensusManager(consensus),
 	)
 	if err != nil {
-		return errors.Wrapf(err, "rootchain failed to start: %v", err)
+		return errors.Wrapf(err, "root validator failed to start: %v", err)
 	}
 	// use StartAndWait for SIGTERM hook
 	return starter.StartAndWait(ctx, "root validator", func(ctx context.Context) {
@@ -216,7 +213,7 @@ func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKe
 	return network.NewPeer(conf)
 }
 
-func initiateStateStore(stateStore rootchain.StateStore, rg *genesis.RootGenesis) error {
+func initiateStateStore(stateStore consensus.StateStore, rg *genesis.RootGenesis) error {
 	state, err := stateStore.Get()
 	if err != nil {
 		return err

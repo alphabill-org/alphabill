@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -18,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 )
 
 type (
@@ -30,6 +29,14 @@ type (
 		CertificationResult() <-chan certificates.UnicityCertificate
 		Start()
 		Stop()
+	}
+
+	CertificationRequestStore interface {
+		Add(request *certification.BlockCertificationRequest) error
+		IsConsensusReceived(id proto.SystemIdentifier, nrOfNodes int) (*certificates.InputRecord, bool)
+		GetRequests(id proto.SystemIdentifier) []*certification.BlockCertificationRequest
+		Reset()
+		Clear(id proto.SystemIdentifier)
 	}
 
 	PartitionNet interface {
@@ -52,8 +59,8 @@ type (
 		ctxCancel        context.CancelFunc
 		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
-		partitionStore   *rootchain.PartitionStore
-		incomingRequests rootchain.CertificationRequestStore
+		partitionStore   *PartitionStore
+		incomingRequests CertificationRequestStore
 		net              PartitionNet
 		consensusManager ConsensusManager
 	}
@@ -73,7 +80,7 @@ func WithConsensusManager(consensus ConsensusManager) Option {
 
 // NewRootValidatorNode creates a new instance of the root validator node
 func NewRootValidatorNode(
-	partitionStore *rootchain.PartitionStore,
+	partitionStore *PartitionStore,
 	prt *network.Peer,
 	pNet PartitionNet,
 	opts ...Option,

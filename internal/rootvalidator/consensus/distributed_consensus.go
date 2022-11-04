@@ -68,7 +68,7 @@ type (
 
 	Option func(c *AbConsensusConfig)
 
-	AtomicBroadcastManager struct {
+	DistributedConsensusManager struct {
 		ctx          context.Context
 		ctxCancel    context.CancelFunc
 		certReqCh    chan IRChangeRequest
@@ -127,8 +127,9 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensu
 	return conf
 }
 
+// NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord,
-	partitionStore PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*AtomicBroadcastManager, error) {
+	partitionStore PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*DistributedConsensusManager, error) {
 	// Sanity checks
 	if genesisRoot == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -176,7 +177,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		// Start timer and wait for requests from partition nodes
 		timers.Start(blockRateId, conf.BlockRateMs)
 	}
-	consensusManager := &AtomicBroadcastManager{
+	consensusManager := &DistributedConsensusManager{
 		certReqCh:    make(chan IRChangeRequest, 1),
 		certResultCh: make(chan certificates.UnicityCertificate, 1),
 		peer:         host,
@@ -192,30 +193,30 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	return consensusManager, nil
 }
 
-func (a *AtomicBroadcastManager) RequestCertification() chan<- IRChangeRequest {
-	return a.certReqCh
+func (x *DistributedConsensusManager) RequestCertification() chan<- IRChangeRequest {
+	return x.certReqCh
 }
 
-func (a *AtomicBroadcastManager) CertificationResult() <-chan certificates.UnicityCertificate {
-	return a.certResultCh
+func (x *DistributedConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
+	return x.certResultCh
 }
 
-func (a *AtomicBroadcastManager) Start() {
-	go a.loop()
+func (x *DistributedConsensusManager) Start() {
+	go x.loop()
 }
 
-func (a *AtomicBroadcastManager) Stop() {
-	a.timers.WaitClose()
-	a.ctxCancel()
+func (x *DistributedConsensusManager) Stop() {
+	x.timers.WaitClose()
+	x.ctxCancel()
 }
 
-func (a *AtomicBroadcastManager) loop() {
+func (x *DistributedConsensusManager) loop() {
 	for {
 		select {
-		case <-a.ctx.Done():
+		case <-x.ctx.Done():
 			logger.Info("Exiting distributed consensus manager main loop")
 			return
-		case msg, ok := <-a.net.ReceivedChannel():
+		case msg, ok := <-x.net.ReceivedChannel():
 			if !ok {
 				logger.Warning("Root network received channel closed, exiting distributed consensus main loop")
 				return
@@ -235,7 +236,7 @@ func (a *AtomicBroadcastManager) loop() {
 				// Am I the next leader or current leader and have not yet proposed? If not, ignore.
 				// Buffer and wait for opportunity to make the next proposal
 				// Todo: Add handling
-				a.onIRChange(req)
+				x.onIRChange(req)
 				break
 			case network.ProtocolRootProposal:
 				req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
@@ -244,7 +245,7 @@ func (a *AtomicBroadcastManager) loop() {
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Proposal from %s", req.Block.Author), req)
 				logger.Debug("Proposal received from %v", msg.From)
-				a.onProposalMsg(req)
+				x.onProposalMsg(req)
 				break
 			case network.ProtocolRootVote:
 				req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
@@ -253,7 +254,7 @@ func (a *AtomicBroadcastManager) loop() {
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Vote from %s", req.Author), req)
 				logger.Debug("Vote received from %v", msg.From)
-				a.onVoteMsg(req)
+				x.onVoteMsg(req)
 				break
 			case network.ProtocolRootStateReq:
 				req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
@@ -279,7 +280,7 @@ func (a *AtomicBroadcastManager) loop() {
 				logger.Warning("Unknown protocol req %s from %v", msg.Protocol, msg.From)
 				break
 			}
-		case req, ok := <-a.certReqCh:
+		case req, ok := <-x.certReqCh:
 			if !ok {
 				logger.Warning("certification channel closed, exiting distributed consensus main loop %v", req)
 				return
@@ -287,7 +288,7 @@ func (a *AtomicBroadcastManager) loop() {
 			logger.Debug("IR change request from partition")
 			// must be forwarded to the next round leader
 			receivers := make([]peer.ID, 1)
-			receivers = append(receivers, a.proposer.GetLeaderForRound(a.roundState.GetCurrentRound()+1))
+			receivers = append(receivers, x.proposer.GetLeaderForRound(x.roundState.GetCurrentRound()+1))
 			// send vote
 			// assume positive case as this will be most common
 			reason := atomic_broadcast.IRChangeReqMsg_QUORUM
@@ -299,7 +300,7 @@ func (a *AtomicBroadcastManager) loop() {
 				CertReason:       reason,
 				Requests:         req.Requests}
 
-			err := a.net.Send(
+			err := x.net.Send(
 				network.OutputMessage{
 					Protocol: network.ProtocolRootVote,
 					Message:  irReq,
@@ -308,7 +309,7 @@ func (a *AtomicBroadcastManager) loop() {
 				logger.Warning("Failed to forward IR Change request: %v", err)
 			}
 		// handle timeouts
-		case nt := <-a.timers.C:
+		case nt := <-x.timers.C:
 			if nt == nil {
 				continue
 			}
@@ -316,8 +317,8 @@ func (a *AtomicBroadcastManager) loop() {
 			switch {
 			case timerId == localTimeoutId:
 				logger.Warning("handle local timeout")
-				a.onLocalTimeout()
-				a.timers.Restart(timerId)
+				x.onLocalTimeout()
+				x.timers.Restart(timerId)
 			case timerId == blockRateId:
 				logger.Warning("Throttling not yet implemented")
 			default:
@@ -328,10 +329,10 @@ func (a *AtomicBroadcastManager) loop() {
 }
 
 // onLocalTimeout handle timeouts
-func (a *AtomicBroadcastManager) onLocalTimeout() {
+func (x *DistributedConsensusManager) onLocalTimeout() {
 	// always restart timer
 	// Has the validator voted in this round
-	voteMsg := a.roundState.GetVoted()
+	voteMsg := x.roundState.GetVoted()
 	if voteMsg == nil {
 		// todo: generate empty proposal and execute it (not yet specified)
 		// remove below lines once able to generate a empty proposal and execute
@@ -341,8 +342,8 @@ func (a *AtomicBroadcastManager) onLocalTimeout() {
 	// either validator has already voted in this round already or a dummy vote was created
 	if !voteMsg.IsTimeout() {
 		// add timeout with signature and resend vote
-		timeout := voteMsg.NewTimeout(a.stateLedger.HighQC)
-		sig, err := a.safety.SignTimeout(timeout, a.roundState.LastRoundTC())
+		timeout := voteMsg.NewTimeout(x.stateLedger.HighQC)
+		sig, err := x.safety.SignTimeout(timeout, x.roundState.LastRoundTC())
 		if err != nil {
 			logger.Warning("Local timeout error")
 			return
@@ -354,13 +355,13 @@ func (a *AtomicBroadcastManager) onLocalTimeout() {
 		}
 	}
 	// Record vote
-	a.roundState.SetVoted(voteMsg)
+	x.roundState.SetVoted(voteMsg)
 	// broadcast timeout vote
-	allValidators := a.proposer.GetRootNodes()
+	allValidators := x.proposer.GetRootNodes()
 	receivers := make([]peer.ID, len(allValidators))
 	receivers = append(receivers, allValidators...)
 	logger.Info("Broadcasting timeout vote")
-	err := a.net.Send(
+	err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
 			Message:  voteMsg,
@@ -371,22 +372,21 @@ func (a *AtomicBroadcastManager) onLocalTimeout() {
 }
 
 // onIRChange handles IR change request from other root nodes
-func (a *AtomicBroadcastManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
+func (x *DistributedConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
 	// Am I the next leader
 	// todo: I am leader now, but have not yet proposed -> should still accept requests (throttling)
-	if a.proposer.IsValidLeader(a.peer.ID(), a.roundState.GetCurrentRound()+1) == false {
+	if x.proposer.IsValidLeader(x.peer.ID(), x.roundState.GetCurrentRound()+1) == false {
 		logger.Warning("Validator is not leader in next round %v, IR change req ignored",
-			a.roundState.GetCurrentRound()+1)
+			x.roundState.GetCurrentRound()+1)
 		return
 	}
-	// todo: buffer req
-
+	// todo: create proposal generator that buffers and verifies the requests
 }
 
 // onVoteMsg handle votes and timeout votes
-func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
+func (x *DistributedConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
-	err := vote.Verify(a.rootVerifier)
+	err := vote.Verify(x.rootVerifier)
 	if err != nil {
 		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
 	}
@@ -399,58 +399,58 @@ func (a *AtomicBroadcastManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	if vote.IsTimeout() == false {
 		nextRound := round + 1
 		// verify that the validator is correct leader in next round
-		if a.proposer.IsValidLeader(a.peer.ID(), nextRound) == false {
+		if x.proposer.IsValidLeader(x.peer.ID(), nextRound) == false {
 			logger.Warning("Received vote, validator is not leader in next round %v, vote ignored", nextRound)
 			return
 		}
 	}
 	// Store vote, check for QC and TC.
-	qc, tc := a.roundState.RegisterVote(vote, a.rootVerifier)
+	qc, tc := x.roundState.RegisterVote(vote, x.rootVerifier)
 	if qc != nil {
 		logger.Warning("Round %v quorum achieved", vote.VoteInfo.RootRound)
 		// advance round
-		a.processCertificateQC(qc)
+		x.processCertificateQC(qc)
 	}
 	if tc != nil {
 		logger.Warning("Round %v timeout quorum achieved", vote.VoteInfo.RootRound)
-		a.roundState.AdvanceRoundTC(tc)
+		x.roundState.AdvanceRoundTC(tc)
 	}
 	// This node is the new leader in this round/view, generate proposal
-	a.processNewRoundEvent()
+	x.processNewRoundEvent()
 }
 
-func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
+func (x *DistributedConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
 	// verify signature on proposal
-	err := proposal.Verify(a.rootVerifier)
+	err := proposal.Verify(x.rootVerifier)
 	if err != nil {
 		logger.Warning("Atomic broadcast proposal verify failed: %v", err)
 	}
 	logger.Info("Received proposal message from %v", proposal.Block.Author)
 	// Every proposal must carry a QC for previous round
 	// Process QC first
-	a.processCertificateQC(proposal.Block.Qc)
-	a.processCertificateQC(proposal.HighCommitQc)
-	a.roundState.AdvanceRoundTC(proposal.LastRoundTc)
+	x.processCertificateQC(proposal.Block.Qc)
+	x.processCertificateQC(proposal.HighCommitQc)
+	x.roundState.AdvanceRoundTC(proposal.LastRoundTc)
 	// Is from valid proposer
-	if a.proposer.IsValidLeader(peer.ID(proposal.Block.Author), proposal.Block.Round) == false {
+	if x.proposer.IsValidLeader(peer.ID(proposal.Block.Author), proposal.Block.Round) == false {
 		logger.Warning("Proposal author %V is not a valid proposer for round %v, ignoring proposal",
 			proposal.Block.Author, proposal.Block.Round)
 		return
 	}
 	// Proposal is
 	// Check state
-	if !bytes.Equal(proposal.Block.Qc.VoteInfo.ExecStateId, a.stateLedger.GetCurrentStateHash()) {
+	if !bytes.Equal(proposal.Block.Qc.VoteInfo.ExecStateId, x.stateLedger.GetCurrentStateHash()) {
 		logger.Error("Recovery not yet implemented")
 	}
 	// speculatively execute proposal
-	err = a.stateLedger.ExecuteProposalPayload(a.roundState.GetCurrentRound(), proposal.Block.Payload)
+	err = x.stateLedger.ExecuteProposalPayload(x.roundState.GetCurrentRound(), proposal.Block.Payload)
 	if err != nil {
 		logger.Warning("Failed to execute proposal: %v", err.Error())
 		// cannot send vote, so just return anc wait for local timeout or new proposal (and recover then)
 		return
 	}
-	executionResult := a.stateLedger.ProposedState()
+	executionResult := x.stateLedger.ProposedState()
 	if err := executionResult.IsValid(); err != nil {
 		logger.Warning("Failed to execute proposal: %v", err.Error())
 		return
@@ -463,21 +463,21 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 			Epoch:         proposal.Block.Epoch,
 			ParentBlockId: proposal.Block.Qc.VoteInfo.BlockId,
 			ParentRound:   proposal.Block.Qc.VoteInfo.RootRound,
-			ExecStateId:   a.stateLedger.GetProposedStateHash(),
+			ExecStateId:   x.stateLedger.GetProposedStateHash(),
 		},
-		HighCommitQc:     a.stateLedger.HighCommitQC,
-		Author:           string(a.peer.ID()),
+		HighCommitQc:     x.stateLedger.HighCommitQC,
+		Author:           string(x.peer.ID()),
 		TimeoutSignature: nil,
 	}
-	if err := a.safety.SignVote(vote, a.roundState.LastRoundTC()); err != nil {
+	if err := x.safety.SignVote(vote, x.roundState.LastRoundTC()); err != nil {
 		logger.Warning("Failed to sign vote, vote not sent: %v", err.Error())
 		return
 	}
-	a.roundState.SetVoted(vote)
+	x.roundState.SetVoted(vote)
 	// send vote to the next leader
 	receivers := make([]peer.ID, 1)
-	receivers = append(receivers, a.proposer.GetLeaderForRound(a.roundState.GetCurrentRound()+1))
-	err = a.net.Send(
+	receivers = append(receivers, x.proposer.GetLeaderForRound(x.roundState.GetCurrentRound()+1))
+	err = x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
 			Message:  vote,
@@ -486,11 +486,11 @@ func (a *AtomicBroadcastManager) onProposalMsg(proposal *atomic_broadcast.Propos
 		logger.Warning("Failed to send vote message: %v", err)
 	}
 }
-func (a *AtomicBroadcastManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
-	a.stateLedger.ProcessQc(qc)
-	a.roundState.AdvanceRoundQC(qc)
+func (x *DistributedConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
+	x.stateLedger.ProcessQc(qc)
+	x.roundState.AdvanceRoundQC(qc)
 }
 
-func (a *AtomicBroadcastManager) processNewRoundEvent() {
-	// todo: to implement
+func (x *DistributedConsensusManager) processNewRoundEvent() {
+	// todo: to implement proposal generator
 }

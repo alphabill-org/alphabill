@@ -2,6 +2,7 @@ package rootvalidator
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -18,6 +19,7 @@ type partitionInfo struct {
 
 // PartitionStore stores partition related information. key of the map is system identifier.
 type PartitionStore struct {
+	mu         sync.Mutex
 	partitions map[p.SystemIdentifier]*partitionInfo
 }
 
@@ -67,6 +69,8 @@ func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) 
 }
 
 func (ps *PartitionStore) AddPartition(partition *genesis.PartitionRecord) error {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	sysIdent := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
 	// init on first add
 	if ps.partitions == nil {
@@ -91,12 +95,16 @@ func (ps *PartitionStore) AddPartition(partition *genesis.PartitionRecord) error
 
 // Size returns the number of partition in the partition store.
 func (ps *PartitionStore) Size() int {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	return len(ps.partitions)
 }
 
 // NodeCount returns the number of nodes in the given partition.
 // If partition is not in the partitionStore then 0 is returned.
 func (ps *PartitionStore) NodeCount(id p.SystemIdentifier) int {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	p, f := ps.partitions[id]
 	if !f {
 		return 0
@@ -105,6 +113,8 @@ func (ps *PartitionStore) NodeCount(id p.SystemIdentifier) int {
 }
 
 func (ps *PartitionStore) GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	p, f := ps.partitions[id]
 	if !f {
 		return nil, fmt.Errorf("unknown system identifier %X", id)
@@ -114,6 +124,8 @@ func (ps *PartitionStore) GetSystemDescription(id p.SystemIdentifier) (*genesis.
 
 // GetNodes returns all registered partition nodes
 func (ps *PartitionStore) GetNodes(id p.SystemIdentifier) ([]string, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	p, f := ps.partitions[id]
 	if !f {
 		return nil, fmt.Errorf("unknown system identifier %X", id)
@@ -130,6 +142,8 @@ func (ps *PartitionStore) GetNodes(id p.SystemIdentifier) ([]string, error) {
 
 // GetTrustBase returns partition map of registered nodes and their keys
 func (ps *PartitionStore) GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	p, f := ps.partitions[id]
 	if !f {
 		return nil, fmt.Errorf("unknown system identifier %X", id)

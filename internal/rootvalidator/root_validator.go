@@ -7,7 +7,9 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -48,6 +50,12 @@ type (
 		Get() (store.RootState, error)
 	}
 
+	PartitionStoreRd interface {
+		NodeCount(id p.SystemIdentifier) int
+		GetNodes(id p.SystemIdentifier) ([]string, error)
+		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
+	}
+
 	RootNodeConf struct {
 		stateStore       StateStoreRd
 		consensusManager ConsensusManager
@@ -59,7 +67,7 @@ type (
 		ctxCancel        context.CancelFunc
 		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
-		partitionStore   *PartitionStore
+		partitionStore   PartitionStoreRd
 		incomingRequests CertificationRequestStore
 		net              PartitionNet
 		consensusManager ConsensusManager
@@ -80,7 +88,7 @@ func WithConsensusManager(consensus ConsensusManager) Option {
 
 // NewRootValidatorNode creates a new instance of the root validator node
 func NewRootValidatorNode(
-	partitionStore *PartitionStore,
+	partitionStore PartitionStoreRd,
 	prt *network.Peer,
 	pNet PartitionNet,
 	opts ...Option,

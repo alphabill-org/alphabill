@@ -20,6 +20,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -355,11 +357,11 @@ func (w *TokensWallet) NewNonFungibleType(ctx context.Context, attrs *tokens.Cre
 }
 
 func (w *TokensWallet) newType(ctx context.Context, attrs proto.Message, typeId TokenTypeId) (TokenId, error) {
-	id, to, err := w.sendTx(TokenId(typeId), attrs, nil)
+	sub, err := w.sendTx(TokenId(typeId), attrs, nil)
 	if err != nil {
 		return nil, err
 	}
-	return id, w.syncToUnit(ctx, id, to)
+	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
 func (w *TokensWallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
@@ -379,27 +381,40 @@ func (w *TokensWallet) newToken(ctx context.Context, accNr uint64, attrs tokens.
 		return nil, err
 	}
 	attrs.SetBearer(script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256))
-	id, to, err := w.sendTx(tokenId, attrs, nil)
+	sub, err := w.sendTx(tokenId, attrs, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return id, w.syncToUnit(ctx, id, to)
+	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
 func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint64) error {
+	submissions := make(map[string]*submittedTx, 1)
+	submissions[id.string()] = &submittedTx{id, timeout}
+	return w.syncToUnits(ctx, submissions, timeout)
+}
+
+func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	log.Info(fmt.Sprintf("Request sent, waiting the tx to be finalized"))
+	log.Info(fmt.Sprintf("Waiting the transactions to be finalized"))
 	var bl BlockListener = func(b *block.Block) error {
 		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
-		if b.BlockNumber > timeout {
-			log.Info(fmt.Sprintf("Timeout is reached (#%v), tx not found for UnitID=%X", b.BlockNumber, id))
+		if b.BlockNumber > maxTimeout {
+			log.Info(fmt.Sprintf("Sync timeout is reached, block (#%v)", b.BlockNumber))
+			for _, sub := range subs {
+				log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
+			}
 			cancel()
 		}
 		for _, tx := range b.Transactions {
-			if bytes.Equal(tx.UnitId, id) {
-				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", id, b.BlockNumber))
+			id := TokenId(tx.UnitId).string()
+			if sub, found := subs[id]; found {
+				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.BlockNumber))
+				delete(subs, id)
+			}
+			if len(subs) == 0 {
 				cancel()
 			}
 		}
@@ -424,38 +439,44 @@ func randomId() (TokenId, error) {
 	return id, nil
 }
 
-func (w *TokensWallet) sendTx(unitId TokenId, attrs proto.Message, ac *wallet.AccountKey) (TokenId, uint64, error) {
-	log.Info("Sending token tx")
+type submittedTx struct {
+	id      TokenId
+	timeout uint64
+}
+
+func (w *TokensWallet) sendTx(unitId TokenId, attrs proto.Message, ac *wallet.AccountKey) (*submittedTx, error) {
+	txSub := &submittedTx{id: unitId}
 	if unitId == nil {
 		id, err := randomId()
 		if err != nil {
-			return nil, 0, err
+			return txSub, err
 		}
-		log.Info(fmt.Sprintf("New UnitID=%X", id))
-		unitId = id
+		txSub.id = id
 	}
+	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", unitId, reflect.TypeOf(attrs)))
 
 	blockNumber, err := w.mw.GetMaxBlockNumber()
 	if err != nil {
-		return nil, 0, err
+		return txSub, err
 	}
-	tx := createTx(unitId, blockNumber+txTimeoutBlockCount)
+	tx := createTx(txSub.id, blockNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
-		return nil, 0, err
+		return txSub, err
 	}
 	err = signTx(tx, ac)
 	if err != nil {
-		return nil, 0, err
+		return txSub, err
 	}
 	res, err := w.mw.SendTransaction(tx)
 	if err != nil {
-		return nil, 0, err
+		return txSub, err
 	}
 	if !res.Ok {
-		return nil, 0, errors.New("tx submission returned error code: " + res.Message)
+		return txSub, errors.New("tx submission returned error code: " + res.Message)
 	}
-	return unitId, tx.Timeout, nil
+	txSub.timeout = tx.Timeout
+	return txSub, nil
 }
 
 func signTx(tx *txsystem.Transaction, ac *wallet.AccountKey) error {
@@ -559,7 +580,7 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	return w.transfer(ctx, acc, t, receiverPubKey)
 }
 
-func (w *TokensWallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *token, receiverPubKey []byte) error {
+func newFungibleTransferTxAttrs(token *token, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
 	var bearer []byte
 	if receiverPubKey != nil {
 		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
@@ -569,19 +590,38 @@ func (w *TokensWallet) transfer(ctx context.Context, ac *wallet.AccountKey, toke
 
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.Backlink))
 
-	attrs := &tokens.TransferFungibleTokenAttributes{
+	return &tokens.TransferFungibleTokenAttributes{
 		NewBearer:                   bearer,
 		Value:                       token.Amount,
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}
+}
 
-	_, timeout, err := w.sendTx(token.Id, attrs, ac)
+func (w *TokensWallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *token, receiverPubKey []byte) error {
+	sub, err := w.sendTx(token.Id, newFungibleTransferTxAttrs(token, receiverPubKey), ac)
 	if err != nil {
 		return err
 	}
 
-	return w.syncToUnit(ctx, token.Id, timeout)
+	return w.syncToUnit(ctx, token.Id, sub.timeout)
+}
+
+func newNonFungibleTransferTxAttrs(token *token, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
+	var bearer []byte
+	if receiverPubKey != nil {
+		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
+	} else {
+		bearer = script.PredicateAlwaysTrue()
+	}
+
+	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
+
+	return &tokens.TransferNonFungibleTokenAttributes{
+		NewBearer:                   bearer,
+		Backlink:                    token.Backlink,
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
 }
 
 func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey []byte) error {
@@ -597,34 +637,15 @@ func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, to
 		return errors.New(fmt.Sprintf("token with id=%X not found under account #%v", tokenId, accountNumber))
 	}
 
-	var bearer []byte
-	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
-	} else {
-		bearer = script.PredicateAlwaysTrue()
-	}
-
-	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", t.Backlink))
-
-	attrs := &tokens.TransferNonFungibleTokenAttributes{
-		NewBearer:                   bearer,
-		Backlink:                    t.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
-	}
-
-	_, timeout, err := w.sendTx(tokenId, attrs, acc)
+	sub, err := w.sendTx(tokenId, newNonFungibleTransferTxAttrs(t, receiverPubKey), acc)
 	if err != nil {
 		return err
 	}
 
-	return w.syncToUnit(ctx, tokenId, timeout)
+	return w.syncToUnit(ctx, tokenId, sub.timeout)
 }
 
-func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *token, amount uint64, receiverPubKey []byte) error {
-	if amount >= token.Amount {
-		return errors.New(fmt.Sprintf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.Id))
-	}
-
+func newSplitTxAttrs(token *token, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
 	var bearer []byte
 	if receiverPubKey != nil {
 		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
@@ -634,19 +655,25 @@ func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *
 
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
 
-	attrs := &tokens.SplitFungibleTokenAttributes{
+	return &tokens.SplitFungibleTokenAttributes{
 		NewBearer:                   bearer,
 		TargetValue:                 amount,
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}
+}
 
-	_, timeout, err := w.sendTx(token.Id, attrs, ac)
+func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *token, amount uint64, receiverPubKey []byte) error {
+	if amount >= token.Amount {
+		return errors.New(fmt.Sprintf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.Id))
+	}
+
+	sub, err := w.sendTx(token.Id, newSplitTxAttrs(token, amount, receiverPubKey), ac)
 	if err != nil {
 		return err
 	}
 
-	return w.syncToUnit(ctx, token.Id, timeout)
+	return w.syncToUnit(ctx, token.Id, sub.timeout)
 }
 
 func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeId, targetAmount uint64, receiverPubKey []byte) error {
@@ -681,15 +708,26 @@ func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, t
 	if targetAmount > totalBalance {
 		return errors.New(fmt.Sprintf("insufficient value: got %v, need %v", totalBalance, targetAmount))
 	}
-	if closestMatch.Amount == targetAmount {
-		return w.transfer(ctx, acc, closestMatch, receiverPubKey)
-	} else if closestMatch.Amount > targetAmount {
-		return w.split(ctx, acc, closestMatch, targetAmount, receiverPubKey)
+	var submissions map[string]*submittedTx
+	var maxTimeout uint64
+	// optimization: first try to make a single operation instead of iterating through all tokens in doSendMultiple
+	if closestMatch.Amount >= targetAmount {
+		var sub *submittedTx
+		sub, err = w.sendSplitOrTransferTx(acc, targetAmount, closestMatch, receiverPubKey)
+		submissions = make(map[string]*submittedTx, 1)
+		submissions[sub.id.string()] = sub
+		maxTimeout = sub.timeout
 	} else {
-		// TODO perform multiple tx
-		panic("not implemented")
+		submissions, maxTimeout, err = w.doSendMultiple(targetAmount, fungibleTokens, acc, receiverPubKey)
 	}
-	return nil
+
+	// error might have happened, but some submissions could have succeeded
+	syncErr := w.syncToUnits(ctx, submissions, maxTimeout)
+
+	if err != nil {
+		return err
+	}
+	return syncErr
 }
 
 func (w *TokensWallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, error) {
@@ -697,6 +735,46 @@ func (w *TokensWallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, 
 		return w.mw.GetAccountKey(accountNumber - 1)
 	}
 	return nil, nil
+}
+
+// assumes there's sufficient balance for the given amount, sends transactions immediately
+func (w *TokensWallet) doSendMultiple(amount uint64, tokens []*token, acc *wallet.AccountKey, receiverPubKey []byte) (map[string]*submittedTx, uint64, error) {
+	var accumulatedSum uint64
+	sort.Slice(tokens, func(i, j int) bool {
+		return tokens[i].Amount > tokens[j].Amount
+	})
+	var maxTimeout uint64 = 0
+	submissions := make(map[string]*submittedTx, 2)
+	for _, t := range tokens {
+		remainingAmount := amount - accumulatedSum
+		sub, err := w.sendSplitOrTransferTx(acc, remainingAmount, t, receiverPubKey)
+		if sub.timeout > maxTimeout {
+			maxTimeout = sub.timeout
+		}
+		if err != nil {
+			return submissions, maxTimeout, err
+		}
+		submissions[sub.id.string()] = sub
+		accumulatedSum += t.Amount
+		if accumulatedSum >= amount {
+			break
+		}
+	}
+	return submissions, maxTimeout, nil
+}
+
+func (w *TokensWallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *token, receiverPubKey []byte) (*submittedTx, error) {
+	var attrs proto.Message
+	if amount >= token.Amount {
+		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
+	} else {
+		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
+	}
+	sub, err := w.sendTx(token.Id, attrs, acc)
+	if err != nil {
+		return sub, err
+	}
+	return sub, nil
 }
 
 func createTx(unitId []byte, timeout uint64) *txsystem.Transaction {
@@ -754,4 +832,8 @@ func (t *token) GetSymbol() string {
 
 func (t *token) GetTypeId() TokenTypeId {
 	return t.TypeId
+}
+
+func (id TokenId) string() string {
+	return string(id)
 }

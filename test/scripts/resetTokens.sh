@@ -51,6 +51,7 @@ build/alphabill wallet token new fungible --type $typeId1 --amount 5 --log-level
 
 echo "Send fungible token to w2"
 build/alphabill wallet token send fungible --type $typeId1 --amount 3 --address "$mainKey2" -k 1 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/ -u localhost:27766
+build/alphabill wallet token send fungible --type $typeId1 --amount 3 --address "$mainKey2" -k 1 --log-level DEBUG --log-file $abHome/wallet1/w1.log -l $abHome/wallet1/ -u localhost:27766
 
 
 echo "Mint new NFT"

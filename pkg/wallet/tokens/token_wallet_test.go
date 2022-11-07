@@ -108,6 +108,7 @@ func TestNewFungibleToken_pubKeyBearer(t *testing.T) {
 
 func createTestWallet(t *testing.T) (*TokensWallet, *clientmock.MockAlphabillClient) {
 	_ = deleteFile(os.TempDir(), money.WalletFileName)
+	_ = deleteFile(os.TempDir(), tokensFileName)
 	c := money.WalletConfig{DbPath: os.TempDir()}
 	w, err := money.CreateNewWallet("", c)
 	require.NoError(t, err)
@@ -130,5 +131,6 @@ func deleteWallet(w *TokensWallet) {
 	if w != nil {
 		w.Shutdown()
 		w.mw.DeleteDb()
+		w.db.DeleteDb()
 	}
 }

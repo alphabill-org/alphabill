@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -22,35 +21,9 @@ var (
 	blockHeightKeyName = []byte("blockHeightKey")
 )
 
-var (
-	errWalletDbAlreadyExists = errors.New("wallet db already exists")
-	errWalletDbDoesNotExists = errors.New("cannot open tokens db, file does not exist")
-	errAccountNotFound       = errors.New("account does not exist")
-)
-
 const (
 	tokensFileName                = "tokens.db"
 	alwaysTrueTokensAccountNumber = 0
-)
-
-type (
-	tokenType struct {
-		Id            TokenTypeId `json:"id"`
-		ParentTypeId  TokenTypeId `json:"typeId"`
-		Kind          TokenKind   `json:"kind"`
-		Symbol        string      `json:"symbol"`
-		DecimalPlaces uint32      `json:"decimalPlaces"`
-	}
-
-	token struct {
-		Id       TokenId     `json:"id"`
-		Kind     TokenKind   `json:"kind"`
-		Symbol   string      `json:"symbol"`
-		TypeId   TokenTypeId `json:"typeId"`
-		Amount   uint64      `json:"amount"` // fungible only
-		Uri      string      `json:"uri"`    // nft only
-		Backlink []byte      `json:"backlink"`
-	}
 )
 
 type Db interface {

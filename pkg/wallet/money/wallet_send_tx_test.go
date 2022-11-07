@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +39,7 @@ func TestWalletSendFunction(t *testing.T) {
 	require.NoError(t, err)
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: "some error"})
 	err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
-	require.ErrorContains(t, err, "payment returned error code: some error")
+	require.ErrorContains(t, err, "transaction returned error code: some error")
 	mockClient.SetTxResponse(nil)
 
 	// test ErrSwapInProgress
@@ -230,7 +231,7 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	wg.Wait()
 
 	// and verify send tx error
-	require.ErrorIs(t, sendError, ErrFailedToBroadcastTx)
+	require.ErrorIs(t, sendError, wallet.ErrFailedToBroadcastTx)
 }
 
 func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
@@ -261,7 +262,7 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 
 	// then sendError returns immediately
 	wg.Wait()
-	require.ErrorIs(t, sendError, ErrTxRetryCanceled)
+	require.ErrorIs(t, sendError, wallet.ErrTxRetryCanceled)
 
 	// and only the initial transaction should be broadcast
 	require.Len(t, mockClient.GetRecordedTransactions(), 1)

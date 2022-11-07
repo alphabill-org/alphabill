@@ -99,6 +99,7 @@ func NewRootValidatorNode(
 		conf:             configuration,
 		partitionHost:    prt,
 		partitionStore:   partitionStore,
+		net:              pNet,
 		consensusManager: consensus,
 	}
 	node.ctx, node.ctxCancel = context.WithCancel(context.Background())

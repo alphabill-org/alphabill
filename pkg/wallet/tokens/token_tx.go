@@ -220,13 +220,18 @@ func (w *TokensWallet) newType(ctx context.Context, attrs proto.Message, typeId 
 }
 
 func (w *TokensWallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenId) (TokenId, error) {
-	accIdx := accNr - 1
-	key, err := w.mw.GetAccountKey(accIdx)
-	if err != nil {
-		return nil, err
+	if accNr > 0 {
+		accIdx := accNr - 1
+		key, err := w.mw.GetAccountKey(accIdx)
+		if err != nil {
+			return nil, err
+		}
+		attrs.SetBearer(script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256))
+	} else {
+		attrs.SetBearer(script.PredicateAlwaysTrue())
 	}
-	attrs.SetBearer(script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256))
-	sub, err := w.sendTx(tokenId, attrs, nil)
+
+	sub, err := w.sendTx(tokenId, attrs, nil) // key is not passed as signing of minting tx is not needed?
 	if err != nil {
 		return nil, err
 	}

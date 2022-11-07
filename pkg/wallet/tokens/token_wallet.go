@@ -25,13 +25,14 @@ type (
 		mw            *money.Wallet
 		db            *tokensDb
 		txs           block.TxConverter
+		waitTx        bool
 		blockListener wallet.BlockProcessor
 	}
 
 	PublicKey []byte
 )
 
-func Load(mw *money.Wallet) (*TokensWallet, error) {
+func Load(mw *money.Wallet, waitTx bool) (*TokensWallet, error) {
 	config := mw.GetConfig()
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
@@ -46,7 +47,7 @@ func Load(mw *money.Wallet) (*TokensWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &TokensWallet{mw, db, txs, nil}
+	w := &TokensWallet{mw, db, txs, waitTx, nil}
 	w.mw.Wallet = wallet.New().
 		SetBlockProcessor(w).
 		SetABClient(mw.AlphabillClient).

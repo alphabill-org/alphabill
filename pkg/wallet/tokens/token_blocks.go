@@ -87,6 +87,10 @@ func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint6
 }
 
 func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
+	// ...or don't
+	if !w.waitTx {
+		return nil
+	}
 	ctx, cancel := context.WithCancel(ctx)
 
 	log.Info(fmt.Sprintf("Waiting the transactions to be finalized"))

@@ -45,7 +45,7 @@ func DeleteWallet(w *Wallet) {
 }
 
 func DeleteWalletDb(walletDir string) error {
-	dbFilePath := path.Join(walletDir, walletFileName)
+	dbFilePath := path.Join(walletDir, WalletFileName)
 	return os.Remove(dbFilePath)
 }
 
@@ -71,8 +71,8 @@ func CopyEncryptedWalletDBFile(t *testing.T) (string, error) {
 
 func copyWalletDB(srcDir string) (string, error) {
 	dstDir := os.TempDir()
-	srcFile := path.Join(srcDir, walletFileName)
-	dstFile := path.Join(dstDir, walletFileName)
+	srcFile := path.Join(srcDir, WalletFileName)
+	dstFile := path.Join(dstDir, WalletFileName)
 	return dstDir, copyFile(srcFile, dstFile)
 }
 

@@ -601,7 +601,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet
 		return nil, err
 	}
 
-	tw, err := t.Load(mw)
+	tw, err := t.Load(mw, true) // TODO add --sync flag
 	if err != nil {
 		return nil, err
 	}

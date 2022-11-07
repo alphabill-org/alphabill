@@ -1,4 +1,4 @@
-package consensus
+package distributed
 
 import (
 	"github.com/alphabill-org/alphabill/internal/crypto"

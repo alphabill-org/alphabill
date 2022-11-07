@@ -1,4 +1,4 @@
-package monolithic_consensus
+package distributed
 
 import log "github.com/alphabill-org/alphabill/internal/logger"
 

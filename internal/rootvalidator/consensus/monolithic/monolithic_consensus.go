@@ -1,4 +1,4 @@
-package monolithic_consensus
+package monolithic
 
 import (
 	"context"
@@ -48,7 +48,7 @@ type (
 		stateStore StateStore
 	}
 
-	MonolithicConsensusManager struct {
+	ConsensusManager struct {
 		ctx          context.Context
 		ctxCancel    context.CancelFunc
 		certReqCh    chan consensus.IRChangeRequest
@@ -93,7 +93,7 @@ func NewUnicityTreeData(ir *certificates.InputRecord, sd *genesis.SystemDescript
 
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
 func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionStore,
-	signer crypto.Signer, opts ...Option) (*MonolithicConsensusManager, error) {
+	signer crypto.Signer, opts ...Option) (*ConsensusManager, error) {
 	if peer == nil {
 		return nil, errors.New("peer is nil")
 	}
@@ -106,7 +106,7 @@ func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionS
 	config := loadConf(opts)
 	timers := timer.NewTimers()
 
-	consensusManager := &MonolithicConsensusManager{
+	consensusManager := &ConsensusManager{
 		certReqCh:    make(chan consensus.IRChangeRequest, ChannelBuffer),
 		certResultCh: make(chan certificates.UnicityCertificate, ChannelBuffer),
 		timers:       timers,
@@ -121,15 +121,15 @@ func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionS
 	return consensusManager, nil
 }
 
-func (x *MonolithicConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
+func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
 	return x.certReqCh
 }
 
-func (x *MonolithicConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
+func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
 	return x.certResultCh
 }
 
-func (x *MonolithicConsensusManager) Start() {
+func (x *ConsensusManager) Start() {
 	// Start timers
 	x.timers.Start(t3TimerID, x.conf.t3Timeout)
 	// todo: should refactor to use round number or UC seal timestamp for partition timeouts
@@ -140,12 +140,12 @@ func (x *MonolithicConsensusManager) Start() {
 	go x.loop()
 }
 
-func (x *MonolithicConsensusManager) Stop() {
+func (x *ConsensusManager) Stop() {
 	x.timers.WaitClose()
 	x.ctxCancel()
 }
 
-func (x *MonolithicConsensusManager) loop() {
+func (x *ConsensusManager) loop() {
 	for {
 		select {
 		case <-x.ctx.Done():
@@ -163,7 +163,7 @@ func (x *MonolithicConsensusManager) loop() {
 				logger.Warning("Unexpected error, cannot certify IR from %X: %v", req.SystemIdentifier, err)
 				break
 			}
-			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(&req.IR, sd, x.conf.hashAlgo)
+			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(req.IR, sd, x.conf.hashAlgo)
 		// handle timeouts
 		case nt := <-x.timers.C:
 			if nt == nil {
@@ -208,7 +208,7 @@ func (x *MonolithicConsensusManager) loop() {
 	}
 }
 
-func (x *MonolithicConsensusManager) CreateUnicityCertificates() (*store.RootState, error) {
+func (x *ConsensusManager) CreateUnicityCertificates() (*store.RootState, error) {
 	nofInputs := len(x.inputData)
 	data := make([]*unicitytree.Data, nofInputs)
 	logger.Debug("Input records are:")
@@ -275,7 +275,7 @@ func (x *MonolithicConsensusManager) CreateUnicityCertificates() (*store.RootSta
 	return &newState, nil
 }
 
-func (x *MonolithicConsensusManager) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte) (*certificates.UnicitySeal, error) {
+func (x *ConsensusManager) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
 		RootChainRoundNumber: newRound,
 		PreviousHash:         prevRoot,

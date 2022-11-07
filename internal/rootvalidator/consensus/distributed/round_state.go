@@ -1,4 +1,4 @@
-package consensus
+package distributed
 
 import (
 	"math"

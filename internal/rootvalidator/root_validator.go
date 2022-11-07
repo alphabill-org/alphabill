@@ -263,7 +263,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
 			Reason:           consensus.Quorum,
-			IR:               *ir,
+			IR:               ir,
 			Requests:         requests}
 	} else if !consensusPossible {
 		logger.Debug("Consensus not possible for partition %X.", systemIdentifier.Bytes())
@@ -278,7 +278,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
 			Reason:           consensus.Quorum,
-			IR:               *luc.InputRecord,
+			IR:               luc.InputRecord,
 			Requests:         requests}
 	}
 }

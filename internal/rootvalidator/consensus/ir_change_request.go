@@ -17,7 +17,7 @@ type (
 	IRChangeRequest struct {
 		SystemIdentifier protocol.SystemIdentifier
 		Reason           CertReqReason
-		IR               certificates.InputRecord
+		IR               *certificates.InputRecord
 		Requests         []*certification.BlockCertificationRequest
 	}
 )

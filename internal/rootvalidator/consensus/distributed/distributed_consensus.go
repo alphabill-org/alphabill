@@ -1,4 +1,4 @@
-package consensus
+package distributed
 
 import (
 	"bytes"
@@ -6,6 +6,9 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"time"
+
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -15,7 +18,6 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/leader"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -69,10 +71,10 @@ type (
 
 	Option func(c *AbConsensusConfig)
 
-	DistributedConsensusManager struct {
+	ConsensusManager struct {
 		ctx          context.Context
 		ctxCancel    context.CancelFunc
-		certReqCh    chan IRChangeRequest
+		certReqCh    chan consensus.IRChangeRequest
 		certResultCh chan certificates.UnicityCertificate
 		peer         *network.Peer
 		timers       *timer.Timers
@@ -130,7 +132,7 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensu
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord,
-	partitionStore PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*DistributedConsensusManager, error) {
+	partitionStore PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*ConsensusManager, error) {
 	// Sanity checks
 	if genesisRoot == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -178,8 +180,8 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		// Start timer and wait for requests from partition nodes
 		timers.Start(blockRateId, conf.BlockRateMs)
 	}
-	consensusManager := &DistributedConsensusManager{
-		certReqCh:    make(chan IRChangeRequest, 1),
+	consensusManager := &ConsensusManager{
+		certReqCh:    make(chan consensus.IRChangeRequest, 1),
 		certResultCh: make(chan certificates.UnicityCertificate, 1),
 		peer:         host,
 		timers:       timers,
@@ -194,24 +196,24 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	return consensusManager, nil
 }
 
-func (x *DistributedConsensusManager) RequestCertification() chan<- IRChangeRequest {
+func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
 	return x.certReqCh
 }
 
-func (x *DistributedConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
+func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
 	return x.certResultCh
 }
 
-func (x *DistributedConsensusManager) Start() {
+func (x *ConsensusManager) Start() {
 	go x.loop()
 }
 
-func (x *DistributedConsensusManager) Stop() {
+func (x *ConsensusManager) Stop() {
 	x.timers.WaitClose()
 	x.ctxCancel()
 }
 
-func (x *DistributedConsensusManager) loop() {
+func (x *ConsensusManager) loop() {
 	for {
 		select {
 		case <-x.ctx.Done():
@@ -293,7 +295,7 @@ func (x *DistributedConsensusManager) loop() {
 			// send vote
 			// assume positive case as this will be most common
 			reason := atomic_broadcast.IRChangeReqMsg_QUORUM
-			if req.Reason == QuorumNotPossible {
+			if req.Reason == consensus.QuorumNotPossible {
 				reason = atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE
 			}
 			irReq := &atomic_broadcast.IRChangeReqMsg{
@@ -330,7 +332,7 @@ func (x *DistributedConsensusManager) loop() {
 }
 
 // onLocalTimeout handle timeouts
-func (x *DistributedConsensusManager) onLocalTimeout() {
+func (x *ConsensusManager) onLocalTimeout() {
 	// always restart timer
 	// Has the validator voted in this round
 	voteMsg := x.roundState.GetVoted()
@@ -373,7 +375,7 @@ func (x *DistributedConsensusManager) onLocalTimeout() {
 }
 
 // onIRChange handles IR change request from other root nodes
-func (x *DistributedConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
+func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
 	// Am I the next leader
 	// todo: I am leader now, but have not yet proposed -> should still accept requests (throttling)
 	if x.proposer.IsValidLeader(x.peer.ID(), x.roundState.GetCurrentRound()+1) == false {
@@ -385,7 +387,7 @@ func (x *DistributedConsensusManager) onIRChange(irChange *atomic_broadcast.IRCh
 }
 
 // onVoteMsg handle votes and timeout votes
-func (x *DistributedConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
+func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.rootVerifier)
 	if err != nil {
@@ -420,7 +422,7 @@ func (x *DistributedConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) 
 	x.processNewRoundEvent()
 }
 
-func (x *DistributedConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
+func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
 	// verify signature on proposal
 	err := proposal.Verify(x.rootVerifier)
@@ -487,11 +489,11 @@ func (x *DistributedConsensusManager) onProposalMsg(proposal *atomic_broadcast.P
 		logger.Warning("Failed to send vote message: %v", err)
 	}
 }
-func (x *DistributedConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
+func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
 	x.stateLedger.ProcessQc(qc)
 	x.roundState.AdvanceRoundQC(qc)
 }
 
-func (x *DistributedConsensusManager) processNewRoundEvent() {
+func (x *ConsensusManager) processNewRoundEvent() {
 	// todo: to implement proposal generator
 }

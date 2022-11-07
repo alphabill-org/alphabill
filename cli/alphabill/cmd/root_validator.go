@@ -8,9 +8,10 @@ import (
 	"sort"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/monolithic_consensus"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -58,7 +58,7 @@ type validatorConfig struct {
 	MaxRequests uint
 
 	// persistent storage
-	StateStore consensus.StateStore
+	StateStore distributed.StateStore
 }
 
 // newRootValidatorCmd creates a new cobra command for root validator chain
@@ -150,10 +150,10 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	// use monolithic consensus algorithm
 	if len(rootGenesis.Root.RootValidators) == 1 {
 
-		consensusMgr, err = monolithic_consensus.NewMonolithicConsensusManager(prtHost,
+		consensusMgr, err = monolithic.NewMonolithicConsensusManager(prtHost,
 			partitionStore,
 			keys.SigningPrivateKey,
-			monolithic_consensus.WithStateStorage(config.StateStore))
+			monolithic.WithStateStorage(config.StateStore))
 		if err != nil {
 			return errors.Wrapf(err, "failed to init consensus manager")
 		}
@@ -168,13 +168,13 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 			return errors.Wrapf(err, "failed initiate root validator validator network")
 		}
 		// Create distributed consensus manager
-		consensusMgr, err = consensus.NewDistributedAbConsensusManager(
+		consensusMgr, err = distributed.NewDistributedAbConsensusManager(
 			rootHost,
 			rootGenesis.Root,
 			partitionStore,
 			keys.SigningPrivateKey,
 			rootNet,
-			consensus.WithStateStore(config.StateStore))
+			distributed.WithStateStore(config.StateStore))
 		if err != nil {
 			return errors.Wrapf(err, "failed to init consensus manager")
 		}
@@ -244,7 +244,7 @@ func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKe
 	return network.NewPeer(conf)
 }
 
-func initiateStateStore(stateStore consensus.StateStore, rg *genesis.RootGenesis) error {
+func initiateStateStore(stateStore distributed.StateStore, rg *genesis.RootGenesis) error {
 	state, err := stateStore.Get()
 	if err != nil {
 		return err

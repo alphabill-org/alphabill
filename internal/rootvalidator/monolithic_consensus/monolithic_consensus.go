@@ -57,7 +57,7 @@ type (
 		conf         *consensusConfig
 		selfId       string // node identifier
 		partitions   PartitionStore
-		inputRecords map[p.SystemIdentifier]*certificates.InputRecord
+		inputData    map[p.SystemIdentifier]*unicitytree.Data
 		signer       crypto.Signer // private key of the root chain
 		verifier     map[string]crypto.Verifier
 	}
@@ -83,6 +83,14 @@ func WithHashAlgo(algo gocrypto.Hash) Option {
 	}
 }
 
+func NewUnicityTreeData(ir *certificates.InputRecord, sd *genesis.SystemDescriptionRecord, algo gocrypto.Hash) *unicitytree.Data {
+	return &unicitytree.Data{
+		SystemIdentifier:            sd.SystemIdentifier,
+		InputRecord:                 ir,
+		SystemDescriptionRecordHash: sd.Hash(algo),
+	}
+}
+
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
 func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionStore,
 	signer crypto.Signer, opts ...Option) (*MonolithicConsensusManager, error) {
@@ -105,7 +113,7 @@ func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionS
 		conf:         config,
 		selfId:       selfId,
 		partitions:   partitionStore,
-		inputRecords: make(map[p.SystemIdentifier]*certificates.InputRecord),
+		inputData:    make(map[p.SystemIdentifier]*unicitytree.Data),
 		signer:       signer,
 		verifier:     map[string]crypto.Verifier{selfId: verifier},
 	}
@@ -150,7 +158,12 @@ func (x *MonolithicConsensusManager) loop() {
 			}
 			logger.Debug("IR change request from partition")
 			// The request is sent internally, assume correct handling and do not double-check the attached requests
-			x.inputRecords[req.SystemIdentifier] = &req.IR
+			sd, err := x.partitions.GetSystemDescription(req.SystemIdentifier)
+			if err != nil {
+				logger.Warning("Unexpected error, cannot certify IR from %X: %v", req.SystemIdentifier, err)
+				break
+			}
+			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(&req.IR, sd, x.conf.hashAlgo)
 		// handle timeouts
 		case nt := <-x.timers.C:
 			if nt == nil {
@@ -171,29 +184,39 @@ func (x *MonolithicConsensusManager) loop() {
 					x.certResultCh <- *cert
 				}
 			default:
-				logger.Debug("Handling T2 timeout with a name '%X'", []byte(timerId))
+				x.timers.Restart(timerId)
+				systemdId := p.SystemIdentifier(timerId)
+				logger.Debug("Handling T2 timeout with a name '%X'", systemdId)
 				state, err := x.conf.stateStore.Get()
 				if err != nil {
-					logger.Warning("Unable to re-certify partition %X, error: %v", []byte(timerId), err.Error())
+					logger.Warning("Unable to re-certify partition %X, error: %v", systemdId, err.Error())
 					break
 				}
-				luc, f := state.Certificates[p.SystemIdentifier(timerId)]
+				luc, f := state.Certificates[systemdId]
 				if !f {
-					logger.Warning("Unable to re-certify partition %X, error: no certificate found", []byte(timerId), err.Error())
+					logger.Warning("Unable to re-certify partition %X, error: no certificate found", systemdId, err.Error())
 					break
 				}
-				x.inputRecords[p.SystemIdentifier(timerId)] = luc.InputRecord
-				x.timers.Restart(timerId)
+				sd, err := x.partitions.GetSystemDescription(systemdId)
+				if err != nil {
+					logger.Warning("Unexpected error, cannot certify IR from %X: %v", systemdId, err)
+					break
+				}
+				x.inputData[systemdId] = NewUnicityTreeData(luc.InputRecord, sd, x.conf.hashAlgo)
 			}
 		}
 	}
 }
 
 func (x *MonolithicConsensusManager) CreateUnicityCertificates() (*store.RootState, error) {
-	data := x.toUnicityTreeData(x.inputRecords)
+	nofInputs := len(x.inputData)
+	data := make([]*unicitytree.Data, nofInputs)
 	logger.Debug("Input records are:")
-	for _, ir := range data {
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("IR for partition %X is:", ir.SystemIdentifier), ir)
+	i := 0
+	for _, ucData := range x.inputData {
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("IR for partition %X is:", ucData.SystemIdentifier), ucData)
+		data[i] = ucData
+		i++
 	}
 	ut, err := unicitytree.New(x.conf.hashAlgo.New(), data)
 	if err != nil {
@@ -222,18 +245,13 @@ func (x *MonolithicConsensusManager) CreateUnicityCertificates() (*store.RootSta
 			panic(err)
 		}
 		identifier := p.SystemIdentifier(d.SystemIdentifier)
-		sysDesc, err := x.partitions.GetSystemDescription(identifier)
-		if err != nil {
-			logger.Warning("Unexpected unknown partition id %X", sysDesc)
-		}
-		sdrHash := sysDesc.Hash(x.conf.hashAlgo)
 
 		certificate := &certificates.UnicityCertificate{
 			InputRecord: d.InputRecord,
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
 				SystemIdentifier:      cert.SystemIdentifier,
 				SiblingHashes:         cert.SiblingHashes,
-				SystemDescriptionHash: sdrHash,
+				SystemDescriptionHash: d.SystemDescriptionRecordHash,
 			},
 			UnicitySeal: unicitySeal,
 		}
@@ -252,24 +270,9 @@ func (x *MonolithicConsensusManager) CreateUnicityCertificates() (*store.RootSta
 	if err := x.conf.stateStore.Save(newState); err != nil {
 		return nil, err
 	}
-	// clear input records, all that could were handled and certificates created
-	x.inputRecords = make(map[p.SystemIdentifier]*certificates.InputRecord)
+	// clear input data, all handled and certificates created
+	x.inputData = make(map[p.SystemIdentifier]*unicitytree.Data)
 	return &newState, nil
-}
-
-func (x *MonolithicConsensusManager) toUnicityTreeData(records map[p.SystemIdentifier]*certificates.InputRecord) []*unicitytree.Data {
-	data := make([]*unicitytree.Data, len(records))
-	i := 0
-	for key, r := range records {
-		systemDescriptionRecord, _ := x.partitions.GetSystemDescription(key)
-		data[i] = &unicitytree.Data{
-			SystemIdentifier:            systemDescriptionRecord.SystemIdentifier,
-			InputRecord:                 r,
-			SystemDescriptionRecordHash: systemDescriptionRecord.Hash(x.conf.hashAlgo),
-		}
-		i++
-	}
-	return data
 }
 
 func (x *MonolithicConsensusManager) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte) (*certificates.UnicitySeal, error) {

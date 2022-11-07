@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/monolithic_consensus"
+
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 
 	"github.com/alphabill-org/alphabill/internal/async"
@@ -135,25 +137,37 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	if err != nil {
 		return errors.Wrap(err, "failed to initiate partition store")
 	}
-	// Initiate Root validator network
-	rootHost, err := loadRootNetworkConfiguration(keys, rootGenesis.Root.RootValidators, config)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create rootvalidator host")
-	}
-	rootNet, err := network.NewLibP2RootValidatorNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
-	if err != nil {
-		return errors.Wrapf(err, "failed initiate root validator validator network")
-	}
-	// Create distributed consensus manager
-	consensusMgr, err := consensus.NewDistributedAbConsensusManager(
-		rootHost,
-		rootGenesis.Root,
-		partitionStore,
-		keys.SigningPrivateKey,
-		rootNet,
-		consensus.WithStateStore(config.StateStore))
-	if err != nil {
-		return errors.Wrapf(err, "failed to init consensus manager")
+	var consensusMgr rootvalidator.ConsensusManager
+	// use monolithic consensus algorithm
+	if len(rootGenesis.Root.RootValidators) == 1 {
+		consensusMgr, err = monolithic_consensus.NewMonolithicConsensusManager(prtHost,
+			partitionStore,
+			keys.SigningPrivateKey,
+			monolithic_consensus.WithStateStorage(config.StateStore))
+		if err != nil {
+			return errors.Wrapf(err, "failed to init consensus manager")
+		}
+	} else {
+		// Initiate Root validator network
+		rootHost, err := loadRootNetworkConfiguration(keys, rootGenesis.Root.RootValidators, config)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create root validator host")
+		}
+		rootNet, err := network.NewLibP2RootValidatorNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
+		if err != nil {
+			return errors.Wrapf(err, "failed initiate root validator validator network")
+		}
+		// Create distributed consensus manager
+		consensusMgr, err = consensus.NewDistributedAbConsensusManager(
+			rootHost,
+			rootGenesis.Root,
+			partitionStore,
+			keys.SigningPrivateKey,
+			rootNet,
+			consensus.WithStateStore(config.StateStore))
+		if err != nil {
+			return errors.Wrapf(err, "failed to init consensus manager")
+		}
 	}
 	validator, err := rootvalidator.NewRootValidatorNode(
 		consensusMgr,

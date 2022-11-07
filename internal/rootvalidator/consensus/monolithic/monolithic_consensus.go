@@ -133,6 +133,7 @@ func (x *ConsensusManager) Start() {
 	// Start timers
 	x.timers.Start(t3TimerID, x.conf.t3Timeout)
 	// todo: should refactor to use round number or UC seal timestamp for partition timeouts
+	// this needs new specification updates to be finalized
 	for _, sysDesc := range x.partitions.GetSystemDescriptions() {
 		duration := time.Duration(sysDesc.T2Timeout) * time.Millisecond
 		x.timers.Start(string(sysDesc.SystemIdentifier), duration)
@@ -174,32 +175,36 @@ func (x *ConsensusManager) loop() {
 			case timerId == t3TimerID:
 				logger.Debug("T3 timeout")
 				x.timers.Restart(timerId)
+				if len(x.inputData) == 0 {
+					logger.Debug("Nothing to certify, no inputs or timeouts, skip round")
+					break
+				}
 				newState, err := x.CreateUnicityCertificates()
 				if err != nil {
 					logger.Warning("Round %v failed: %v", newState.LatestRound, err)
 					break
 				}
 				for id, cert := range newState.Certificates {
-					logger.Debug("Sending new UC for '%X'", []byte(id))
+					logger.Debug("Sending new UC for '%X'", id.Bytes())
 					x.certResultCh <- *cert
 				}
 			default:
 				x.timers.Restart(timerId)
 				systemdId := p.SystemIdentifier(timerId)
-				logger.Debug("Handling T2 timeout with a name '%X'", systemdId)
+				logger.Debug("Handling T2 timeout with a name '%X'", systemdId.Bytes())
 				state, err := x.conf.stateStore.Get()
 				if err != nil {
-					logger.Warning("Unable to re-certify partition %X, error: %v", systemdId, err.Error())
+					logger.Warning("Unable to re-certify partition %X, error: %v", systemdId.Bytes(), err.Error())
 					break
 				}
 				luc, f := state.Certificates[systemdId]
 				if !f {
-					logger.Warning("Unable to re-certify partition %X, error: no certificate found", systemdId, err.Error())
+					logger.Warning("Unable to re-certify partition %X, error: no certificate found", systemdId.Bytes(), err.Error())
 					break
 				}
 				sd, err := x.partitions.GetSystemDescription(systemdId)
 				if err != nil {
-					logger.Warning("Unexpected error, cannot certify IR from %X: %v", systemdId, err)
+					logger.Warning("Unexpected error, cannot certify IR from %X: %v", systemdId.Bytes(), err)
 					break
 				}
 				x.inputData[systemdId] = NewUnicityTreeData(luc.InputRecord, sd, x.conf.hashAlgo)

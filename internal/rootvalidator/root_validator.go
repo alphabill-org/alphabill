@@ -6,6 +6,8 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
+
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -99,6 +101,7 @@ func NewRootValidatorNode(
 		conf:             configuration,
 		partitionHost:    prt,
 		partitionStore:   partitionStore,
+		incomingRequests: request_store.NewCertificationRequestStore(),
 		net:              pNet,
 		consensusManager: consensus,
 	}

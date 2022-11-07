@@ -18,6 +18,7 @@ const (
 	billIdCmdName          = "bill-id"
 	billOrderNumberCmdName = "bill-order-number"
 	outputPathCmdName      = "output-path"
+	fileCmdName            = "file"
 )
 
 var (
@@ -25,27 +26,37 @@ var (
 )
 
 type (
-	BillProofDTO struct {
+	// BillsDTO json schema for bill import and export.
+	BillsDTO struct {
+		Bills []*BillDTO `json:"bills"`
+	}
+	// BillDTO individual bill struct in import/export schema. All fields mandatory.
+	BillDTO struct {
 		Id     []byte                `json:"id"`
 		Value  uint64                `json:"value"`
 		TxHash []byte                `json:"txHash"`
 		Tx     *txsystem.Transaction `json:"tx"`
 		Proof  *block.BlockProof     `json:"proof"`
 	}
-	BillProofsDTO struct {
-		Bills []*BillProofDTO `json:"bills"`
-	}
 )
 
-func newBillProofDTO(b *money.Bill) *BillProofDTO {
+func newBillDTO(b *money.Bill) *BillDTO {
 	b32 := b.Id.Bytes32()
-	return &BillProofDTO{
+	return &BillDTO{
 		Id:     b32[:],
 		Value:  b.Value,
 		TxHash: b.TxHash,
 		Tx:     b.Tx,
 		Proof:  b.BlockProof,
 	}
+}
+
+func newBillsDTO(bills ...*money.Bill) *BillsDTO {
+	var billsDTO []*BillDTO
+	for _, b := range bills {
+		billsDTO = append(billsDTO, newBillDTO(b))
+	}
+	return &BillsDTO{Bills: billsDTO}
 }
 
 // newWalletBillsCmd creates a new cobra command for the wallet bills component.
@@ -59,6 +70,7 @@ func newWalletBillsCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.AddCommand(listCmd(config))
 	cmd.AddCommand(exportCmd(config))
+	cmd.AddCommand(importCmd(config))
 	return cmd
 }
 
@@ -109,7 +121,7 @@ func exportCmd(config *walletConfig) *cobra.Command {
 			return execExportCmd(cmd, config)
 		},
 	}
-	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bill proofs to export")
+	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to export")
 	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
 	cmd.Flags().IntP(billOrderNumberCmdName, "n", 0, "bill order number (from list command output)")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "output directory for bills, directory is created if it does not exist (default: CWD)")
@@ -184,7 +196,7 @@ func exportBill(b *money.Bill, outputPath string) error {
 	billId := b.Id.Bytes32()
 	filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
 	outputFile := path.Join(outputPath, filename)
-	err := util.WriteJsonFile(outputFile, newBillProofDTO(b))
+	err := util.WriteJsonFile(outputFile, newBillsDTO(b))
 	if err != nil {
 		return err
 	}
@@ -193,12 +205,8 @@ func exportBill(b *money.Bill, outputPath string) error {
 }
 
 func exportBills(bills []*money.Bill, outputPath string) error {
-	var billsDTO []*BillProofDTO
-	for _, b := range bills {
-		billsDTO = append(billsDTO, newBillProofDTO(b))
-	}
 	outputFile := path.Join(outputPath, "bills.json")
-	err := util.WriteJsonFile(outputFile, &BillProofsDTO{Bills: billsDTO})
+	err := util.WriteJsonFile(outputFile, newBillsDTO(bills...))
 	if err != nil {
 		return err
 	}

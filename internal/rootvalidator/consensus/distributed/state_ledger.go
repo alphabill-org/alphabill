@@ -5,6 +5,8 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -248,4 +250,12 @@ func (p *StateLedger) GetProposedStateHash() []byte {
 		return p.proposedState.GetStateHash(p.hashAlgorithm)
 	}
 	return nil
+}
+
+func (p *StateLedger) GetPartitionTrustBase(id protocol.SystemIdentifier) (map[string]crypto.Verifier, error) {
+	tb, err := p.partitionStore.GetTrustBase(id)
+	if err != nil {
+		return nil, err
+	}
+	return tb, nil
 }

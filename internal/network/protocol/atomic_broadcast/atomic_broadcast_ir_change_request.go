@@ -24,7 +24,7 @@ func (x *IRChangeReqMsg) IsValid(partitionTrustBase map[string]crypto.Verifier) 
 		return ErrInvalidSystemId
 	}
 	// ignore other values for now, just make sure it is not negative
-	if x.CertReason < 0 {
+	if x.CertReason < 0 || x.CertReason > IRChangeReqMsg_T2_TIMEOUT {
 		return ErrInvalidCertReason
 	}
 	// Check requests are valid

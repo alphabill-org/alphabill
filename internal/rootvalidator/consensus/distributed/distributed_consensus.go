@@ -28,7 +28,6 @@ const (
 	// local timeout
 	blockRateId         = "block-rate"
 	localTimeoutId      = "local-timeout"
-	defaultRoundTimeout = 500 * time.Millisecond
 	defaultLocalTimeout = 10000 * time.Millisecond
 )
 
@@ -82,6 +81,7 @@ type (
 		roundState   *RoundState
 		proposer     Leader
 		rootVerifier *RootNodeVerifier
+		proposalGen  *ProposalGenerator
 		safety       *SafetyModule
 		stateLedger  *StateLedger
 	}
@@ -189,6 +189,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		roundState:   roundState,
 		proposer:     l,
 		rootVerifier: rootVerifier,
+		proposalGen:  NewProposalGenerator(),
 		safety:       NewSafetyModule(signer),
 		stateLedger:  ledger,
 	}
@@ -236,9 +237,6 @@ func (x *ConsensusManager) loop() {
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling IR Change Request"), req)
 				logger.Debug("IR change request from %v", msg.From)
-				// Am I the next leader or current leader and have not yet proposed? If not, ignore.
-				// Buffer and wait for opportunity to make the next proposal
-				// Todo: Add handling
 				x.onIRChange(req)
 				break
 			case network.ProtocolRootProposal:
@@ -292,7 +290,6 @@ func (x *ConsensusManager) loop() {
 			// must be forwarded to the next round leader
 			receivers := make([]peer.ID, 1)
 			receivers = append(receivers, x.proposer.GetLeaderForRound(x.roundState.GetCurrentRound()+1))
-			// send vote
 			// assume positive case as this will be most common
 			reason := atomic_broadcast.IRChangeReqMsg_QUORUM
 			if req.Reason == consensus.QuorumNotPossible {
@@ -376,14 +373,25 @@ func (x *ConsensusManager) onLocalTimeout() {
 
 // onIRChange handles IR change request from other root nodes
 func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
-	// Am I the next leader
+	// Am I the next leader or current leader and have not yet proposed? If not, ignore.
 	// todo: I am leader now, but have not yet proposed -> should still accept requests (throttling)
 	if x.proposer.IsValidLeader(x.peer.ID(), x.roundState.GetCurrentRound()+1) == false {
 		logger.Warning("Validator is not leader in next round %v, IR change req ignored",
 			x.roundState.GetCurrentRound()+1)
 		return
 	}
-	// todo: create proposal generator that buffers and verifies the requests
+	// validate incoming request
+	tb, err := x.stateLedger.GetPartitionTrustBase(p.SystemIdentifier(irChange.SystemIdentifier))
+	if err != nil {
+		logger.Warning("Invalid IR change request error: %v", err)
+		return
+	}
+	if err := irChange.IsValid(tb); err != nil {
+		logger.Warning("Invalid IR change request error: %v", err)
+		return
+	}
+	// Buffer and wait for opportunity to make the next proposal
+	x.proposalGen.ValidateAndBufferIRReq(irChange)
 }
 
 // onVoteMsg handle votes and timeout votes
@@ -441,7 +449,6 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 			proposal.Block.Author, proposal.Block.Round)
 		return
 	}
-	// Proposal is
 	// Check state
 	if !bytes.Equal(proposal.Block.Qc.VoteInfo.ExecStateId, x.stateLedger.GetCurrentStateHash()) {
 		logger.Error("Recovery not yet implemented")

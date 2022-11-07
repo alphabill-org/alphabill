@@ -29,6 +29,15 @@ func TestRootValidatorCanBeStarted(t *testing.T) {
 	wg.Wait() // wait for root validator to close and require statements to execute
 }
 
+func TestRootValidatorInvalidRootKey_CannotBeStarted(t *testing.T) {
+	conf := validMonolithicRootValidatorConfig()
+	conf.KeyFile = "testdata/invalid-root-key.json"
+	ctx, _ := async.WithWaitGroup(context.Background())
+
+	err := defaultValidatorRunFunc(ctx, conf)
+	require.ErrorContains(t, err, "invalid root validator sign key")
+}
+
 func validMonolithicRootValidatorConfig() *validatorConfig {
 	conf := &validatorConfig{
 		Base: &baseConfiguration{

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/monolithic_consensus"
 
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
@@ -98,7 +100,7 @@ func (c *validatorConfig) getGenesisFilePath() string {
 func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error {
 	rootGenesis, err := util.ReadJsonFile(config.getGenesisFilePath(), &genesis.RootGenesis{})
 	if err != nil {
-		return errors.Wrapf(err, "failed to open rootvalidator genesis file %s", config.getGenesisFilePath())
+		return errors.Wrapf(err, "failed to open root validator genesis file %s", config.getGenesisFilePath())
 	}
 	keys, err := LoadKeys(config.KeyFile, false, false)
 	if err != nil {
@@ -116,6 +118,13 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	partitionNet, err := network.NewLibP2PRootChainNetwork(prtHost, config.MaxRequests, defaultNetworkTimeout)
 	if err != nil {
 		return errors.Wrap(err, "failed to initiate partition network")
+	}
+	ver, err := keys.SigningPrivateKey.Verifier()
+	if err != nil {
+		return errors.Wrap(err, "invalid root validator sign key, cannot start")
+	}
+	if verifyKeyPresentInGenesis(prtHost, rootGenesis.Root, ver) != nil {
+		return errors.Wrap(err, "invalid root validator sign key, cannot start")
 	}
 	if config.DbFile != "" {
 		storage, err := store.NewBoltStore(config.DbFile)
@@ -140,6 +149,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	var consensusMgr rootvalidator.ConsensusManager
 	// use monolithic consensus algorithm
 	if len(rootGenesis.Root.RootValidators) == 1 {
+
 		consensusMgr, err = monolithic_consensus.NewMonolithicConsensusManager(prtHost,
 			partitionStore,
 			keys.SigningPrivateKey,
@@ -281,4 +291,20 @@ func (c *validatorConfig) getPeerAddress(identifier string) (string, error) {
 		return "", errors.Errorf("address for node %v not found.", identifier)
 	}
 	return address, nil
+}
+
+func verifyKeyPresentInGenesis(peer *network.Peer, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {
+	nodeInfo := rg.FindPubKeyById(peer.ID().String())
+	if nodeInfo == nil {
+		return errors.New("invalid root validator encode key")
+	}
+	signPubKeyBytes, err := ver.MarshalPublicKey()
+	if err != nil {
+		return errors.New("invalid root validator sign key, cannot start")
+	}
+	// verify that the same public key is present in the genesis file
+	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
+		return errors.Errorf("invalid root validator sign key, expected %X, got %X", signPubKeyBytes, nodeInfo.SigningPublicKey)
+	}
+	return nil
 }

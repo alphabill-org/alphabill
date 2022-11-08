@@ -5,6 +5,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"path"
+	"reflect"
 	"testing"
 )
 
@@ -201,9 +203,8 @@ func TestTransferFungible(t *testing.T) {
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
-			newTransfer := &tokens.TransferFungibleTokenAttributes{}
-			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 			require.NotEqual(t, tt.tokenId, tx.UnitId)
+			newTransfer := parseFungibleTransfer(t, tx)
 			require.Equal(t, tt.amount, newTransfer.Value)
 			tt.validateOwner(t, 1, tt.key, newTransfer)
 		})
@@ -251,10 +252,107 @@ func TestTransferNFT(t *testing.T) {
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
-			newTransfer := &tokens.TransferNonFungibleTokenAttributes{}
-			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 			require.NotEqual(t, tt.tokenId, tx.UnitId)
+			newTransfer := parseNFTTransfer(t, tx)
 			tt.validateOwner(t, 1, tt.key, newTransfer)
+		})
+	}
+}
+
+func parseFungibleTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferFungibleTokenAttributes) {
+	newTransfer = &tokens.TransferFungibleTokenAttributes{}
+	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+	return
+}
+
+func parseNFTTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferNonFungibleTokenAttributes) {
+	newTransfer = &tokens.TransferNonFungibleTokenAttributes{}
+	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+	return
+}
+
+func parseSplit(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.SplitFungibleTokenAttributes) {
+	newTransfer = &tokens.SplitFungibleTokenAttributes{}
+	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+	return
+}
+
+func TestSendFungible(t *testing.T) {
+	typeId := []byte{10}
+	tw, abClient := createTestWallet(t)
+	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
+		require.NoError(t, c.SetToken(1, &token{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 3}))
+		require.NoError(t, c.SetToken(1, &token{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 5}))
+		require.NoError(t, c.SetToken(1, &token{Id: []byte{13}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 7}))
+		require.NoError(t, c.SetToken(1, &token{Id: []byte{14}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 18}))
+		return nil
+	}))
+	tests := []struct {
+		name               string
+		targetAmount       uint64
+		expectedErrorMsg   string
+		verifyTransactions func(t *testing.T, txs []*txsystem.Transaction)
+	}{
+		{
+			name:         "one bill is transferred",
+			targetAmount: 3,
+			verifyTransactions: func(t *testing.T, txs []*txsystem.Transaction) {
+				require.Equal(t, 1, len(txs))
+				tx := txs[0]
+				newTransfer := parseFungibleTransfer(t, tx)
+				require.Equal(t, uint64(3), newTransfer.Value)
+				require.Equal(t, []byte{11}, tx.UnitId)
+			},
+		},
+		{
+			name:         "one bill is split",
+			targetAmount: 4,
+			verifyTransactions: func(t *testing.T, txs []*txsystem.Transaction) {
+				require.Equal(t, 1, len(txs))
+				tx := txs[0]
+				newSplit := parseSplit(t, tx)
+				require.Equal(t, uint64(4), newSplit.TargetValue)
+				require.Equal(t, []byte{12}, tx.UnitId)
+			},
+		},
+		{
+			name:         "both split and transfer are submitted",
+			targetAmount: 26,
+			verifyTransactions: func(t *testing.T, txs []*txsystem.Transaction) {
+				var total = uint64(0)
+				for _, tx := range txs {
+					gtx, err := tw.txs.ConvertTx(tx)
+					require.NoError(t, err)
+					switch ctx := gtx.(type) {
+					case tokens.TransferFungibleToken:
+						total += ctx.Value()
+					case tokens.SplitFungibleToken:
+						total += ctx.TargetValue()
+					default:
+						t.Errorf("unexpected tx type: %s", reflect.TypeOf(ctx))
+					}
+				}
+				require.Equal(t, uint64(26), total)
+			},
+		},
+		{
+			name:             "insufficient balance",
+			targetAmount:     60,
+			expectedErrorMsg: "insufficient value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			abClient.ClearRecordedTransactions()
+			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil)
+			if tt.expectedErrorMsg != "" {
+				require.ErrorContains(t, err, tt.expectedErrorMsg)
+				return
+			} else {
+				require.NoError(t, err)
+			}
+			tt.verifyTransactions(t, abClient.GetRecordedTransactions())
 		})
 	}
 }

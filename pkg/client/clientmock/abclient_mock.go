@@ -76,3 +76,7 @@ func (c *MockAlphabillClient) SetBlock(b *block.Block) {
 func (c *MockAlphabillClient) GetRecordedTransactions() []*txsystem.Transaction {
 	return c.recordedTxs
 }
+
+func (c *MockAlphabillClient) ClearRecordedTransactions() {
+	c.recordedTxs = make([]*txsystem.Transaction, 0)
+}

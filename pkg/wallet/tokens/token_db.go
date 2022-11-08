@@ -37,15 +37,15 @@ type TokenTxContext interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
-	AddTokenType(token *tokenType) error
-	GetTokenType(typeId TokenTypeId) (*tokenType, error)
-	GetTokenTypes() ([]*tokenType, error)
+	AddTokenType(token *TokenUnitType) error
+	GetTokenType(typeId TokenTypeId) (*TokenUnitType, error)
+	GetTokenTypes() ([]*TokenUnitType, error)
 	// SetToken accountNumber == 0 is the one for "always true" predicates
 	// keys with accountIndex from the money wallet have tokens here under accountNumber which is accountIndex+1
-	SetToken(accountNumber uint64, token *token) error
+	SetToken(accountNumber uint64, token *TokenUnit) error
 	RemoveToken(accountNumber uint64, id TokenId) error
-	GetToken(accountNumber uint64, tokenId TokenId) (*token, bool, error)
-	GetTokens(accountNumber uint64) ([]*token, error)
+	GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, bool, error)
+	GetTokens(accountNumber uint64) ([]*TokenUnit, error)
 }
 
 type tokensDb struct {
@@ -58,7 +58,7 @@ type tokensDbTx struct {
 	tx *bolt.Tx
 }
 
-func (t *tokensDbTx) AddTokenType(tType *tokenType) error {
+func (t *tokensDbTx) AddTokenType(tType *TokenUnitType) error {
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(tType)
 		if err != nil {
@@ -69,8 +69,8 @@ func (t *tokensDbTx) AddTokenType(tType *tokenType) error {
 	}, true)
 }
 
-func (t *tokensDbTx) GetTokenType(typeId TokenTypeId) (*tokenType, error) {
-	var tokenType *tokenType
+func (t *tokensDbTx) GetTokenType(typeId TokenTypeId) (*TokenUnitType, error) {
+	var tokenType *TokenUnitType
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		res, err := parseTokenType(tx.Bucket(tokenTypes).Get(typeId))
 		if err != nil {
@@ -86,8 +86,8 @@ func (t *tokensDbTx) GetTokenType(typeId TokenTypeId) (*tokenType, error) {
 	return tokenType, nil
 }
 
-func (t *tokensDbTx) GetTokenTypes() ([]*tokenType, error) {
-	var types []*tokenType
+func (t *tokensDbTx) GetTokenTypes() ([]*TokenUnitType, error) {
+	var types []*TokenUnitType
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		return tx.Bucket(tokenTypes).ForEach(func(k, v []byte) error {
 			t, err := parseTokenType(v)
@@ -105,7 +105,7 @@ func (t *tokensDbTx) GetTokenTypes() ([]*tokenType, error) {
 	return types, nil
 }
 
-func (t *tokensDbTx) SetToken(accountNumber uint64, token *token) error {
+func (t *tokensDbTx) SetToken(accountNumber uint64, token *TokenUnit) error {
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(token)
 		if err != nil {
@@ -147,8 +147,8 @@ func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenId) error {
 	}, true)
 }
 
-func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*token, bool, error) {
-	var tok *token
+func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, bool, error) {
+	var tok *TokenUnit
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
 		if err != nil {
@@ -172,8 +172,8 @@ func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*token, bo
 	return tok, tok != nil, nil
 }
 
-func (t *tokensDbTx) GetTokens(accountNumber uint64) ([]*token, error) {
-	var tokens []*token
+func (t *tokensDbTx) GetTokens(accountNumber uint64) ([]*TokenUnit, error) {
+	var tokens []*TokenUnit
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
 		if err != nil {
@@ -303,17 +303,17 @@ func openTokensDb(walletDir string) (*tokensDb, error) {
 	return w, nil
 }
 
-func parseTokenType(v []byte) (*tokenType, error) {
+func parseTokenType(v []byte) (*TokenUnitType, error) {
 	if v == nil {
 		return nil, nil
 	}
-	var t *tokenType
+	var t *TokenUnitType
 	err := json.Unmarshal(v, &t)
 	return t, err
 }
 
-func parseToken(v []byte) (*token, error) {
-	var t *token
+func parseToken(v []byte) (*TokenUnit, error) {
+	var t *TokenUnit
 	err := json.Unmarshal(v, &t)
 	return t, err
 }

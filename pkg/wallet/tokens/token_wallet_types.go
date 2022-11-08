@@ -6,7 +6,7 @@ import (
 )
 
 type (
-	tokenType struct {
+	TokenUnitType struct {
 		Id            TokenTypeId `json:"id"`
 		ParentTypeId  TokenTypeId `json:"typeId"`
 		Kind          TokenKind   `json:"kind"`
@@ -14,7 +14,7 @@ type (
 		DecimalPlaces uint32      `json:"decimalPlaces"`
 	}
 
-	token struct {
+	TokenUnit struct {
 		Id       TokenId     `json:"id"`
 		Kind     TokenKind   `json:"kind"`
 		Symbol   string      `json:"symbol"`
@@ -40,7 +40,7 @@ const (
 	NonFungibleToken = Token | NonFungible
 )
 
-func (t *token) isFungible() bool {
+func (t *TokenUnit) isFungible() bool {
 	return t.Kind&FungibleToken == FungibleToken
 }
 
@@ -71,19 +71,19 @@ type TokenTypeInfo interface {
 	GetTypeId() TokenTypeId
 }
 
-func (tp *tokenType) GetSymbol() string {
+func (tp *TokenUnitType) GetSymbol() string {
 	return tp.Symbol
 }
 
-func (tp *tokenType) GetTypeId() TokenTypeId {
+func (tp *TokenUnitType) GetTypeId() TokenTypeId {
 	return tp.Id
 }
 
-func (t *token) GetSymbol() string {
+func (t *TokenUnit) GetSymbol() string {
 	return t.Symbol
 }
 
-func (t *token) GetTypeId() TokenTypeId {
+func (t *TokenUnit) GetTypeId() TokenTypeId {
 	return t.TypeId
 }
 

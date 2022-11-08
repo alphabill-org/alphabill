@@ -41,7 +41,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 	switch ctx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		log.Info("CreateFungibleTokenType tx")
-		err := txc.AddTokenType(&tokenType{
+		err := txc.AddTokenType(&TokenUnitType{
 			Id:            id,
 			Kind:          TokenType | Fungible,
 			Symbol:        ctx.Symbol(),
@@ -58,7 +58,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 			if err != nil {
 				return err
 			}
-			err = txc.SetToken(accNr, &token{
+			err = txc.SetToken(accNr, &TokenUnit{
 				Id:       id,
 				Kind:     FungibleToken,
 				TypeId:   ctx.TypeId(),
@@ -78,7 +78,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 	case tokens.TransferFungibleToken:
 		log.Info("TransferFungibleToken tx")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &token{
+			err := txc.SetToken(accNr, &TokenUnit{
 				Id:       id,
 				Kind:     FungibleToken,
 				Amount:   ctx.Value(),
@@ -103,7 +103,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 		if found {
 			tokenInfo = tok
 			log.Info("SplitFungibleToken updating existing unit")
-			err := txc.SetToken(accNr, &token{
+			err := txc.SetToken(accNr, &TokenUnit{
 				Id:       id,
 				Symbol:   tok.Symbol,
 				TypeId:   tok.TypeId,
@@ -115,13 +115,13 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 				return err
 			}
 		} else {
-			tokenInfo = &token{}
+			tokenInfo = &TokenUnit{}
 		}
 
 		if checkOwner(accNr, key, ctx.NewBearer()) {
 			newId := txutil.SameShardIdBytes(ctx.UnitID(), ctx.HashForIdCalculation(crypto.SHA256))
 			log.Info(fmt.Sprintf("SplitFungibleToken: adding new unit from split, new UnitId=%X", newId))
-			err := txc.SetToken(accNr, &token{
+			err := txc.SetToken(accNr, &TokenUnit{
 				Id:       newId,
 				Symbol:   tokenInfo.GetSymbol(),
 				TypeId:   tokenInfo.GetTypeId(),
@@ -141,7 +141,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 		panic("not implemented") // TODO
 	case tokens.CreateNonFungibleTokenType:
 		log.Info("Token tx: CreateNonFungibleTokenType")
-		err := txc.AddTokenType(&tokenType{
+		err := txc.AddTokenType(&TokenUnitType{
 			Id:           id,
 			Kind:         TokenType | NonFungible,
 			Symbol:       ctx.Symbol(),
@@ -157,7 +157,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 			if err != nil {
 				return err
 			}
-			err = txc.SetToken(accNr, &token{
+			err = txc.SetToken(accNr, &TokenUnit{
 				Id:       id,
 				Kind:     NonFungibleToken,
 				TypeId:   tType.Id,
@@ -179,7 +179,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 	case tokens.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &token{
+			err := txc.SetToken(accNr, &TokenUnit{
 				Id:       id,
 				Kind:     NonFungibleToken,
 				Backlink: txHash,
@@ -304,7 +304,7 @@ func signTx(tx *txsystem.Transaction, ac *wallet.AccountKey) error {
 	return nil
 }
 
-func newFungibleTransferTxAttrs(token *token, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
+func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
 	var bearer []byte
 	if receiverPubKey != nil {
 		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
@@ -322,7 +322,7 @@ func newFungibleTransferTxAttrs(token *token, receiverPubKey []byte) *tokens.Tra
 	}
 }
 
-func (w *TokensWallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *token, receiverPubKey []byte) error {
+func (w *TokensWallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, receiverPubKey []byte) error {
 	sub, err := w.sendTx(token.Id, newFungibleTransferTxAttrs(token, receiverPubKey), ac)
 	if err != nil {
 		return err
@@ -331,7 +331,7 @@ func (w *TokensWallet) transfer(ctx context.Context, ac *wallet.AccountKey, toke
 	return w.syncToUnit(ctx, token.Id, sub.timeout)
 }
 
-func newNonFungibleTransferTxAttrs(token *token, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
+func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
 	var bearer []byte
 	if receiverPubKey != nil {
 		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
@@ -348,7 +348,7 @@ func newNonFungibleTransferTxAttrs(token *token, receiverPubKey []byte) *tokens.
 	}
 }
 
-func newSplitTxAttrs(token *token, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
+func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
 	var bearer []byte
 	if receiverPubKey != nil {
 		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
@@ -366,7 +366,7 @@ func newSplitTxAttrs(token *token, amount uint64, receiverPubKey []byte) *tokens
 	}
 }
 
-func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *token, amount uint64, receiverPubKey []byte) error {
+func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, amount uint64, receiverPubKey []byte) error {
 	if amount >= token.Amount {
 		return errors.New(fmt.Sprintf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.Id))
 	}
@@ -380,7 +380,7 @@ func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *TokensWallet) doSendMultiple(amount uint64, tokens []*token, acc *wallet.AccountKey, receiverPubKey []byte) (map[string]*submittedTx, uint64, error) {
+func (w *TokensWallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte) (map[string]*submittedTx, uint64, error) {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
@@ -405,7 +405,7 @@ func (w *TokensWallet) doSendMultiple(amount uint64, tokens []*token, acc *walle
 	return submissions, maxTimeout, nil
 }
 
-func (w *TokensWallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *token, receiverPubKey []byte) (*submittedTx, error) {
+func (w *TokensWallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte) (*submittedTx, error) {
 	var attrs proto.Message
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)

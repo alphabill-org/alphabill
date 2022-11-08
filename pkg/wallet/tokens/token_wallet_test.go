@@ -162,8 +162,8 @@ func TestNewNFT(t *testing.T) {
 func TestTransferFungible(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeId: []byte{10}, Amount: 1}))
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeId: []byte{10}, Amount: 2}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeId: []byte{10}, Amount: 1}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeId: []byte{10}, Amount: 2}))
 		return nil
 	})
 	require.NoError(t, err)
@@ -214,8 +214,8 @@ func TestTransferFungible(t *testing.T) {
 func TestTransferNFT(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{11}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{12}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{11}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
 		return nil
 	})
 	require.NoError(t, err)
@@ -281,10 +281,10 @@ func TestSendFungible(t *testing.T) {
 	typeId := []byte{10}
 	tw, abClient := createTestWallet(t)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 3}))
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 5}))
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{13}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 7}))
-		require.NoError(t, c.SetToken(1, &token{Id: []byte{14}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 18}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 3}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 5}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{13}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 7}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{14}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 18}))
 		return nil
 	}))
 	tests := []struct {

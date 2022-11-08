@@ -189,10 +189,10 @@ func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, t
 	if err != nil {
 		return err
 	}
-	fungibleTokens := make([]*token, 0)
+	fungibleTokens := make([]*TokenUnit, 0)
 	var totalBalance uint64 = 0
 	// find the best unit candidate for transfer or split, value must be equal or larger than the target amount
-	var closestMatch *token = nil
+	var closestMatch *TokenUnit = nil
 	for _, token := range tokens {
 		if token.isFungible() && typeId.equal(token.TypeId) {
 			fungibleTokens = append(fungibleTokens, token)

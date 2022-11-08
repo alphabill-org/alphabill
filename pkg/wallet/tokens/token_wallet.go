@@ -144,7 +144,7 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 	return res, nil
 }
 
-func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey []byte) error {
+func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey PublicKey) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	return w.transfer(ctx, acc, t, receiverPubKey)
 }
 
-func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey []byte) error {
+func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey PublicKey) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err

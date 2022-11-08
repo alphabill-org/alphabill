@@ -28,6 +28,7 @@ type AlphabillPartition struct {
 	Nodes     []*partition.Node
 	ctxCancel context.CancelFunc
 	ctx       context.Context
+	TrustBase map[string]crypto.Verifier
 }
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
@@ -151,6 +152,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		Nodes:     nodes,
 		ctx:       ctx,
 		ctxCancel: ctxCancel,
+		TrustBase: trustBase,
 	}, nil
 }
 

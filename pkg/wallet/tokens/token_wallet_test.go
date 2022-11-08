@@ -210,6 +210,55 @@ func TestTransferFungible(t *testing.T) {
 	}
 }
 
+func TestTransferNFT(t *testing.T) {
+	tw, abClient := createTestWallet(t)
+	err := tw.db.WithTransaction(func(c TokenTxContext) error {
+		require.NoError(t, c.SetToken(1, &token{Id: []byte{11}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
+		require.NoError(t, c.SetToken(1, &token{Id: []byte{12}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
+		return nil
+	})
+	require.NoError(t, err)
+	first := func(s PublicKey, e error) PublicKey {
+		require.NoError(t, e)
+		return s
+	}
+	tests := []struct {
+		name          string
+		tokenId       TokenId
+		key           PublicKey
+		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferNonFungibleTokenAttributes)
+	}{
+		{
+			name:    "to 'always true' predicate",
+			tokenId: []byte{11},
+			key:     nil,
+			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferNonFungibleTokenAttributes) {
+				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
+			},
+		},
+		{
+			name:    "to public key hash predicate",
+			tokenId: []byte{12},
+			key:     first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
+			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferNonFungibleTokenAttributes) {
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err = tw.TransferNFT(context.Background(), 1, tt.tokenId, tt.key)
+			require.NoError(t, err)
+			txs := abClient.GetRecordedTransactions()
+			tx := txs[len(txs)-1]
+			newTransfer := &tokens.TransferNonFungibleTokenAttributes{}
+			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+			require.NotEqual(t, tt.tokenId, tx.UnitId)
+			tt.validateOwner(t, 1, tt.key, newTransfer)
+		})
+	}
+}
+
 func createTestWallet(t *testing.T) (*TokensWallet, *clientmock.MockAlphabillClient) {
 	_ = deleteFile(os.TempDir(), money.WalletFileName)
 	_ = deleteFile(os.TempDir(), tokensFileName)

@@ -169,3 +169,37 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, v.Validate(bp, nodeVerifier))
 }
+
+func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
+	tests := []struct {
+		name                     string
+		tx                       txsystem.GenericTransaction
+		latestBlockNumber        uint64
+		expectedSystemIdentifier []byte
+		errStr                   string
+	}{
+		{
+			name:                     "invalid system identifier",
+			tx:                       testtransaction.RandomGenericBillTransfer(t), // default systemID is 0000
+			latestBlockNumber:        10,
+			expectedSystemIdentifier: []byte{1, 2, 3, 4},
+			errStr:                   "system identifier is invalid",
+		},
+		{
+			name:                     "expired transaction",
+			tx:                       testtransaction.RandomGenericBillTransfer(t), // default timeout is 10
+			latestBlockNumber:        11,
+			expectedSystemIdentifier: []byte{0, 0, 0, 0},
+			errStr:                   "transaction timeout must be greater than latest block height: transaction timeout 10, latest blockNumber: 11",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dtv := &DefaultTxValidator{
+				systemIdentifier: tt.expectedSystemIdentifier,
+			}
+			err := dtv.Validate(tt.tx, tt.latestBlockNumber)
+			require.ErrorContains(t, err, tt.errStr)
+		})
+	}
+}

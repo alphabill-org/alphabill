@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"bytes"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"strings"
 )
 
@@ -28,9 +29,22 @@ type (
 
 	TokenId     []byte
 	TokenTypeId []byte
+
+	TokenWithOwner struct {
+		Token *TokenUnit
+		Owner PublicKey
+	}
+
+	PublicKey       []byte
+	PublicKeyString string
 )
 
 const (
+	NoKey                         PublicKeyString = ""
+	txTimeoutBlockCount                           = 100
+	AllAccounts                   int             = -1
+	alwaysTrueTokensAccountNumber                 = 0
+
 	Any TokenKind = 1 << iota
 	TokenType
 	Token
@@ -39,6 +53,10 @@ const (
 	FungibleToken    = Token | Fungible
 	NonFungibleToken = Token | NonFungible
 )
+
+func (k PublicKey) string() PublicKeyString {
+	return PublicKeyString(hexutil.Encode(k))
+}
 
 func (t *TokenUnit) isFungible() bool {
 	return t.Kind&FungibleToken == FungibleToken

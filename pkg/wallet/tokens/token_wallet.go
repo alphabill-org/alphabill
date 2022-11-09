@@ -11,11 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
-const (
-	txTimeoutBlockCount     = 100
-	AllAccounts         int = -1
-)
-
 var (
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
 )
@@ -28,8 +23,6 @@ type (
 		waitTx        bool
 		blockListener wallet.BlockProcessor
 	}
-
-	PublicKey []byte
 )
 
 func Load(mw *money.Wallet, waitTx bool) (*TokensWallet, error) {
@@ -98,7 +91,8 @@ func (w *TokensWallet) ListTokenTypes(ctx context.Context) ([]string, error) {
 	return res, nil
 }
 
-func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) ([]string, error) {
+// ListTokens specify accountNumber=-1 to list tokens from all accounts
+func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[PublicKeyString][]*TokenUnit, error) {
 
 	err := w.Sync(ctx)
 	if err != nil {
@@ -106,38 +100,45 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 	}
 
 	var pubKeys [][]byte
+	skipAlwaysTrue := false
 	if accountNumber > AllAccounts+1 {
-		pubKeys[0], err = w.mw.GetPublicKey(uint64(accountNumber - 1))
+		key, err := w.mw.GetPublicKey(uint64(accountNumber - 1))
 		if err != nil {
 			return nil, err
 		}
-	} else {
+		pubKeys = append(pubKeys, key)
+		skipAlwaysTrue = true
+	} else if accountNumber != alwaysTrueTokensAccountNumber {
 		pubKeys, err = w.mw.GetPublicKeys()
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	res := make([]string, len(pubKeys)+1)
+	res := make(map[PublicKeyString][]*TokenUnit, 0)
+	// NB! n=0 is a special index for always true predicates, thus iteration goes until len, not len-1
 	for n := 0; n <= len(pubKeys); n++ {
+		var pubKey PublicKeyString
+		if n == alwaysTrueTokensAccountNumber {
+			if skipAlwaysTrue {
+				continue
+			}
+			pubKey = NoKey
+		} else {
+			pubKey = PublicKey(pubKeys[n-1]).string()
+		}
 		tokens, err := w.db.Do().GetTokens(uint64(n))
 		if err != nil {
 			return nil, err
 		}
-		if len(tokens) > 0 {
-			// TODO filter by kind
-			var m string
-			if n == alwaysTrueTokensAccountNumber {
-				m = fmt.Sprintf("Tokens spendable by anyone: ")
-			} else {
-				m = fmt.Sprintf("Account #%v (key '%X') tokens: ", n, pubKeys[n-1])
-			}
-			log.Info(m)
-			res = append(res, m)
-			for _, token := range tokens {
-				m = fmt.Sprintf("Id=%X, symbol=%s, value=%v, kind: %s", token.Id, token.Symbol, token.Amount, token.Kind.pretty())
-				log.Info(m)
-				res = append(res, m)
+		for _, tok := range tokens {
+			if kind&Any > 0 || tok.Kind&kind == kind {
+				tokens, found := res[pubKey]
+				if found {
+					res[pubKey] = append(tokens, tok)
+				} else {
+					res[pubKey] = []*TokenUnit{tok}
+				}
 			}
 		}
 	}

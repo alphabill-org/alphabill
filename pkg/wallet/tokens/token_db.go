@@ -15,15 +15,12 @@ var (
 	accountTokensBucket = []byte("accountTokens")
 	tokenTypes          = []byte("tokenTypes")
 	metaBucket          = []byte("meta")
-)
 
-var (
 	blockHeightKeyName = []byte("blockHeightKey")
 )
 
 const (
-	tokensFileName                = "tokens.db"
-	alwaysTrueTokensAccountNumber = 0
+	tokensFileName = "tokens.db"
 )
 
 type Db interface {

@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"context"
+	"fmt"
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -353,6 +354,91 @@ func TestSendFungible(t *testing.T) {
 				require.NoError(t, err)
 			}
 			tt.verifyTransactions(t, abClient.GetRecordedTransactions())
+		})
+	}
+}
+
+func TestList(t *testing.T) {
+	tw, _ := createTestWallet(t)
+	_, _, err := tw.mw.AddAccount() //#2
+	_, _, err = tw.mw.AddAccount()  //#3 this acc has no tokens, should not be listed
+	require.NoError(t, err)
+	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
+		require.NoError(t, c.SetToken(0, &TokenUnit{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{13}, Kind: NonFungibleToken, Symbol: "AB", Uri: "alphabill.org"}))
+		require.NoError(t, c.SetToken(2, &TokenUnit{Id: []byte{14}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
+		return nil
+	}))
+	countTotals := func(toks map[PublicKeyString][]*TokenUnit) (totalKeys int, totalTokens int) {
+		for k, v := range toks {
+			totalKeys++
+			fmt.Printf("Key=%s\n", k)
+			for _, tok := range v {
+				totalTokens++
+				fmt.Printf("Token=%s, amount=%v\n", tok.GetSymbol(), tok.Amount)
+			}
+		}
+		return
+	}
+	tests := []struct {
+		name      string
+		accountNr int
+		kind      TokenKind
+		verify    func(t *testing.T, toks map[PublicKeyString][]*TokenUnit)
+	}{
+		{
+			name:      "list all tokens across all accounts",
+			accountNr: AllAccounts,
+			kind:      Any,
+			verify: func(t *testing.T, toks map[PublicKeyString][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 3, totalKeys)
+				require.Equal(t, 4, totalTokens)
+			},
+		}, {
+			name:      "only tokens spendable by anyone",
+			accountNr: 0,
+			kind:      Any,
+			verify: func(t *testing.T, toks map[PublicKeyString][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 1, totalKeys)
+				require.Equal(t, 1, totalTokens)
+			},
+		}, {
+			name:      "account #1 only",
+			accountNr: 1,
+			kind:      Any,
+			verify: func(t *testing.T, toks map[PublicKeyString][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 1, totalKeys)
+				require.Equal(t, 2, totalTokens)
+			},
+		}, {
+			name:      "all accounts, only fungible",
+			accountNr: AllAccounts,
+			kind:      FungibleToken,
+			verify: func(t *testing.T, toks map[PublicKeyString][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 3, totalKeys)
+				require.Equal(t, 3, totalTokens)
+			},
+		}, {
+			name:      "accounts #1, only non-fungible",
+			accountNr: AllAccounts,
+			kind:      NonFungibleToken,
+			verify: func(t *testing.T, toks map[PublicKeyString][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 1, totalKeys)
+				require.Equal(t, 1, totalTokens)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := tw.ListTokens(context.Background(), tt.kind, tt.accountNr)
+			require.NoError(t, err)
+			tt.verify(t, res)
 		})
 	}
 }

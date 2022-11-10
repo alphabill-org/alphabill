@@ -272,12 +272,9 @@ func (w *TokensWallet) sendTx(unitId TokenId, attrs proto.Message, ac *wallet.Ac
 	if err != nil {
 		return txSub, err
 	}
-	res, err := w.mw.SendTransaction(tx)
+	err = w.mw.SendTransaction(nil, tx, nil)
 	if err != nil {
 		return txSub, err
-	}
-	if !res.Ok {
-		return txSub, errors.New("tx submission returned error code: " + res.Message)
 	}
 	txSub.timeout = tx.Timeout
 	return txSub, nil

@@ -50,12 +50,14 @@ moneyNodeAddresses="${moneyNodeAddresses:1}"
 
 moneyPort=26666
 moneyGrpcPort=26766
+moneyRestPort=26866
 #start money partition nodes
 for i in 1 2 3
 do
-  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$moneyPort" --server-address ":$moneyGrpcPort" -g testab/rootchain/genesis/partition-genesis-0.json -p "$moneyNodeAddresses" > "testab/money$i/money$i.log" &
+  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$moneyPort" --server-address ":$moneyGrpcPort" --rest-server-address "localhost:$moneyRestPort"  -g testab/rootchain/genesis/partition-genesis-0.json -p "$moneyNodeAddresses" > "testab/money$i/money$i.log" &
   ((moneyPort=moneyPort+1))
   ((moneyGrpcPort=moneyGrpcPort+1))
+  ((moneyRestPort=moneyRestPort+1))
 done
 
 vdPort=27666

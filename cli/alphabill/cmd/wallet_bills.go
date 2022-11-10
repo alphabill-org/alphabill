@@ -160,7 +160,11 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
-		return exportBill(b, outputPath)
+		outputFile, err := writeBillsToFile(outputPath, b)
+		if err != nil {
+			return err
+		}
+		consoleWriter.Println("Exported bill(s) to: " + outputFile)
 	}
 	// export bill using --bill-order-number if present
 	if billOrderNumber > 0 {
@@ -174,14 +178,23 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 			return errBillOrderNumberOutOfBounds
 		}
 		b := bills[billIndex]
-		return exportBill(b, outputPath)
+		outputFile, err := writeBillsToFile(outputPath, b)
+		if err != nil {
+			return err
+		}
+		consoleWriter.Println("Exported bill(s) to: " + outputFile)
 	}
 	// export all bills if neither --bill-id or --bill-order-number are given
 	bills, err := w.GetBills(accountNumber - 1)
 	if err != nil {
 		return err
 	}
-	return exportBills(bills, outputPath)
+	outputFile, err := writeBillsToFile(outputPath, bills...)
+	if err != nil {
+		return err
+	}
+	consoleWriter.Println("Exported bill(s) to: " + outputFile)
+	return nil
 }
 
 func importCmd(config *walletConfig) *cobra.Command {
@@ -252,26 +265,35 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func exportBill(b *money.Bill, outputPath string) error {
-	billId := b.Id.Bytes32()
-	filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
-	outputFile := path.Join(outputPath, filename)
-	err := util.WriteJsonFile(outputFile, newBillsDTO(b))
+// writeBillsToFile writes bill(s) to given directory.
+// Creates outputDir if it does not already exist. Returns output file.
+func writeBillsToFile(outputDir string, bills ...*money.Bill) (string, error) {
+	outputFile, err := getOutputFile(outputDir, bills)
 	if err != nil {
-		return err
+		return "", err
 	}
-	consoleWriter.Println("Exported bill to: " + outputFile)
-	return nil
+	err = os.MkdirAll(outputDir, 0700) // -rwx------
+	if err != nil {
+		return "", err
+	}
+	err = util.WriteJsonFile(outputFile, newBillsDTO(bills...))
+	if err != nil {
+		return "", err
+	}
+	return outputFile, nil
 }
 
-func exportBills(bills []*money.Bill, outputPath string) error {
-	outputFile := path.Join(outputPath, "bills.json")
-	err := util.WriteJsonFile(outputFile, newBillsDTO(bills...))
-	if err != nil {
-		return err
+// getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
+func getOutputFile(outputDir string, bills []*money.Bill) (string, error) {
+	if len(bills) == 0 {
+		return "", errors.New("no bills to export")
+	} else if len(bills) == 1 {
+		billId := bills[0].Id.Bytes32()
+		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
+		return path.Join(outputDir, filename), nil
+	} else {
+		return path.Join(outputDir, "bills.json"), nil
 	}
-	consoleWriter.Println("Exported bills to: " + outputFile)
-	return nil
 }
 
 func filterDcBills(bills []*money.Bill) []*money.Bill {

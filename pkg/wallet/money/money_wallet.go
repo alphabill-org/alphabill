@@ -337,56 +337,57 @@ func (w *Wallet) AddAccount() (uint64, []byte, error) {
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritzing larger bills.
-func (w *Wallet) Send(ctx context.Context, cmd SendCmd) error {
+// Returns list of bills including transaction and proof data, if waitForConfirmation=true, otherwise nil.
+func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	if err := cmd.isValid(); err != nil {
-		return err
+		return nil, err
 	}
 
 	swapInProgress, err := w.isSwapInProgress(w.db.Do(), cmd.AccountIndex)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if swapInProgress {
-		return ErrSwapInProgress
+		return nil, ErrSwapInProgress
 	}
 
 	balance, err := w.GetBalance(cmd.AccountIndex)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if cmd.Amount > balance {
-		return ErrInsufficientBalance
+		return nil, ErrInsufficientBalance
 	}
 
 	maxBlockNo, err := w.GetMaxBlockNumber()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	timeout := maxBlockNo + txTimeoutBlockCount
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	k, err := w.db.Do().GetAccountKey(cmd.AccountIndex)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	bills, err := w.db.Do().GetBills(cmd.AccountIndex)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, tx := range txs {
 		failedTries := 0
 		for {
 			res, err := w.SendTransaction(tx)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if res.Ok {
 				break
@@ -394,7 +395,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) error {
 			if res.Message == txBufferFullErrMsg {
 				failedTries += 1
 				if failedTries >= maxTxFailedTries {
-					return ErrFailedToBroadcastTx
+					return nil, ErrFailedToBroadcastTx
 				}
 				log.Info("tx buffer full, waiting 1s to retry...")
 				timer := time.NewTimer(time.Second)
@@ -403,19 +404,20 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) error {
 					continue
 				case <-ctx.Done():
 					timer.Stop()
-					return ErrTxRetryCanceled
+					return nil, ErrTxRetryCanceled
 				}
 			}
-			return errors.New("payment returned error code: " + res.Message)
+			return nil, errors.New("payment returned error code: " + res.Message)
 		}
 	}
 	if cmd.WaitForConfirmation {
-		err = w.waitForConfirmation(ctx, txs, maxBlockNo, timeout, cmd.AccountIndex)
+		txProofs, err := w.waitForConfirmation(ctx, txs, maxBlockNo, timeout, cmd.AccountIndex)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		return txProofs, nil
 	}
-	return nil
+	return nil, nil
 }
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.
@@ -800,17 +802,14 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	})
 }
 
-func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxBlockNumber, timeout, accountIndex uint64) error {
+func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxBlockNumber, timeout, accountIndex uint64) ([]*Bill, error) {
 	log.Info("waiting for confirmation(s)...")
 	blockNumber := maxBlockNumber
-	pendingTxsMap := make(map[string]*txsystem.Transaction, len(pendingTxs))
-	for _, tx := range pendingTxs {
-		pendingTxsMap[tx.String()] = tx
-	}
+	txsLog := newTxLog(pendingTxs)
 	for blockNumber <= timeout {
 		b, err := w.AlphabillClient.GetBlock(blockNumber)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if b == nil {
 			// wait for some time before retrying to fetch new block
@@ -820,28 +819,29 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				continue
 			case <-ctx.Done():
 				timer.Stop()
-				return nil
+				return nil, nil
 			}
 		}
 		for _, tx := range b.Transactions {
-			_, isConfirmed := pendingTxsMap[tx.String()]
-			if isConfirmed {
+			if txsLog.contains(tx) {
 				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				delete(pendingTxsMap, tx.String())
-
 				err = w.collectBills(w.db.Do(), tx, b, &w.accounts.getAll()[accountIndex])
 				if err != nil {
-					return err
+					return nil, err
+				}
+				err = txsLog.recordTx(tx, b)
+				if err != nil {
+					return nil, err
+				}
+				if txsLog.isAllTxsConfirmed() {
+					log.Info("transaction(s) confirmed")
+					return txsLog.getAllRecordedBills(), nil
 				}
 			}
 		}
-		if len(pendingTxsMap) == 0 {
-			log.Info("transaction(s) confirmed")
-			return nil
-		}
 		blockNumber += 1
 	}
-	return ErrTxFailedToConfirm
+	return nil, ErrTxFailedToConfirm
 }
 
 func (s *SendCmd) isValid() error {

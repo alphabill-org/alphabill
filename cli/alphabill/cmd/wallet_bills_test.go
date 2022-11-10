@@ -58,30 +58,29 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	billFilePath := path.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
 	stdout, err := execBillsCommand(homedir, "export --bill-order-number 1 --output-path "+homedir)
 	require.NoError(t, err)
-	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill to: %s", billFilePath))
+	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 
 	// verify export with --bill-id flag
 	stdout, err = execBillsCommand(homedir, "export --bill-id 0000000000000000000000000000000000000000000000000000000000000001 --output-path "+homedir)
 	require.NoError(t, err)
-	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill to: %s", billFilePath))
+	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 
-	// verify export with no flags outputs all bills to bills.json file
-	billsFilePath := path.Join(homedir, "bills.json")
+	// verify export with no flags outputs all bills
 	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir)
 	require.NoError(t, err)
-	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bills to: %s", billsFilePath))
+	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 }
 
 func TestWalletBillsImportCmd(t *testing.T) {
 	homedir, network := setupInfra(t)
-	billsFilePath := path.Join(homedir, "bills.json")
+	billsFilePath := path.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
 	trustBaseFilePath := path.Join(homedir, "trust-base.json")
 	_ = createTrustBaseFile(trustBaseFilePath, network)
 
 	// export the initial bill
 	stdout, err := execBillsCommand(homedir, "export --output-path "+homedir)
 	require.NoError(t, err)
-	require.Contains(t, stdout.lines[0], fmt.Sprintf("Exported bills to: %s", billsFilePath))
+	require.Contains(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billsFilePath))
 
 	// import the same bill exported in previous step
 	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", billsFilePath, trustBaseFilePath))

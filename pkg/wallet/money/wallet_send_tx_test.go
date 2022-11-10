@@ -21,11 +21,11 @@ func TestWalletSendFunction(t *testing.T) {
 	ctx := context.Background()
 
 	// test ErrInvalidPubKey
-	err := w.Send(ctx, SendCmd{ReceiverPubKey: invalidPubKey, Amount: amount})
+	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: invalidPubKey, Amount: amount})
 	require.ErrorIs(t, err, ErrInvalidPubKey)
 
 	// test ErrInsufficientBalance
-	err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 
 	// test abclient returns error
@@ -37,25 +37,25 @@ func TestWalletSendFunction(t *testing.T) {
 	err = w.db.Do().SetBill(0, &b)
 	require.NoError(t, err)
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: "some error"})
-	err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorContains(t, err, "payment returned error code: some error")
 	mockClient.SetTxResponse(nil)
 
 	// test ErrSwapInProgress
 	nonce := calculateExpectedDcNonce(t, w)
 	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
-	err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorIs(t, err, ErrSwapInProgress)
 	setDcMetadata(t, w, nonce, nil)
 
 	// test ok response
-	err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.NoError(t, err)
 
 	// test another account
 	_, _, _ = w.AddAccount()
 	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(55555), Value: 50})
-	err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount, AccountIndex: 1})
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount, AccountIndex: 1})
 	require.NoError(t, err)
 }
 
@@ -81,7 +81,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	require.Equal(t, b.Value, balance)
 
 	// test send successfully waits for confirmation
-	err = w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
+	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
 	require.NoError(t, err)
 	balance, _ = w.db.Do().GetBalance(0)
 	require.EqualValues(t, 0, balance)
@@ -116,7 +116,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	require.EqualValues(t, b1.Value+b2.Value, balance)
 
 	// test send successfully waits for confirmation
-	err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
+	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
 	require.NoError(t, err)
 
 	// verify balance after transactions
@@ -156,7 +156,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	require.EqualValues(t, b1.Value+b2.Value, balance)
 
 	// test send successfully waits for confirmation
-	err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
+	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
 
 	require.NoError(t, err)
 
@@ -179,7 +179,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 		mockClient.SetBlock(&block.Block{BlockNumber: uint64(i)})
 	}
 
-	err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true})
+	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true})
 	require.ErrorIs(t, err, ErrTxFailedToConfirm)
 }
 
@@ -190,7 +190,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	pubkey := make([]byte, 33)
 
 	// when whole balance is spent
-	err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubkey, Amount: 100})
+	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubkey, Amount: 100})
 	require.NoError(t, err)
 
 	// then bill transfer order should be sent
@@ -217,7 +217,7 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	wg.Add(1)
 	var sendError error
 	go func() {
-		sendError = w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
+		_, sendError = w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
 		wg.Done()
 	}()
 
@@ -252,7 +252,7 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 	wg.Add(1)
 	var sendError error
 	go func() {
-		sendError = w.Send(ctx, SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
+		_, sendError = w.Send(ctx, SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
 		wg.Done()
 	}()
 

@@ -229,6 +229,50 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	waitForBalance(t, walletName, 2, 2)
 }
 
+func TestSendCmdOutputPathFlag(t *testing.T) {
+	// setup network
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 10000,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill)
+	startRPCServer(t, network, ":9543")
+
+	// create wallet
+	homedir := createNewTestWallet(t)
+	pubKey1Hex := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	walletName := "wallet-test"
+	pubKey2Hex := addAccount(t, walletName)
+
+	// transfer initial bill to wallet account 1
+	pubKey1Bytes, _ := hexutil.Decode(pubKey1Hex)
+	transferInitialBillTx, _ := createInitialBillTransferTx(pubKey1Bytes, initialBill.ID, initialBill.Value, 10000)
+	err := network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify tx is received by wallet
+	waitForBalance(t, walletName, initialBill.Value, 0)
+
+	// send two transactions to wallet account 2 and verify the proof files
+	stdout, _ := execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s", 1, pubKey2Hex, homedir))
+	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
+	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
+
+	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s", 1, pubKey2Hex, homedir))
+	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
+	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
+
+	// verify wallet-2 balance is increased
+	waitForBalance(t, walletName, 2, 1)
+
+	// verify wallet-2 send-all-balance outputs both bills
+	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --key %d", 2, pubKey1Hex, homedir, 2))
+	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
+	require.Contains(t, stdout.lines[1], fmt.Sprintf("Transaction proof(s) saved to: %s", path.Join(homedir, "bills.json")))
+}
+
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(

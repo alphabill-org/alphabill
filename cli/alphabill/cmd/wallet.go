@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"syscall"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -173,6 +174,7 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	cmd.Flags().BoolP(waitForConfCmdName, "w", true, "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
+	cmd.Flags().StringP(outputPathCmdName, "o", "", "saves transaction proof(s) to given directory")
 	addPasswordFlags(cmd)
 	_ = cmd.MarkFlagRequired(addressCmdName)
 	_ = cmd.MarkFlagRequired(amountCmdName)
@@ -209,12 +211,36 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	err = w.Send(ctx, money.SendCmd{ReceiverPubKey: pubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
+	outputPath, err := cmd.Flags().GetString(outputPathCmdName)
+	if err != nil {
+		return err
+	}
+	if outputPath != "" {
+		if !waitForConf {
+			log.Debug("wallet send command specifies --output-path flag, setting waitForConf=true")
+			waitForConf = true
+		}
+		if !strings.HasPrefix(outputPath, string(os.PathSeparator)) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			outputPath = path.Join(cwd, outputPath)
+		}
+	}
+	bills, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: pubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
 	if err != nil {
 		return err
 	}
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
+		if outputPath != "" {
+			outputFile, err := writeBillsToFile(outputPath, bills...)
+			if err != nil {
+				return err
+			}
+			consoleWriter.Println("Transaction proof(s) saved to: " + outputFile)
+		}
 	} else {
 		consoleWriter.Println("Successfully sent transaction(s)")
 	}

@@ -90,19 +90,19 @@ func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 	if err != nil {
 		return errors.New("error reading state")
 	}
-	for _, certReqs := range req.Requests {
+	for _, certReq := range req.Requests {
 		// todo: verify signature on the request
 		// todo: verify that it extends from previous certified state and there is no intermediate change in process
-		systemId := protocol.SystemIdentifier(certReqs.SystemIdentifier)
+		systemId := protocol.SystemIdentifier(certReq.SystemIdentifier)
 		// Find if the id is known
-		sysDesc, err := p.partitionStore.GetSystemDescription(systemId)
+		info, err := p.partitionStore.GetInfo(systemId)
 		if err != nil {
 			logger.Warning("Payload contains unknown partition %X, ignoring", systemId)
 			// Still process the rest and vote, it is better to vote differently than send nothing
 			continue
 		}
-		sdrh := sysDesc.Hash(p.hashAlgorithm)
-		for _, req := range certReqs.Requests {
+		sdrh := info.SystemDescription.Hash(p.hashAlgorithm)
+		for _, req := range certReq.Requests {
 			if systemId != protocol.SystemIdentifier(req.SystemIdentifier) {
 				return errors.New("invalid payload")
 			}
@@ -110,10 +110,11 @@ func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 
 			}
 		}
-		inputRecord, consensusPossible := requests.IsConsensusReceived(systemId, 4)
+		nodeCnt := len(info.TrustBase)
+		inputRecord, consensusPossible := requests.IsConsensusReceived(systemId, nodeCnt)
 
 		// match request type to proof
-		switch certReqs.CertReason {
+		switch certReq.CertReason {
 		case atomic_broadcast.IRChangeReqMsg_QUORUM:
 			if inputRecord == nil {
 				return errors.New("invalid certification request proof, expected quorum not achieved")
@@ -134,9 +135,9 @@ func (p *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 			}
 			// verify timeout ok
 			lucAgeInRounds := round - cert.UnicitySeal.RootChainRoundNumber
-			if lucAgeInRounds*500 < uint64(sysDesc.T2Timeout) {
+			if lucAgeInRounds*500 < uint64(info.SystemDescription.T2Timeout) {
 				logger.Warning("Payload invalid timeout id %X, time from latest UC %v, timeout %v, ignoring",
-					systemId, lucAgeInRounds*500, sysDesc.T2Timeout)
+					systemId, lucAgeInRounds*500, info.SystemDescription.T2Timeout)
 				continue
 			}
 			// copy last input record
@@ -253,9 +254,9 @@ func (p *StateLedger) GetProposedStateHash() []byte {
 }
 
 func (p *StateLedger) GetPartitionTrustBase(id protocol.SystemIdentifier) (map[string]crypto.Verifier, error) {
-	tb, err := p.partitionStore.GetTrustBase(id)
+	info, err := p.partitionStore.GetInfo(id)
 	if err != nil {
 		return nil, err
 	}
-	return tb, nil
+	return info.TrustBase, nil
 }

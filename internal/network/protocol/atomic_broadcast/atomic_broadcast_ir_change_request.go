@@ -5,11 +5,11 @@ import (
 	"errors"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
+
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 
 	"github.com/alphabill-org/alphabill/internal/util"
-
-	"github.com/alphabill-org/alphabill/internal/crypto"
 )
 
 var (
@@ -19,10 +19,11 @@ var (
 	ErrUnknownSigner     = errors.New("unknown author")
 )
 
-func (x *IRChangeReqMsg) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
+func (x *IRChangeReqMsg) IsValid(tb map[string]crypto.Verifier) error {
 	if len(x.SystemIdentifier) != 4 {
 		return ErrInvalidSystemId
 	}
+
 	// ignore other values for now, just make sure it is not negative
 	if x.CertReason < 0 || x.CertReason > IRChangeReqMsg_T2_TIMEOUT {
 		return ErrInvalidCertReason
@@ -35,7 +36,7 @@ func (x *IRChangeReqMsg) IsValid(partitionTrustBase map[string]crypto.Verifier) 
 		if bytes.Equal(req.SystemIdentifier, x.SystemIdentifier) == false {
 			return ErrIncompatibleReq
 		}
-		ver, f := partitionTrustBase[req.NodeIdentifier]
+		ver, f := tb[req.NodeIdentifier]
 		if !f {
 			return ErrUnknownRequest
 		}

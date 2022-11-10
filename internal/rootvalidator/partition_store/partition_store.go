@@ -10,9 +10,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
 
-type partitionInfo struct {
+type PartitionInfo struct {
 	// partition system description record,
-	SystemDescription *genesis.SystemDescriptionRecord
+	SystemDescription genesis.SystemDescriptionRecord
 	// registered nodes and their public key's
 	TrustBase map[string]crypto.Verifier
 }
@@ -20,16 +20,16 @@ type partitionInfo struct {
 // PartitionStore stores partition related information. key of the map is system identifier.
 type PartitionStore struct {
 	mu         sync.Mutex
-	partitions map[p.SystemIdentifier]*partitionInfo
+	partitions map[p.SystemIdentifier]*PartitionInfo
 }
 
 func NewEmptyPartitionStore() *PartitionStore {
-	return &PartitionStore{partitions: make(map[p.SystemIdentifier]*partitionInfo)}
+	return &PartitionStore{partitions: make(map[p.SystemIdentifier]*PartitionInfo)}
 }
 
 // NewPartitionStore creates a new partition store with given partitions.
 func NewPartitionStore(partitions []*genesis.PartitionRecord) (*PartitionStore, error) {
-	parts := make(map[p.SystemIdentifier]*partitionInfo)
+	parts := make(map[p.SystemIdentifier]*PartitionInfo)
 	for _, partition := range partitions {
 		identifier := p.SystemIdentifier(partition.GetSystemIdentifier())
 		trustBase := make(map[string]crypto.Verifier)
@@ -43,7 +43,7 @@ func NewPartitionStore(partitions []*genesis.PartitionRecord) (*PartitionStore, 
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[identifier] = &partitionInfo{SystemDescription: partition.SystemDescriptionRecord,
+		parts[identifier] = &PartitionInfo{SystemDescription: *partition.SystemDescriptionRecord,
 			TrustBase: trustBase}
 	}
 	return &PartitionStore{partitions: parts}, nil
@@ -51,7 +51,7 @@ func NewPartitionStore(partitions []*genesis.PartitionRecord) (*PartitionStore, 
 
 // NewPartitionStoreFromGenesis creates a new partition store from root genesis.
 func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) (*PartitionStore, error) {
-	parts := make(map[p.SystemIdentifier]*partitionInfo)
+	parts := make(map[p.SystemIdentifier]*PartitionInfo)
 	for _, partition := range partitions {
 		identifier := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
 		trustBase := make(map[string]crypto.Verifier)
@@ -62,7 +62,7 @@ func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) 
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[identifier] = &partitionInfo{SystemDescription: partition.SystemDescriptionRecord,
+		parts[identifier] = &PartitionInfo{SystemDescription: *partition.SystemDescriptionRecord,
 			TrustBase: trustBase}
 	}
 	return &PartitionStore{partitions: parts}, nil
@@ -74,7 +74,7 @@ func (ps *PartitionStore) AddPartition(partition *genesis.PartitionRecord) error
 	sysIdent := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
 	// init on first add
 	if ps.partitions == nil {
-		ps.partitions = make(map[p.SystemIdentifier]*partitionInfo)
+		ps.partitions = make(map[p.SystemIdentifier]*PartitionInfo)
 	}
 	_, f := ps.partitions[sysIdent]
 	if f {
@@ -88,7 +88,7 @@ func (ps *PartitionStore) AddPartition(partition *genesis.PartitionRecord) error
 		}
 		trustBase[node.NodeIdentifier] = ver
 	}
-	ps.partitions[sysIdent] = &partitionInfo{SystemDescription: partition.SystemDescriptionRecord,
+	ps.partitions[sysIdent] = &PartitionInfo{SystemDescription: *partition.SystemDescriptionRecord,
 		TrustBase: trustBase}
 	return nil
 }
@@ -99,7 +99,7 @@ func (ps *PartitionStore) GetSystemDescriptions() []*genesis.SystemDescriptionRe
 	descriptions := make([]*genesis.SystemDescriptionRecord, len(ps.partitions))
 	i := 0
 	for _, info := range ps.partitions {
-		descriptions[i] = info.SystemDescription
+		descriptions[i] = &info.SystemDescription
 		i++
 	}
 	return descriptions
@@ -112,53 +112,12 @@ func (ps *PartitionStore) Size() int {
 	return len(ps.partitions)
 }
 
-// NodeCount returns the number of nodes in the given partition.
-// If partition is not in the partitionStore then 0 is returned.
-func (ps *PartitionStore) NodeCount(id p.SystemIdentifier) int {
+func (ps *PartitionStore) GetInfo(id p.SystemIdentifier) (PartitionInfo, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	p, f := ps.partitions[id]
+	info, f := ps.partitions[id]
 	if !f {
-		return 0
+		return PartitionInfo{}, fmt.Errorf("unknown system identifier %X", id)
 	}
-	return len(p.TrustBase)
-}
-
-func (ps *PartitionStore) GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	p, f := ps.partitions[id]
-	if !f {
-		return nil, fmt.Errorf("unknown system identifier %X", id)
-	}
-	return p.SystemDescription, nil
-}
-
-// GetNodes returns all registered partition nodes
-func (ps *PartitionStore) GetNodes(id p.SystemIdentifier) ([]string, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	p, f := ps.partitions[id]
-	if !f {
-		return nil, fmt.Errorf("unknown system identifier %X", id)
-	}
-	nodes := make([]string, len(p.TrustBase))
-	i := 0
-	for k := range p.TrustBase {
-		nodes[i] = k
-		i++
-	}
-
-	return nodes, nil
-}
-
-// GetTrustBase returns partition map of registered nodes and their keys
-func (ps *PartitionStore) GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	p, f := ps.partitions[id]
-	if !f {
-		return nil, fmt.Errorf("unknown system identifier %X", id)
-	}
-	return p.TrustBase, nil
+	return *info, nil
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -30,11 +32,8 @@ const (
 
 type (
 	PartitionStore interface {
-		NodeCount(id p.SystemIdentifier) int
-		GetNodes(id p.SystemIdentifier) ([]string, error)
-		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
-		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
-		GetSystemDescriptions() []*genesis.SystemDescriptionRecord
+		GetInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+		GetSystemDescriptions() []*genesis.SystemDescriptionRecord // todo: to be removed
 	}
 
 	StateStore interface {
@@ -159,12 +158,12 @@ func (x *ConsensusManager) loop() {
 			}
 			logger.Debug("IR change request from partition")
 			// The request is sent internally, assume correct handling and do not double-check the attached requests
-			sd, err := x.partitions.GetSystemDescription(req.SystemIdentifier)
+			info, err := x.partitions.GetInfo(req.SystemIdentifier)
 			if err != nil {
 				logger.Warning("Unexpected error, cannot certify IR from %X: %v", req.SystemIdentifier, err)
 				break
 			}
-			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(req.IR, sd, x.conf.hashAlgo)
+			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(req.IR, &info.SystemDescription, x.conf.hashAlgo)
 		// handle timeouts
 		case nt := <-x.timers.C:
 			if nt == nil {
@@ -202,12 +201,12 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("Unable to re-certify partition %X, error: no certificate found", systemdId.Bytes(), err.Error())
 					break
 				}
-				sd, err := x.partitions.GetSystemDescription(systemdId)
+				info, err := x.partitions.GetInfo(systemdId)
 				if err != nil {
 					logger.Warning("Unexpected error, cannot certify IR from %X: %v", systemdId.Bytes(), err)
 					break
 				}
-				x.inputData[systemdId] = NewUnicityTreeData(luc.InputRecord, sd, x.conf.hashAlgo)
+				x.inputData[systemdId] = NewUnicityTreeData(luc.InputRecord, &info.SystemDescription, x.conf.hashAlgo)
 			}
 		}
 	}

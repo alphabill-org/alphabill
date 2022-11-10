@@ -9,6 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -47,11 +48,7 @@ type (
 	}
 
 	PartitionStore interface {
-		NodeCount(id p.SystemIdentifier) int
-		GetNodes(id p.SystemIdentifier) ([]string, error)
-		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
-		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
-		GetSystemDescriptions() []*genesis.SystemDescriptionRecord
+		GetInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
 	StateStore interface {
@@ -75,6 +72,7 @@ type (
 		ctxCancel    context.CancelFunc
 		certReqCh    chan consensus.IRChangeRequest
 		certResultCh chan certificates.UnicityCertificate
+		config       *AbConsensusConfig
 		peer         *network.Peer
 		timers       *timer.Timers
 		net          RootNet
@@ -84,6 +82,7 @@ type (
 		proposalGen  *ProposalGenerator
 		safety       *SafetyModule
 		stateLedger  *StateLedger
+		partitions   PartitionStore
 	}
 )
 
@@ -183,6 +182,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	consensusManager := &ConsensusManager{
 		certReqCh:    make(chan consensus.IRChangeRequest, 1),
 		certResultCh: make(chan certificates.UnicityCertificate, 1),
+		config:       conf,
 		peer:         host,
 		timers:       timers,
 		net:          net,
@@ -192,6 +192,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		proposalGen:  NewProposalGenerator(),
 		safety:       NewSafetyModule(signer),
 		stateLedger:  ledger,
+		partitions:   partitionStore,
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
 	return consensusManager, nil
@@ -381,17 +382,30 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// validate incoming request
-	tb, err := x.stateLedger.GetPartitionTrustBase(p.SystemIdentifier(irChange.SystemIdentifier))
+	sysId := p.SystemIdentifier(irChange.SystemIdentifier)
+	info, err := x.partitions.GetInfo(sysId)
 	if err != nil {
+		logger.Warning("IR change request from unknown partition %X, error: %v", sysId.Bytes(), err)
+		return
+	}
+	if err := irChange.IsValid(info.TrustBase); err != nil {
 		logger.Warning("Invalid IR change request error: %v", err)
 		return
 	}
-	if err := irChange.IsValid(tb); err != nil {
-		logger.Warning("Invalid IR change request error: %v", err)
+
+	state, err := x.config.stateStore.Get()
+	if err != nil {
+		logger.Warning("IR change request ignored, failed to read current state: %w", err)
+		return
+	}
+	luc, f := state.Certificates[sysId]
+	if !f {
+		logger.Warning("IR change request ignored, no last state for system id %X", sysId.Bytes())
 		return
 	}
 	// Buffer and wait for opportunity to make the next proposal
-	x.proposalGen.ValidateAndBufferIRReq(irChange)
+	x.proposalGen.ValidateAndBufferIRReq(irChange, luc, info)
+
 }
 
 // onVoteMsg handle votes and timeout votes
@@ -433,7 +447,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
 	// verify signature on proposal
-	err := proposal.Verify(x.rootVerifier)
+	err := proposal.Verify(x.partitions, x.rootVerifier)
 	if err != nil {
 		logger.Warning("Atomic broadcast proposal verify failed: %v", err)
 	}
@@ -496,6 +510,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		logger.Warning("Failed to send vote message: %v", err)
 	}
 }
+
 func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
 	x.stateLedger.ProcessQc(qc)
 	x.roundState.AdvanceRoundQC(qc)

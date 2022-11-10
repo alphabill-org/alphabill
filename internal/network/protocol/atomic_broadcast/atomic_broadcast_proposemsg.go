@@ -32,7 +32,7 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *ProposalMsg) Verify(v AtomicVerifier) error {
+func (x *ProposalMsg) Verify(p PartitionStore, v AtomicVerifier) error {
 	if v == nil {
 		return errors.New(ErrVerifierIsNil)
 	}
@@ -61,7 +61,8 @@ func (x *ProposalMsg) Verify(v AtomicVerifier) error {
 			return errors.Wrap(err, "proposal verification failed")
 		}
 	}
-	// todo: Check if block is valid
-	//	if x.Block.IsValid()
+	if err := x.Block.IsValid(p, v); err != nil {
+		return err
+	}
 	return nil
 }

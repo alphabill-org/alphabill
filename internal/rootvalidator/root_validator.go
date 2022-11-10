@@ -1,17 +1,17 @@
 package rootvalidator
 
 import (
-	"bytes"
 	"context"
 	gocrypto "crypto"
 	"fmt"
+
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -52,9 +52,7 @@ type (
 	}
 
 	PartitionStoreRd interface {
-		NodeCount(id p.SystemIdentifier) int
-		GetNodes(id p.SystemIdentifier) ([]string, error)
-		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
+		GetInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
 	RootNodeConf struct {
@@ -214,12 +212,12 @@ func (v *Validator) sendResponse(nodeId string, uc *certificates.UnicityCertific
 // OnBlockCertificationRequest handle certification requests from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
-	tb, err := v.partitionStore.GetTrustBase(proto.SystemIdentifier(req.SystemIdentifier))
+	info, err := v.partitionStore.GetInfo(proto.SystemIdentifier(req.SystemIdentifier))
 	if err != nil {
 		logger.Warning("invalid block certification request: %v", err)
 		return
 	}
-	verifier, f := tb[req.NodeIdentifier]
+	verifier, f := info.TrustBase[req.NodeIdentifier]
 	if !f {
 		logger.Warning("block certification request from unknown node: %v", req.NodeIdentifier)
 		return
@@ -231,23 +229,9 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 	}
 	systemIdentifier := proto.SystemIdentifier(req.SystemIdentifier)
 	latestUnicityCertificate, err := v.getLatestUnicityCertificate(systemIdentifier)
-	seal := latestUnicityCertificate.UnicitySeal
-	if req.RootRoundNumber < seal.RootChainRoundNumber {
-		// Older UC, return current.
-		logger.Warning("old request: root validator round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
-		// Send latestUnicityCertificate
-		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
-		return
-	} else if req.RootRoundNumber > seal.RootChainRoundNumber {
-		// should not happen, partition has newer UC
-		logger.Warning("partition has never unicity certificate: root validator round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
-		// send latestUnicityCertificate
-		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
-		return
-	} else if !bytes.Equal(req.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
-		// Extending of unknown State.
-		logger.Warning("request extends unknown state: expected hash: %v, got: %v", seal.Hash, req.InputRecord.PreviousHash)
-		// send latestUnicityCertificate
+	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
+	if err != nil {
+		logger.Warning("Invalid certification request: %w", err)
 		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
 		return
 	}
@@ -255,7 +239,9 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 		logger.Warning("incoming request could not be stores: %v", err.Error())
 		return
 	}
-	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(systemIdentifier, v.partitionStore.NodeCount(systemIdentifier))
+	// There has to be at least one node in the partition, otherwise we could not have verified the request
+	nofNodes := len(info.TrustBase)
+	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(systemIdentifier, nofNodes)
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
 		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", systemIdentifier.Bytes(), ir.Hash)
@@ -288,12 +274,13 @@ func (v *Validator) onCertificationResult(certificate *certificates.UnicityCerti
 	// remember to clear the incoming buffer to accept new requests
 	defer v.incomingRequests.Clear(sysId)
 
-	nodes, err := v.partitionStore.GetNodes(sysId)
+	info, err := v.partitionStore.GetInfo(sysId)
 	if err != nil {
 		logger.Info("Unable to send response to partition nodes: %v", err)
 		return
 	}
-	for _, node := range nodes {
+	// send response to all registered nodes
+	for node, _ := range info.TrustBase {
 		v.sendResponse(node, certificate)
 	}
 }

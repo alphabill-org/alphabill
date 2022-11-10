@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -32,6 +35,10 @@ type AtomicVerifier interface {
 	GetVerifiers() map[string]crypto.Verifier
 }
 
+type PartitionStore interface {
+	GetInfo(id protocol.SystemIdentifier) (partition_store.PartitionInfo, error)
+}
+
 func (x *Payload) AddToHasher(hasher hash.Hash) {
 	certRequests := x.Requests
 	for _, r := range certRequests {
@@ -39,12 +46,17 @@ func (x *Payload) AddToHasher(hasher hash.Hash) {
 	}
 }
 
-func (x *Payload) IsValid(partitionTrustBase map[string]crypto.Verifier) error {
+func (x *Payload) IsValid(partitions PartitionStore) error {
 	// there can only be one request per system identifier in a block
 	sysIdSet := map[string]bool{}
 
 	for _, req := range x.Requests {
-		if err := req.IsValid(partitionTrustBase); err != nil {
+		sysId := protocol.SystemIdentifier(req.SystemIdentifier)
+		info, err := partitions.GetInfo(sysId)
+		if err != nil {
+			return err
+		}
+		if err := req.IsValid(info.TrustBase); err != nil {
 			return fmt.Errorf("payload contains invalid request from system id %X, err %w", req.SystemIdentifier, err)
 		}
 		// If reason is timeout, then there is no proof
@@ -63,7 +75,7 @@ func (x *Payload) IsEmpty() bool {
 	return len(x.Requests) == 0
 }
 
-func (x *BlockData) IsValid(partitionTrust map[string]crypto.Verifier, v AtomicVerifier) error {
+func (x *BlockData) IsValid(p PartitionStore, v AtomicVerifier) error {
 	if x.Round < 1 {
 		return ErrInvalidRound
 	}
@@ -77,7 +89,7 @@ func (x *BlockData) IsValid(partitionTrust map[string]crypto.Verifier, v AtomicV
 		return ErrMissingQuorumCertificate
 	}
 	// expensive op's
-	if err := x.Payload.IsValid(partitionTrust); err != nil {
+	if err := x.Payload.IsValid(p); err != nil {
 		return err
 	}
 	if err := x.Qc.Verify(v); err != nil {

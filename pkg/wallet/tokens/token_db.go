@@ -41,7 +41,7 @@ type TokenTxContext interface {
 	// keys with accountIndex from the money wallet have tokens here under accountNumber which is accountIndex+1
 	SetToken(accountNumber uint64, token *TokenUnit) error
 	RemoveToken(accountNumber uint64, id TokenId) error
-	GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, bool, error)
+	GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, error)
 	GetTokens(accountNumber uint64) ([]*TokenUnit, error)
 }
 
@@ -78,7 +78,7 @@ func (t *tokensDbTx) GetTokenType(typeId TokenTypeId) (*TokenUnitType, error) {
 	}, false)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return tokenType, nil
 }
@@ -97,7 +97,7 @@ func (t *tokensDbTx) GetTokenTypes() ([]*TokenUnitType, error) {
 	}, false)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return types, nil
 }
@@ -144,7 +144,7 @@ func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenId) error {
 	}, true)
 }
 
-func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, bool, error) {
+func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, error) {
 	var tok *TokenUnit
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
@@ -164,9 +164,9 @@ func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit
 	}, true)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return tok, tok != nil, nil
+	return tok, nil
 }
 
 func (t *tokensDbTx) GetTokens(accountNumber uint64) ([]*TokenUnit, error) {
@@ -301,10 +301,11 @@ func openTokensDb(walletDir string) (*tokensDb, error) {
 }
 
 func parseTokenType(v []byte) (*TokenUnitType, error) {
+	var t = &TokenUnitType{}
 	if v == nil {
-		return nil, nil
+		return t, nil
 	}
-	var t *TokenUnitType
+
 	err := json.Unmarshal(v, &t)
 	return t, err
 }

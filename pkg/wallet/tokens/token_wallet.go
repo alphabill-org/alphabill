@@ -144,11 +144,11 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	if err != nil {
 		return err
 	}
-	t, found, err := w.db.Do().GetToken(accountNumber, tokenId)
+	t, err := w.db.Do().GetToken(accountNumber, tokenId)
 	if err != nil {
 		return err
 	}
-	if !found {
+	if t == nil {
 		return errors.New(fmt.Sprintf("token with id=%X not found under account #%v", tokenId, accountNumber))
 	}
 	return w.transfer(ctx, acc, t, receiverPubKey)
@@ -159,11 +159,11 @@ func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, to
 	if err != nil {
 		return err
 	}
-	t, found, err := w.db.Do().GetToken(accountNumber, tokenId)
+	t, err := w.db.Do().GetToken(accountNumber, tokenId)
 	if err != nil {
 		return err
 	}
-	if !found {
+	if t == nil {
 		return errors.New(fmt.Sprintf("token with id=%X not found under account #%v", tokenId, accountNumber))
 	}
 

@@ -95,12 +95,12 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 		}
 	case tokens.SplitFungibleToken:
 		log.Info("SplitFungibleToken tx")
-		tok, found, err := txc.GetToken(accNr, id)
+		tok, err := txc.GetToken(accNr, id)
 		if err != nil {
 			return err
 		}
 		var tokenInfo TokenTypeInfo
-		if found {
+		if tok != nil {
 			tokenInfo = tok
 			log.Info("SplitFungibleToken updating existing unit")
 			err := txc.SetToken(accNr, &TokenUnit{
@@ -164,8 +164,6 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 				Uri:      ctx.URI(),
 				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
 				Symbol:   tType.Symbol,
-				//ctx.Data() // TODO
-				//ctx.DataUpdatePredicate()
 			})
 			if err != nil {
 				return err

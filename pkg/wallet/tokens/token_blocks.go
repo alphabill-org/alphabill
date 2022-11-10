@@ -44,7 +44,7 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 			log.Info(fmt.Sprintf("pub keys: %v", len(accounts)))
 			for _, tx := range b.Transactions {
 				for n := 0; n <= len(accounts); n++ {
-					var keyHashes *wallet.KeyHashes = nil
+					var keyHashes *wallet.KeyHashes
 					if n > 0 {
 						keyHashes = accounts[n-1].PubKeyHash
 					}

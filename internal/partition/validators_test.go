@@ -179,6 +179,13 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 		errStr                   string
 	}{
 		{
+			name:                     "tx is nil",
+			tx:                       nil,
+			latestBlockNumber:        10,
+			expectedSystemIdentifier: []byte{1, 2, 3, 4},
+			errStr:                   "transaction is nil",
+		},
+		{
 			name:                     "invalid system identifier",
 			tx:                       testtransaction.RandomGenericBillTransfer(t), // default systemID is 0000
 			latestBlockNumber:        10,

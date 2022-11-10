@@ -337,6 +337,22 @@ func TestWalletGetBills_Ok(t *testing.T) {
 	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetId()))
 }
 
+func TestWalletGetBill(t *testing.T) {
+	// setup wallet with a bill
+	w, _ := CreateTestWallet(t)
+	b1 := addBill(t, w, 100)
+
+	// verify getBill returns existing bill
+	b, err := w.GetBill(0, b1.GetId())
+	require.NoError(t, err)
+	require.NotNil(t, b)
+
+	// verify non-existent bill returns BillNotFound error
+	b, err = w.GetBill(0, []byte{0})
+	require.ErrorIs(t, err, errBillNotFound)
+	require.Nil(t, b)
+}
+
 func verifyTestWallet(t *testing.T, w *Wallet) {
 	mnemonic, err := w.db.Do().GetMnemonic()
 	require.NoError(t, err)

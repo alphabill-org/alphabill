@@ -39,6 +39,7 @@ var (
 	errWalletDbAlreadyExists = errors.New("wallet db already exists")
 	errWalletDbDoesNotExists = errors.New("cannot open wallet db, file does not exist")
 	errAccountNotFound       = errors.New("account does not exist")
+	errBillNotFound          = errors.New("bill does not exist")
 )
 
 const walletFileName = "wallet.db"
@@ -70,6 +71,7 @@ type TxContext interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
+	GetBill(accountIndex uint64, id []byte) (*Bill, error)
 	SetBill(accountIndex uint64, bill *Bill) error
 	ContainsBill(accountIndex uint64, id *uint256.Int) (bool, error)
 	RemoveBill(accountIndex uint64, id *uint256.Int) error
@@ -304,6 +306,29 @@ func (w *wdbtx) VerifyPassword() (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (w *wdbtx) GetBill(accountIndex uint64, billId []byte) (*Bill, error) {
+	var b *Bill
+	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		billBytes := bkt.Bucket(accountBillsBucket).Get(billId)
+		if billBytes == nil {
+			return errBillNotFound
+		}
+		b, err = parseBill(billBytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func (w *wdbtx) SetBill(accountIndex uint64, bill *Bill) error {

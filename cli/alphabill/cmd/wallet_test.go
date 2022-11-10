@@ -47,28 +47,28 @@ func TestWalletCreateCmd(t *testing.T) {
 
 func TestWalletGetBalanceCmd(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	stdout := execCommand(t, homedir, "get-balance")
+	stdout, _ := execCommand(homedir, "get-balance")
 	verifyStdout(t, stdout, "#1 0", "Total 0")
 }
 
 func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	addAccount(t, "wallet-test")
-	stdout := execCommand(t, homedir, "get-balance --key 2")
+	stdout, _ := execCommand(homedir, "get-balance --key 2")
 	verifyStdout(t, stdout, "#2 0")
 	verifyStdoutNotExists(t, stdout, "Total 0")
 }
 
 func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	stdout := execCommand(t, homedir, "get-balance --total")
+	stdout, _ := execCommand(homedir, "get-balance --total")
 	verifyStdout(t, stdout, "Total 0")
 	verifyStdoutNotExists(t, stdout, "#1 0")
 }
 
 func TestWalletGetBalanceCmdTotalWithKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	stdout := execCommand(t, homedir, "get-balance --key 1 --total")
+	stdout, _ := execCommand(homedir, "get-balance --key 1 --total")
 	verifyStdout(t, stdout, "#1 0")
 	verifyStdoutNotExists(t, stdout, "Total 0")
 }
@@ -77,29 +77,29 @@ func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 
 	// verify quiet flag does nothing if no key or total flag is not provided
-	stdout := execCommand(t, homedir, "get-balance --quiet")
+	stdout, _ := execCommand(homedir, "get-balance --quiet")
 	verifyStdout(t, stdout, "#1 0")
 	verifyStdout(t, stdout, "Total 0")
 
 	// verify quiet with total
-	stdout = execCommand(t, homedir, "get-balance --quiet --total")
+	stdout, _ = execCommand(homedir, "get-balance --quiet --total")
 	verifyStdout(t, stdout, "0")
 	verifyStdoutNotExists(t, stdout, "#1 0")
 
 	// verify quiet with key
-	stdout = execCommand(t, homedir, "get-balance --quiet --key 1")
+	stdout, _ = execCommand(homedir, "get-balance --quiet --key 1")
 	verifyStdout(t, stdout, "0")
 	verifyStdoutNotExists(t, stdout, "Total 0")
 
 	// verify quiet with key and total (total is not shown if key is provided)
-	stdout = execCommand(t, homedir, "get-balance --quiet --key 1 --total")
+	stdout, _ = execCommand(homedir, "get-balance --quiet --key 1 --total")
 	verifyStdout(t, stdout, "0")
 	verifyStdoutNotExists(t, stdout, "#1 0")
 }
 
 func TestPubKeysCmd(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	stdout := execCommand(t, homedir, "get-pubkeys")
+	stdout, _ := execCommand(homedir, "get-pubkeys")
 	verifyStdout(t, stdout, "#1 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 }
 
@@ -371,7 +371,7 @@ func verifyStdoutNotExists(t *testing.T, consoleWriter *testConsoleWriter, expec
 	}
 }
 
-func execCommand(t *testing.T, homeDir, command string) *testConsoleWriter {
+func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
@@ -379,10 +379,7 @@ func execCommand(t *testing.T, homeDir, command string) *testConsoleWriter {
 	args := "wallet --home " + homeDir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
-	err := cmd.addAndExecuteCommand(context.Background())
-	require.NoError(t, err)
-
-	return outputWriter
+	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
 func execWalletCmd(t *testing.T, walletName string, command string) *testConsoleWriter {

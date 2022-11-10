@@ -353,6 +353,39 @@ func TestWalletGetBill(t *testing.T) {
 	require.Nil(t, b)
 }
 
+func TestWalletAddBill(t *testing.T) {
+	// setup wallet
+	w, _ := CreateTestWalletFromSeed(t)
+	pubkey, _ := w.GetPublicKey(0)
+
+	// verify nil bill
+	err := w.AddBill(0, nil)
+	require.ErrorContains(t, err, "bill is nil")
+
+	// verify bill id is nil
+	err = w.AddBill(0, &Bill{Id: nil, Tx: nil})
+	require.ErrorContains(t, err, "bill id is nil")
+
+	// verify bill tx is nil
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), Tx: nil})
+	require.ErrorContains(t, err, "bill tx is nil")
+
+	// verify invalid bearer predicate
+	invalidPubkey := []byte{0}
+	err = w.AddBill(0, &Bill{
+		Id: uint256.NewInt(0),
+		Tx: createTransferTxForPubKey(invalidPubkey),
+	})
+	require.ErrorContains(t, err, "invalid bearer predicate")
+
+	// verify valid bill no error
+	err = w.AddBill(0, &Bill{
+		Id: uint256.NewInt(0),
+		Tx: createTransferTxForPubKey(pubkey),
+	})
+	require.NoError(t, err)
+}
+
 func verifyTestWallet(t *testing.T, w *Wallet) {
 	mnemonic, err := w.db.Do().GetMnemonic()
 	require.NoError(t, err)
@@ -367,4 +400,14 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.Equal(t, testPrivKey0Hex, hex.EncodeToString(ac.PrivKey))
 	require.Equal(t, testPubKey0HashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
 	require.Equal(t, testPubKey0HashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
+}
+
+func createTransferTxForPubKey(pubkey []byte) *txsystem.Transaction {
+	return &txsystem.Transaction{
+		SystemId:              alphabillMoneySystemId,
+		UnitId:                hash.Sum256([]byte{0x01}),
+		TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubkey)),
+		Timeout:               1000,
+		OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, pubkey),
+	}
 }

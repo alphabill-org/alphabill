@@ -240,6 +240,31 @@ func (w *Wallet) GetBills(accountIndex uint64) ([]*Bill, error) {
 	return w.db.Do().GetBills(accountIndex)
 }
 
+// AddBill adds bill to wallet.
+// Given bill must have a valid transaction with P2PKH predicate for given account.
+// Block proof is not verified, and not required.
+// Overwrites existing bill with the same ID, if one exists.
+func (w *Wallet) AddBill(accountIndex uint64, bill *Bill) error {
+	if bill == nil {
+		return errors.New("bill is nil")
+	}
+	if bill.Id == nil {
+		return errors.New("bill id is nil")
+	}
+	if bill.Tx == nil {
+		return errors.New("bill tx is nil")
+	}
+	key, err := w.db.Do().GetAccountKey(accountIndex)
+	if err != nil {
+		return err
+	}
+	err = verifyTxP2PKHOwner(bill.Tx, key.PubKeyHash)
+	if err != nil {
+		return err
+	}
+	return w.db.Do().SetBill(accountIndex, bill)
+}
+
 // GetPublicKey returns public key of the wallet (compressed secp256k1 key 33 bytes)
 func (w *Wallet) GetPublicKey(accountIndex uint64) ([]byte, error) {
 	key, err := w.db.Do().GetAccountKey(accountIndex)

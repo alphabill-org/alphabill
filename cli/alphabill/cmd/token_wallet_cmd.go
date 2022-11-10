@@ -29,7 +29,8 @@ const (
 
 func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "token",
+		Use:   "token",
+		Short: "create and manage fungible and non-fungible tokens",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand like new-type, send etc")
 		},
@@ -48,7 +49,8 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 
 func tokenCmdNewType(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "new-type",
+		Use:   "new-type",
+		Short: "create new token type",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
@@ -77,7 +79,8 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 
 func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "fungible",
+		Use:   "fungible",
+		Short: "create new fungible token type",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdNewTypeFungible(cmd, config)
 		},
@@ -128,7 +131,8 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 
 func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "non-fungible",
+		Use:   "non-fungible",
+		Short: "create new non-fungible token type",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdNewTypeNonFungible(cmd, config)
 		},
@@ -160,6 +164,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
 		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
 		InvariantPredicate:                script.PredicateAlwaysTrue(),
+		DataUpdatePredicate:               script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -173,7 +178,8 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 
 func tokenCmdNewToken(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "new",
+		Use:   "new",
+		Short: "mint new token",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
@@ -185,7 +191,8 @@ func tokenCmdNewToken(config *walletConfig) *cobra.Command {
 
 func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "fungible",
+		Use:   "fungible",
+		Short: "mint new fungible token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
@@ -240,7 +247,8 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 
 func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "non-fungible",
+		Use:   "non-fungible",
+		Short: "mint new non-fungible token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdNewTokenNonFungible(cmd, config)
 		},
@@ -308,7 +316,8 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 
 func tokenCmdTransfer(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "transfer",
+		Use:   "transfer",
+		Short: "transfer a token by its id",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
@@ -319,7 +328,8 @@ func tokenCmdTransfer(config *walletConfig) *cobra.Command {
 
 func tokenCmdTransferFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "fungible",
+		Use:   "fungible",
+		Short: "transfer fungible token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdTransferFungible(cmd, config)
 		},
@@ -359,7 +369,8 @@ func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) erro
 
 func tokenCmdSend(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "send",
+		Use:   "send",
+		Short: "send a token",
 		Run: func(cmd *cobra.Command, args []string) {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
@@ -371,7 +382,8 @@ func tokenCmdSend(config *walletConfig) *cobra.Command {
 
 func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "fungible",
+		Use:   "fungible",
+		Short: "send fungible token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdSendFungible(cmd, config)
 		},
@@ -437,7 +449,8 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 
 func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "non-fungible",
+		Use:   "non-fungible",
+		Short: "transfer non-fungible token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdSendNonFungible(cmd, config)
 		},
@@ -477,7 +490,8 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 
 func tokenCmdDC(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "collect-dust",
+		Use:   "collect-dust",
+		Short: "join fungible tokens into one unit",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdDC(cmd, config)
 		},
@@ -492,7 +506,8 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
 
 func tokenCmdSync(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "sync",
+		Use:   "sync",
+		Short: "fetch latest blocks from a partition node",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdSync(cmd, config)
 		},
@@ -581,7 +596,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "non-fungible",
-		Short: "lists NFTs",
+		Short: "lists non-fungible tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdList(cmd, config, t.Token|t.NonFungible)
 		},
@@ -591,7 +606,8 @@ func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
 
 func tokenCmdListTypes(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "list-types",
+		Use:   "list-types",
+		Short: "lists token types",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdListTypes(cmd, config)
 		},

@@ -72,6 +72,9 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 }
 
 func (w *TokensWallet) Sync(ctx context.Context) error {
+	if !w.waitTx {
+		return nil
+	}
 	latestBlockNumber, err := w.db.Do().GetBlockNumber()
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package clientmock
 
 import (
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
@@ -22,6 +23,9 @@ func NewMockAlphabillClient(maxBlockNumber uint64, blocks map[uint64]*block.Bloc
 func (c *MockAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	c.recordedTxs = append(c.recordedTxs, tx)
 	if c.txResponse != nil {
+		if !c.txResponse.Ok {
+			return c.txResponse, errors.New(c.txResponse.Message)
+		}
 		return c.txResponse, nil
 	}
 	return &txsystem.TransactionResponse{Ok: true}, nil

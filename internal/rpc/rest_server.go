@@ -125,6 +125,7 @@ func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Reque
 	dec.DisallowUnknownFields()
 	err := dec.Decode(jsonReq)
 	if err != nil {
+		err = fmt.Errorf("json decode error: %w", err)
 		receivedInvalidTransactionsRESTMeter.Inc(1)
 		writeError(writer, err, http.StatusBadRequest)
 		return

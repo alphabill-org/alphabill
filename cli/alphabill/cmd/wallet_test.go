@@ -229,6 +229,37 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	waitForBalance(t, walletName, 2, 2)
 }
 
+func TestSendWithoutWaitingForConfirmation(t *testing.T) {
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 10000,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill)
+	startRPCServer(t, network, ":9543")
+
+	// create wallet with 3 accounts
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
+	walletName := "wallet"
+	w := createNewNamedWallet(t, walletName, ":9543")
+	pubKey1, _ := w.GetPublicKey(0)
+	w.Shutdown()
+
+	// transfer initial bill to wallet
+	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify bill is received by wallet account 1
+	waitForBalance(t, walletName, initialBill.Value, 0)
+
+	// verify transaction is broadcasted immediately
+	stdout := execWalletCmd(t, walletName, "send -w false --amount 100 --address 0x00000046eed43bde3361e1a9ab6d0082dd923f20464a11869f8ef266045cf38d98")
+	verifyStdout(t, stdout, "Successfully sent transaction(s)")
+}
+
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(

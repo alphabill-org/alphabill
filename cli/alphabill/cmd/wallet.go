@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -173,7 +174,8 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	cmd.Flags().Uint64P(amountCmdName, "v", 0, "the amount to send to the receiver")
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
-	cmd.Flags().BoolP(waitForConfCmdName, "w", true, "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
+	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
+	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "saves transaction proof(s) to given directory")
 	addPasswordFlags(cmd)
 	_ = cmd.MarkFlagRequired(addressCmdName)
@@ -207,7 +209,11 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	waitForConf, err := cmd.Flags().GetBool(waitForConfCmdName)
+	waitForConfStr, err := cmd.Flags().GetString(waitForConfCmdName)
+	if err != nil {
+		return err
+	}
+	waitForConf, err := strconv.ParseBool(waitForConfStr)
 	if err != nil {
 		return err
 	}

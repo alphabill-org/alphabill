@@ -40,8 +40,6 @@ var (
 	ErrInvalidPassword      = errors.New("invalid password")
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
 	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
-	ErrFailedToBroadcastTx  = errors.New("failed to broadcast transaction(s)")
-	ErrTxRetryCanceled      = errors.New("user canceled tx retry")
 )
 
 var (
@@ -383,31 +381,9 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 	for _, tx := range txs {
-		failedTries := 0
-		for {
-			res, err := w.SendTransaction(tx)
-			if err != nil {
-				return nil, err
-			}
-			if res.Ok {
-				break
-			}
-			if res.Message == txBufferFullErrMsg {
-				failedTries += 1
-				if failedTries >= maxTxFailedTries {
-					return nil, ErrFailedToBroadcastTx
-				}
-				log.Info("tx buffer full, waiting 1s to retry...")
-				timer := time.NewTimer(time.Second)
-				select {
-				case <-timer.C:
-					continue
-				case <-ctx.Done():
-					timer.Stop()
-					return nil, ErrTxRetryCanceled
-				}
-			}
-			return nil, errors.New("payment returned error code: " + res.Message)
+		err := w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
+		if err != nil {
+			return nil, err
 		}
 	}
 	if cmd.WaitForConfirmation {
@@ -704,14 +680,10 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				if err != nil {
 					return err
 				}
-
 				log.Info("sending dust transfer tx for bill=", b.Id, " account=", accountIndex)
-				res, err := w.SendTransaction(tx)
+				err = w.SendTransaction(ctx, tx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 				if err != nil {
 					return err
-				}
-				if !res.Ok {
-					return errors.New("dust transfer returned error code: " + res.Message)
 				}
 			}
 			expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
@@ -763,12 +735,9 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*Bill, dcNonce []byte, bill
 		return err
 	}
 	log.Info(fmt.Sprintf("sending swap tx: nonce=%s timeout=%d", hexutil.Encode(dcNonce), timeout))
-	res, err := w.SendTransaction(swap)
+	err = w.SendTransaction(context.Background(), swap, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 	if err != nil {
 		return err
-	}
-	if !res.Ok {
-		return errors.New("swap tx returned error code: " + res.Message)
 	}
 	return tx.SetDcMetadata(accountIndex, dcNonce, &dcMetadata{SwapTimeout: timeout, BillIds: billIds})
 }

@@ -17,7 +17,6 @@ type Counter struct {
 
 func GetOrRegisterCounter(name string) *Counter {
 	initMetrics()
-	logger.Debug("Creating new counter with name %v and registry %v", name, registry)
 	return &Counter{metrics.GetOrRegisterCounter(name, registry)}
 }
 
@@ -34,10 +33,8 @@ func initMetrics() {
 		return
 	}
 	if !isMetricsEnabled() {
-		logger.Debug("Metrics registry isn't initialised. Using 'nil' registry.")
 		return
 	}
-	logger.Debug("Initialising metrics")
 	metrics.Enabled = true
 	registry = metrics.NewRegistry()
 	metrics.DefaultRegistry = registry

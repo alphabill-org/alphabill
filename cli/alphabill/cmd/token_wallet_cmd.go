@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/spf13/cobra"
+	"sort"
 )
 
 const (
@@ -522,7 +523,7 @@ func tokenCmdList(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdListFungible(config))
 	cmd.AddCommand(tokenCmdListNonFungible(config))
 	addPasswordFlags(cmd)
-	cmd.Flags().IntP(keyCmdName, "k", 1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
+	cmd.PersistentFlags().IntP(keyCmdName, "k", 1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
 	return cmd
 }
 
@@ -554,8 +555,25 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 	if err != nil {
 		return err
 	}
-	for _, m := range res {
-		consoleWriter.Println(m)
+	for accNr, toks := range res {
+		var ownerKey string
+		if accNr == 0 {
+			ownerKey = "Tokens spendable by anyone:"
+		} else {
+			ownerKey = fmt.Sprintf("Tokens owned by account #%v", accNr)
+		}
+		consoleWriter.Println(ownerKey)
+		sort.Slice(toks, func(i, j int) bool {
+			// Fungible, then Non-fungible
+			return toks[i].Kind < toks[j].Kind
+		})
+		for _, tok := range toks {
+			if tok.IsFungible() {
+				consoleWriter.Println(fmt.Sprintf("Id='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.Id, tok.Symbol, tok.Amount, tok.TypeId))
+			} else {
+				consoleWriter.Println(fmt.Sprintf("Id='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.Id, tok.Symbol, tok.TypeId, tok.Uri))
+			}
+		}
 	}
 	return nil
 }

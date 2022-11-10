@@ -58,7 +58,7 @@ func (k PublicKey) string() PublicKeyString {
 	return PublicKeyString(hexutil.Encode(k))
 }
 
-func (t *TokenUnit) isFungible() bool {
+func (t *TokenUnit) IsFungible() bool {
 	return t.Kind&FungibleToken == FungibleToken
 }
 

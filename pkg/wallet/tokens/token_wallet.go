@@ -92,7 +92,7 @@ func (w *TokensWallet) ListTokenTypes(ctx context.Context) ([]string, error) {
 }
 
 // ListTokens specify accountNumber=-1 to list tokens from all accounts
-func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[PublicKeyString][]*TokenUnit, error) {
+func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[int][]*TokenUnit, error) {
 
 	err := w.Sync(ctx)
 	if err != nil {
@@ -115,17 +115,11 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 		}
 	}
 
-	res := make(map[PublicKeyString][]*TokenUnit, 0)
+	res := make(map[int][]*TokenUnit, 0)
 	// NB! n=0 is a special index for always true predicates, thus iteration goes until len, not len-1
 	for n := 0; n <= len(pubKeys); n++ {
-		var pubKey PublicKeyString
-		if n == alwaysTrueTokensAccountNumber {
-			if skipAlwaysTrue {
-				continue
-			}
-			pubKey = NoKey
-		} else {
-			pubKey = PublicKey(pubKeys[n-1]).string()
+		if n == alwaysTrueTokensAccountNumber && skipAlwaysTrue {
+			continue
 		}
 		tokens, err := w.db.Do().GetTokens(uint64(n))
 		if err != nil {
@@ -133,11 +127,11 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 		}
 		for _, tok := range tokens {
 			if kind&Any > 0 || tok.Kind&kind == kind {
-				tokens, found := res[pubKey]
+				tokens, found := res[n]
 				if found {
-					res[pubKey] = append(tokens, tok)
+					res[n] = append(tokens, tok)
 				} else {
-					res[pubKey] = []*TokenUnit{tok}
+					res[n] = []*TokenUnit{tok}
 				}
 			}
 		}
@@ -195,7 +189,7 @@ func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, t
 	// find the best unit candidate for transfer or split, value must be equal or larger than the target amount
 	var closestMatch *TokenUnit = nil
 	for _, token := range tokens {
-		if token.isFungible() && typeId.equal(token.TypeId) {
+		if token.IsFungible() && typeId.equal(token.TypeId) {
 			fungibleTokens = append(fungibleTokens, token)
 			totalBalance += token.Amount
 			if closestMatch == nil {

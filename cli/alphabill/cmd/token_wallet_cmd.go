@@ -260,7 +260,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd.Flags().BytesHex(cmdFlagTokenDataUpdate, nil, "data update predicate (hex)")
 	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
-	cmd.Flags().MarkHidden(cmdFlagTokenId)
+	_ = cmd.Flags().MarkHidden(cmdFlagTokenId)
 	return cmd
 }
 

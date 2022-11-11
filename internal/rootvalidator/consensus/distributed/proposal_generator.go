@@ -86,16 +86,18 @@ func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChang
 	return nil
 }
 
-func (x *ProposalGenerator) Get() []*atomic_broadcast.IRChangeReqMsg {
-	requests := make([]*atomic_broadcast.IRChangeReqMsg, len(x.irChgReqBuffer))
+func (x *ProposalGenerator) GetPayload() *atomic_broadcast.Payload {
+	payload := &atomic_broadcast.Payload{
+		Requests: make([]*atomic_broadcast.IRChangeReqMsg, len(x.irChgReqBuffer)),
+	}
 	i := 0
 	for _, req := range x.irChgReqBuffer {
 		// If there is more than one request stored, there is an equivocating request too, skip those
 		// todo: logging of equivocating requests with evidence - separate log file or DB?
 		if len(req) == 1 {
-			requests[i] = req[0].Msg
+			payload.Requests[i] = req[0].Msg
 		}
 		i++
 	}
-	return requests
+	return payload
 }

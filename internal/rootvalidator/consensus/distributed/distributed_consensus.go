@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
+	rootutil "github.com/alphabill-org/alphabill/internal/rootvalidator/util"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -485,6 +486,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 			BlockId:       proposal.Block.Id,
 			RootRound:     proposal.Block.Round,
 			Epoch:         proposal.Block.Epoch,
+			Timestamp:     proposal.Block.Timestamp,
 			ParentBlockId: proposal.Block.Qc.VoteInfo.BlockId,
 			ParentRound:   proposal.Block.Qc.VoteInfo.RootRound,
 			ExecStateId:   x.stateLedger.GetProposedStateHash(),
@@ -517,5 +519,43 @@ func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert)
 }
 
 func (x *ConsensusManager) processNewRoundEvent() {
-	// todo: to implement proposal generator
+	round := x.roundState.GetCurrentRound()
+	if x.proposer.IsValidLeader(x.peer.ID(), round) {
+		// block id is set when signing, epoch is currently set to 0
+		block := &atomic_broadcast.BlockData{
+			Author:    string(x.peer.ID()),
+			Round:     round,
+			Epoch:     0,
+			Timestamp: rootutil.MakeTimestamp(),
+			Payload:   x.proposalGen.GetPayload(),
+			Qc:        x.stateLedger.HighQC,
+		}
+		hash, err := block.Hash(x.config.HashAlgorithm)
+		if err != nil {
+			logger.Warning("Failed to send proposal message, block id error: %v", err)
+			return
+		}
+		block.Id = hash
+		proposalMsg := &atomic_broadcast.ProposalMsg{
+			Block:        block,
+			HighCommitQc: x.stateLedger.HighCommitQC,
+			LastRoundTc:  x.roundState.LastRoundTC(),
+		}
+		if err := x.safety.SignProposal(proposalMsg); err != nil {
+			logger.Warning("Failed to send proposal message, message signing failed: %v", err)
+		}
+		// Broadcast message
+		allValidators := x.proposer.GetRootNodes()
+		receivers := make([]peer.ID, len(allValidators))
+		receivers = append(receivers, allValidators...)
+		logger.Info("Broadcasting proposal msg")
+		err = x.net.Send(
+			network.OutputMessage{
+				Protocol: network.ProtocolRootProposal,
+				Message:  proposalMsg,
+			}, receivers)
+		if err != nil {
+			logger.Warning("Failed to send proposal message, network error: %v", err)
+		}
+	}
 }

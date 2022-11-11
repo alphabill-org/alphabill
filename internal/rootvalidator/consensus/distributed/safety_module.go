@@ -32,7 +32,7 @@ func isSaveToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert
 	if qcRound < tc.Timeout.Hqc.VoteInfo.RootRound {
 		return false
 	}
-	//return IsConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound //  GetQcRound()
+	//return IsConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound
 	return true
 }
 
@@ -87,9 +87,8 @@ func (s SafetyModule) SignTimeout(timeout *atomic_broadcast.Timeout, lastRoundTC
 	return signature, nil
 }
 
-func (s SafetyModule) SignProposal() error {
-	//TODO implement me
-	panic("implement me")
+func (s SafetyModule) SignProposal(proposalMsg *atomic_broadcast.ProposalMsg) error {
+	return proposalMsg.Sign(s.signer)
 }
 
 func (s *SafetyModule) increaseHigestVoteRound(round uint64) {

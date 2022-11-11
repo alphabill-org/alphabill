@@ -118,7 +118,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTok
 	// signature satisfies the predicate obtained by concatenating all the
 	// sub-type creation clauses along the type inheritance chain.
 	predicate, err := c.getChainedPredicate(
-		tx.ParentTypeID(),
+		tx.parentTypeIdInt(),
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.subTypeCreationPredicate
 		},
@@ -140,14 +140,16 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if unitID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
-	uri := tx.attributes.Uri
-	if len(uri) > uriMaxSize {
-		return errors.Errorf("URI exceeds the maximum allowed size of %v KB", uriMaxSize)
+	uri := tx.URI()
+	if uri != "" {
+		if len(uri) > uriMaxSize {
+			return errors.Errorf("URI exceeds the maximum allowed size of %v KB", uriMaxSize)
+		}
+		if !util.IsValidURI(uri) {
+			return errors.Errorf("URI %s is invalid", uri)
+		}
 	}
-	if !util.IsValidURI(uri) {
-		return errors.Errorf("URI %s is invalid", uri)
-	}
-	if len(tx.attributes.Data) > dataMaxSize {
+	if len(tx.Data()) > dataMaxSize {
 		return errors.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
 	u, err := m.state.GetUnit(unitID)
@@ -157,7 +159,7 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if !goerrors.Is(err, rma.ErrUnitNotFound) {
 		return err
 	}
-	nftTypeID := tx.NFTTypeID()
+	nftTypeID := tx.NFTTypeIdInt()
 	if nftTypeID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}

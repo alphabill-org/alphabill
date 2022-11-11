@@ -3,7 +3,6 @@ package tokens
 import (
 	"bytes"
 	goerrors "errors"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -112,7 +111,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 			tx.attributes.NewBearer,
 			&fungibleTokenData{
 				tokenType: d.tokenType,
-				value:     tx.attributes.Value,
+				value:     tx.attributes.TargetValue,
 				t:         0,
 				backlink:  make([]byte, s.hashAlgorithm.Size()),
 			}, txHash),
@@ -125,7 +124,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 				}
 				return &fungibleTokenData{
 					tokenType: d.tokenType,
-					value:     d.value - tx.attributes.Value,
+					value:     d.value - tx.attributes.TargetValue,
 					t:         currentBlockNr,
 					backlink:  txHash,
 				}
@@ -180,7 +179,7 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 				}
 				var sum uint64 = 0
 				for _, burnTransaction := range tx.burnTransactions {
-					sum += burnTransaction.attributes.Value
+					sum += burnTransaction.Value()
 				}
 				return &fungibleTokenData{
 					tokenType: d.tokenType,
@@ -212,7 +211,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 		return err
 	}
 
-	parentUnitID := tx.ParentTypeID()
+	parentUnitID := tx.ParentTypeIdInt()
 	if !parentUnitID.IsZero() {
 		_, parentData, err := c.getUnit(parentUnitID)
 		if err != nil {
@@ -223,7 +222,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 		}
 	}
 	predicate, err := c.getChainedPredicate(
-		tx.ParentTypeID(),
+		tx.ParentTypeIdInt(),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.subTypeCreationPredicate
 		},
@@ -254,7 +253,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	}
 	// existence of the parent type is checked by the getChainedPredicate
 	predicate, err := m.getChainedPredicate(
-		tx.TypeID(),
+		tx.TypeIdInt(),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},
@@ -303,8 +302,8 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	if d.value < tx.attributes.Value {
-		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.Value)
+	if d.value < tx.attributes.TargetValue {
+		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
 	}
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
@@ -360,18 +359,18 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 		return err
 	}
 	transactions := tx.burnTransactions
-	proofs := tx.attributes.Proofs
+	proofs := tx.BlockProofs()
 	if len(transactions) != len(proofs) {
 		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
 	for i, btx := range transactions {
 		tokenTypeID := d.tokenType.Bytes32()
-		if !bytes.Equal(btx.attributes.Type, tokenTypeID[:]) {
-			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.attributes.Type)
+		if !bytes.Equal(btx.TypeId(), tokenTypeID[:]) {
+			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeId())
 		}
 
-		if !bytes.Equal(btx.attributes.Nonce, tx.attributes.Backlink) {
-			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.attributes.Nonce, tx.attributes.Backlink)
+		if !bytes.Equal(btx.Nonce(), tx.attributes.Backlink) {
+			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.Nonce(), tx.Backlink())
 		}
 		proof := proofs[i]
 		if proof.ProofType != block.ProofType_PRIM {
@@ -383,8 +382,8 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 			return errors.Wrap(err, "proof is not valid")
 		}
 	}
-	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
-		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
+	if !bytes.Equal(d.backlink, tx.Backlink()) {
+		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.Backlink())
 	}
 	predicate, err := j.getChainedPredicate(
 		d.tokenType,

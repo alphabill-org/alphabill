@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"os"
 	"sync"
 	"testing"
@@ -57,7 +58,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	require.NotNil(t, mock.tx)
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
-	require.EqualValues(t, dataHash.Bytes(), mock.tx.UnitId)
+	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
@@ -97,7 +98,7 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 		require.NotNil(t, mock.tx)
 		dataHash, err := uint256.FromHex(hashHex)
 		require.NoError(t, err)
-		require.EqualValues(t, dataHash.Bytes(), mock.tx.UnitId)
+		require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
 		wg.Done()
 	}()
 

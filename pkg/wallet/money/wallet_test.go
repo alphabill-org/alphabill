@@ -322,7 +322,7 @@ func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created
-	require.False(t, util.FileExists(path.Join(os.TempDir(), walletFileName)))
+	require.False(t, util.FileExists(path.Join(os.TempDir(), WalletFileName)))
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {

@@ -3,6 +3,7 @@ package tokens
 import (
 	"bytes"
 	"crypto"
+	"github.com/alphabill-org/alphabill/internal/block"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -106,7 +107,7 @@ type (
 	joinFungibleTokenWrapper struct {
 		wrapper
 		attributes       *JoinFungibleTokenAttributes
-		burnTransactions []*burnFungibleTokenWrapper
+		burnTransactions []BurnFungibleToken
 	}
 )
 
@@ -212,7 +213,7 @@ func NewGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 				if lenProofs != lenBTxs {
 					return nil, errors.Errorf("invalid proofs count: expected %v, got %v", lenBTxs, lenProofs)
 				}
-				var bTxs = make([]*burnFungibleTokenWrapper, lenBTxs)
+				var bTxs = make([]BurnFungibleToken, lenBTxs)
 				for i, btx := range burnTransactions {
 					genericBurnTx, err := NewGenericTx(btx)
 					if err != nil {
@@ -269,12 +270,12 @@ func (w *wrapper) IsPrimary() bool {
 	return true
 }
 
-func (c *createNonFungibleTokenTypeWrapper) ParentTypeID() *uint256.Int {
+func (c *createNonFungibleTokenTypeWrapper) parentTypeIdInt() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(c.attributes.ParentTypeId)
 }
 
-func (c *mintNonFungibleTokenWrapper) NFTTypeID() *uint256.Int {
-	return uint256.NewInt(0).SetBytes(c.attributes.NftType)
+func (c *createNonFungibleTokenTypeWrapper) ParentTypeId() []byte {
+	return c.attributes.ParentTypeId
 }
 
 func (c *createNonFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -291,24 +292,56 @@ func (c *createNonFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 func (c *createNonFungibleTokenTypeWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	c.wrapper.sigBytes(&b)
-	b.Write([]byte(c.attributes.Symbol))
-	b.Write(c.attributes.ParentTypeId)
-	b.Write(c.attributes.SubTypeCreationPredicate)
-	b.Write(c.attributes.TokenCreationPredicate)
-	b.Write(c.attributes.InvariantPredicate)
-	b.Write(c.attributes.DataUpdatePredicate)
+	b.Write([]byte(c.Symbol()))
+	b.Write(c.ParentTypeId())
+	b.Write(c.SubTypeCreationPredicate())
+	b.Write(c.TokenCreationPredicate())
+	b.Write(c.InvariantPredicate())
+	b.Write(c.DataUpdatePredicate())
 	return b.Bytes()
 }
 
 func (c *createNonFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	c.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write([]byte(c.attributes.Symbol))
-	hasher.Write(c.attributes.ParentTypeId)
-	hasher.Write(c.attributes.SubTypeCreationPredicate)
-	hasher.Write(c.attributes.TokenCreationPredicate)
-	hasher.Write(c.attributes.InvariantPredicate)
-	hasher.Write(c.attributes.DataUpdatePredicate)
-	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
+	hasher.Write([]byte(c.Symbol()))
+	hasher.Write(c.ParentTypeId())
+	hasher.Write(c.SubTypeCreationPredicate())
+	hasher.Write(c.TokenCreationPredicate())
+	hasher.Write(c.InvariantPredicate())
+	hasher.Write(c.DataUpdatePredicate())
+	hasher.Write(c.SubTypeCreationPredicateSignature())
+}
+
+func (c *createNonFungibleTokenTypeWrapper) Symbol() string {
+	return c.attributes.Symbol
+}
+
+func (c *createNonFungibleTokenTypeWrapper) SubTypeCreationPredicate() []byte {
+	return c.attributes.SubTypeCreationPredicate
+}
+
+func (c *createNonFungibleTokenTypeWrapper) TokenCreationPredicate() []byte {
+	return c.attributes.TokenCreationPredicate
+}
+
+func (c *createNonFungibleTokenTypeWrapper) InvariantPredicate() []byte {
+	return c.attributes.InvariantPredicate
+}
+
+func (c *createNonFungibleTokenTypeWrapper) DataUpdatePredicate() []byte {
+	return c.attributes.DataUpdatePredicate
+}
+
+func (c *createNonFungibleTokenTypeWrapper) SubTypeCreationPredicateSignature() []byte {
+	return c.attributes.SubTypeCreationPredicateSignature
+}
+
+func (c *mintNonFungibleTokenWrapper) NFTTypeIdInt() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(c.NFTTypeId())
+}
+
+func (c *mintNonFungibleTokenWrapper) NFTTypeId() []byte {
+	return c.attributes.NftType
 }
 
 func (c *mintNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -325,21 +358,41 @@ func (c *mintNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 func (c *mintNonFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	c.wrapper.sigBytes(&b)
-	b.Write(c.attributes.Bearer)
-	b.Write(c.attributes.NftType)
-	b.Write([]byte(c.attributes.Uri))
-	b.Write(c.attributes.Data)
-	b.Write(c.attributes.DataUpdatePredicate)
+	b.Write(c.Bearer())
+	b.Write(c.NFTTypeId())
+	b.Write([]byte(c.URI()))
+	b.Write(c.Data())
+	b.Write(c.DataUpdatePredicate())
 	return b.Bytes()
 }
 
 func (c *mintNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	c.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(c.attributes.Bearer)
-	hasher.Write(c.attributes.NftType)
-	hasher.Write([]byte(c.attributes.Uri))
-	hasher.Write(c.attributes.Data)
-	hasher.Write(c.attributes.DataUpdatePredicate)
+	hasher.Write(c.Bearer())
+	hasher.Write(c.NFTTypeId())
+	hasher.Write([]byte(c.URI()))
+	hasher.Write(c.Data())
+	hasher.Write(c.DataUpdatePredicate())
+}
+
+func (c *mintNonFungibleTokenWrapper) Bearer() []byte {
+	return c.attributes.Bearer
+}
+
+func (c *mintNonFungibleTokenWrapper) URI() string {
+	return c.attributes.Uri
+}
+
+func (c *mintNonFungibleTokenWrapper) Data() []byte {
+	return c.attributes.Data
+}
+
+func (c *mintNonFungibleTokenWrapper) DataUpdatePredicate() []byte {
+	return c.attributes.DataUpdatePredicate
+}
+
+func (c *mintNonFungibleTokenWrapper) TokenCreationPredicateSignature() []byte {
+	return c.attributes.TokenCreationPredicateSignature
 }
 
 func (t *transferNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -356,18 +409,34 @@ func (t *transferNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 func (t *transferNonFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	t.wrapper.sigBytes(&b)
-	b.Write(t.attributes.NewBearer)
-	b.Write(t.attributes.Nonce)
-	b.Write(t.attributes.Backlink)
+	b.Write(t.NewBearer())
+	b.Write(t.Nonce())
+	b.Write(t.Backlink())
 	return b.Bytes()
 }
 
 func (t *transferNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	t.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(t.attributes.NewBearer)
-	hasher.Write(t.attributes.Nonce)
-	hasher.Write(t.attributes.Backlink)
-	hasher.Write(t.attributes.InvariantPredicateSignature)
+	hasher.Write(t.NewBearer())
+	hasher.Write(t.Nonce())
+	hasher.Write(t.Backlink())
+	hasher.Write(t.InvariantPredicateSignature())
+}
+
+func (t *transferNonFungibleTokenWrapper) NewBearer() []byte {
+	return t.attributes.NewBearer
+}
+
+func (t *transferNonFungibleTokenWrapper) Nonce() []byte {
+	return t.attributes.Nonce
+}
+
+func (t *transferNonFungibleTokenWrapper) Backlink() []byte {
+	return t.attributes.Backlink
+}
+
+func (t *transferNonFungibleTokenWrapper) InvariantPredicateSignature() []byte {
+	return t.attributes.InvariantPredicateSignature
 }
 
 func (u *updateNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -384,16 +453,28 @@ func (u *updateNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 func (u *updateNonFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	u.wrapper.sigBytes(&b)
-	b.Write(u.attributes.Data)
-	b.Write(u.attributes.Backlink)
+	b.Write(u.Data())
+	b.Write(u.Backlink())
 	return b.Bytes()
 }
 
 func (u *updateNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	u.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(u.attributes.Data)
-	hasher.Write(u.attributes.Backlink)
-	hasher.Write(u.attributes.DataUpdateSignature)
+	hasher.Write(u.Data())
+	hasher.Write(u.Backlink())
+	hasher.Write(u.DataUpdateSignature())
+}
+
+func (u *updateNonFungibleTokenWrapper) Data() []byte {
+	return u.attributes.Data
+}
+
+func (u *updateNonFungibleTokenWrapper) Backlink() []byte {
+	return u.attributes.Backlink
+}
+
+func (u *updateNonFungibleTokenWrapper) DataUpdateSignature() []byte {
+	return u.attributes.DataUpdateSignature
 }
 
 func (c *createFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -410,28 +491,56 @@ func (c *createFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 func (c *createFungibleTokenTypeWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	c.wrapper.sigBytes(&b)
-	b.Write([]byte(c.attributes.Symbol))
-	b.Write(c.attributes.ParentTypeId)
-	b.Write(util.Uint32ToBytes(c.attributes.DecimalPlaces))
-	b.Write(c.attributes.SubTypeCreationPredicate)
-	b.Write(c.attributes.TokenCreationPredicate)
-	b.Write(c.attributes.InvariantPredicate)
+	b.Write([]byte(c.Symbol()))
+	b.Write(c.ParentTypeId())
+	b.Write(util.Uint32ToBytes(c.DecimalPlaces()))
+	b.Write(c.SubTypeCreationPredicate())
+	b.Write(c.TokenCreationPredicate())
+	b.Write(c.InvariantPredicate())
 	return b.Bytes()
 }
 
-func (c *createFungibleTokenTypeWrapper) ParentTypeID() *uint256.Int {
+func (c *createFungibleTokenTypeWrapper) ParentTypeIdInt() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(c.attributes.ParentTypeId)
 }
 
 func (c *createFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	c.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write([]byte(c.attributes.Symbol))
-	hasher.Write(c.attributes.ParentTypeId)
-	hasher.Write(util.Uint32ToBytes(c.attributes.DecimalPlaces))
-	hasher.Write(c.attributes.SubTypeCreationPredicate)
-	hasher.Write(c.attributes.TokenCreationPredicate)
-	hasher.Write(c.attributes.InvariantPredicate)
-	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
+	hasher.Write([]byte(c.Symbol()))
+	hasher.Write(c.ParentTypeId())
+	hasher.Write(util.Uint32ToBytes(c.DecimalPlaces()))
+	hasher.Write(c.SubTypeCreationPredicate())
+	hasher.Write(c.TokenCreationPredicate())
+	hasher.Write(c.InvariantPredicate())
+	hasher.Write(c.SubTypeCreationPredicateSignature())
+}
+
+func (c *createFungibleTokenTypeWrapper) ParentTypeId() []byte {
+	return c.attributes.ParentTypeId
+}
+
+func (c *createFungibleTokenTypeWrapper) DecimalPlaces() uint32 {
+	return c.attributes.DecimalPlaces
+}
+
+func (c *createFungibleTokenTypeWrapper) Symbol() string {
+	return c.attributes.Symbol
+}
+
+func (c *createFungibleTokenTypeWrapper) SubTypeCreationPredicate() []byte {
+	return c.attributes.SubTypeCreationPredicate
+}
+
+func (c *createFungibleTokenTypeWrapper) TokenCreationPredicate() []byte {
+	return c.attributes.TokenCreationPredicate
+}
+
+func (c *createFungibleTokenTypeWrapper) InvariantPredicate() []byte {
+	return c.attributes.InvariantPredicate
+}
+
+func (c *createFungibleTokenTypeWrapper) SubTypeCreationPredicateSignature() []byte {
+	return c.attributes.SubTypeCreationPredicateSignature
 }
 
 func (m *mintFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -445,25 +554,61 @@ func (m *mintFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	return m.wrapper.hashValue
 }
 
-func (m *mintFungibleTokenWrapper) TypeID() *uint256.Int {
-	return uint256.NewInt(0).SetBytes(m.attributes.Type)
+func (m *mintFungibleTokenWrapper) TypeIdInt() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(m.TypeId())
+}
+
+func (m *mintFungibleTokenWrapper) TypeId() []byte {
+	return m.attributes.Type
+}
+
+func (m *mintFungibleTokenWrapper) Value() uint64 {
+	return m.attributes.Value
+}
+
+func (m *mintFungibleTokenWrapper) Bearer() []byte {
+	return m.attributes.Bearer
+}
+
+func (m *mintFungibleTokenWrapper) TokenCreationPredicateSignature() []byte {
+	return m.attributes.TokenCreationPredicateSignature
 }
 
 func (m *mintFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	m.wrapper.sigBytes(&b)
-	b.Write(m.attributes.Bearer)
-	b.Write(m.attributes.Type)
-	b.Write(util.Uint64ToBytes(m.attributes.Value))
+	b.Write(m.Bearer())
+	b.Write(m.TypeId())
+	b.Write(util.Uint64ToBytes(m.Value()))
 	return b.Bytes()
 }
 
 func (m *mintFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	m.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(m.attributes.Bearer)
-	hasher.Write(m.attributes.Type)
-	hasher.Write(util.Uint64ToBytes(m.attributes.Value))
-	hasher.Write(m.attributes.TokenCreationPredicateSignature)
+	hasher.Write(m.Bearer())
+	hasher.Write(m.TypeId())
+	hasher.Write(util.Uint64ToBytes(m.Value()))
+	hasher.Write(m.TokenCreationPredicateSignature())
+}
+
+func (t *transferFungibleTokenWrapper) NewBearer() []byte {
+	return t.attributes.NewBearer
+}
+
+func (t *transferFungibleTokenWrapper) Value() uint64 {
+	return t.attributes.Value
+}
+
+func (t *transferFungibleTokenWrapper) Nonce() []byte {
+	return t.attributes.Nonce
+}
+
+func (t *transferFungibleTokenWrapper) Backlink() []byte {
+	return t.attributes.Backlink
+}
+
+func (t *transferFungibleTokenWrapper) InvariantPredicateSignature() []byte {
+	return t.attributes.InvariantPredicateSignature
 }
 
 func (t *transferFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -480,20 +625,20 @@ func (t *transferFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 func (t *transferFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	t.wrapper.sigBytes(&b)
-	b.Write(t.attributes.NewBearer)
-	b.Write(util.Uint64ToBytes(t.attributes.Value))
-	b.Write(t.attributes.Nonce)
-	b.Write(t.attributes.Backlink)
+	b.Write(t.NewBearer())
+	b.Write(util.Uint64ToBytes(t.Value()))
+	b.Write(t.Nonce())
+	b.Write(t.Backlink())
 	return b.Bytes()
 }
 
 func (t *transferFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	t.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(t.attributes.NewBearer)
-	hasher.Write(util.Uint64ToBytes(t.attributes.Value))
-	hasher.Write(t.attributes.Nonce)
-	hasher.Write(t.attributes.Backlink)
-	hasher.Write(t.attributes.InvariantPredicateSignature)
+	hasher.Write(t.NewBearer())
+	hasher.Write(util.Uint64ToBytes(t.Value()))
+	hasher.Write(t.Nonce())
+	hasher.Write(t.Backlink())
+	hasher.Write(t.InvariantPredicateSignature())
 }
 
 func (s *splitFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -517,26 +662,46 @@ func (s *splitFungibleTokenWrapper) HashForIdCalculation(hashFunc crypto.Hash) [
 }
 
 func (s *splitFungibleTokenWrapper) addAttributesToHasher(hasher hash.Hash) {
-	hasher.Write(s.attributes.NewBearer)
-	hasher.Write(util.Uint64ToBytes(s.attributes.Value))
-	hasher.Write(s.attributes.Nonce)
-	hasher.Write(s.attributes.Backlink)
-	hasher.Write(s.attributes.InvariantPredicateSignature)
+	hasher.Write(s.NewBearer())
+	hasher.Write(util.Uint64ToBytes(s.TargetValue()))
+	hasher.Write(s.Nonce())
+	hasher.Write(s.Backlink())
+	hasher.Write(s.InvariantPredicateSignature())
 }
 
 func (s *splitFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	s.wrapper.sigBytes(&b)
-	b.Write(s.attributes.NewBearer)
-	b.Write(util.Uint64ToBytes(s.attributes.Value))
-	b.Write(s.attributes.Nonce)
-	b.Write(s.attributes.Backlink)
+	b.Write(s.NewBearer())
+	b.Write(util.Uint64ToBytes(s.TargetValue()))
+	b.Write(s.Nonce())
+	b.Write(s.Backlink())
 	return b.Bytes()
 }
 
 func (s *splitFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	s.wrapper.addTransactionFieldsToHasher(hasher)
 	s.addAttributesToHasher(hasher)
+}
+
+func (s *splitFungibleTokenWrapper) NewBearer() []byte {
+	return s.attributes.NewBearer
+}
+
+func (s *splitFungibleTokenWrapper) TargetValue() uint64 {
+	return s.attributes.TargetValue
+}
+
+func (s *splitFungibleTokenWrapper) Nonce() []byte {
+	return s.attributes.Nonce
+}
+
+func (s *splitFungibleTokenWrapper) Backlink() []byte {
+	return s.attributes.Backlink
+}
+
+func (s *splitFungibleTokenWrapper) InvariantPredicateSignature() []byte {
+	return s.attributes.InvariantPredicateSignature
 }
 
 func (bw *burnFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -553,20 +718,40 @@ func (bw *burnFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 func (bw *burnFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	bw.wrapper.sigBytes(&b)
-	b.Write(bw.attributes.Type)
-	b.Write(util.Uint64ToBytes(bw.attributes.Value))
-	b.Write(bw.attributes.Nonce)
-	b.Write(bw.attributes.Backlink)
+	b.Write(bw.TypeId())
+	b.Write(util.Uint64ToBytes(bw.Value()))
+	b.Write(bw.Nonce())
+	b.Write(bw.Backlink())
 	return b.Bytes()
 }
 
 func (bw *burnFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	bw.wrapper.addTransactionFieldsToHasher(hasher)
-	hasher.Write(bw.attributes.Type)
-	hasher.Write(util.Uint64ToBytes(bw.attributes.Value))
-	hasher.Write(bw.attributes.Nonce)
-	hasher.Write(bw.attributes.Backlink)
-	hasher.Write(bw.attributes.InvariantPredicateSignature)
+	hasher.Write(bw.TypeId())
+	hasher.Write(util.Uint64ToBytes(bw.Value()))
+	hasher.Write(bw.Nonce())
+	hasher.Write(bw.Backlink())
+	hasher.Write(bw.InvariantPredicateSignature())
+}
+
+func (bw *burnFungibleTokenWrapper) TypeId() []byte {
+	return bw.attributes.Type
+}
+
+func (bw *burnFungibleTokenWrapper) Value() uint64 {
+	return bw.attributes.Value
+}
+
+func (bw *burnFungibleTokenWrapper) Nonce() []byte {
+	return bw.attributes.Nonce
+}
+
+func (bw *burnFungibleTokenWrapper) Backlink() []byte {
+	return bw.attributes.Backlink
+}
+
+func (bw *burnFungibleTokenWrapper) InvariantPredicateSignature() []byte {
+	return bw.attributes.InvariantPredicateSignature
 }
 
 func (jw *joinFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -581,28 +766,42 @@ func (jw *joinFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 }
 
 func (jw *joinFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
-	attrs := jw.attributes
 	for _, tx := range jw.burnTransactions {
 		tx.AddToHasher(hasher)
 	}
-	for _, proof := range attrs.Proofs {
+	for _, proof := range jw.BlockProofs() {
 		proof.AddToHasher(hasher)
 	}
-	hasher.Write(jw.attributes.Backlink)
-	hasher.Write(jw.attributes.InvariantPredicateSignature)
+	hasher.Write(jw.Backlink())
+	hasher.Write(jw.InvariantPredicateSignature())
 }
 
 func (jw *joinFungibleTokenWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	jw.wrapper.sigBytes(&b)
-	attrs := jw.attributes
 	for _, tx := range jw.burnTransactions {
 		b.Write(tx.SigBytes())
 		b.Write(tx.OwnerProof())
 	}
-	for _, proof := range attrs.Proofs {
+	for _, proof := range jw.BlockProofs() {
 		b.Write(proof.Bytes())
 	}
-	b.Write(jw.attributes.Backlink)
+	b.Write(jw.Backlink())
 	return b.Bytes()
+}
+
+func (jw *joinFungibleTokenWrapper) BurnTransactions() []BurnFungibleToken {
+	return jw.burnTransactions
+}
+
+func (jw *joinFungibleTokenWrapper) BlockProofs() []*block.BlockProof {
+	return jw.attributes.Proofs
+}
+
+func (jw *joinFungibleTokenWrapper) Backlink() []byte {
+	return jw.attributes.Backlink
+}
+
+func (jw *joinFungibleTokenWrapper) InvariantPredicateSignature() []byte {
+	return jw.attributes.InvariantPredicateSignature
 }

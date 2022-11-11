@@ -72,7 +72,7 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 }
 
 func (w *TokensWallet) Sync(ctx context.Context) error {
-	if !w.waitTx {
+	if !w.sync {
 		return nil
 	}
 	latestBlockNumber, err := w.db.Do().GetBlockNumber()
@@ -91,7 +91,7 @@ func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint6
 
 func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
 	// ...or don't
-	if !w.waitTx {
+	if !w.sync {
 		return nil
 	}
 	ctx, cancel := context.WithCancel(ctx)

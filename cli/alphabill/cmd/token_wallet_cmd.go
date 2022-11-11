@@ -26,6 +26,7 @@ const (
 	cmdFlagTokenURI            = "token-uri"
 	cmdFlagTokenData           = "data"
 	cmdFlagTokenDataUpdate     = "data-update"
+	cmdFlagSync                = "sync"
 )
 
 func tokenCmd(config *walletConfig) *cobra.Command {
@@ -45,7 +46,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdListTypes(config))
 	cmd.AddCommand(tokenCmdSync(config))
 	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
-	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just submits the transaction")
+	cmd.PersistentFlags().StringP(cmdFlagSync, "s", "true", "ensures wallet is up to date with the blockchain")
 	return cmd
 }
 
@@ -645,15 +646,15 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet
 	if err != nil {
 		return nil, err
 	}
-	waitForConfStr, err := cmd.Flags().GetString(waitForConfCmdName)
+	syncStr, err := cmd.Flags().GetString(cmdFlagSync)
 	if err != nil {
 		return nil, err
 	}
-	waitForConf, err := strconv.ParseBool(waitForConfStr)
+	sync, err := strconv.ParseBool(syncStr)
 	if err != nil {
 		return nil, err
 	}
-	tw, err := t.Load(mw, waitForConf)
+	tw, err := t.Load(mw, sync)
 	if err != nil {
 		return nil, err
 	}

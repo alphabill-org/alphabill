@@ -47,8 +47,11 @@ const (
 	Token
 	Fungible
 	NonFungible
-	FungibleToken    = Token | Fungible
-	NonFungibleToken = Token | NonFungible
+
+	FungibleTokenType    = TokenType | Fungible
+	NonFungibleTokenType = TokenType | NonFungible
+	FungibleToken        = Token | Fungible
+	NonFungibleToken     = Token | NonFungible
 )
 
 func (t *TokenUnit) IsFungible() bool {

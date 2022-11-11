@@ -43,7 +43,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 		log.Info("CreateFungibleTokenType tx")
 		err := txc.AddTokenType(&TokenUnitType{
 			Id:            id,
-			Kind:          TokenType | Fungible,
+			Kind:          FungibleTokenType,
 			Symbol:        ctx.Symbol(),
 			ParentTypeId:  ctx.ParentTypeId(),
 			DecimalPlaces: ctx.DecimalPlaces(),
@@ -143,7 +143,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 		log.Info("Token tx: CreateNonFungibleTokenType")
 		err := txc.AddTokenType(&TokenUnitType{
 			Id:           id,
-			Kind:         TokenType | NonFungible,
+			Kind:         NonFungibleTokenType,
 			Symbol:       ctx.Symbol(),
 			ParentTypeId: ctx.ParentTypeId(),
 		})

@@ -38,7 +38,7 @@ func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.
 	if len(b.Transactions) == 0 {
 		return newEmptyBlockProof(b, hashAlgorithm), nil
 	}
-	identifiers := b.extractIdentifiers()
+	identifiers := b.extractIdentifiers(hashAlgorithm)
 	leaves, err := b.blockTreeLeaves(hashAlgorithm)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func NewPrimaryProof(b *GenericBlock, unitId *uint256.Int, hashAlgorithm crypto.
 		return nil, err
 	}
 	if unitIdInIdentifiers(identifiers, unitId) {
-		primTx, secTxs := b.extractTransactions(unitId)
+		primTx, secTxs := b.extractTransactions(unitId, hashAlgorithm)
 		secHash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
 		if err != nil {
 			return nil, err
@@ -81,7 +81,7 @@ func NewSecondaryProof(b *GenericBlock, unitId *uint256.Int, secTxIdx int, hashA
 	if err != nil {
 		return nil, err
 	}
-	primTx, secTxs := b.extractTransactions(unitId)
+	primTx, secTxs := b.extractTransactions(unitId, hashAlgorithm)
 	primhash := hashTx(primTx, hashAlgorithm)
 	secChain, err := mt.SecondaryChain(secTxs, secTxIdx, hashAlgorithm)
 	if err != nil {

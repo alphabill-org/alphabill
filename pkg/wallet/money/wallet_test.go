@@ -2,6 +2,7 @@ package money
 
 import (
 	"context"
+	"crypto"
 	"encoding/hex"
 	"os"
 	"path"
@@ -9,8 +10,11 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -286,19 +290,29 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
 		},
-		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-
-	err := w.ProcessBlock(testBlock)
+	certifiedBlock, verifiers := certifyBlock(t, testBlock)
+	err := w.ProcessBlock(certifiedBlock)
 	require.NoError(t, err)
 
-	bills, err := w.db.Do().GetBills(0)
-	require.NoError(t, err)
+	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
-
 	for _, b := range bills {
-		require.NotNil(t, b.BlockProof)
+		proof := b.BlockProof
+		tx, _ := txConverter.ConvertTx(b.Tx)
+		err = proof.Verify(tx, verifiers, crypto.SHA256)
+		require.NoError(t, err)
+		require.Equal(t, block.ProofType_PRIM, proof.ProofType)
+		require.Nil(t, proof.Verify(tx, verifiers, crypto.SHA256))
 	}
+}
+
+func certifyBlock(t *testing.T, b *block.Block) (*block.Block, map[string]abcrypto.Verifier) {
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	genericBlock, _ := b.ToGenericBlock(txConverter)
+	genericBlock.UnicityCertificate = testblock.CreateUC(t, genericBlock, signer)
+	return genericBlock.ToProtobuf(), verifiers
 }
 
 func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {

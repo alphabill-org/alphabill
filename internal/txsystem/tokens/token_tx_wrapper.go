@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"google.golang.org/protobuf/proto"
@@ -273,10 +274,6 @@ func (c *createNonFungibleTokenTypeWrapper) ParentTypeID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(c.attributes.ParentTypeId)
 }
 
-func (c *mintNonFungibleTokenWrapper) NFTTypeID() *uint256.Int {
-	return uint256.NewInt(0).SetBytes(c.attributes.NftType)
-}
-
 func (c *createNonFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if c.wrapper.hashComputed(hashFunc) {
 		return c.wrapper.hashValue
@@ -311,6 +308,14 @@ func (c *createNonFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
 }
 
+func (c *createNonFungibleTokenTypeWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{c.UnitID()}
+}
+
+func (c *mintNonFungibleTokenWrapper) NFTTypeID() *uint256.Int {
+	return uint256.NewInt(0).SetBytes(c.attributes.NftType)
+}
+
 func (c *mintNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if c.wrapper.hashComputed(hashFunc) {
 		return c.wrapper.hashValue
@@ -342,6 +347,10 @@ func (c *mintNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.attributes.DataUpdatePredicate)
 }
 
+func (c *mintNonFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{c.UnitID()}
+}
+
 func (t *transferNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if t.wrapper.hashComputed(hashFunc) {
 		return t.wrapper.hashValue
@@ -370,6 +379,10 @@ func (t *transferNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(t.attributes.InvariantPredicateSignature)
 }
 
+func (t *transferNonFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{t.UnitID()}
+}
+
 func (u *updateNonFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if u.wrapper.hashComputed(hashFunc) {
 		return u.wrapper.hashValue
@@ -394,6 +407,10 @@ func (u *updateNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(u.attributes.Data)
 	hasher.Write(u.attributes.Backlink)
 	hasher.Write(u.attributes.DataUpdateSignature)
+}
+
+func (u *updateNonFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{u.UnitID()}
 }
 
 func (c *createFungibleTokenTypeWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -434,6 +451,10 @@ func (c *createFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.attributes.SubTypeCreationPredicateSignature)
 }
 
+func (c *createFungibleTokenTypeWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{c.UnitID()}
+}
+
 func (m *mintFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if m.wrapper.hashComputed(hashFunc) {
 		return m.wrapper.hashValue
@@ -466,6 +487,10 @@ func (m *mintFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(m.attributes.TokenCreationPredicateSignature)
 }
 
+func (m *mintFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{m.UnitID()}
+}
+
 func (t *transferFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if t.wrapper.hashComputed(hashFunc) {
 		return t.wrapper.hashValue
@@ -494,6 +519,10 @@ func (t *transferFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(t.attributes.Nonce)
 	hasher.Write(t.attributes.Backlink)
 	hasher.Write(t.attributes.InvariantPredicateSignature)
+}
+
+func (t *transferFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{t.UnitID()}
 }
 
 func (s *splitFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -539,6 +568,10 @@ func (s *splitFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	s.addAttributesToHasher(hasher)
 }
 
+func (s *splitFungibleTokenWrapper) TargetUnits(hashFunc crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{s.UnitID(), txutil.SameShardId(s.UnitID(), s.HashForIdCalculation(hashFunc))}
+}
+
 func (bw *burnFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if bw.wrapper.hashComputed(hashFunc) {
 		return bw.wrapper.hashValue
@@ -567,6 +600,10 @@ func (bw *burnFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(bw.attributes.Nonce)
 	hasher.Write(bw.attributes.Backlink)
 	hasher.Write(bw.attributes.InvariantPredicateSignature)
+}
+
+func (bw *burnFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{bw.UnitID()}
 }
 
 func (jw *joinFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -605,4 +642,8 @@ func (jw *joinFungibleTokenWrapper) SigBytes() []byte {
 	}
 	b.Write(jw.attributes.Backlink)
 	return b.Bytes()
+}
+
+func (jw *joinFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{jw.UnitID()}
 }

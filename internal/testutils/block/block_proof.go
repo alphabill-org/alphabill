@@ -19,13 +19,13 @@ func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.S
 	if tx != nil {
 		b.Transactions = []txsystem.GenericTransaction{tx}
 	}
-	b.UnicityCertificate = createUC(t, b, signer)
+	b.UnicityCertificate = CreateUC(t, b, signer)
 	p, err := block.NewPrimaryProof(b, unitID, crypto.SHA256)
 	require.NoError(t, err)
 	return p
 }
 
-func createUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *certificates.UnicityCertificate {
+func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *certificates.UnicityCertificate {
 	blockHash, _ := b.Hash(crypto.SHA256)
 	ir := &certificates.InputRecord{
 		PreviousHash: make([]byte, 32),

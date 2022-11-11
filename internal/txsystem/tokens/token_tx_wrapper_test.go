@@ -7,6 +7,7 @@ import (
 
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 )
@@ -305,6 +306,19 @@ func TestSplitFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(backlink)
 	b.Write(invariantPredicateSignature)
 	require.Equal(t, b.Sum(nil), hash)
+}
+
+func TestSplitFungibleTokenTx_TargetUnitsReturnsTwoUnits(t *testing.T) {
+	tx := splitFungibleTokenTxOrder(t, systemID)
+	genericTx, err := NewGenericTx(tx)
+	require.NoError(t, err)
+
+	units := genericTx.TargetUnits(gocrypto.SHA256)
+	require.Len(t, units, 2)
+	require.Equal(t, genericTx.UnitID(), units[0])
+	splitWrapper := genericTx.(*splitFungibleTokenWrapper)
+	sameShardId := utiltx.SameShardId(genericTx.UnitID(), splitWrapper.HashForIdCalculation(gocrypto.SHA256))
+	require.Equal(t, sameShardId, units[1])
 }
 
 func TestSplitFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {

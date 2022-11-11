@@ -22,6 +22,7 @@ type (
 		ToProtoBuf() *Transaction
 		SigBytes() []byte
 		IsPrimary() bool
+		TargetUnits(hashFunc crypto.Hash) []*uint256.Int
 	}
 
 	// DefaultGenericTransaction is a default implementation of GenericTransaction interface. NB! Only suitable for
@@ -95,4 +96,8 @@ func (d *DefaultGenericTransaction) SigBytes() []byte {
 
 func (d *DefaultGenericTransaction) IsPrimary() bool {
 	return true
+}
+
+func (d *DefaultGenericTransaction) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{d.UnitID()}
 }

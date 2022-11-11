@@ -48,6 +48,10 @@ func Load(mw *money.Wallet, sync bool) (*TokensWallet, error) {
 	return w, nil
 }
 
+func (w *TokensWallet) GetAccountManager() wallet.AccountManager {
+	return w.mw
+}
+
 func (w *TokensWallet) Shutdown() {
 	w.mw.Shutdown()
 }

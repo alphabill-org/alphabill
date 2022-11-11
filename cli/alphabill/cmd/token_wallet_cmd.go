@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -118,7 +121,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		DecimalPlaces:                     decimals,
 		ParentTypeId:                      nil,
 		SubTypeCreationPredicateSignature: nil,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
+		SubTypeCreationPredicate:          script.PredicateAlwaysTrue(),
 		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
 		InvariantPredicate:                script.PredicateAlwaysTrue(),
 	}
@@ -360,7 +363,7 @@ func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) erro
 		return err
 	}
 
-	pubKey, err := getPubKeyBytes(cmd)
+	pubKey, err := getPubKeyBytes(cmd, addressCmdName)
 	if err != nil {
 		return err
 	}
@@ -401,8 +404,8 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 }
 
 // getPubKeyBytes returns 'nil' for flag value 'true', must be interpreted as 'always true' predicate
-func getPubKeyBytes(cmd *cobra.Command) ([]byte, error) {
-	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
+func getPubKeyBytes(cmd *cobra.Command, flag string) ([]byte, error) {
+	pubKeyHex, err := cmd.Flags().GetString(flag)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +443,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	pubKey, err := getPubKeyBytes(cmd)
+	pubKey, err := getPubKeyBytes(cmd, addressCmdName)
 	if err != nil {
 		return err
 	}
@@ -481,7 +484,7 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 		return err
 	}
 
-	pubKey, err := getPubKeyBytes(cmd)
+	pubKey, err := getPubKeyBytes(cmd, addressCmdName)
 	if err != nil {
 		return err
 	}
@@ -659,4 +662,57 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet
 		return nil, err
 	}
 	return tw, nil
+}
+
+// parsePredicateClause uses the following format:
+// true
+// false
+// ptpkh
+// ptpkh:1
+// ptpkh:0x<hex> where hex value is the hash of a public key
+func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountManager) ([]byte, error) {
+	clause, err := cmd.Flags().GetString(flag)
+	if err != nil {
+		return nil, err
+	}
+	return parsePredicateClause(clause, am)
+}
+
+func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, error) {
+	if clause == "true" {
+		return script.PredicateAlwaysTrue(), nil
+	}
+	if clause == "false" {
+		return script.PredicateAlwaysFalse(), nil
+	}
+
+	keyNr := 1
+	var err error
+	if strings.HasPrefix(clause, "ptpkh") {
+		if split := strings.Split(clause, ":"); len(split) == 2 {
+			keyStr := split[1]
+			if strings.HasPrefix(strings.ToLower(keyStr), "0x") {
+				if len(keyStr) < 3 {
+					return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
+				}
+				keyHash, err := hexutil.Decode(keyStr)
+				if err != nil {
+					return nil, err
+				}
+				return script.PredicatePayToPublicKeyHashDefault(keyHash), nil
+			} else {
+				keyNr, err = strconv.Atoi(keyStr)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		accountKey, err := am.GetAccountKey(uint64(keyNr))
+		if err != nil {
+			return nil, err
+		}
+		return script.PredicatePayToPublicKeyHashDefault(accountKey.PubKeyHash.Sha256), nil
+
+	}
+	return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
 }

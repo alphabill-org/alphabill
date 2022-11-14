@@ -2,6 +2,8 @@ package tokens
 
 import (
 	"crypto"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"google.golang.org/protobuf/proto"
 	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -50,6 +52,116 @@ type (
 	}
 )
 
+// token tx type interfaces
+type (
+	CreateNonFungibleTokenType interface {
+		txsystem.GenericTransaction
+		ParentTypeId() []byte
+		Symbol() string
+		SubTypeCreationPredicate() []byte
+		TokenCreationPredicate() []byte
+		InvariantPredicate() []byte
+		DataUpdatePredicate() []byte
+		SubTypeCreationPredicateSignature() []byte
+	}
+
+	MintNonFungibleToken interface {
+		txsystem.GenericTransaction
+		NFTTypeId() []byte
+		NFTTypeIdInt() *uint256.Int
+		Bearer() []byte
+		URI() string
+		Data() []byte
+		DataUpdatePredicate() []byte
+		TokenCreationPredicateSignature() []byte
+	}
+
+	TransferNonFungibleToken interface {
+		txsystem.GenericTransaction
+		NewBearer() []byte
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
+	}
+
+	UpdateNonFungibleToken interface {
+		txsystem.GenericTransaction
+		Data() []byte
+		Backlink() []byte
+		DataUpdateSignature() []byte
+	}
+
+	CreateFungibleTokenType interface {
+		txsystem.GenericTransaction
+		ParentTypeId() []byte
+		Symbol() string
+		DecimalPlaces() uint32
+		SubTypeCreationPredicate() []byte
+		TokenCreationPredicate() []byte
+		InvariantPredicate() []byte
+		SubTypeCreationPredicateSignature() []byte
+	}
+
+	MintFungibleToken interface {
+		txsystem.GenericTransaction
+		TypeIdInt() *uint256.Int
+		TypeId() []byte
+		Value() uint64
+		Bearer() []byte
+		TokenCreationPredicateSignature() []byte
+	}
+
+	TransferFungibleToken interface {
+		txsystem.GenericTransaction
+		NewBearer() []byte
+		Value() uint64
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
+	}
+
+	SplitFungibleToken interface {
+		txsystem.GenericTransaction
+		HashForIdCalculation(hashFunc crypto.Hash) []byte
+		NewBearer() []byte
+		TargetValue() uint64
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
+	}
+
+	BurnFungibleToken interface {
+		txsystem.GenericTransaction
+		TypeId() []byte
+		Value() uint64
+		Nonce() []byte
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
+	}
+
+	JoinFungibleToken interface {
+		txsystem.GenericTransaction
+		BurnTransactions() []BurnFungibleToken
+		BlockProofs() []*block.BlockProof
+		Backlink() []byte
+		InvariantPredicateSignature() []byte
+	}
+
+	AttrWithBearer interface {
+		proto.Message
+		SetBearer([]byte)
+		GetBearer() []byte
+	}
+)
+
+func (x *MintFungibleTokenAttributes) SetBearer(b []byte) {
+	x.Bearer = b
+}
+
+func (x *MintNonFungibleTokenAttributes) SetBearer(b []byte) {
+	x.Bearer = b
+}
+
 func New(opts ...Option) (*tokensTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
@@ -72,7 +184,6 @@ func New(opts ...Option) (*tokensTxSystem, error) {
 		state:            options.state,
 		executors:        initExecutors(options.state, options),
 	}
-	logger.Info("TokensTransactionSystem initialized: systemIdentifier=%X, hashAlgorithm=%v", options.systemIdentifier, options.hashAlgorithm)
 	return txs, nil
 }
 

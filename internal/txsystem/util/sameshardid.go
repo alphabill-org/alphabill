@@ -5,6 +5,10 @@ import "github.com/holiman/uint256"
 // SameShardId creates ID that resides in the same shard.
 // By taking first 4 bytes from id and last 28 bytes from the hashValue.
 func SameShardId(id *uint256.Int, hashValue []byte) *uint256.Int {
+	return uint256.NewInt(0).SetBytes(SameShardIdBytes(id, hashValue))
+}
+
+func SameShardIdBytes(id *uint256.Int, hashValue []byte) []byte {
 	idBytes := id.Bytes32()
 	newIdBytes := make([]byte, 4)
 	copy(newIdBytes, idBytes[:4])
@@ -19,5 +23,5 @@ func SameShardId(id *uint256.Int, hashValue []byte) *uint256.Int {
 			newIdBytes = append(newIdBytes, 0)
 		}
 	}
-	return uint256.NewInt(0).SetBytes(newIdBytes)
+	return newIdBytes
 }

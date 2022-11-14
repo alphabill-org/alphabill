@@ -429,7 +429,7 @@ func splitFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&SplitFungibleTokenAttributes{
 			NewBearer:                   newBearer,
-			Value:                       transferValue,
+			TargetValue:                 transferValue,
 			Nonce:                       nonce,
 			Backlink:                    backlink,
 			InvariantPredicateSignature: invariantPredicateSignature,

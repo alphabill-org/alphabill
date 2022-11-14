@@ -102,7 +102,7 @@ message SplitFungibleTokenAttributes {
   // the bearer predicate of the new token;
   bytes new_bearer = 1;
   // the value of the new token
-  uint64 value = 2;
+  uint64 target_value = 2;
   bytes nonce = 3;
   // the backlink to the previous transaction with this token
   bytes backlink = 4;

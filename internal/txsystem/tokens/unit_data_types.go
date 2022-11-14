@@ -47,7 +47,7 @@ func newFungibleTokenTypeData(tx *createFungibleTokenTypeWrapper) rma.UnitData {
 	attr := tx.attributes
 	return &fungibleTokenTypeData{
 		symbol:                   attr.Symbol,
-		parentTypeId:             tx.ParentTypeID(),
+		parentTypeId:             tx.ParentTypeIdInt(),
 		decimalPlaces:            attr.DecimalPlaces,
 		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
 		tokenCreationPredicate:   attr.TokenCreationPredicate,
@@ -59,7 +59,7 @@ func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.Unit
 	attr := tx.attributes
 	return &nonFungibleTokenTypeData{
 		symbol:                   attr.Symbol,
-		parentTypeId:             tx.ParentTypeID(),
+		parentTypeId:             tx.parentTypeIdInt(),
 		subTypeCreationPredicate: attr.SubTypeCreationPredicate,
 		tokenCreationPredicate:   attr.TokenCreationPredicate,
 		invariantPredicate:       attr.InvariantPredicate,
@@ -70,7 +70,7 @@ func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.Unit
 func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
 	attr := tx.attributes
 	return &nonFungibleTokenData{
-		nftType:             tx.NFTTypeID(),
+		nftType:             tx.NFTTypeIdInt(),
 		uri:                 attr.Uri,
 		data:                attr.Data,
 		dataUpdatePredicate: attr.DataUpdatePredicate,
@@ -82,7 +82,7 @@ func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, hasher crypto.Hash
 func newFungibleTokenData(tx *mintFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
 	attr := tx.attributes
 	return &fungibleTokenData{
-		tokenType: tx.TypeID(),
+		tokenType: tx.TypeIdInt(),
 		value:     attr.Value,
 		t:         0,                           // we don't have previous tx
 		backlink:  make([]byte, hasher.Size()), // in case of new NFT token the backlink is zero hash
@@ -91,7 +91,7 @@ func newFungibleTokenData(tx *mintFungibleTokenWrapper, hasher crypto.Hash) rma.
 
 func (n *nonFungibleTokenTypeData) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(n.symbol))
-	hasher.Write(n.parentTypeId.Bytes())
+	hasher.Write(util.Uint256ToBytes(n.parentTypeId))
 	hasher.Write(n.subTypeCreationPredicate)
 	hasher.Write(n.tokenCreationPredicate)
 	hasher.Write(n.invariantPredicate)

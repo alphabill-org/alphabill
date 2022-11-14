@@ -94,6 +94,18 @@ func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
+//getHexFlag returns nil in case array is empty (weird behaviour by cobra)
+func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
+	res, err := cmd.Flags().GetBytesHex(flag)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) == 0 {
+		return nil, err
+	}
+	return res, err
+}
+
 func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
@@ -101,7 +113,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	defer tw.Shutdown()
 
-	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	typeId, err := getHexFlag(cmd, cmdFlagType)
 	if err != nil {
 		return err
 	}
@@ -152,7 +164,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	}
 	defer tw.Shutdown()
 
-	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	typeId, err := getHexFlag(cmd, cmdFlagType)
 	if err != nil {
 		return err
 	}
@@ -223,7 +235,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	typeId, err := getHexFlag(cmd, cmdFlagType)
 	if err != nil {
 		return err
 	}
@@ -278,11 +290,11 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	}
 	defer tw.Shutdown()
 
-	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	typeId, err := getHexFlag(cmd, cmdFlagType)
 	if err != nil {
 		return err
 	}
-	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagTokenId)
+	tokenId, err := getHexFlag(cmd, cmdFlagTokenId)
 	if err != nil {
 		return err
 	}
@@ -290,7 +302,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
-	data, err := cmd.Flags().GetBytesHex(cmdFlagTokenData)
+	data, err := getHexFlag(cmd, cmdFlagTokenData)
 	if err != nil {
 		return err
 	}
@@ -355,7 +367,7 @@ func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) erro
 	}
 	defer tw.Shutdown()
 
-	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagTokenId)
+	tokenId, err := getHexFlag(cmd, cmdFlagTokenId)
 	if err != nil {
 		return err
 	}
@@ -430,7 +442,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer tw.Shutdown()
 
-	typeId, err := cmd.Flags().GetBytesHex(cmdFlagType)
+	typeId, err := getHexFlag(cmd, cmdFlagType)
 	if err != nil {
 		return err
 	}
@@ -476,7 +488,7 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	defer tw.Shutdown()
 
-	tokenId, err := cmd.Flags().GetBytesHex(cmdFlagTokenId)
+	tokenId, err := getHexFlag(cmd, cmdFlagTokenId)
 	if err != nil {
 		return err
 	}

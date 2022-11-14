@@ -98,18 +98,6 @@ func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
-//getHexFlag returns nil in case array is empty (weird behaviour by cobra)
-func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
-	res, err := cmd.Flags().GetBytesHex(flag)
-	if err != nil {
-		return nil, err
-	}
-	if len(res) == 0 {
-		return nil, err
-	}
-	return res, err
-}
-
 func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
@@ -728,4 +716,16 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 
 	}
 	return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
+}
+
+//getHexFlag returns nil in case array is empty (weird behaviour by cobra)
+func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
+	res, err := cmd.Flags().GetBytesHex(flag)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) == 0 {
+		return nil, err
+	}
+	return res, err
 }

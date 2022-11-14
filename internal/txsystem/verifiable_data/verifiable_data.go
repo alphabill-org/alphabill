@@ -99,7 +99,7 @@ func (d *txSystem) Execute(tx txsystem.GenericTransaction) error {
 		rma.AddItem(tx.UnitID(),
 			script.PredicateAlwaysFalse(),
 			&unit{
-				dataHash:    hasherUtil.Sum256(tx.UnitID().Bytes()),
+				dataHash:    hasherUtil.Sum256(util.Uint256ToBytes(tx.UnitID())),
 				blockNumber: d.currentBlockNumber,
 			},
 			h,
@@ -181,6 +181,10 @@ func (w *vdTransaction) ToProtoBuf() *txsystem.Transaction {
 
 func (w *vdTransaction) IsPrimary() bool {
 	return true
+}
+
+func (w *vdTransaction) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{w.UnitID()}
 }
 
 func (w *vdTransaction) sigBytes(b bytes.Buffer) {

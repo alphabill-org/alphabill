@@ -330,7 +330,7 @@ func (n *Node) loop() {
 			}
 			// round might not be active, but some transactions might still be in the channel
 			if n.txCancel == nil {
-				logger.Warning("No active round, adding tx back to the buffer, UnitID=%X", tx.UnitID().Bytes())
+				logger.Warning("No active round, adding tx back to the buffer, UnitID=%X", tx.UnitID().Bytes32())
 				err := n.txBuffer.Add(tx)
 				if err != nil {
 					logger.Warning("Invalid transaction: %v", err)

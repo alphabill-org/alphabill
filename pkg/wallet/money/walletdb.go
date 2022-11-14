@@ -42,7 +42,7 @@ var (
 	errBillNotFound          = errors.New("bill does not exist")
 )
 
-const walletFileName = "wallet.db"
+const WalletFileName = "wallet.db"
 
 type Db interface {
 	Do() TxContext
@@ -100,7 +100,7 @@ func OpenDb(config WalletConfig) (*wdb, error) {
 	if err != nil {
 		return nil, err
 	}
-	dbFilePath := path.Join(walletDir, walletFileName)
+	dbFilePath := path.Join(walletDir, WalletFileName)
 	return openDb(dbFilePath, config.WalletPass, false)
 }
 
@@ -642,7 +642,7 @@ func createNewDb(config WalletConfig) (*wdb, error) {
 		return nil, err
 	}
 
-	dbFilePath := path.Join(walletDir, walletFileName)
+	dbFilePath := path.Join(walletDir, WalletFileName)
 	return openDb(dbFilePath, config.WalletPass, true)
 }
 

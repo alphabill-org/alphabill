@@ -180,12 +180,12 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	return &wg
 }
 
-func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey, bills ...*bill) *alphabill.GetBlockResponse {
+func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey, bills ...*Bill) *alphabill.GetBlockResponse {
 	var dcTxs []*txsystem.Transaction
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &txsystem.Transaction{
 			SystemId:              alphabillMoneySystemId,
-			UnitId:                b.getId(),
+			UnitId:                b.GetId(),
 			TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
 			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),

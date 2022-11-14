@@ -18,7 +18,7 @@ import (
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
-func createTransactions(pubKey []byte, amount uint64, bills []*bill, k *wallet.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
+func createTransactions(pubKey []byte, amount uint64, bills []*Bill, k *wallet.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
 	var txs []*txsystem.Transaction
 	var accumulatedSum uint64
 	// sort bills by value in descending order
@@ -41,15 +41,15 @@ func createTransactions(pubKey []byte, amount uint64, bills []*bill, k *wallet.A
 
 }
 
-func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *bill, timeout uint64) (*txsystem.Transaction, error) {
+func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *Bill, timeout uint64) (*txsystem.Transaction, error) {
 	if b.Value <= amount {
 		return createTransferTx(pubKey, k, b, timeout)
 	}
 	return createSplitTx(amount, pubKey, k, b, timeout)
 }
 
-func createTransferTx(pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(bill.getId(), timeout)
+func createTransferTx(pubKey []byte, k *wallet.AccountKey, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
+	tx := createGenericTx(bill.GetId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: bill.Value,
@@ -75,8 +75,8 @@ func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 	}
 }
 
-func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *bill, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(bill.getId(), timeout)
+func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
+	tx := createGenericTx(bill.GetId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
@@ -93,8 +93,8 @@ func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *bil
 	return tx, nil
 }
 
-func createDustTx(k *wallet.AccountKey, bill *bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(bill.getId(), timeout)
+func createDustTx(k *wallet.AccountKey, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
+	tx := createGenericTx(bill.GetId(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
@@ -111,7 +111,7 @@ func createDustTx(k *wallet.AccountKey, bill *bill, nonce []byte, timeout uint64
 	return tx, nil
 }
 
-func createSwapTx(k *wallet.AccountKey, dcBills []*bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
+func createSwapTx(k *wallet.AccountKey, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
@@ -120,7 +120,7 @@ func createSwapTx(k *wallet.AccountKey, dcBills []*bill, dcNonce []byte, billIds
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})
 	sort.Slice(dcBills, func(i, j int) bool {
-		return bytes.Compare(dcBills[i].getId(), dcBills[j].getId()) < 0
+		return bytes.Compare(dcBills[i].GetId(), dcBills[j].GetId()) < 0
 	})
 
 	var dustTransferProofs []*block.BlockProof

@@ -39,6 +39,7 @@ var (
 	errWalletDbAlreadyExists = errors.New("wallet db already exists")
 	errWalletDbDoesNotExists = errors.New("cannot open wallet db, file does not exist")
 	errAccountNotFound       = errors.New("account does not exist")
+	errBillNotFound          = errors.New("bill does not exist")
 )
 
 const WalletFileName = "wallet.db"
@@ -70,10 +71,11 @@ type TxContext interface {
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
-	SetBill(accountIndex uint64, bill *bill) error
+	GetBill(accountIndex uint64, id []byte) (*Bill, error)
+	SetBill(accountIndex uint64, bill *Bill) error
 	ContainsBill(accountIndex uint64, id *uint256.Int) (bool, error)
 	RemoveBill(accountIndex uint64, id *uint256.Int) error
-	GetBills(accountIndex uint64) ([]*bill, error)
+	GetBills(accountIndex uint64) ([]*Bill, error)
 	GetBalance(accountIndex uint64) (uint64, error)
 	GetBalances() ([]uint64, error)
 
@@ -306,7 +308,30 @@ func (w *wdbtx) VerifyPassword() (bool, error) {
 	return true, nil
 }
 
-func (w *wdbtx) SetBill(accountIndex uint64, bill *bill) error {
+func (w *wdbtx) GetBill(accountIndex uint64, billId []byte) (*Bill, error) {
+	var b *Bill
+	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		billBytes := bkt.Bucket(accountBillsBucket).Get(billId)
+		if billBytes == nil {
+			return errBillNotFound
+		}
+		b, err = parseBill(billBytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (w *wdbtx) SetBill(accountIndex uint64, bill *Bill) error {
 	return w.withTx(w.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(bill)
 		if err != nil {
@@ -317,7 +342,7 @@ func (w *wdbtx) SetBill(accountIndex uint64, bill *bill) error {
 		if err != nil {
 			return err
 		}
-		return bkt.Bucket(accountBillsBucket).Put(bill.getId(), val)
+		return bkt.Bucket(accountBillsBucket).Put(bill.GetId(), val)
 	}, true)
 }
 
@@ -338,8 +363,8 @@ func (w *wdbtx) ContainsBill(accountIndex uint64, id *uint256.Int) (bool, error)
 	return res, nil
 }
 
-func (w *wdbtx) GetBills(accountIndex uint64) ([]*bill, error) {
-	var res []*bill
+func (w *wdbtx) GetBills(accountIndex uint64) ([]*Bill, error) {
+	var res []*Bill
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
 		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
 		if err != nil {
@@ -380,7 +405,7 @@ func (w *wdbtx) GetBalance(accountIndex uint64) (uint64, error) {
 			return err
 		}
 		return bkt.Bucket(accountBillsBucket).ForEach(func(k, v []byte) error {
-			var b *bill
+			var b *Bill
 			err := json.Unmarshal(v, &b)
 			if err != nil {
 				return err
@@ -409,7 +434,7 @@ func (w *wdbtx) GetBalances() ([]uint64, error) {
 			}
 			accBillsBucket := accountBucket.Bucket(accountBillsBucket)
 			err = accBillsBucket.ForEach(func(billId, billValue []byte) error {
-				var b *bill
+				var b *Bill
 				err := json.Unmarshal(billValue, &b)
 				if err != nil {
 					return err
@@ -621,8 +646,8 @@ func createNewDb(config WalletConfig) (*wdb, error) {
 	return openDb(dbFilePath, config.WalletPass, true)
 }
 
-func parseBill(v []byte) (*bill, error) {
-	var b *bill
+func parseBill(v []byte) (*Bill, error) {
+	var b *Bill
 	err := json.Unmarshal(v, &b)
 	return b, err
 }

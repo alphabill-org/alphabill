@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
@@ -120,6 +121,11 @@ func TestWrapper_Split(t *testing.T) {
 	expectedPrndSh := hasher.Sum(nil)
 
 	require.Equal(t, expectedPrndSh, actualPrndSh)
+
+	units := genericTx.TargetUnits(crypto.SHA256)
+	require.Len(t, units, 2)
+	require.Equal(t, genericTx.UnitID(), units[0])
+	require.Equal(t, utiltx.SameShardId(genericTx.UnitID(), expectedPrndSh), units[1])
 }
 
 func TestWrapper_Swap(t *testing.T) {

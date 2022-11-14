@@ -24,6 +24,10 @@ type (
 	OnlySecondaryTx struct {
 		txsystem.GenericTransaction
 	}
+	MultiUnitTargetTxType struct {
+		txsystem.GenericTransaction
+		secondaryTargetUnitId *uint256.Int
+	}
 )
 
 func (g *OnlyPrimaryTx) IsPrimary() bool {
@@ -32,6 +36,10 @@ func (g *OnlyPrimaryTx) IsPrimary() bool {
 
 func (g *OnlySecondaryTx) IsPrimary() bool {
 	return false
+}
+
+func (d *MultiUnitTargetTxType) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{d.UnitID(), d.secondaryTargetUnitId}
 }
 
 func TestProofTypePrim(t *testing.T) {
@@ -142,6 +150,22 @@ func TestProofTypeEmptyBlock(t *testing.T) {
 	require.Nil(t, p.Verify(createPrimaryTx(1), verifier, hashAlgorithm))
 }
 
+func TestProofForSecondaryTargetUnit(t *testing.T) {
+	hashAlgorithm := crypto.SHA256
+	b := &GenericBlock{
+		Transactions: []txsystem.GenericTransaction{
+			createMultiTargetTx(0, 1),
+		},
+	}
+	uc, verifier := createUC(t, b, hashAlgorithm)
+	b.UnicityCertificate = uc
+
+	p, err := NewPrimaryProof(b, uint256.NewInt(1), hashAlgorithm)
+	require.NoError(t, err)
+	require.Equal(t, ProofType_PRIM, p.ProofType)
+	require.Nil(t, p.Verify(b.Transactions[0], verifier, hashAlgorithm))
+}
+
 func createPrimaryTx(unitid uint64) *OnlyPrimaryTx {
 	transaction := newTransaction(unitId(unitid), make([]byte, 32), 555)
 	tx, _ := txsystem.NewDefaultGenericTransaction(transaction)
@@ -151,6 +175,12 @@ func createPrimaryTx(unitid uint64) *OnlyPrimaryTx {
 func createSecondaryTx(unitid uint64) *OnlySecondaryTx {
 	tx := createPrimaryTx(unitid)
 	return &OnlySecondaryTx{tx}
+}
+
+func createMultiTargetTx(unitID uint64, secUnitID uint64) *MultiUnitTargetTxType {
+	transaction := newTransaction(unitId(unitID), make([]byte, 32), 555)
+	tx, _ := txsystem.NewDefaultGenericTransaction(transaction)
+	return &MultiUnitTargetTxType{tx, uint256.NewInt(secUnitID)}
 }
 
 func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certificates.UnicityCertificate, map[string]abcrypto.Verifier) {

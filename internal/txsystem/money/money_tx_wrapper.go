@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"google.golang.org/protobuf/proto"
@@ -276,11 +277,17 @@ func (x *TransferDCOrder) addFieldsToHasher(hasher hash.Hash) {
 func (w *transferWrapper) NewBearer() []byte   { return w.transfer.NewBearer }
 func (w *transferWrapper) TargetValue() uint64 { return w.transfer.TargetValue }
 func (w *transferWrapper) Backlink() []byte    { return w.transfer.Backlink }
+func (w *transferWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{w.UnitID()}
+}
 
 func (w *transferDCWrapper) Nonce() []byte        { return w.transferDC.Nonce }
 func (w *transferDCWrapper) TargetBearer() []byte { return w.transferDC.TargetBearer }
 func (w *transferDCWrapper) TargetValue() uint64  { return w.transferDC.TargetValue }
 func (w *transferDCWrapper) Backlink() []byte     { return w.transferDC.Backlink }
+func (w *transferDCWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{w.UnitID()}
+}
 
 func (w *billSplitWrapper) Amount() uint64         { return w.billSplit.Amount }
 func (w *billSplitWrapper) TargetBearer() []byte   { return w.billSplit.TargetBearer }
@@ -293,6 +300,9 @@ func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	w.addAttributesToHasher(hasher)
 	hasher.Write(util.Uint64ToBytes(w.Timeout()))
 	return hasher.Sum(nil)
+}
+func (w *billSplitWrapper) TargetUnits(hashFunc crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{w.UnitID(), txutil.SameShardId(w.UnitID(), w.HashForIdCalculation(hashFunc))}
 }
 
 func (w *swapWrapper) OwnerCondition() []byte      { return w.swap.OwnerCondition }
@@ -311,6 +321,9 @@ func (w *swapWrapper) BillIdentifiers() []*uint256.Int {
 		billIds = append(billIds, uint256.NewInt(0).SetBytes(biBytes))
 	}
 	return billIds
+}
+func (w *swapWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{w.UnitID()}
 }
 
 func (w *wrapper) UnitID() *uint256.Int {

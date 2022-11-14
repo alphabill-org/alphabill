@@ -117,12 +117,16 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybtypeClause, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
 	a := &tokens.CreateFungibleTokenTypeAttributes{
 		Symbol:                            symbol,
 		DecimalPlaces:                     decimals,
 		ParentTypeId:                      nil,
 		SubTypeCreationPredicateSignature: nil,
-		SubTypeCreationPredicate:          script.PredicateAlwaysTrue(),
+		SubTypeCreationPredicate:          subTypeCreationPredicate,
 		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
 		InvariantPredicate:                script.PredicateAlwaysTrue(),
 	}
@@ -666,6 +670,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet
 }
 
 // parsePredicateClause uses the following format:
+// empty string returns nil
 // true
 // false
 // ptpkh
@@ -680,6 +685,9 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountM
 }
 
 func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, error) {
+	if clause == "" {
+		return nil, nil
+	}
 	if clause == "true" {
 		return script.PredicateAlwaysTrue(), nil
 	}

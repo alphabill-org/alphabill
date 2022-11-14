@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	"github.com/stretchr/testify/require"
@@ -18,6 +20,7 @@ func TestUnicityCertificate_IsValid(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
+		RoundCreationTime:    util.MakeTimestamp(),
 	}
 	err := seal.Sign("test", signer)
 	require.NoError(t, err)

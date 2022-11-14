@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const dummyTimeStamp = 10000
+
 var systemIdentifier = []byte{0, 0, 0, 1}
 
 func TestBlockProposal_IsValid_NotOk(t *testing.T) {
@@ -134,6 +136,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
+		RoundCreationTime:    dummyTimeStamp,
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
@@ -169,6 +172,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         test.RandomBytes(32),
 		Hash:                 test.RandomBytes(32),
+		RoundCreationTime:    dummyTimeStamp,
 		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{

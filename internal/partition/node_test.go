@@ -4,6 +4,8 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -38,6 +40,7 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 			RootChainRoundNumber: 0,
 			PreviousHash:         nil,
 			Hash:                 nil,
+			RoundCreationTime:    util.MakeTimestamp(),
 		},
 	}
 	p.partition.startNewRound(ucr)
@@ -176,10 +179,10 @@ func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	systemIdentifier := p.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
 	// produce some root chain rounds
 	tp.rootState.CopyOldInputRecords(systemIdentifier)
-	_, err := tp.rootState.CreateUnicityCertificates()
+	_, err := tp.rootState.CreateUnicityCertificates(util.MakeTimestamp())
 	require.NoError(t, err)
 	tp.rootState.CopyOldInputRecords(systemIdentifier)
-	_, err = tp.rootState.CreateUnicityCertificates()
+	_, err = tp.rootState.CreateUnicityCertificates(util.MakeTimestamp())
 	require.NoError(t, err)
 
 	tp.eh.Reset()

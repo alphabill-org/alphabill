@@ -4,12 +4,14 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -221,6 +223,7 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRou
 		RootChainRoundNumber: roundNumber,
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
+		RoundCreationTime:    util.MakeTimestamp(),
 	}
 	return u, u.Sign("test", sn.rootSigner)
 }
@@ -237,7 +240,7 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 	if err != nil {
 		return err
 	}
-	newState, err := sn.rootState.CreateUnicityCertificates()
+	newState, err := sn.rootState.CreateUnicityCertificates(util.MakeTimestamp())
 	if err != nil {
 		return err
 	}

@@ -221,6 +221,7 @@ func CreateUnicityCertificates(algo gocrypto.Hash, round uint64, prevHash []byte
 				RootChainRoundNumber: round,
 				PreviousHash:         prevHash,
 				Hash:                 rootHash,
+				RoundCreationTime:    util.MakeTimestamp(),
 				Signatures:           make(map[string][]byte),
 			},
 		}

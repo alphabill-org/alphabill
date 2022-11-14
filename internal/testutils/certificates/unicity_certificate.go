@@ -4,6 +4,8 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -55,5 +57,6 @@ func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHas
 		RootChainRoundNumber: roundNumber,
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
+		RoundCreationTime:    util.MakeTimestamp(),
 	}
 }

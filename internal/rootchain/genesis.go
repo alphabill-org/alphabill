@@ -13,6 +13,8 @@ import (
 const (
 	ErrEncryptionPubKeyIsNil          = "encryption public key is nil"
 	ErrQuorumThresholdOnlyDistributed = "quorum threshold must only be less than total nodes in root chain"
+
+	GenesisTime = 1668208271000 // 11.11.2022 @ 11:11:11
 )
 
 type (
@@ -146,6 +148,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	if err != nil {
 		return nil, nil, err
 	}
+
 	// verify that we have consensus between the partition nodes.
 	for _, partition := range partitions {
 		id := p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)
@@ -156,7 +159,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 
 	// create unicity certificates
-	if _, err = state.CreateUnicityCertificates(); err != nil {
+	if _, err = state.CreateUnicityCertificates(GenesisTime); err != nil {
 		return nil, nil, err
 	}
 

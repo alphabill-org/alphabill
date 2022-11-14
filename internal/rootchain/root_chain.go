@@ -198,7 +198,7 @@ func (rc *RootChain) loop() {
 			timerName := nt.Name()
 			if timerName == t3TimerID {
 				logger.Debug("Handling T3 timeout")
-				newState, err := rc.state.CreateUnicityCertificates()
+				newState, err := rc.state.CreateUnicityCertificates(util.MakeTimestamp())
 				if err != nil {
 					logger.Warning("Round %v failed: %v", newState.LatestRound, err)
 					rc.timers.Restart(t3TimerID)

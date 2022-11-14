@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	round = 1
+	round             = 1
+	roundCreationTime = 100000
 )
 
 var sysId = p.SystemIdentifier([]byte{0, 0, 0, 0})
@@ -28,6 +29,7 @@ var mockUc = &certificates.UnicityCertificate{
 		RootChainRoundNumber: 1,
 		PreviousHash:         make([]byte, gocrypto.SHA256.Size()),
 		Hash:                 make([]byte, gocrypto.SHA256.Size()),
+		RoundCreationTime:    roundCreationTime,
 	},
 }
 

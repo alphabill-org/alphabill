@@ -148,6 +148,7 @@ func TestRootGenesis(t *testing.T) {
 					UnicitySeal: &certificates.UnicitySeal{
 						RootChainRoundNumber: 1,
 						Hash:                 hash,
+						RoundCreationTime:    10000,
 					},
 				},
 				SystemDescriptionRecord: systemDescription,

@@ -15,7 +15,6 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -144,7 +143,7 @@ func createPartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.Input
 
 		req := &certification.BlockCertificationRequest{
 			SystemIdentifier: systemID,
-			NodeIdentifier:   peer.Encode(partitionNode.peer.ID()),
+			NodeIdentifier:   partitionNode.peer.ID().String(),
 			RootRoundNumber:  1,
 			InputRecord:      ir,
 		}
@@ -152,7 +151,7 @@ func createPartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.Input
 		require.NoError(t, err)
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
-			NodeIdentifier:            peer.Encode(partitionNode.peer.ID()),
+			NodeIdentifier:            partitionNode.peer.ID().String(),
 			SigningPublicKey:          rawSigningPubKey,
 			EncryptionPublicKey:       rawEncPubKey,
 			BlockCertificationRequest: req,

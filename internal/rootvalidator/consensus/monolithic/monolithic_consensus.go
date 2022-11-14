@@ -284,6 +284,7 @@ func (x *ConsensusManager) createUnicitySeal(newRound uint64, newRootHash []byte
 		RootChainRoundNumber: newRound,
 		PreviousHash:         prevRoot,
 		Hash:                 newRootHash,
+		RoundCreationTime:    util.MakeTimestamp(),
 	}
 	return u, u.Sign(x.selfId, x.signer)
 }

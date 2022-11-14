@@ -40,6 +40,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 1,
 				PreviousHash:         nil,
 				Hash:                 zeroHash,
+				RoundCreationTime:    1,
 				Signatures:           map[string][]byte{"": zeroHash},
 			},
 			verifier: map[string]crypto.Verifier{"test": verifier},
@@ -51,6 +52,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 1,
 				PreviousHash:         zeroHash,
 				Hash:                 nil,
+				RoundCreationTime:    1,
 				Signatures:           map[string][]byte{"": zeroHash},
 			},
 			verifier: map[string]crypto.Verifier{"test": verifier},
@@ -62,10 +64,23 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 1,
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
+				RoundCreationTime:    1,
 				Signatures:           nil,
 			},
 			verifier: map[string]crypto.Verifier{"test": verifier},
 			wantErr:  ErrUnicitySealSignatureIsNil,
+		},
+		{
+			name: "Round creation time is 0",
+			seal: &UnicitySeal{
+				RootChainRoundNumber: 1,
+				PreviousHash:         zeroHash,
+				Hash:                 zeroHash,
+				RoundCreationTime:    0,
+				Signatures:           map[string][]byte{"test": zeroHash},
+			},
+			verifier: map[string]crypto.Verifier{"test": verifier},
+			wantErr:  ErrRoundCreationTimeNotSet,
 		},
 		{
 			name: "block number is invalid is nil",
@@ -73,6 +88,7 @@ func TestUnicitySeal_IsValid(t *testing.T) {
 				RootChainRoundNumber: 0,
 				PreviousHash:         zeroHash,
 				Hash:                 zeroHash,
+				RoundCreationTime:    1,
 				Signatures:           nil,
 			},
 			verifier: map[string]crypto.Verifier{"test": verifier},
@@ -92,6 +108,7 @@ func TestIsValid_InvalidSignature(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
+		RoundCreationTime:    1,
 		Signatures:           map[string][]byte{"test": zeroHash},
 	}
 	verifiers := map[string]crypto.Verifier{"test": verifier}
@@ -106,6 +123,7 @@ func TestSignAndVerify_Ok(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
+		RoundCreationTime:    1,
 	}
 	err := seal.Sign("test", signer)
 	require.NoError(t, err)
@@ -119,6 +137,7 @@ func TestVerify_SignatureIsNil(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
+		RoundCreationTime:    1,
 	}
 	verifiers := map[string]crypto.Verifier{"test": verifier}
 	err := seal.Verify(verifiers)
@@ -131,6 +150,7 @@ func TestVerify_SignatureUnknownSigner(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
+		RoundCreationTime:    1,
 		Signatures:           map[string][]byte{"test": zeroHash},
 	}
 	verifiers := map[string]crypto.Verifier{"xxx": verifier}
@@ -143,6 +163,7 @@ func TestSign_SignerIsNil(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
+		RoundCreationTime:    1,
 	}
 	err := seal.Sign("test", nil)
 	require.ErrorIs(t, err, ErrSignerIsNil)
@@ -153,6 +174,7 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		RootChainRoundNumber: 1,
 		PreviousHash:         zeroHash,
 		Hash:                 zeroHash,
+		RoundCreationTime:    1,
 		Signatures:           map[string][]byte{"": zeroHash},
 	}
 	err := seal.Verify(nil)

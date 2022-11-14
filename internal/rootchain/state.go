@@ -197,7 +197,7 @@ func (s *State) checkConsensus(id p.SystemIdentifier) bool {
 }
 
 // CreateUnicityCertificates certifies input records and returns state containing changes (new root, round, UCs changed)
-func (s *State) CreateUnicityCertificates() (*store.RootState, error) {
+func (s *State) CreateUnicityCertificates(timeMs uint64) (*store.RootState, error) {
 	data := s.toUnicityTreeData(s.inputRecords)
 	logger.Debug("Input records are:")
 	for _, ir := range data {
@@ -215,7 +215,7 @@ func (s *State) CreateUnicityCertificates() (*store.RootState, error) {
 		return nil, err
 	}
 	newRound := lastState.LatestRound + 1
-	unicitySeal, err := s.createUnicitySeal(newRound, rootHash, lastState.LatestRootHash)
+	unicitySeal, err := s.createUnicitySeal(newRound, rootHash, lastState.LatestRootHash, timeMs)
 	if err != nil {
 		return nil, err
 	}
@@ -300,11 +300,12 @@ func (s *State) toUnicityTreeData(records map[p.SystemIdentifier]*certificates.I
 	return data
 }
 
-func (s *State) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte) (*certificates.UnicitySeal, error) {
+func (s *State) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte, timeMs uint64) (*certificates.UnicitySeal, error) {
 	u := &certificates.UnicitySeal{
 		RootChainRoundNumber: newRound,
 		PreviousHash:         prevRoot,
 		Hash:                 newRootHash,
+		RoundCreationTime:    timeMs,
 	}
 	return u, u.Sign(s.selfId, s.signer)
 }

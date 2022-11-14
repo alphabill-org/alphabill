@@ -2,10 +2,11 @@ package certificates
 
 import (
 	"bytes"
+	"errors"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
+	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -18,6 +19,7 @@ var (
 	ErrUnicitySealSignatureIsNil    = errors.New("no signatures")
 	ErrRootValidatorInfoMissing     = errors.New("root validator info is missing")
 	ErrUnknownSigner                = errors.New("unknown signer")
+	ErrRoundCreationTimeNotSet      = errors.New("round creation time not set")
 )
 
 func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
@@ -35,6 +37,9 @@ func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	}
 	if x.RootChainRoundNumber < 1 {
 		return ErrInvalidBlockNumber
+	}
+	if x.RoundCreationTime < 1 {
+		return ErrRoundCreationTimeNotSet
 	}
 	if len(x.Signatures) == 0 {
 		return ErrUnicitySealSignatureIsNil
@@ -63,6 +68,7 @@ func (x *UnicitySeal) Bytes() []byte {
 	b.Write(util.Uint64ToBytes(x.RootChainRoundNumber))
 	b.Write(x.PreviousHash)
 	b.Write(x.Hash)
+	b.Write(util.Uint64ToBytes(x.RoundCreationTime))
 	return b.Bytes()
 }
 
@@ -86,7 +92,7 @@ func (x *UnicitySeal) Verify(verifiers map[string]crypto.Verifier) error {
 		}
 		err := ver.VerifyBytes(sig, x.Bytes())
 		if err != nil {
-			return errors.Wrap(err, "invalid unicity seal signature")
+			return aberrors.Wrap(err, "invalid unicity seal signature")
 		}
 	}
 	return nil

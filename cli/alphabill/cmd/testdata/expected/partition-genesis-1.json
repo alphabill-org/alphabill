@@ -52,8 +52,9 @@
       "root_chain_round_number": 1,
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       "hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA=",
+      "round_creation_time": 1668208271000,
       "signatures": {
-        "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "k4fL/IUVBwM0s1ee0Ab5q8N6Beiq3ryDs9f8dBEjLKxwn8tFSienUlFtJWSisxYm72YWRrgop4sRp5c7RHI1XwE="
+        "16Uiu2HAm87wYZyJtpPuPovXRDrMpK5tWTGyLz2GKkQL8sYHD9pmm": "W9BBx2pJTqt9r7uei+vf0oCiG0iae8Mc48HpENtZbMIg49et4DCib4WfHXeQntvrci4YuhTeWINL8q3MgCO7+AE="
       }
     }
   },

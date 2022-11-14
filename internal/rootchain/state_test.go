@@ -34,6 +34,8 @@ var partition2IR = &certificates.InputRecord{
 	SummaryValue: []byte{0, 0, 2, 3},
 }
 
+const TestTime = GenesisTime
+
 func Test_newStateFromGenesis_NotOk(t *testing.T) {
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -143,7 +145,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.Equal(t, partition2IR, s.inputRecords[p.SystemIdentifier(partition2ID)])
 
 	// create certificates
-	_, err = s.CreateUnicityCertificates()
+	_, err = s.CreateUnicityCertificates(TestTime)
 	require.NoError(t, err)
 	state, err = s.store.Get()
 	require.NoError(t, err)
@@ -177,7 +179,7 @@ func TestHandleInputRequestEvent_OlderUnicityCertificate(t *testing.T) {
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
 	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
 	s.CopyOldInputRecords(p.SystemIdentifier(partition1ID))
-	_, err := s.CreateUnicityCertificates()
+	_, err := s.CreateUnicityCertificates(TestTime)
 	require.NoError(t, err)
 
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
@@ -319,7 +321,7 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 	uc, err = s.HandleBlockCertificationRequest(r2)
 	require.NoError(t, err)
 	require.Nil(t, uc)
-	state, err := s.CreateUnicityCertificates()
+	state, err := s.CreateUnicityCertificates(TestTime)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(state.Certificates))
 	luc, f := state.Certificates[p.SystemIdentifier(r1.SystemIdentifier)]
@@ -378,7 +380,7 @@ func TestHandleInputRequestEvent_ConsensusNotAchievedByAll(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, uc)
 	// Create UC's
-	state, err := s.CreateUnicityCertificates()
+	state, err := s.CreateUnicityCertificates(TestTime)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(state.Certificates))
 	luc, f := state.Certificates[p.SystemIdentifier(p2r1.SystemIdentifier)]
@@ -404,7 +406,7 @@ func createStateAndExecuteRound(t *testing.T, partitions []*genesis.PartitionRec
 		id := p.SystemIdentifier(pt.SystemDescriptionRecord.SystemIdentifier)
 		s2.checkConsensus(id)
 	}
-	_, err = s2.CreateUnicityCertificates()
+	_, err = s2.CreateUnicityCertificates(TestTime)
 	require.NoError(t, err)
 	return s2
 }

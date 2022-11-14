@@ -20,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
-	rootutil "github.com/alphabill-org/alphabill/internal/rootvalidator/util"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -526,7 +525,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 			Author:    string(x.peer.ID()),
 			Round:     round,
 			Epoch:     0,
-			Timestamp: rootutil.MakeTimestamp(),
+			Timestamp: util.MakeTimestamp(),
 			Payload:   x.proposalGen.GetPayload(),
 			Qc:        x.stateLedger.HighQC,
 		}

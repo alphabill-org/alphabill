@@ -100,7 +100,31 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", invalidBillsFilePath, trustBaseFilePath))
 	require.ErrorContains(t, err, "proof verification failed")
 
-	// TODO send money between wallets and verify export and import (requires split block proof fix)
+	// test that proof from "send --output-path" can be imported
+	// send a bill to account number 2
+	pubKeyAcc2 := "0x02d36c574db299904b285aaeb57eb7b1fa145c43af90bec3c635c4174c224587b6"
+	stdout = execWalletCmd(t, "wallet-test", fmt.Sprintf("send --amount 1 --address %s --output-path %s", pubKeyAcc2, homedir))
+	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
+	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
+	outputFile := stdout.lines[1][len("Transaction proof(s) saved to: "):]
+
+	// add account number 2 to wallet
+	stdout = execWalletCmd(t, "wallet-test", "add-key")
+	require.Contains(t, stdout.lines[0], fmt.Sprintf("Added key #2 %s", pubKeyAcc2))
+
+	// import bill to account number 2
+	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --key 2 --bill-file=%s --trust-base-file=%s", outputFile, trustBaseFilePath))
+	require.NoError(t, err)
+	require.Contains(t, stdout.lines[0], "Successfully imported bill(s).")
+
+	// add account number 3 to wallet
+	pubKeyAcc3 := "0x02f6cbeacfd97ebc9b657081eb8b6c9ed3a588646d618ddbd03e198290af94c9d2"
+	stdout = execWalletCmd(t, "wallet-test", "add-key")
+	require.Contains(t, stdout.lines[0], fmt.Sprintf("Added key #3 %s", pubKeyAcc3))
+
+	// verify that the same bill cannot be imported to account number 3
+	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --key 3 --bill-file=%s --trust-base-file=%s", outputFile, trustBaseFilePath))
+	require.ErrorContains(t, err, "invalid bearer predicate")
 }
 
 // setupInfra starts money partiton, sends initial bill to wallet, syncs wallet.

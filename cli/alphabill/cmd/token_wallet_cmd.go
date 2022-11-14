@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -703,7 +704,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 			} else {
 				keyNr, err = strconv.Atoi(keyStr)
 				if err != nil {
-					return nil, err
+					return nil, aberrors.Wrap(err, fmt.Sprintf("invalid predicate clause: '%s'", clause))
 				}
 			}
 		}

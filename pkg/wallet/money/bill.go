@@ -6,7 +6,7 @@ import (
 	"github.com/holiman/uint256"
 )
 
-type bill struct {
+type Bill struct {
 	Id     *uint256.Int          `json:"id"`
 	Value  uint64                `json:"value"`
 	TxHash []byte                `json:"txHash"`
@@ -23,13 +23,13 @@ type bill struct {
 	BlockProof *block.BlockProof `json:"blockProof"`
 }
 
-// getId returns bill id in 32-byte big endian array
-func (b *bill) getId() []byte {
+// GetId returns bill id in 32-byte big endian array
+func (b *Bill) GetId() []byte {
 	bytes32 := b.Id.Bytes32()
 	return bytes32[:]
 }
 
 // isExpired returns true if dcBill, that was left unswapped, should be deleted
-func (b *bill) isExpired(blockHeight uint64) bool {
+func (b *Bill) isExpired(blockHeight uint64) bool {
 	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
 }

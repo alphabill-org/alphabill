@@ -135,10 +135,10 @@ func (x *GenericBlock) treeHash(hashAlgorithm crypto.Hash) ([]byte, error) {
 }
 
 // extractIdentifiers returns ordered list of unit ids for given transactions
-func (x *GenericBlock) extractIdentifiers() []*uint256.Int {
-	ids := make([]*uint256.Int, len(x.Transactions))
-	for i, tx := range x.Transactions {
-		ids[i] = tx.UnitID()
+func (x *GenericBlock) extractIdentifiers(hashAlgorithm crypto.Hash) []*uint256.Int {
+	ids := make([]*uint256.Int, 0, len(x.Transactions))
+	for _, tx := range x.Transactions {
+		ids = append(ids, tx.TargetUnits(hashAlgorithm)...)
 	}
 	// sort ids in ascending order
 	sort.Slice(ids, func(i, j int) bool {
@@ -148,15 +148,17 @@ func (x *GenericBlock) extractIdentifiers() []*uint256.Int {
 }
 
 // extractTransactions returns primary tx and list of secondary txs for given unit
-func (x *GenericBlock) extractTransactions(unitId *uint256.Int) (txsystem.GenericTransaction, []txsystem.GenericTransaction) {
+func (x *GenericBlock) extractTransactions(unitId *uint256.Int, hashAlgorithm crypto.Hash) (txsystem.GenericTransaction, []txsystem.GenericTransaction) {
 	var primaryTx txsystem.GenericTransaction
 	var secondaryTxs []txsystem.GenericTransaction
 	for _, tx := range x.Transactions {
-		if tx.UnitID().Eq(unitId) {
-			if tx.IsPrimary() {
-				primaryTx = tx
-			} else {
-				secondaryTxs = append(secondaryTxs, tx)
+		for _, txUnitID := range tx.TargetUnits(hashAlgorithm) {
+			if txUnitID.Eq(unitId) {
+				if tx.IsPrimary() {
+					primaryTx = tx
+				} else {
+					secondaryTxs = append(secondaryTxs, tx)
+				}
 			}
 		}
 	}

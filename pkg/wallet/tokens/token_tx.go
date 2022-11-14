@@ -255,7 +255,7 @@ func (w *TokensWallet) sendTx(unitId TokenId, attrs proto.Message, ac *wallet.Ac
 		}
 		txSub.id = id
 	}
-	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", unitId, reflect.TypeOf(attrs)))
+	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", txSub.id, reflect.TypeOf(attrs)))
 
 	blockNumber, err := w.mw.GetMaxBlockNumber()
 	if err != nil {

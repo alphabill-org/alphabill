@@ -334,7 +334,7 @@ func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
 	prevBalance, err := w.GetBalance(accountIndexTo)
 	require.NoError(t, err)
 
-	err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: 1})
+	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: 1})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		_ = w.SyncToMaxBlockNumber(context.Background())

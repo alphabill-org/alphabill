@@ -16,7 +16,7 @@ type dcMetadata struct {
 
 // dcBillGroup helper struct for grouped dc bills and their aggregate data
 type dcBillGroup struct {
-	dcBills   []*bill
+	dcBills   []*Bill
 	valueSum  uint64
 	dcNonce   []byte
 	dcTimeout uint64

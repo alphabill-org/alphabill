@@ -23,7 +23,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	billId := uint256.NewInt(0)
 	billIdBytes32 := billId.Bytes32()
 	billIdBytes := billIdBytes32[:]
-	b := &bill{
+	b := &Bill{
 		Id:     billId,
 		Value:  500,
 		TxHash: []byte{1, 2, 3, 4},
@@ -52,7 +52,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 func TestCreateTransactions(t *testing.T) {
 	tests := []struct {
 		name        string
-		bills       []*bill
+		bills       []*Bill
 		amount      uint64
 		txCount     int
 		verify      func(t *testing.T, txs []*txsystem.Transaction)
@@ -60,7 +60,7 @@ func TestCreateTransactions(t *testing.T) {
 	}{
 		{
 			name:   "have more bills than target amount",
-			bills:  []*bill{createBill(5), createBill(3), createBill(1)},
+			bills:  []*Bill{createBill(5), createBill(3), createBill(1)},
 			amount: uint64(7),
 			verify: func(t *testing.T, txs []*txsystem.Transaction) {
 				// verify tx count
@@ -80,7 +80,7 @@ func TestCreateTransactions(t *testing.T) {
 			},
 		}, {
 			name:   "have less bills than target amount",
-			bills:  []*bill{createBill(5), createBill(1)},
+			bills:  []*Bill{createBill(5), createBill(1)},
 			amount: uint64(7),
 			verify: func(t *testing.T, txs []*txsystem.Transaction) {
 				require.Empty(t, txs)
@@ -88,7 +88,7 @@ func TestCreateTransactions(t *testing.T) {
 			expectedErr: ErrInsufficientBalance,
 		}, {
 			name:   "have exact amount of bills than target amount",
-			bills:  []*bill{createBill(5), createBill(5)},
+			bills:  []*Bill{createBill(5), createBill(5)},
 			amount: uint64(10),
 			verify: func(t *testing.T, txs []*txsystem.Transaction) {
 				// verify tx count
@@ -104,7 +104,7 @@ func TestCreateTransactions(t *testing.T) {
 			},
 		}, {
 			name:   "have exactly one bill with equal target amount",
-			bills:  []*bill{createBill(5)},
+			bills:  []*Bill{createBill(5)},
 			amount: uint64(5),
 			verify: func(t *testing.T, txs []*txsystem.Transaction) {
 				// verify tx count
@@ -133,8 +133,8 @@ func TestCreateTransactions(t *testing.T) {
 	}
 }
 
-func createBill(value uint64) *bill {
-	return &bill{
+func createBill(value uint64) *Bill {
+	return &Bill{
 		Value:  value,
 		Id:     uint256.NewInt(0),
 		TxHash: []byte{},

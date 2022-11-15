@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
@@ -32,6 +34,8 @@ const (
 	cmdFlagTokenDataUpdate     = "data-update"
 	cmdFlagSync                = "sync"
 )
+
+var NoParent = []byte{0x00}
 
 func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
@@ -76,8 +80,8 @@ func addCommonAccountFlags(cmd *cobra.Command) *cobra.Command {
 func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().String(cmdFlagSymbol, "", "token symbol (mandatory)")
 	_ = cmd.MarkFlagRequired(cmdFlagSymbol)
-	cmd.Flags().String(cmdFlagParentType, "0x0", "unit identifier of a parent type-node in hexadecimal format, must start with 0x (optional)")
-	cmd.Flags().String(cmdFlagCreationInput, "empty", "input to satisfy the parent types minting clause (mandatory with --parent-type)")
+	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type-node in hexadecimal format, must start with 0x (optional)")
+	cmd.Flags().StringSlice(cmdFlagCreationInput, nil, "input to satisfy the parent types minting clause (mandatory with --parent-type; do not add 0x53 opcode)")
 	cmd.Flags().String(cmdFlagSybtypeClause, "true", "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().String(cmdFlagMintClause, "ptpkh", "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
 	cmd.Flags().String(cmdFlagInheritBearerClause, "true", "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
@@ -117,6 +121,30 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
+	parentType, err := getHexFlag(cmd, cmdFlagParentType)
+	if err != nil {
+		return err
+	}
+	var creationInput = script.PredicateArgumentEmpty()
+	if parentType == nil || len(parentType) == 0 {
+		parentType = NoParent
+	} else if !bytes.Equal(parentType, NoParent) {
+		creationInputs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
+		if err != nil {
+			return err
+		}
+		if len(creationInputs) > 0 {
+			for _, input := range creationInputs {
+				decoded, err := decodeHexOrEmpty(input)
+				if err != nil {
+					return err
+				}
+				creationInput = append(creationInput, decoded...)
+			}
+		}
+		log.Info("creationInput: %X", creationInput)
+	}
+
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybtypeClause, tw.GetAccountManager())
 	if err != nil {
 		return err
@@ -124,8 +152,8 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	a := &tokens.CreateFungibleTokenTypeAttributes{
 		Symbol:                            symbol,
 		DecimalPlaces:                     decimals,
-		ParentTypeId:                      nil,
-		SubTypeCreationPredicateSignature: nil,
+		ParentTypeId:                      parentType,
+		SubTypeCreationPredicateSignature: creationInput,
 		SubTypeCreationPredicate:          subTypeCreationPredicate,
 		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
 		InvariantPredicate:                script.PredicateAlwaysTrue(),
@@ -723,6 +751,9 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 		return script.PredicatePayToPublicKeyHashDefault(accountKey.PubKeyHash.Sha256), nil
 
 	}
+	if strings.HasPrefix(clause, "0x") {
+		return decodeHexOrEmpty(clause)
+	}
 	return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
 }
 
@@ -736,4 +767,15 @@ func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
 		return nil, err
 	}
 	return res, err
+}
+
+func decodeHexOrEmpty(input string) ([]byte, error) {
+	if len(input) == 0 || input == "empty" {
+		return []byte{}, nil
+	}
+	decoded, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(input), "0x"))
+	if err != nil {
+		return nil, err
+	}
+	return decoded, nil
 }

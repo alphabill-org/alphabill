@@ -34,6 +34,10 @@ func TestParsePredicateClause(t *testing.T) {
 			predicate: nil,
 		},
 		{
+			clause:    "0x53510087",
+			predicate: []byte{0x53, 0x51, 0x00, 0x87},
+		},
+		{
 			clause:    "true",
 			predicate: script.PredicateAlwaysTrue(),
 		},
@@ -80,6 +84,60 @@ func TestParsePredicateClause(t *testing.T) {
 			}
 			require.Equal(t, tt.predicate, predicate)
 			require.Equal(t, tt.index, mock.recordedIndex)
+		})
+	}
+}
+
+func TestDecodeHexOrEmpty(t *testing.T) {
+	empty := []byte{}
+	tests := []struct {
+		input  string
+		result []byte
+		err    string
+	}{
+		{
+			input:  "",
+			result: empty,
+		},
+		{
+			input:  "empty",
+			result: empty,
+		},
+		{
+			input:  "0x",
+			result: []byte{},
+		},
+		{
+			input: "0x534",
+			err:   "odd length hex string",
+		},
+		{
+			input: "0x53q",
+			err:   "invalid byte",
+		},
+		{
+			input:  "53",
+			result: []byte{0x53},
+		},
+		{
+			input:  "0x5354",
+			result: []byte{0x53, 0x54},
+		},
+		{
+			input:  "5354",
+			result: []byte{0x53, 0x54},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			res, err := decodeHexOrEmpty(tt.input)
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.result, res)
+			}
 		})
 	}
 }

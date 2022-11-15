@@ -81,7 +81,7 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().String(cmdFlagSymbol, "", "token symbol (mandatory)")
 	_ = cmd.MarkFlagRequired(cmdFlagSymbol)
 	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type-node in hexadecimal format, must start with 0x (optional)")
-	cmd.Flags().StringSlice(cmdFlagCreationInput, nil, "input to satisfy the parent types minting clause (mandatory with --parent-type; do not add 0x53 opcode)")
+	cmd.Flags().StringSlice(cmdFlagCreationInput, nil, "input to satisfy the parent types minting clause (mandatory with --parent-type)")
 	cmd.Flags().String(cmdFlagSybtypeClause, "true", "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().String(cmdFlagMintClause, "ptpkh", "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
 	cmd.Flags().String(cmdFlagInheritBearerClause, "true", "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
@@ -125,24 +125,29 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	var creationInput = script.PredicateArgumentEmpty()
+	var creationInputs = make([][]byte, 0)
 	if parentType == nil || len(parentType) == 0 {
 		parentType = NoParent
 	} else if !bytes.Equal(parentType, NoParent) {
-		creationInputs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
+		creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
 		if err != nil {
 			return err
 		}
-		if len(creationInputs) > 0 {
-			for _, input := range creationInputs {
+		if len(creationInputStrs) == 0 {
+			creationInputs = append(creationInputs, script.PredicateArgumentEmpty())
+		} else {
+			for _, input := range creationInputStrs {
 				decoded, err := decodeHexOrEmpty(input)
 				if err != nil {
 					return err
 				}
-				creationInput = append(creationInput, decoded...)
+				log.Info("creationInput: %X", decoded)
+				if len(decoded) == 0 {
+					decoded = script.PredicateArgumentEmpty()
+				}
+				creationInputs = append(creationInputs, decoded)
 			}
 		}
-		log.Info("creationInput: %X", creationInput)
 	}
 
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybtypeClause, tw.GetAccountManager())
@@ -150,13 +155,13 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		return err
 	}
 	a := &tokens.CreateFungibleTokenTypeAttributes{
-		Symbol:                            symbol,
-		DecimalPlaces:                     decimals,
-		ParentTypeId:                      parentType,
-		SubTypeCreationPredicateSignature: creationInput,
-		SubTypeCreationPredicate:          subTypeCreationPredicate,
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
+		Symbol:                             symbol,
+		DecimalPlaces:                      decimals,
+		ParentTypeId:                       parentType,
+		SubTypeCreationPredicateSignatures: creationInputs,
+		SubTypeCreationPredicate:           subTypeCreationPredicate,
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -197,13 +202,13 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		return err
 	}
 	a := &tokens.CreateNonFungibleTokenTypeAttributes{
-		Symbol:                            symbol,
-		ParentTypeId:                      nil,
-		SubTypeCreationPredicateSignature: nil,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
-		DataUpdatePredicate:               script.PredicateAlwaysTrue(),
+		Symbol:                             symbol,
+		ParentTypeId:                       nil,
+		SubTypeCreationPredicateSignatures: nil,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		DataUpdatePredicate:                script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

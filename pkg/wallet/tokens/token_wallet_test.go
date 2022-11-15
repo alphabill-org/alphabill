@@ -22,13 +22,13 @@ func TestNewFungibleType(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	typeId := []byte{1}
 	a := &tokens.CreateFungibleTokenTypeAttributes{
-		Symbol:                            "AB",
-		DecimalPlaces:                     0,
-		ParentTypeId:                      nil,
-		SubTypeCreationPredicateSignature: nil,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
+		Symbol:                             "AB",
+		DecimalPlaces:                      0,
+		ParentTypeId:                       nil,
+		SubTypeCreationPredicateSignatures: nil,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
 	_, err := tw.NewFungibleType(context.Background(), a, typeId)
 	require.NoError(t, err)
@@ -46,12 +46,12 @@ func TestNewNonFungibleType(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	typeId := []byte{2}
 	a := &tokens.CreateNonFungibleTokenTypeAttributes{
-		Symbol:                            "ABNFT",
-		ParentTypeId:                      nil,
-		SubTypeCreationPredicateSignature: nil,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
+		Symbol:                             "ABNFT",
+		ParentTypeId:                       nil,
+		SubTypeCreationPredicateSignatures: nil,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
 	_, err := tw.NewNonFungibleType(context.Background(), a, typeId)
 	require.NoError(t, err)

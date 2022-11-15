@@ -16,12 +16,6 @@ var (
 	ErrInvalidVoteInfoHash = errors.New("invalid vote info hash")
 )
 
-func NewCommitInfo(commitStateHash []byte, voteInfo *VoteInfo, hash gocrypto.Hash) *LedgerCommitInfo {
-	hasher := hash.New()
-	voteInfo.AddToHasher(hasher)
-	return &LedgerCommitInfo{CommitStateId: commitStateHash, VoteInfoHash: hasher.Sum(nil)}
-}
-
 func (x *LedgerCommitInfo) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.CommitStateId)
@@ -42,6 +36,12 @@ func (x *LedgerCommitInfo) IsValid() error {
 	}
 	// CommitStateId can be nil, this is legal
 	return nil
+}
+
+func (x *VoteInfo) Hash(hash gocrypto.Hash) []byte {
+	hasher := hash.New()
+	x.AddToHasher(hasher)
+	return hasher.Sum(nil)
 }
 
 func (x *VoteInfo) AddToHasher(hasher hash.Hash) {

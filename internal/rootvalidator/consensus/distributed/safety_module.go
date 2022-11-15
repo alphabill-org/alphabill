@@ -46,28 +46,50 @@ func (s *SafetyModule) IsSafeToVote(blockRound, qcRound uint64, tc *atomic_broad
 		// 2. must extend a smaller round
 		return false
 	}
-	// Extending qc from previous round or safe to extend due to tc
+	// Either extending from previous round QC or safe to extend due to last round TC
 	if tc != nil {
 		return IsConsecutive(blockRound, qcRound) || isSaveToExtend(blockRound, qcRound, tc)
 	}
 	return IsConsecutive(blockRound, qcRound)
 }
 
-func (s SafetyModule) SignVote(msg *atomic_broadcast.VoteMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
-	qcRound := msg.VoteInfo.ParentRound
-	votingRound := msg.VoteInfo.RootRound
+func (s *SafetyModule) constructLedgerCommitInfo(block *atomic_broadcast.BlockData, voteInfoHash []byte) *atomic_broadcast.LedgerCommitInfo {
+	commitCandidateId := s.isCommitCandidate(block)
+	return &atomic_broadcast.LedgerCommitInfo{CommitStateId: commitCandidateId, VoteInfoHash: voteInfoHash}
+}
+
+func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId []byte, author string, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
+	qcRound := block.Qc.VoteInfo.RootRound
+	votingRound := block.Round
 	if s.IsSafeToVote(votingRound, qcRound, lastRoundTC) == false {
-		return errors.New("Not safe to vote")
+		return nil, errors.New("Not safe to vote")
 	}
 	s.updateHighestQcRound(qcRound)
 	s.increaseHigestVoteRound(votingRound)
-	// Attach commit info and vote
-	msg.LedgerCommitInfo = atomic_broadcast.NewCommitInfo(s.isCommitCandidate(msg.VoteInfo), msg.VoteInfo, gocrypto.SHA256)
-	// signs commit info hash
-	if err := msg.AddSignature(s.signer); err != nil {
-		return err
+	// create vote info
+	voteInfo := &atomic_broadcast.VoteInfo{
+		BlockId:       block.Id,
+		RootRound:     block.Round,
+		Epoch:         block.Epoch,
+		Timestamp:     block.Timestamp,
+		ParentBlockId: block.Qc.VoteInfo.BlockId,
+		ParentRound:   block.Qc.VoteInfo.RootRound,
+		ExecStateId:   execStateId,
 	}
-	return nil
+	// Create ledger commit info, the signed part of vote
+	ledgerCommitInfo := s.constructLedgerCommitInfo(block, voteInfo.Hash(gocrypto.SHA256))
+	voteMsg := &atomic_broadcast.VoteMsg{
+		VoteInfo:         voteInfo,
+		LedgerCommitInfo: ledgerCommitInfo,
+		HighCommitQc:     nil,
+		Author:           author,
+		TimeoutSignature: nil,
+	}
+	// signs commit info hash
+	if err := voteMsg.AddSignature(s.signer); err != nil {
+		return nil, err
+	}
+	return voteMsg, nil
 }
 
 func (s SafetyModule) SignTimeout(timeout *atomic_broadcast.Timeout, lastRoundTC *atomic_broadcast.TimeoutCert) ([]byte, error) {
@@ -108,12 +130,12 @@ func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, tc *atomic_broadca
 	return IsConsecutive(round, qcRound) || IsConsecutive(round, tc.Timeout.Round)
 }
 
-func (s *SafetyModule) isCommitCandidate(info *atomic_broadcast.VoteInfo) []byte {
-	if info == nil {
+func (s *SafetyModule) isCommitCandidate(block *atomic_broadcast.BlockData) []byte {
+	if block.Qc == nil {
 		return nil
 	}
-	if IsConsecutive(info.RootRound, info.ParentRound) {
-		return info.ExecStateId
+	if IsConsecutive(block.Round, block.Qc.VoteInfo.RootRound) {
+		return block.Qc.VoteInfo.ExecStateId
 	}
 	return nil
 }

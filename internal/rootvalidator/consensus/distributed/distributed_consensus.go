@@ -170,7 +170,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	if err != nil {
 		return nil, err
 	}
-	ledger, err := NewStateLedger(conf.stateStore, partitionStore, conf.HashAlgorithm)
+	ledger, err := NewStateLedger(conf.stateStore, conf.HashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +392,16 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		logger.Warning("Invalid IR change request error: %v", err)
 		return
 	}
-
+	// Check changes in currently pending round
+	// todo: NB! if throttling is implemented then this will not work in case we are the new leader and waiting
+	pendingState, err := x.stateLedger.GetRoundState(x.roundState.GetCurrentRound())
+	if err != nil {
+		if pendingState.Changed.contains(sysId) {
+			logger.Warning("Invalid IR change request partition %X: changes requested in consecutive rounds",
+				sysId.Bytes())
+			return
+		}
+	}
 	state, err := x.config.stateStore.Get()
 	if err != nil {
 		logger.Warning("IR change request ignored, failed to read current state: %w", err)
@@ -404,7 +413,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// Buffer and wait for opportunity to make the next proposal
-	x.proposalGen.ValidateAndBufferIRReq(irChange, luc, info)
+	x.proposalGen.ValidateAndBufferIRReq(irChange, luc, &info)
 
 }
 
@@ -415,7 +424,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	if err != nil {
 		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
 	}
-	// Todo: Check state and synchronize
+	// Todo: Check state and recover if required
 	// Was the proposal received? If not, should we recover it? Or should it be included in the vote?
 
 	round := vote.VoteInfo.RootRound
@@ -463,49 +472,55 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 			proposal.Block.Author, proposal.Block.Round)
 		return
 	}
-	// Check state
-	if !bytes.Equal(proposal.Block.Qc.VoteInfo.ExecStateId, x.stateLedger.GetCurrentStateHash()) {
+	// Check previous round state is the same
+	prevRoundState, err := x.stateLedger.GetRoundState(proposal.Block.Qc.VoteInfo.RootRound)
+	if err != nil {
+		logger.Error("Failed to read QC round %v state: %v", proposal.Block.Qc.VoteInfo.RootRound, err)
+		// todo: try to recover
 		logger.Error("Recovery not yet implemented")
+		return
+	}
+	if !bytes.Equal(proposal.Block.Qc.VoteInfo.ExecStateId, prevRoundState.State.LatestRootHash) {
+		logger.Warning("QC round %v state is different, recover state", proposal.Block.Qc.VoteInfo.RootRound)
+		logger.Error("Recovery not yet implemented")
+		// todo: try to recover
+		return
 	}
 	// speculatively execute proposal
-	err = x.stateLedger.ExecuteProposalPayload(x.roundState.GetCurrentRound(), proposal.Block.Payload)
+	err = x.stateLedger.ExecuteProposalPayload(x.roundState.GetCurrentRound(), proposal.Block.Payload, x.partitions)
 	if err != nil {
 		logger.Warning("Failed to execute proposal: %v", err.Error())
 		// cannot send vote, so just return anc wait for local timeout or new proposal (and recover then)
 		return
 	}
-	executionResult := x.stateLedger.ProposedState()
-	if err := executionResult.IsValid(); err != nil {
+	// Get proposed state after execution
+	executedStateId, err := x.stateLedger.GetRoundState(proposal.Block.Round)
+	if err != nil {
+		logger.Warning("Failed to read proposal execution result: %v", err.Error())
+		return
+	}
+	if err := executedStateId.State.IsValid(); err != nil {
 		logger.Warning("Failed to execute proposal: %v", err.Error())
 		return
 	}
-	// send vote
-	vote := &atomic_broadcast.VoteMsg{
-		VoteInfo: &atomic_broadcast.VoteInfo{
-			BlockId:       proposal.Block.Id,
-			RootRound:     proposal.Block.Round,
-			Epoch:         proposal.Block.Epoch,
-			Timestamp:     proposal.Block.Timestamp,
-			ParentBlockId: proposal.Block.Qc.VoteInfo.BlockId,
-			ParentRound:   proposal.Block.Qc.VoteInfo.RootRound,
-			ExecStateId:   x.stateLedger.GetProposedStateHash(),
-		},
-		HighCommitQc:     x.stateLedger.HighCommitQC,
-		Author:           string(x.peer.ID()),
-		TimeoutSignature: nil,
-	}
-	if err := x.safety.SignVote(vote, x.roundState.LastRoundTC()); err != nil {
+	// make vote
+	voteMsg, err := x.safety.MakeVote(proposal.Block, executedStateId.State.LatestRootHash, string(x.peer.ID()), x.roundState.LastRoundTC())
+	if err != nil {
 		logger.Warning("Failed to sign vote, vote not sent: %v", err.Error())
 		return
 	}
-	x.roundState.SetVoted(vote)
+	// Add high commit Qc
+	// Todo: check if this is actually needed for anything
+	voteMsg.HighCommitQc = x.stateLedger.HighCommitQC
+
+	x.roundState.SetVoted(voteMsg)
 	// send vote to the next leader
 	receivers := make([]peer.ID, 1)
 	receivers = append(receivers, x.proposer.GetLeaderForRound(x.roundState.GetCurrentRound()+1))
 	err = x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
-			Message:  vote,
+			Message:  voteMsg,
 		}, receivers)
 	if err != nil {
 		logger.Warning("Failed to send vote message: %v", err)

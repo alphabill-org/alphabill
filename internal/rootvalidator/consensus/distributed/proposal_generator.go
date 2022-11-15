@@ -46,7 +46,7 @@ func compareIR(a, b *certificates.InputRecord) bool {
 	return true
 }
 
-func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChangeReqMsg, luc *certificates.UnicityCertificate, info partition_store.PartitionInfo) error {
+func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChangeReqMsg, luc *certificates.UnicityCertificate, info *partition_store.PartitionInfo) error {
 	systemId := protocol.SystemIdentifier(req.SystemIdentifier)
 
 	irChangeReqs, found := x.irChgReqBuffer[systemId]

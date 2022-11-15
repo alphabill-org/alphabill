@@ -63,13 +63,13 @@ func TestWalletBackendCli(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// verify balance
 		res := &backend.BalanceResponse{}
-		httpRes := doGet(t, fmt.Sprintf("http://%s/balance?pubkey=%s", serverAddr, pubkeyHex), res)
+		httpRes := doGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
 		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify list-bills
 	resListBills := &backend.ListBillsResponse{}
-	httpRes := doGet(t, fmt.Sprintf("http://%s/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
+	httpRes := doGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	require.EqualValues(t, initialBill.Value, resListBills.Bills[0].Value)
@@ -77,7 +77,7 @@ func TestWalletBackendCli(t *testing.T) {
 
 	// verify block-proof
 	resBlockProof := &backend.BlockProofResponse{}
-	httpRes = doGet(t, fmt.Sprintf("http://%s/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	httpRes = doGet(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.NotNil(t, resBlockProof.BlockProof)
 }

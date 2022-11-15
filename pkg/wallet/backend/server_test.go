@@ -50,7 +50,7 @@ func TestListBillsRequest_Ok(t *testing.T) {
 
 	res := &ListBillsResponse{}
 	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Len(t, res.Bills, 1)
@@ -62,7 +62,7 @@ func TestListBillsRequest_NilPubKey(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
 	res := &ErrorResponse{}
-	httpRes := doGet(t, "http://localhost:7777/list-bills", res)
+	httpRes := doGet(t, "http://localhost:7777/api/v1/list-bills", res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "missing required pubkey query parameter", res.Message)
@@ -73,7 +73,7 @@ func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 
 	res := &ErrorResponse{}
 	pk := "0x00"
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
@@ -98,7 +98,7 @@ func TestListBillsRequest_SortedByOrderNumber(t *testing.T) {
 
 	res := &ListBillsResponse{}
 	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, 2, res.Total)
@@ -124,7 +124,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify by default first 100 elements are returned
 	res := &ListBillsResponse{}
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
@@ -133,7 +133,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
-	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=100", pk), res)
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=100", pk), res)
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
@@ -142,7 +142,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify limit limits result size
 	res = &ListBillsResponse{}
-	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=100&limit=50", pk), res)
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=100&limit=50", pk), res)
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 50)
@@ -151,14 +151,14 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
-	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=200", pk), res)
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=200", pk), res)
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 0)
 
 	// verify limit gets capped to 100
 	res = &ListBillsResponse{}
-	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=0&limit=200", pk), res)
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=0&limit=200", pk), res)
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
@@ -167,7 +167,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
-	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s&offset=190&limit=100", pk), res)
+	httpRes = doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=190&limit=100", pk), res)
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 10)
@@ -186,7 +186,7 @@ func TestBalanceRequest_Ok(t *testing.T) {
 
 	res := &BalanceResponse{}
 	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/balance?pubkey=%s", pk), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pk), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.EqualValues(t, 1, res.Balance)
@@ -196,7 +196,7 @@ func TestBalanceRequest_NilPubKey(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
 	res := &ErrorResponse{}
-	httpRes := doGet(t, "http://localhost:7777/balance", res)
+	httpRes := doGet(t, "http://localhost:7777/api/v1/balance", res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "missing required pubkey query parameter", res.Message)
@@ -207,7 +207,7 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 
 	res := &ErrorResponse{}
 	pk := "0x00"
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/balance?pubkey=%s", pk), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pk), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
@@ -230,7 +230,7 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 
 	res := &BlockProofResponse{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/block-proof?bill_id=%s", billId), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000001", res.BillId)
@@ -242,7 +242,7 @@ func TestBlockProofRequest_MissingBillId(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
 	res := &ErrorResponse{}
-	httpRes := doGet(t, "http://localhost:7777/block-proof", res)
+	httpRes := doGet(t, "http://localhost:7777/api/v1/block-proof", res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "missing required bill_id query parameter", res.Message)
@@ -253,19 +253,19 @@ func TestBlockProofRequest_InvalidBillIdLength(t *testing.T) {
 
 	// verify bill id larger than 32 bytes returns error
 	res := &ErrorResponse{}
-	httpRes := doGet(t, "http://localhost:7777/block-proof?bill_id=0x000000000000000000000000000000000000000000000000000000000000000001", res)
+	httpRes := doGet(t, "http://localhost:7777/api/v1/block-proof?bill_id=0x000000000000000000000000000000000000000000000000000000000000000001", res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &ErrorResponse{}
-	httpRes = doGet(t, "http://localhost:7777/block-proof?bill_id=0x01", res)
+	httpRes = doGet(t, "http://localhost:7777/api/v1/block-proof?bill_id=0x01", res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &ErrorResponse{}
-	httpRes = doGet(t, "http://localhost:7777/block-proof?bill_id=0000000000000000000000000000000000000000000000000000000000000001", res)
+	httpRes = doGet(t, "http://localhost:7777/api/v1/block-proof?bill_id=0000000000000000000000000000000000000000000000000000000000000001", res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 }
@@ -275,7 +275,7 @@ func TestBlockProofRequest_ProofDoesNotExist(t *testing.T) {
 
 	res := &ErrorResponse{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/block-proof?bill_id=%s", billId), res)
+	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "block proof does not exist for given bill id", res.Message)
@@ -287,7 +287,7 @@ func TestAddKeyRequest_Ok(t *testing.T) {
 
 	req := &AddKeyRequest{Pubkey: "0x000000000000000000000000000000000000000000000000000000000000000000"}
 	res := &AddKeyResponse{}
-	httpRes := doPost(t, "http://localhost:7777/admin/add-key", req, res)
+	httpRes := doPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Len(t, mockService.trackedKeys, 1)
@@ -304,7 +304,7 @@ func TestAddKeyRequest_KeyAlreadyExists(t *testing.T) {
 
 	req := &AddKeyRequest{Pubkey: pubkey}
 	res := &ErrorResponse{}
-	httpRes := doPost(t, "http://localhost:7777/admin/add-key", req, res)
+	httpRes := doPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, res.Message, "pubkey already exists")
 }
@@ -315,9 +315,23 @@ func TestAddKeyRequest_InvalidKey(t *testing.T) {
 
 	req := &AddKeyRequest{Pubkey: "0x00"}
 	res := &ErrorResponse{}
-	httpRes := doPost(t, "http://localhost:7777/admin/add-key", req, res)
+	httpRes := doPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, res.Message, "pubkey hex string must be 68 characters long (with 0x prefix)")
+}
+
+func TestInvalidUrl_NotFound(t *testing.T) {
+	startServer(t, &mockWalletService{})
+
+	// verify request to to non-existent /api2 endpoint returns 404
+	httpRes, err := http.Get("http://localhost:7777/api2/v1/list-bills")
+	require.NoError(t, err)
+	require.Equal(t, 404, httpRes.StatusCode)
+
+	// verify request to to non-existent version endpoint returns 404
+	httpRes, err = http.Get("http://localhost:7777/api/v5/list-bills")
+	require.NoError(t, err)
+	require.Equal(t, 404, httpRes.StatusCode)
 }
 
 func doGet(t *testing.T, url string, response interface{}) *http.Response {

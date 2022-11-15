@@ -3,12 +3,18 @@ package distributed
 import (
 	"bytes"
 	"crypto"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
+	QuorumInfo interface {
+		GetQuorumThreshold() uint32
+	}
+
 	ConsensusWithSignatures struct {
 		voteInfo   *atomic_broadcast.VoteInfo
 		commitInfo *atomic_broadcast.LedgerCommitInfo
@@ -26,6 +32,8 @@ type (
 	}
 )
 
+var ErrVoteIsNil = errors.New("vote is nil")
+
 func NewVoteRegister() *VoteRegister {
 	return &VoteRegister{
 		HashToSignatures: make(map[string]*ConsensusWithSignatures),
@@ -34,27 +42,27 @@ func NewVoteRegister() *VoteRegister {
 	}
 }
 
-func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
+func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, quorumInfo QuorumInfo) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert, error) {
+	if vote == nil {
+		return nil, nil, ErrVoteIsNil
+	}
+
 	// Get hash of consensus structure
 	commitInfoHash := vote.LedgerCommitInfo.Hash(crypto.SHA256)
 
 	// has the author already voted in this round?
 	prevVote, voted := v.AuthorToVote[peer.ID(vote.Author)]
 	if voted {
+		prevVoteHash := prevVote.LedgerCommitInfo.Hash(crypto.SHA256)
 		// Check if vote has changed
-		if !bytes.Equal(commitInfoHash, prevVote.LedgerCommitInfo.Hash(crypto.SHA256)) {
+		if !bytes.Equal(commitInfoHash, prevVoteHash) {
 			// new equivocating vote, this is a security event
-			logger.Warning("Received equivocating vote from %v, round %v",
-				vote.Author, vote.VoteInfo.RootRound)
-			// Todo: Add return error, how do we register this event
-			return nil, nil
+			return nil, nil, fmt.Errorf("equivocating vote, previous %X, new %X", prevVoteHash, commitInfoHash)
 		}
 		// Is new vote for timeout
 		newTimeoutVote := vote.IsTimeout() && !prevVote.IsTimeout()
 		if !newTimeoutVote {
-			logger.Warning("Received duplicate vote from %v, round %v",
-				vote.Author, vote.VoteInfo.RootRound)
-			return nil, nil
+			return nil, nil, fmt.Errorf("duplicate vote")
 		}
 		// Author voted timeout, proceed
 		logger.Info("Received timout vote from %v, round %v",
@@ -75,9 +83,9 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 	quorum := v.HashToSignatures[string(commitInfoHash)]
 	quorum.signatures[vote.Author] = vote.Signature
 	// Check QC
-	if verifier.GetQuorumThreshold() >= uint32(len(quorum.signatures)) {
+	if uint32(len(quorum.signatures)) >= quorumInfo.GetQuorumThreshold() {
 		qc := atomic_broadcast.NewQuorumCertificate(quorum.voteInfo, quorum.commitInfo, quorum.signatures)
-		return qc, nil
+		return qc, nil, nil
 	}
 	// Check TC
 	if vote.IsTimeout() {
@@ -88,12 +96,12 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 		// append signature
 		v.TimeoutCert.AddSignature(vote.Author, vote.TimeoutSignature)
 		// Check if TC can be formed
-		if verifier.GetQuorumThreshold() >= uint32(len(v.TimeoutCert.GetSignatures())) {
-			return nil, v.TimeoutCert
+		if uint32(len(v.TimeoutCert.GetSignatures())) >= quorumInfo.GetQuorumThreshold() {
+			return nil, v.TimeoutCert, nil
 		}
 	}
 	// Vote registered, no QC or TC could be formed
-	return nil, nil
+	return nil, nil, nil
 }
 
 func (v *VoteRegister) Reset() {

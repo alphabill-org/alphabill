@@ -97,7 +97,12 @@ func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 			x.currentRound, vote.VoteInfo.RootRound)
 		return nil, nil
 	}
-	return x.pendingVotes.InsertVote(vote, verifier)
+	qc, tc, err := x.pendingVotes.InsertVote(vote, verifier)
+	if err != nil {
+		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
+		return nil, nil
+	}
+	return qc, tc
 }
 
 func (x *RoundState) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {

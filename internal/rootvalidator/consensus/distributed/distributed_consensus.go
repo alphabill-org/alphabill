@@ -510,7 +510,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		return
 	}
 	// Add high commit Qc
-	// Todo: check if this is actually needed for anything
+	// Todo: check if this is actually needed for anything?
 	voteMsg.HighCommitQc = x.stateLedger.HighCommitQC
 
 	x.roundState.SetVoted(voteMsg)

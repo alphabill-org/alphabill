@@ -57,7 +57,7 @@ func min(x, y uint64) uint64 {
 func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) time.Duration {
 	exp := min(uint64(x.maxExponent), roundsAfterLastCommit)
 	mul := math.Pow(x.exponentBase, float64(exp))
-	return x.baseMs * time.Duration(math.Ceil(mul))
+	return time.Duration(float64(x.baseMs) * mul)
 }
 
 // NewRoundState Needs to be constructed from last QC!
@@ -90,14 +90,14 @@ func (x *RoundState) GetRoundTimeout() time.Duration {
 	return x.roundTimeout.Sub(time.Now())
 }
 
-func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *RootNodeVerifier) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
+func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumInfo) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.RootRound != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
 			x.currentRound, vote.VoteInfo.RootRound)
 		return nil, nil
 	}
-	qc, tc, err := x.pendingVotes.InsertVote(vote, verifier)
+	qc, tc, err := x.pendingVotes.InsertVote(vote, quorum)
 	if err != nil {
 		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
 		return nil, nil
@@ -106,6 +106,9 @@ func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, verifier *Root
 }
 
 func (x *RoundState) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
+	if qc == nil {
+		return false
+	}
 	if qc.VoteInfo.RootRound < x.currentRound {
 		return false
 	}
@@ -130,5 +133,5 @@ func (x *RoundState) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
 
 func (x *RoundState) startNewRound(round uint64) {
 	x.currentRound = round
-	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.highCommittedRound))
+	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.highCommittedRound - 1))
 }

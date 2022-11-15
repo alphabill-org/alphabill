@@ -67,6 +67,25 @@ func NewDummyTimeoutVote(hqc *atomic_broadcast.QuorumCert, vote *atomic_broadcas
 	return vote
 }
 
+func NewDummyTc(round uint64, qc *atomic_broadcast.QuorumCert) *atomic_broadcast.TimeoutCert {
+	timeout := &atomic_broadcast.Timeout{
+		Epoch: 0,
+		Round: round,
+		Hqc:   qc,
+	}
+	// will not actually sign it, but just create a dummy sig
+	dummySig := []byte{0, 1, 2, 3}
+	sigs := map[string]*atomic_broadcast.TimeoutVote{
+		"node1": {HqcRound: 2, Signature: dummySig},
+		"node2": {HqcRound: 2, Signature: dummySig},
+		"node3": {HqcRound: 2, Signature: dummySig},
+	}
+	return &atomic_broadcast.TimeoutCert{
+		Timeout:    timeout,
+		Signatures: sigs,
+	}
+}
+
 func TestNewVoteRegister(t *testing.T) {
 	voteRegister := NewVoteRegister()
 	require.Empty(t, voteRegister.HashToSignatures)

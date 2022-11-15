@@ -379,13 +379,13 @@ func createFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *txsy
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&CreateFungibleTokenTypeAttributes{
-			Symbol:                            symbol,
-			ParentTypeId:                      parentTypeId,
-			DecimalPlaces:                     fungibleTokenDecimalPlaces,
-			SubTypeCreationPredicate:          subTypeCreationPredicate,
-			TokenCreationPredicate:            tokenCreationPredicate,
-			InvariantPredicate:                invariantPredicate,
-			SubTypeCreationPredicateSignature: subTypeCreationPredicateSignature,
+			Symbol:                             symbol,
+			ParentTypeId:                       parentTypeId,
+			DecimalPlaces:                      fungibleTokenDecimalPlaces,
+			SubTypeCreationPredicate:           subTypeCreationPredicate,
+			TokenCreationPredicate:             tokenCreationPredicate,
+			InvariantPredicate:                 invariantPredicate,
+			SubTypeCreationPredicateSignatures: [][]byte{subTypeCreationPredicateSignature},
 		}),
 	)
 }
@@ -460,13 +460,13 @@ func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *t
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
-			Symbol:                            symbol,
-			ParentTypeId:                      parentTypeId,
-			SubTypeCreationPredicate:          subTypeCreationPredicate,
-			TokenCreationPredicate:            tokenCreationPredicate,
-			InvariantPredicate:                invariantPredicate,
-			DataUpdatePredicate:               dataUpdatePredicate,
-			SubTypeCreationPredicateSignature: subTypeCreationPredicateSignature,
+			Symbol:                             symbol,
+			ParentTypeId:                       parentTypeId,
+			SubTypeCreationPredicate:           subTypeCreationPredicate,
+			TokenCreationPredicate:             tokenCreationPredicate,
+			InvariantPredicate:                 invariantPredicate,
+			DataUpdatePredicate:                dataUpdatePredicate,
+			SubTypeCreationPredicateSignatures: [][]byte{subTypeCreationPredicateSignature},
 		}),
 	)
 }

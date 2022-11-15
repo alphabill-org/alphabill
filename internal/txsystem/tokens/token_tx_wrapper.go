@@ -39,6 +39,8 @@ const (
 	typeURLJoinFungibleTokenAttributes          = protobufTypeUrlPrefix + TypeJoinFungibleTokenAttributes
 )
 
+type Predicate []byte
+
 // TransactionTypes contains all transaction types supported by the user token partition.
 var TransactionTypes = map[string]proto.Message{
 	TypeCreateNonFungibleTokenTypeAttributes: &CreateNonFungibleTokenTypeAttributes{},
@@ -310,7 +312,9 @@ func (c *createNonFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.TokenCreationPredicate())
 	hasher.Write(c.InvariantPredicate())
 	hasher.Write(c.DataUpdatePredicate())
-	hasher.Write(c.SubTypeCreationPredicateSignature())
+	for _, bytes := range c.SubTypeCreationPredicateSignatures() {
+		hasher.Write(bytes)
+	}
 }
 
 func (c *createNonFungibleTokenTypeWrapper) Symbol() string {
@@ -333,8 +337,8 @@ func (c *createNonFungibleTokenTypeWrapper) DataUpdatePredicate() []byte {
 	return c.attributes.DataUpdatePredicate
 }
 
-func (c *createNonFungibleTokenTypeWrapper) SubTypeCreationPredicateSignature() []byte {
-	return c.attributes.SubTypeCreationPredicateSignature
+func (c *createNonFungibleTokenTypeWrapper) SubTypeCreationPredicateSignatures() [][]byte {
+	return c.attributes.SubTypeCreationPredicateSignatures
 }
 
 func (c *createNonFungibleTokenTypeWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
@@ -533,7 +537,9 @@ func (c *createFungibleTokenTypeWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(c.SubTypeCreationPredicate())
 	hasher.Write(c.TokenCreationPredicate())
 	hasher.Write(c.InvariantPredicate())
-	hasher.Write(c.SubTypeCreationPredicateSignature())
+	for _, bytes := range c.SubTypeCreationPredicateSignatures() {
+		hasher.Write(bytes)
+	}
 }
 
 func (c *createFungibleTokenTypeWrapper) ParentTypeId() []byte {
@@ -560,8 +566,8 @@ func (c *createFungibleTokenTypeWrapper) InvariantPredicate() []byte {
 	return c.attributes.InvariantPredicate
 }
 
-func (c *createFungibleTokenTypeWrapper) SubTypeCreationPredicateSignature() []byte {
-	return c.attributes.SubTypeCreationPredicateSignature
+func (c *createFungibleTokenTypeWrapper) SubTypeCreationPredicateSignatures() [][]byte {
+	return c.attributes.SubTypeCreationPredicateSignatures
 }
 
 func (c *createFungibleTokenTypeWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {

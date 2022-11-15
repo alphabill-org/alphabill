@@ -149,13 +149,13 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	parentID := uint256.NewInt(validUnitID)
 	childID := uint256.NewInt(20)
 	childAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                            validSymbolName + "_CHILD",
-		ParentTypeId:                      util.Uint256ToBytes(parentID),
-		DecimalPlaces:                     6,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
-		SubTypeCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Symbol:                             validSymbolName + "_CHILD",
+		ParentTypeId:                       util.Uint256ToBytes(parentID),
+		DecimalPlaces:                      6,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		SubTypeCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 
 	err := executor.Execute(createTx(t, parentID, parentAttributes), 10)
@@ -198,13 +198,13 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 	parentIDBytes := parentID.Bytes32()
 	childID := uint256.NewInt(20)
 	childAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                            validSymbolName + "_CHILD",
-		ParentTypeId:                      parentIDBytes[:],
-		DecimalPlaces:                     6,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
-		SubTypeCreationPredicateSignature: []byte("invalid"),
+		Symbol:                             validSymbolName + "_CHILD",
+		ParentTypeId:                       parentIDBytes[:],
+		DecimalPlaces:                      6,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		SubTypeCreationPredicateSignatures: [][]byte{[]byte("invalid")},
 	}
 
 	err := executor.Execute(createTx(t, parentID, parentAttributes), 10)

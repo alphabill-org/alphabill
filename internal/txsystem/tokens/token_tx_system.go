@@ -62,7 +62,7 @@ type (
 		TokenCreationPredicate() []byte
 		InvariantPredicate() []byte
 		DataUpdatePredicate() []byte
-		SubTypeCreationPredicateSignature() []byte
+		SubTypeCreationPredicateSignatures() [][]byte
 	}
 
 	MintNonFungibleToken interface {
@@ -99,7 +99,7 @@ type (
 		SubTypeCreationPredicate() []byte
 		TokenCreationPredicate() []byte
 		InvariantPredicate() []byte
-		SubTypeCreationPredicateSignature() []byte
+		SubTypeCreationPredicateSignatures() [][]byte
 	}
 
 	MintFungibleToken interface {

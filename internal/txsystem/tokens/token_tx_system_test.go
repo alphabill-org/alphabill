@@ -120,10 +120,10 @@ func TestExecuteCreateNFTType_WithParentID(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
-				Symbol:                            symbol,
-				ParentTypeId:                      util.Uint256ToBytes(parent1Identifier),
-				SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-				SubTypeCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Symbol:                             symbol,
+				ParentTypeId:                       util.Uint256ToBytes(parent1Identifier),
+				SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+				SubTypeCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)
@@ -140,7 +140,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 
 	// parent2 and child together can create a sub-type because SubTypeCreationPredicate are concatenated (ownerProof must contain both signatures)
 	parent2SubTypeCreationPredicate := script.PredicatePayToPublicKeyHashDefault(hasher.Sum256(childPublicKey))
-	parent2SubTypeCreationPredicate[0] = script.OpVerify // verify parent1SubTypeCreationPredicate signature verification result (replace script.StartByte byte with OpVerify)
+	parent2SubTypeCreationPredicate[0] = script.StartByte // verify parent1SubTypeCreationPredicate signature verification result
 
 	txs := newTokenTxSystem(t)
 
@@ -178,10 +178,10 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
-				Symbol:                            symbol,
-				ParentTypeId:                      util.Uint256ToBytes(parent1Identifier),
-				SubTypeCreationPredicate:          parent2SubTypeCreationPredicate,
-				SubTypeCreationPredicateSignature: p2pkhPredicate,
+				Symbol:                             symbol,
+				ParentTypeId:                       util.Uint256ToBytes(parent1Identifier),
+				SubTypeCreationPredicate:           parent2SubTypeCreationPredicate,
+				SubTypeCreationPredicateSignatures: [][]byte{p2pkhPredicate},
 			},
 		),
 	)
@@ -214,10 +214,10 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	require.NoError(t, err)
 
 	// child owner proof must satisfy parent1 & parent2 SubTypeCreationPredicates
-	unsignedChildTxAttributes.SubTypeCreationPredicateSignature = append(
-		script.PredicateArgumentPayToPublicKeyHashDefault(signature, childPublicKey),        // parent2 p2pkhPredicate argument (with script.StartByte byte)
-		script.PredicateArgumentPayToPublicKeyHashDefault(signature2, parent2PubKey)[1:]..., // parent1 p2pkhPredicate argument (without script.StartByte byte)
-	)
+	unsignedChildTxAttributes.SubTypeCreationPredicateSignatures = [][]byte{
+		script.PredicateArgumentPayToPublicKeyHashDefault(signature, childPublicKey), // parent2 p2pkhPredicate argument
+		script.PredicateArgumentPayToPublicKeyHashDefault(signature2, parent2PubKey), // parent1 p2pkhPredicate argument
+	}
 	createChildTx = testtransaction.NewTransaction(
 		t,
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),

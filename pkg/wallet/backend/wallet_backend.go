@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
@@ -20,8 +21,10 @@ type (
 	}
 
 	Bill struct {
-		Id    *uint256.Int `json:"id"`
-		Value uint64       `json:"value"`
+		Id     *uint256.Int         `json:"id"`
+		Value  uint64               `json:"value"`
+		TxHash []byte               `json:"txHash"`
+		Tx     txsystem.Transaction `json:"tx"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
 		OrderNumber uint64 `json:"orderNumber"`
 	}

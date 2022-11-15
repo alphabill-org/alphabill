@@ -93,7 +93,7 @@ func TestWalletBillsImportCmd(t *testing.T) {
 
 	// test invalid block proof cannot be imported
 	billsFile, _ := util.ReadJsonFile(billsFilePath, &BillsDTO{})
-	billsFile.Bills[0].Proof.BlockHeaderHash = make([]byte, 32)
+	billsFile.Bills[0].BlockProof.Proof.BlockHeaderHash = make([]byte, 32)
 	invalidBillsFilePath := path.Join(homedir, "invalid-bills.json")
 	_ = util.WriteJsonFile(invalidBillsFilePath, billsFile)
 

@@ -299,12 +299,10 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
 	for _, b := range bills {
-		proof := b.BlockProof
-		tx, _ := txConverter.ConvertTx(b.Tx)
-		err = proof.Verify(tx, verifiers, crypto.SHA256)
+		err = b.BlockProof.Verify(verifiers, crypto.SHA256)
 		require.NoError(t, err)
-		require.Equal(t, block.ProofType_PRIM, proof.ProofType)
-		require.Nil(t, proof.Verify(tx, verifiers, crypto.SHA256))
+		require.Equal(t, block.ProofType_PRIM, b.BlockProof.Proof.ProofType)
+		require.Nil(t, b.BlockProof.Verify(verifiers, crypto.SHA256))
 	}
 }
 
@@ -377,25 +375,34 @@ func TestWalletAddBill(t *testing.T) {
 	require.ErrorContains(t, err, "bill is nil")
 
 	// verify bill id is nil
-	err = w.AddBill(0, &Bill{Id: nil, Tx: nil})
+	err = w.AddBill(0, &Bill{Id: nil})
 	require.ErrorContains(t, err, "bill id is nil")
 
 	// verify bill tx is nil
-	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), Tx: nil})
-	require.ErrorContains(t, err, "bill tx is nil")
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0)})
+	require.ErrorContains(t, err, "bill tx hash is nil")
+
+	// verify bill block proof is nil
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), TxHash: []byte{}})
+	require.ErrorContains(t, err, "bill block proof is nil")
+
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), TxHash: []byte{}, BlockProof: &BlockProof{}})
+	require.ErrorContains(t, err, "bill block proof tx is nil")
 
 	// verify invalid bearer predicate
 	invalidPubkey := []byte{0}
 	err = w.AddBill(0, &Bill{
-		Id: uint256.NewInt(0),
-		Tx: createTransferTxForPubKey(invalidPubkey),
+		Id:         uint256.NewInt(0),
+		TxHash:     []byte{},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(invalidPubkey)},
 	})
 	require.ErrorContains(t, err, "invalid bearer predicate")
 
 	// verify valid bill no error
 	err = w.AddBill(0, &Bill{
-		Id: uint256.NewInt(0),
-		Tx: createTransferTxForPubKey(pubkey),
+		Id:         uint256.NewInt(0),
+		TxHash:     []byte{},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(pubkey)},
 	})
 	require.NoError(t, err)
 }

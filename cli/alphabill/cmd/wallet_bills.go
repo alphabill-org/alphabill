@@ -6,12 +6,9 @@ import (
 	"os"
 	"path"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -39,11 +36,10 @@ type (
 	}
 	// BillDTO individual bill struct in import/export schema. All fields mandatory.
 	BillDTO struct {
-		Id     []byte                `json:"id"`
-		Value  uint64                `json:"value"`
-		TxHash []byte                `json:"txHash"`
-		Tx     *txsystem.Transaction `json:"tx"`
-		Proof  *block.BlockProof     `json:"proof"`
+		Id         []byte            `json:"id"`
+		Value      uint64            `json:"value"`
+		TxHash     []byte            `json:"txHash"`
+		BlockProof *money.BlockProof `json:"blockProof"`
 	}
 	// TrustBase json schema for trust base file.
 	TrustBase struct {
@@ -309,11 +305,10 @@ func filterDcBills(bills []*money.Bill) []*money.Bill {
 func newBillDTO(b *money.Bill) *BillDTO {
 	b32 := b.Id.Bytes32()
 	return &BillDTO{
-		Id:     b32[:],
-		Value:  b.Value,
-		TxHash: b.TxHash,
-		Tx:     b.Tx,
-		Proof:  b.BlockProof,
+		Id:         b32[:],
+		Value:      b.Value,
+		TxHash:     b.TxHash,
+		BlockProof: b.BlockProof,
 	}
 }
 
@@ -330,20 +325,15 @@ func newBill(b *BillDTO) *money.Bill {
 		Id:         uint256.NewInt(0).SetBytes(b.Id),
 		Value:      b.Value,
 		TxHash:     b.TxHash,
-		Tx:         b.Tx,
-		BlockProof: b.Proof,
+		BlockProof: b.BlockProof,
 	}
 }
 
 func (b *BillDTO) verifyProof(verifiers map[string]abcrypto.Verifier) error {
-	if b.Proof == nil {
+	if b.BlockProof == nil {
 		return errors.New("proof is nil")
 	}
-	tx, err := moneytx.NewMoneyTx(moneySystemIdentifier, b.Tx)
-	if err != nil {
-		return err
-	}
-	return b.Proof.Verify(tx, verifiers, crypto.SHA256)
+	return b.BlockProof.Verify(verifiers, crypto.SHA256)
 }
 
 func (t *TrustBase) verify() error {

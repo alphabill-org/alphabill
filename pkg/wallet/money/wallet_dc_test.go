@@ -5,14 +5,13 @@ import (
 	"crypto"
 	"testing"
 
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -237,9 +236,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.db.Do().GetAccountKey(0)
 
 	dcBills := []*Bill{
-		{Id: uint256.NewInt(2), Tx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(1), Tx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(0), Tx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(2), BlockProof: &BlockProof{Tx: testtransaction.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(1), BlockProof: &BlockProof{Tx: testtransaction.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(0), BlockProof: &BlockProof{Tx: testtransaction.CreateRandomDcTx()}},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
@@ -400,9 +399,9 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 
 	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
 	require.NoError(t, err)
+	b.BlockProof = &BlockProof{Tx: tx}
 
 	b.IsDcBill = true
-	b.Tx = tx
 	b.DcNonce = nonceB32[:]
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout

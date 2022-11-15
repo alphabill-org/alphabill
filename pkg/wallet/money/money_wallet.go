@@ -240,7 +240,7 @@ func (w *Wallet) GetBills(accountIndex uint64) ([]*Bill, error) {
 
 // AddBill adds bill to wallet.
 // Given bill must have a valid transaction with P2PKH predicate for given account.
-// Block proof is not verified, and not required.
+// Block proof is not verified, but transaction is required.
 // Overwrites existing bill with the same ID, if one exists.
 func (w *Wallet) AddBill(accountIndex uint64, bill *Bill) error {
 	if bill == nil {
@@ -249,14 +249,20 @@ func (w *Wallet) AddBill(accountIndex uint64, bill *Bill) error {
 	if bill.Id == nil {
 		return errors.New("bill id is nil")
 	}
-	if bill.Tx == nil {
-		return errors.New("bill tx is nil")
+	if bill.TxHash == nil {
+		return errors.New("bill tx hash is nil")
+	}
+	if bill.BlockProof == nil {
+		return errors.New("bill block proof is nil")
+	}
+	if bill.BlockProof.Tx == nil {
+		return errors.New("bill block proof tx is nil")
 	}
 	key, err := w.db.Do().GetAccountKey(accountIndex)
 	if err != nil {
 		return err
 	}
-	err = verifyTxP2PKHOwner(bill.Tx, key.PubKeyHash)
+	err = verifyTxP2PKHOwner(bill.BlockProof.Tx, key.PubKeyHash)
 	if err != nil {
 		return err
 	}
@@ -444,10 +450,9 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.Transfer:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
-			err := w.saveWithProof(dbTx, b, &Bill{
+			err := w.saveWithProof(dbTx, b, txPb, &Bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
-				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -462,10 +467,9 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.TransferDC:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received TransferDC order")
-			err := w.saveWithProof(dbTx, b, &Bill{
+			err := w.saveWithProof(dbTx, b, txPb, &Bill{
 				Id:                  tx.UnitID(),
 				Value:               tx.TargetValue(),
-				Tx:                  txPb,
 				TxHash:              tx.Hash(crypto.SHA256),
 				IsDcBill:            true,
 				DcTimeout:           tx.Timeout(),
@@ -492,10 +496,9 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if containsBill {
 			log.Info("received split order (existing bill)")
-			err := w.saveWithProof(dbTx, b, &Bill{
+			err := w.saveWithProof(dbTx, b, txPb, &Bill{
 				Id:     tx.UnitID(),
 				Value:  tx.RemainingValue(),
-				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -504,10 +507,9 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
-			err := w.saveWithProof(dbTx, b, &Bill{
+			err := w.saveWithProof(dbTx, b, txPb, &Bill{
 				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
-				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -517,10 +519,9 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	case money.Swap:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.OwnerCondition()) {
 			log.Info("received swap order")
-			err := w.saveWithProof(dbTx, b, &Bill{
+			err := w.saveWithProof(dbTx, b, txPb, &Bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
-				Tx:     txPb,
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
 			if err != nil {
@@ -550,17 +551,12 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	return nil
 }
 
-func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, bi *Bill, accountIndex uint64) error {
-	genericBlock, err := b.ToGenericBlock(txConverter)
+func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txPb *txsystem.Transaction, bill *Bill, accountIndex uint64) error {
+	err := bill.addProof(b, txPb)
 	if err != nil {
 		return err
 	}
-	blockProof, err := block.NewPrimaryProof(genericBlock, bi.Id, crypto.SHA256)
-	if err != nil {
-		return err
-	}
-	bi.BlockProof = blockProof
-	return dbTx.SetBill(accountIndex, bi)
+	return dbTx.SetBill(accountIndex, bill)
 }
 
 func (w *Wallet) deleteExpiredDcBills(dbTx TxContext, blockNumber uint64, accountIndex uint64) error {

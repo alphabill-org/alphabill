@@ -127,8 +127,8 @@ func createSwapTx(k *wallet.AccountKey, dcBills []*Bill, dcNonce []byte, billIds
 	var dustTransferOrders []*txsystem.Transaction
 	var billValueSum uint64
 	for _, b := range dcBills {
-		dustTransferOrders = append(dustTransferOrders, b.Tx)
-		dustTransferProofs = append(dustTransferProofs, b.BlockProof)
+		dustTransferOrders = append(dustTransferOrders, b.BlockProof.Tx)
+		dustTransferProofs = append(dustTransferProofs, b.BlockProof.Proof)
 		billValueSum += b.Value
 	}
 

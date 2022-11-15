@@ -46,7 +46,11 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	if err != nil {
 		return nil, err
 	}
-	blockProof, err := block.NewPrimaryProof(genericBlock, gtx.UnitID(), crypto.SHA256)
+	proof, err := block.NewPrimaryProof(genericBlock, gtx.UnitID(), crypto.SHA256)
+	if err != nil {
+		return nil, err
+	}
+	blockProof, err := NewBlockProof(txPb, proof)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +60,6 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 			Id:         tx.UnitID(),
 			Value:      tx.TargetValue(),
 			TxHash:     tx.Hash(crypto.SHA256),
-			Tx:         txPb,
 			BlockProof: blockProof,
 		}, nil
 	case money.Split:
@@ -64,7 +67,6 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 			Id:         utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 			Value:      tx.Amount(),
 			TxHash:     tx.Hash(crypto.SHA256),
-			Tx:         txPb,
 			BlockProof: blockProof,
 		}, nil
 	case money.TransferDC:

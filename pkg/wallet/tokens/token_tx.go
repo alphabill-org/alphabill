@@ -161,7 +161,7 @@ func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accN
 				Id:       id,
 				Kind:     NonFungibleToken,
 				TypeId:   tType.Id,
-				Uri:      ctx.URI(),
+				URI:      ctx.URI(),
 				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
 				Symbol:   tType.Symbol,
 			})
@@ -391,7 +391,7 @@ func (w *TokensWallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *w
 		if err != nil {
 			return submissions, maxTimeout, err
 		}
-		submissions[sub.id.string()] = sub
+		submissions[sub.id.String()] = sub
 		accumulatedSum += t.Amount
 		if accumulatedSum >= amount {
 			break

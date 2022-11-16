@@ -366,7 +366,7 @@ func TestList(t *testing.T) {
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
 		require.NoError(t, c.SetToken(0, &TokenUnit{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
 		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{13}, Kind: NonFungibleToken, Symbol: "AB", Uri: "alphabill.org"}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{13}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
 		require.NoError(t, c.SetToken(2, &TokenUnit{Id: []byte{14}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
 		return nil
 	}))

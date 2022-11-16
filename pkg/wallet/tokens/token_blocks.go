@@ -27,21 +27,20 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 		blockNumber := b.BlockNumber
 		lastBlockNumber, err := txc.GetBlockNumber()
 		if err != nil {
-			return nil
+			return err
 		}
 		if blockNumber != lastBlockNumber+1 {
-			return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
+			return errors.New(fmt.Sprintf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
 		}
 
 		if len(b.Transactions) != 0 {
-			log.Info("processing non-empty block: ", b.BlockNumber)
+			log.Info("Processing non-empty block: ", b.BlockNumber)
 
 			// lists tokens for all keys and with 'always true' predicate
 			accounts, err := w.mw.GetAccountKeys()
 			if err != nil {
 				return err
 			}
-			log.Info(fmt.Sprintf("pub keys: %v", len(accounts)))
 			for _, tx := range b.Transactions {
 				for n := 0; n <= len(accounts); n++ {
 					var keyHashes *wallet.KeyHashes
@@ -85,7 +84,7 @@ func (w *TokensWallet) Sync(ctx context.Context) error {
 
 func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint64) error {
 	submissions := make(map[string]*submittedTx, 1)
-	submissions[id.string()] = &submittedTx{id, timeout}
+	submissions[id.String()] = &submittedTx{id, timeout}
 	return w.syncToUnits(ctx, submissions, timeout)
 }
 
@@ -96,7 +95,7 @@ func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submitt
 	}
 	ctx, cancel := context.WithCancel(ctx)
 
-	log.Info(fmt.Sprintf("Waiting the transactions to be finalized"))
+	log.Info("Waiting the transactions to be finalized")
 	var bl BlockListener = func(b *block.Block) error {
 		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
 		if b.BlockNumber > maxTimeout {
@@ -107,7 +106,7 @@ func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submitt
 			cancel()
 		}
 		for _, tx := range b.Transactions {
-			id := TokenId(tx.UnitId).string()
+			id := TokenId(tx.UnitId).String()
 			if sub, found := subs[id]; found {
 				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.BlockNumber))
 				delete(subs, id)

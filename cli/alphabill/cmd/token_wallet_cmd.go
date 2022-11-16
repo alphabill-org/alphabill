@@ -644,7 +644,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 			if tok.IsFungible() {
 				consoleWriter.Println(fmt.Sprintf("Id='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.Id, tok.Symbol, tok.Amount, tok.TypeId))
 			} else {
-				consoleWriter.Println(fmt.Sprintf("Id='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.Id, tok.Symbol, tok.TypeId, tok.Uri))
+				consoleWriter.Println(fmt.Sprintf("Id='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.Id, tok.Symbol, tok.TypeId, tok.URI))
 			}
 		}
 	}

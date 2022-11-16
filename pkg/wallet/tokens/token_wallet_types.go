@@ -20,7 +20,7 @@ type (
 		Symbol   string      `json:"symbol"`
 		TypeId   TokenTypeId `json:"typeId"`
 		Amount   uint64      `json:"amount"`        // fungible only
-		Uri      string      `json:"uri,omitempty"` // nft only
+		URI      string      `json:"uri,omitempty"` // nft only
 		Backlink []byte      `json:"backlink"`
 	}
 
@@ -32,6 +32,11 @@ type (
 	TokenWithOwner struct {
 		Token *TokenUnit
 		Owner PublicKey
+	}
+
+	TokenTypeInfo interface {
+		GetSymbol() string
+		GetTypeId() TokenTypeId
 	}
 
 	PublicKey []byte
@@ -58,7 +63,7 @@ func (t *TokenUnit) IsFungible() bool {
 	return t.Kind&FungibleToken == FungibleToken
 }
 
-func (k *TokenKind) pretty() string {
+func (k *TokenKind) String() string {
 	if *k&Any != 0 {
 		return "[any]"
 	}
@@ -80,11 +85,6 @@ func (t TokenTypeId) equal(to TokenTypeId) bool {
 	return bytes.Equal(t, to)
 }
 
-type TokenTypeInfo interface {
-	GetSymbol() string
-	GetTypeId() TokenTypeId
-}
-
 func (tp *TokenUnitType) GetSymbol() string {
 	return tp.Symbol
 }
@@ -101,6 +101,6 @@ func (t *TokenUnit) GetTypeId() TokenTypeId {
 	return t.TypeId
 }
 
-func (id TokenId) string() string {
+func (id TokenId) String() string {
 	return string(id)
 }

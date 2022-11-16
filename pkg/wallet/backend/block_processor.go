@@ -105,7 +105,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			}
 		}
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
-			id := utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
+			id := utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
 			wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", id))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
 				Id:    id,

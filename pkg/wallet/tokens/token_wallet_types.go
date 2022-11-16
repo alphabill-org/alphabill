@@ -7,18 +7,18 @@ import (
 
 type (
 	TokenUnitType struct {
-		Id            TokenTypeId `json:"id"`
-		ParentTypeId  TokenTypeId `json:"typeId"`
+		ID            TokenTypeID `json:"id"`
+		ParentTypeID  TokenTypeID `json:"typeId"`
 		Kind          TokenKind   `json:"kind"`
 		Symbol        string      `json:"symbol"`
 		DecimalPlaces uint32      `json:"decimalPlaces"`
 	}
 
 	TokenUnit struct {
-		Id       TokenId     `json:"id"`
+		ID       TokenID     `json:"id"`
 		Kind     TokenKind   `json:"kind"`
 		Symbol   string      `json:"symbol"`
-		TypeId   TokenTypeId `json:"typeId"`
+		TypeID   TokenTypeID `json:"typeId"`
 		Amount   uint64      `json:"amount"`        // fungible only
 		URI      string      `json:"uri,omitempty"` // nft only
 		Backlink []byte      `json:"backlink"`
@@ -26,8 +26,8 @@ type (
 
 	TokenKind uint
 
-	TokenId     []byte
-	TokenTypeId []byte
+	TokenID     []byte
+	TokenTypeID []byte
 
 	TokenWithOwner struct {
 		Token *TokenUnit
@@ -36,7 +36,7 @@ type (
 
 	TokenTypeInfo interface {
 		GetSymbol() string
-		GetTypeId() TokenTypeId
+		GetTypeId() TokenTypeID
 	}
 
 	PublicKey []byte
@@ -81,7 +81,7 @@ func (k *TokenKind) String() string {
 	return "[" + strings.Join(res, ",") + "]"
 }
 
-func (t TokenTypeId) equal(to TokenTypeId) bool {
+func (t TokenTypeID) equal(to TokenTypeID) bool {
 	return bytes.Equal(t, to)
 }
 
@@ -89,18 +89,18 @@ func (tp *TokenUnitType) GetSymbol() string {
 	return tp.Symbol
 }
 
-func (tp *TokenUnitType) GetTypeId() TokenTypeId {
-	return tp.Id
+func (tp *TokenUnitType) GetTypeId() TokenTypeID {
+	return tp.ID
 }
 
 func (t *TokenUnit) GetSymbol() string {
 	return t.Symbol
 }
 
-func (t *TokenUnit) GetTypeId() TokenTypeId {
-	return t.TypeId
+func (t *TokenUnit) GetTypeId() TokenTypeID {
+	return t.TypeID
 }
 
-func (id TokenId) String() string {
+func (id TokenID) String() string {
 	return string(id)
 }

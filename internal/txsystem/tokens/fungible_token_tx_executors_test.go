@@ -519,7 +519,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
 
-	newUnitID := txutil.SameShardId(uID, tx.(*splitFungibleTokenWrapper).HashForIdCalculation(executor.hashAlgorithm))
+	newUnitID := txutil.SameShardID(uID, tx.(*splitFungibleTokenWrapper).HashForIDCalculation(executor.hashAlgorithm))
 	newUnit, err := executor.state.GetUnit(newUnitID)
 	require.NoError(t, err)
 	require.NotNil(t, newUnit)

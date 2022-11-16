@@ -104,7 +104,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 	}
 	d := u.Data.(*fungibleTokenData)
 	// add new token unit
-	newTokenID := util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(s.hashAlgorithm))
+	newTokenID := util.SameShardID(tx.UnitID(), tx.HashForIDCalculation(s.hashAlgorithm))
 	logger.Debug("Adding a fungible token with ID %v", newTokenID)
 	txHash := tx.Hash(s.hashAlgorithm)
 	return s.state.AtomicUpdate(
@@ -251,7 +251,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	}
 	// existence of the parent type is checked by the getChainedPredicates
 	predicates, err := m.getChainedPredicates(
-		tx.TypeIdInt(),
+		tx.TypeIDInt(),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},
@@ -363,8 +363,8 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 	}
 	for i, btx := range transactions {
 		tokenTypeID := d.tokenType.Bytes32()
-		if !bytes.Equal(btx.TypeId(), tokenTypeID[:]) {
-			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeId())
+		if !bytes.Equal(btx.TypeID(), tokenTypeID[:]) {
+			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeID())
 		}
 
 		if !bytes.Equal(btx.Nonce(), tx.attributes.Backlink) {

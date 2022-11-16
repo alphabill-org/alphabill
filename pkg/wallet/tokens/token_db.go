@@ -36,13 +36,13 @@ type TokenTxContext interface {
 	SetBlockNumber(blockNumber uint64) error
 
 	AddTokenType(token *TokenUnitType) error
-	GetTokenType(typeId TokenTypeId) (*TokenUnitType, error)
+	GetTokenType(typeId TokenTypeID) (*TokenUnitType, error)
 	GetTokenTypes() ([]*TokenUnitType, error)
 	// SetToken accountNumber == 0 is the one for "always true" predicates
 	// keys with accountIndex from the money wallet have tokens here under accountNumber which is accountIndex+1
 	SetToken(accountNumber uint64, token *TokenUnit) error
-	RemoveToken(accountNumber uint64, id TokenId) error
-	GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, error)
+	RemoveToken(accountNumber uint64, id TokenID) error
+	GetToken(accountNumber uint64, tokenId TokenID) (*TokenUnit, error)
 	GetTokens(accountNumber uint64) ([]*TokenUnit, error)
 }
 
@@ -62,12 +62,12 @@ func (t *tokensDbTx) AddTokenType(tType *TokenUnitType) error {
 		if err != nil {
 			return err
 		}
-		log.Info(fmt.Sprintf("adding token type: id=%X, symbol=%s", tType.Id, tType.Symbol))
-		return tx.Bucket(tokenTypes).Put(tType.Id, val)
+		log.Info(fmt.Sprintf("adding token type: id=%X, symbol=%s", tType.ID, tType.Symbol))
+		return tx.Bucket(tokenTypes).Put(tType.ID, val)
 	}, true)
 }
 
-func (t *tokensDbTx) GetTokenType(typeId TokenTypeId) (*TokenUnitType, error) {
+func (t *tokensDbTx) GetTokenType(typeId TokenTypeID) (*TokenUnitType, error) {
 	var tokenType *TokenUnitType
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		res, err := parseTokenType(tx.Bucket(tokenTypes).Get(typeId))
@@ -109,12 +109,12 @@ func (t *tokensDbTx) SetToken(accountNumber uint64, token *TokenUnit) error {
 		if err != nil {
 			return err
 		}
-		log.Info(fmt.Sprintf("adding token: id=%X, for account=%d, bl=%X", token.Id, accountNumber, token.Backlink))
+		log.Info(fmt.Sprintf("adding token: id=%X, for account=%d, bl=%X", token.ID, accountNumber, token.Backlink))
 		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
 		if err != nil {
 			return err
 		}
-		return bkt.Put(token.Id, val)
+		return bkt.Put(token.ID, val)
 	}, true)
 }
 
@@ -134,7 +134,7 @@ func ensureTokenBucket(tx *bolt.Tx, accountNumber []byte) (*bolt.Bucket, error) 
 	return b, nil
 }
 
-func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenId) error {
+func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenID) error {
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		log.Info(fmt.Sprintf("removing token: id=%X, for account=%d", id, accountNumber))
 		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))
@@ -145,7 +145,7 @@ func (t *tokensDbTx) RemoveToken(accountNumber uint64, id TokenId) error {
 	}, true)
 }
 
-func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenId) (*TokenUnit, error) {
+func (t *tokensDbTx) GetToken(accountNumber uint64, tokenId TokenID) (*TokenUnit, error) {
 	var tok *TokenUnit
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
 		bkt, err := ensureTokenBucket(tx, util.Uint64ToBytes(accountNumber))

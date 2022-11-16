@@ -57,22 +57,22 @@ func (w *TokensWallet) Shutdown() {
 	w.mw.Shutdown()
 }
 
-func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeId) (TokenId, error) {
+func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
 	log.Info("Creating new fungible token type")
 	return w.newType(ctx, attrs, typeId)
 }
 
-func (w *TokensWallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeId) (TokenId, error) {
+func (w *TokensWallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
 	log.Info("Creating new NFT type")
 	return w.newType(ctx, attrs, typeId)
 }
 
-func (w *TokensWallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenId, error) {
+func (w *TokensWallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenID, error) {
 	log.Info("Creating new fungible token")
 	return w.newToken(ctx, accNr, attrs, nil)
 }
 
-func (w *TokensWallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenId) (TokenId, error) {
+func (w *TokensWallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID) (TokenID, error) {
 	log.Info("Creating new NFT")
 	return w.newToken(ctx, accNr, attrs, tokenId)
 }
@@ -89,7 +89,7 @@ func (w *TokensWallet) ListTokenTypes(ctx context.Context) ([]string, error) {
 	}
 	res := make([]string, len(types))
 	for _, t := range types {
-		m := fmt.Sprintf("Id=%X, symbol=%s, kind: %s", t.Id, t.Symbol, t.Kind.String())
+		m := fmt.Sprintf("ID=%X, symbol=%s, kind: %s", t.ID, t.Symbol, t.Kind.String())
 		log.Info(m)
 		res = append(res, m)
 	}
@@ -144,7 +144,7 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 	return res, nil
 }
 
-func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey PublicKey) error {
+func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	return w.transfer(ctx, acc, t, receiverPubKey)
 }
 
-func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenId, receiverPubKey PublicKey) error {
+func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, to
 	return w.syncToUnit(ctx, tokenId, sub.timeout)
 }
 
-func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeId, targetAmount uint64, receiverPubKey []byte) error {
+func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -194,7 +194,7 @@ func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, t
 	// find the best unit candidate for transfer or split, value must be equal or larger than the target amount
 	var closestMatch *TokenUnit = nil
 	for _, token := range tokens {
-		if token.IsFungible() && typeId.equal(token.TypeId) {
+		if token.IsFungible() && typeId.equal(token.TypeID) {
 			fungibleTokens = append(fungibleTokens, token)
 			totalBalance += token.Amount
 			if closestMatch == nil {

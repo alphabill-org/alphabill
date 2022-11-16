@@ -156,7 +156,7 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if !goerrors.Is(err, rma.ErrUnitNotFound) {
 		return err
 	}
-	nftTypeID := tx.NFTTypeIdInt()
+	nftTypeID := tx.NFTTypeIDInt()
 	if nftTypeID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}

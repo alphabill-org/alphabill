@@ -125,7 +125,7 @@ func TestWrapper_Split(t *testing.T) {
 	units := genericTx.TargetUnits(crypto.SHA256)
 	require.Len(t, units, 2)
 	require.Equal(t, genericTx.UnitID(), units[0])
-	require.Equal(t, utiltx.SameShardId(genericTx.UnitID(), expectedPrndSh), units[1])
+	require.Equal(t, utiltx.SameShardID(genericTx.UnitID(), expectedPrndSh), units[1])
 }
 
 func TestWrapper_Swap(t *testing.T) {

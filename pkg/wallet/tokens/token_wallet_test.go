@@ -164,8 +164,8 @@ func TestNewNFT(t *testing.T) {
 func TestTransferFungible(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeId: []byte{10}, Amount: 1}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeId: []byte{10}, Amount: 2}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 1}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 2}))
 		return nil
 	})
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestTransferFungible(t *testing.T) {
 	}
 	tests := []struct {
 		name          string
-		tokenId       TokenId
+		tokenId       TokenID
 		amount        uint64
 		key           PublicKey
 		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes)
@@ -216,8 +216,8 @@ func TestTransferFungible(t *testing.T) {
 func TestTransferNFT(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{11}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: NonFungibleToken, Symbol: "AB", TypeId: []byte{10}}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: NonFungibleToken, Symbol: "AB", TypeID: []byte{10}}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: NonFungibleToken, Symbol: "AB", TypeID: []byte{10}}))
 		return nil
 	})
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func TestTransferNFT(t *testing.T) {
 	}
 	tests := []struct {
 		name          string
-		tokenId       TokenId
+		tokenId       TokenID
 		key           PublicKey
 		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferNonFungibleTokenAttributes)
 	}{
@@ -283,10 +283,10 @@ func TestSendFungible(t *testing.T) {
 	typeId := []byte{10}
 	tw, abClient := createTestWallet(t)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 3}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 5}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{13}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 7}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{14}, Kind: FungibleToken, Symbol: "AB", TypeId: typeId, Amount: 18}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeID: typeId, Amount: 3}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeID: typeId, Amount: 5}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{13}, Kind: FungibleToken, Symbol: "AB", TypeID: typeId, Amount: 7}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{14}, Kind: FungibleToken, Symbol: "AB", TypeID: typeId, Amount: 18}))
 		return nil
 	}))
 	tests := []struct {
@@ -365,10 +365,10 @@ func TestList(t *testing.T) {
 	_, _, err = tw.mw.AddAccount()  //#3 this acc has no tokens, should not be listed
 	require.NoError(t, err)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(0, &TokenUnit{Id: []byte{11}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{12}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{Id: []byte{13}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
-		require.NoError(t, c.SetToken(2, &TokenUnit{Id: []byte{14}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
+		require.NoError(t, c.SetToken(0, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{13}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
+		require.NoError(t, c.SetToken(2, &TokenUnit{ID: []byte{14}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
 		return nil
 	}))
 	countTotals := func(toks map[int][]*TokenUnit) (totalKeys int, totalTokens int) {

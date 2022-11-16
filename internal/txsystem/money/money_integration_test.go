@@ -126,7 +126,7 @@ func TestPartition_SwapOk(t *testing.T) {
 	for i, splitTx := range splitTxs {
 		splitGenTx, err := NewMoneyTx(systemIdentifier, splitTx)
 		require.NoError(t, err)
-		dcBillIds[i] = util.SameShardId(splitGenTx.UnitID(), unitIdFromTransaction(splitGenTx.(*billSplitWrapper)))
+		dcBillIds[i] = util.SameShardID(splitGenTx.UnitID(), unitIdFromTransaction(splitGenTx.(*billSplitWrapper)))
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {

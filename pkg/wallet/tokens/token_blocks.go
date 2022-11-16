@@ -83,7 +83,7 @@ func (w *TokensWallet) Sync(ctx context.Context) error {
 	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
 }
 
-func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint64) error {
+func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
 	submissions := make(map[string]*submittedTx, 1)
 	submissions[id.String()] = &submittedTx{id, timeout}
 	return w.syncToUnits(ctx, submissions, timeout)
@@ -107,7 +107,7 @@ func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submitt
 			cancel()
 		}
 		for _, tx := range b.Transactions {
-			id := TokenId(tx.UnitId).String()
+			id := TokenID(tx.UnitId).String()
 			if sub, found := subs[id]; found {
 				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.BlockNumber))
 				delete(subs, id)

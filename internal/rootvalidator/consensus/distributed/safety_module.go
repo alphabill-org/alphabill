@@ -21,18 +21,18 @@ func max(a, b uint64) uint64 {
 	return a
 }
 
-func IsConsecutive(blockRound, round uint64) bool {
+func isConsecutive(blockRound, round uint64) bool {
 	return round+1 == blockRound
 }
 
-func isSaveToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
-	if !IsConsecutive(blockRound, tc.Timeout.Round) {
+func isSafeToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
+	if !isConsecutive(blockRound, tc.Timeout.Round) {
 		return false
 	}
 	if qcRound < tc.Timeout.Hqc.VoteInfo.RootRound {
 		return false
 	}
-	//return IsConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound
+	//return isConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound
 	return true
 }
 
@@ -40,7 +40,7 @@ func NewSafetyModule(signer crypto.Signer) *SafetyModule {
 	return &SafetyModule{highestVotedRound: 0, highestQcRound: 0, signer: signer}
 }
 
-func (s *SafetyModule) IsSafeToVote(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
+func (s *SafetyModule) isSafeToVote(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
 	if blockRound <= max(s.highestVotedRound, qcRound) {
 		// 1. must vote in monotonically increasing rounds
 		// 2. must extend a smaller round
@@ -48,9 +48,9 @@ func (s *SafetyModule) IsSafeToVote(blockRound, qcRound uint64, tc *atomic_broad
 	}
 	// Either extending from previous round QC or safe to extend due to last round TC
 	if tc != nil {
-		return IsConsecutive(blockRound, qcRound) || isSaveToExtend(blockRound, qcRound, tc)
+		return isConsecutive(blockRound, qcRound) || isSafeToExtend(blockRound, qcRound, tc)
 	}
-	return IsConsecutive(blockRound, qcRound)
+	return isConsecutive(blockRound, qcRound)
 }
 
 func (s *SafetyModule) constructLedgerCommitInfo(block *atomic_broadcast.BlockData, voteInfoHash []byte) *atomic_broadcast.LedgerCommitInfo {
@@ -59,9 +59,14 @@ func (s *SafetyModule) constructLedgerCommitInfo(block *atomic_broadcast.BlockDa
 }
 
 func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId []byte, author string, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
+	// The overall validity of the block must be checked prior to calling this method
+	// However since we are de-referencing QC make sure it is not nil
+	if block.Qc == nil {
+		return nil, atomic_broadcast.ErrMissingQuorumCertificate
+	}
 	qcRound := block.Qc.VoteInfo.RootRound
 	votingRound := block.Round
-	if s.IsSafeToVote(votingRound, qcRound, lastRoundTC) == false {
+	if s.isSafeToVote(votingRound, qcRound, lastRoundTC) == false {
 		return nil, errors.New("Not safe to vote")
 	}
 	s.updateHighestQcRound(qcRound)
@@ -122,19 +127,23 @@ func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
 }
 
 func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
+	var tcRound uint64 = 0
+	if tc != nil {
+		tcRound = tc.Timeout.Round
+	}
 	if qcRound < s.highestQcRound || round <= max(s.highestVotedRound-1, qcRound) {
 		// respect highest qc round and don’t timeout in a past round
 		return false
 	}
 	// qc or tc must allow entering the round to timeout
-	return IsConsecutive(round, qcRound) || IsConsecutive(round, tc.Timeout.Round)
+	return isConsecutive(round, qcRound) || isConsecutive(round, tcRound)
 }
 
 func (s *SafetyModule) isCommitCandidate(block *atomic_broadcast.BlockData) []byte {
 	if block.Qc == nil {
 		return nil
 	}
-	if IsConsecutive(block.Round, block.Qc.VoteInfo.RootRound) {
+	if isConsecutive(block.Round, block.Qc.VoteInfo.RootRound) {
 		return block.Qc.VoteInfo.ExecStateId
 	}
 	return nil

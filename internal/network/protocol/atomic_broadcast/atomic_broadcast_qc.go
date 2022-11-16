@@ -45,7 +45,7 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 	hasher.Write(x.LedgerCommitInfo.Bytes())
 	err := v.VerifyQuorumSignatures(hasher.Sum(nil), x.Signatures)
 	if err != nil {
-		errors.Wrap(err, "QC verify failed")
+		return errors.Wrap(err, "QC verify failed")
 	}
 	return nil
 }

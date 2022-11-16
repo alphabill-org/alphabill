@@ -71,9 +71,9 @@ func TestNewRoundState(t *testing.T) {
 	const lastCommittedRound = uint64(2)
 	const localTimeout = time.Duration(10000) * time.Millisecond
 	roundState := NewRoundState(lastCommittedRound, localTimeout)
+	require.Equal(t, time.Now().Add(localTimeout).Round(time.Millisecond), roundState.roundTimeout.Round(time.Millisecond))
 	require.Equal(t, lastCommittedRound, roundState.highCommittedRound)
 	require.Equal(t, lastCommittedRound+1, roundState.currentRound)
-	require.Equal(t, time.Now().Add(localTimeout).Round(time.Millisecond), roundState.roundTimeout.Round(time.Millisecond))
 	require.Nil(t, roundState.lastRoundTC)
 	require.NotNil(t, roundState.pendingVotes)
 	require.Nil(t, roundState.voteSent)

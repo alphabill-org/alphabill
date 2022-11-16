@@ -79,9 +79,6 @@ func (x *BlockData) IsValid(p PartitionStore, v AtomicVerifier) error {
 	if x.Round < 1 {
 		return ErrInvalidRound
 	}
-	if x.Epoch < 1 {
-		return ErrInvalidEpoch
-	}
 	if x.Payload == nil {
 		return ErrMissingPayload
 	}
@@ -99,6 +96,12 @@ func (x *BlockData) IsValid(p PartitionStore, v AtomicVerifier) error {
 }
 
 func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
+	if x.Payload == nil {
+		return nil, ErrMissingPayload
+	}
+	if x.Qc == nil {
+		return nil, ErrMissingQuorumCertificate
+	}
 	hasher := algo.New()
 	// Block ID is defined as block hash, so hence it is not included
 	hasher.Write([]byte(x.Author))

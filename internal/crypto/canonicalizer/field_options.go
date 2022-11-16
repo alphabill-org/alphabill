@@ -1,10 +1,11 @@
 package canonicalizer
 
 import (
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 type (

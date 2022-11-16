@@ -2,8 +2,9 @@ package tokens
 
 import (
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"

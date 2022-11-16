@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"errors"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type accountManagerMock struct {

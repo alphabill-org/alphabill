@@ -6,6 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -13,9 +17,6 @@ import (
 	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
-	"sort"
-	"strconv"
-	"strings"
 )
 
 const (

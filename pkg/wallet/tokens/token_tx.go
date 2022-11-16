@@ -6,6 +6,10 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"math/rand"
+	"reflect"
+	"sort"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -17,9 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"math/rand"
-	"reflect"
-	"sort"
 )
 
 type (

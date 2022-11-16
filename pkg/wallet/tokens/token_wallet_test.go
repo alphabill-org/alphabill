@@ -3,6 +3,11 @@ package tokens
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
+	"reflect"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -12,10 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
-	"os"
-	"path"
-	"reflect"
-	"testing"
 )
 
 func TestNewFungibleType(t *testing.T) {

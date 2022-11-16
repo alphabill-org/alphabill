@@ -3,11 +3,12 @@ package tokens
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path"
+
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	bolt "go.etcd.io/bbolt"
-	"os"
-	"path"
 )
 
 var (

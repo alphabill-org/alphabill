@@ -2,9 +2,10 @@ package tokens
 
 import (
 	"crypto"
+	"reflect"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"google.golang.org/protobuf/proto"
-	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"

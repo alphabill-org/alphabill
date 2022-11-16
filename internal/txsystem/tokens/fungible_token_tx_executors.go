@@ -3,6 +3,7 @@ package tokens
 import (
 	"bytes"
 	goerrors "errors"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"

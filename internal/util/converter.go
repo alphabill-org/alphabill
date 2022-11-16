@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/binary"
+
 	"github.com/holiman/uint256"
 )
 

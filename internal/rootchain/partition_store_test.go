@@ -1,8 +1,9 @@
 package rootchain
 
 import (
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"testing"
+
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 

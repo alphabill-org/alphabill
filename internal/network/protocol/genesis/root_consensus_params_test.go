@@ -2,11 +2,12 @@ package genesis
 
 import (
 	gocrypto "crypto"
+	"strings"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"strings"
-	"testing"
 )
 
 const (

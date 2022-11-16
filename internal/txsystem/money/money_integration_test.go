@@ -2,12 +2,13 @@ package money
 
 import (
 	"crypto"
+	"sort"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"google.golang.org/protobuf/types/known/anypb"
-	"sort"
-	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"

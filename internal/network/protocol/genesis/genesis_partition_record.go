@@ -2,6 +2,7 @@ package genesis
 
 import (
 	gocrypto "crypto"
+
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"

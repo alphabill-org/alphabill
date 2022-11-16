@@ -121,35 +121,10 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	parentType, err := getHexFlag(cmd, cmdFlagParentType)
+	parentType, creationInputs, err := readParentInfo(cmd)
 	if err != nil {
 		return err
 	}
-	var creationInputs = make([][]byte, 0)
-	if parentType == nil || len(parentType) == 0 {
-		parentType = NoParent
-	} else if !bytes.Equal(parentType, NoParent) {
-		creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
-		if err != nil {
-			return err
-		}
-		if len(creationInputStrs) == 0 {
-			creationInputs = append(creationInputs, script.PredicateArgumentEmpty())
-		} else {
-			for _, input := range creationInputStrs {
-				decoded, err := decodeHexOrEmpty(input)
-				if err != nil {
-					return err
-				}
-				log.Info("creationInput: %X", decoded)
-				if len(decoded) == 0 {
-					decoded = script.PredicateArgumentEmpty()
-				}
-				creationInputs = append(creationInputs, decoded)
-			}
-		}
-	}
-
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybtypeClause, tw.GetAccountManager())
 	if err != nil {
 		return err
@@ -171,6 +146,37 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	consoleWriter.Println(fmt.Sprintf("Created new fungible token type with id=%X", id))
 	return nil
+}
+
+func readParentInfo(cmd *cobra.Command) ([]byte, [][]byte, error) {
+	parentType, err := getHexFlag(cmd, cmdFlagParentType)
+	if err != nil {
+		return nil, nil, err
+	}
+	creationInputs := make([][]byte, 0)
+	if parentType == nil || len(parentType) == 0 {
+		parentType = NoParent
+	} else if !bytes.Equal(parentType, NoParent) {
+		creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, input := range creationInputStrs {
+			decoded, err := decodeHexOrEmpty(input)
+			if err != nil {
+				return nil, nil, err
+			}
+			log.Info("creationInput: %X", decoded)
+			if len(decoded) == 0 {
+				decoded = script.PredicateArgumentEmpty()
+			}
+			creationInputs = append(creationInputs, decoded)
+		}
+	}
+	if len(creationInputs) == 0 {
+		creationInputs = append(creationInputs, script.PredicateArgumentEmpty())
+	}
+	return parentType, creationInputs, nil
 }
 
 func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
@@ -201,11 +207,19 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
+	parentType, creationInputs, err := readParentInfo(cmd)
+	if err != nil {
+		return err
+	}
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybtypeClause, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
 	a := &tokens.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                             symbol,
-		ParentTypeId:                       nil,
-		SubTypeCreationPredicateSignatures: nil,
-		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		ParentTypeId:                       parentType,
+		SubTypeCreationPredicateSignatures: creationInputs,
+		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 		DataUpdatePredicate:                script.PredicateAlwaysTrue(),

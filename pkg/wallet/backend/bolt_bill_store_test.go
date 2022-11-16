@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -76,33 +77,33 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.EqualValues(t, 3, maxOrderNumber)
 
 	// test contains bill ok
-	f, err := bs.ContainsBill(pubKey, uint256.NewInt(1))
+	expectedBillId := newUnitId(1)
+	f, err := bs.ContainsBill(pubKey, expectedBillId)
 	require.NoError(t, err)
 	require.True(t, f)
 
 	// test remove bill
-	err = bs.RemoveBill(pubKey, uint256.NewInt(1))
+	err = bs.RemoveBill(pubKey, expectedBillId)
 	require.Nil(t, err)
 
 	// test contains bill returns false after removal
-	f, err = bs.ContainsBill(pubKey, uint256.NewInt(1))
+	f, err = bs.ContainsBill(pubKey, expectedBillId)
 	require.NoError(t, err)
 	require.False(t, f)
 }
 
 func TestBillStore_GetSetProofs(t *testing.T) {
 	bs, _ := createTestBillStore(t)
-	billId := uint256.NewInt(1)
-	billIdBytes := billId.Bytes32()
+	billId := newUnitId(1)
 
 	// verify nil proof
-	bp, err := bs.GetBlockProof(billIdBytes[:])
+	bp, err := bs.GetBlockProof(billId[:])
 	require.NoError(t, err)
 	require.Nil(t, bp)
 
 	// add proof
 	expectedBlockProof := &BlockProof{
-		BillId:      billId,
+		BillId:      billId[:],
 		BlockNumber: 1,
 		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
 	}
@@ -110,7 +111,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify get proof
-	bp, err = bs.GetBlockProof(billIdBytes[:])
+	bp, err = bs.GetBlockProof(billId[:])
 	require.NoError(t, err)
 	require.Equal(t, expectedBlockProof, bp)
 }
@@ -121,7 +122,6 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 
 	// add bill with proof
 	b := newBill(1)
-	billIdBytes := b.Id.Bytes32()
 	p := &BlockProof{
 		BillId:      b.Id,
 		BlockNumber: 1,
@@ -136,8 +136,7 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 	require.True(t, f)
 
 	// verify proof
-	billIdBytes = b.Id.Bytes32()
-	actualProof, err := bs.GetBlockProof(billIdBytes[:])
+	actualProof, err := bs.GetBlockProof(b.Id)
 	require.NoError(t, err)
 	require.EqualValues(t, p, actualProof)
 }
@@ -178,8 +177,9 @@ func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
 }
 
 func newBill(val uint64) *Bill {
+	id := uint256.NewInt(val)
 	return &Bill{
-		Id:    uint256.NewInt(val),
+		Id:    util.Uint256ToBytes(id),
 		Value: val,
 	}
 }

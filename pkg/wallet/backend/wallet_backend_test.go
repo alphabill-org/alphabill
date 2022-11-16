@@ -14,25 +14,22 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	// create wallet backend with mock abclient
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	billId1 := uint256.NewInt(1)
-	billId1Bytes := billId1.Bytes32()
+	billId1 := newUnitId(1)
 	pubKey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
-	billId2 := uint256.NewInt(2)
-	billId2Bytes := billId2.Bytes32()
+	billId2 := newUnitId(2)
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 
 	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{
 		1: {
 			BlockNumber: 1,
 			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId1Bytes[:],
+				UnitId:                billId1,
 				SystemId:              alphabillMoneySystemId,
 				TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubKey1)),
 			}},
@@ -40,7 +37,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 		2: {
 			BlockNumber: 2,
 			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId2Bytes[:],
+				UnitId:                billId2,
 				SystemId:              alphabillMoneySystemId,
 				TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubkey2)),
 			}},

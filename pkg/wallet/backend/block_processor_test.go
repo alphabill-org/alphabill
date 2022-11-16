@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -57,19 +58,17 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	// verify proofs exist
 	for _, bi := range bills {
-		billIdBytes := bi.Id.Bytes32()
-		proof, err := store.GetBlockProof(billIdBytes[:])
+		proof, err := store.GetBlockProof(bi.Id)
 		require.NoError(t, err)
 		verifyProof(t, proof, bi.Id)
 	}
 }
 
 func newUnitId(unitId uint64) []byte {
-	bytes32 := uint256.NewInt(unitId).Bytes32()
-	return bytes32[:]
+	return util.Uint256ToBytes(uint256.NewInt(unitId))
 }
 
-func verifyProof(t *testing.T, proof *BlockProof, billId *uint256.Int) {
+func verifyProof(t *testing.T, proof *BlockProof, billId []byte) {
 	require.NotNil(t, proof)
 	require.EqualValues(t, 1, proof.BlockNumber)
 	require.Equal(t, billId, proof.BillId)

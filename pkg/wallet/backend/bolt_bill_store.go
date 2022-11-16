@@ -7,7 +7,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -112,8 +111,7 @@ func (s *BoltBillStore) AddBill(pubKey []byte, b *Bill) error {
 		if err != nil {
 			return err
 		}
-		billIdBytes := b.Id.Bytes32()
-		return pubkeyBillsBucket.Put(billIdBytes[:], billBytes)
+		return pubkeyBillsBucket.Put(b.Id, billBytes)
 	})
 }
 
@@ -129,8 +127,7 @@ func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *Bill, proof *BlockPro
 		if err != nil {
 			return err
 		}
-		billIdBytes := b.Id.Bytes32()
-		err = pubkeyBillsBucket.Put(billIdBytes[:], billBytes)
+		err = pubkeyBillsBucket.Put(b.Id[:], billBytes)
 		if err != nil {
 			return err
 		}
@@ -142,32 +139,30 @@ func (s *BoltBillStore) AddBillWithProof(pubKey []byte, b *Bill, proof *BlockPro
 		if err != nil {
 			return err
 		}
-		return tx.Bucket(proofsBucket).Put(billIdBytes[:], val)
+		return tx.Bucket(proofsBucket).Put(b.Id, val)
 	})
 }
 
-func (s *BoltBillStore) RemoveBill(pubKey []byte, id *uint256.Int) error {
+func (s *BoltBillStore) RemoveBill(pubKey []byte, id []byte) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubKey)
 		if pubkeyBillsBucket == nil {
 			return nil
 		}
-		billId32 := id.Bytes32()
-		return pubkeyBillsBucket.Delete(billId32[:])
+		return pubkeyBillsBucket.Delete(id)
 	})
 }
 
-func (s *BoltBillStore) ContainsBill(pubKey []byte, id *uint256.Int) (bool, error) {
+func (s *BoltBillStore) ContainsBill(pubKey []byte, id []byte) (bool, error) {
 	res := false
 	err := s.db.View(func(tx *bolt.Tx) error {
 		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubKey)
 		if pubkeyBillsBucket == nil {
 			return nil
 		}
-		billId32 := id.Bytes32()
-		billBytes := pubkeyBillsBucket.Get(billId32[:])
-		if billBytes != nil {
-			res = pubkeyBillsBucket.Get(billId32[:]) != nil
+		billBytes := pubkeyBillsBucket.Get(id)
+		if len(billBytes) > 0 {
+			res = true
 		}
 		return nil
 	})
@@ -198,8 +193,7 @@ func (s *BoltBillStore) SetBlockProof(proof *BlockProof) error {
 		if err != nil {
 			return err
 		}
-		billIdBytes := proof.BillId.Bytes32()
-		return tx.Bucket(proofsBucket).Put(billIdBytes[:], val)
+		return tx.Bucket(proofsBucket).Put(proof.BillId, val)
 	})
 }
 

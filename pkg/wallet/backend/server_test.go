@@ -11,7 +11,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +41,7 @@ func (m *mockWalletService) AddKey(pubkey []byte) error {
 func TestListBillsRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
 		bills: []*Bill{{
-			Id:    uint256.NewInt(1),
+			Id:    newUnitId(1),
 			Value: 1,
 		}},
 	}
@@ -83,12 +82,12 @@ func TestListBillsRequest_SortedByOrderNumber(t *testing.T) {
 	mockService := &mockWalletService{
 		bills: []*Bill{
 			{
-				Id:          uint256.NewInt(2),
+				Id:          newUnitId(2),
 				Value:       2,
 				OrderNumber: 2,
 			},
 			{
-				Id:          uint256.NewInt(1),
+				Id:          newUnitId(1),
 				Value:       1,
 				OrderNumber: 1,
 			},
@@ -112,7 +111,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	var bills []*Bill
 	for i := uint64(0); i < 200; i++ {
 		bills = append(bills, &Bill{
-			Id:          uint256.NewInt(i),
+			Id:          newUnitId(i),
 			Value:       i,
 			OrderNumber: i,
 		})
@@ -178,7 +177,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 func TestBalanceRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
 		bills: []*Bill{{
-			Id:    uint256.NewInt(1),
+			Id:    newUnitId(1),
 			Value: 1,
 		}},
 	}
@@ -216,7 +215,7 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 func TestBlockProofRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{
 		proof: &BlockProof{
-			BillId:      uint256.NewInt(1),
+			BillId:      newUnitId(1),
 			BlockNumber: 1,
 			BlockProof: &block.BlockProof{
 				BlockHeaderHash: []byte{0},

@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
@@ -35,9 +36,10 @@ type (
 	}
 
 	BlockProofResponse struct {
-		BillId      string            `json:"billId"`
-		BlockNumber uint64            `json:"blockNumber"`
-		BlockProof  *block.BlockProof `json:"blockProof"`
+		BillId      string                `json:"billId"`
+		BlockNumber uint64                `json:"blockNumber"`
+		Tx          *txsystem.Transaction `json:"tx"`
+		BlockProof  *block.BlockProof     `json:"blockProof"`
 	}
 
 	AddKeyRequest struct {
@@ -54,6 +56,7 @@ type (
 	BillVM struct {
 		Id    string `json:"id"`
 		Value uint64 `json:"value"`
+		// TODO return tx hash here or in block proof?
 	}
 )
 
@@ -275,10 +278,10 @@ func parseInt(str string, def int) int {
 }
 
 func newBlockProofResponse(p *BlockProof) *BlockProofResponse {
-	bytes32 := p.BillId.Bytes32()
 	return &BlockProofResponse{
-		BillId:      hexutil.Encode(bytes32[:]),
+		BillId:      hexutil.Encode(p.BillId),
 		BlockNumber: p.BlockNumber,
+		Tx:          p.Tx,
 		BlockProof:  p.BlockProof,
 	}
 }
@@ -294,9 +297,8 @@ func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
 func toBillVMList(bills []*Bill) []*BillVM {
 	billVMs := make([]*BillVM, len(bills))
 	for i, b := range bills {
-		bytes32 := b.Id.Bytes32()
 		billVMs[i] = &BillVM{
-			Id:    hexutil.Encode(bytes32[:]),
+			Id:    hexutil.Encode(b.Id),
 			Value: b.Value,
 		}
 	}

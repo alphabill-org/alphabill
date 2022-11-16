@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
@@ -21,18 +20,19 @@ type (
 	}
 
 	Bill struct {
-		Id     *uint256.Int         `json:"id"`
-		Value  uint64               `json:"value"`
-		TxHash []byte               `json:"txHash"`
-		Tx     txsystem.Transaction `json:"tx"`
+		Id     []byte `json:"id"`
+		Value  uint64 `json:"value"`
+		TxHash []byte `json:"txHash"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
-		OrderNumber uint64 `json:"orderNumber"`
+		OrderNumber uint64      `json:"orderNumber"`
+		BlockProof  *BlockProof `json:"blockProof,omitempty"`
 	}
 
 	BlockProof struct {
-		BillId      *uint256.Int      `json:"billId"`
-		BlockNumber uint64            `json:"blockNumber"`
-		BlockProof  *block.BlockProof `json:"blockProof"`
+		BillId      []byte                `json:"billId"`
+		BlockNumber uint64                `json:"blockNumber"`
+		Tx          *txsystem.Transaction `json:"tx"`
+		BlockProof  *block.BlockProof     `json:"proof"`
 	}
 
 	Pubkey struct {
@@ -46,8 +46,8 @@ type (
 		GetBills(pubKey []byte) ([]*Bill, error)
 		AddBill(pubKey []byte, bill *Bill) error
 		AddBillWithProof(pubKey []byte, bill *Bill, proof *BlockProof) error
-		RemoveBill(pubKey []byte, id *uint256.Int) error
-		ContainsBill(pubKey []byte, id *uint256.Int) (bool, error)
+		RemoveBill(pubKey []byte, id []byte) error
+		ContainsBill(pubKey []byte, id []byte) (bool, error)
 		GetBlockProof(billId []byte) (*BlockProof, error)
 		SetBlockProof(proof *BlockProof) error
 		GetKeys() ([]*Pubkey, error)

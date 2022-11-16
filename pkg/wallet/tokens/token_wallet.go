@@ -17,7 +17,7 @@ var (
 )
 
 type (
-	TokensWallet struct {
+	Wallet struct {
 		mw            *money.Wallet
 		db            *tokensDb
 		txs           block.TxConverter
@@ -26,7 +26,7 @@ type (
 	}
 )
 
-func Load(mw *money.Wallet, sync bool) (*TokensWallet, error) {
+func Load(mw *money.Wallet, sync bool) (*Wallet, error) {
 	config := mw.GetConfig()
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
@@ -41,7 +41,7 @@ func Load(mw *money.Wallet, sync bool) (*TokensWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &TokensWallet{mw: mw, db: db, txs: txs, sync: sync, blockListener: nil}
+	w := &Wallet{mw: mw, db: db, txs: txs, sync: sync, blockListener: nil}
 	w.mw.Wallet = wallet.New().
 		SetBlockProcessor(w).
 		SetABClient(mw.AlphabillClient).
@@ -49,35 +49,35 @@ func Load(mw *money.Wallet, sync bool) (*TokensWallet, error) {
 	return w, nil
 }
 
-func (w *TokensWallet) GetAccountManager() wallet.AccountManager {
+func (w *Wallet) GetAccountManager() wallet.AccountManager {
 	return w.mw
 }
 
-func (w *TokensWallet) Shutdown() {
+func (w *Wallet) Shutdown() {
 	w.mw.Shutdown()
 }
 
-func (w *TokensWallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
+func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
 	log.Info("Creating new fungible token type")
 	return w.newType(ctx, attrs, typeId)
 }
 
-func (w *TokensWallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
+func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
 	log.Info("Creating new NFT type")
 	return w.newType(ctx, attrs, typeId)
 }
 
-func (w *TokensWallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenID, error) {
 	log.Info("Creating new fungible token")
 	return w.newToken(ctx, accNr, attrs, nil)
 }
 
-func (w *TokensWallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID) (TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID) (TokenID, error) {
 	log.Info("Creating new NFT")
 	return w.newToken(ctx, accNr, attrs, tokenId)
 }
 
-func (w *TokensWallet) ListTokenTypes(ctx context.Context) ([]string, error) {
+func (w *Wallet) ListTokenTypes(ctx context.Context) ([]string, error) {
 	err := w.Sync(ctx)
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (w *TokensWallet) ListTokenTypes(ctx context.Context) ([]string, error) {
 }
 
 // ListTokens specify accountNumber=-1 to list tokens from all accounts
-func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[int][]*TokenUnit, error) {
+func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[int][]*TokenUnit, error) {
 
 	err := w.Sync(ctx)
 	if err != nil {
@@ -144,7 +144,7 @@ func (w *TokensWallet) ListTokens(ctx context.Context, kind TokenKind, accountNu
 	return res, nil
 }
 
-func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
+func (w *Wallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func (w *TokensWallet) Transfer(ctx context.Context, accountNumber uint64, token
 	return w.transfer(ctx, acc, t, receiverPubKey)
 }
 
-func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
+func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func (w *TokensWallet) TransferNFT(ctx context.Context, accountNumber uint64, to
 	return w.syncToUnit(ctx, tokenId, sub.timeout)
 }
 
-func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte) error {
+func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -234,7 +234,7 @@ func (w *TokensWallet) SendFungible(ctx context.Context, accountNumber uint64, t
 	return syncErr
 }
 
-func (w *TokensWallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, error) {
+func (w *Wallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, error) {
 	if accountNumber > 0 {
 		return w.mw.GetAccountKey(accountNumber - 1)
 	}

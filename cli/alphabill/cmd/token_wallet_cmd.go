@@ -693,7 +693,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet, error) {
+func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, error) {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return nil, err

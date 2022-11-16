@@ -30,7 +30,7 @@ type (
 	}
 )
 
-func (w *TokensWallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint64, key *wallet.KeyHashes) error {
+func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint64, key *wallet.KeyHashes) error {
 	gtx, err := w.txs.ConvertTx(tx)
 	if err != nil {
 		return err
@@ -210,7 +210,7 @@ func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []
 	}
 }
 
-func (w *TokensWallet) newType(ctx context.Context, attrs proto.Message, typeId TokenTypeID) (TokenID, error) {
+func (w *Wallet) newType(ctx context.Context, attrs proto.Message, typeId TokenTypeID) (TokenID, error) {
 	sub, err := w.sendTx(TokenID(typeId), attrs, nil)
 	if err != nil {
 		return nil, err
@@ -218,7 +218,7 @@ func (w *TokensWallet) newType(ctx context.Context, attrs proto.Message, typeId 
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func (w *TokensWallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenID) (TokenID, error) {
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenID) (TokenID, error) {
 	if accNr > 0 {
 		accIdx := accNr - 1
 		key, err := w.mw.GetAccountKey(accIdx)
@@ -247,7 +247,7 @@ func randomId() (TokenID, error) {
 	return id, nil
 }
 
-func (w *TokensWallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountKey) (*submittedTx, error) {
+func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountKey) (*submittedTx, error) {
 	txSub := &submittedTx{id: unitId}
 	if unitId == nil {
 		id, err := randomId()
@@ -318,7 +318,7 @@ func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens
 	}
 }
 
-func (w *TokensWallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, receiverPubKey []byte) error {
+func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, receiverPubKey []byte) error {
 	sub, err := w.sendTx(token.ID, newFungibleTransferTxAttrs(token, receiverPubKey), ac)
 	if err != nil {
 		return err
@@ -362,7 +362,7 @@ func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *to
 	}
 }
 
-func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, amount uint64, receiverPubKey []byte) error {
+func (w *Wallet) split(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, amount uint64, receiverPubKey []byte) error {
 	if amount >= token.Amount {
 		return errors.New(fmt.Sprintf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.ID))
 	}
@@ -376,7 +376,7 @@ func (w *TokensWallet) split(ctx context.Context, ac *wallet.AccountKey, token *
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *TokensWallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte) (map[string]*submittedTx, uint64, error) {
+func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte) (map[string]*submittedTx, uint64, error) {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
@@ -401,7 +401,7 @@ func (w *TokensWallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *w
 	return submissions, maxTimeout, nil
 }
 
-func (w *TokensWallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte) (*submittedTx, error) {
+func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte) (*submittedTx, error) {
 	var attrs proto.Message
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)

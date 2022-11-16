@@ -20,7 +20,7 @@ func (l BlockListener) ProcessBlock(b *block.Block) error {
 	return l(b)
 }
 
-func (w *TokensWallet) ProcessBlock(b *block.Block) error {
+func (w *Wallet) ProcessBlock(b *block.Block) error {
 	if !bytes.Equal(tokens.DefaultTokenTxSystemIdentifier, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -71,7 +71,7 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 	})
 }
 
-func (w *TokensWallet) Sync(ctx context.Context) error {
+func (w *Wallet) Sync(ctx context.Context) error {
 	if !w.sync {
 		return nil
 	}
@@ -83,13 +83,13 @@ func (w *TokensWallet) Sync(ctx context.Context) error {
 	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
 }
 
-func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
+func (w *Wallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
 	submissions := make(map[string]*submittedTx, 1)
 	submissions[id.String()] = &submittedTx{id, timeout}
 	return w.syncToUnits(ctx, submissions, timeout)
 }
 
-func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
+func (w *Wallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
 	// ...or don't
 	if !w.sync {
 		return nil
@@ -128,7 +128,7 @@ func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submitt
 	return w.syncUntilCanceled(ctx)
 }
 
-func (w *TokensWallet) syncUntilCanceled(ctx context.Context) error {
+func (w *Wallet) syncUntilCanceled(ctx context.Context) error {
 	latestBlockNumber, err := w.db.Do().GetBlockNumber()
 	if err != nil {
 		return err

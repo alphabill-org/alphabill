@@ -444,7 +444,7 @@ func TestList(t *testing.T) {
 	}
 }
 
-func createTestWallet(t *testing.T) (*TokensWallet, *clientmock.MockAlphabillClient) {
+func createTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 	_ = deleteFile(os.TempDir(), money.WalletFileName)
 	_ = deleteFile(os.TempDir(), tokensFileName)
 	c := money.WalletConfig{DbPath: os.TempDir()}
@@ -465,7 +465,7 @@ func deleteFile(dir string, file string) error {
 	return os.Remove(path.Join(dir, file))
 }
 
-func deleteWallet(w *TokensWallet) {
+func deleteWallet(w *Wallet) {
 	if w != nil {
 		w.Shutdown()
 		w.mw.DeleteDb()

@@ -135,41 +135,30 @@ func TestSafetyModule_SignProposal(t *testing.T) {
 }
 
 func TestSafetyModule_SignTimeout(t *testing.T) {
-	type fields struct {
-		highestVotedRound uint64
-		highestQcRound    uint64
-		signer            crypto.Signer
+	signer, err := crypto.NewInMemorySecp256K1Signer()
+	require.Nil(t, err)
+	s := &SafetyModule{
+		highestVotedRound: 3,
+		highestQcRound:    2,
+		signer:            signer,
 	}
-	type args struct {
-		timeout     *atomic_broadcast.Timeout
-		lastRoundTC *atomic_broadcast.TimeoutCert
+	require.NotNil(t, s)
+	// previous round did not timeout
+	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
+	signatures := map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
+	qc := NewDummyQuorumCertificate(voteInfo, signatures)
+	timeout := &atomic_broadcast.Timeout{
+		Epoch: 0,
+		Round: 3,
+		Hqc:   qc,
 	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    []byte
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := SafetyModule{
-				highestVotedRound: tt.fields.highestVotedRound,
-				highestQcRound:    tt.fields.highestQcRound,
-				signer:            tt.fields.signer,
-			}
-			got, err := s.SignTimeout(tt.args.timeout, tt.args.lastRoundTC)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("SignTimeout() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("SignTimeout() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	sig, err := s.SignTimeout(timeout, nil)
+	require.ErrorContains(t, err, "not safe to timeout")
+	require.Nil(t, sig)
+	timeout.Round = 4
+	sig, err = s.SignTimeout(timeout, nil)
+	require.NoError(t, err)
+	require.NotNil(t, sig)
 }
 
 func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {

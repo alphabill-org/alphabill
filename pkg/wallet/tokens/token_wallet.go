@@ -77,23 +77,13 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNon
 	return w.newToken(ctx, accNr, attrs, tokenId)
 }
 
-func (w *Wallet) ListTokenTypes(ctx context.Context) ([]string, error) {
+func (w *Wallet) ListTokenTypes(ctx context.Context) ([]*TokenUnitType, error) {
 	err := w.Sync(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	types, err := w.db.Do().GetTokenTypes()
-	if err != nil {
-		return nil, err
-	}
-	res := make([]string, len(types))
-	for _, t := range types {
-		m := fmt.Sprintf("ID=%X, symbol=%s, kind: %s", t.ID, t.Symbol, t.Kind.String())
-		log.Info(m)
-		res = append(res, m)
-	}
-	return res, nil
+	return w.db.Do().GetTokenTypes()
 }
 
 // ListTokens specify accountNumber=-1 to list tokens from all accounts

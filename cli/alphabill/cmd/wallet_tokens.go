@@ -687,8 +687,8 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	for _, m := range res {
-		consoleWriter.Println(m)
+	for _, t := range res {
+		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s, kind: %#v", t.ID, t.Symbol, t.Kind))
 	}
 	return nil
 }

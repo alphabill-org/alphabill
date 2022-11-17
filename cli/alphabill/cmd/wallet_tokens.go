@@ -23,7 +23,7 @@ const (
 	cmdFlagDecimals            = "decimals"
 	cmdFlagParentType          = "parent-type"
 	cmdFlagCreationInput       = "creation-input"
-	cmdFlagSybtypeClause       = "subtype-clause"
+	cmdFlagSybTypeClause       = "subtype-clause"
 	cmdFlagMintClause          = "mint-clause"
 	cmdFlagInheritBearerClause = "inherit-bearer-clause"
 	cmdFlagAmount              = "amount"
@@ -79,10 +79,13 @@ func addCommonAccountFlags(cmd *cobra.Command) *cobra.Command {
 
 func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().String(cmdFlagSymbol, "", "token symbol (mandatory)")
-	_ = cmd.MarkFlagRequired(cmdFlagSymbol)
+	err := cmd.MarkFlagRequired(cmdFlagSymbol)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type-node in hexadecimal format, must start with 0x (optional)")
 	cmd.Flags().StringSlice(cmdFlagCreationInput, nil, "input to satisfy the parent types minting clause (mandatory with --parent-type)")
-	cmd.Flags().String(cmdFlagSybtypeClause, "true", "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
+	cmd.Flags().String(cmdFlagSybTypeClause, "true", "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().String(cmdFlagMintClause, "ptpkh", "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
 	cmd.Flags().String(cmdFlagInheritBearerClause, "true", "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	return cmd
@@ -125,7 +128,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybtypeClause, tw.GetAccountManager())
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -154,7 +157,7 @@ func readParentInfo(cmd *cobra.Command) ([]byte, [][]byte, error) {
 		return nil, nil, err
 	}
 	creationInputs := make([][]byte, 0)
-	if parentType == nil || len(parentType) == 0 {
+	if len(parentType) == 0 {
 		parentType = NoParent
 	} else if !bytes.Equal(parentType, NoParent) {
 		creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
@@ -166,7 +169,6 @@ func readParentInfo(cmd *cobra.Command) ([]byte, [][]byte, error) {
 			if err != nil {
 				return nil, nil, err
 			}
-			log.Info("creationInput: %X", decoded)
 			if len(decoded) == 0 {
 				decoded = script.PredicateArgumentEmpty()
 			}
@@ -211,7 +213,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybtypeClause, tw.GetAccountManager())
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -256,9 +258,15 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
-	_ = cmd.MarkFlagRequired(cmdFlagAmount)
+	err := cmd.MarkFlagRequired(cmdFlagAmount)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
-	_ = cmd.MarkFlagRequired(cmdFlagType)
+	err = cmd.MarkFlagRequired(cmdFlagType)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")
 	return cmd
 }
@@ -312,7 +320,10 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
-	_ = cmd.MarkFlagRequired(cmdFlagType)
+	err := cmd.MarkFlagRequired(cmdFlagType)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().String(cmdFlagTokenURI, "", "URI to associated resource, ie. jpg file on IPFS")
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().BytesHex(cmdFlagTokenDataUpdate, nil, "data update predicate (hex)")
@@ -393,9 +404,15 @@ func tokenCmdTransferFungible(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
-	_ = cmd.MarkFlagRequired(cmdFlagTokenId)
+	err := cmd.MarkFlagRequired(cmdFlagTokenId)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	_ = cmd.MarkFlagRequired(addressCmdName)
+	err = cmd.MarkFlagRequired(addressCmdName)
+	if err != nil {
+		return nil
+	}
 	return addCommonAccountFlags(cmd)
 }
 
@@ -447,11 +464,20 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
-	_ = cmd.MarkFlagRequired(cmdFlagAmount)
+	err := cmd.MarkFlagRequired(cmdFlagAmount)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
-	_ = cmd.MarkFlagRequired(cmdFlagType)
+	err = cmd.MarkFlagRequired(cmdFlagType)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	_ = cmd.MarkFlagRequired(addressCmdName)
+	err = cmd.MarkFlagRequired(addressCmdName)
+	if err != nil {
+		return nil
+	}
 	return addCommonAccountFlags(cmd)
 }
 
@@ -514,9 +540,15 @@ func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
-	_ = cmd.MarkFlagRequired(cmdFlagTokenId)
+	err := cmd.MarkFlagRequired(cmdFlagTokenId)
+	if err != nil {
+		return nil
+	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	_ = cmd.MarkFlagRequired(addressCmdName)
+	err = cmd.MarkFlagRequired(addressCmdName)
+	if err != nil {
+		return nil
+	}
 	return addCommonAccountFlags(cmd)
 }
 

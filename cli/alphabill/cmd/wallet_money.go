@@ -179,8 +179,14 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "saves transaction proof(s) to given directory")
 	addPasswordFlags(cmd)
-	_ = cmd.MarkFlagRequired(addressCmdName)
-	_ = cmd.MarkFlagRequired(amountCmdName)
+	err := cmd.MarkFlagRequired(addressCmdName)
+	if err != nil {
+		return nil
+	}
+	err = cmd.MarkFlagRequired(amountCmdName)
+	if err != nil {
+		return nil
+	}
 	return cmd
 }
 
@@ -224,7 +230,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	if outputPath != "" {
 		if !waitForConf {
-			return errors.New(fmt.Sprintf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName))
+			return fmt.Errorf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName)
 		}
 		if !strings.HasPrefix(outputPath, string(os.PathSeparator)) {
 			cwd, err := os.Getwd()

@@ -2,10 +2,11 @@ package genesis
 
 import (
 	"fmt"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
+
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {

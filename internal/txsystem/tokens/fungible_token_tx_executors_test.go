@@ -3,8 +3,9 @@ package tokens
 import (
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -149,13 +150,13 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	parentID := uint256.NewInt(validUnitID)
 	childID := uint256.NewInt(20)
 	childAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                            validSymbolName + "_CHILD",
-		ParentTypeId:                      util.Uint256ToBytes(parentID),
-		DecimalPlaces:                     6,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
-		SubTypeCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Symbol:                             validSymbolName + "_CHILD",
+		ParentTypeId:                       util.Uint256ToBytes(parentID),
+		DecimalPlaces:                      6,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		SubTypeCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 
 	err := executor.Execute(createTx(t, parentID, parentAttributes), 10)
@@ -198,13 +199,13 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationPredicateSi
 	parentIDBytes := parentID.Bytes32()
 	childID := uint256.NewInt(20)
 	childAttributes := &CreateFungibleTokenTypeAttributes{
-		Symbol:                            validSymbolName + "_CHILD",
-		ParentTypeId:                      parentIDBytes[:],
-		DecimalPlaces:                     6,
-		SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:            script.PredicateAlwaysTrue(),
-		InvariantPredicate:                script.PredicateAlwaysTrue(),
-		SubTypeCreationPredicateSignature: []byte("invalid"),
+		Symbol:                             validSymbolName + "_CHILD",
+		ParentTypeId:                       parentIDBytes[:],
+		DecimalPlaces:                      6,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		SubTypeCreationPredicateSignatures: [][]byte{[]byte("invalid")},
 	}
 
 	err := executor.Execute(createTx(t, parentID, parentAttributes), 10)
@@ -518,7 +519,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, roundNr, d.t)
 
-	newUnitID := txutil.SameShardId(uID, tx.(*splitFungibleTokenWrapper).HashForIdCalculation(executor.hashAlgorithm))
+	newUnitID := txutil.SameShardID(uID, tx.(*splitFungibleTokenWrapper).HashForIDCalculation(executor.hashAlgorithm))
 	newUnit, err := executor.state.GetUnit(newUnitID)
 	require.NoError(t, err)
 	require.NotNil(t, newUnit)

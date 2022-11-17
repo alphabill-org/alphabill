@@ -7,9 +7,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
+
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"golang.org/x/crypto/pbkdf2"
-	"strings"
 )
 
 var ErrEmptyPassphrase = errors.New("passphrase cannot be empty")

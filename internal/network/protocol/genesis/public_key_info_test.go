@@ -1,10 +1,11 @@
 package genesis
 
 import (
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestNewValidatorTrustBase(t *testing.T) {

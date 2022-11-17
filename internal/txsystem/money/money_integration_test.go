@@ -2,12 +2,13 @@ package money
 
 import (
 	"crypto"
+	"sort"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"google.golang.org/protobuf/types/known/anypb"
-	"sort"
-	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -125,7 +126,7 @@ func TestPartition_SwapOk(t *testing.T) {
 	for i, splitTx := range splitTxs {
 		splitGenTx, err := NewMoneyTx(systemIdentifier, splitTx)
 		require.NoError(t, err)
-		dcBillIds[i] = util.SameShardId(splitGenTx.UnitID(), unitIdFromTransaction(splitGenTx.(*billSplitWrapper)))
+		dcBillIds[i] = util.SameShardID(splitGenTx.UnitID(), unitIdFromTransaction(splitGenTx.(*billSplitWrapper)))
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {

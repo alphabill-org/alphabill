@@ -208,8 +208,14 @@ func importCmd(config *walletConfig) *cobra.Command {
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to import the bills")
 	cmd.Flags().StringP(billFileCmdName, "b", "", "path to bill file (any file from export command output)")
 	cmd.Flags().StringP(trustBaseFileCmdName, "t", "", "path to trust base file")
-	_ = cmd.MarkFlagRequired(billFileCmdName)
-	_ = cmd.MarkFlagRequired(trustBaseFileCmdName)
+	err := cmd.MarkFlagRequired(billFileCmdName)
+	if err != nil {
+		return nil
+	}
+	err = cmd.MarkFlagRequired(trustBaseFileCmdName)
+	if err != nil {
+		return nil
+	}
 	return cmd
 }
 

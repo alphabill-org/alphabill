@@ -4,12 +4,13 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"

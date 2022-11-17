@@ -5,8 +5,9 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"time"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"

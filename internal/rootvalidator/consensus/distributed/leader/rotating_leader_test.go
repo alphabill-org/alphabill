@@ -1,10 +1,10 @@
 package leader
 
 import (
-	"github.com/libp2p/go-libp2p-core/peer"
 	"strconv"
 	"testing"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,6 +28,15 @@ func TestNewLeaderSelector_NofRoundsZero(t *testing.T) {
 	require.Nil(t, ls)
 }
 
+func TestNewLeaderSelector_ContZero(t *testing.T) {
+	rootNodes := make([]peer.ID, 5)
+	for i := range rootNodes {
+		rootNodes[i] = peer.ID(strconv.Itoa(i))
+	}
+	_, err := NewRotatingLeader(rootNodes, 0)
+	require.Error(t, err)
+}
+
 func TestNewLeaderSelector_Normal(t *testing.T) {
 	rootNodes := make([]peer.ID, 6)
 	for i := range rootNodes {
@@ -36,13 +45,13 @@ func TestNewLeaderSelector_Normal(t *testing.T) {
 	ls, err := NewRotatingLeader(rootNodes, 1)
 	require.NoError(t, err)
 	require.NotNil(t, ls)
+	require.Equal(t, 6, len(ls.GetRootNodes()))
 	require.EqualValues(t, ls.GetLeaderForRound(0), "0")
 	require.EqualValues(t, ls.GetLeaderForRound(1), "1")
 	require.EqualValues(t, ls.GetLeaderForRound(5), "5")
 	require.EqualValues(t, ls.GetLeaderForRound(6), "0")
 	require.EqualValues(t, ls.GetLeaderForRound(7), "1")
 }
-
 func TestNewLeaderSelector_NormalTwoRounds(t *testing.T) {
 	rootNodes := make([]peer.ID, 6)
 	for i := range rootNodes {

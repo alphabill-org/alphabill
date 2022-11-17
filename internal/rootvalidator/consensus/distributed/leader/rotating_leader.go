@@ -15,11 +15,8 @@ type RotatingLeader struct {
 // NewRotatingLeader returns round-robin leader selection algorithm based on node identifiers.
 // It is assumed that the order of node identifiers is the same (e.g. alphabetical) for all validators
 func NewRotatingLeader(rootNodes []peer.ID, contRounds uint32) (*RotatingLeader, error) {
-	if rootNodes == nil {
-		return nil, errors.New("rootvalidator node id list is nil")
-	}
 	if len(rootNodes) < 1 {
-		return nil, errors.New("empty rootvalidator node id list")
+		return nil, errors.New("empty root validator node id list")
 	}
 	if contRounds < 1 || contRounds > uint32(len(rootNodes)) {
 		return nil, errors.New("invalid nof rounds")

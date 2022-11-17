@@ -788,7 +788,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 			} else {
 				keyNr, err = strconv.Atoi(keyStr)
 				if err != nil {
-					return nil, aberrors.Wrap(err, fmt.Sprintf("invalid predicate clause: '%s'", clause))
+					return nil, aberrors.Wrapf(err, "invalid predicate clause: '%s'", clause)
 				}
 			}
 		}

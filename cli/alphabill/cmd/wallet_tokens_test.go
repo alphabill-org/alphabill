@@ -109,7 +109,7 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 		},
 		{
 			input:  "0x",
-			result: []byte{},
+			result: empty,
 		},
 		{
 			input: "0x534",

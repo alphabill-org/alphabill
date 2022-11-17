@@ -83,7 +83,7 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	if err != nil {
 		return nil
 	}
-	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type-node in hexadecimal format, must start with 0x (optional)")
+	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format, must start with 0x (optional)")
 	cmd.Flags().StringSlice(cmdFlagCreationInput, nil, "input to satisfy the parent types minting clause (mandatory with --parent-type)")
 	cmd.Flags().String(cmdFlagSybTypeClause, "true", "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().String(cmdFlagMintClause, "ptpkh", "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
@@ -749,7 +749,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, erro
 }
 
 // parsePredicateClause uses the following format:
-// empty string returns nil
+// empty string returns "always true"
 // true
 // false
 // ptpkh
@@ -764,10 +764,7 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountM
 }
 
 func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, error) {
-	if clause == "" {
-		return nil, nil
-	}
-	if clause == "true" {
+	if clause == "" || clause == "true" {
 		return script.PredicateAlwaysTrue(), nil
 	}
 	if clause == "false" {

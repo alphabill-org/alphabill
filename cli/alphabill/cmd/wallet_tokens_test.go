@@ -32,7 +32,10 @@ func TestParsePredicateClause(t *testing.T) {
 	}{
 		{
 			clause:    "",
-			predicate: nil,
+			predicate: script.PredicateAlwaysTrue(),
+		}, {
+			clause: "foo",
+			err:    "invalid predicate clause",
 		},
 		{
 			clause:    "0x53510087",

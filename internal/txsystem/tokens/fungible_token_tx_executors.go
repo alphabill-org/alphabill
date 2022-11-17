@@ -46,6 +46,7 @@ func (c *createFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTransact
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Create Fungible Token Type tx: %v", tx)
 	if err := c.validate(tx); err != nil {
 		return err
 	}
@@ -59,6 +60,7 @@ func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Mint Fungible Token tx: %v", tx)
 	if err := m.validate(tx); err != nil {
 		return err
 	}
@@ -72,6 +74,7 @@ func (t *transferFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransactio
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Transfer Fungible Token tx: %v", tx)
 	if err := t.validate(tx); err != nil {
 		return err
 	}
@@ -95,6 +98,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Split Fungible Token tx: %v", tx)
 	if err := s.validate(tx); err != nil {
 		return err
 	}
@@ -137,6 +141,7 @@ func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Burn Fungible Token tx: %v", tx)
 	if err := b.validate(tx); err != nil {
 		return err
 	}
@@ -165,6 +170,7 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Join Fungible Token tx: %v", tx)
 	if err := j.validate(tx); err != nil {
 		return err
 	}

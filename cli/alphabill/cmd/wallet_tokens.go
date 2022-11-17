@@ -637,7 +637,7 @@ func tokenCmdListFungible(config *walletConfig) *cobra.Command {
 		Use:   "fungible",
 		Short: "lists fungible tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.Token|t.Fungible)
+			return execTokenCmdList(cmd, config, t.FungibleToken)
 		},
 	}
 	return cmd
@@ -660,7 +660,15 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 	if err != nil {
 		return err
 	}
-	for accNr, toks := range res {
+
+	accounts := make([]int, 0, len(res))
+	for accNr := range res {
+		accounts = append(accounts, accNr)
+	}
+	sort.Ints(accounts)
+
+	for _, accNr := range accounts {
+		toks := res[accNr]
 		var ownerKey string
 		if accNr == 0 {
 			ownerKey = "Tokens spendable by anyone:"
@@ -688,7 +696,7 @@ func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
 		Use:   "non-fungible",
 		Short: "lists non-fungible tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.Token|t.NonFungible)
+			return execTokenCmdList(cmd, config, t.NonFungibleToken)
 		},
 	}
 	return cmd

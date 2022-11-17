@@ -2,9 +2,10 @@ package tokens
 
 import (
 	"crypto"
+	"reflect"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"google.golang.org/protobuf/proto"
-	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
@@ -56,7 +57,7 @@ type (
 type (
 	CreateNonFungibleTokenType interface {
 		txsystem.GenericTransaction
-		ParentTypeId() []byte
+		ParentTypeID() []byte
 		Symbol() string
 		SubTypeCreationPredicate() []byte
 		TokenCreationPredicate() []byte
@@ -67,8 +68,8 @@ type (
 
 	MintNonFungibleToken interface {
 		txsystem.GenericTransaction
-		NFTTypeId() []byte
-		NFTTypeIdInt() *uint256.Int
+		NFTTypeID() []byte
+		NFTTypeIDInt() *uint256.Int
 		Bearer() []byte
 		URI() string
 		Data() []byte
@@ -93,7 +94,7 @@ type (
 
 	CreateFungibleTokenType interface {
 		txsystem.GenericTransaction
-		ParentTypeId() []byte
+		ParentTypeID() []byte
 		Symbol() string
 		DecimalPlaces() uint32
 		SubTypeCreationPredicate() []byte
@@ -104,8 +105,8 @@ type (
 
 	MintFungibleToken interface {
 		txsystem.GenericTransaction
-		TypeIdInt() *uint256.Int
-		TypeId() []byte
+		TypeIDInt() *uint256.Int
+		TypeID() []byte
 		Value() uint64
 		Bearer() []byte
 		TokenCreationPredicateSignature() []byte
@@ -122,7 +123,7 @@ type (
 
 	SplitFungibleToken interface {
 		txsystem.GenericTransaction
-		HashForIdCalculation(hashFunc crypto.Hash) []byte
+		HashForIDCalculation(hashFunc crypto.Hash) []byte
 		NewBearer() []byte
 		TargetValue() uint64
 		Nonce() []byte
@@ -132,7 +133,7 @@ type (
 
 	BurnFungibleToken interface {
 		txsystem.GenericTransaction
-		TypeId() []byte
+		TypeID() []byte
 		Value() uint64
 		Nonce() []byte
 		Backlink() []byte

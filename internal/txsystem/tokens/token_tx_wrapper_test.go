@@ -317,7 +317,7 @@ func TestSplitFungibleTokenTx_TargetUnitsReturnsTwoUnits(t *testing.T) {
 	require.Len(t, units, 2)
 	require.Equal(t, genericTx.UnitID(), units[0])
 	splitWrapper := genericTx.(*splitFungibleTokenWrapper)
-	sameShardId := utiltx.SameShardId(genericTx.UnitID(), splitWrapper.HashForIdCalculation(gocrypto.SHA256))
+	sameShardId := utiltx.SameShardID(genericTx.UnitID(), splitWrapper.HashForIDCalculation(gocrypto.SHA256))
 	require.Equal(t, sameShardId, units[1])
 }
 

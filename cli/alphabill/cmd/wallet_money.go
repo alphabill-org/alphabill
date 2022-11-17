@@ -224,7 +224,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	if outputPath != "" {
 		if !waitForConf {
-			return errors.New(fmt.Sprintf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName))
+			return fmt.Errorf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName)
 		}
 		if !strings.HasPrefix(outputPath, string(os.PathSeparator)) {
 			cwd, err := os.Getwd()

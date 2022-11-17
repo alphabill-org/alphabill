@@ -3,11 +3,12 @@ package tokens
 import (
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"hash"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	hasher "github.com/alphabill-org/alphabill/internal/hash"

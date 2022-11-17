@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -13,9 +16,6 @@ import (
 	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
-	"sort"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -467,7 +467,7 @@ func getPubKeyBytes(cmd *cobra.Command, flag string) ([]byte, error) {
 	} else {
 		pk, ok := pubKeyHexToBytes(pubKeyHex)
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("address in not in valid format: %s", pubKeyHex))
+			return nil, fmt.Errorf("address in not in valid format: %s", pubKeyHex)
 		}
 		pubKey = pk
 	}
@@ -642,9 +642,9 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 		})
 		for _, tok := range toks {
 			if tok.IsFungible() {
-				consoleWriter.Println(fmt.Sprintf("Id='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.Id, tok.Symbol, tok.Amount, tok.TypeId))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, tok.Amount, tok.TypeID))
 			} else {
-				consoleWriter.Println(fmt.Sprintf("Id='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.Id, tok.Symbol, tok.TypeId, tok.Uri))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.ID, tok.Symbol, tok.TypeID, tok.URI))
 			}
 		}
 	}
@@ -686,13 +686,13 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	for _, m := range res {
-		consoleWriter.Println(m)
+	for _, t := range res {
+		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s, kind: %#v", t.ID, t.Symbol, t.Kind))
 	}
 	return nil
 }
 
-func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.TokensWallet, error) {
+func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, error) {
 	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
 	if err != nil {
 		return nil, err
@@ -749,7 +749,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 			keyStr := split[1]
 			if strings.HasPrefix(strings.ToLower(keyStr), "0x") {
 				if len(keyStr) < 3 {
-					return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
+					return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 				}
 				keyHash, err := hexutil.Decode(keyStr)
 				if err != nil {
@@ -773,7 +773,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 	if strings.HasPrefix(clause, "0x") {
 		return decodeHexOrEmpty(clause)
 	}
-	return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
+	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 }
 
 //getHexFlag returns nil in case array is empty (weird behaviour by cobra)

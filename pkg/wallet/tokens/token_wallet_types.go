@@ -7,31 +7,36 @@ import (
 
 type (
 	TokenUnitType struct {
-		Id            TokenTypeId `json:"id"`
-		ParentTypeId  TokenTypeId `json:"typeId"`
+		ID            TokenTypeID `json:"id"`
+		ParentTypeID  TokenTypeID `json:"typeId"`
 		Kind          TokenKind   `json:"kind"`
 		Symbol        string      `json:"symbol"`
 		DecimalPlaces uint32      `json:"decimalPlaces"`
 	}
 
 	TokenUnit struct {
-		Id       TokenId     `json:"id"`
+		ID       TokenID     `json:"id"`
 		Kind     TokenKind   `json:"kind"`
 		Symbol   string      `json:"symbol"`
-		TypeId   TokenTypeId `json:"typeId"`
+		TypeID   TokenTypeID `json:"typeId"`
 		Amount   uint64      `json:"amount"`        // fungible only
-		Uri      string      `json:"uri,omitempty"` // nft only
+		URI      string      `json:"uri,omitempty"` // nft only
 		Backlink []byte      `json:"backlink"`
 	}
 
 	TokenKind uint
 
-	TokenId     []byte
-	TokenTypeId []byte
+	TokenID     []byte
+	TokenTypeID []byte
 
 	TokenWithOwner struct {
 		Token *TokenUnit
 		Owner PublicKey
+	}
+
+	TokenTypeInfo interface {
+		GetSymbol() string
+		GetTypeId() TokenTypeID
 	}
 
 	PublicKey []byte
@@ -58,7 +63,7 @@ func (t *TokenUnit) IsFungible() bool {
 	return t.Kind&FungibleToken == FungibleToken
 }
 
-func (k *TokenKind) pretty() string {
+func (k *TokenKind) String() string {
 	if *k&Any != 0 {
 		return "[any]"
 	}
@@ -76,31 +81,26 @@ func (k *TokenKind) pretty() string {
 	return "[" + strings.Join(res, ",") + "]"
 }
 
-func (t TokenTypeId) equal(to TokenTypeId) bool {
+func (t TokenTypeID) equal(to TokenTypeID) bool {
 	return bytes.Equal(t, to)
-}
-
-type TokenTypeInfo interface {
-	GetSymbol() string
-	GetTypeId() TokenTypeId
 }
 
 func (tp *TokenUnitType) GetSymbol() string {
 	return tp.Symbol
 }
 
-func (tp *TokenUnitType) GetTypeId() TokenTypeId {
-	return tp.Id
+func (tp *TokenUnitType) GetTypeId() TokenTypeID {
+	return tp.ID
 }
 
 func (t *TokenUnit) GetSymbol() string {
 	return t.Symbol
 }
 
-func (t *TokenUnit) GetTypeId() TokenTypeId {
-	return t.TypeId
+func (t *TokenUnit) GetTypeId() TokenTypeID {
+	return t.TypeID
 }
 
-func (id TokenId) string() string {
+func (id TokenID) String() string {
 	return string(id)
 }

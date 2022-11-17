@@ -3,6 +3,7 @@ package tokens
 import (
 	"crypto"
 	goerrors "errors"
+
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"

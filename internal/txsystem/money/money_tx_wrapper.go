@@ -302,7 +302,7 @@ func (w *billSplitWrapper) HashForIdCalculation(hashFunc crypto.Hash) []byte {
 	return hasher.Sum(nil)
 }
 func (w *billSplitWrapper) TargetUnits(hashFunc crypto.Hash) []*uint256.Int {
-	return []*uint256.Int{w.UnitID(), txutil.SameShardId(w.UnitID(), w.HashForIdCalculation(hashFunc))}
+	return []*uint256.Int{w.UnitID(), txutil.SameShardID(w.UnitID(), w.HashForIdCalculation(hashFunc))}
 }
 
 func (w *swapWrapper) OwnerCondition() []byte      { return w.swap.OwnerCondition }

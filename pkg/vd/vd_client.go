@@ -133,7 +133,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 		return err
 	}
 	if !resp.GetOk() {
-		return errors.New(fmt.Sprintf("error while submitting the hash: %s", resp.GetMessage()))
+		return fmt.Errorf("error while submitting the hash: %s", resp.GetMessage())
 	}
 	log.Info("Hash successfully submitted, timeout block: ", timeout)
 
@@ -206,7 +206,7 @@ func (v *VDClient) IsShutdown() bool {
 
 func validateHash(hash []byte) error {
 	if len(hash) != sha256.Size {
-		return errors.New(fmt.Sprintf("invalid hash length, expected %d bytes, got %d", sha256.Size, len(hash)))
+		return fmt.Errorf("invalid hash length, expected %d bytes, got %d", sha256.Size, len(hash))
 	}
 	return nil
 }

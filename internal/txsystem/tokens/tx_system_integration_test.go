@@ -2,8 +2,9 @@ package tokens
 
 import (
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -153,7 +154,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 	verifyProof(t, splitTx1, network, trustBase, hashAlgorithm)
 
-	sUnitID1 := txutil.SameShardId(uint256.NewInt(0).SetBytes(fungibleTokenID1), split1GenTx.(*splitFungibleTokenWrapper).HashForIdCalculation(hashAlgorithm))
+	sUnitID1 := txutil.SameShardID(uint256.NewInt(0).SetBytes(fungibleTokenID1), split1GenTx.(*splitFungibleTokenWrapper).HashForIDCalculation(hashAlgorithm))
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     util.Uint256ToBytes(sUnitID1),
 		typeUnitID: fungibleTokenTypeID,
@@ -188,7 +189,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	sUnitID2 := txutil.SameShardId(uint256.NewInt(0).SetBytes(fungibleTokenID1), splitGenTx2.(*splitFungibleTokenWrapper).HashForIdCalculation(hashAlgorithm))
+	sUnitID2 := txutil.SameShardID(uint256.NewInt(0).SetBytes(fungibleTokenID1), splitGenTx2.(*splitFungibleTokenWrapper).HashForIDCalculation(hashAlgorithm))
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     util.Uint256ToBytes(sUnitID2),
 		typeUnitID: fungibleTokenTypeID,

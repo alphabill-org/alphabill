@@ -104,7 +104,7 @@ func TestExecute_SplitOk(t *testing.T) {
 	require.Equal(t, roundNumber, initBillDataAfterUpdate.T)
 
 	splitWrapper := splitOk.(*billSplitWrapper)
-	expectedNewUnitId := txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
+	expectedNewUnitId := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 	newBill, newBillData := getBill(t, rmaTree, expectedNewUnitId)
 	require.NotNil(t, newBill)
 	require.NotNil(t, newBillData)
@@ -126,7 +126,7 @@ func TestExecute_TransferDCOk(t *testing.T) {
 	err = txSystem.Execute(splitOk)
 
 	splitWrapper := splitOk.(*billSplitWrapper)
-	billID := txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
+	billID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 	_, splitBillData := getBill(t, rmaTree, billID)
 	transferDCOk, err := NewMoneyTx(systemIdentifier, createDCTransfer(billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32)))
 	require.NoError(t, err)
@@ -153,7 +153,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	err = txSystem.Execute(splitOk)
 
 	splitWrapper := splitOk.(*billSplitWrapper)
-	splitBillID := txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
+	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree, signer)
 
@@ -249,7 +249,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		err = txSystem.Execute(splitOk)
 		require.NoError(t, err)
 		splitWrapper := splitOk.(*billSplitWrapper)
-		splitBillIDs[i] = txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
+		splitBillIDs[i] = txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 
 		_, data := getBill(t, rmaTree, initialBill.ID)
 		backlink = data.Backlink
@@ -319,7 +319,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	err = txSystem.Execute(splitOk)
 
 	splitWrapper := splitOk.(*billSplitWrapper)
-	splitBillID := txutil.SameShardId(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
+	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 
 	dcTransfers, swapTx := createDCTransferAndSwapTxs(t, []*uint256.Int{splitBillID}, rmaTree, signer)
 

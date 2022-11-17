@@ -2,6 +2,7 @@ package distributed
 
 import (
 	gocrypto "crypto"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -12,6 +13,7 @@ type SafetyModule struct {
 	highestVotedRound uint64
 	highestQcRound    uint64
 	signer            crypto.Signer
+	verifier          crypto.Verifier
 }
 
 func max(a, b uint64) uint64 {
@@ -36,8 +38,13 @@ func isSafeToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert
 	return true
 }
 
-func NewSafetyModule(signer crypto.Signer) *SafetyModule {
-	return &SafetyModule{highestVotedRound: 0, highestQcRound: 0, signer: signer}
+func NewSafetyModule(signer crypto.Signer) (*SafetyModule, error) {
+	ver, err := signer.Verifier()
+	if err != nil {
+		return nil, fmt.Errorf("invalid root validator sign key: %w", err)
+	}
+
+	return &SafetyModule{highestVotedRound: 0, highestQcRound: 0, signer: signer, verifier: ver}, nil
 }
 
 func (s *SafetyModule) isSafeToVote(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
@@ -147,4 +154,8 @@ func (s *SafetyModule) isCommitCandidate(block *atomic_broadcast.BlockData) []by
 		return block.Qc.VoteInfo.ExecStateId
 	}
 	return nil
+}
+
+func (s *SafetyModule) GetVerifier() crypto.Verifier {
+	return s.verifier
 }

@@ -10,6 +10,16 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 )
 
+func initSafetyModule(t *testing.T) *SafetyModule {
+	signer, err := crypto.NewInMemorySecp256K1Signer()
+	require.Nil(t, err)
+	safety, err := NewSafetyModule(signer)
+	require.NoError(t, err)
+	require.NotNil(t, safety)
+	require.NotNil(t, safety.verifier)
+	return safety
+}
+
 func TestIsConsecutive(t *testing.T) {
 	const currentRound = 4
 	// block is deemed consecutive if it follows current round 4 i.e. block with round 5 is consecutive
@@ -19,20 +29,14 @@ func TestIsConsecutive(t *testing.T) {
 }
 
 func TestNewSafetyModule(t *testing.T) {
-	signer, err := crypto.NewInMemorySecp256K1Signer()
-	require.Nil(t, err)
-	safety := NewSafetyModule(signer)
-	require.NotNil(t, safety)
+	safety := initSafetyModule(t)
 	require.Equal(t, uint64(0), safety.highestQcRound)
 	require.Equal(t, uint64(0), safety.highestVotedRound)
 }
 
 func TestSafetyModule_IsSafeToVote(t *testing.T) {
 	var blockRound uint64 = 4
-	signer, err := crypto.NewInMemorySecp256K1Signer()
-	require.Nil(t, err)
-	s := NewSafetyModule(signer)
-	require.NotNil(t, s)
+	s := initSafetyModule(t)
 	// Assume last round was not TC - TC is nil
 	// then it is safe to vote:
 	// 1. must vote in monotonically increasing rounds
@@ -61,10 +65,7 @@ func TestSafetyModule_IsSafeToVote(t *testing.T) {
 }
 
 func TestSafetyModule_MakeVote(t *testing.T) {
-	signer, err := crypto.NewInMemorySecp256K1Signer()
-	require.Nil(t, err)
-	s := NewSafetyModule(signer)
-	require.NotNil(t, s)
+	s := initSafetyModule(t)
 	dummyRootHash := []byte{1, 2, 3}
 	blockData := &atomic_broadcast.BlockData{
 		Id:        []byte{0, 1, 2},
@@ -101,10 +102,7 @@ func TestSafetyModule_MakeVote(t *testing.T) {
 }
 
 func TestSafetyModule_SignProposal(t *testing.T) {
-	signer, err := crypto.NewInMemorySecp256K1Signer()
-	require.Nil(t, err)
-	s := NewSafetyModule(signer)
-	require.NotNil(t, s)
+	s := initSafetyModule(t)
 	// create a dummy proposal message
 	proposal := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{

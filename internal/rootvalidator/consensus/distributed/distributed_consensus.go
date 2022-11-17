@@ -150,6 +150,11 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	for id := range conf.RootTrustBase {
 		rootNodeIds = append(rootNodeIds, peer.ID(id))
 	}
+	safetyModule, err := NewSafetyModule(signer)
+	if err != nil {
+		return nil, err
+	}
+
 	lastState, err := conf.stateStore.Get()
 	if err != nil {
 		return nil, err
@@ -190,7 +195,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		proposer:     l,
 		rootVerifier: rootVerifier,
 		proposalGen:  NewProposalGenerator(),
-		safety:       NewSafetyModule(signer),
+		safety:       safetyModule,
 		stateLedger:  ledger,
 		partitions:   partitionStore,
 	}

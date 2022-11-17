@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/holiman/uint256"
 )
 
@@ -27,13 +28,13 @@ type (
 	}
 
 	BlockProof struct {
-		Tx    *txsystem.Transaction `json:"tx"`
-		Proof *block.BlockProof     `json:"proof"`
-		// TODO add block number
+		Tx          *txsystem.Transaction `json:"tx"`
+		Proof       *block.BlockProof     `json:"proof"`
+		BlockNumber uint64                `json:"blockNumber"`
 	}
 )
 
-func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof) (*BlockProof, error) {
+func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumber uint64) (*BlockProof, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -41,8 +42,9 @@ func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof) (*BlockPro
 		return nil, errors.New("proof is nil")
 	}
 	return &BlockProof{
-		Tx:    tx,
-		Proof: proof,
+		Tx:          tx,
+		Proof:       proof,
+		BlockNumber: blockNumber,
 	}, nil
 }
 
@@ -59,6 +61,23 @@ func (b *Bill) GetID() []byte {
 	return util.Uint256ToBytes(b.Id)
 }
 
+func (b *Bill) ToSchema() *schema.Bill {
+	return &schema.Bill{
+		Id:         b.GetID(),
+		Value:      b.Value,
+		TxHash:     b.TxHash,
+		BlockProof: b.BlockProof.ToSchema(),
+	}
+}
+
+func (b *BlockProof) ToSchema() *schema.BlockProof {
+	return &schema.BlockProof{
+		Tx:          b.Tx,
+		Proof:       b.Proof,
+		BlockNumber: b.BlockNumber,
+	}
+}
+
 // isExpired returns true if dcBill, that was left unswapped, should be deleted
 func (b *Bill) isExpired(blockHeight uint64) bool {
 	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
@@ -73,7 +92,7 @@ func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction) error {
 	if err != nil {
 		return err
 	}
-	blockProof, err := NewBlockProof(txPb, proof)
+	blockProof, err := NewBlockProof(txPb, proof, bl.BlockNumber)
 	if err != nil {
 		return err
 	}

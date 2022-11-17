@@ -50,7 +50,7 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	if err != nil {
 		return nil, err
 	}
-	blockProof, err := NewBlockProof(txPb, proof)
+	blockProof, err := NewBlockProof(txPb, proof, b.BlockNumber)
 	if err != nil {
 		return nil, err
 	}

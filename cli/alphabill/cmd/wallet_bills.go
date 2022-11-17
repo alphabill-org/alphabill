@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"crypto"
 	"fmt"
 	"os"
 	"path"
@@ -11,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
@@ -26,20 +26,12 @@ const (
 
 var (
 	errBillOrderNumberOutOfBounds = errors.New("bill order number out of bounds")
-	moneySystemIdentifier         = []byte{0, 0, 0, 0}
 )
 
 type (
 	// BillsDTO json schema for bill import and export.
 	BillsDTO struct {
-		Bills []*BillDTO `json:"bills"`
-	}
-	// BillDTO individual bill struct in import/export schema. All fields mandatory.
-	BillDTO struct {
-		Id         []byte            `json:"id"`
-		Value      uint64            `json:"value"`
-		TxHash     []byte            `json:"txHash"`
-		BlockProof *money.BlockProof `json:"blockProof"`
+		Bills []*schema.Bill `json:"bills"`
 	}
 	// TrustBase json schema for trust base file.
 	TrustBase struct {
@@ -248,7 +240,7 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return errors.New("bill file does not contain any bills")
 	}
 	for _, b := range billFileJson.Bills {
-		err = b.verifyProof(verifiers)
+		err = b.Verify(verifiers)
 		if err != nil {
 			return err
 		}
@@ -302,37 +294,24 @@ func filterDcBills(bills []*money.Bill) []*money.Bill {
 	return normalBills
 }
 
-func newBillDTO(b *money.Bill) *BillDTO {
-	return &BillDTO{
-		Id:         b.GetID(),
-		Value:      b.Value,
-		TxHash:     b.TxHash,
-		BlockProof: b.BlockProof,
-	}
-}
-
 func newBillsDTO(bills ...*money.Bill) *BillsDTO {
-	var billsDTO []*BillDTO
+	var billsDTO []*schema.Bill
 	for _, b := range bills {
-		billsDTO = append(billsDTO, newBillDTO(b))
+		billsDTO = append(billsDTO, b.ToSchema())
 	}
 	return &BillsDTO{Bills: billsDTO}
 }
 
-func newBill(b *BillDTO) *money.Bill {
+func newBill(b *schema.Bill) *money.Bill {
 	return &money.Bill{
-		Id:         uint256.NewInt(0).SetBytes(b.Id),
-		Value:      b.Value,
-		TxHash:     b.TxHash,
-		BlockProof: b.BlockProof,
+		Id:     uint256.NewInt(0).SetBytes(b.Id),
+		Value:  b.Value,
+		TxHash: b.TxHash,
+		BlockProof: &money.BlockProof{
+			Tx:    b.BlockProof.Tx,
+			Proof: b.BlockProof.Proof,
+		},
 	}
-}
-
-func (b *BillDTO) verifyProof(verifiers map[string]abcrypto.Verifier) error {
-	if b.BlockProof == nil {
-		return errors.New("proof is nil")
-	}
-	return b.BlockProof.Verify(verifiers, crypto.SHA256)
 }
 
 func (t *TrustBase) verify() error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"strings"
 	"testing"
 
@@ -33,6 +34,11 @@ func TestWalletBackendCli(t *testing.T) {
 	network := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, defaultServerAddr)
 
+	// create trust base file
+	homedir := setupTestHomeDir(t, "wallet-backend-test")
+	trustBaseFilePath := path.Join(homedir, "trust-base.json")
+	_ = createTrustBaseFile(trustBaseFilePath, network)
+
 	// transfer initial bill to wallet
 	pubkeyHex := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
 	pubkey1, _ := hexutil.Decode(pubkeyHex)
@@ -48,9 +54,8 @@ func TestWalletBackendCli(t *testing.T) {
 	serverAddr := fmt.Sprintf("localhost:%d", port)
 	consoleWriter = &testConsoleWriter{}
 	go func() {
-		homeDir := setupTestHomeDir(t, "wallet-backend-test")
 		cmd := New()
-		args := fmt.Sprintf("wallet-backend --home %s start --server-addr %s --pubkeys %s", homeDir, serverAddr, pubkeyHex)
+		args := fmt.Sprintf("wallet-backend --home %s start --server-addr %s --pubkeys %s --trust-base-file %s", homedir, serverAddr, pubkeyHex, trustBaseFilePath)
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 		ctx, cancelFunc := context.WithCancel(context.Background())

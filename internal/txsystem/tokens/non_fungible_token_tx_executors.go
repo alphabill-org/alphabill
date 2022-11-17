@@ -176,7 +176,7 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 		return err
 	}
 	if len(predicates) > 0 {
-		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO AB-478*/, tx.SigBytes())
 	}
 	return nil
 }
@@ -208,7 +208,7 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenWrapper) error {
@@ -240,5 +240,5 @@ func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenW
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.DataUpdateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+	return script.RunScript(tx.attributes.DataUpdateSignature, predicates[0] /*TODO AB-476*/, tx.SigBytes())
 }

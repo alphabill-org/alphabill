@@ -263,7 +263,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 		return err
 	}
 	if len(predicates) > 0 {
-		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO AB-478*/, tx.SigBytes())
 	}
 	return nil
 }
@@ -292,7 +292,7 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) error {
@@ -318,7 +318,7 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) error {
@@ -348,7 +348,7 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) error {
@@ -395,5 +395,5 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO*/, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }

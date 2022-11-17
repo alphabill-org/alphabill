@@ -2,7 +2,6 @@ package testserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -54,7 +53,7 @@ func (s *TestAlphabillServiceServer) GetBlocks(_ context.Context, req *alphabill
 	for i := req.BlockNumber; i <= maxBlockNumber; i++ {
 		blockFunc, f := s.blocks[i]
 		if !f {
-			return nil, errors.New(fmt.Sprintf("block with number %v not found", i))
+			return nil, fmt.Errorf("block with number %v not found", i)
 		}
 		blocks = append(blocks, blockFunc())
 	}

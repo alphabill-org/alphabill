@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -47,7 +46,7 @@ func (c *walletBackendConfig) GetPubKeys() ([][]byte, error) {
 			return nil, err
 		}
 		if len(pubKeyBytes) != crypto.CompressedSecp256K1PublicKeySize {
-			return nil, errors.New(fmt.Sprintf("invalid pubkey length for key %s", pubKey))
+			return nil, fmt.Errorf("invalid pubkey length for key %s", pubKey)
 		}
 		pubkeys[i] = pubKeyBytes
 	}

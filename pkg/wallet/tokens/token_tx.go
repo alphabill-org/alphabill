@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -364,7 +363,7 @@ func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *to
 
 func (w *Wallet) split(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, amount uint64, receiverPubKey []byte) error {
 	if amount >= token.Amount {
-		return errors.New(fmt.Sprintf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.ID))
+		return fmt.Errorf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.ID)
 	}
 
 	sub, err := w.sendTx(token.ID, newSplitTxAttrs(token, amount, receiverPubKey), ac)

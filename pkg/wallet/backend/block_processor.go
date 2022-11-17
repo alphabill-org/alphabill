@@ -2,7 +2,6 @@ package backend
 
 import (
 	"crypto"
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -28,7 +27,7 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 		return err
 	}
 	if b.BlockNumber != lastBlockNumber+1 {
-		return errors.New(fmt.Sprintf("invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber))
+		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber)
 	}
 	keys, err := p.store.GetKeys()
 	if err != nil {

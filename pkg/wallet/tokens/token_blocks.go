@@ -3,7 +3,6 @@ package tokens
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -31,7 +30,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			return err
 		}
 		if blockNumber != lastBlockNumber+1 {
-			return errors.New(fmt.Sprintf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
+			return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 		}
 
 		if len(b.Transactions) != 0 {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -468,7 +467,7 @@ func getPubKeyBytes(cmd *cobra.Command, flag string) ([]byte, error) {
 	} else {
 		pk, ok := pubKeyHexToBytes(pubKeyHex)
 		if !ok {
-			return nil, errors.New(fmt.Sprintf("address in not in valid format: %s", pubKeyHex))
+			return nil, fmt.Errorf("address in not in valid format: %s", pubKeyHex)
 		}
 		pubKey = pk
 	}
@@ -750,7 +749,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 			keyStr := split[1]
 			if strings.HasPrefix(strings.ToLower(keyStr), "0x") {
 				if len(keyStr) < 3 {
-					return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
+					return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 				}
 				keyHash, err := hexutil.Decode(keyStr)
 				if err != nil {
@@ -774,7 +773,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 	if strings.HasPrefix(clause, "0x") {
 		return decodeHexOrEmpty(clause)
 	}
-	return nil, errors.New(fmt.Sprintf("invalid predicate clause: '%s'", clause))
+	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 }
 
 //getHexFlag returns nil in case array is empty (weird behaviour by cobra)

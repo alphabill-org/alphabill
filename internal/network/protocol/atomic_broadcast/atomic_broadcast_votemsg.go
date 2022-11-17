@@ -20,7 +20,7 @@ func (x *VoteMsg) IsTimeout() bool {
 
 func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 	if signer == nil {
-		return errors.New(ErrSignerIsNil)
+		return ErrSignerIsNil
 	}
 	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
 	if err != nil {
@@ -32,7 +32,7 @@ func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 
 func (x *VoteMsg) Verify(v AtomicVerifier) error {
 	if v == nil {
-		return errors.New(ErrVerifierIsNil)
+		return ErrVerifierIsNil
 	}
 	if err := x.VoteInfo.IsValid(); err != nil {
 		return errors.Wrap(err, "invalid vote message")
@@ -61,7 +61,7 @@ func (x *VoteMsg) NewTimeout(qc *QuorumCert) *Timeout {
 // AddTimeoutSignature adds timeout signature to vote message, turning it into a timeout vote
 func (x *VoteMsg) AddTimeoutSignature(timeout *Timeout, signature []byte) error {
 	if timeout == nil {
-		return errors.New(ErrTimeoutIsNil)
+		return ErrTimeoutIsNil
 	}
 	x.TimeoutSignature = &TimeoutWithSignature{Timeout: timeout, Signature: signature}
 	return nil
@@ -69,10 +69,10 @@ func (x *VoteMsg) AddTimeoutSignature(timeout *Timeout, signature []byte) error 
 
 func (x *VoteMsg) VerifyTimeoutSignature(timeout *Timeout, v crypto.Verifier) error {
 	if v == nil {
-		return errors.New(ErrVerifierIsNil)
+		return ErrVerifierIsNil
 	}
 	if timeout == nil {
-		return errors.New(ErrTimeoutIsNil)
+		return ErrTimeoutIsNil
 	}
 	err := v.VerifyBytes(x.TimeoutSignature.Signature, timeout.Bytes())
 	if err != nil {

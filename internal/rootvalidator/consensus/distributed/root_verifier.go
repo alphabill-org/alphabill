@@ -1,8 +1,9 @@
 package distributed
 
 import (
+	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -15,18 +16,17 @@ type RootNodeVerifier struct {
 
 func NewRootClusterVerifier(keyMap map[string]crypto.Verifier, threshold uint32) (*RootNodeVerifier, error) {
 	nofNodes := uint32(len(keyMap))
-	minFaulty := (nofNodes - 1) / 3
-	if minFaulty == 0 {
-		// Too few nodes, no failures can be tolerated
-		return nil, errors.New("Too few root validator nodes for distributed root validator chain")
+	minThreshold := nofNodes*2/3 + 1
+
+	if threshold > nofNodes {
+		// Quorum power is bigger than nof root validators registered
+		return nil, fmt.Errorf("quorum threshold too high %v: only %v root validator keys registered",
+			threshold, nofNodes)
 	}
-	if nofNodes > threshold {
-		// Too few nodes, no failures can be tolerated
-		return nil, errors.New("Quorum threshold is configured bigger than number of root validator nodes")
-	}
-	if nofNodes-threshold < minFaulty {
-		// Threshold is configured too high, no failures are tolerated
-		return nil, errors.New("Quorum threshold is configured too high, no failures are tolerated")
+	if threshold < minThreshold {
+		// Threshold is configured too low, not safe
+		return nil, fmt.Errorf("quorum threshold too low %v: for %v validators min quorum is %v",
+			threshold, nofNodes, minThreshold)
 	}
 	return &RootNodeVerifier{nodeToPubkeyMap: keyMap, quorumThreshold: threshold}, nil
 }
@@ -40,7 +40,7 @@ func (r *RootNodeVerifier) GetQuorumThreshold() uint32 {
 func (r *RootNodeVerifier) VerifySignature(hash []byte, sig []byte, author peer.ID) error {
 	ver, err := r.GetVerifier(author)
 	if err != nil {
-		return errors.Errorf("Failed to find public key for author %v", author)
+		return fmt.Errorf("failed to find public key for author %v", author)
 	}
 	err = ver.VerifyHash(sig, hash)
 	if err != nil {
@@ -52,7 +52,7 @@ func (r *RootNodeVerifier) VerifySignature(hash []byte, sig []byte, author peer.
 func (r *RootNodeVerifier) VerifyBytes(bytes []byte, sig []byte, author peer.ID) error {
 	ver, err := r.GetVerifier(author)
 	if err != nil {
-		return errors.Errorf("Failed to find public key for author %v", author)
+		return err
 	}
 	err = ver.VerifyBytes(sig, bytes)
 	if err != nil {
@@ -65,12 +65,12 @@ func (r *RootNodeVerifier) ValidateQuorum(authors []string) error {
 	for _, author := range authors {
 		_, err := r.GetVerifier(peer.ID(author))
 		if err != nil {
-			return errors.Errorf("Timeout certificate, unknown author %v", author)
+			return fmt.Errorf("invalid quorum: unknown author %v", author)
 		}
 	}
 	// check less than quorum of authors
 	if uint32(len(authors)) < r.GetQuorumThreshold() {
-		return errors.Errorf("Timeout certificate, less than quorum %v of votes %v",
+		return fmt.Errorf("invalid quorum: requires %v only %v present",
 			r.GetQuorumThreshold(), len(authors))
 	}
 	return nil
@@ -80,16 +80,18 @@ func (r *RootNodeVerifier) VerifyQuorumSignatures(hash []byte, signatures map[st
 	// Quick sanity check, make sure that there are not more signatures that we know public keys for
 	err := r.checkNumberOfSignatures(signatures)
 	if err != nil {
-		return errors.Wrap(err, "Quorum verify failed")
+		return fmt.Errorf("quorum verify failed: %w", err)
 	}
 	// Check quorum, if not fail without checking signatures itself
 	if uint32(len(signatures)) < r.GetQuorumThreshold() {
-		return errors.New("Too few signatures for quorum")
+		return fmt.Errorf("quorum verify failed: no quorum %d of %d signed",
+			len(signatures), r.GetQuorumThreshold())
 	}
+	// Verify all signatures
 	for author, sig := range signatures {
 		err := r.VerifySignature(hash, sig, peer.ID(author))
 		if err != nil {
-			return errors.Wrap(err, "Quorum verify failed")
+			return fmt.Errorf("quorum verify failed: %w", err)
 		}
 	}
 	return nil
@@ -98,8 +100,8 @@ func (r *RootNodeVerifier) VerifyQuorumSignatures(hash []byte, signatures map[st
 // CheckNumberOfSignatures makes sure there are not more signatures that registered public keys
 func (r *RootNodeVerifier) checkNumberOfSignatures(signatures map[string][]byte) error {
 	if len(r.nodeToPubkeyMap) < len(signatures) {
-		return errors.Errorf("More signatures %v than registered public key's %v",
-			len(signatures), r.nodeToPubkeyMap)
+		return fmt.Errorf("more signatures %v than registered public key's %v",
+			len(signatures), len(r.nodeToPubkeyMap))
 	}
 	return nil
 }
@@ -107,7 +109,7 @@ func (r *RootNodeVerifier) checkNumberOfSignatures(signatures map[string][]byte)
 func (r *RootNodeVerifier) GetVerifier(nodeId peer.ID) (crypto.Verifier, error) {
 	ver, exists := r.nodeToPubkeyMap[string(nodeId)]
 	if exists == false {
-		return nil, errors.Errorf("No public key exist for node id %v", nodeId)
+		return nil, fmt.Errorf("no public key exist for node id %v", nodeId.String())
 	}
 	return ver, nil
 }

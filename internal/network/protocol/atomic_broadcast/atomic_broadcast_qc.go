@@ -3,14 +3,16 @@ package atomic_broadcast
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 	"hash"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
-const (
-	ErrTimeoutIsNil          = "timeout is nil"
-	ErrSealNotSignedByQuorum = "seal not signed by quorum"
+var (
+	ErrTimeoutIsNil          = errors.New("timeout is nil")
+	ErrSealNotSignedByQuorum = errors.New("seal not signed by quorum")
+	ErrMissingVoteInfo       = errors.New("vote info is nil")
+	ErrLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
 )
 
 func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, signatures map[string][]byte) *QuorumCert {
@@ -22,11 +24,17 @@ func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, sign
 }
 
 func (x *QuorumCert) Verify(v AtomicVerifier) error {
+	if x.VoteInfo == nil {
+		return ErrMissingVoteInfo
+	}
 	// verify that QC is valid
 	if err := x.VoteInfo.IsValid(); err != nil {
 		return err
 	}
 	// Check Consensus info
+	if x.LedgerCommitInfo == nil {
+		return ErrLedgerCommitInfoIsNil
+	}
 	if err := x.LedgerCommitInfo.IsValid(); err != nil {
 		return err
 	}
@@ -39,13 +47,13 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 	// verify that it is signed by quorum
 	// if less than quorum, then there is no need to verify the signatures
 	if uint32(len(x.Signatures)) < v.GetQuorumThreshold() {
-		return errors.New(ErrSealNotSignedByQuorum)
+		return ErrSealNotSignedByQuorum
 	}
 	hasher.Reset()
 	hasher.Write(x.LedgerCommitInfo.Bytes())
 	err := v.VerifyQuorumSignatures(hasher.Sum(nil), x.Signatures)
 	if err != nil {
-		return errors.Wrap(err, "QC verify failed")
+		return fmt.Errorf("QC verify failed: %w", err)
 	}
 	return nil
 }

@@ -628,7 +628,7 @@ func tokenCmdList(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdListFungible(config))
 	cmd.AddCommand(tokenCmdListNonFungible(config))
 	addPasswordFlags(cmd)
-	cmd.PersistentFlags().IntP(keyCmdName, "k", 1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
+	cmd.PersistentFlags().IntP(keyCmdName, "k", -1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
 	return cmd
 }
 

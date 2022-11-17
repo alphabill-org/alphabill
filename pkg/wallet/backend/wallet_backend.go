@@ -2,9 +2,12 @@ package backend
 
 import (
 	"context"
+	"crypto"
+	"errors"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -16,23 +19,24 @@ type (
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
+		verifiers     map[string]abcrypto.Verifier
 		cancelSyncCh  chan bool
 	}
 
 	Bill struct {
-		Id     []byte `json:"id"`
-		Value  uint64 `json:"value"`
-		TxHash []byte `json:"txHash"`
+		Id     []byte `json:"id" validate:"required,len=32"`
+		Value  uint64 `json:"value" validate:"required"`
+		TxHash []byte `json:"txHash" validate:"required"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
 		OrderNumber uint64      `json:"orderNumber"`
-		BlockProof  *BlockProof `json:"blockProof,omitempty"`
+		BlockProof  *BlockProof `json:"blockProof" validate:"required"`
 	}
 
 	BlockProof struct {
-		BillId      []byte                `json:"billId"`
-		BlockNumber uint64                `json:"blockNumber"`
-		Tx          *txsystem.Transaction `json:"tx"`
-		BlockProof  *block.BlockProof     `json:"proof"`
+		BillId      []byte                `json:"billId" validate:"required,len=32"`
+		BlockNumber uint64                `json:"blockNumber" validate:"required,gt=0"`
+		Tx          *txsystem.Transaction `json:"tx" validate:"required"`
+		Proof       *block.BlockProof     `json:"proof" validate:"required"`
 	}
 
 	Pubkey struct {
@@ -57,8 +61,8 @@ type (
 
 // New creates a new wallet backend service which can be started by calling the Start or StartProcess method.
 // Shutdown method should be called to close resources used by the service.
-func New(wallet *wallet.Wallet, store BillStore) *WalletBackend {
-	return &WalletBackend{store: store, genericWallet: wallet, cancelSyncCh: make(chan bool, 1)}
+func New(wallet *wallet.Wallet, store BillStore, verifiers map[string]abcrypto.Verifier) *WalletBackend {
+	return &WalletBackend{store: store, genericWallet: wallet, verifiers: verifiers, cancelSyncCh: make(chan bool, 1)}
 }
 
 // NewPubkey creates a new hashed Pubkey
@@ -114,6 +118,18 @@ func (w *WalletBackend) GetBlockProof(unitId []byte) (*BlockProof, error) {
 	return w.store.GetBlockProof(unitId)
 }
 
+// AddBillWithProof adds new bill and proof to the index.
+// Verifies block proof.
+// Overwrites existing bill and proof, if one exists.
+func (w *WalletBackend) AddBillWithProof(pubkey []byte, bill *Bill) error {
+	// TODO is pubkey added to tracked keys if not exists??
+	err := bill.BlockProof.verifyProof(w.verifiers)
+	if err != nil {
+		return err
+	}
+	return w.store.AddBillWithProof(pubkey, bill, bill.BlockProof)
+}
+
 // AddKey adds new public key to list of tracked keys.
 // Returns ErrKeyAlreadyExists error if key already exists.
 func (w *WalletBackend) AddKey(pubkey []byte) error {
@@ -128,4 +144,15 @@ func (w *WalletBackend) Shutdown() {
 	default:
 	}
 	w.genericWallet.Shutdown()
+}
+
+func (b *BlockProof) verifyProof(verifiers map[string]abcrypto.Verifier) error {
+	if b.Proof == nil {
+		return errors.New("proof is nil")
+	}
+	gtx, err := txConverter.ConvertTx(b.Tx)
+	if err != nil {
+		return err
+	}
+	return b.Proof.Verify(gtx, verifiers, crypto.SHA256)
 }

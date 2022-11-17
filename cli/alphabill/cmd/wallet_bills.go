@@ -96,7 +96,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		return nil
 	}
 	for i, b := range bills {
-		consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", i+1, b.Id.Bytes32(), b.Value))
+		consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", i+1, b.GetID(), b.Value))
 	}
 	return nil
 }
@@ -284,7 +284,7 @@ func getOutputFile(outputDir string, bills []*money.Bill) (string, error) {
 	if len(bills) == 0 {
 		return "", errors.New("no bills to export")
 	} else if len(bills) == 1 {
-		billId := bills[0].Id.Bytes32()
+		billId := bills[0].GetID()
 		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
 		return path.Join(outputDir, filename), nil
 	} else {
@@ -303,9 +303,8 @@ func filterDcBills(bills []*money.Bill) []*money.Bill {
 }
 
 func newBillDTO(b *money.Bill) *BillDTO {
-	b32 := b.Id.Bytes32()
 	return &BillDTO{
-		Id:         b32[:],
+		Id:         b.GetID(),
 		Value:      b.Value,
 		TxHash:     b.TxHash,
 		BlockProof: b.BlockProof,

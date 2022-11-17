@@ -223,7 +223,7 @@ func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
 	}
 	hasher := crypto.SHA256.New()
 	for i := len(bills) - 1; i >= 0; i-- {
-		hasher.Write(bills[i].GetId())
+		hasher.Write(bills[i].GetID())
 	}
 	expectedNonce := hasher.Sum(nil)
 
@@ -243,7 +243,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
 	for _, dcBill := range dcBills {
-		dcBillIds = append(dcBillIds, dcBill.GetId())
+		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
 	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)

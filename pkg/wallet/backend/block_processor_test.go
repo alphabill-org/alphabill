@@ -73,7 +73,7 @@ func verifyProof(t *testing.T, proof *BlockProof, billId []byte) {
 	require.EqualValues(t, 1, proof.BlockNumber)
 	require.Equal(t, billId, proof.BillId)
 
-	blockProof := proof.BlockProof
+	blockProof := proof.Proof
 	require.NotNil(t, blockProof)
 	require.NotNil(t, blockProof.BlockHeaderHash)
 	require.NotNil(t, blockProof.TransactionsHash)

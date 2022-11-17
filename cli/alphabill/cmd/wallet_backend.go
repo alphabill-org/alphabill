@@ -12,6 +12,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
@@ -37,6 +38,7 @@ type walletBackendConfig struct {
 	LogLevel           string
 	LogFile            string
 	ListBillsPageLimit int
+	TrustBaseFile      string
 }
 
 func (c *walletBackendConfig) GetPubKeys() ([][]byte, error) {
@@ -64,6 +66,22 @@ func (c *walletBackendConfig) GetDbFile() (string, error) {
 		return "", err
 	}
 	return path.Join(walletBackendHomeDir, backend.BoltBillStoreFileName), nil
+}
+
+func (c *walletBackendConfig) GetTrustBase() (map[string]crypto.Verifier, error) {
+	trustBase, err := util.ReadJsonFile(c.TrustBaseFile, &TrustBase{})
+	if err != nil {
+		return nil, err
+	}
+	err = trustBase.verify()
+	if err != nil {
+		return nil, err
+	}
+	verifiers, err := trustBase.toVerifiers()
+	if err != nil {
+		return nil, err
+	}
+	return verifiers, nil
 }
 
 // newWalletBackendCmd creates a new cobra command for the wallet-backend component.
@@ -104,6 +122,8 @@ func startCmd(ctx context.Context, config *walletBackendConfig) *cobra.Command {
 	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/wallet-backend/"+backend.BoltBillStoreFileName+")")
 	cmd.Flags().StringSliceVarP(&config.Pubkeys, pubkeysCmdName, "p", nil, "pubkeys to index (more keys can be added to running service through web api)")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
+	cmd.Flags().StringVarP(&config.TrustBaseFile, trustBaseFileCmdName, "t", "", "path to trust base file")
+	_ = cmd.MarkFlagRequired(trustBaseFileCmdName)
 	return cmd
 }
 
@@ -114,6 +134,10 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 		return err
 	}
 	dbFile, err := config.GetDbFile()
+	if err != nil {
+		return err
+	}
+	verifiers, err := config.GetTrustBase()
 	if err != nil {
 		return err
 	}
@@ -131,7 +155,7 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 	bp := backend.NewBlockProcessor(store)
 	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 
-	service := backend.New(w, store)
+	service := backend.New(w, store, verifiers)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {

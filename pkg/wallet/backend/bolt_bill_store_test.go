@@ -105,7 +105,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	expectedBlockProof := &BlockProof{
 		BillId:      billId[:],
 		BlockNumber: 1,
-		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
+		Proof:       &block.BlockProof{BlockHeaderHash: []byte{1}},
 	}
 	err = bs.SetBlockProof(expectedBlockProof)
 	require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestBillStore_AddBillWithProof(t *testing.T) {
 	p := &BlockProof{
 		BillId:      b.Id,
 		BlockNumber: 1,
-		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
+		Proof:       &block.BlockProof{BlockHeaderHash: []byte{1}},
 	}
 	err := bs.AddBillWithProof(pubKey, b, p)
 	require.NoError(t, err)

@@ -7,6 +7,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -53,10 +54,9 @@ func (b *BlockProof) Verify(verifiers map[string]abcrypto.Verifier, hashAlgorith
 	return b.Proof.Verify(gtx, verifiers, hashAlgorithm)
 }
 
-// GetId returns bill id in 32-byte big endian array
-func (b *Bill) GetId() []byte {
-	bytes32 := b.Id.Bytes32()
-	return bytes32[:]
+// GetID returns bill id in 32-byte big endian array
+func (b *Bill) GetID() []byte {
+	return util.Uint256ToBytes(b.Id)
 }
 
 // isExpired returns true if dcBill, that was left unswapped, should be deleted

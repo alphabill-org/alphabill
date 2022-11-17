@@ -342,7 +342,7 @@ func (w *wdbtx) SetBill(accountIndex uint64, bill *Bill) error {
 		if err != nil {
 			return err
 		}
-		return bkt.Bucket(accountBillsBucket).Put(bill.GetId(), val)
+		return bkt.Bucket(accountBillsBucket).Put(bill.GetID(), val)
 	}, true)
 }
 

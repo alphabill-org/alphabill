@@ -5,10 +5,13 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -43,7 +46,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 			}},
 		},
 	})
-	w := createWalletBackend(abclient)
+	w := createWalletBackend(t, abclient)
 	err := w.AddKey(pubKey1)
 	require.NoError(t, err)
 
@@ -75,9 +78,55 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func createWalletBackend(abclient client.ABClient) *WalletBackend {
+func TestAddBillWithProof_Ok(t *testing.T) {
+	txValue := uint64(100)
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+		TargetValue: txValue,
+	}))
+	proof, verifiers := createBlockProofForTx(t, tx)
+
+	service := New(nil, NewInmemoryBillStore(), verifiers)
+	err := service.AddBillWithProof([]byte{}, &Bill{
+		Id:     tx.UnitId,
+		Value:  txValue,
+		TxHash: []byte{},
+		BlockProof: &BlockProof{
+			BillId:      tx.UnitId,
+			BlockNumber: 1,
+			Tx:          tx,
+			Proof:       proof,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func TestAddBillWithProof_InvalidProof_Nok(t *testing.T) {
+	txValue := uint64(100)
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+		TargetValue: txValue,
+	}))
+	proof, verifiers := createBlockProofForTx(t, tx)
+	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
+
+	service := New(nil, NewInmemoryBillStore(), verifiers)
+	err := service.AddBillWithProof([]byte{}, &Bill{
+		Id:     tx.UnitId,
+		Value:  txValue,
+		TxHash: []byte{},
+		BlockProof: &BlockProof{
+			BillId:      tx.UnitId,
+			BlockNumber: 1,
+			Tx:          tx,
+			Proof:       proof,
+		},
+	})
+	require.ErrorIs(t, err, block.ErrProofVerificationFailed)
+}
+
+func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
 	storage := NewInmemoryBillStore()
 	bp := NewBlockProcessor(storage)
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
-	return New(genericWallet, storage)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	return New(genericWallet, storage, map[string]crypto.Verifier{"test": verifier})
 }

@@ -687,7 +687,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			var billIds [][]byte
 			for _, b := range bills {
 				dcValueSum += b.Value
-				billIds = append(billIds, b.GetId())
+				billIds = append(billIds, b.GetID())
 				tx, err := createDustTx(k, b, dcNonce, dcTimeout)
 				if err != nil {
 					return err
@@ -872,7 +872,7 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet,
 func calculateDcNonce(bills []*Bill) []byte {
 	var billIds [][]byte
 	for _, b := range bills {
-		billIds = append(billIds, b.GetId())
+		billIds = append(billIds, b.GetID())
 	}
 
 	// sort billIds in ascending order
@@ -898,7 +898,7 @@ func getBillIds(dbTx TxContext, accountIndex uint64, v *dcBillGroup) ([][]byte, 
 		billIds = dcMeta.BillIds
 	} else {
 		for _, dcBill := range v.dcBills {
-			billIds = append(billIds, dcBill.GetId())
+			billIds = append(billIds, dcBill.GetID())
 		}
 	}
 	return billIds, nil

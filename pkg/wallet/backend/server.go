@@ -18,6 +18,7 @@ type (
 	WalletBackendService interface {
 		GetBills(pubKey []byte) ([]*Bill, error)
 		GetBlockProof(unitId []byte) (*BlockProof, error)
+		AddBillWithProof(pubKey []byte, bill *Bill) error
 		AddKey(pubkey []byte) error
 	}
 )
@@ -25,6 +26,7 @@ type (
 func NewHttpServer(addr string, listBillsPageLimit int, service WalletBackendService) *WalletBackendHttpServer {
 	handler := &RequestHandler{service: service, listBillsPageLimit: listBillsPageLimit}
 	server := &WalletBackendHttpServer{server: &http.Server{Addr: addr, Handler: handler.router()}}
+	registerValidator()
 	return server
 }
 

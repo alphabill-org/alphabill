@@ -23,7 +23,7 @@ func defaultTx() *txsystem.Transaction {
 	return &txsystem.Transaction{
 		SystemId:              moneySystemID,
 		TransactionAttributes: new(anypb.Any),
-		UnitId:                randomBytes(3),
+		UnitId:                randomBytes(32),
 		Timeout:               10,
 		OwnerProof:            randomBytes(3),
 	}

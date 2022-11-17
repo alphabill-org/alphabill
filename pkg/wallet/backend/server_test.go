@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,7 +11,15 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,6 +35,11 @@ func (m *mockWalletService) GetBills(pubKey []byte) ([]*Bill, error) {
 
 func (m *mockWalletService) GetBlockProof(unitId []byte) (*BlockProof, error) {
 	return m.proof, nil
+}
+
+func (m *mockWalletService) AddBillWithProof(pubkey []byte, bill *Bill) error {
+	m.bills = append(m.bills, bill)
+	return nil
 }
 
 func (m *mockWalletService) AddKey(pubkey []byte) error {
@@ -217,7 +231,7 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 		proof: &BlockProof{
 			BillId:      newUnitId(1),
 			BlockNumber: 1,
-			BlockProof: &block.BlockProof{
+			Proof: &block.BlockProof{
 				BlockHeaderHash: []byte{0},
 				BlockTreeHashChain: &block.BlockTreeHashChain{
 					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
@@ -234,7 +248,7 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000001", res.BillId)
 	require.EqualValues(t, mockService.proof.BlockNumber, res.BlockNumber)
-	require.Equal(t, mockService.proof.BlockProof, res.BlockProof)
+	require.Equal(t, mockService.proof.Proof, res.BlockProof)
 }
 
 func TestBlockProofRequest_MissingBillId(t *testing.T) {
@@ -280,12 +294,65 @@ func TestBlockProofRequest_ProofDoesNotExist(t *testing.T) {
 	require.Equal(t, "block proof does not exist for given bill id", res.Message)
 }
 
+func TestAddBlockProofRequest_Ok(t *testing.T) {
+	_ = log.InitStdoutLogger(log.INFO)
+	txValue := uint64(100)
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+		TargetValue: txValue,
+	}))
+	proof, verifiers := createBlockProofForTx(t, tx)
+
+	service := New(nil, NewInmemoryBillStore(), verifiers)
+	startServer(t, service)
+
+	pubkey := make([]byte, 33)
+	txHash := make([]byte, 32)
+	req := &AddBlockProofRequest{
+		Pubkey: pubkey,
+		Bill: &Bill{
+			Id:     tx.UnitId,
+			Value:  txValue,
+			TxHash: txHash,
+			BlockProof: &BlockProof{
+				BillId:      tx.UnitId,
+				BlockNumber: 1,
+				Tx:          tx,
+				Proof:       proof,
+			},
+		}}
+	res := &EmptyResponse{}
+	httpRes := doPost(t, "http://localhost:7777/api/v1/block-proof", req, res)
+	require.Equal(t, 200, httpRes.StatusCode)
+
+	bills, err := service.GetBills(pubkey)
+	require.NoError(t, err)
+	require.Len(t, bills, 1)
+	b := bills[0]
+	require.Equal(t, tx.UnitId, b.Id)
+	require.Equal(t, txHash, b.TxHash)
+	require.EqualValues(t, txValue, b.Value)
+	require.NoError(t, b.BlockProof.verifyProof(verifiers))
+}
+
+func createBlockProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof, map[string]abcrypto.Verifier) {
+	b := &block.Block{
+		SystemIdentifier:  alphabillMoneySystemId,
+		BlockNumber:       1,
+		PreviousBlockHash: hash.Sum256([]byte{}),
+		Transactions:      []*txsystem.Transaction{tx},
+	}
+	b, verifiers := testblock.CertifyBlock(t, b, txConverter)
+	genericBlock, _ := b.ToGenericBlock(txConverter)
+	proof, _ := block.NewPrimaryProof(genericBlock, uint256.NewInt(0).SetBytes(tx.UnitId), crypto.SHA256)
+	return proof, verifiers
+}
+
 func TestAddKeyRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{}
 	startServer(t, mockService)
 
 	req := &AddKeyRequest{Pubkey: "0x000000000000000000000000000000000000000000000000000000000000000000"}
-	res := &AddKeyResponse{}
+	res := &EmptyResponse{}
 	httpRes := doPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
@@ -361,8 +428,8 @@ func doPost(t *testing.T, url string, req interface{}, res interface{}) *http.Re
 	return httpRes
 }
 
-func startServer(t *testing.T, mockService *mockWalletService) {
-	server := NewHttpServer(":7777", 100, mockService)
+func startServer(t *testing.T, service WalletBackendService) {
+	server := NewHttpServer(":7777", 100, service)
 	err := server.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {

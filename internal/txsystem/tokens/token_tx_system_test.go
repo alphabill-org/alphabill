@@ -273,7 +273,7 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 			SubTypeCreationPredicate: subTypeCreationPredicate,
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %v does not exist", parent1Identifier))
+	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(parent1Identifier)))
 }
 
 func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
@@ -324,7 +324,7 @@ func TestRevertTransaction_Ok(t *testing.T) {
 	require.NoError(t, txs.Execute(tx))
 	txs.Revert()
 	_, err := txs.state.GetUnit(unitIdentifier)
-	require.ErrorContains(t, err, fmt.Sprintf("item %v does not exist", unitIdentifier))
+	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(unitIdentifier)))
 }
 
 func TestExecuteCreateNFTType_InvalidSymbolName(t *testing.T) {
@@ -437,6 +437,7 @@ func TestMintNFT_UnitIDExists(t *testing.T) {
 
 func TestMintNFT_NFTTypeIsZero(t *testing.T) {
 	txs := newTokenTxSystem(t)
+	idBytes := util.Uint256ToBytes(uint256.NewInt(110))
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
@@ -444,14 +445,14 @@ func TestMintNFT_NFTTypeIsZero(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                          script.PredicateAlwaysTrue(),
-			NftType:                         util.Uint256ToBytes(uint256.NewInt(110)),
+			NftType:                         idBytes,
 			Uri:                             validNFTURI,
 			Data:                            []byte{10},
 			DataUpdatePredicate:             script.PredicateAlwaysTrue(),
 			TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 110 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %X does not exist", idBytes))
 }
 
 func TestMintNFT_URILengthIsInvalid(t *testing.T) {
@@ -519,7 +520,7 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 			NftType: []byte{0, 0, 0, 1},
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), "item 0000000000000000000000000000000000000000000000000000000000000001 does not exist")
 }
 
 func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
@@ -537,7 +538,7 @@ func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
 			InvariantPredicateSignature: script.PredicateAlwaysTrue(),
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), "item 0000000000000000000000000000000000000000000000000000000000000001 does not exist")
 }
 
 func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
@@ -696,7 +697,7 @@ func TestUpdateNFT_UnitDoesNotExist(t *testing.T) {
 			Backlink: test.RandomBytes(32),
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), "item 0000000000000000000000000000000000000000000000000000000000000001 does not exist")
 }
 
 func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {

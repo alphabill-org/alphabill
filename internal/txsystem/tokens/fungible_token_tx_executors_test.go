@@ -25,7 +25,7 @@ import (
 const (
 	invalidSymbolName = "♥♥♥♥♥♥♥♥ We ♥ Alphabill ♥♥♥♥♥♥♥♥"
 	validSymbolName   = "BETA"
-	validUnitID       = 10
+	validUnitID       = 0x0000000000000000000000000000000000000000000000000000000000000064
 
 	existingTokenUnitID = 2
 	existingTokenValue  = 1000
@@ -87,7 +87,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		{
 			name:       "parent does not exist",
 			tx:         createTx(t, uint256.NewInt(validUnitID), &CreateFungibleTokenTypeAttributes{Symbol: validSymbolName, DecimalPlaces: 6, ParentTypeId: util.Uint256ToBytes(uint256.NewInt(100))}),
-			wantErrStr: "item 100 does not exist",
+			wantErrStr: fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uint256.NewInt(validUnitID))),
 		},
 	}
 	for _, tt := range tests {
@@ -251,7 +251,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 				Value:                           1000,
 				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
 			}),
-			wantErrStr: "item 100 does not exist",
+			wantErrStr: fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uint256.NewInt(validUnitID))),
 		},
 		{
 			name: "invalid token creation predicate argument",

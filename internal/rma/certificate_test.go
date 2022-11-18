@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 
 	"github.com/holiman/uint256"
@@ -60,7 +61,7 @@ func TestExtractCertificate_ItemNotFound(t *testing.T) {
 	at.setNode(key10, newNodeContent(int(key10.Uint64())))
 	at.GetRootHash()
 	_, err := at.ExtractCertificate(key11)
-	require.ErrorContains(t, err, fmt.Sprintf(errStrItemDoesntExist, 11))
+	require.ErrorContains(t, err, fmt.Sprintf(errStrItemDoesntExist, util.Uint256ToBytes(uint256.NewInt(11))))
 }
 
 func TestCompTreeCert_IdIsNil(t *testing.T) {

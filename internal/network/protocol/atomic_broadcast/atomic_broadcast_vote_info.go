@@ -18,15 +18,15 @@ var (
 
 func (x *LedgerCommitInfo) Bytes() []byte {
 	var b bytes.Buffer
-	b.Write(x.CommitStateId)
 	b.Write(x.VoteInfoHash)
+	b.Write(x.CommitStateId)
 	return b.Bytes()
 }
 
 func (x *LedgerCommitInfo) Hash(hash gocrypto.Hash) []byte {
 	hasher := hash.New()
-	hasher.Write(x.CommitStateId)
 	hasher.Write(x.VoteInfoHash)
+	hasher.Write(x.CommitStateId)
 	return hasher.Sum(nil)
 }
 
@@ -56,7 +56,7 @@ func (x *VoteInfo) AddToHasher(hasher hash.Hash) {
 
 func (x *VoteInfo) IsValid() error {
 	// Todo: epoch is validation rule not yet known
-	if x.RootRound < 1 {
+	if x.RootRound < 1 || x.RootRound <= x.ParentRound {
 		return ErrInvalidRound
 	}
 	if len(x.BlockId) < 1 {

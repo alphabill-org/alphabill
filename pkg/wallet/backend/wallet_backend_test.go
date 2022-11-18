@@ -60,7 +60,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 
 	// verify first pubkey is indexed
 	require.Eventually(t, func() bool {
-		ok, _ := w.store.ContainsBill(pubKey1, billId1)
+		ok, _ := w.store.ContainsBill(billId1)
 		return ok
 	}, test.WaitDuration, test.WaitTick)
 
@@ -73,12 +73,12 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 
 	// verify new bill is indexed by pubkey
 	require.Eventually(t, func() bool {
-		ok, _ := w.store.ContainsBill(pubkey2, billId2)
+		ok, _ := w.store.ContainsBill(billId2)
 		return ok
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func TestAddBillWithProof_Ok(t *testing.T) {
+func TestSetBill_OK(t *testing.T) {
 	txValue := uint64(100)
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
@@ -86,21 +86,33 @@ func TestAddBillWithProof_Ok(t *testing.T) {
 	proof, verifiers := createBlockProofForTx(t, tx)
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
-	err := service.AddBillWithProof([]byte{}, &Bill{
+	pubkey := []byte{0}
+	b := &Bill{
 		Id:     tx.UnitId,
 		Value:  txValue,
 		TxHash: []byte{},
 		BlockProof: &BlockProof{
-			BillId:      tx.UnitId,
 			BlockNumber: 1,
 			Tx:          tx,
 			Proof:       proof,
 		},
-	})
+	}
+	err := service.SetBill(pubkey, b)
 	require.NoError(t, err)
+
+	// verify saved bill can be queried by id
+	bill, err := service.GetBill(tx.UnitId)
+	require.NoError(t, err)
+	require.Equal(t, b, bill)
+
+	// verify saved bill can be queryed by pubkey
+	bills, err := service.GetBills(pubkey)
+	require.NoError(t, err)
+	require.Len(t, bills, 1)
+	require.Equal(t, b, bills[0])
 }
 
-func TestAddBillWithProof_InvalidProof_Nok(t *testing.T) {
+func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	txValue := uint64(100)
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
@@ -109,12 +121,11 @@ func TestAddBillWithProof_InvalidProof_Nok(t *testing.T) {
 	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
-	err := service.AddBillWithProof([]byte{}, &Bill{
+	err := service.SetBill([]byte{}, &Bill{
 		Id:     tx.UnitId,
 		Value:  txValue,
 		TxHash: []byte{},
 		BlockProof: &BlockProof{
-			BillId:      tx.UnitId,
 			BlockNumber: 1,
 			Tx:          tx,
 			Proof:       proof,

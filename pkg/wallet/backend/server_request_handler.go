@@ -8,9 +8,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -27,24 +26,18 @@ type (
 	}
 
 	ListBillsResponse struct {
-		Total int       `json:"total"`
-		Bills []*BillVM `json:"bills"`
+		Total int           `json:"total"`
+		Bills []*ListBillVM `json:"bills"`
+	}
+
+	ListBillVM struct {
+		Id     []byte `json:"id"`
+		Value  uint64 `json:"value"`
+		TxHash []byte `json:"txHash"`
 	}
 
 	BalanceResponse struct {
 		Balance uint64 `json:"balance"`
-	}
-
-	BlockProofResponse struct {
-		BillId      string                `json:"billId"`
-		BlockNumber uint64                `json:"blockNumber"`
-		Tx          *txsystem.Transaction `json:"tx"`
-		BlockProof  *block.BlockProof     `json:"blockProof"`
-	}
-
-	AddBlockProofRequest struct {
-		Pubkey []byte `json:"pubkey" validate:"required,len=33"`
-		Bill   *Bill  `json:"bill" validate:"required"`
 	}
 
 	AddKeyRequest struct {
@@ -55,22 +48,6 @@ type (
 
 	ErrorResponse struct {
 		Message string `json:"message"`
-	}
-
-	BillDTO struct {
-		Id     []byte `json:"id" validate:"required"`
-		Value  uint64 `json:"value" validate:"required"`
-		TxHash []byte `json:"txHash" validate:"required"`
-		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
-		OrderNumber uint64      `json:"orderNumber"`
-		BlockProof  *BlockProof `json:"blockProof,omitempty" validate:"required"`
-	}
-
-	BillVM struct {
-		Id    string `json:"id"`
-		Value uint64 `json:"value"`
-		// TODO return tx hash here or in block proof?
-		// TODO or remove tx hash from proof output?
 	}
 )
 
@@ -173,25 +150,36 @@ func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
-	p, err := s.service.GetBlockProof(billId)
+	bill, err := s.service.GetBill(billId)
 	if err != nil {
 		wlog.Error("error on GET /block-proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if p == nil {
+	if bill == nil {
 		wlog.Debug("GET /block-proof does not exist ", fmt.Sprintf("%X\n", billId))
 		w.WriteHeader(400)
 		writeAsJson(w, ErrorResponse{Message: "block proof does not exist for given bill id"})
 		return
 	}
-	res := newBlockProofResponse(p)
+	res := bill.toSchema()
 	writeAsJson(w, res)
 }
 
 func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Request) {
-	req := &AddBlockProofRequest{}
-	err := json.NewDecoder(r.Body).Decode(req)
+	req := &schema.Bill{}
+	pubkey, err := parsePubKeyQueryParam(r)
+	if err != nil {
+		wlog.Debug("error parsing GET /list-bills request: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
+		}
+		return
+	}
+	err = json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
@@ -205,8 +193,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		wlog.Debug("validation error POST /block-proof request: ", err)
 		return
 	}
-	// TODO add pubkey to tracked keys? or return error if given pubkey is not indexed or
-	err = s.service.AddBillWithProof(req.Pubkey, req.Bill)
+	err = s.service.SetBill(pubkey, newBill(req))
 	if err != nil {
 		wlog.Error("error on POST /block-proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -322,15 +309,6 @@ func parseInt(str string, def int) int {
 	return num
 }
 
-func newBlockProofResponse(p *BlockProof) *BlockProofResponse {
-	return &BlockProofResponse{
-		BillId:      hexutil.Encode(p.BillId),
-		BlockNumber: p.BlockNumber,
-		Tx:          p.Tx,
-		BlockProof:  p.Proof,
-	}
-}
-
 func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].OrderNumber < bills[j].OrderNumber
@@ -339,13 +317,31 @@ func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
 	return &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(bills)}
 }
 
-func toBillVMList(bills []*Bill) []*BillVM {
-	billVMs := make([]*BillVM, len(bills))
+func toBillVMList(bills []*Bill) []*ListBillVM {
+	billVMs := make([]*ListBillVM, len(bills))
 	for i, b := range bills {
-		billVMs[i] = &BillVM{
-			Id:    hexutil.Encode(b.Id),
-			Value: b.Value,
+		billVMs[i] = &ListBillVM{
+			Id:     b.Id,
+			Value:  b.Value,
+			TxHash: b.TxHash,
 		}
 	}
 	return billVMs
+}
+
+func newBill(b *schema.Bill) *Bill {
+	return &Bill{
+		Id:         b.Id,
+		Value:      b.Value,
+		TxHash:     b.TxHash,
+		BlockProof: newBlockProof(b.BlockProof),
+	}
+}
+
+func newBlockProof(b *schema.BlockProof) *BlockProof {
+	return &BlockProof{
+		BlockNumber: b.BlockNumber,
+		Tx:          b.Tx,
+		Proof:       b.Proof,
+	}
 }

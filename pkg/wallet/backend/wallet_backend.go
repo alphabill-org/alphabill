@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 )
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
@@ -33,8 +34,7 @@ type (
 	}
 
 	BlockProof struct {
-		BillId      []byte                `json:"billId" validate:"required,len=32"`
-		BlockNumber uint64                `json:"blockNumber" validate:"required,gt=0"`
+		BlockNumber uint64                `json:"blockNumber" validate:"required"`
 		Tx          *txsystem.Transaction `json:"tx" validate:"required"`
 		Proof       *block.BlockProof     `json:"proof" validate:"required"`
 	}
@@ -48,12 +48,10 @@ type (
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 		GetBills(pubKey []byte) ([]*Bill, error)
-		AddBill(pubKey []byte, bill *Bill) error
-		AddBillWithProof(pubKey []byte, bill *Bill, proof *BlockProof) error
 		RemoveBill(pubKey []byte, id []byte) error
-		ContainsBill(pubKey []byte, id []byte) (bool, error)
-		GetBlockProof(billId []byte) (*BlockProof, error)
-		SetBlockProof(proof *BlockProof) error
+		ContainsBill(id []byte) (bool, error)
+		GetBill(billId []byte) (*Bill, error)
+		SetBill(pubkey []byte, bill *Bill) error
 		GetKeys() ([]*Pubkey, error)
 		AddKey(key *Pubkey) error
 	}
@@ -113,21 +111,22 @@ func (w *WalletBackend) GetBills(pubkey []byte) ([]*Bill, error) {
 	return w.store.GetBills(pubkey)
 }
 
-// GetBlockProof returns most recent proof for given unit id.
-func (w *WalletBackend) GetBlockProof(unitId []byte) (*BlockProof, error) {
-	return w.store.GetBlockProof(unitId)
+// GetBill returns most recently seen bill with given unit id.
+func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
+	return w.store.GetBill(unitId)
 }
 
-// AddBillWithProof adds new bill and proof to the index.
-// Verifies block proof.
-// Overwrites existing bill and proof, if one exists.
-func (w *WalletBackend) AddBillWithProof(pubkey []byte, bill *Bill) error {
-	// TODO is pubkey added to tracked keys if not exists??
+// SetBill adds new bill to the index.
+// Bill most have a valid block proof.
+// Overwrites existing bill, if one exists.
+// Returns error if given pubkey is not indexed.
+func (w *WalletBackend) SetBill(pubkey []byte, bill *Bill) error {
+	// TODO if pubkey is not tracked => return error
 	err := bill.BlockProof.verifyProof(w.verifiers)
 	if err != nil {
 		return err
 	}
-	return w.store.AddBillWithProof(pubkey, bill, bill.BlockProof)
+	return w.store.SetBill(pubkey, bill)
 }
 
 // AddKey adds new public key to list of tracked keys.
@@ -155,4 +154,21 @@ func (b *BlockProof) verifyProof(verifiers map[string]abcrypto.Verifier) error {
 		return err
 	}
 	return b.Proof.Verify(gtx, verifiers, crypto.SHA256)
+}
+
+func (b *Bill) toSchema() *schema.Bill {
+	return &schema.Bill{
+		Id:         b.Id,
+		Value:      b.Value,
+		TxHash:     b.TxHash,
+		BlockProof: b.BlockProof.toSchema(),
+	}
+}
+
+func (b *BlockProof) toSchema() *schema.BlockProof {
+	return &schema.BlockProof{
+		BlockNumber: b.BlockNumber,
+		Tx:          b.Tx,
+		Proof:       b.Proof,
+	}
 }

@@ -55,12 +55,8 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	bills, err := store.GetBills(pubKeyBytes)
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
-
-	// verify proofs exist
-	for _, bi := range bills {
-		proof, err := store.GetBlockProof(bi.Id)
-		require.NoError(t, err)
-		verifyProof(t, proof, bi.Id)
+	for _, bill := range bills {
+		verifyProof(t, bill)
 	}
 }
 
@@ -68,17 +64,19 @@ func newUnitId(unitId uint64) []byte {
 	return util.Uint256ToBytes(uint256.NewInt(unitId))
 }
 
-func verifyProof(t *testing.T, proof *BlockProof, billId []byte) {
-	require.NotNil(t, proof)
-	require.EqualValues(t, 1, proof.BlockNumber)
-	require.Equal(t, billId, proof.BillId)
-
-	blockProof := proof.Proof
+func verifyProof(t *testing.T, b *Bill) {
+	require.NotNil(t, b)
+	blockProof := b.BlockProof
 	require.NotNil(t, blockProof)
-	require.NotNil(t, blockProof.BlockHeaderHash)
-	require.NotNil(t, blockProof.TransactionsHash)
-	require.NotNil(t, blockProof.HashValue)
-	require.NotNil(t, blockProof.BlockTreeHashChain)
-	require.Nil(t, blockProof.SecTreeHashChain)
-	require.NotNil(t, blockProof.UnicityCertificate)
+	require.EqualValues(t, 1, blockProof.BlockNumber)
+	require.NotNil(t, blockProof.Tx)
+
+	p := blockProof.Proof
+	require.NotNil(t, p)
+	require.NotNil(t, p.BlockHeaderHash)
+	require.NotNil(t, p.TransactionsHash)
+	require.NotNil(t, p.HashValue)
+	require.NotNil(t, p.BlockTreeHashChain)
+	require.Nil(t, p.SecTreeHashChain)
+	require.NotNil(t, p.UnicityCertificate)
 }

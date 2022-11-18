@@ -17,8 +17,8 @@ type (
 
 	WalletBackendService interface {
 		GetBills(pubKey []byte) ([]*Bill, error)
-		GetBlockProof(unitId []byte) (*BlockProof, error)
-		AddBillWithProof(pubKey []byte, bill *Bill) error
+		GetBill(unitId []byte) (*Bill, error)
+		SetBill(pubKey []byte, bill *Bill) error
 		AddKey(pubkey []byte) error
 	}
 )

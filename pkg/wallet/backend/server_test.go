@@ -18,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ import (
 
 type mockWalletService struct {
 	bills       []*Bill
-	proof       *BlockProof
+	proof       *Bill
 	trackedKeys [][]byte
 }
 
@@ -33,11 +34,11 @@ func (m *mockWalletService) GetBills(pubKey []byte) ([]*Bill, error) {
 	return m.bills, nil
 }
 
-func (m *mockWalletService) GetBlockProof(unitId []byte) (*BlockProof, error) {
+func (m *mockWalletService) GetBill(unitId []byte) (*Bill, error) {
 	return m.proof, nil
 }
 
-func (m *mockWalletService) AddBillWithProof(pubkey []byte, bill *Bill) error {
+func (m *mockWalletService) SetBill(pubkey []byte, bill *Bill) error {
 	m.bills = append(m.bills, bill)
 	return nil
 }
@@ -53,11 +54,12 @@ func (m *mockWalletService) AddKey(pubkey []byte) error {
 }
 
 func TestListBillsRequest_Ok(t *testing.T) {
+	ep := &Bill{
+		Id:    newUnitId(1),
+		Value: 1,
+	}
 	mockService := &mockWalletService{
-		bills: []*Bill{{
-			Id:    newUnitId(1),
-			Value: 1,
-		}},
+		bills: []*Bill{ep},
 	}
 	startServer(t, mockService)
 
@@ -67,8 +69,9 @@ func TestListBillsRequest_Ok(t *testing.T) {
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Len(t, res.Bills, 1)
-	require.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000001", res.Bills[0].Id)
-	require.EqualValues(t, 1, res.Bills[0].Value)
+	ap := res.Bills[0]
+	require.Equal(t, ep.Id, ap.Id)
+	require.Equal(t, ep.Value, ap.Value)
 }
 
 func TestListBillsRequest_NilPubKey(t *testing.T) {
@@ -227,10 +230,13 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 }
 
 func TestBlockProofRequest_Ok(t *testing.T) {
-	mockService := &mockWalletService{
-		proof: &BlockProof{
-			BillId:      newUnitId(1),
+	b := &Bill{
+		Id:     newUnitId(1),
+		Value:  1,
+		TxHash: []byte{0},
+		BlockProof: &BlockProof{
 			BlockNumber: 1,
+			Tx:          testtransaction.NewTransaction(t),
 			Proof: &block.BlockProof{
 				BlockHeaderHash: []byte{0},
 				BlockTreeHashChain: &block.BlockTreeHashChain{
@@ -239,16 +245,23 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 			},
 		},
 	}
+	mockService := &mockWalletService{proof: b}
 	startServer(t, mockService)
 
-	res := &BlockProofResponse{}
+	res := &schema.Bill{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
 	httpRes := doGet(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 200, httpRes.StatusCode)
-	require.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000001", res.BillId)
-	require.EqualValues(t, mockService.proof.BlockNumber, res.BlockNumber)
-	require.Equal(t, mockService.proof.Proof, res.BlockProof)
+	require.Equal(t, b.Id, res.Id)
+	require.Equal(t, b.Value, res.Value)
+	require.Equal(t, b.TxHash, res.TxHash)
+
+	ep := b.BlockProof
+	ap := res.BlockProof
+	require.Equal(t, ep.BlockNumber, ap.BlockNumber)
+	require.Equal(t, ep.Tx, ap.Tx)
+	require.Equal(t, ep.Proof, ap.Proof)
 }
 
 func TestBlockProofRequest_MissingBillId(t *testing.T) {
@@ -307,21 +320,19 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 
 	pubkey := make([]byte, 33)
 	txHash := make([]byte, 32)
-	req := &AddBlockProofRequest{
-		Pubkey: pubkey,
-		Bill: &Bill{
-			Id:     tx.UnitId,
-			Value:  txValue,
-			TxHash: txHash,
-			BlockProof: &BlockProof{
-				BillId:      tx.UnitId,
-				BlockNumber: 1,
-				Tx:          tx,
-				Proof:       proof,
-			},
-		}}
+	req := &schema.Bill{
+		Id:     tx.UnitId,
+		Value:  txValue,
+		TxHash: txHash,
+		BlockProof: &schema.BlockProof{
+			BlockNumber: 1,
+			Tx:          tx,
+			Proof:       proof,
+		},
+	}
 	res := &EmptyResponse{}
-	httpRes := doPost(t, "http://localhost:7777/api/v1/block-proof", req, res)
+	pubkeyHex := hexutil.Encode(pubkey)
+	httpRes := doPost(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
 	require.Equal(t, 200, httpRes.StatusCode)
 
 	bills, err := service.GetBills(pubkey)

@@ -16,7 +16,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -72,16 +74,18 @@ func TestWalletBackendCli(t *testing.T) {
 		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
 	}, test.WaitDuration, test.WaitTick)
 
-	// verify list-bills
+	// verify /list-bills
 	resListBills := &backend.ListBillsResponse{}
 	httpRes := doGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
-	require.EqualValues(t, initialBill.Value, resListBills.Bills[0].Value)
-	require.EqualValues(t, hexutil.Encode(initialBillBytes32[:]), resListBills.Bills[0].Id)
+	b := resListBills.Bills[0]
+	require.Equal(t, initialBill.Value, b.Value)
+	require.Equal(t, initialBillBytes32[:], b.Id)
+	require.NotNil(t, b.TxHash)
 
-	// verify block-proof
-	resBlockProof := &backend.BlockProofResponse{}
+	// verify /block-proof
+	resBlockProof := &schema.Bill{}
 	httpRes = doGet(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.NotNil(t, resBlockProof.BlockProof)

@@ -35,6 +35,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTrans
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Create Non-Fungible Token Type tx: %v", tx)
 	if err := c.validate(tx); err != nil {
 		return err
 	}
@@ -48,6 +49,7 @@ func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx)
 	if err := m.validate(tx); err != nil {
 		return err
 	}
@@ -61,6 +63,7 @@ func (t *transferNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransac
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx)
 	if err := t.validate(tx); err != nil {
 		return err
 	}
@@ -83,6 +86,7 @@ func (te *updateNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransact
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
 	if err := te.validate(tx); err != nil {
 		return err
 	}

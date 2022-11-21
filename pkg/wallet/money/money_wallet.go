@@ -17,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -255,14 +256,19 @@ func (w *Wallet) AddBill(accountIndex uint64, bill *Bill) error {
 	if bill.BlockProof == nil {
 		return errors.New("bill block proof is nil")
 	}
-	if bill.BlockProof.Tx == nil {
+	tx := bill.BlockProof.Tx
+	if tx == nil {
 		return errors.New("bill block proof tx is nil")
 	}
 	key, err := w.db.Do().GetAccountKey(accountIndex)
 	if err != nil {
 		return err
 	}
-	err = verifyTxP2PKHOwner(bill.BlockProof.Tx, key.PubKeyHash)
+	gtx, err := txConverter.ConvertTx(tx)
+	if err != nil {
+		return err
+	}
+	err = txverifier.VerifyTxP2PKHOwner(gtx, key.PubKeyHash)
 	if err != nil {
 		return err
 	}

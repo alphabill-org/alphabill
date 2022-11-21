@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
@@ -126,18 +127,27 @@ func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
 // Overwrites existing bill, if one exists.
 // Returns error if given pubkey is not indexed.
 func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
-	for _, bill := range bills {
-		err := bill.verifyProof(w.verifiers)
-		if err != nil {
-			return err
-		}
-	}
 	key, err := w.store.GetKey(pubkey)
 	if err != nil {
 		return err
 	}
 	if key == nil {
 		return errKeyNotIndexed
+	}
+	pubkeyHash := wallet.NewKeyHash(pubkey)
+	for _, bill := range bills {
+		err = bill.verifyProof(w.verifiers)
+		if err != nil {
+			return err
+		}
+		tx, err := txConverter.ConvertTx(bill.BlockProof.Tx)
+		if err != nil {
+			return err
+		}
+		err = txverifier.VerifyTxP2PKHOwner(tx, pubkeyHash)
+		if err != nil {
+			return err
+		}
 	}
 	return w.store.SetBills(pubkey, bills...)
 }

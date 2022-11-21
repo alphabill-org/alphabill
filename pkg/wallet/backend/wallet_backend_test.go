@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -80,13 +81,14 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 
 func TestSetBill_OK(t *testing.T) {
 	txValue := uint64(100)
+	pubkey := make([]byte, 32)
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
 	proof, verifiers := createBlockProofForTx(t, tx)
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
-	pubkey := []byte{0}
 	b := &Bill{
 		Id:     tx.UnitId,
 		Value:  txValue,

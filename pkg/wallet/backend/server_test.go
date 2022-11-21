@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
@@ -310,14 +311,14 @@ func TestBlockProofRequest_ProofDoesNotExist(t *testing.T) {
 
 func TestAddBlockProofRequest_Ok(t *testing.T) {
 	_ = log.InitStdoutLogger(log.INFO)
+	pubkey := make([]byte, 33)
+	txHash := make([]byte, 32)
 	txValue := uint64(100)
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
 	proof, verifiers := createBlockProofForTx(t, tx)
-
-	pubkey := make([]byte, 33)
-	txHash := make([]byte, 32)
 	service := New(nil, NewInmemoryBillStore(), verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
@@ -351,7 +352,7 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	require.NoError(t, b.BlockProof.verifyProof(verifiers))
 }
 
-func TestAddBlockProofRequest_unindexed_key_NOK(t *testing.T) {
+func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
 	_ = log.InitStdoutLogger(log.INFO)
 	txValue := uint64(100)
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
@@ -383,6 +384,42 @@ func TestAddBlockProofRequest_unindexed_key_NOK(t *testing.T) {
 	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errKeyNotIndexed.Error(), res.Message)
+}
+
+func TestAddBlockProofRequest_InvalidPredicate_NOK(t *testing.T) {
+	_ = log.InitStdoutLogger(log.INFO)
+	txValue := uint64(100)
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+		TargetValue: txValue,
+		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256([]byte("invalid pub key"))),
+	}))
+	proof, verifiers := createBlockProofForTx(t, tx)
+
+	pubkey := make([]byte, 33)
+	txHash := make([]byte, 32)
+	service := New(nil, NewInmemoryBillStore(), verifiers)
+	_ = service.AddKey(pubkey)
+	startServer(t, service)
+
+	req := &schema.Bills{
+		Bills: []*schema.Bill{
+			{
+				Id:     tx.UnitId,
+				Value:  txValue,
+				TxHash: txHash,
+				BlockProof: &schema.BlockProof{
+					BlockNumber: 1,
+					Tx:          tx,
+					Proof:       proof,
+				},
+			},
+		},
+	}
+	res := &ErrorResponse{}
+	pubkeyHex := hexutil.Encode(pubkey)
+	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, "p2pkh predicate verification failed: invalid bearer predicate", res.Message)
 }
 
 func createBlockProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof, map[string]abcrypto.Verifier) {

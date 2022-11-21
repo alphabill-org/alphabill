@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
+	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -200,7 +201,9 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	}
 	err = s.service.SetBills(pubkey, bills...)
 	if err != nil {
-		if errors.Is(err, block.ErrProofVerificationFailed) || errors.Is(err, errKeyNotIndexed) {
+		if errors.Is(err, block.ErrProofVerificationFailed) ||
+			errors.Is(err, errKeyNotIndexed) ||
+			errors.Is(err, txverifier.ErrVerificationFailed) {
 			wlog.Debug("verification error POST /block-proof request: ", err)
 			w.WriteHeader(http.StatusBadRequest)
 			writeAsJson(w, ErrorResponse{Message: err.Error()})

@@ -17,7 +17,7 @@ RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/
 RUN curl https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl > html.tpl
 
 # Install nancy
-RUN curl -sL https://github.com/sonatype-nexus-community/nancy/releases/download/v1.0.33/nancy-v1.0.33-linux-amd64 -o /usr/local/bin/nancy
+RUN curl -sL https://github.com/sonatype-nexus-community/nancy/releases/download/v1.0.42/nancy-v1.0.42-linux-amd64 -o /usr/local/bin/nancy
 RUN chmod +x /usr/local/bin/nancy
 
 # Install gosec

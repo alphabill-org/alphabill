@@ -14,7 +14,6 @@ import (
 
 var (
 	ErrSystemIdentifierIsNil = errors.New("System identifier is nil")
-	ErrTransactionExpired    = errors.New("transaction timeout must be greater than current block height")
 	ErrStrTxIsNil            = "transaction is nil"
 )
 
@@ -84,7 +83,7 @@ func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction, latestBl
 
 	if tx.Timeout() <= latestBlockNumber {
 		// transaction is expired
-		return errors.Wrapf(ErrTransactionExpired, "timeout %v; blockNumber: %v", tx.Timeout(), latestBlockNumber)
+		return errors.Errorf("transaction timeout must be greater than latest block height: transaction timeout %v, latest blockNumber: %v", tx.Timeout(), latestBlockNumber)
 	}
 	return nil
 }

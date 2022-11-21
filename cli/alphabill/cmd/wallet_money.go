@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -69,6 +70,7 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 			consoleWriter.Println("Error: must specify a subcommand like create, sync, send etc")
 		},
 	}
+	walletCmd.AddCommand(newWalletBillsCmd(config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(syncCmd(config))
 	walletCmd.AddCommand(getBalanceCmd(config))
@@ -76,6 +78,7 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	walletCmd.AddCommand(sendCmd(ctx, config))
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
+	walletCmd.AddCommand(tokenCmd(config))
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
 	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", fmt.Sprintf("wallet home directory (default $AB_HOME/wallet)"))
@@ -174,9 +177,16 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
+	cmd.Flags().StringP(outputPathCmdName, "o", "", "saves transaction proof(s) to given directory")
 	addPasswordFlags(cmd)
-	_ = cmd.MarkFlagRequired(addressCmdName)
-	_ = cmd.MarkFlagRequired(amountCmdName)
+	err := cmd.MarkFlagRequired(addressCmdName)
+	if err != nil {
+		return nil
+	}
+	err = cmd.MarkFlagRequired(amountCmdName)
+	if err != nil {
+		return nil
+	}
 	return cmd
 }
 
@@ -214,12 +224,35 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	err = w.Send(ctx, money.SendCmd{ReceiverPubKey: pubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
+	outputPath, err := cmd.Flags().GetString(outputPathCmdName)
+	if err != nil {
+		return err
+	}
+	if outputPath != "" {
+		if !waitForConf {
+			return fmt.Errorf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName)
+		}
+		if !strings.HasPrefix(outputPath, string(os.PathSeparator)) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			outputPath = path.Join(cwd, outputPath)
+		}
+	}
+	bills, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: pubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
 	if err != nil {
 		return err
 	}
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
+		if outputPath != "" {
+			outputFile, err := writeBillsToFile(outputPath, bills...)
+			if err != nil {
+				return err
+			}
+			consoleWriter.Println("Transaction proof(s) saved to: " + outputFile)
+		}
 	} else {
 		consoleWriter.Println("Successfully sent transaction(s)")
 	}

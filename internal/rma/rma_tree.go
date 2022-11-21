@@ -12,11 +12,12 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
 const (
-	errStrItemDoesntExist      = "item %d does not exist"
+	errStrItemDoesntExist      = "item %X does not exist"
 	errStrInvalidHashAlgorithm = "invalid hash algorithm"
 )
 
@@ -142,7 +143,7 @@ func UpdateData(id *uint256.Int, f UpdateFunction, stateHash []byte) Action {
 	return func(tree *Tree) error {
 		node, exists := tree.getNode(id)
 		if !exists {
-			return errors.Errorf(errStrItemDoesntExist, id)
+			return errors.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
 		}
 		data := f(node.Content.Data)
 		tree.set(id, node.Content.Bearer, data, stateHash)
@@ -261,7 +262,7 @@ func (tree *Tree) rollback(change interface{}) {
 func (tree *Tree) get(id *uint256.Int) (unit *Unit, err error) {
 	node, exists := tree.getNode(id)
 	if !exists {
-		return nil, errors.Wrapf(ErrUnitNotFound, errStrItemDoesntExist, id)
+		return nil, errors.Wrapf(ErrUnitNotFound, errStrItemDoesntExist, util.Uint256ToBytes(id))
 	}
 	return node.Content, nil
 }
@@ -277,7 +278,7 @@ func (tree *Tree) set(id *uint256.Int, owner Predicate, data UnitData, stateHash
 func (tree *Tree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) error {
 	node, exists := tree.getNode(id)
 	if !exists {
-		return errors.Errorf(errStrItemDoesntExist, id)
+		return errors.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
 	}
 	tree.set(id, owner, node.Content.Data, stateHash)
 	return nil
@@ -286,7 +287,7 @@ func (tree *Tree) setOwner(id *uint256.Int, owner Predicate, stateHash []byte) e
 func (tree *Tree) setData(id *uint256.Int, data UnitData, stateHash []byte) error {
 	node, exists := tree.getNode(id)
 	if !exists {
-		return errors.Errorf(errStrItemDoesntExist, id)
+		return errors.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
 	}
 	tree.set(id, node.Content.Bearer, data, stateHash)
 	return nil

@@ -31,7 +31,7 @@ type (
 	// Wallet To synchronize wallet with a node call Sync.
 	// Shutdown needs to be called to release resources used by wallet.
 	Wallet struct {
-		blockProcessor  BlockProcessor
+		BlockProcessor  BlockProcessor
 		config          Config
 		AlphabillClient client.ABClient
 		syncFlag        *syncFlagWrapper
@@ -69,7 +69,7 @@ func (b *Builder) SetABClient(abc client.ABClient) *Builder {
 
 func (b *Builder) Build() *Wallet {
 	w := &Wallet{syncFlag: newSyncFlagWrapper()}
-	w.blockProcessor = b.bp
+	w.BlockProcessor = b.bp
 	if b.abc != nil {
 		w.AlphabillClient = b.abc
 	} else {
@@ -145,15 +145,15 @@ func (w *Wallet) syncLedger(ctx context.Context, lastBlockNumber uint64, syncFor
 		} else {
 			err = w.fetchBlocksUntilMaxBlock(ctx, lastBlockNumber, ch)
 		}
-		log.Info("closing block receiver channel")
+		log.Debug("closing block receiver channel")
 		close(ch)
 
-		log.Info("block receiver goroutine finished")
+		log.Debug("block receiver goroutine finished")
 		return err
 	})
 	errGroup.Go(func() error {
 		err := w.processBlocks(ch)
-		log.Info("block processor goroutine finished")
+		log.Debug("block processor goroutine finished")
 		return err
 	})
 	err := errGroup.Wait()
@@ -220,8 +220,8 @@ func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<-
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 	for b := range ch {
-		if w.blockProcessor != nil {
-			err := w.blockProcessor.ProcessBlock(b)
+		if w.BlockProcessor != nil {
+			err := w.BlockProcessor.ProcessBlock(b)
 			if err != nil {
 				return err
 			}

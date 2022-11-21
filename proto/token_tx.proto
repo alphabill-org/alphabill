@@ -19,8 +19,8 @@ message CreateNonFungibleTokenTypeAttributes {
   bytes invariant_predicate = 5;
   // the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
   bytes data_update_predicate = 6;
-  // the input to satisfy the sub-type creation predicate.
-  bytes sub_type_creation_predicate_signature = 7;
+  // inputs to satisfy the sub-type creation predicates of all parents.
+  repeated bytes sub_type_creation_predicate_signatures = 7;
 }
 
 message MintNonFungibleTokenAttributes {
@@ -71,8 +71,8 @@ message CreateFungibleTokenTypeAttributes {
   bytes token_creation_predicate = 5;
   // the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their bearer predicates;
   bytes invariant_predicate = 6;
-  // the input to satisfy the sub-type creation predicate.
-  bytes sub_type_creation_predicate_signature = 7;
+  // inputs to satisfy the sub-type creation predicates of all parents.
+  repeated bytes sub_type_creation_predicate_signatures = 7;
 }
 
 message MintFungibleTokenAttributes {
@@ -102,7 +102,7 @@ message SplitFungibleTokenAttributes {
   // the bearer predicate of the new token;
   bytes new_bearer = 1;
   // the value of the new token
-  uint64 value = 2;
+  uint64 target_value = 2;
   bytes nonce = 3;
   // the backlink to the previous transaction with this token
   bytes backlink = 4;

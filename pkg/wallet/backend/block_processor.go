@@ -2,7 +2,6 @@ package backend
 
 import (
 	"crypto"
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -28,7 +27,7 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 		return err
 	}
 	if b.BlockNumber != lastBlockNumber+1 {
-		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber))
+		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber)
 	}
 	keys, err := p.store.GetKeys()
 	if err != nil {
@@ -105,7 +104,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 			}
 		}
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
-			id := utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
+			id := utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
 			wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", id))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
 				Id:    id,

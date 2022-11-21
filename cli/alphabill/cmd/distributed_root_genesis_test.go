@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"path"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Happy path

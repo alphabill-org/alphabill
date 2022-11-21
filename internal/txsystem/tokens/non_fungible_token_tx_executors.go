@@ -35,6 +35,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTrans
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Create Non-Fungible Token Type tx: %v", tx)
 	if err := c.validate(tx); err != nil {
 		return err
 	}
@@ -48,6 +49,7 @@ func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Mint Non-Fungible Token tx: %v", tx)
 	if err := m.validate(tx); err != nil {
 		return err
 	}
@@ -61,6 +63,7 @@ func (t *transferNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransac
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Transfer Non-Fungible Token tx: %v", tx)
 	if err := t.validate(tx); err != nil {
 		return err
 	}
@@ -83,6 +86,7 @@ func (te *updateNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransact
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Update Non-Fungible Token tx: %v", tx)
 	if err := te.validate(tx); err != nil {
 		return err
 	}
@@ -117,8 +121,8 @@ func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTok
 	}
 	// signature satisfies the predicate obtained by concatenating all the
 	// sub-type creation clauses along the type inheritance chain.
-	predicate, err := c.getChainedPredicate(
-		tx.ParentTypeID(),
+	predicates, err := c.getChainedPredicates(
+		tx.parentTypeIdInt(),
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.subTypeCreationPredicate
 		},
@@ -129,10 +133,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTok
 	if err != nil {
 		return err
 	}
-	if len(predicate) > 0 {
-		return script.RunScript(tx.attributes.SubTypeCreationPredicateSignature, predicate, tx.SigBytes())
-	}
-	return nil
+	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx)
 }
 
 func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrapper) error {
@@ -140,14 +141,16 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if unitID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
-	uri := tx.attributes.Uri
-	if len(uri) > uriMaxSize {
-		return errors.Errorf("URI exceeds the maximum allowed size of %v KB", uriMaxSize)
+	uri := tx.URI()
+	if uri != "" {
+		if len(uri) > uriMaxSize {
+			return errors.Errorf("URI exceeds the maximum allowed size of %v KB", uriMaxSize)
+		}
+		if !util.IsValidURI(uri) {
+			return errors.Errorf("URI %s is invalid", uri)
+		}
 	}
-	if !util.IsValidURI(uri) {
-		return errors.Errorf("URI %s is invalid", uri)
-	}
-	if len(tx.attributes.Data) > dataMaxSize {
+	if len(tx.Data()) > dataMaxSize {
 		return errors.Errorf("data exceeds the maximum allowed size of %v KB", dataMaxSize)
 	}
 	u, err := m.state.GetUnit(unitID)
@@ -157,14 +160,14 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if !goerrors.Is(err, rma.ErrUnitNotFound) {
 		return err
 	}
-	nftTypeID := tx.NFTTypeID()
+	nftTypeID := tx.NFTTypeIDInt()
 	if nftTypeID.IsZero() {
 		return errors.New(ErrStrUnitIDIsZero)
 	}
 
 	// the transaction request satisfies the predicate obtained by concatenating all the token creation clauses along
 	// the type inheritance chain.
-	predicate, err := m.getChainedPredicate(
+	predicates, err := m.getChainedPredicates(
 		nftTypeID,
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
@@ -176,8 +179,8 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if err != nil {
 		return err
 	}
-	if len(predicate) > 0 {
-		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicate, tx.SigBytes())
+	if len(predicates) > 0 {
+		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO AB-478*/, tx.SigBytes())
 	}
 	return nil
 }
@@ -197,7 +200,7 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	}
 	// signature given in the transaction request satisfies the predicate obtained by concatenating all the token
 	// invariant clauses along the type inheritance chain.
-	predicate, err := t.getChainedPredicate(
+	predicates, err := t.getChainedPredicates(
 		data.nftType,
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.invariantPredicate
@@ -209,7 +212,7 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenWrapper) error {
@@ -228,7 +231,7 @@ func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenW
 	if !bytes.Equal(data.backlink, tx.attributes.Backlink) {
 		return errors.New("invalid backlink")
 	}
-	predicate, err := te.getChainedPredicate(
+	predicates, err := te.getChainedPredicates(
 		data.nftType,
 		func(d *nonFungibleTokenTypeData) []byte {
 			return d.dataUpdatePredicate
@@ -237,9 +240,9 @@ func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenW
 			return d.parentTypeId
 		},
 	)
-	predicate = append(predicate, data.dataUpdatePredicate...)
+	predicates = append(predicates, data.dataUpdatePredicate) // TODO check order
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.DataUpdateSignature, predicate, tx.SigBytes())
+	return script.RunScript(tx.attributes.DataUpdateSignature, predicates[0] /*TODO AB-476*/, tx.SigBytes())
 }

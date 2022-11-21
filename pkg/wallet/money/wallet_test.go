@@ -2,15 +2,20 @@ package money
 
 import (
 	"context"
+	"crypto"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -122,12 +127,12 @@ func TestWallet_GetBalance(t *testing.T) {
 
 func TestWallet_GetBalances(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
-	_ = w.db.Do().SetBill(0, &bill{Id: uint256.NewInt(0), Value: 1})
-	_ = w.db.Do().SetBill(0, &bill{Id: uint256.NewInt(1), Value: 1})
+	_ = w.db.Do().SetBill(0, &Bill{Id: uint256.NewInt(0), Value: 1})
+	_ = w.db.Do().SetBill(0, &Bill{Id: uint256.NewInt(1), Value: 1})
 
 	_, _, _ = w.AddAccount()
-	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(2), Value: 2})
-	_ = w.db.Do().SetBill(1, &bill{Id: uint256.NewInt(3), Value: 2})
+	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(2), Value: 2})
+	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(3), Value: 2})
 
 	balances, err := w.GetBalances()
 	require.NoError(t, err)
@@ -286,19 +291,29 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
 		},
-		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
-
-	err := w.ProcessBlock(testBlock)
+	certifiedBlock, verifiers := certifyBlock(t, testBlock)
+	err := w.ProcessBlock(certifiedBlock)
 	require.NoError(t, err)
 
-	bills, err := w.db.Do().GetBills(0)
-	require.NoError(t, err)
+	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
-
 	for _, b := range bills {
-		require.NotNil(t, b.BlockProof)
+		proof := b.BlockProof
+		tx, _ := txConverter.ConvertTx(b.Tx)
+		err = proof.Verify(tx, verifiers, crypto.SHA256)
+		require.NoError(t, err)
+		require.Equal(t, block.ProofType_PRIM, proof.ProofType)
+		require.Nil(t, proof.Verify(tx, verifiers, crypto.SHA256))
 	}
+}
+
+func certifyBlock(t *testing.T, b *block.Block) (*block.Block, map[string]abcrypto.Verifier) {
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	genericBlock, _ := b.ToGenericBlock(txConverter)
+	genericBlock.UnicityCertificate = testblock.CreateUC(t, genericBlock, signer)
+	return genericBlock.ToProtobuf(), verifiers
 }
 
 func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
@@ -322,7 +337,67 @@ func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created
-	require.False(t, util.FileExists(path.Join(os.TempDir(), walletFileName)))
+	require.False(t, util.FileExists(path.Join(os.TempDir(), WalletFileName)))
+}
+
+func TestWalletGetBills_Ok(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	addBill(t, w, 100)
+	addBill(t, w, 200)
+	bills, err := w.GetBills(0)
+	require.NoError(t, err)
+	require.Len(t, bills, 2)
+	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000064", fmt.Sprintf("%X", bills[0].GetId()))
+	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetId()))
+}
+
+func TestWalletGetBill(t *testing.T) {
+	// setup wallet with a bill
+	w, _ := CreateTestWallet(t)
+	b1 := addBill(t, w, 100)
+
+	// verify getBill returns existing bill
+	b, err := w.GetBill(0, b1.GetId())
+	require.NoError(t, err)
+	require.NotNil(t, b)
+
+	// verify non-existent bill returns BillNotFound error
+	b, err = w.GetBill(0, []byte{0})
+	require.ErrorIs(t, err, errBillNotFound)
+	require.Nil(t, b)
+}
+
+func TestWalletAddBill(t *testing.T) {
+	// setup wallet
+	w, _ := CreateTestWalletFromSeed(t)
+	pubkey, _ := w.GetPublicKey(0)
+
+	// verify nil bill
+	err := w.AddBill(0, nil)
+	require.ErrorContains(t, err, "bill is nil")
+
+	// verify bill id is nil
+	err = w.AddBill(0, &Bill{Id: nil, Tx: nil})
+	require.ErrorContains(t, err, "bill id is nil")
+
+	// verify bill tx is nil
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), Tx: nil})
+	require.ErrorContains(t, err, "bill tx is nil")
+
+	// verify invalid bearer predicate
+	invalidPubkey := []byte{0}
+	err = w.AddBill(0, &Bill{
+		Id: uint256.NewInt(0),
+		Tx: createTransferTxForPubKey(invalidPubkey),
+	})
+	require.ErrorContains(t, err, "invalid bearer predicate")
+
+	// verify valid bill no error
+	err = w.AddBill(0, &Bill{
+		Id: uint256.NewInt(0),
+		Tx: createTransferTxForPubKey(pubkey),
+	})
+	require.NoError(t, err)
 }
 
 func verifyTestWallet(t *testing.T, w *Wallet) {
@@ -339,4 +414,14 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.Equal(t, testPrivKey0Hex, hex.EncodeToString(ac.PrivKey))
 	require.Equal(t, testPubKey0HashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
 	require.Equal(t, testPubKey0HashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
+}
+
+func createTransferTxForPubKey(pubkey []byte) *txsystem.Transaction {
+	return &txsystem.Transaction{
+		SystemId:              alphabillMoneySystemId,
+		UnitId:                hash.Sum256([]byte{0x01}),
+		TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubkey)),
+		Timeout:               1000,
+		OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, pubkey),
+	}
 }

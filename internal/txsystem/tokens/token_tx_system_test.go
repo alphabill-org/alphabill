@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	hasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rma"
@@ -72,7 +74,7 @@ func TestExecuteCreateNFTType_WithoutParentID(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
@@ -103,7 +105,7 @@ func TestExecuteCreateNFTType_WithParentID(t *testing.T) {
 	createParentTx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(parent1Identifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(parent1Identifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
@@ -115,14 +117,14 @@ func TestExecuteCreateNFTType_WithParentID(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
-				Symbol:                            symbol,
-				ParentTypeId:                      parent1Identifier.Bytes(),
-				SubTypeCreationPredicate:          script.PredicateAlwaysFalse(),
-				SubTypeCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Symbol:                             symbol,
+				ParentTypeId:                       util.Uint256ToBytes(parent1Identifier),
+				SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+				SubTypeCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)
@@ -139,7 +141,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 
 	// parent2 and child together can create a sub-type because SubTypeCreationPredicate are concatenated (ownerProof must contain both signatures)
 	parent2SubTypeCreationPredicate := script.PredicatePayToPublicKeyHashDefault(hasher.Sum256(childPublicKey))
-	parent2SubTypeCreationPredicate[0] = script.OpVerify // verify parent1SubTypeCreationPredicate signature verification result (replace script.StartByte byte with OpVerify)
+	parent2SubTypeCreationPredicate[0] = script.StartByte // verify parent1SubTypeCreationPredicate signature verification result
 
 	txs := newTokenTxSystem(t)
 
@@ -147,7 +149,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	createParent1Tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(parent1Identifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(parent1Identifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
@@ -159,12 +161,12 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	// create parent2 type
 	unsignedCreateParent2Tx := testtransaction.NewTransaction(
 		t,
-		testtransaction.WithUnitId(parent2Identifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(parent2Identifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
 				Symbol:                   symbol,
-				ParentTypeId:             parent1Identifier.Bytes(),
+				ParentTypeId:             util.Uint256ToBytes(parent1Identifier),
 				SubTypeCreationPredicate: parent2SubTypeCreationPredicate,
 			},
 		),
@@ -173,14 +175,14 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 
 	signedCreateParent2Tx := testtransaction.NewTransaction(
 		t,
-		testtransaction.WithUnitId(parent2Identifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(parent2Identifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
 			&CreateNonFungibleTokenTypeAttributes{
-				Symbol:                            symbol,
-				ParentTypeId:                      parent1Identifier.Bytes(),
-				SubTypeCreationPredicate:          parent2SubTypeCreationPredicate,
-				SubTypeCreationPredicateSignature: p2pkhPredicate,
+				Symbol:                             symbol,
+				ParentTypeId:                       util.Uint256ToBytes(parent1Identifier),
+				SubTypeCreationPredicate:           parent2SubTypeCreationPredicate,
+				SubTypeCreationPredicateSignatures: [][]byte{p2pkhPredicate},
 			},
 		),
 	)
@@ -192,12 +194,12 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	// create child sub-type
 	unsignedChildTxAttributes := &CreateNonFungibleTokenTypeAttributes{
 		Symbol:                   symbol,
-		ParentTypeId:             parent2Identifier.Bytes(),
+		ParentTypeId:             util.Uint256ToBytes(parent2Identifier),
 		SubTypeCreationPredicate: script.PredicateAlwaysFalse(), // no sub-types
 	}
 	createChildTx := testtransaction.NewTransaction(
 		t,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
 			unsignedChildTxAttributes,
@@ -213,13 +215,13 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	require.NoError(t, err)
 
 	// child owner proof must satisfy parent1 & parent2 SubTypeCreationPredicates
-	unsignedChildTxAttributes.SubTypeCreationPredicateSignature = append(
-		script.PredicateArgumentPayToPublicKeyHashDefault(signature, childPublicKey),        // parent2 p2pkhPredicate argument (with script.StartByte byte)
-		script.PredicateArgumentPayToPublicKeyHashDefault(signature2, parent2PubKey)[1:]..., // parent1 p2pkhPredicate argument (without script.StartByte byte)
-	)
+	unsignedChildTxAttributes.SubTypeCreationPredicateSignatures = [][]byte{
+		script.PredicateArgumentPayToPublicKeyHashDefault(signature, childPublicKey), // parent2 p2pkhPredicate argument
+		script.PredicateArgumentPayToPublicKeyHashDefault(signature2, parent2PubKey), // parent1 p2pkhPredicate argument
+	}
 	createChildTx = testtransaction.NewTransaction(
 		t,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(
 			unsignedChildTxAttributes,
@@ -235,7 +237,7 @@ func TestExecuteCreateNFTType_UnitTypeIsZero(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(uint256.NewInt(0).Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(uint256.NewInt(0))),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{}),
 	)
@@ -247,7 +249,7 @@ func TestExecuteCreateNFTType_UnitIDExists(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
@@ -263,15 +265,15 @@ func TestExecuteCreateNFTType_ParentDoesNotExist(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
-			ParentTypeId:             parent1Identifier.Bytes(),
+			ParentTypeId:             util.Uint256ToBytes(parent1Identifier),
 			SubTypeCreationPredicate: subTypeCreationPredicate,
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %v does not exist", parent1Identifier))
+	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(parent1Identifier)))
 }
 
 func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
@@ -280,11 +282,11 @@ func TestExecuteCreateNFTType_InvalidParentType(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
-			ParentTypeId:             parent1Identifier.Bytes(),
+			ParentTypeId:             util.Uint256ToBytes(parent1Identifier),
 			SubTypeCreationPredicate: subTypeCreationPredicate,
 		}),
 	)
@@ -296,7 +298,7 @@ func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{}),
 	)
@@ -315,14 +317,14 @@ func TestRevertTransaction_Ok(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{}),
 	)
 	require.NoError(t, txs.Execute(tx))
 	txs.Revert()
 	_, err := txs.state.GetUnit(unitIdentifier)
-	require.ErrorContains(t, err, fmt.Sprintf("item %v does not exist", unitIdentifier))
+	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(unitIdentifier)))
 }
 
 func TestExecuteCreateNFTType_InvalidSymbolName(t *testing.T) {
@@ -331,7 +333,7 @@ func TestExecuteCreateNFTType_InvalidSymbolName(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol: s,
@@ -391,7 +393,7 @@ func TestMintNFT_UnitIDIsZero(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(uint256.NewInt(0).Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(uint256.NewInt(0))),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{}),
 	)
@@ -435,6 +437,7 @@ func TestMintNFT_UnitIDExists(t *testing.T) {
 
 func TestMintNFT_NFTTypeIsZero(t *testing.T) {
 	txs := newTokenTxSystem(t)
+	idBytes := util.Uint256ToBytes(uint256.NewInt(110))
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
@@ -442,14 +445,14 @@ func TestMintNFT_NFTTypeIsZero(t *testing.T) {
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
 			Bearer:                          script.PredicateAlwaysTrue(),
-			NftType:                         uint256.NewInt(110).Bytes(),
+			NftType:                         idBytes,
 			Uri:                             validNFTURI,
 			Data:                            []byte{10},
 			DataUpdatePredicate:             script.PredicateAlwaysTrue(),
 			TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 110 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %X does not exist", idBytes))
 }
 
 func TestMintNFT_URILengthIsInvalid(t *testing.T) {
@@ -517,7 +520,7 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 			NftType: []byte{0, 0, 0, 1},
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), "item 0000000000000000000000000000000000000000000000000000000000000001 does not exist")
 }
 
 func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
@@ -535,7 +538,7 @@ func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
 			InvariantPredicateSignature: script.PredicateAlwaysTrue(),
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), "item 0000000000000000000000000000000000000000000000000000000000000001 does not exist")
 }
 
 func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
@@ -543,7 +546,7 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
@@ -558,7 +561,7 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 	tx = testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NewBearer:                   script.PredicateAlwaysTrue(),
@@ -694,7 +697,7 @@ func TestUpdateNFT_UnitDoesNotExist(t *testing.T) {
 			Backlink: test.RandomBytes(32),
 		}),
 	)
-	require.ErrorContains(t, txs.Execute(tx), "item 1 does not exist")
+	require.ErrorContains(t, txs.Execute(tx), "item 0000000000000000000000000000000000000000000000000000000000000001 does not exist")
 }
 
 func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
@@ -702,7 +705,7 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&CreateNonFungibleTokenTypeAttributes{
 			Symbol:                   symbol,
@@ -717,7 +720,7 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 	tx = testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
-		testtransaction.WithUnitId(unitIdentifier.Bytes()),
+		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
 			Data:     test.RandomBytes(10),

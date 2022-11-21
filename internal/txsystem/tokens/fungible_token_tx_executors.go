@@ -46,6 +46,7 @@ func (c *createFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTransact
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Create Fungible Token Type tx: %v", tx)
 	if err := c.validate(tx); err != nil {
 		return err
 	}
@@ -59,6 +60,7 @@ func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Mint Fungible Token tx: %v", tx)
 	if err := m.validate(tx); err != nil {
 		return err
 	}
@@ -72,6 +74,7 @@ func (t *transferFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransactio
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Transfer Fungible Token tx: %v", tx)
 	if err := t.validate(tx); err != nil {
 		return err
 	}
@@ -95,6 +98,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Split Fungible Token tx: %v", tx)
 	if err := s.validate(tx); err != nil {
 		return err
 	}
@@ -104,7 +108,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 	}
 	d := u.Data.(*fungibleTokenData)
 	// add new token unit
-	newTokenID := util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(s.hashAlgorithm))
+	newTokenID := util.SameShardID(tx.UnitID(), tx.HashForIDCalculation(s.hashAlgorithm))
 	logger.Debug("Adding a fungible token with ID %v", newTokenID)
 	txHash := tx.Hash(s.hashAlgorithm)
 	return s.state.AtomicUpdate(
@@ -112,7 +116,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 			tx.attributes.NewBearer,
 			&fungibleTokenData{
 				tokenType: d.tokenType,
-				value:     tx.attributes.Value,
+				value:     tx.attributes.TargetValue,
 				t:         0,
 				backlink:  make([]byte, s.hashAlgorithm.Size()),
 			}, txHash),
@@ -125,7 +129,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 				}
 				return &fungibleTokenData{
 					tokenType: d.tokenType,
-					value:     d.value - tx.attributes.Value,
+					value:     d.value - tx.attributes.TargetValue,
 					t:         currentBlockNr,
 					backlink:  txHash,
 				}
@@ -137,6 +141,7 @@ func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Burn Fungible Token tx: %v", tx)
 	if err := b.validate(tx); err != nil {
 		return err
 	}
@@ -165,6 +170,7 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
+	logger.Debug("Processing Join Fungible Token tx: %v", tx)
 	if err := j.validate(tx); err != nil {
 		return err
 	}
@@ -180,7 +186,7 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 				}
 				var sum uint64 = 0
 				for _, burnTransaction := range tx.burnTransactions {
-					sum += burnTransaction.attributes.Value
+					sum += burnTransaction.Value()
 				}
 				return &fungibleTokenData{
 					tokenType: d.tokenType,
@@ -212,7 +218,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 		return err
 	}
 
-	parentUnitID := tx.ParentTypeID()
+	parentUnitID := tx.ParentTypeIdInt()
 	if !parentUnitID.IsZero() {
 		_, parentData, err := c.getUnit(parentUnitID)
 		if err != nil {
@@ -222,8 +228,8 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 			return errors.Errorf("invalid decimal places. allowed %v, got %v", parentData.decimalPlaces, decimalPlaces)
 		}
 	}
-	predicate, err := c.getChainedPredicate(
-		tx.ParentTypeID(),
+	predicates, err := c.getChainedPredicates(
+		tx.ParentTypeIdInt(),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.subTypeCreationPredicate
 		},
@@ -234,10 +240,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 	if err != nil {
 		return err
 	}
-	if len(predicate) > 0 {
-		return script.RunScript(tx.attributes.SubTypeCreationPredicateSignature, predicate, tx.SigBytes())
-	}
-	return nil
+	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx)
 }
 
 func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) error {
@@ -252,9 +255,9 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	if !goerrors.Is(err, rma.ErrUnitNotFound) {
 		return err
 	}
-	// existence of the parent type is checked by the getChainedPredicate
-	predicate, err := m.getChainedPredicate(
-		tx.TypeID(),
+	// existence of the parent type is checked by the getChainedPredicates
+	predicates, err := m.getChainedPredicates(
+		tx.TypeIDInt(),
 		func(d *fungibleTokenTypeData) []byte {
 			return d.tokenCreationPredicate
 		},
@@ -265,8 +268,8 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	if len(predicate) > 0 {
-		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicate, tx.SigBytes())
+	if len(predicates) > 0 {
+		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO AB-478*/, tx.SigBytes())
 	}
 	return nil
 }
@@ -283,7 +286,7 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
-	predicate, err := t.getChainedPredicate(
+	predicates, err := t.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
@@ -295,7 +298,7 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) error {
@@ -303,13 +306,13 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	if d.value < tx.attributes.Value {
-		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.Value)
+	if d.value < tx.attributes.TargetValue {
+		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
 	}
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
-	predicate, err := s.getChainedPredicate(
+	predicates, err := s.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
@@ -321,7 +324,7 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) error {
@@ -339,7 +342,7 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
-	predicate, err := b.getChainedPredicate(
+	predicates, err := b.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
@@ -351,7 +354,7 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }
 
 func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) error {
@@ -360,18 +363,18 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 		return err
 	}
 	transactions := tx.burnTransactions
-	proofs := tx.attributes.Proofs
+	proofs := tx.BlockProofs()
 	if len(transactions) != len(proofs) {
 		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
 	for i, btx := range transactions {
 		tokenTypeID := d.tokenType.Bytes32()
-		if !bytes.Equal(btx.attributes.Type, tokenTypeID[:]) {
-			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.attributes.Type)
+		if !bytes.Equal(btx.TypeID(), tokenTypeID[:]) {
+			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeID())
 		}
 
-		if !bytes.Equal(btx.attributes.Nonce, tx.attributes.Backlink) {
-			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.attributes.Nonce, tx.attributes.Backlink)
+		if !bytes.Equal(btx.Nonce(), tx.attributes.Backlink) {
+			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.Nonce(), tx.Backlink())
 		}
 		proof := proofs[i]
 		if proof.ProofType != block.ProofType_PRIM {
@@ -383,10 +386,10 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 			return errors.Wrap(err, "proof is not valid")
 		}
 	}
-	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
-		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
+	if !bytes.Equal(d.backlink, tx.Backlink()) {
+		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.Backlink())
 	}
-	predicate, err := j.getChainedPredicate(
+	predicates, err := j.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
 			return d.invariantPredicate
@@ -398,5 +401,5 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicate, tx.SigBytes())
+	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
 }

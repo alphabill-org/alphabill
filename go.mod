@@ -10,7 +10,7 @@ replace (
 )
 
 require (
-	github.com/btcsuite/btcd v0.23.1
+	github.com/btcsuite/btcd v0.23.2
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.10.25
 	github.com/gorilla/handlers v1.5.1

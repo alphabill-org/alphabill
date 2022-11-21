@@ -49,13 +49,13 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.Nil(t, bills)
 
 	// add bills
-	err = bs.SetBill(pubKey, newBillWithValue(1))
+	err = bs.SetBills(pubKey, newBillWithValue(1))
 	require.NoError(t, err)
 
-	err = bs.SetBill(pubKey, newBillWithValue(2))
+	err = bs.SetBills(pubKey, newBillWithValue(2))
 	require.NoError(t, err)
 
-	err = bs.SetBill(pubKey, newBillWithValue(3))
+	err = bs.SetBills(pubKey, newBillWithValue(3))
 	require.NoError(t, err)
 
 	// get bills
@@ -112,7 +112,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 			Tx:          testtransaction.NewTransaction(t),
 		},
 	}
-	err = bs.SetBill(pubkey, expectedBill)
+	err = bs.SetBills(pubkey, expectedBill)
 	require.NoError(t, err)
 
 	// verify get bill

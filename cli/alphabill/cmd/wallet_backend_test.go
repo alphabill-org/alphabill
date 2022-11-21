@@ -1,23 +1,21 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"path"
 	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -26,6 +24,7 @@ import (
 
 func TestWalletBackendCli(t *testing.T) {
 	// create ab network
+	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
 		Value: 10000,
@@ -70,13 +69,13 @@ func TestWalletBackendCli(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// verify balance
 		res := &backend.BalanceResponse{}
-		httpRes := doGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
+		httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
 		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify /list-bills
 	resListBills := &backend.ListBillsResponse{}
-	httpRes := doGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
@@ -85,24 +84,118 @@ func TestWalletBackendCli(t *testing.T) {
 	require.NotNil(t, b.TxHash)
 
 	// verify /block-proof
-	resBlockProof := &schema.Bill{}
-	httpRes = doGet(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	resBlockProof := &schema.Bills{}
+	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.EqualValues(t, 200, httpRes.StatusCode)
-	require.NotNil(t, resBlockProof.BlockProof)
+	require.Len(t, resBlockProof.Bills, 1)
 }
 
-func doGet(t *testing.T, url string, response interface{}) *http.Response {
-	httpRes, err := http.Get(url)
-	if err != nil {
-		fmt.Println(err)
-		return nil
+/*
+ Test case:
+ 1) send initial bill to wallet key 1
+ 2) export bill from wallet
+ 3) index key 1 in wallet-backend
+ 4) import bill to wallet-backend
+ 5) verify list-bills shows imported bill
+ 6) download proof from wallet-backend
+ 7) import downloaded proof to a new wallet
+*/
+func TestFlowBillImportExportDownloadUpload(t *testing.T) {
+	// create ab network
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 10000,
+		Owner: script.PredicateAlwaysTrue(),
 	}
-	defer func() {
-		_ = httpRes.Body.Close()
-	}()
-	resBytes, _ := ioutil.ReadAll(httpRes.Body)
-	log.Info("GET %s response: %s", url, string(resBytes))
-	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(response)
+	initialBillID := util.Uint256ToBytes(initialBill.ID)
+	//initialBillIDHex := hexutil.Encode(initialBillID)
+	network := startAlphabillPartition(t, initialBill)
+	startRPCServer(t, network, defaultServerAddr)
+
+	// create trust base file
+	backendHomedir := setupTestHomeDir(t, "wallet-backend-test")
+	trustBaseFilePath := path.Join(backendHomedir, "trust-base.json")
+	_ = createTrustBaseFile(trustBaseFilePath, network)
+
+	// start wallet-backend service
+	pubkey1Hex := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	pubkey1, _ := hexutil.Decode(pubkey1Hex)
+	// pubkey2Hex := "0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	// pubkey2, _ := hexutil.Decode(pubkey2Hex)
+
+	port, err := net.GetFreePort()
 	require.NoError(t, err)
-	return httpRes
+	serverAddr := fmt.Sprintf("localhost:%d", port)
+	consoleWriter = &testConsoleWriter{}
+	go func() {
+		cmd := New()
+		args := fmt.Sprintf("wallet-backend --home %s start --server-addr %s --trust-base-file %s", backendHomedir, serverAddr, trustBaseFilePath)
+		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+		err = cmd.addAndExecuteCommand(ctx)
+		require.NoError(t, err)
+	}()
+
+	// create wallet
+	walletHomedir := createNewTestWallet(t)
+
+	// 1. send initial bill to wallet account 1
+	transferInitialBillTx, err := createInitialBillTransferTx(pubkey1, initialBill.ID, initialBill.Value, 10000)
+	require.NoError(t, err)
+	err = network.SubmitTx(transferInitialBillTx)
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+	waitForBalance(t, walletHomedir, initialBill.Value, 0)
+
+	// 2. export proof from wallet account 1
+	exportFilePath := path.Join(walletHomedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
+	stdout, err := execBillsCommand(walletHomedir, "export --output-path "+walletHomedir)
+	require.NoError(t, err)
+	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", exportFilePath))
+
+	// 3. index key 1 in wallet-backend
+	req := &backend.AddKeyRequest{Pubkey: pubkey1Hex}
+	res := &backend.EmptyResponse{}
+	httpRes := testhttp.DoPost(t, fmt.Sprintf("http://%s/api/v1/admin/add-key", serverAddr), req, res)
+	require.Equal(t, 200, httpRes.StatusCode)
+
+	// 4. import bill to wallet-backend
+	reqImportBill, _ := util.ReadJsonFile(exportFilePath, &schema.Bills{})
+	resImportBill := &backend.EmptyResponse{}
+	url := fmt.Sprintf("http://%s/api/v1/block-proof?pubkey=%s", serverAddr, pubkey1Hex)
+	httpRes = testhttp.DoPost(t, url, reqImportBill, resImportBill)
+	require.EqualValues(t, 200, httpRes.StatusCode)
+
+	// 5. verify list-bills shows imported bill
+	resListBills := &backend.ListBillsResponse{}
+	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkey1Hex), resListBills)
+	require.EqualValues(t, 200, httpRes.StatusCode)
+	require.Len(t, resListBills.Bills, 1)
+	for _, b := range resListBills.Bills {
+		require.Equal(t, initialBillID, b.Id)
+		require.Equal(t, initialBill.Value, b.Value)
+		require.NotNil(t, b.TxHash)
+	}
+
+	// TODO continue test
+
+	//resGetProof := &schema.Bills{}
+	//httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resGetProof)
+	//require.EqualValues(t, 200, httpRes.StatusCode)
+	//fmt.Println(resGetProof)
+
+	// verify imported bill can be listed
+	//resListBills := &backend.ListBillsResponse{}
+	//httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkey1Hex), resListBills)
+	//require.EqualValues(t, 200, httpRes.StatusCode)
+
+	//// wait for wallet-backend to index the transaction by verifying balance
+	//require.Eventually(t, func() bool {
+	//	// verify balance
+	//	res := &backend.BalanceResponse{}
+	//	httpRes := doGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkey1Hex), res)
+	//	return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
+	//}, test.WaitDuration, test.WaitTick)
 }

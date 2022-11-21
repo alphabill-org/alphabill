@@ -53,7 +53,7 @@ func TestWalletGetBalanceCmd(t *testing.T) {
 
 func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	addAccount(t, "wallet-test")
+	addAccount(t, homedir)
 	stdout, _ := execCommand(homedir, "get-balance --key 2")
 	verifyStdout(t, stdout, "#2 0")
 	verifyStdoutNotExists(t, stdout, "Total 0")
@@ -123,11 +123,11 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
-	w1 := createNewNamedWallet(t, "wallet-1", ":9543")
+	w1, homedir1 := createNewNamedWallet(t, ":9543")
 	w1PubKey, _ := w1.GetPublicKey(0)
 	w1.Shutdown()
 
-	w2 := createNewNamedWallet(t, "wallet-2", ":9543")
+	w2, homedir2 := createNewNamedWallet(t, ":9543")
 	w2PubKey, _ := w2.GetPublicKey(0)
 	w2.Shutdown()
 
@@ -139,34 +139,34 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet 1
-	waitForBalance(t, "wallet-1", initialBill.Value, 0)
+	waitForBalance(t, homedir1, initialBill.Value, 0)
 
 	// send two transactions (two bills) to wallet-2
-	stdout := execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
+	stdout := execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
-	stdout = execWalletCmd(t, "wallet-1", "send --amount 1 --address "+hexutil.Encode(w2PubKey))
+	stdout = execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-1 balance is decreased
-	verifyTotalBalance(t, "wallet-1", initialBill.Value-2)
+	verifyTotalBalance(t, homedir1, initialBill.Value-2)
 
 	// verify wallet-2 received said bills
-	waitForBalance(t, "wallet-2", 2, 0)
+	waitForBalance(t, homedir2, 2, 0)
 
 	// swap wallet-2 bills
-	stdout = execWalletCmd(t, "wallet-2", "collect-dust")
+	stdout = execWalletCmd(t, homedir2, "collect-dust")
 	verifyStdout(t, stdout, "Dust collection finished successfully.")
 
 	// send wallet-2 bill back to wallet-1
-	stdout = execWalletCmd(t, "wallet-2", "send --amount 1 --address "+hexutil.Encode(w1PubKey))
+	stdout = execWalletCmd(t, homedir2, "send --amount 1 --address "+hexutil.Encode(w1PubKey))
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify wallet-2 balance is reduced
-	verifyTotalBalance(t, "wallet-2", 1)
+	verifyTotalBalance(t, homedir2, 1)
 
 	// verify wallet-1 balance is increased
-	waitForBalance(t, "wallet-1", initialBill.Value-1, 0)
+	waitForBalance(t, homedir1, initialBill.Value-1, 0)
 }
 
 /*
@@ -188,13 +188,13 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	walletName := "wallet"
-	w := createNewNamedWallet(t, walletName, ":9543")
+	//walletName := "wallet"
+	w, homedir := createNewNamedWallet(t, ":9543")
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
 
-	pubKey2Hex := addAccount(t, walletName)
-	pubKey3Hex := addAccount(t, walletName)
+	pubKey2Hex := addAccount(t, homedir)
+	pubKey3Hex := addAccount(t, homedir)
 
 	// transfer initial bill to wallet
 	transferInitialBillTx, err := createInitialBillTransferTx(pubKey1, initialBill.ID, initialBill.Value, 10000)
@@ -204,29 +204,29 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet account 1
-	waitForBalance(t, walletName, initialBill.Value, 0)
+	waitForBalance(t, homedir, initialBill.Value, 0)
 
 	// send two transactions (two bills) to wallet account 2
-	stdout := execWalletCmd(t, walletName, "send --amount 1 --address "+pubKey2Hex)
+	stdout := execWalletCmd(t, homedir, "send --amount 1 --address "+pubKey2Hex)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
-	stdout = execWalletCmd(t, walletName, "send --amount 1 --address "+pubKey2Hex)
+	stdout = execWalletCmd(t, homedir, "send --amount 1 --address "+pubKey2Hex)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	// verify account 1 balance is decreased
-	verifyAccountBalance(t, walletName, initialBill.Value-2, 0)
+	verifyAccountBalance(t, homedir, initialBill.Value-2, 0)
 
 	// verify account 2 balance is increased
-	waitForBalance(t, walletName, 2, 1)
+	waitForBalance(t, homedir, 2, 1)
 
 	// swap account 2 bills
-	stdout = execWalletCmd(t, walletName, "collect-dust")
+	stdout = execWalletCmd(t, homedir, "collect-dust")
 	verifyStdout(t, stdout, "Dust collection finished successfully.")
 
 	// send account 2 bills to account 3
-	stdout = execWalletCmd(t, walletName, "send --amount 2 --key 2 --address "+pubKey3Hex)
+	stdout = execWalletCmd(t, homedir, "send --amount 2 --key 2 --address "+pubKey3Hex)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
-	waitForBalance(t, walletName, 2, 2)
+	waitForBalance(t, homedir, 2, 2)
 }
 
 func TestSendWithoutWaitingForConfirmation(t *testing.T) {
@@ -240,8 +240,7 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	walletName := "wallet"
-	w := createNewNamedWallet(t, walletName, ":9543")
+	w, homedir := createNewNamedWallet(t, ":9543")
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
 
@@ -253,10 +252,10 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify bill is received by wallet account 1
-	waitForBalance(t, walletName, initialBill.Value, 0)
+	waitForBalance(t, homedir, initialBill.Value, 0)
 
 	// verify transaction is broadcasted immediately
-	stdout := execWalletCmd(t, walletName, "send -w false --amount 100 --address 0x00000046eed43bde3361e1a9ab6d0082dd923f20464a11869f8ef266045cf38d98")
+	stdout := execWalletCmd(t, homedir, "send -w false --amount 100 --address 0x00000046eed43bde3361e1a9ab6d0082dd923f20464a11869f8ef266045cf38d98")
 	verifyStdout(t, stdout, "Successfully sent transaction(s)")
 }
 
@@ -273,8 +272,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	// create wallet
 	homedir := createNewTestWallet(t)
 	pubKey1Hex := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
-	walletName := "wallet-test"
-	pubKey2Hex := addAccount(t, walletName)
+	pubKey2Hex := addAccount(t, homedir)
 
 	// transfer initial bill to wallet account 1
 	pubKey1Bytes, _ := hexutil.Decode(pubKey1Hex)
@@ -284,7 +282,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify tx is received by wallet
-	waitForBalance(t, walletName, initialBill.Value, 0)
+	waitForBalance(t, homedir, initialBill.Value, 0)
 
 	// send two transactions to wallet account 2 and verify the proof files
 	stdout, _ := execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s", 1, pubKey2Hex, homedir))
@@ -296,7 +294,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
 
 	// verify wallet-2 balance is increased
-	waitForBalance(t, walletName, 2, 1)
+	waitForBalance(t, homedir, 2, 1)
 
 	// verify wallet-2 send-all-balance outputs both bills
 	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --key %d", 2, pubKey1Hex, homedir, 2))
@@ -343,12 +341,12 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func waitForBalance(t *testing.T, walletName string, expectedBalance uint64, accountIndex uint64) {
+func waitForBalance(t *testing.T, homedir string, expectedBalance uint64, accountIndex uint64) {
 	require.Eventually(t, func() bool {
-		stdout := execWalletCmd(t, walletName, "sync")
+		stdout := execWalletCmd(t, homedir, "sync")
 		verifyStdout(t, stdout, "Wallet synchronized successfully.")
 
-		stdout = execWalletCmd(t, walletName, "get-balance")
+		stdout = execWalletCmd(t, homedir, "get-balance")
 		for _, line := range stdout.lines {
 			if line == fmt.Sprintf("#%d %d", accountIndex+1, expectedBalance) {
 				return true
@@ -369,8 +367,8 @@ func verifyAccountBalance(t *testing.T, walletName string, expectedBalance, acco
 }
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex
-func addAccount(t *testing.T, walletName string) string {
-	stdout := execWalletCmd(t, walletName, "add-key")
+func addAccount(t *testing.T, homedir string) string {
+	stdout := execWalletCmd(t, homedir, "add-key")
 	for _, line := range stdout.lines {
 		if strings.HasPrefix(line, "Added key #") {
 			return line[13:]
@@ -399,9 +397,8 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 	return tx, nil
 }
 
-func createNewNamedWallet(t *testing.T, name string, addr string) *money.Wallet {
-	walletDir := path.Join(os.TempDir(), name)
-	_ = os.RemoveAll(walletDir)
+func createNewNamedWallet(t *testing.T, addr string) (*money.Wallet, string) {
+	walletDir := t.TempDir()
 
 	w, err := money.CreateNewWallet("", money.WalletConfig{
 		DbPath: path.Join(walletDir, "wallet"),
@@ -416,21 +413,18 @@ func createNewNamedWallet(t *testing.T, name string, addr string) *money.Wallet 
 	t.Cleanup(func() {
 		_ = os.RemoveAll(walletDir)
 	})
-	return w
+	return w, walletDir
 }
 
 func createNewTestWallet(t *testing.T) string {
-	homeDir := setupTestHomeDir(t, "wallet-test")
-	walletDir := path.Join(os.TempDir(), "wallet-test", "wallet")
+	homeDir := t.TempDir()
+	walletDir := path.Join(homeDir, "wallet")
 	w, err := money.CreateNewWallet("dinosaur simple verify deliver bless ridge monkey design venue six problem lucky", money.WalletConfig{
 		DbPath: walletDir,
 	})
 	defer w.Shutdown()
 	require.NoError(t, err)
 	require.NotNil(t, w)
-	t.Cleanup(func() {
-		_ = os.RemoveAll(walletDir)
-	})
 	return homeDir
 }
 
@@ -457,14 +451,14 @@ func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func execWalletCmd(t *testing.T, walletName string, command string) *testConsoleWriter {
+func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
-	homeDir := path.Join(os.TempDir(), walletName)
+	//homeDir := path.Join(os.TempDir(), walletName)
 
 	cmd := New()
-	args := "wallet --home " + homeDir + " " + command
+	args := "wallet --home " + homedir + " " + command
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	err := cmd.addAndExecuteCommand(context.Background())

@@ -11,6 +11,7 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	require.ErrorContains(t, err, "required flag(s) \"bill-file\", \"trust-base-file\" not set")
 
 	// test invalid block proof cannot be imported
-	billsFile, _ := util.ReadJsonFile(billsFilePath, &BillsDTO{})
+	billsFile, _ := util.ReadJsonFile(billsFilePath, &schema.Bills{})
 	billsFile.Bills[0].BlockProof.Proof.BlockHeaderHash = make([]byte, 32)
 	invalidBillsFilePath := path.Join(homedir, "invalid-bills.json")
 	_ = util.WriteJsonFile(invalidBillsFilePath, billsFile)
@@ -103,13 +104,13 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	// test that proof from "send --output-path" can be imported
 	// send a bill to account number 2
 	pubKeyAcc2 := "0x02d36c574db299904b285aaeb57eb7b1fa145c43af90bec3c635c4174c224587b6"
-	stdout = execWalletCmd(t, "wallet-test", fmt.Sprintf("send --amount 1 --address %s --output-path %s", pubKeyAcc2, homedir))
+	stdout = execWalletCmd(t, homedir, fmt.Sprintf("send --amount 1 --address %s --output-path %s", pubKeyAcc2, homedir))
 	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
 	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
 	outputFile := stdout.lines[1][len("Transaction proof(s) saved to: "):]
 
 	// add account number 2 to wallet
-	stdout = execWalletCmd(t, "wallet-test", "add-key")
+	stdout = execWalletCmd(t, homedir, "add-key")
 	require.Contains(t, stdout.lines[0], fmt.Sprintf("Added key #2 %s", pubKeyAcc2))
 
 	// import bill to account number 2
@@ -119,7 +120,7 @@ func TestWalletBillsImportCmd(t *testing.T) {
 
 	// add account number 3 to wallet
 	pubKeyAcc3 := "0x02f6cbeacfd97ebc9b657081eb8b6c9ed3a588646d618ddbd03e198290af94c9d2"
-	stdout = execWalletCmd(t, "wallet-test", "add-key")
+	stdout = execWalletCmd(t, homedir, "add-key")
 	require.Contains(t, stdout.lines[0], fmt.Sprintf("Added key #3 %s", pubKeyAcc3))
 
 	// verify that the same bill cannot be imported to account number 3
@@ -150,7 +151,7 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 	homedir := createNewTestWallet(t)
 
 	// sync wallet
-	waitForBalance(t, "wallet-test", initialBill.Value, 0)
+	waitForBalance(t, homedir, initialBill.Value, 0)
 
 	return homedir, network
 }

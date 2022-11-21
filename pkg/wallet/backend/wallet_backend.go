@@ -51,7 +51,7 @@ type (
 		RemoveBill(pubKey []byte, id []byte) error
 		ContainsBill(id []byte) (bool, error)
 		GetBill(billId []byte) (*Bill, error)
-		SetBill(pubkey []byte, bill *Bill) error
+		SetBills(pubkey []byte, bills ...*Bill) error
 		GetKeys() ([]*Pubkey, error)
 		AddKey(key *Pubkey) error
 	}
@@ -120,13 +120,15 @@ func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
 // Bill most have a valid block proof.
 // Overwrites existing bill, if one exists.
 // Returns error if given pubkey is not indexed.
-func (w *WalletBackend) SetBill(pubkey []byte, bill *Bill) error {
+func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
 	// TODO if pubkey is not tracked => return error
-	err := bill.BlockProof.verifyProof(w.verifiers)
-	if err != nil {
-		return err
+	for _, bill := range bills {
+		err := bill.BlockProof.verifyProof(w.verifiers)
+		if err != nil {
+			return err
+		}
 	}
-	return w.store.SetBill(pubkey, bill)
+	return w.store.SetBills(pubkey, bills...)
 }
 
 // AddKey adds new public key to list of tracked keys.

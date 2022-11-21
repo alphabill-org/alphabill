@@ -166,5 +166,5 @@ func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, tx *tx
 		Proof:       blockProof,
 	}
 	bi.BlockProof = proof
-	return p.store.SetBill(pubkey, bi)
+	return p.store.SetBills(pubkey, bi)
 }

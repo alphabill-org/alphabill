@@ -66,16 +66,18 @@ func (s *InmemoryBillStore) GetBill(billId []byte) (*Bill, error) {
 	return s.bills[string(billId)], nil
 }
 
-func (s *InmemoryBillStore) SetBill(pubkey []byte, bill *Bill) error {
+func (s *InmemoryBillStore) SetBills(pubkey []byte, billsIn ...*Bill) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.bills[string(bill.Id)] = bill
-	bills, f := s.pubkeyIndex[string(pubkey)]
-	if !f {
-		bills = map[string]bool{}
-		s.pubkeyIndex[string(pubkey)] = bills
+	for _, bill := range billsIn {
+		s.bills[string(bill.Id)] = bill
+		bills, f := s.pubkeyIndex[string(pubkey)]
+		if !f {
+			bills = map[string]bool{}
+			s.pubkeyIndex[string(pubkey)] = bills
+		}
+		bills[string(bill.Id)] = true
 	}
-	bills[string(bill.Id)] = true
 	return nil
 }
 

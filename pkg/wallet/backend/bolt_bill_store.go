@@ -140,30 +140,31 @@ func (s *BoltBillStore) GetBill(billId []byte) (*Bill, error) {
 	return bill, nil
 }
 
-func (s *BoltBillStore) SetBill(pubkey []byte, bill *Bill) error {
+func (s *BoltBillStore) SetBills(pubkey []byte, bills ...*Bill) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		pubkeyBucket, err := tx.Bucket(pubkeyIndexBucket).CreateBucketIfNotExists(pubkey)
 		if err != nil {
 			return err
 		}
-		err = pubkeyBucket.Put(bill.Id, nil)
-		if err != nil {
-			return err
-		}
-
-		billOrderNumber := s.getMaxBillOrderNumber(tx, pubkey)
-		bill.OrderNumber = billOrderNumber + 1
-		val, err := json.Marshal(bill)
-		if err != nil {
-			return err
-		}
-		err = tx.Bucket(billsBucket).Put(bill.Id, val)
-		if err != nil {
-			return err
-		}
-		err = tx.Bucket(metaBucket).Put(pubkey, util.Uint64ToBytes(bill.OrderNumber))
-		if err != nil {
-			return err
+		for _, bill := range bills {
+			err = pubkeyBucket.Put(bill.Id, nil)
+			if err != nil {
+				return err
+			}
+			billOrderNumber := s.getMaxBillOrderNumber(tx, pubkey)
+			bill.OrderNumber = billOrderNumber + 1
+			val, err := json.Marshal(bill)
+			if err != nil {
+				return err
+			}
+			err = tx.Bucket(billsBucket).Put(bill.Id, val)
+			if err != nil {
+				return err
+			}
+			err = tx.Bucket(metaBucket).Put(pubkey, util.Uint64ToBytes(bill.OrderNumber))
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})

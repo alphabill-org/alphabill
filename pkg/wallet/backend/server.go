@@ -18,7 +18,7 @@ type (
 	WalletBackendService interface {
 		GetBills(pubKey []byte) ([]*Bill, error)
 		GetBill(unitId []byte) (*Bill, error)
-		SetBill(pubKey []byte, bill *Bill) error
+		SetBills(pubKey []byte, bills ...*Bill) error
 		AddKey(pubkey []byte) error
 	}
 )

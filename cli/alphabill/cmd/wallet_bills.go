@@ -29,10 +29,6 @@ var (
 )
 
 type (
-	// BillsDTO json schema for bill import and export.
-	BillsDTO struct {
-		Bills []*schema.Bill `json:"bills"`
-	}
 	// TrustBase json schema for trust base file.
 	TrustBase struct {
 		RootValidators []*genesis.PublicKeyInfo `json:"root_validators"`
@@ -232,7 +228,7 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	billFileJson, err := util.ReadJsonFile(billFile, &BillsDTO{})
+	billFileJson, err := util.ReadJsonFile(billFile, &schema.Bills{})
 	if err != nil {
 		return err
 	}
@@ -294,12 +290,12 @@ func filterDcBills(bills []*money.Bill) []*money.Bill {
 	return normalBills
 }
 
-func newBillsDTO(bills ...*money.Bill) *BillsDTO {
+func newBillsDTO(bills ...*money.Bill) *schema.Bills {
 	var billsDTO []*schema.Bill
 	for _, b := range bills {
 		billsDTO = append(billsDTO, b.ToSchema())
 	}
-	return &BillsDTO{Bills: billsDTO}
+	return &schema.Bills{Bills: billsDTO}
 }
 
 func newBill(b *schema.Bill) *money.Bill {

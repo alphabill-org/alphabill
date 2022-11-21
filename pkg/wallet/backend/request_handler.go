@@ -162,15 +162,14 @@ func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		writeAsJson(w, ErrorResponse{Message: "block proof does not exist for given bill id"})
 		return
 	}
-	res := bill.toSchema()
+	res := &schema.Bills{Bills: []*schema.Bill{bill.toSchema()}}
 	writeAsJson(w, res)
 }
 
 func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Request) {
-	req := &schema.Bill{}
 	pubkey, err := parsePubKeyQueryParam(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /list-bills request: ", err)
+		wlog.Debug("error parsing POST /block-proof request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -179,6 +178,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
+	req := &schema.Bills{}
 	err = json.NewDecoder(r.Body).Decode(req)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -193,7 +193,11 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		wlog.Debug("validation error POST /block-proof request: ", err)
 		return
 	}
-	err = s.service.SetBill(pubkey, newBill(req))
+	var bills []*Bill
+	for _, bill := range req.Bills {
+		bills = append(bills, newBill(bill))
+	}
+	err = s.service.SetBills(pubkey, bills...)
 	if err != nil {
 		wlog.Error("error on POST /block-proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)

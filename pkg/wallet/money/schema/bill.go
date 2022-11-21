@@ -16,6 +16,10 @@ import (
 var validate = validator.New()
 
 type (
+	// Bills json schema used for importing and exporting bills in CLI and wallet-backend.
+	Bills struct {
+		Bills []*Bill `json:"bills" validate:"required,min=1"`
+	}
 	// Bill import/export schema.
 	Bill struct {
 		Id         []byte      `json:"id" validate:"required,len=32"`

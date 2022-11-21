@@ -97,7 +97,7 @@ func TestSetBill_OK(t *testing.T) {
 			Proof:       proof,
 		},
 	}
-	err := service.SetBill(pubkey, b)
+	err := service.SetBills(pubkey, b)
 	require.NoError(t, err)
 
 	// verify saved bill can be queried by id
@@ -121,7 +121,7 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
-	err := service.SetBill([]byte{}, &Bill{
+	err := service.SetBills([]byte{}, &Bill{
 		Id:     tx.UnitId,
 		Value:  txValue,
 		TxHash: []byte{},

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -47,7 +48,7 @@ func (tree *Tree) ExtractCertificate(id *uint256.Int) (*certificate, error) {
 		return nil, ErrRootNotCalculated
 	}
 	if !tree.exists(id) {
-		return nil, errors.Errorf(errStrItemDoesntExist, id)
+		return nil, errors.Errorf(errStrItemDoesntExist, util.Uint256ToBytes(id))
 	}
 	var path []*pathItem
 	n := tree.root

@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"sync"
 )
 
@@ -89,6 +90,17 @@ func (s *InmemoryBillStore) GetKeys() ([]*Pubkey, error) {
 		keys = append(keys, k)
 	}
 	return keys, nil
+}
+
+func (s *InmemoryBillStore) GetKey(pubkey []byte) (*Pubkey, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, k := range s.keys {
+		if bytes.Equal(pubkey, k.Pubkey) {
+			return k, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *InmemoryBillStore) AddKey(k *Pubkey) error {

@@ -200,8 +200,8 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	}
 	err = s.service.SetBills(pubkey, bills...)
 	if err != nil {
-		if errors.Is(err, block.ErrProofVerificationFailed) {
-			wlog.Debug("validation error POST /block-proof request: ", err)
+		if errors.Is(err, block.ErrProofVerificationFailed) || errors.Is(err, errKeyNotIndexed) {
+			wlog.Debug("verification error POST /block-proof request: ", err)
 			w.WriteHeader(http.StatusBadRequest)
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {

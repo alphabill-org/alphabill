@@ -16,6 +16,10 @@ import (
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
+var (
+	errKeyNotIndexed = errors.New("pubkey is not indexed")
+)
+
 type (
 	WalletBackend struct {
 		store         BillStore
@@ -53,6 +57,7 @@ type (
 		GetBill(billId []byte) (*Bill, error)
 		SetBills(pubkey []byte, bills ...*Bill) error
 		GetKeys() ([]*Pubkey, error)
+		GetKey(pubkey []byte) (*Pubkey, error)
 		AddKey(key *Pubkey) error
 	}
 )
@@ -121,12 +126,18 @@ func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
 // Overwrites existing bill, if one exists.
 // Returns error if given pubkey is not indexed.
 func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
-	// TODO if pubkey is not tracked => return error
 	for _, bill := range bills {
 		err := bill.verifyProof(w.verifiers)
 		if err != nil {
 			return err
 		}
+	}
+	key, err := w.store.GetKey(pubkey)
+	if err != nil {
+		return err
+	}
+	if key == nil {
+		return errKeyNotIndexed
 	}
 	return w.store.SetBills(pubkey, bills...)
 }

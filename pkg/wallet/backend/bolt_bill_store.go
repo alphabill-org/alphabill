@@ -189,6 +189,24 @@ func (s *BoltBillStore) GetKeys() ([]*Pubkey, error) {
 	return keys, nil
 }
 
+func (s *BoltBillStore) GetKey(pubkey []byte) (*Pubkey, error) {
+	var key *Pubkey
+	err := s.db.View(func(tx *bolt.Tx) error {
+		keyBytes := tx.Bucket(keysBucket).Get(pubkey)
+		if keyBytes != nil {
+			err := json.Unmarshal(keyBytes, &key)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
 func (s *BoltBillStore) AddKey(k *Pubkey) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		keysBkt := tx.Bucket(keysBucket)

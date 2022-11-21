@@ -316,11 +316,12 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	}))
 	proof, verifiers := createBlockProofForTx(t, tx)
 
-	service := New(nil, NewInmemoryBillStore(), verifiers)
-	startServer(t, service)
-
 	pubkey := make([]byte, 33)
 	txHash := make([]byte, 32)
+	service := New(nil, NewInmemoryBillStore(), verifiers)
+	_ = service.AddKey(pubkey)
+	startServer(t, service)
+
 	req := &schema.Bills{
 		Bills: []*schema.Bill{
 			{
@@ -348,6 +349,40 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	require.Equal(t, txHash, b.TxHash)
 	require.EqualValues(t, txValue, b.Value)
 	require.NoError(t, b.BlockProof.verifyProof(verifiers))
+}
+
+func TestAddBlockProofRequest_unindexed_key_NOK(t *testing.T) {
+	_ = log.InitStdoutLogger(log.INFO)
+	txValue := uint64(100)
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+		TargetValue: txValue,
+	}))
+	proof, verifiers := createBlockProofForTx(t, tx)
+
+	service := New(nil, NewInmemoryBillStore(), verifiers)
+	startServer(t, service)
+
+	pubkey := make([]byte, 33)
+	txHash := make([]byte, 32)
+	req := &schema.Bills{
+		Bills: []*schema.Bill{
+			{
+				Id:     tx.UnitId,
+				Value:  txValue,
+				TxHash: txHash,
+				BlockProof: &schema.BlockProof{
+					BlockNumber: 1,
+					Tx:          tx,
+					Proof:       proof,
+				},
+			},
+		},
+	}
+	res := &ErrorResponse{}
+	pubkeyHex := hexutil.Encode(pubkey)
+	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.Equal(t, errKeyNotIndexed.Error(), res.Message)
 }
 
 func createBlockProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof, map[string]abcrypto.Verifier) {

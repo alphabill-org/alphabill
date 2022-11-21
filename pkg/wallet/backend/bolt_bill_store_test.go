@@ -1,8 +1,6 @@
 package backend
 
 import (
-	"fmt"
-	"os"
 	"path"
 	"testing"
 
@@ -130,7 +128,7 @@ func TestBillStore_GetSetKeys(t *testing.T) {
 	err := bs.AddKey(pubkey)
 	require.NoError(t, err)
 
-	// verify getKeys
+	// verify GetKeys
 	keys, err := bs.GetKeys()
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
@@ -143,16 +141,20 @@ func TestBillStore_GetSetKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
 	require.Equal(t, pubkey, keys[0])
+
+	// verify GetKey returns key
+	key, err := bs.GetKey(pubkey.Pubkey)
+	require.NoError(t, err)
+	require.Equal(t, pubkey, key)
+
+	// verify GetKey returns nil for unindexed key
+	key, err = bs.GetKey([]byte{1, 1, 1, 1})
+	require.NoError(t, err)
+	require.Nil(t, key)
 }
 
 func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
-	dbFile := path.Join(os.TempDir(), BoltBillStoreFileName)
-	t.Cleanup(func() {
-		err := os.Remove(dbFile)
-		if err != nil {
-			fmt.Println("error deleting bills.db ", err)
-		}
-	})
+	dbFile := path.Join(t.TempDir(), BoltBillStoreFileName)
 	return NewBoltBillStore(dbFile)
 }
 

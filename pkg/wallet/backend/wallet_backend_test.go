@@ -97,7 +97,17 @@ func TestSetBill_OK(t *testing.T) {
 			Proof:       proof,
 		},
 	}
+
+	// verify bill cannot be added to untracked pubkey
 	err := service.SetBills(pubkey, b)
+	require.ErrorIs(t, err, errKeyNotIndexed)
+
+	// when pubkey is indexed
+	err = service.AddKey(pubkey)
+	require.NoError(t, err)
+
+	// then bills can be added for given pubkey
+	err = service.SetBills(pubkey, b)
 	require.NoError(t, err)
 
 	// verify saved bill can be queried by id
@@ -105,7 +115,7 @@ func TestSetBill_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, b, bill)
 
-	// verify saved bill can be queryed by pubkey
+	// verify saved bill can be queried by pubkey
 	bills, err := service.GetBills(pubkey)
 	require.NoError(t, err)
 	require.Len(t, bills, 1)
@@ -121,7 +131,9 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
-	err := service.SetBills([]byte{}, &Bill{
+	pubkey := []byte{0}
+	_ = service.AddKey(pubkey)
+	err := service.SetBills(pubkey, &Bill{
 		Id:     tx.UnitId,
 		Value:  txValue,
 		TxHash: []byte{},

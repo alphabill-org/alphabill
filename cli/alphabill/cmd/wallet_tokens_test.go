@@ -162,7 +162,7 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 }
 
 func TestTokens_withRunningPartition(t *testing.T) {
-	addr := ":9543"
+	addr := ":9545"
 	partition, unitState := startTokensPartition(t)
 	startRPCServer(t, partition, addr)
 

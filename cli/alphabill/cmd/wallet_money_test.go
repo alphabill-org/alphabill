@@ -435,8 +435,9 @@ func createNewTestWallet(t *testing.T) string {
 }
 
 func verifyStdout(t *testing.T, consoleWriter *testConsoleWriter, expectedLines ...string) {
+	joined := strings.Join(consoleWriter.lines, "\n")
 	for _, expectedLine := range expectedLines {
-		require.Contains(t, consoleWriter.lines, expectedLine)
+		require.Contains(t, joined, expectedLine)
 	}
 }
 

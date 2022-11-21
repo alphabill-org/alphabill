@@ -168,8 +168,7 @@ func TestTokens_withRunningPartition(t *testing.T) {
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1 := createNewTokenWallet(t, "w1", addr)
-	require.NoError(t, w1.Sync(context.Background()))
+	createNewTokenWallet(t, "w1", addr).Shutdown()
 
 	typeId1 := uint64(0x01)
 	verifyStdout(t, execTokensCmd(t, "w1", ""), "Error: must specify a subcommand like new-type, send etc")

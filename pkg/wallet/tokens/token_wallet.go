@@ -55,6 +55,9 @@ func (w *Wallet) GetAccountManager() wallet.AccountManager {
 
 func (w *Wallet) Shutdown() {
 	w.mw.Shutdown()
+	if w.db != nil {
+		w.db.Close()
+	}
 }
 
 func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {

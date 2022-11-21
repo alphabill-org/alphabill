@@ -16,7 +16,9 @@ test:
   stage: test
   script:
     - make test
+    - go tool cover -func test-coverage.out
     - gocover-cobertura < test-coverage.out > test-coverage-cobertura.xml
+  coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
   artifacts:
     expire_in: 1 month
     reports:

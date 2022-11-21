@@ -162,13 +162,17 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 }
 
 func TestTokens_withRunningPartition(t *testing.T) {
-	addr := ":9545"
 	partition, unitState := startTokensPartition(t)
-	startRPCServer(t, partition, addr)
+	startRPCServer(t, partition, listenAddr)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	createNewTokenWallet(t, "w1", addr).Shutdown()
+	w1 := createNewTokenWallet(t, "w1", dialAddr)
+	w1.Shutdown()
+	w2 := createNewTokenWallet(t, "w2", dialAddr)
+	w2key, err := w2.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w2.Shutdown()
 
 	typeId1 := uint64(0x01)
 	verifyStdout(t, execTokensCmd(t, "w1", ""), "Error: must specify a subcommand like new-type, send etc")
@@ -177,15 +181,35 @@ func TestTokens_withRunningPartition(t *testing.T) {
 	// fungible token types
 	symbol1 := "AB"
 	execTokensCmdWithError(t, "w1", "new-type fungible", "required flag(s) \"symbol\" not set")
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X", symbol1, addr, util.Uint64ToBytes(typeId1)))
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X", symbol1, dialAddr, util.Uint64ToBytes(typeId1)))
 	ensureUnit(t, unitState, uint256.NewInt(typeId1))
+	// mint tokens
+	crit := func(typeId []byte, amount uint64) func(tx *txsystem.Transaction) bool {
+		return func(tx *txsystem.Transaction) bool {
+			return util.BytesToUint64(tx.TransactionAttributes.Value) == amount
+		}
+	}
+	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 3", dialAddr, util.Uint64ToBytes(typeId1)))
+	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 5", dialAddr, util.Uint64ToBytes(typeId1)))
+	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 9", dialAddr, util.Uint64ToBytes(typeId1)))
+	testpartition.BlockchainContains(partition, crit(nil, 3))
+	testpartition.BlockchainContains(partition, crit(nil, 5))
+	testpartition.BlockchainContains(partition, crit(nil, 9))
+	// check w2 is empty
+	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list fungible --sync true -u %s", dialAddr)), "No tokens")
+	// transfer tokens w1 -> w2
+	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, util.Uint64ToBytes(typeId1), w2key.PubKey)) //split
+	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, util.Uint64ToBytes(typeId1), w2key.PubKey)) //transfer+split
+	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='6'", "amount='5'", "amount='1'")
+	//check what is left in w1
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'")
 
 	// non-fungible token types
-	typeId2 := uint64(0x10)
-	symbol2 := "ABNFT"
-	execTokensCmdWithError(t, "w1", "new-type non-fungible", "required flag(s) \"symbol\" not set")
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol2, addr, util.Uint64ToBytes(typeId2)))
-	ensureUnit(t, unitState, uint256.NewInt(typeId2))
+	//typeId2 := uint64(0x10)
+	//symbol2 := "ABNFT"
+	//execTokensCmdWithError(t, "w1", "new-type non-fungible", "required flag(s) \"symbol\" not set")
+	//execTokensCmd(t, "w1", fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol2, addr, util.Uint64ToBytes(typeId2)))
+	//ensureUnit(t, unitState, uint256.NewInt(typeId2))
 	fmt.Println("Finita")
 }
 

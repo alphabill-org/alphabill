@@ -667,6 +667,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 	}
 	sort.Ints(accounts)
 
+	atLeastOneFound := false
 	for _, accNr := range accounts {
 		toks := res[accNr]
 		var ownerKey string
@@ -681,12 +682,16 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 			return toks[i].Kind < toks[j].Kind
 		})
 		for _, tok := range toks {
+			atLeastOneFound = true
 			if tok.IsFungible() {
 				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, tok.Amount, tok.TypeID))
 			} else {
 				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.ID, tok.Symbol, tok.TypeID, tok.URI))
 			}
 		}
+	}
+	if !atLeastOneFound {
+		consoleWriter.Println("No tokens")
 	}
 	return nil
 }

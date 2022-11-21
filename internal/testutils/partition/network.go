@@ -304,3 +304,24 @@ func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition)
 		return false
 	}
 }
+
+func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.Transaction) bool) func() bool {
+	return func() bool {
+		for _, n := range network.Nodes {
+			height := n.GetLatestBlock().GetBlockNumber()
+			for i := uint64(0); i <= height; i++ {
+				b, err := n.GetBlock(height - i)
+				if err != nil || b == nil {
+					continue
+				}
+				for _, t := range b.Transactions {
+					if criteria(t) {
+						return true
+					}
+				}
+			}
+
+		}
+		return false
+	}
+}

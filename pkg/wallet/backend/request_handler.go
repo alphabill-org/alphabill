@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -186,7 +187,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		wlog.Debug("error decoding POST /block-proof request: ", err)
 		return
 	}
-	err = validate.Struct(req)
+	err = req.Validate()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -199,8 +200,14 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	}
 	err = s.service.SetBills(pubkey, bills...)
 	if err != nil {
-		wlog.Error("error on POST /block-proof: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		if errors.Is(err, block.ErrProofVerificationFailed) {
+			wlog.Debug("validation error POST /block-proof request: ", err)
+			w.WriteHeader(http.StatusBadRequest)
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			wlog.Error("error on POST /block-proof: ", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 	writeAsJson(w, EmptyResponse{})

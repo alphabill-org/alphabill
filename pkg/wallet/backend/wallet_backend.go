@@ -25,18 +25,18 @@ type (
 	}
 
 	Bill struct {
-		Id     []byte `json:"id" validate:"required,len=32"`
-		Value  uint64 `json:"value" validate:"required"`
-		TxHash []byte `json:"txHash" validate:"required"`
+		Id     []byte `json:"id"`
+		Value  uint64 `json:"value"`
+		TxHash []byte `json:"txHash"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
 		OrderNumber uint64      `json:"orderNumber"`
-		BlockProof  *BlockProof `json:"blockProof" validate:"required"`
+		BlockProof  *BlockProof `json:"blockProof"`
 	}
 
 	BlockProof struct {
-		BlockNumber uint64                `json:"blockNumber" validate:"required"`
-		Tx          *txsystem.Transaction `json:"tx" validate:"required"`
-		Proof       *block.BlockProof     `json:"proof" validate:"required"`
+		BlockNumber uint64                `json:"blockNumber"`
+		Tx          *txsystem.Transaction `json:"tx"`
+		Proof       *block.BlockProof     `json:"proof"`
 	}
 
 	Pubkey struct {
@@ -123,7 +123,7 @@ func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
 func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
 	// TODO if pubkey is not tracked => return error
 	for _, bill := range bills {
-		err := bill.BlockProof.verifyProof(w.verifiers)
+		err := bill.verifyProof(w.verifiers)
 		if err != nil {
 			return err
 		}
@@ -145,6 +145,10 @@ func (w *WalletBackend) Shutdown() {
 	default:
 	}
 	w.genericWallet.Shutdown()
+}
+
+func (b *Bill) verifyProof(verifiers map[string]abcrypto.Verifier) error {
+	return b.BlockProof.verifyProof(verifiers)
 }
 
 func (b *BlockProof) verifyProof(verifiers map[string]abcrypto.Verifier) error {

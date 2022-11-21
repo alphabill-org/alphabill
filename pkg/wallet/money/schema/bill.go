@@ -35,8 +35,29 @@ type (
 	}
 )
 
+// Verify validates struct and verifies proofs.
+func (b *Bills) Verify(verifiers map[string]abcrypto.Verifier) error {
+	err := b.Validate()
+	if err != nil {
+		return err
+	}
+	for _, bill := range b.Bills {
+		err = bill.Verify(verifiers)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Validate validates struct.
+func (b *Bills) Validate() error {
+	return validate.Struct(b)
+}
+
+// Verify validates struct and verifies proof.
 func (b *Bill) Verify(verifiers map[string]abcrypto.Verifier) error {
-	err := b.validate()
+	err := b.Validate()
 	if err != nil {
 		return err
 	}
@@ -50,6 +71,7 @@ func (b *Bill) Verify(verifiers map[string]abcrypto.Verifier) error {
 	return b.BlockProof.Proof.Verify(tx, verifiers, crypto.SHA256)
 }
 
-func (b *Bill) validate() error {
+// Validate validates struct.
+func (b *Bill) Validate() error {
 	return validate.Struct(b)
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -184,17 +186,23 @@ func TestTokens_withRunningPartition(t *testing.T) {
 	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X", symbol1, dialAddr, util.Uint64ToBytes(typeId1)))
 	ensureUnit(t, unitState, uint256.NewInt(typeId1))
 	// mint tokens
-	crit := func(typeId []byte, amount uint64) func(tx *txsystem.Transaction) bool {
+	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
 		return func(tx *txsystem.Transaction) bool {
-			return util.BytesToUint64(tx.TransactionAttributes.Value) == amount
+			if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes" {
+				attrs := &tokens.MintFungibleTokenAttributes{}
+				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+				fmt.Printf("crit: %v vs amount %v", attrs.Value, amount)
+				return attrs.Value == amount
+			}
+			return false
 		}
 	}
 	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 3", dialAddr, util.Uint64ToBytes(typeId1)))
 	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 5", dialAddr, util.Uint64ToBytes(typeId1)))
 	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 9", dialAddr, util.Uint64ToBytes(typeId1)))
-	testpartition.BlockchainContains(partition, crit(nil, 3))
-	testpartition.BlockchainContains(partition, crit(nil, 5))
-	testpartition.BlockchainContains(partition, crit(nil, 9))
+	require.Eventually(t, testpartition.BlockchainContains(partition, crit(3)), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContains(partition, crit(5)), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContains(partition, crit(9)), test.WaitDuration, test.WaitTick)
 	// check w2 is empty
 	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list fungible --sync true -u %s", dialAddr)), "No tokens")
 	// transfer tokens w1 -> w2
@@ -205,12 +213,30 @@ func TestTokens_withRunningPartition(t *testing.T) {
 	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'")
 
 	// non-fungible token types
-	//typeId2 := uint64(0x10)
-	//symbol2 := "ABNFT"
-	//execTokensCmdWithError(t, "w1", "new-type non-fungible", "required flag(s) \"symbol\" not set")
-	//execTokensCmd(t, "w1", fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol2, addr, util.Uint64ToBytes(typeId2)))
-	//ensureUnit(t, unitState, uint256.NewInt(typeId2))
+	typeId2 := util.Uint256ToBytes(uint256.NewInt(uint64(0x10)))
+	nftID := util.Uint256ToBytes(uint256.NewInt(uint64(0x11)))
+	symbol2 := "ABNFT"
+	execTokensCmdWithError(t, "w1", "new-type non-fungible", "required flag(s) \"symbol\" not set")
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol2, dialAddr, typeId2))
+	ensureUnitBytes(t, unitState, typeId2)
+	// mint NFT
+	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X", dialAddr, typeId2, nftID))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
+	}), test.WaitDuration, test.WaitTick)
+	// transfer NFT
+	execTokensCmd(t, "w1", fmt.Sprintf("send non-fungible --sync false -u %s --token-identifier %X --address 0x%X -k 1", dialAddr, nftID, w2key.PubKey))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.TransferNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
+	}), test.WaitDuration, test.WaitTick)
+	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
+	//check what is left in w1, nothing, that is
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), "No tokens")
 	fmt.Println("Finita")
+}
+
+func ensureUnitBytes(t *testing.T, state tokens.TokenState, id []byte) {
+	ensureUnit(t, state, uint256.NewInt(0).SetBytes(id))
 }
 
 func ensureUnit(t *testing.T, state tokens.TokenState, id *uint256.Int) {

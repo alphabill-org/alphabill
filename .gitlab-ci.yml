@@ -23,6 +23,7 @@ test:
       cobertura: test-coverage-cobertura.xml
     paths:
       - test-coverage.out
+      - test-coverage-cobertura.xml
     when: always
 
 build:

@@ -239,7 +239,7 @@ func TestRootNodeVerifier_VerifySignature(t *testing.T) {
 		Timestamp: 11111,
 		Payload:   &atomic_broadcast.Payload{},
 		Qc: &atomic_broadcast.QuorumCert{
-			VoteInfo:         &atomic_broadcast.VoteInfo{RootRound: 1},
+			VoteInfo:         &atomic_broadcast.VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 			LedgerCommitInfo: &atomic_broadcast.LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 		},
 	}

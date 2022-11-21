@@ -5,7 +5,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 
@@ -52,7 +52,9 @@ type (
 	}
 
 	PartitionStoreRd interface {
-		GetInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+		GetNofNodesInPartition(id p.SystemIdentifier) (int, error)
+		GetPartitionNodes(id p.SystemIdentifier) ([]string, error)
+		GetPartitionVerifier(id p.SystemIdentifier, nodeId string) (crypto.Verifier, error)
 	}
 
 	RootNodeConf struct {
@@ -212,17 +214,13 @@ func (v *Validator) sendResponse(nodeId string, uc *certificates.UnicityCertific
 // OnBlockCertificationRequest handle certification requests from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
-	info, err := v.partitionStore.GetInfo(proto.SystemIdentifier(req.SystemIdentifier))
+	sysId := proto.SystemIdentifier(req.SystemIdentifier)
+	ver, err := v.partitionStore.GetPartitionVerifier(sysId, req.NodeIdentifier)
 	if err != nil {
-		logger.Warning("invalid block certification request: %v", err)
+		logger.Warning("Block certification request validation failed: %v", err)
 		return
 	}
-	verifier, f := info.TrustBase[req.NodeIdentifier]
-	if !f {
-		logger.Warning("block certification request from unknown node: %v", req.NodeIdentifier)
-		return
-	}
-	err = req.IsValid(verifier)
+	err = req.IsValid(ver)
 	if err != nil {
 		logger.Warning("block certification request signature verification failed: %v", err)
 		return
@@ -240,7 +238,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 		return
 	}
 	// There has to be at least one node in the partition, otherwise we could not have verified the request
-	nofNodes := len(info.TrustBase)
+	nofNodes, err := v.partitionStore.GetNofNodesInPartition(sysId)
 	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(systemIdentifier, nofNodes)
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
@@ -274,13 +272,13 @@ func (v *Validator) onCertificationResult(certificate *certificates.UnicityCerti
 	// remember to clear the incoming buffer to accept new requests
 	defer v.incomingRequests.Clear(sysId)
 
-	info, err := v.partitionStore.GetInfo(sysId)
+	nodes, err := v.partitionStore.GetPartitionNodes(sysId)
 	if err != nil {
 		logger.Info("Unable to send response to partition nodes: %v", err)
 		return
 	}
 	// send response to all registered nodes
-	for node, _ := range info.TrustBase {
+	for _, node := range nodes {
 		v.sendResponse(node, certificate)
 	}
 }

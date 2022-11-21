@@ -34,7 +34,7 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *ProposalMsg) Verify(p PartitionStore, v AtomicVerifier) error {
+func (x *ProposalMsg) Verify(p PartitionVerifier, v AtomicVerifier) error {
 	if v == nil {
 		return ErrVerifierIsNil
 	}

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -32,7 +30,7 @@ const (
 
 type (
 	PartitionStore interface {
-		GetInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
 		GetSystemDescriptions() []*genesis.SystemDescriptionRecord // todo: to be removed
 	}
 
@@ -158,12 +156,12 @@ func (x *ConsensusManager) loop() {
 			}
 			logger.Debug("IR change request from partition")
 			// The request is sent internally, assume correct handling and do not double-check the attached requests
-			info, err := x.partitions.GetInfo(req.SystemIdentifier)
+			sysDescription, err := x.partitions.GetSystemDescription(req.SystemIdentifier)
 			if err != nil {
 				logger.Warning("Unexpected error, cannot certify IR from %X: %v", req.SystemIdentifier, err)
 				break
 			}
-			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(req.IR, &info.SystemDescription, x.conf.hashAlgo)
+			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(req.IR, sysDescription, x.conf.hashAlgo)
 		// handle timeouts
 		case nt := <-x.timers.C:
 			if nt == nil {
@@ -201,12 +199,12 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("Unable to re-certify partition %X, error: no certificate found", systemdId.Bytes(), err.Error())
 					break
 				}
-				info, err := x.partitions.GetInfo(systemdId)
+				sysDescription, err := x.partitions.GetSystemDescription(systemdId)
 				if err != nil {
 					logger.Warning("Unexpected error, cannot certify IR from %X: %v", systemdId.Bytes(), err)
 					break
 				}
-				x.inputData[systemdId] = NewUnicityTreeData(luc.InputRecord, &info.SystemDescription, x.conf.hashAlgo)
+				x.inputData[systemdId] = NewUnicityTreeData(luc.InputRecord, sysDescription, x.conf.hashAlgo)
 			}
 		}
 	}

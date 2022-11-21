@@ -123,12 +123,12 @@ func (s *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 	inputData := make(map[protocol.SystemIdentifier]*CertInputData)
 	// Init with previous state
 	for id, luc := range previousState.State.Certificates {
-		partition, err := partitions.GetInfo(id)
+		sysDesc, err := partitions.GetSystemDescription(id)
 		if err != nil {
 			return fmt.Errorf("erros reading partition %X info", id.Bytes())
 		}
 		inputData[id].Ir = luc.InputRecord
-		inputData[id].SysDesc = &partition.SystemDescription
+		inputData[id].SysDesc = sysDesc
 	}
 	// Remember all partitions that have changes in the current proposal and apply changes
 	changed := ChangeSet{}
@@ -140,7 +140,7 @@ func (s *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 				systemId.Bytes(), round-1)
 		}
 		// Find if the SystemIdentifier is known by partition store
-		info, err := partitions.GetInfo(systemId)
+		sysDesc, err := partitions.GetSystemDescription(systemId)
 		if err != nil {
 			logger.Warning("Payload contains unknown partition %X, ignoring", systemId)
 			// Still process the rest and vote, it is better to vote differently than send nothing
@@ -154,7 +154,10 @@ func (s *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 				return fmt.Errorf("equivocating requets in payload from partition %X", systemId.Bytes())
 			}
 		}
-		nodeCnt := len(info.TrustBase)
+		nodeCnt, err := partitions.GetNofNodesInPartition(systemId)
+		if err != nil {
+			return fmt.Errorf("cannot verify quorum for certification request: %w", err)
+		}
 		inputRecord, consensusPossible := requests.IsConsensusReceived(systemId, nodeCnt)
 
 		// match request type to proof
@@ -179,16 +182,16 @@ func (s *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast
 			}
 			// verify timeout ok
 			lucAgeInRounds := round - cert.UnicitySeal.RootChainRoundNumber
-			if lucAgeInRounds*500 < uint64(info.SystemDescription.T2Timeout) {
+			if lucAgeInRounds*500 < uint64(sysDesc.T2Timeout) {
 				logger.Warning("Payload invalid timeout id %X, time from latest UC %v, timeout %v, ignoring",
-					systemId, lucAgeInRounds*500, info.SystemDescription.T2Timeout)
+					systemId, lucAgeInRounds*500, sysDesc.T2Timeout)
 				continue
 			}
 			// copy last input record
 			inputRecord = cert.InputRecord
 			break
 		}
-		inputData[systemId] = &CertInputData{Ir: inputRecord, SysDesc: &info.SystemDescription}
+		inputData[systemId] = &CertInputData{Ir: inputRecord, SysDesc: sysDesc}
 		changed.add(systemId)
 	}
 

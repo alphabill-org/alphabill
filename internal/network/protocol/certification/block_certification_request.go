@@ -3,6 +3,8 @@ package certification
 import (
 	"bytes"
 
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -14,6 +16,10 @@ var (
 	ErrVerifierIsNil                  = errors.New("verifier is nil")
 	ErrEmptyNodeIdentifier            = errors.New("node identifier is empty")
 )
+
+type PartitionVerifier interface {
+	VerifySignature(id protocol.SystemIdentifier, nodeId string, sig []byte, tlg []byte) error
+}
 
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if x == nil {
@@ -32,6 +38,28 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 		return err
 	}
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (x *BlockCertificationRequest) Verify(partitionVer PartitionVerifier) error {
+	if x == nil {
+		return ErrBlockCertificationRequestIsNil
+	}
+	if partitionVer == nil {
+		return ErrVerifierIsNil
+	}
+	if len(x.SystemIdentifier) != 4 {
+		return ErrInvalidSystemIdentifierLength
+	}
+	if x.NodeIdentifier == "" {
+		return ErrEmptyNodeIdentifier
+	}
+	if err := x.InputRecord.IsValid(); err != nil {
+		return err
+	}
+	if err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), x.NodeIdentifier, x.Signature, x.Bytes()); err != nil {
 		return err
 	}
 	return nil

@@ -23,19 +23,27 @@ func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, sign
 	}
 }
 
-func (x *QuorumCert) Verify(v AtomicVerifier) error {
+func (x *QuorumCert) IsValid() error {
+	// QC must have valid vote info
 	if x.VoteInfo == nil {
 		return ErrMissingVoteInfo
 	}
-	// verify that QC is valid
 	if err := x.VoteInfo.IsValid(); err != nil {
 		return err
 	}
-	// Check Consensus info
+	// and must have valid ledger commit info
 	if x.LedgerCommitInfo == nil {
 		return ErrLedgerCommitInfoIsNil
 	}
 	if err := x.LedgerCommitInfo.IsValid(); err != nil {
+		return err
+	}
+	// Perhaps check for presents of signatures?
+	return nil
+}
+
+func (x *QuorumCert) Verify(v AtomicVerifier) error {
+	if err := x.IsValid(); err != nil {
 		return err
 	}
 	// check vote info hash

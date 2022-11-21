@@ -9,7 +9,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -48,7 +47,9 @@ type (
 	}
 
 	PartitionStore interface {
-		GetInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
+		GetNofNodesInPartition(id p.SystemIdentifier) (int, error)
+		VerifySignature(id p.SystemIdentifier, nodeId string, sig []byte, data []byte) error
 	}
 
 	StateStore interface {
@@ -388,12 +389,12 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 	}
 	// validate incoming request
 	sysId := p.SystemIdentifier(irChange.SystemIdentifier)
-	info, err := x.partitions.GetInfo(sysId)
+	partitionNodes, err := x.partitions.GetNofNodesInPartition(sysId)
 	if err != nil {
-		logger.Warning("IR change request from unknown partition %X, error: %v", sysId.Bytes(), err)
+		logger.Warning("IR change error, failed to get total nods for partition %X, error: %v", sysId.Bytes(), err)
 		return
 	}
-	if err := irChange.IsValid(info.TrustBase); err != nil {
+	if err := irChange.IsValid(x.partitions); err != nil {
 		logger.Warning("Invalid IR change request error: %v", err)
 		return
 	}
@@ -418,7 +419,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// Buffer and wait for opportunity to make the next proposal
-	x.proposalGen.ValidateAndBufferIRReq(irChange, luc, &info)
+	x.proposalGen.ValidateAndBufferIRReq(irChange, luc, partitionNodes)
 
 }
 

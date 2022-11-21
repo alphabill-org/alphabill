@@ -9,7 +9,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 )
 
@@ -46,7 +45,7 @@ func compareIR(a, b *certificates.InputRecord) bool {
 	return true
 }
 
-func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChangeReqMsg, luc *certificates.UnicityCertificate, info *partition_store.PartitionInfo) error {
+func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChangeReqMsg, luc *certificates.UnicityCertificate, nofNodes int) error {
 	systemId := protocol.SystemIdentifier(req.SystemIdentifier)
 
 	irChangeReqs, found := x.irChgReqBuffer[systemId]
@@ -65,7 +64,7 @@ func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChang
 			continue
 		}
 	}
-	ir, _ := requestStore.IsConsensusReceived(systemId, len(info.TrustBase))
+	ir, _ := requestStore.IsConsensusReceived(systemId, nofNodes)
 	if ir == nil {
 		logger.Warning("Invalid IR change request no consensus reached")
 		return errors.New("invalid IR change request no consensus reached")

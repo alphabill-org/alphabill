@@ -12,7 +12,7 @@ import (
 
 type PartitionInfo struct {
 	// partition system description record,
-	SystemDescription genesis.SystemDescriptionRecord
+	SystemDescription *genesis.SystemDescriptionRecord
 	// registered nodes and their public key's
 	TrustBase map[string]crypto.Verifier
 }
@@ -43,7 +43,7 @@ func NewPartitionStore(partitions []*genesis.PartitionRecord) (*PartitionStore, 
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[identifier] = &PartitionInfo{SystemDescription: *partition.SystemDescriptionRecord,
+		parts[identifier] = &PartitionInfo{SystemDescription: partition.SystemDescriptionRecord,
 			TrustBase: trustBase}
 	}
 	return &PartitionStore{partitions: parts}, nil
@@ -62,7 +62,7 @@ func NewPartitionStoreFromGenesis(partitions []*genesis.GenesisPartitionRecord) 
 			}
 			trustBase[node.NodeIdentifier] = ver
 		}
-		parts[identifier] = &PartitionInfo{SystemDescription: *partition.SystemDescriptionRecord,
+		parts[identifier] = &PartitionInfo{SystemDescription: partition.SystemDescriptionRecord,
 			TrustBase: trustBase}
 	}
 	return &PartitionStore{partitions: parts}, nil
@@ -88,7 +88,7 @@ func (ps *PartitionStore) AddPartition(partition *genesis.PartitionRecord) error
 		}
 		trustBase[node.NodeIdentifier] = ver
 	}
-	ps.partitions[sysIdent] = &PartitionInfo{SystemDescription: *partition.SystemDescriptionRecord,
+	ps.partitions[sysIdent] = &PartitionInfo{SystemDescription: partition.SystemDescriptionRecord,
 		TrustBase: trustBase}
 	return nil
 }
@@ -99,10 +99,73 @@ func (ps *PartitionStore) GetSystemDescriptions() []*genesis.SystemDescriptionRe
 	descriptions := make([]*genesis.SystemDescriptionRecord, len(ps.partitions))
 	i := 0
 	for _, info := range ps.partitions {
-		descriptions[i] = &info.SystemDescription
+		descriptions[i] = info.SystemDescription
 		i++
 	}
 	return descriptions
+}
+
+func (ps *PartitionStore) GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	info, err := ps.getInfo(id)
+	if err != nil {
+		return nil, err
+	}
+	return info.SystemDescription, err
+}
+func (ps *PartitionStore) GetNofNodesInPartition(id p.SystemIdentifier) (int, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	info, err := ps.getInfo(id)
+	if err != nil {
+		return 0, err
+	}
+	return len(info.TrustBase), err
+}
+
+func (ps *PartitionStore) GetPartitionNodes(id p.SystemIdentifier) ([]string, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	info, err := ps.getInfo(id)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]string, len(info.TrustBase))
+	i := 0
+	for node, _ := range info.TrustBase {
+		nodes[i] = node
+		i++
+	}
+	return nodes, nil
+}
+
+func (ps *PartitionStore) GetPartitionVerifier(id p.SystemIdentifier, nodeId string) (crypto.Verifier, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	info, err := ps.getInfo(id)
+	if err != nil {
+		return nil, err
+	}
+	ver, found := info.TrustBase[nodeId]
+	if !found {
+		return nil, fmt.Errorf("unknown node id %v", nodeId)
+	}
+	return ver, err
+}
+
+func (ps *PartitionStore) VerifySignature(id p.SystemIdentifier, nodeId string, sig []byte, data []byte) error {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	info, err := ps.getInfo(id)
+	if err != nil {
+		return err
+	}
+	ver, found := info.TrustBase[nodeId]
+	if !found {
+		return fmt.Errorf("unknown node id %v", nodeId)
+	}
+	return ver.VerifyBytes(sig, data)
 }
 
 // Size returns the number of partition in the partition store.
@@ -112,9 +175,7 @@ func (ps *PartitionStore) Size() int {
 	return len(ps.partitions)
 }
 
-func (ps *PartitionStore) GetInfo(id p.SystemIdentifier) (PartitionInfo, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
+func (ps *PartitionStore) getInfo(id p.SystemIdentifier) (PartitionInfo, error) {
 	info, f := ps.partitions[id]
 	if !f {
 		return PartitionInfo{}, fmt.Errorf("unknown system identifier %X", id)

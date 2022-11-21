@@ -10,8 +10,7 @@ import (
 )
 
 var (
-	ErrInvalidBlockHash    = errors.New("invalid block hash")
-	ErrInvalidRootHash     = errors.New("invalid root hash")
+	ErrInvalidBlockId      = errors.New("invalid block hash")
 	ErrInvalidStateHash    = errors.New("invalid state hash")
 	ErrInvalidVoteInfoHash = errors.New("invalid vote info hash")
 )
@@ -60,7 +59,7 @@ func (x *VoteInfo) IsValid() error {
 		return ErrInvalidRound
 	}
 	if len(x.BlockId) < 1 {
-		return ErrInvalidBlockHash
+		return ErrInvalidBlockId
 	}
 	if len(x.ExecStateId) < 1 {
 		return ErrInvalidStateHash

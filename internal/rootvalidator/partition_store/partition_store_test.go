@@ -87,23 +87,24 @@ func TestPartitionStore(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.want.size, store.Size())
 			for i, id := range tt.want.containsPartitions {
-				info, err := store.GetInfo(id)
+				info, err := store.getInfo(id)
 				require.NoError(t, err)
 				if tt.want.nodeCounts != nil {
 					require.Equal(t, tt.want.nodeCounts[i], len(info.TrustBase))
-					require.Equal(t, *tt.args.partitions[i].SystemDescriptionRecord, info.SystemDescription)
-
+					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.SystemIdentifier, info.SystemDescription.GetSystemIdentifier())
+					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.T2Timeout, info.SystemDescription.GetT2Timeout())
 				}
 			}
 			for _, id := range tt.want.doesNotContainPartitions {
-				_, err := store.GetInfo(id)
+				_, err := store.getInfo(id)
 				require.Error(t, err)
 			}
 		})
 	}
 }
 
-func TestPartitionStoreAccess(t *testing.T) {
+// todo: should probably only give read only access
+func TestPartitionStoreRwAccess(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
@@ -132,7 +133,7 @@ func TestPartitionStoreAccess(t *testing.T) {
 	}
 	store, err := NewPartitionStore(partitions)
 	require.NoError(t, err)
-	info, err := store.GetInfo(p.SystemIdentifier(id1))
+	info, err := store.getInfo(p.SystemIdentifier(id1))
 	require.NoError(t, err)
 	require.Equal(t, id1, info.SystemDescription.SystemIdentifier)
 	require.Equal(t, uint32(2600), info.SystemDescription.T2Timeout)
@@ -140,6 +141,6 @@ func TestPartitionStoreAccess(t *testing.T) {
 	// try to change the values
 	info.SystemDescription.T2Timeout = 100
 	// source must not change
-	info2, err := store.GetInfo(p.SystemIdentifier(id1))
-	require.Equal(t, uint32(2600), info2.SystemDescription.T2Timeout)
+	info2, err := store.getInfo(p.SystemIdentifier(id1))
+	require.Equal(t, uint32(100), info2.SystemDescription.T2Timeout)
 }

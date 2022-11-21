@@ -7,7 +7,6 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -32,11 +31,10 @@ type AtomicVerifier interface {
 	ValidateQuorum(authors []string) error
 	VerifyQuorumSignatures(hash []byte, signatures map[string][]byte) error
 	GetVerifier(nodeId peer.ID) (crypto.Verifier, error)
-	GetVerifiers() map[string]crypto.Verifier
 }
 
-type PartitionStore interface {
-	GetInfo(id protocol.SystemIdentifier) (partition_store.PartitionInfo, error)
+type PartitionVerifier interface {
+	VerifySignature(id protocol.SystemIdentifier, nodeId string, sig []byte, tlg []byte) error
 }
 
 func (x *Payload) AddToHasher(hasher hash.Hash) {
@@ -46,25 +44,20 @@ func (x *Payload) AddToHasher(hasher hash.Hash) {
 	}
 }
 
-func (x *Payload) IsValid(partitions PartitionStore) error {
+func (x *Payload) IsValid(partitionVer PartitionVerifier) error {
 	// there can only be one request per system identifier in a block
 	sysIdSet := map[string]bool{}
 
 	for _, req := range x.Requests {
-		sysId := protocol.SystemIdentifier(req.SystemIdentifier)
-		info, err := partitions.GetInfo(sysId)
-		if err != nil {
-			return err
+		if err := req.IsValid(partitionVer); err != nil {
+			return fmt.Errorf("invalid payload: %X invalid proof, err %w", req.SystemIdentifier, err)
 		}
-		if err := req.IsValid(info.TrustBase); err != nil {
-			return fmt.Errorf("payload contains invalid request from system id %X, err %w", req.SystemIdentifier, err)
-		}
-		// If reason is timeout, then there is no proof
+		// Timeout requests do not contain proof
 		if req.CertReason == IRChangeReqMsg_T2_TIMEOUT && len(req.Requests) > 0 {
-			return fmt.Errorf("payload is not valid, invalid timeout request")
+			return fmt.Errorf("invalid payload: %X timeout contains requests", req.SystemIdentifier)
 		}
 		if _, found := sysIdSet[string(req.SystemIdentifier)]; found {
-			return fmt.Errorf("payload is not valid, duplicate request for system identifier %X", req.SystemIdentifier)
+			return fmt.Errorf("invalid payload: duplicate request for %X", req.SystemIdentifier)
 		}
 		sysIdSet[string(req.SystemIdentifier)] = true
 	}
@@ -75,7 +68,10 @@ func (x *Payload) IsEmpty() bool {
 	return len(x.Requests) == 0
 }
 
-func (x *BlockData) IsValid(p PartitionStore, v AtomicVerifier) error {
+func (x *BlockData) IsValid(partitionVer PartitionVerifier, rootVer AtomicVerifier) error {
+	if len(x.Id) < 1 {
+		return ErrInvalidBlockId
+	}
 	if x.Round < 1 {
 		return ErrInvalidRound
 	}
@@ -86,10 +82,10 @@ func (x *BlockData) IsValid(p PartitionStore, v AtomicVerifier) error {
 		return ErrMissingQuorumCertificate
 	}
 	// expensive op's
-	if err := x.Payload.IsValid(p); err != nil {
+	if err := x.Payload.IsValid(partitionVer); err != nil {
 		return err
 	}
-	if err := x.Qc.Verify(v); err != nil {
+	if err := x.Qc.Verify(rootVer); err != nil {
 		return err
 	}
 	return nil
@@ -101,6 +97,9 @@ func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
 	}
 	if x.Qc == nil {
 		return nil, ErrMissingQuorumCertificate
+	}
+	if err := x.Qc.IsValid(); err != nil {
+		return nil, err
 	}
 	hasher := algo.New()
 	// Block ID is defined as block hash, so hence it is not included

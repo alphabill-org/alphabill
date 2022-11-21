@@ -194,7 +194,7 @@ func TestVoteInfo_IsValid(t *testing.T) {
 				ParentRound:   22,
 				ExecStateId:   []byte{0, 1, 2, 5},
 			},
-			errIs: ErrInvalidBlockHash,
+			errIs: ErrInvalidBlockId,
 		},
 		{
 			name: "Invalid block id empty",
@@ -207,7 +207,7 @@ func TestVoteInfo_IsValid(t *testing.T) {
 				ParentRound:   22,
 				ExecStateId:   []byte{0, 1, 2, 5},
 			},
-			errIs: ErrInvalidBlockHash,
+			errIs: ErrInvalidBlockId,
 		},
 		{
 			name: "excec state id is nil",

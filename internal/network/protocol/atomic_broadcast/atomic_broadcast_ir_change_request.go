@@ -5,21 +5,20 @@ import (
 	"errors"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
-	ErrMissingStateHash  = errors.New("ir change request is missing state hash")
-	ErrMissingAuthor     = errors.New("author is missing")
-	ErrInvalidCertReason = errors.New("invalid certification reason")
-	ErrUnknownSigner     = errors.New("unknown author")
+	ErrMissingStateHash             = errors.New("ir change request is missing state hash")
+	ErrMissingAuthor                = errors.New("author is missing")
+	ErrInvalidCertReason            = errors.New("invalid certification reason")
+	ErrUnknownSigner                = errors.New("unknown author")
+	ErrTimeoutRequestReasonNotEmpty = errors.New("invalid timeout certification request, proof not empty")
 )
 
-func (x *IRChangeReqMsg) IsValid(tb map[string]crypto.Verifier) error {
+func (x *IRChangeReqMsg) IsValid(partitionVer PartitionVerifier) error {
 	if len(x.SystemIdentifier) != 4 {
 		return ErrInvalidSystemId
 	}
@@ -27,6 +26,9 @@ func (x *IRChangeReqMsg) IsValid(tb map[string]crypto.Verifier) error {
 	// ignore other values for now, just make sure it is not negative
 	if x.CertReason < 0 || x.CertReason > IRChangeReqMsg_T2_TIMEOUT {
 		return ErrInvalidCertReason
+	}
+	if x.CertReason == IRChangeReqMsg_T2_TIMEOUT && len(x.Requests) != 0 {
+		return ErrTimeoutRequestReasonNotEmpty
 	}
 	// Check requests are valid
 	// a) system identifier is the same
@@ -36,12 +38,9 @@ func (x *IRChangeReqMsg) IsValid(tb map[string]crypto.Verifier) error {
 		if bytes.Equal(req.SystemIdentifier, x.SystemIdentifier) == false {
 			return ErrIncompatibleReq
 		}
-		ver, f := tb[req.NodeIdentifier]
-		if !f {
-			return ErrUnknownRequest
-		}
-		if err := req.IsValid(ver); err != nil {
-			return aberrors.Wrap(err, "certification request ")
+		err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), req.NodeIdentifier, req.Signature, req.Bytes())
+		if err != nil {
+			return err
 		}
 	}
 	return nil

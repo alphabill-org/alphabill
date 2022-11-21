@@ -13,7 +13,7 @@ RUN curl -SL https://golang.org/dl/go1.18.1.linux-amd64.tar.gz | tar -xzC /usr/l
 ENV PATH=/usr/local/go/bin:$PATH
 
 # Install trivy
-RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.26.0
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.34.0
 RUN curl https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl > html.tpl
 
 # Install nancy

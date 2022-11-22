@@ -39,6 +39,7 @@ const (
 	waitForConfCmdName    = "wait-for-confirmation"
 	totalCmdName          = "total"
 	quietCmdName          = "quiet"
+	showUnswappedCmdName  = "show-unswapped"
 )
 
 type walletConfig struct {
@@ -179,8 +180,14 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "saves transaction proof(s) to given directory")
 	addPasswordFlags(cmd)
-	_ = cmd.MarkFlagRequired(addressCmdName)
-	_ = cmd.MarkFlagRequired(amountCmdName)
+	err := cmd.MarkFlagRequired(addressCmdName)
+	if err != nil {
+		return nil
+	}
+	err = cmd.MarkFlagRequired(amountCmdName)
+	if err != nil {
+		return nil
+	}
 	return cmd
 }
 
@@ -224,7 +231,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 	if outputPath != "" {
 		if !waitForConf {
-			return errors.New(fmt.Sprintf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName))
+			return fmt.Errorf("cannot set %s to false and when %s is provided", waitForConfCmdName, outputPathCmdName)
 		}
 		if !strings.HasPrefix(outputPath, string(os.PathSeparator)) {
 			cwd, err := os.Getwd()
@@ -266,6 +273,7 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 		"if specified shows only total balance over all accounts")
 	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, "+
 		"e.g. account key numbers, can only be used together with key or total flag")
+	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "includes unswapped dust bills in balance output")
 	addPasswordFlags(cmd)
 	return cmd
 }
@@ -289,12 +297,16 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	showUnswapped, err := cmd.Flags().GetBool(showUnswappedCmdName)
+	if err != nil {
+		return err
+	}
 	if !total && accountNumber == 0 {
 		quiet = false // quiet is supposed to work only when total or key flag is provided
 	}
 	if accountNumber == 0 {
 		sum := uint64(0)
-		balances, err := w.GetBalances()
+		balances, err := w.GetBalances(money.GetBalanceCmd{CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -310,7 +322,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Total %d", sum))
 		}
 	} else {
-		balance, err := w.GetBalance(accountNumber - 1)
+		balance, err := w.GetBalance(money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}

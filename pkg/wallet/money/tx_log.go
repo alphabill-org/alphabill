@@ -64,7 +64,7 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 		}, nil
 	case money.Split:
 		return &Bill{
-			Id:         utiltx.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
+			Id:         utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 			Value:      tx.Amount(),
 			TxHash:     tx.Hash(crypto.SHA256),
 			BlockProof: blockProof,

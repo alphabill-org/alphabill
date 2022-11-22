@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
+	"os"
+
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 type distributedGenesisConfig struct {

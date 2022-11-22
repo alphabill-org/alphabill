@@ -3,10 +3,11 @@ package cmd
 import (
 	"context"
 	gocrypto "crypto"
-	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"path"
 	"sync"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/stretchr/testify/require"

@@ -3,10 +3,11 @@ package store
 import (
 	gocrypto "crypto"
 
+	"sync"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"sync"
 )
 
 const (

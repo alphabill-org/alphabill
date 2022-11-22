@@ -1,8 +1,9 @@
 package network
 
 import (
-	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"time"
+
+	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 
 	uc "github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"

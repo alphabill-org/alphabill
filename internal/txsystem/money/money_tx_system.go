@@ -183,7 +183,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return err
 		}
 		h := tx.Hash(m.hashAlgorithm)
-		newItemId := txutil.SameShardId(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
+		newItemId := txutil.SameShardID(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
 		return m.revertibleState.AtomicUpdate(
 			rma.UpdateData(tx.UnitID(),
 				func(data rma.UnitData) (newData rma.UnitData) {

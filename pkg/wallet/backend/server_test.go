@@ -27,14 +27,17 @@ type mockWalletService struct {
 	bills       []*Bill
 	proof       *Bill
 	trackedKeys [][]byte
+
+	getBillsErr      error
+	getBlockProofErr error
 }
 
 func (m *mockWalletService) GetBills(pubKey []byte) ([]*Bill, error) {
-	return m.bills, nil
+	return m.bills, m.getBillsErr
 }
 
 func (m *mockWalletService) GetBill(unitId []byte) (*Bill, error) {
-	return m.proof, nil
+	return m.proof, m.getBlockProofErr
 }
 
 func (m *mockWalletService) SetBills(pubkey []byte, bills ...*Bill) error {
@@ -92,6 +95,17 @@ func TestListBillsRequest_InvalidPubKey(t *testing.T) {
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
+}
+
+func TestListBillsRequest_PubKeyNotIndexed(t *testing.T) {
+	startServer(t, &mockWalletService{getBillsErr: ErrPubKeyNotIndexed})
+
+	res := &ErrorResponse{}
+	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.ErrorContains(t, ErrPubKeyNotIndexed, res.Message)
 }
 
 func TestListBillsRequest_SortedByOrderNumber(t *testing.T) {
@@ -228,6 +242,17 @@ func TestBalanceRequest_InvalidPubKey(t *testing.T) {
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
 }
 
+func TestBalanceRequest_PubKeyNotIndexed(t *testing.T) {
+	startServer(t, &mockWalletService{getBillsErr: ErrPubKeyNotIndexed})
+
+	res := &ErrorResponse{}
+	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/balance?pubkey=%s", pk), res)
+
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.ErrorContains(t, ErrPubKeyNotIndexed, res.Message)
+}
+
 func TestBlockProofRequest_Ok(t *testing.T) {
 	b := &Bill{
 		Id:     newUnitId(1),
@@ -295,6 +320,17 @@ func TestBlockProofRequest_InvalidBillIdLength(t *testing.T) {
 	httpRes = testhttp.DoGet(t, "http://localhost:7777/api/v1/block-proof?bill_id=0000000000000000000000000000000000000000000000000000000000000001", res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+}
+
+func TestBlockProofRequest_ErrMissingBlockProof(t *testing.T) {
+	startServer(t, &mockWalletService{getBlockProofErr: ErrMissingBlockProof})
+
+	res := &ErrorResponse{}
+	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/block-proof?bill_id=%s", billId), res)
+
+	require.Equal(t, 400, httpRes.StatusCode)
+	require.ErrorContains(t, ErrMissingBlockProof, res.Message)
 }
 
 func TestBlockProofRequest_ProofDoesNotExist(t *testing.T) {

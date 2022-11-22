@@ -76,8 +76,8 @@ type TxContext interface {
 	ContainsBill(accountIndex uint64, id *uint256.Int) (bool, error)
 	RemoveBill(accountIndex uint64, id *uint256.Int) error
 	GetBills(accountIndex uint64) ([]*Bill, error)
-	GetBalance(accountIndex uint64) (uint64, error)
-	GetBalances() ([]uint64, error)
+	GetBalance(cmd GetBalanceCmd) (uint64, error)
+	GetBalances(cmd GetBalanceCmd) ([]uint64, error)
 
 	GetDcMetadataMap(accountIndex uint64) (map[uint256.Int]*dcMetadata, error)
 	GetDcMetadata(accountIndex uint64, nonce []byte) (*dcMetadata, error)
@@ -397,10 +397,10 @@ func (w *wdbtx) RemoveBill(accountIndex uint64, id *uint256.Int) error {
 	}, true)
 }
 
-func (w *wdbtx) GetBalance(accountIndex uint64) (uint64, error) {
+func (w *wdbtx) GetBalance(cmd GetBalanceCmd) (uint64, error) {
 	sum := uint64(0)
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
-		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(cmd.AccountIndex))
 		if err != nil {
 			return err
 		}
@@ -409,6 +409,9 @@ func (w *wdbtx) GetBalance(accountIndex uint64) (uint64, error) {
 			err := json.Unmarshal(v, &b)
 			if err != nil {
 				return err
+			}
+			if b.IsDcBill && !cmd.CountDCBills {
+				return nil
 			}
 			sum += b.Value
 			return nil
@@ -420,7 +423,7 @@ func (w *wdbtx) GetBalance(accountIndex uint64) (uint64, error) {
 	return sum, nil
 }
 
-func (w *wdbtx) GetBalances() ([]uint64, error) {
+func (w *wdbtx) GetBalances(cmd GetBalanceCmd) ([]uint64, error) {
 	res := make(map[uint64]uint64)
 	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
 		return tx.Bucket(accountsBucket).ForEach(func(accIdx, v []byte) error {
@@ -438,6 +441,9 @@ func (w *wdbtx) GetBalances() ([]uint64, error) {
 				err := json.Unmarshal(billValue, &b)
 				if err != nil {
 					return err
+				}
+				if b.IsDcBill && !cmd.CountDCBills {
+					return nil
 				}
 				sum += b.Value
 				return nil

@@ -41,9 +41,9 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	bs, _ := createTestBillStore(t)
 	pubKey, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000000")
 
-	// verify non indexed pubkey returns nil bills list
+	// verify non indexed pubkey returns error
 	bills, err := bs.GetBills(pubKey)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrPubKeyNotIndexed)
 	require.Nil(t, bills)
 
 	// add bills
@@ -98,7 +98,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 
 	// verify nil bill
 	b, err := bs.GetBill(billId)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrMissingBlockProof)
 	require.Nil(t, b)
 
 	// add bill

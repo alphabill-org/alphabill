@@ -100,8 +100,14 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	bills, err := s.service.GetBills(pk)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		wlog.Error("error on GET /list-bills: ", err)
+		if errors.Is(err, ErrPubKeyNotIndexed) {
+			wlog.Debug("error on GET /list-bills: ", err)
+			w.WriteHeader(http.StatusBadRequest)
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			wlog.Error("error on GET /list-bills: ", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 	limit, offset := s.parsePagingParams(r)
@@ -130,8 +136,14 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	bills, err := s.service.GetBills(pk)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		wlog.Error("error on GET /balance: ", err)
+		if errors.Is(err, ErrPubKeyNotIndexed) {
+			wlog.Debug("error on GET /balance: ", err)
+			w.WriteHeader(http.StatusBadRequest)
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			wlog.Error("error on GET /balance: ", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 	sum := uint64(0)
@@ -156,9 +168,14 @@ func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	}
 	bill, err := s.service.GetBill(billId)
 	if err != nil {
-		wlog.Error("error on GET /block-proof: ", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		if errors.Is(err, ErrMissingBlockProof) {
+			wlog.Debug("error on GET /block-proof: ", err)
+			w.WriteHeader(http.StatusBadRequest)
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			wlog.Error("error on GET /block-proof: ", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
 	if bill == nil {
 		wlog.Debug("GET /block-proof does not exist ", fmt.Sprintf("%X\n", billId))

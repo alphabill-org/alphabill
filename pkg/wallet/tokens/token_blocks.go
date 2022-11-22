@@ -3,8 +3,8 @@ package tokens
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -19,7 +19,7 @@ func (l BlockListener) ProcessBlock(b *block.Block) error {
 	return l(b)
 }
 
-func (w *TokensWallet) ProcessBlock(b *block.Block) error {
+func (w *Wallet) ProcessBlock(b *block.Block) error {
 	if !bytes.Equal(tokens.DefaultTokenTxSystemIdentifier, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -27,21 +27,20 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 		blockNumber := b.BlockNumber
 		lastBlockNumber, err := txc.GetBlockNumber()
 		if err != nil {
-			return nil
+			return err
 		}
 		if blockNumber != lastBlockNumber+1 {
-			return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
+			return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 		}
 
 		if len(b.Transactions) != 0 {
-			log.Info("processing non-empty block: ", b.BlockNumber)
+			log.Info("Processing non-empty block: ", b.BlockNumber)
 
 			// lists tokens for all keys and with 'always true' predicate
 			accounts, err := w.mw.GetAccountKeys()
 			if err != nil {
 				return err
 			}
-			log.Info(fmt.Sprintf("pub keys: %v", len(accounts)))
 			for _, tx := range b.Transactions {
 				for n := 0; n <= len(accounts); n++ {
 					var keyHashes *wallet.KeyHashes
@@ -71,7 +70,7 @@ func (w *TokensWallet) ProcessBlock(b *block.Block) error {
 	})
 }
 
-func (w *TokensWallet) Sync(ctx context.Context) error {
+func (w *Wallet) Sync(ctx context.Context) error {
 	if !w.sync {
 		return nil
 	}
@@ -83,20 +82,20 @@ func (w *TokensWallet) Sync(ctx context.Context) error {
 	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
 }
 
-func (w *TokensWallet) syncToUnit(ctx context.Context, id TokenId, timeout uint64) error {
+func (w *Wallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
 	submissions := make(map[string]*submittedTx, 1)
-	submissions[id.string()] = &submittedTx{id, timeout}
+	submissions[id.String()] = &submittedTx{id, timeout}
 	return w.syncToUnits(ctx, submissions, timeout)
 }
 
-func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
+func (w *Wallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
 	// ...or don't
 	if !w.sync {
 		return nil
 	}
 	ctx, cancel := context.WithCancel(ctx)
 
-	log.Info(fmt.Sprintf("Waiting the transactions to be finalized"))
+	log.Info("Waiting the transactions to be finalized")
 	var bl BlockListener = func(b *block.Block) error {
 		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
 		if b.BlockNumber > maxTimeout {
@@ -107,7 +106,7 @@ func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submitt
 			cancel()
 		}
 		for _, tx := range b.Transactions {
-			id := TokenId(tx.UnitId).string()
+			id := TokenID(tx.UnitId).String()
 			if sub, found := subs[id]; found {
 				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.BlockNumber))
 				delete(subs, id)
@@ -128,7 +127,7 @@ func (w *TokensWallet) syncToUnits(ctx context.Context, subs map[string]*submitt
 	return w.syncUntilCanceled(ctx)
 }
 
-func (w *TokensWallet) syncUntilCanceled(ctx context.Context) error {
+func (w *Wallet) syncUntilCanceled(ctx context.Context) error {
 	latestBlockNumber, err := w.db.Do().GetBlockNumber()
 	if err != nil {
 		return err

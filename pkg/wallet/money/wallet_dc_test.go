@@ -147,7 +147,8 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	// and metadata is updated
 	verifyBlockHeight(t, w, dcTimeoutBlockCount)
 	verifyDcMetadata(t, w, nonce32[:], &dcMetadata{SwapTimeout: dcTimeoutBlockCount + swapTimeoutBlockCount})
-	verifyBalance(t, w, 3)
+	verifyBalance(t, w, 1)
+	verifyTotalBalance(t, w, 3)
 }
 
 func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
@@ -185,7 +186,8 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	// and metadata is updated
 	verifyBlockHeight(t, w, swapTimeoutBlockCount)
 	verifyDcMetadata(t, w, nonce32[:], &dcMetadata{SwapTimeout: swapTimeoutBlockCount * 2})
-	verifyBalance(t, w, 3)
+	verifyBalance(t, w, 1)
+	verifyTotalBalance(t, w, 3)
 }
 
 func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
@@ -444,9 +446,15 @@ func setBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 }
 
 func verifyBalance(t *testing.T, w *Wallet, balance uint64) {
-	actualDcNonce, err := w.db.Do().GetBalance(0)
+	actualBalance, err := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.NoError(t, err)
-	require.EqualValues(t, balance, actualDcNonce)
+	require.EqualValues(t, balance, actualBalance)
+}
+
+func verifyTotalBalance(t *testing.T, w *Wallet, balance uint64) {
+	actualBalance, err := w.db.Do().GetBalance(GetBalanceCmd{CountDCBills: true})
+	require.NoError(t, err)
+	require.EqualValues(t, balance, actualBalance)
 }
 
 func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferOrder {

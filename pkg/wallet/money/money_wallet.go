@@ -65,6 +65,11 @@ type (
 		WaitForConfirmation bool
 		AccountIndex        uint64
 	}
+
+	GetBalanceCmd struct {
+		AccountIndex uint64
+		CountDCBills bool
+	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -216,16 +221,16 @@ func (w *Wallet) StartDustCollectorJob() error {
 	return err
 }
 
-// GetBalance returns sum value of all bills currently owned by the wallet, for given account
-// the value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalance(accountIndex uint64) (uint64, error) {
-	return w.db.Do().GetBalance(accountIndex)
+// GetBalance returns sum value of all bills currently owned by the wallet, for given account.
+// The value returned is the smallest denomination of alphabills.
+func (w *Wallet) GetBalance(cmd GetBalanceCmd) (uint64, error) {
+	return w.db.Do().GetBalance(cmd)
 }
 
-// GetBalances returns sum value of all bills currently owned by the wallet, for all accounts
-// the value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalances() ([]uint64, error) {
-	return w.db.Do().GetBalances()
+// GetBalances returns sum value of all bills currently owned by the wallet, for all accounts.
+// The value returned is the smallest denomination of alphabills.
+func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, error) {
+	return w.db.Do().GetBalances(cmd)
 }
 
 // GetBill returns bill for the given bill id.
@@ -377,7 +382,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, ErrSwapInProgress
 	}
 
-	balance, err := w.GetBalance(cmd.AccountIndex)
+	balance, err := w.GetBalance(GetBalanceCmd{AccountIndex: cmd.AccountIndex})
 	if err != nil {
 		return nil, err
 	}
@@ -513,8 +518,8 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
-			err := w.saveWithProof(dbTx, b, txPb, &Bill{
-				Id:     util.SameShardId(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
+			err := w.saveWithProof(dbTx, b, &Bill{
+				Id:     util.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.accountIndex)
@@ -934,7 +939,7 @@ func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
 	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
 	if blockNumber != lastBlockNumber+1 {
-		return errors.New(fmt.Sprintf("Invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber))
+		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 	}
 	return nil
 }

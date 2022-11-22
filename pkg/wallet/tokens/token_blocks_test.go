@@ -68,7 +68,7 @@ func TestTokensProcessBlock_syncToUnit(t *testing.T) {
 	defer w.Shutdown()
 	w.sync = true
 	blockNr := uint64(1)
-	id, err := randomId()
+	id, err := RandomId()
 	require.NoError(t, err)
 	tx := createTx(id, blockNr)
 	require.NoError(t, anypb.MarshalFrom(tx.TransactionAttributes, &tokens.CreateFungibleTokenTypeAttributes{Symbol: "AB"}, proto.MarshalOptions{}))
@@ -101,7 +101,7 @@ func TestTokensProcessBlock_syncToUnit_timeout(t *testing.T) {
 	defer w.Shutdown()
 	w.sync = true
 	blockNr := uint64(1)
-	id, err := randomId()
+	id, err := RandomId()
 	require.NoError(t, err)
 	client.SetMaxBlockNumber(blockNr)
 	client.SetBlock(&block.Block{

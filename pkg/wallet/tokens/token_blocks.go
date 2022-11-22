@@ -115,7 +115,9 @@ func (w *Wallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, 
 			}
 			cancel()
 
-			return errors.Errorf("did not confirm all transactions, timed out: %v", len(subs))
+			if len(subs) > 0 {
+				return errors.Errorf("did not confirm all transactions, timed out: %v", len(subs))
+			}
 		}
 		return nil
 	}

@@ -62,7 +62,7 @@ func (d *DefaultGenericTransaction) OwnerProof() []byte {
 	return d.transaction.OwnerProof
 }
 
-func (d *DefaultGenericTransaction) sigBytes(b bytes.Buffer) {
+func (d *DefaultGenericTransaction) sigBytes(b *bytes.Buffer) {
 	b.Write(d.transaction.SystemId)
 	b.Write(d.transaction.UnitId)
 	b.Write(util.Uint64ToBytes(d.transaction.Timeout))
@@ -90,7 +90,7 @@ func (d *DefaultGenericTransaction) ToProtoBuf() *Transaction {
 
 func (d *DefaultGenericTransaction) SigBytes() []byte {
 	var b bytes.Buffer
-	d.sigBytes(b)
+	d.sigBytes(&b)
 	return b.Bytes()
 }
 

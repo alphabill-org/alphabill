@@ -11,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -186,7 +186,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 		dcTxs = append(dcTxs, &txsystem.Transaction{
 			SystemId:              alphabillMoneySystemId,
 			UnitId:                b.GetId(),
-			TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
+			TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),
 		})

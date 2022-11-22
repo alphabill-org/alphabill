@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
@@ -110,7 +110,7 @@ func newDummyBlock(t *testing.T, blockNo uint64) *block.Block {
 		SystemIdentifier:   []byte{0},
 		BlockNumber:        blockNo,
 		PreviousBlockHash:  []byte{2},
-		Transactions:       []*txsystem.Transaction{testtransaction.RandomBillTransfer(t)},
+		Transactions:       []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 }

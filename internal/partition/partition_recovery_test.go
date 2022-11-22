@@ -10,7 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -21,7 +21,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
 	bl := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 
 	// prepare proposal
@@ -108,7 +108,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 	newBlock.BlockNumber = currentBlock.BlockNumber + 1
 	newBlock.PreviousBlockHash, _ = currentBlock.Hash(system, tp.partition.configuration.hashAlgorithm)
 	newBlock.Transactions = make([]*txsystem.Transaction, 1)
-	newBlock.Transactions[0] = testtransaction.RandomBillTransfer(t)
+	newBlock.Transactions[0] = moneytesttx.RandomBillTransfer(t)
 
 	// send UC certifying new block
 	ir := newBlock.UnicityCertificate.InputRecord

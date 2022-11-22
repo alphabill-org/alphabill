@@ -220,7 +220,7 @@ func (w *swapWrapper) AddToHasher(hasher hash.Hash) {
 
 func (w *transferWrapper) SigBytes() []byte {
 	var b bytes.Buffer
-	w.wrapper.sigBytes(b)
+	w.wrapper.sigBytes(&b)
 	b.Write(w.NewBearer())
 	b.Write(util.Uint64ToBytes(w.TargetValue()))
 	b.Write(w.Backlink())
@@ -229,7 +229,7 @@ func (w *transferWrapper) SigBytes() []byte {
 
 func (w *transferDCWrapper) SigBytes() []byte {
 	var b bytes.Buffer
-	w.wrapper.sigBytes(b)
+	w.wrapper.sigBytes(&b)
 	b.Write(w.Nonce())
 	b.Write(w.TargetBearer())
 	b.Write(util.Uint64ToBytes(w.TargetValue()))
@@ -239,7 +239,7 @@ func (w *transferDCWrapper) SigBytes() []byte {
 
 func (w *billSplitWrapper) SigBytes() []byte {
 	var b bytes.Buffer
-	w.wrapper.sigBytes(b)
+	w.wrapper.sigBytes(&b)
 	b.Write(util.Uint64ToBytes(w.Amount()))
 	b.Write(w.TargetBearer())
 	b.Write(util.Uint64ToBytes(w.RemainingValue()))
@@ -249,7 +249,7 @@ func (w *billSplitWrapper) SigBytes() []byte {
 
 func (w *swapWrapper) SigBytes() []byte {
 	var b bytes.Buffer
-	w.wrapper.sigBytes(b)
+	w.wrapper.sigBytes(&b)
 	b.Write(w.OwnerCondition())
 	for _, billId := range w.BillIdentifiers() {
 		bytes32 := billId.Bytes32()
@@ -350,7 +350,7 @@ func (w *wrapper) IsPrimary() bool {
 	return true
 }
 
-func (w *wrapper) sigBytes(b bytes.Buffer) {
+func (w *wrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.transaction.SystemId)
 	b.Write(w.transaction.UnitId)
 	b.Write(util.Uint64ToBytes(w.transaction.Timeout))

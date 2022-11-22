@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"io/ioutil"
+	"path/filepath"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -39,7 +40,7 @@ func (x *TxProof) Verify(gtx txsystem.GenericTransaction, verifiers map[string]a
 }
 
 func ReadBillsFile(path string) (*Bills, error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := ioutil.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}

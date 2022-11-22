@@ -14,7 +14,7 @@ import (
 )
 
 func DoGet(t *testing.T, url string, response interface{}) *http.Response {
-	httpRes, err := http.Get(url)
+	httpRes, err := http.Get(url) // #nosec G107
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -32,7 +32,7 @@ func DoGet(t *testing.T, url string, response interface{}) *http.Response {
 func DoPost(t *testing.T, url string, req interface{}, res interface{}) *http.Response {
 	reqBodyBytes, err := json.Marshal(req)
 	require.NoError(t, err)
-	httpRes, err := http.Post(url, "application/json", bytes.NewBuffer(reqBodyBytes))
+	httpRes, err := http.Post(url, "application/json", bytes.NewBuffer(reqBodyBytes)) // #nosec G107
 	require.NoError(t, err)
 	defer func() {
 		_ = httpRes.Body.Close()
@@ -45,7 +45,7 @@ func DoPost(t *testing.T, url string, req interface{}, res interface{}) *http.Re
 }
 
 func DoGetProto(t *testing.T, url string, response proto.Message) *http.Response {
-	httpRes, err := http.Get(url)
+	httpRes, err := http.Get(url) // #nosec G107
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -63,7 +63,7 @@ func DoGetProto(t *testing.T, url string, response proto.Message) *http.Response
 func DoPostProto(t *testing.T, url string, req proto.Message, res interface{}) *http.Response {
 	reqBodyBytes, err := protojson.Marshal(req)
 	require.NoError(t, err)
-	httpRes, err := http.Post(url, "application/json", bytes.NewBuffer(reqBodyBytes))
+	httpRes, err := http.Post(url, "application/json", bytes.NewBuffer(reqBodyBytes)) // #nosec G107
 	require.NoError(t, err)
 	defer func() {
 		_ = httpRes.Body.Close()

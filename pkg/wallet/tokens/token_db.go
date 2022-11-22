@@ -67,6 +67,7 @@ func (t *tokensDbTx) AddTokenType(tType *TokenUnitType) error {
 	}, true)
 }
 
+// GetTokenType returns empty structure if typeId not found
 func (t *tokensDbTx) GetTokenType(typeId TokenTypeID) (*TokenUnitType, error) {
 	var tokenType *TokenUnitType
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {

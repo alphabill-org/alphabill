@@ -42,7 +42,7 @@ const (
 func TestWalletCanBeCreated(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -120,7 +120,7 @@ func TestWallet_AddKey(t *testing.T) {
 
 func TestWallet_GetBalance(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 0, balance)
 }
@@ -134,7 +134,7 @@ func TestWallet_GetBalances(t *testing.T) {
 	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(2), Value: 2})
 	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(3), Value: 2})
 
-	balances, err := w.GetBalances()
+	balances, err := w.GetBalances(GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 2, balances[0])
 	require.EqualValues(t, 4, balances[1])
@@ -213,7 +213,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify balance 0 before processing
-	balance, err := w.db.Do().GetBalance(0)
+	balance, err := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -229,7 +229,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify balance after block processing
-	balance, err = w.db.Do().GetBalance(0)
+	balance, err = w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }

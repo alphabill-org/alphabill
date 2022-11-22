@@ -111,7 +111,7 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify starting balance
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -128,7 +128,7 @@ func TestSync(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 
 	// then balance is increased
-	balance, err = w.GetBalance(0)
+	balance, err = w.GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }
@@ -289,7 +289,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// verify initial bill tx is received by wallet
 	err = w.SyncToMaxBlockNumber(context.Background())
 	require.NoError(t, err)
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, initialBill.Value, balance)
 
@@ -331,14 +331,14 @@ func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
 	receiverPubkey, err := w.GetPublicKey(accountIndexTo)
 	require.NoError(t, err)
 
-	prevBalance, err := w.GetBalance(accountIndexTo)
+	prevBalance, err := w.GetBalance(GetBalanceCmd{AccountIndex: accountIndexTo})
 	require.NoError(t, err)
 
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: 1})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		_ = w.SyncToMaxBlockNumber(context.Background())
-		balance, _ := w.GetBalance(accountIndexTo)
+		balance, _ := w.GetBalance(GetBalanceCmd{AccountIndex: accountIndexTo})
 		return balance > prevBalance
 	}, test.WaitDuration, time.Second)
 }

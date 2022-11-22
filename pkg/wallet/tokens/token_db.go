@@ -238,10 +238,6 @@ func (w *tokensDb) Do() TokenTxContext {
 	return &tokensDbTx{db: w, tx: nil}
 }
 
-func (w *tokensDb) Path() string {
-	return w.dbFilePath
-}
-
 func (w *tokensDb) Close() {
 	if w.db == nil {
 		return

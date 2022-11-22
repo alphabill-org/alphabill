@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -84,8 +84,8 @@ func TestWalletBackendCli(t *testing.T) {
 	require.NotNil(t, b.TxHash)
 
 	// verify /block-proof
-	resBlockProof := &schema.Bills{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	resBlockProof := &block.Bills{}
+	httpRes = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)
 }
@@ -108,7 +108,7 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
-	//initialBillIDHex := hexutil.Encode(initialBillID)
+	initialBillIDHex := hexutil.Encode(initialBillID)
 	network := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, defaultServerAddr)
 
@@ -162,10 +162,10 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 	require.Equal(t, 200, httpRes.StatusCode)
 
 	// 4. import bill to wallet-backend
-	reqImportBill, _ := util.ReadJsonFile(exportFilePath, &schema.Bills{})
+	reqImportBill, _ := block.ReadBillsFile(exportFilePath)
 	resImportBill := &backend.EmptyResponse{}
 	url := fmt.Sprintf("http://%s/api/v1/block-proof?pubkey=%s", serverAddr, pubkey1Hex)
-	httpRes = testhttp.DoPost(t, url, reqImportBill, resImportBill)
+	httpRes = testhttp.DoPostProto(t, url, reqImportBill, resImportBill)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 
 	// 5. verify list-bills shows imported bill
@@ -179,23 +179,22 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 		require.NotNil(t, b.TxHash)
 	}
 
-	// TODO continue test
+	// 6. download proof from wallet-backend
+	resGetProof := &block.Bills{}
+	httpRes = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillIDHex), resGetProof)
+	require.EqualValues(t, 200, httpRes.StatusCode)
+	downloadedBillFile := path.Join(walletHomedir, "downloaded-bill.json")
+	err = block.WriteBillsFile(downloadedBillFile, resGetProof)
+	require.NoError(t, err)
 
-	//resGetProof := &schema.Bills{}
-	//httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/block-proof?bill_id=%s", serverAddr, initialBillHex), resGetProof)
-	//require.EqualValues(t, 200, httpRes.StatusCode)
-	//fmt.Println(resGetProof)
+	// 7. import downloaded proof to a same but new wallet
+	wallet2Homedir := createNewTestWallet(t)
+	stdout, err = execBillsCommand(wallet2Homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", downloadedBillFile, trustBaseFilePath))
+	require.NoError(t, err)
+	require.Contains(t, stdout.lines[0], "Successfully imported bill(s).")
 
-	// verify imported bill can be listed
-	//resListBills := &backend.ListBillsResponse{}
-	//httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkey1Hex), resListBills)
-	//require.EqualValues(t, 200, httpRes.StatusCode)
-
-	//// wait for wallet-backend to index the transaction by verifying balance
-	//require.Eventually(t, func() bool {
-	//	// verify balance
-	//	res := &backend.BalanceResponse{}
-	//	httpRes := doGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkey1Hex), res)
-	//	return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
-	//}, test.WaitDuration, test.WaitTick)
+	// 7.1 verify imported bill can be listed
+	stdout, err = execBillsCommand(wallet2Homedir, "list")
+	require.NoError(t, err)
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 10000")
 }

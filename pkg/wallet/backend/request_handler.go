@@ -4,17 +4,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sort"
 	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -164,8 +166,7 @@ func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		writeAsJson(w, ErrorResponse{Message: "block proof does not exist for given bill id"})
 		return
 	}
-	res := &schema.Bills{Bills: []*schema.Bill{bill.toSchema()}}
-	writeAsJson(w, res)
+	writeAsProtoJson(w, bill.toProtoBills())
 }
 
 func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Request) {
@@ -180,29 +181,19 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
-	req := &schema.Bills{}
-	err = json.NewDecoder(r.Body).Decode(req)
+	req, err := s.readBillsProto(r)
 	if err != nil {
+		wlog.Debug("error decoding POST /block-proof request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
-		wlog.Debug("error decoding POST /block-proof request: ", err)
 		return
 	}
-	err = req.Validate()
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: err.Error()})
-		wlog.Debug("validation error POST /block-proof request: ", err)
-		return
-	}
-	var bills []*Bill
-	for _, bill := range req.Bills {
-		bills = append(bills, newBill(bill))
-	}
+	bills := newBillsFromProto(req.Bills)
 	err = s.service.SetBills(pubkey, bills...)
 	if err != nil {
-		if errors.Is(err, block.ErrProofVerificationFailed) ||
+		if errors.Is(err, errEmptyBillsList) ||
 			errors.Is(err, errKeyNotIndexed) ||
+			errors.Is(err, block.ErrProofVerificationFailed) ||
 			errors.Is(err, txverifier.ErrVerificationFailed) {
 			wlog.Debug("verification error POST /block-proof request: ", err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -214,6 +205,19 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeAsJson(w, EmptyResponse{})
+}
+
+func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	req := &block.Bills{}
+	err = protojson.Unmarshal(b, req)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
 }
 
 func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
@@ -268,6 +272,20 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 	if err != nil {
 		wlog.Error("error encoding response to json ", err)
 		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
+func writeAsProtoJson(w http.ResponseWriter, res proto.Message) {
+	w.Header().Set("Content-Type", "application/json")
+	bytes, err := protojson.Marshal(res)
+	if err != nil {
+		wlog.Error("error encoding response to proto json: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(bytes)
+	if err != nil {
+		wlog.Error("error writing proto json to response: ", err)
 	}
 }
 
@@ -341,21 +359,4 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 		}
 	}
 	return billVMs
-}
-
-func newBill(b *schema.Bill) *Bill {
-	return &Bill{
-		Id:         b.Id,
-		Value:      b.Value,
-		TxHash:     b.TxHash,
-		BlockProof: newBlockProof(b.BlockProof),
-	}
-}
-
-func newBlockProof(b *schema.BlockProof) *BlockProof {
-	return &BlockProof{
-		BlockNumber: b.BlockNumber,
-		Tx:          b.Tx,
-		Proof:       b.Proof,
-	}
 }

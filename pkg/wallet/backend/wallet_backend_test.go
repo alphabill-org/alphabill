@@ -93,7 +93,7 @@ func TestSetBill_OK(t *testing.T) {
 		Id:     tx.UnitId,
 		Value:  txValue,
 		TxHash: []byte{},
-		BlockProof: &BlockProof{
+		TxProof: &TxProof{
 			BlockNumber: 1,
 			Tx:          tx,
 			Proof:       proof,
@@ -139,7 +139,7 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 		Id:     tx.UnitId,
 		Value:  txValue,
 		TxHash: []byte{},
-		BlockProof: &BlockProof{
+		TxProof: &TxProof{
 			BlockNumber: 1,
 			Tx:          tx,
 			Proof:       proof,

@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/holiman/uint256"
 )
 
@@ -61,17 +60,17 @@ func (b *Bill) GetID() []byte {
 	return util.Uint256ToBytes(b.Id)
 }
 
-func (b *Bill) ToSchema() *schema.Bill {
-	return &schema.Bill{
-		Id:         b.GetID(),
-		Value:      b.Value,
-		TxHash:     b.TxHash,
-		BlockProof: b.BlockProof.ToSchema(),
+func (b *Bill) ToProto() *block.Bill {
+	return &block.Bill{
+		Id:      b.GetID(),
+		Value:   b.Value,
+		TxHash:  b.TxHash,
+		TxProof: b.BlockProof.ToSchema(),
 	}
 }
 
-func (b *BlockProof) ToSchema() *schema.BlockProof {
-	return &schema.BlockProof{
+func (b *BlockProof) ToSchema() *block.TxProof {
+	return &block.TxProof{
 		Tx:          b.Tx,
 		Proof:       b.Proof,
 		BlockNumber: b.BlockNumber,

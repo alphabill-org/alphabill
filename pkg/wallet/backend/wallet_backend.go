@@ -11,14 +11,14 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
 var (
-	errKeyNotIndexed = errors.New("pubkey is not indexed")
+	errKeyNotIndexed  = errors.New("pubkey is not indexed")
+	errEmptyBillsList = errors.New("bills list is empty")
 )
 
 type (
@@ -29,16 +29,20 @@ type (
 		cancelSyncCh  chan bool
 	}
 
+	Bills struct {
+		Bills []*Bill `json:"bills"`
+	}
+
 	Bill struct {
 		Id     []byte `json:"id"`
 		Value  uint64 `json:"value"`
 		TxHash []byte `json:"txHash"`
 		// OrderNumber insertion order of given bill in pubkey => list of bills bucket, needed for determistic paging
-		OrderNumber uint64      `json:"orderNumber"`
-		BlockProof  *BlockProof `json:"blockProof"`
+		OrderNumber uint64   `json:"orderNumber"`
+		TxProof     *TxProof `json:"txProof"`
 	}
 
-	BlockProof struct {
+	TxProof struct {
 		BlockNumber uint64                `json:"blockNumber"`
 		Tx          *txsystem.Transaction `json:"tx"`
 		Proof       *block.BlockProof     `json:"proof"`
@@ -127,6 +131,9 @@ func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
 // Overwrites existing bill, if one exists.
 // Returns error if given pubkey is not indexed.
 func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
+	if len(bills) == 0 {
+		return errEmptyBillsList
+	}
 	key, err := w.store.GetKey(pubkey)
 	if err != nil {
 		return err
@@ -140,7 +147,7 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
 		if err != nil {
 			return err
 		}
-		tx, err := txConverter.ConvertTx(bill.BlockProof.Tx)
+		tx, err := txConverter.ConvertTx(bill.TxProof.Tx)
 		if err != nil {
 			return err
 		}
@@ -169,10 +176,10 @@ func (w *WalletBackend) Shutdown() {
 }
 
 func (b *Bill) verifyProof(verifiers map[string]abcrypto.Verifier) error {
-	return b.BlockProof.verifyProof(verifiers)
+	return b.TxProof.verifyProof(verifiers)
 }
 
-func (b *BlockProof) verifyProof(verifiers map[string]abcrypto.Verifier) error {
+func (b *TxProof) verifyProof(verifiers map[string]abcrypto.Verifier) error {
 	if b.Proof == nil {
 		return errors.New("proof is nil")
 	}
@@ -183,17 +190,50 @@ func (b *BlockProof) verifyProof(verifiers map[string]abcrypto.Verifier) error {
 	return b.Proof.Verify(gtx, verifiers, crypto.SHA256)
 }
 
-func (b *Bill) toSchema() *schema.Bill {
-	return &schema.Bill{
-		Id:         b.Id,
-		Value:      b.Value,
-		TxHash:     b.TxHash,
-		BlockProof: b.BlockProof.toSchema(),
+func (b *Bill) toProto() *block.Bill {
+	return &block.Bill{
+		Id:      b.Id,
+		Value:   b.Value,
+		TxHash:  b.TxHash,
+		TxProof: b.TxProof.toProto(),
 	}
 }
 
-func (b *BlockProof) toSchema() *schema.BlockProof {
-	return &schema.BlockProof{
+func (b *TxProof) toProto() *block.TxProof {
+	return &block.TxProof{
+		BlockNumber: b.BlockNumber,
+		Tx:          b.Tx,
+		Proof:       b.Proof,
+	}
+}
+
+func (b *Bill) toProtoBills() *block.Bills {
+	return &block.Bills{
+		Bills: []*block.Bill{
+			b.toProto(),
+		},
+	}
+}
+
+func newBillsFromProto(src []*block.Bill) []*Bill {
+	dst := make([]*Bill, len(src))
+	for i, b := range src {
+		dst[i] = newBill(b)
+	}
+	return dst
+}
+
+func newBill(b *block.Bill) *Bill {
+	return &Bill{
+		Id:      b.Id,
+		Value:   b.Value,
+		TxHash:  b.TxHash,
+		TxProof: newTxProof(b.TxProof),
+	}
+}
+
+func newTxProof(b *block.TxProof) *TxProof {
+	return &TxProof{
 		BlockNumber: b.BlockNumber,
 		Tx:          b.Tx,
 		Proof:       b.Proof,

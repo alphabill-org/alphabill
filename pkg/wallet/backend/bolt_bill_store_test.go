@@ -104,7 +104,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	// add bill
 	expectedBill := &Bill{
 		Id: billId,
-		BlockProof: &BlockProof{
+		TxProof: &TxProof{
 			BlockNumber: 1,
 			Proof:       &block.BlockProof{BlockHeaderHash: []byte{1}},
 			Tx:          testtransaction.NewTransaction(t),

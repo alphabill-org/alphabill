@@ -5,12 +5,12 @@ import (
 	"os"
 	"path"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
@@ -228,15 +228,16 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	billFileJson, err := util.ReadJsonFile(billFile, &schema.Bills{})
+	billFileJson, err := block.ReadBillsFile(billFile)
 	if err != nil {
 		return err
 	}
 	if len(billFileJson.Bills) == 0 {
 		return errors.New("bill file does not contain any bills")
 	}
+	txConverter := &money.TxConverter{}
 	for _, b := range billFileJson.Bills {
-		err = b.Verify(verifiers)
+		err = b.Verify(txConverter, verifiers)
 		if err != nil {
 			return err
 		}
@@ -260,7 +261,7 @@ func writeBillsToFile(outputDir string, bills ...*money.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = util.WriteJsonFile(outputFile, newBillsDTO(bills...))
+	err = block.WriteBillsFile(outputFile, newBillsDTO(bills...))
 	if err != nil {
 		return "", err
 	}
@@ -290,23 +291,28 @@ func filterDcBills(bills []*money.Bill) []*money.Bill {
 	return normalBills
 }
 
-func newBillsDTO(bills ...*money.Bill) *schema.Bills {
-	var billsDTO []*schema.Bill
+func newBillsDTO(bills ...*money.Bill) *block.Bills {
+	var billsDTO []*block.Bill
 	for _, b := range bills {
-		billsDTO = append(billsDTO, b.ToSchema())
+		billsDTO = append(billsDTO, b.ToProto())
 	}
-	return &schema.Bills{Bills: billsDTO}
+	return &block.Bills{Bills: billsDTO}
 }
 
-func newBill(b *schema.Bill) *money.Bill {
+func newBill(b *block.Bill) *money.Bill {
 	return &money.Bill{
-		Id:     uint256.NewInt(0).SetBytes(b.Id),
-		Value:  b.Value,
-		TxHash: b.TxHash,
-		BlockProof: &money.BlockProof{
-			Tx:    b.BlockProof.Tx,
-			Proof: b.BlockProof.Proof,
-		},
+		Id:         uint256.NewInt(0).SetBytes(b.Id),
+		Value:      b.Value,
+		TxHash:     b.TxHash,
+		BlockProof: newBlockProof(b.TxProof),
+	}
+}
+
+func newBlockProof(b *block.TxProof) *money.BlockProof {
+	return &money.BlockProof{
+		Tx:          b.Tx,
+		BlockNumber: b.BlockNumber,
+		Proof:       b.Proof,
 	}
 }
 

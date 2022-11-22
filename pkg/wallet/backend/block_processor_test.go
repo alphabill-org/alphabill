@@ -66,7 +66,7 @@ func newUnitId(unitId uint64) []byte {
 
 func verifyProof(t *testing.T, b *Bill) {
 	require.NotNil(t, b)
-	blockProof := b.BlockProof
+	blockProof := b.TxProof
 	require.NotNil(t, blockProof)
 	require.EqualValues(t, 1, blockProof.BlockNumber)
 	require.NotNil(t, blockProof.Tx)

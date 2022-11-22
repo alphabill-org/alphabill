@@ -5,13 +5,13 @@ import (
 	"path"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -93,10 +93,10 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	require.ErrorContains(t, err, "required flag(s) \"bill-file\", \"trust-base-file\" not set")
 
 	// test invalid block proof cannot be imported
-	billsFile, _ := util.ReadJsonFile(billsFilePath, &schema.Bills{})
-	billsFile.Bills[0].BlockProof.Proof.BlockHeaderHash = make([]byte, 32)
+	billsFile, _ := block.ReadBillsFile(billsFilePath)
+	billsFile.Bills[0].TxProof.Proof.BlockHeaderHash = make([]byte, 32)
 	invalidBillsFilePath := path.Join(homedir, "invalid-bills.json")
-	_ = util.WriteJsonFile(invalidBillsFilePath, billsFile)
+	_ = block.WriteBillsFile(invalidBillsFilePath, billsFile)
 
 	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", invalidBillsFilePath, trustBaseFilePath))
 	require.ErrorContains(t, err, "proof verification failed")

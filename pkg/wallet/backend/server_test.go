@@ -18,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/schema"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -234,7 +233,7 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 		Id:     newUnitId(1),
 		Value:  1,
 		TxHash: []byte{0},
-		BlockProof: &BlockProof{
+		TxProof: &TxProof{
 			BlockNumber: 1,
 			Tx:          testtransaction.NewTransaction(t),
 			Proof: &block.BlockProof{
@@ -248,9 +247,9 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 	mockService := &mockWalletService{proof: b}
 	startServer(t, mockService)
 
-	response := &schema.Bills{}
+	response := &block.Bills{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), response)
+	httpRes := testhttp.DoGetProto(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), response)
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Len(t, response.Bills, 1)
@@ -259,8 +258,8 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 	require.Equal(t, b.Value, res.Value)
 	require.Equal(t, b.TxHash, res.TxHash)
 
-	ep := b.BlockProof
-	ap := res.BlockProof
+	ep := b.TxProof
+	ap := res.TxProof
 	require.Equal(t, ep.BlockNumber, ap.BlockNumber)
 	require.Equal(t, ep.Tx, ap.Tx)
 	require.Equal(t, ep.Proof, ap.Proof)
@@ -323,13 +322,13 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
-	req := &schema.Bills{
-		Bills: []*schema.Bill{
+	req := &block.Bills{
+		Bills: []*block.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
 				TxHash: txHash,
-				BlockProof: &schema.BlockProof{
+				TxProof: &block.TxProof{
 					BlockNumber: 1,
 					Tx:          tx,
 					Proof:       proof,
@@ -339,7 +338,7 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	}
 	res := &EmptyResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
 	require.Equal(t, 200, httpRes.StatusCode)
 
 	bills, err := service.GetBills(pubkey)
@@ -349,7 +348,7 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	require.Equal(t, tx.UnitId, b.Id)
 	require.Equal(t, txHash, b.TxHash)
 	require.EqualValues(t, txValue, b.Value)
-	require.NoError(t, b.BlockProof.verifyProof(verifiers))
+	require.NoError(t, b.TxProof.verifyProof(verifiers))
 }
 
 func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
@@ -365,13 +364,13 @@ func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
 
 	pubkey := make([]byte, 33)
 	txHash := make([]byte, 32)
-	req := &schema.Bills{
-		Bills: []*schema.Bill{
+	req := &block.Bills{
+		Bills: []*block.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
 				TxHash: txHash,
-				BlockProof: &schema.BlockProof{
+				TxProof: &block.TxProof{
 					BlockNumber: 1,
 					Tx:          tx,
 					Proof:       proof,
@@ -381,7 +380,7 @@ func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errKeyNotIndexed.Error(), res.Message)
 }
@@ -401,13 +400,13 @@ func TestAddBlockProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
-	req := &schema.Bills{
-		Bills: []*schema.Bill{
+	req := &block.Bills{
+		Bills: []*block.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
 				TxHash: txHash,
-				BlockProof: &schema.BlockProof{
+				TxProof: &block.TxProof{
 					BlockNumber: 1,
 					Tx:          tx,
 					Proof:       proof,
@@ -417,7 +416,7 @@ func TestAddBlockProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "p2pkh predicate verification failed: invalid bearer predicate", res.Message)
 }

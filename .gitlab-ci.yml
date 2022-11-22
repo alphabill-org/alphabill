@@ -4,7 +4,7 @@ stages:
   - build
   - analyze
 
-image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20220715
+image: $CI_REGISTRY_IMAGE/ab-gitlab-runner:20221121
 
 # Debugging info and initialization goes here
 init:
@@ -16,7 +16,9 @@ test:
   stage: test
   script:
     - make test
+    - go tool cover -func test-coverage.out
     - gocover-cobertura < test-coverage.out > test-coverage-cobertura.xml
+  coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
   artifacts:
     expire_in: 1 month
     reports:
@@ -36,8 +38,6 @@ build:
 
 gosec:
   stage: test
-  # remove the following line after issue https://github.com/golang/go/issues/51629 is released
-  when: manual
   script:
     - make gosec
   artifacts:
@@ -47,8 +47,6 @@ gosec:
 
 sonarqube-check:
   stage: analyze
-  # remove the following line after issue https://github.com/golang/go/issues/51629 is released
-  when: manual
   image:
     name: sonarsource/sonar-scanner-cli:latest
     entrypoint: [ "" ]

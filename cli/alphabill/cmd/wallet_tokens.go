@@ -124,7 +124,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentInfo(cmd)
+	parentType, creationInputs, err := readParentInfo(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -136,14 +136,14 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		Symbol:                             symbol,
 		DecimalPlaces:                      decimals,
 		ParentTypeId:                       parentType,
-		SubTypeCreationPredicateSignatures: creationInputs,
+		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleType(ctx, a, typeId)
+	id, err := tw.NewFungibleType(ctx, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
@@ -151,12 +151,12 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	return nil
 }
 
-func readParentInfo(cmd *cobra.Command) ([]byte, [][]byte, error) {
+func readParentInfo(cmd *cobra.Command, am wallet.AccountManager) ([]byte, []*t.CreationInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err
 	}
-	creationInputs := make([][]byte, 0)
+	var creationInputs []*t.CreationInput
 	if len(parentType) == 0 {
 		parentType = NoParent
 	} else if !bytes.Equal(parentType, NoParent) {
@@ -164,19 +164,13 @@ func readParentInfo(cmd *cobra.Command) ([]byte, [][]byte, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, input := range creationInputStrs {
-			decoded, err := decodeHexOrEmpty(input)
-			if err != nil {
-				return nil, nil, err
-			}
-			if len(decoded) == 0 {
-				decoded = script.PredicateArgumentEmpty()
-			}
-			creationInputs = append(creationInputs, decoded)
+		creationInputs, err = parsePredicateArguments(creationInputStrs, am)
+		if err != nil {
+			return nil, nil, err
 		}
 	}
 	if len(creationInputs) == 0 {
-		creationInputs = append(creationInputs, script.PredicateArgumentEmpty())
+		creationInputs = []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}
 	}
 	return parentType, creationInputs, nil
 }
@@ -209,7 +203,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentInfo(cmd)
+	parentType, creationInputs, err := readParentInfo(cmd, nil)
 	if err != nil {
 		return err
 	}
@@ -220,7 +214,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	a := &tokens.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                             symbol,
 		ParentTypeId:                       parentType,
-		SubTypeCreationPredicateSignatures: creationInputs,
+		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
@@ -228,7 +222,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewNonFungibleType(ctx, a, typeId)
+	id, err := tw.NewNonFungibleType(ctx, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
@@ -805,7 +799,10 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 				}
 			}
 		}
-		accountKey, err := am.GetAccountKey(uint64(keyNr))
+		if keyNr < 1 {
+			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, clause)
+		}
+		accountKey, err := am.GetAccountKey(uint64(keyNr - 1))
 		if err != nil {
 			return nil, err
 		}
@@ -816,6 +813,62 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 		return decodeHexOrEmpty(clause)
 	}
 	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
+}
+
+func parsePredicateArguments(arguments []string, am wallet.AccountManager) ([]*t.CreationInput, error) {
+	creationInputs := make([]*t.CreationInput, 0, len(arguments))
+	for _, argument := range arguments {
+		input, err := parsePredicateArgument(argument, am)
+		if err != nil {
+			return nil, err
+		}
+		creationInputs = append(creationInputs, input)
+	}
+	return creationInputs, nil
+}
+
+// parsePredicateArguments uses the following format:
+// empty|true|false|empty produce an empty predicate argument
+// ptpkh (key 1) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
+func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.CreationInput, error) {
+	if argument == "" || argument == "empty" || argument == "true" || argument == "false" {
+		return &t.CreationInput{Argument: script.PredicateArgumentEmpty()}, nil
+	}
+	keyNr := 1
+	var err error
+	if strings.HasPrefix(argument, "ptpkh") {
+		if split := strings.Split(argument, ":"); len(split) == 2 {
+			keyStr := split[1]
+			if strings.HasPrefix(strings.ToLower(keyStr), "0x") {
+				return nil, fmt.Errorf("invalid creation input: '%s'", argument)
+			} else {
+				keyNr, err = strconv.Atoi(keyStr)
+				if err != nil {
+					return nil, aberrors.Wrapf(err, "invalid creation input: '%s'", argument)
+				}
+			}
+		}
+		if keyNr < 1 {
+			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, argument)
+		}
+		_, err := am.GetAccountKey(uint64(keyNr - 1))
+		if err != nil {
+			return nil, err
+		}
+		return &t.CreationInput{AccountNumber: uint64(keyNr)}, nil
+
+	}
+	if strings.HasPrefix(argument, "0x") {
+		decoded, err := decodeHexOrEmpty(argument)
+		if err != nil {
+			return nil, err
+		}
+		if len(decoded) == 0 {
+			decoded = script.PredicateArgumentEmpty()
+		}
+		return &t.CreationInput{Argument: decoded}, nil
+	}
+	return nil, fmt.Errorf("invalid creation input: '%s'", argument)
 }
 
 //getHexFlag returns nil in case array is empty (weird behaviour by cobra)

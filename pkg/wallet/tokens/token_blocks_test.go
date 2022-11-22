@@ -62,3 +62,55 @@ func TestTokensProcessBlock_withTx(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "AB", tokenType.Symbol)
 }
+
+func TestTokensProcessBlock_syncToUnit(t *testing.T) {
+	w, client := createTestWallet(t)
+	defer w.Shutdown()
+	w.sync = true
+	blockNr := uint64(1)
+	id, err := randomId()
+	require.NoError(t, err)
+	tx := createTx(id, blockNr)
+	require.NoError(t, anypb.MarshalFrom(tx.TransactionAttributes, &tokens.CreateFungibleTokenTypeAttributes{Symbol: "AB"}, proto.MarshalOptions{}))
+	client.SetMaxBlockNumber(blockNr)
+	client.SetBlock(&block.Block{
+		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
+		BlockNumber:      blockNr,
+		Transactions:     []*txsystem.Transaction{tx}})
+	types, err := w.db.Do().GetTokenTypes()
+	require.NoError(t, err)
+	require.Len(t, types, 0)
+
+	require.NoError(t, w.syncToUnit(context.Background(), id, blockNr))
+
+	blockNrFromDB, err := w.db.Do().GetBlockNumber()
+	require.NoError(t, err)
+	require.Equal(t, blockNr, blockNrFromDB)
+
+	types, err = w.db.Do().GetTokenTypes()
+	require.NoError(t, err)
+	require.Len(t, types, 1)
+
+	tokenType, err := w.db.Do().GetTokenType(TokenTypeID(id))
+	require.NoError(t, err)
+	require.Equal(t, "AB", tokenType.Symbol)
+}
+
+func TestTokensProcessBlock_syncToUnit_timeout(t *testing.T) {
+	w, client := createTestWallet(t)
+	defer w.Shutdown()
+	w.sync = true
+	blockNr := uint64(1)
+	id, err := randomId()
+	require.NoError(t, err)
+	client.SetMaxBlockNumber(blockNr)
+	client.SetBlock(&block.Block{
+		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
+		BlockNumber:      blockNr,
+		Transactions:     []*txsystem.Transaction{}})
+	types, err := w.db.Do().GetTokenTypes()
+	require.NoError(t, err)
+	require.Len(t, types, 0)
+
+	require.ErrorContains(t, w.syncToUnit(context.Background(), id, blockNr), "did not confirm all transactions, timed out: 1")
+}

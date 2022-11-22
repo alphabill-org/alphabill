@@ -127,6 +127,21 @@ func (s *BoltBillStore) ContainsBill(id []byte) (bool, error) {
 	return res, nil
 }
 
+func (s *BoltBillStore) GetBill(billId []byte) (*Bill, error) {
+	var bill *Bill
+	err := s.db.View(func(tx *bolt.Tx) error {
+		billBytes := tx.Bucket(billsBucket).Get(billId)
+		if billBytes == nil {
+			return ErrMissingBlockProof
+		}
+		return json.Unmarshal(billBytes, &bill)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return bill, nil
+}
+
 func (s *BoltBillStore) SetBills(pubkey []byte, bills ...*Bill) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		pubkeyBucket, err := tx.Bucket(pubkeyIndexBucket).CreateBucketIfNotExists(pubkey)

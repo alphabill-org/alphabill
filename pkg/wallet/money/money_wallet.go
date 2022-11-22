@@ -518,7 +518,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			log.Info("received split order (new bill)")
-			err := w.saveWithProof(dbTx, b, &Bill{
+			err := w.saveWithProof(dbTx, b, txPb, &Bill{
 				Id:     util.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
 				Value:  tx.Amount(),
 				TxHash: tx.Hash(crypto.SHA256),

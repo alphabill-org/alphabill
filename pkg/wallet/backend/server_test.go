@@ -102,7 +102,7 @@ func TestListBillsRequest_PubKeyNotIndexed(t *testing.T) {
 
 	res := &ErrorResponse{}
 	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/list-bills?pubkey=%s", pk), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.ErrorContains(t, ErrPubKeyNotIndexed, res.Message)
@@ -247,7 +247,7 @@ func TestBalanceRequest_PubKeyNotIndexed(t *testing.T) {
 
 	res := &ErrorResponse{}
 	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/balance?pubkey=%s", pk), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pk), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.ErrorContains(t, ErrPubKeyNotIndexed, res.Message)
@@ -327,7 +327,7 @@ func TestBlockProofRequest_ErrMissingBlockProof(t *testing.T) {
 
 	res := &ErrorResponse{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/block-proof?bill_id=%s", billId), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.ErrorContains(t, ErrMissingBlockProof, res.Message)

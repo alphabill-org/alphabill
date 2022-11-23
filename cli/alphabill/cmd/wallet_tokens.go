@@ -33,6 +33,12 @@ const (
 	cmdFlagTokenData           = "data"
 	cmdFlagTokenDataUpdate     = "data-update"
 	cmdFlagSync                = "sync"
+
+	predicateEmpty = "empty"
+	predicateTrue  = "true"
+	predicateFalse = "false"
+	predicatePtpkh = "ptpkh"
+	hexPrefix      = "0x"
 )
 
 var NoParent = []byte{0x00}
@@ -482,7 +488,7 @@ func getPubKeyBytes(cmd *cobra.Command, flag string) ([]byte, error) {
 		return nil, err
 	}
 	var pubKey []byte
-	if pubKeyHex == "true" {
+	if pubKeyHex == predicateTrue {
 		pubKey = nil // this will assign 'always true' predicate
 	} else {
 		pk, ok := pubKeyHexToBytes(pubKeyHex)
@@ -771,19 +777,19 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountM
 }
 
 func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, error) {
-	if clause == "" || clause == "true" {
+	if len(clause) == 0 || clause == predicateEmpty {
 		return script.PredicateAlwaysTrue(), nil
 	}
-	if clause == "false" {
+	if clause == predicateFalse {
 		return script.PredicateAlwaysFalse(), nil
 	}
 
 	keyNr := 1
 	var err error
-	if strings.HasPrefix(clause, "ptpkh") {
+	if strings.HasPrefix(clause, predicatePtpkh) {
 		if split := strings.Split(clause, ":"); len(split) == 2 {
 			keyStr := split[1]
-			if strings.HasPrefix(strings.ToLower(keyStr), "0x") {
+			if strings.HasPrefix(strings.ToLower(keyStr), hexPrefix) {
 				if len(keyStr) < 3 {
 					return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 				}
@@ -809,7 +815,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 		return script.PredicatePayToPublicKeyHashDefault(accountKey.PubKeyHash.Sha256), nil
 
 	}
-	if strings.HasPrefix(clause, "0x") {
+	if strings.HasPrefix(clause, hexPrefix) {
 		return decodeHexOrEmpty(clause)
 	}
 	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
@@ -831,15 +837,15 @@ func parsePredicateArguments(arguments []string, am wallet.AccountManager) ([]*t
 // empty|true|false|empty produce an empty predicate argument
 // ptpkh (key 1) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
 func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.CreationInput, error) {
-	if argument == "" || argument == "empty" || argument == "true" || argument == "false" {
+	if len(argument) == 0 || argument == predicateEmpty || argument == predicateTrue || argument == predicateFalse {
 		return &t.CreationInput{Argument: script.PredicateArgumentEmpty()}, nil
 	}
 	keyNr := 1
 	var err error
-	if strings.HasPrefix(argument, "ptpkh") {
+	if strings.HasPrefix(argument, predicatePtpkh) {
 		if split := strings.Split(argument, ":"); len(split) == 2 {
 			keyStr := split[1]
-			if strings.HasPrefix(strings.ToLower(keyStr), "0x") {
+			if strings.HasPrefix(strings.ToLower(keyStr), hexPrefix) {
 				return nil, fmt.Errorf("invalid creation input: '%s'", argument)
 			} else {
 				keyNr, err = strconv.Atoi(keyStr)
@@ -858,7 +864,7 @@ func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.Creat
 		return &t.CreationInput{AccountNumber: uint64(keyNr)}, nil
 
 	}
-	if strings.HasPrefix(argument, "0x") {
+	if strings.HasPrefix(argument, hexPrefix) {
 		decoded, err := decodeHexOrEmpty(argument)
 		if err != nil {
 			return nil, err
@@ -884,10 +890,10 @@ func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
 }
 
 func decodeHexOrEmpty(input string) ([]byte, error) {
-	if len(input) == 0 || input == "empty" {
+	if len(input) == 0 || input == predicateEmpty {
 		return []byte{}, nil
 	}
-	decoded, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(input), "0x"))
+	decoded, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(input), hexPrefix))
 	if err != nil {
 		return nil, err
 	}

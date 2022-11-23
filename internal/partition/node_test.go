@@ -11,7 +11,7 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func TestNode_noRound_txAddedBackToBuffer(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
 	p := NewSingleNodePartition(t, s)
 	defer p.Close()
-	transfer := testtransaction.RandomGenericBillTransfer(t)
+	transfer := moneytesttx.RandomGenericBillTransfer(t)
 	stateBefore, err := s.State()
 	if err != nil {
 		require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 	message := network.ReceivedMessage{
 		From:     "test-from",
 		Protocol: network.ProtocolInputForward,
-		Message:  testtransaction.RandomBillTransfer(t),
+		Message:  moneytesttx.RandomBillTransfer(t),
 	}
 	err := pn.partition.handleTxMessage(message)
 	require.ErrorContains(t, err, "invalid tx")
@@ -101,7 +101,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	tp.partition.startNewRound(tp.partition.luc)
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -117,7 +117,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	block1 := tp.GetLatestBlock()
 	require.True(t, ContainsTransaction(block1, transfer))
 
-	tx1 := testtransaction.RandomBillTransfer(t)
+	tx1 := moneytesttx.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(tx1))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -129,7 +129,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 		return false
 	}, test.WaitDuration, test.WaitTick)
 	tp.eh.Reset()
-	tx2 := testtransaction.RandomBillTransfer(t)
+	tx2 := moneytesttx.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(tx2))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -160,7 +160,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))
@@ -332,7 +332,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	defer tp.Close()
 	block := tp.GetLatestBlock()
 
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 
 	// create block proposal
@@ -364,7 +364,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))
@@ -377,7 +377,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))
@@ -397,7 +397,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock()
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.NoError(t, tp.CreateBlock(t))

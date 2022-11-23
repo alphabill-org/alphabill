@@ -16,7 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -174,7 +174,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x00}),
-					TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
+					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
 				},
@@ -182,7 +182,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -190,7 +190,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -198,7 +198,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -262,7 +262,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x00}),
-				TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
+				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
@@ -270,7 +270,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x01}),
-				TransactionAttributes: testtransaction.CreateDustTransferTx(k.PubKeyHash.Sha256),
+				TransactionAttributes: moneytesttx.CreateDustTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
@@ -278,7 +278,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x02}),
-				TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
@@ -286,7 +286,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x03}),
-				TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
@@ -420,7 +420,7 @@ func createTransferTxForPubKey(pubkey []byte) *txsystem.Transaction {
 	return &txsystem.Transaction{
 		SystemId:              alphabillMoneySystemId,
 		UnitId:                hash.Sum256([]byte{0x01}),
-		TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubkey)),
+		TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey)),
 		Timeout:               1000,
 		OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, pubkey),
 	}

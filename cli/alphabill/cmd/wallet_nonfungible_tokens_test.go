@@ -145,7 +145,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.
 	t.Cleanup(func() {
 		_ = os.RemoveAll(DataFile)
 	})
-	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file "+DataFile, dialAddr, typeId, nftID))
+	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file %s", dialAddr, typeId, nftID, DataFile))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			mintNonFungibleAttr := &tokens.MintNonFungibleTokenAttributes{}

@@ -232,7 +232,6 @@ func TestTokens_withRunningPartition(t *testing.T) {
 	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
 	//check what is left in w1, nothing, that is
 	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), "No tokens")
-	fmt.Println("Finita")
 }
 
 func ensureUnitBytes(t *testing.T, state tokens.TokenState, id []byte) {

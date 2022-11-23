@@ -191,7 +191,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	pubkeyParam := vars["pubkey"]
 	pubkey, err := parsePubKey(pubkeyParam)
 	if err != nil {
-		wlog.Debug("error parsing POST /proof/ request: ", err)
+		wlog.Debug("error parsing POST /proof/{pubkey} request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -202,7 +202,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	}
 	req, err := s.readBillsProto(r)
 	if err != nil {
-		wlog.Debug("error decoding POST /proof/ request: ", err)
+		wlog.Debug("error decoding POST /proof/{pubkey} request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
 		return
@@ -214,11 +214,11 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 			errors.Is(err, errKeyNotIndexed) ||
 			errors.Is(err, block.ErrProofVerificationFailed) ||
 			errors.Is(err, txverifier.ErrVerificationFailed) {
-			wlog.Debug("verification error POST /proof/ request: ", err)
+			wlog.Debug("verification error POST /proof/{pubkey} request: ", err)
 			w.WriteHeader(http.StatusBadRequest)
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {
-			wlog.Error("error on POST /proof/ request: ", err)
+			wlog.Error("error on POST /proof/{pubkey} request: ", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		return

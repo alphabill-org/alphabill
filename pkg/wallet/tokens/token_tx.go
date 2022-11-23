@@ -356,6 +356,9 @@ func bearerPredicateFromHash(receiverPubKeyHash []byte) tokens.Predicate {
 }
 
 func bearerPredicateFromPubKey(receiverPubKey PublicKey) tokens.Predicate {
+	if receiverPubKey == nil {
+		return bearerPredicateFromHash(nil)
+	}
 	return bearerPredicateFromHash(hash.Sum256(receiverPubKey))
 }
 

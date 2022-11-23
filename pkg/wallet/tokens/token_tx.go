@@ -163,7 +163,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Kind:     NonFungibleToken,
-				TypeID:   tType.ID,
+				TypeID:   ctx.NFTTypeID(),
 				URI:      ctx.URI(),
 				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
 				Symbol:   tType.Symbol,
@@ -379,19 +379,6 @@ func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *to
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}
-}
-
-func (w *Wallet) split(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, amount uint64, receiverPubKey []byte) error {
-	if amount >= token.Amount {
-		return fmt.Errorf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.ID)
-	}
-
-	sub, err := w.sendTx(token.ID, newSplitTxAttrs(token, amount, receiverPubKey), ac, nil)
-	if err != nil {
-		return err
-	}
-
-	return w.syncToUnit(ctx, token.ID, sub.timeout)
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately

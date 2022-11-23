@@ -77,7 +77,7 @@ func (s *RequestHandler) router() *mux.Router {
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/block-proof", s.getBlockProofFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/block-proof", s.setBlockProofFunc).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/block-proof/{pubkey}", s.setBlockProofFunc).Methods("POST", "OPTIONS")
 
 	// TODO authorization
 	v1Admin := apiV1.PathPrefix("/admin/").Subrouter()
@@ -187,9 +187,11 @@ func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Request) {
-	pubkey, err := parsePubKeyQueryParam(r)
+	vars := mux.Vars(r)
+	pubkeyParam := vars["pubkey"]
+	pubkey, err := parsePubKey(pubkeyParam)
 	if err != nil {
-		wlog.Debug("error parsing POST /block-proof request: ", err)
+		wlog.Debug("error parsing POST /block-proof/ request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -200,7 +202,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	}
 	req, err := s.readBillsProto(r)
 	if err != nil {
-		wlog.Debug("error decoding POST /block-proof request: ", err)
+		wlog.Debug("error decoding POST /block-proof/ request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
 		return
@@ -212,11 +214,11 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 			errors.Is(err, errKeyNotIndexed) ||
 			errors.Is(err, block.ErrProofVerificationFailed) ||
 			errors.Is(err, txverifier.ErrVerificationFailed) {
-			wlog.Debug("verification error POST /block-proof request: ", err)
+			wlog.Debug("verification error POST /block-proof/ request: ", err)
 			w.WriteHeader(http.StatusBadRequest)
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {
-			wlog.Error("error on POST /block-proof: ", err)
+			wlog.Error("error on POST /block-proof/ request: ", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		return

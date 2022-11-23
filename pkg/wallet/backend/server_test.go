@@ -374,7 +374,7 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	}
 	res := &EmptyResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof/"+pubkeyHex, req, res)
 	require.Equal(t, 200, httpRes.StatusCode)
 
 	bills, err := service.GetBills(pubkey)
@@ -416,7 +416,7 @@ func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof/"+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errKeyNotIndexed.Error(), res.Message)
 }
@@ -452,7 +452,7 @@ func TestAddBlockProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof?pubkey="+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof/"+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "p2pkh predicate verification failed: invalid bearer predicate", res.Message)
 }

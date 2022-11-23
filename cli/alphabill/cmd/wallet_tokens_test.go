@@ -163,6 +163,62 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 	}
 }
 
+func Test_amountToString(t *testing.T) {
+	type args struct {
+		amount    uint64
+		decPlaces uint32
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Conversion ok - decimals 2",
+			args: args{amount: 12345, decPlaces: 2},
+			want: "123.45",
+		},
+		{
+			name: "Conversion ok - decimals 1",
+			args: args{amount: 12345, decPlaces: 1},
+			want: "1234.5",
+		},
+		{
+			name: "Conversion ok - decimals 0",
+			args: args{amount: 12345, decPlaces: 0},
+			want: "12345",
+		},
+		{
+			name: "Conversion ok - decimals 7",
+			args: args{amount: 12345, decPlaces: 5},
+			want: "0.12345",
+		},
+		{
+			name: "Conversion ok - decimals 9",
+			args: args{amount: 12345, decPlaces: 9},
+			want: "0.000012345",
+		},
+		{
+			name: "Conversion ok - 99999 ",
+			args: args{amount: 99999, decPlaces: 7},
+			want: "0.0099999",
+		},
+		{
+			name: "Conversion ok - 9000 ",
+			args: args{amount: 9000, decPlaces: 5},
+			want: "0.09000",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := amountToString(tt.args.amount, tt.args.decPlaces)
+			if got != tt.want {
+				t.Errorf("amountToString() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTokens_withRunningPartition(t *testing.T) {
 	partition, unitState := startTokensPartition(t)
 	startRPCServer(t, partition, listenAddr)

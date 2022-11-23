@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -643,6 +644,11 @@ func tokenCmdListFungible(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
+func amountToString(amount uint64, decimals uint32) string {
+	famount := float64(amount) / math.Pow(10, float64(decimals))
+	return strconv.FormatFloat(famount, 'f', int(decimals), 64)
+}
+
 func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
@@ -684,7 +690,13 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 		for _, tok := range toks {
 			atLeastOneFound = true
 			if tok.IsFungible() {
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, tok.Amount, tok.TypeID))
+				tokUnit, err := tw.GetTokenType(ctx, tok.TypeID)
+				if err != nil {
+					return err
+				}
+				// format amount
+				amount := amountToString(tok.Amount, tokUnit.DecimalPlaces)
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, amount, tok.TypeID))
 			} else {
 				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.ID, tok.Symbol, tok.TypeID, tok.URI))
 			}

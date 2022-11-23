@@ -207,8 +207,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
 		return
 	}
-	bills := newBillsFromProto(req.Bills)
-	err = s.service.SetBills(pubkey, bills...)
+	err = s.service.SetBills(pubkey, req)
 	if err != nil {
 		if errors.Is(err, errEmptyBillsList) ||
 			errors.Is(err, errKeyNotIndexed) ||

@@ -249,11 +249,11 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return errors.New("bill file does not contain any bills")
 	}
 	txConverter := &money.TxConverter{}
+	err = billFileJson.Verify(txConverter, verifiers)
+	if err != nil {
+		return err
+	}
 	for _, b := range billFileJson.Bills {
-		err = b.Verify(txConverter, verifiers)
-		if err != nil {
-			return err
-		}
 		err = w.AddBill(accountNumber-1, newBill(b))
 		if err != nil {
 			return err

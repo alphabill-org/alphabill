@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -18,7 +19,7 @@ type (
 	WalletBackendService interface {
 		GetBills(pubKey []byte) ([]*Bill, error)
 		GetBill(unitId []byte) (*Bill, error)
-		SetBills(pubKey []byte, bills ...*Bill) error
+		SetBills(pubKey []byte, bills *block.Bills) error
 		AddKey(pubkey []byte) error
 	}
 )

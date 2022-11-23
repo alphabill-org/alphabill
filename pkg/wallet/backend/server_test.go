@@ -40,8 +40,9 @@ func (m *mockWalletService) GetBill(unitId []byte) (*Bill, error) {
 	return m.proof, m.getBlockProofErr
 }
 
-func (m *mockWalletService) SetBills(pubkey []byte, bills ...*Bill) error {
-	m.bills = append(m.bills, bills...)
+func (m *mockWalletService) SetBills(pubkey []byte, bills *block.Bills) error {
+	domainBills := newBillsFromProto(bills)
+	m.bills = append(m.bills, domainBills...)
 	return nil
 }
 
@@ -347,12 +348,13 @@ func TestBlockProofRequest_ProofDoesNotExist(t *testing.T) {
 func TestAddBlockProofRequest_Ok(t *testing.T) {
 	_ = log.InitStdoutLogger(log.INFO)
 	pubkey := make([]byte, 33)
-	txHash := make([]byte, 32)
 	txValue := uint64(100)
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
+	gtx, _ := txConverter.ConvertTx(tx)
+	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createBlockProofForTx(t, tx)
 	service := New(nil, NewInmemoryBillStore(), verifiers)
 	_ = service.AddKey(pubkey)
@@ -384,7 +386,11 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	require.Equal(t, tx.UnitId, b.Id)
 	require.Equal(t, txHash, b.TxHash)
 	require.EqualValues(t, txValue, b.Value)
-	require.NoError(t, b.TxProof.verifyProof(verifiers))
+	txProof := b.TxProof
+	require.NotNil(t, txProof)
+	require.EqualValues(t, 1, txProof.BlockNumber)
+	require.Equal(t, tx, txProof.Tx)
+	require.NotNil(t, proof, txProof.Proof)
 }
 
 func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
@@ -393,13 +399,14 @@ func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
 	}))
+	gtx, _ := txConverter.ConvertTx(tx)
+	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createBlockProofForTx(t, tx)
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
 	startServer(t, service)
 
 	pubkey := make([]byte, 33)
-	txHash := make([]byte, 32)
 	req := &block.Bills{
 		Bills: []*block.Bill{
 			{
@@ -428,10 +435,11 @@ func TestAddBlockProofRequest_InvalidPredicate_NOK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256([]byte("invalid pub key"))),
 	}))
+	gtx, _ := txConverter.ConvertTx(tx)
+	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createBlockProofForTx(t, tx)
 
 	pubkey := make([]byte, 33)
-	txHash := make([]byte, 32)
 	service := New(nil, NewInmemoryBillStore(), verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)

@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	gocrypto "crypto"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -86,22 +87,25 @@ func TestSetBill_OK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
+	gtx, _ := txConverter.ConvertTx(tx)
+	txHash := gtx.Hash(gocrypto.SHA256)
 	proof, verifiers := createBlockProofForTx(t, tx)
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
 	b := &Bill{
 		Id:     tx.UnitId,
 		Value:  txValue,
-		TxHash: []byte{},
+		TxHash: txHash,
 		TxProof: &TxProof{
 			BlockNumber: 1,
 			Tx:          tx,
 			Proof:       proof,
 		},
 	}
+	protoBills := b.toProtoBills()
 
 	// verify bill cannot be added to untracked pubkey
-	err := service.SetBills(pubkey, b)
+	err := service.SetBills(pubkey, protoBills)
 	require.ErrorIs(t, err, errKeyNotIndexed)
 
 	// when pubkey is indexed
@@ -109,7 +113,7 @@ func TestSetBill_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// then bills can be added for given pubkey
-	err = service.SetBills(pubkey, b)
+	err = service.SetBills(pubkey, protoBills)
 	require.NoError(t, err)
 
 	// verify saved bill can be queried by id
@@ -129,22 +133,25 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
 	}))
+	gtx, _ := txConverter.ConvertTx(tx)
+	txHash := gtx.Hash(gocrypto.SHA256)
 	proof, verifiers := createBlockProofForTx(t, tx)
 	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
 	pubkey := []byte{0}
 	_ = service.AddKey(pubkey)
-	err := service.SetBills(pubkey, &Bill{
+	b := &Bill{
 		Id:     tx.UnitId,
 		Value:  txValue,
-		TxHash: []byte{},
+		TxHash: txHash,
 		TxProof: &TxProof{
 			BlockNumber: 1,
 			Tx:          tx,
 			Proof:       proof,
 		},
-	})
+	}
+	err := service.SetBills(pubkey, b.toProtoBills())
 	require.ErrorIs(t, err, block.ErrProofVerificationFailed)
 }
 

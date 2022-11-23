@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"time"
 
@@ -18,6 +17,7 @@ var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
 var (
 	errKeyNotIndexed  = errors.New("pubkey is not indexed")
+	errBillsIsNil     = errors.New("bills input is empty")
 	errEmptyBillsList = errors.New("bills list is empty")
 )
 
@@ -130,9 +130,16 @@ func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
 // Bill most have a valid block proof.
 // Overwrites existing bill, if one exists.
 // Returns error if given pubkey is not indexed.
-func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
-	if len(bills) == 0 {
+func (w *WalletBackend) SetBills(pubkey []byte, bills *block.Bills) error {
+	if bills == nil {
+		return errBillsIsNil
+	}
+	if len(bills.Bills) == 0 {
 		return errEmptyBillsList
+	}
+	err := bills.Verify(txConverter, w.verifiers)
+	if err != nil {
+		return err
 	}
 	key, err := w.store.GetKey(pubkey)
 	if err != nil {
@@ -142,11 +149,8 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
 		return errKeyNotIndexed
 	}
 	pubkeyHash := wallet.NewKeyHash(pubkey)
-	for _, bill := range bills {
-		err = bill.verifyProof(w.verifiers)
-		if err != nil {
-			return err
-		}
+	domainBills := newBillsFromProto(bills)
+	for _, bill := range domainBills {
 		tx, err := txConverter.ConvertTx(bill.TxProof.Tx)
 		if err != nil {
 			return err
@@ -156,7 +160,7 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills ...*Bill) error {
 			return err
 		}
 	}
-	return w.store.SetBills(pubkey, bills...)
+	return w.store.SetBills(pubkey, domainBills...)
 }
 
 // AddKey adds new public key to list of tracked keys.
@@ -173,21 +177,6 @@ func (w *WalletBackend) Shutdown() {
 	default:
 	}
 	w.genericWallet.Shutdown()
-}
-
-func (b *Bill) verifyProof(verifiers map[string]abcrypto.Verifier) error {
-	return b.TxProof.verifyProof(verifiers)
-}
-
-func (b *TxProof) verifyProof(verifiers map[string]abcrypto.Verifier) error {
-	if b.Proof == nil {
-		return errors.New("proof is nil")
-	}
-	gtx, err := txConverter.ConvertTx(b.Tx)
-	if err != nil {
-		return err
-	}
-	return b.Proof.Verify(gtx, verifiers, crypto.SHA256)
 }
 
 func (b *Bill) toProto() *block.Bill {
@@ -215,9 +204,9 @@ func (b *Bill) toProtoBills() *block.Bills {
 	}
 }
 
-func newBillsFromProto(src []*block.Bill) []*Bill {
-	dst := make([]*Bill, len(src))
-	for i, b := range src {
+func newBillsFromProto(src *block.Bills) []*Bill {
+	dst := make([]*Bill, len(src.Bills))
+	for i, b := range src.Bills {
 		dst[i] = newBill(b)
 	}
 	return dst

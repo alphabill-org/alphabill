@@ -777,7 +777,7 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountM
 }
 
 func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, error) {
-	if len(clause) == 0 || clause == predicateEmpty {
+	if len(clause) == 0 || clause == predicateTrue {
 		return script.PredicateAlwaysTrue(), nil
 	}
 	if clause == predicateFalse {

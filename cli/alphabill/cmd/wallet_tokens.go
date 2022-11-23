@@ -372,13 +372,12 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
-	dataFilePathSet := len(dataFilePath) != 0
 	// TODO remove once 1.5.0 is released and use MarkFlagsMutuallyExclusive instead
 	// cannot specify both inputs, either data or data-file
-	if data != nil && dataFilePathSet {
+	if data != nil && len(dataFilePath) > 0 {
 		return fmt.Errorf("flags \"--%v\" and \"--%v\" are mutually exclusive", cmdFlagTokenData, cmdFlagTokenDataFile)
 	}
-	if dataFilePathSet {
+	if len(dataFilePath) > 0 {
 		data, err = readDataFile(dataFilePath)
 		if err != nil {
 			return err

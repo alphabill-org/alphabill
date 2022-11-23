@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
@@ -15,9 +15,9 @@ func TestTxVerifier(t *testing.T) {
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                make([]byte, 32),
-		TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubkey)),
+		TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey)),
 	}
-	gtx, _ := testtransaction.ConvertNewGenericMoneyTx(tx)
+	gtx, _ := moneytesttx.ConvertNewGenericMoneyTx(tx)
 
 	tests := []struct {
 		name    string
@@ -26,8 +26,8 @@ func TestTxVerifier(t *testing.T) {
 		wantErr string
 	}{
 		{name: "tx is nil", gtx: nil, key: nil, wantErr: "tx is nil"},
-		{name: "key is nil", gtx: testtransaction.RandomGenericBillTransfer(t), key: nil, wantErr: "key is nil"},
-		{name: "transfer invalid bearer predicate", gtx: testtransaction.RandomGenericBillTransfer(t), key: wallet.NewKeyHash([]byte{}), wantErr: "invalid bearer predicate"},
+		{name: "key is nil", gtx: moneytesttx.RandomGenericBillTransfer(t), key: nil, wantErr: "key is nil"},
+		{name: "transfer invalid bearer predicate", gtx: moneytesttx.RandomGenericBillTransfer(t), key: wallet.NewKeyHash([]byte{}), wantErr: "invalid bearer predicate"},
 		{name: "transfer ok", gtx: gtx, key: wallet.NewKeyHash(pubkey), wantErr: ""},
 	}
 

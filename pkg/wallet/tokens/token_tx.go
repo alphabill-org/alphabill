@@ -242,16 +242,16 @@ func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreati
 }
 
 func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenID) (TokenID, error) {
+	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1
 		key, err := w.mw.GetAccountKey(accIdx)
 		if err != nil {
 			return nil, err
 		}
-		attrs.SetBearer(script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256))
-	} else {
-		attrs.SetBearer(script.PredicateAlwaysTrue())
+		keyHash = key.PubKeyHash.Sha256
 	}
+	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
 	sub, err := w.sendTx(tokenId, attrs, nil, nil) // key is not passed as signing of minting tx is not needed?
 	if err != nil {
@@ -330,21 +330,33 @@ func signTx(gtx txsystem.GenericTransaction, ac *wallet.AccountKey) (tokens.Pred
 }
 
 func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
-	var bearer []byte
-	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
-	} else {
-		bearer = script.PredicateAlwaysTrue()
-	}
-
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.Backlink))
-
 	return &tokens.TransferFungibleTokenAttributes{
-		NewBearer:                   bearer,
+		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
 		Value:                       token.Amount,
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}
+}
+
+func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
+	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
+	return &tokens.TransferNonFungibleTokenAttributes{
+		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
+		Backlink:                    token.Backlink,
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+}
+
+func bearerPredicateFromHash(receiverPubKeyHash []byte) tokens.Predicate {
+	if receiverPubKeyHash != nil {
+		return script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash)
+	}
+	return script.PredicateAlwaysTrue()
+}
+
+func bearerPredicateFromPubKey(receiverPubKey PublicKey) tokens.Predicate {
+	return bearerPredicateFromHash(hash.Sum256(receiverPubKey))
 }
 
 func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, receiverPubKey []byte) error {
@@ -356,35 +368,10 @@ func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *Tok
 	return w.syncToUnit(ctx, token.ID, sub.timeout)
 }
 
-func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
-	var bearer []byte
-	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
-	} else {
-		bearer = script.PredicateAlwaysTrue()
-	}
-
-	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
-
-	return &tokens.TransferNonFungibleTokenAttributes{
-		NewBearer:                   bearer,
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
-	}
-}
-
 func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
-	var bearer []byte
-	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
-	} else {
-		bearer = script.PredicateAlwaysTrue()
-	}
-
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
-
 	return &tokens.SplitFungibleTokenAttributes{
-		NewBearer:                   bearer,
+		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                 amount,
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),

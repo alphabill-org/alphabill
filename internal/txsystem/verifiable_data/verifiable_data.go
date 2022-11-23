@@ -187,7 +187,7 @@ func (w *vdTransaction) TargetUnits(_ crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{w.UnitID()}
 }
 
-func (w *vdTransaction) sigBytes(b bytes.Buffer) {
+func (w *vdTransaction) sigBytes(b *bytes.Buffer) {
 	b.Write(w.transaction.SystemId)
 	b.Write(w.transaction.UnitId)
 	b.Write(util.Uint64ToBytes(w.transaction.Timeout))

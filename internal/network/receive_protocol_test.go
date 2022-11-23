@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
@@ -35,7 +35,7 @@ func TestNewReceiverProtocol_Ok(t *testing.T) {
 	defer func() { require.NoError(t, s.Close()) }()
 
 	w := NewProtoBufWriter(s)
-	tx := testtransaction.RandomBillTransfer(t)
+	tx := moneytesttx.RandomBillTransfer(t)
 	err = w.Write(tx)
 	require.NoError(t, err)
 

@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -238,9 +238,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.db.Do().GetAccountKey(0)
 
 	dcBills := []*Bill{
-		{Id: uint256.NewInt(2), BlockProof: &BlockProof{Tx: testtransaction.CreateRandomDcTx()}},
-		{Id: uint256.NewInt(1), BlockProof: &BlockProof{Tx: testtransaction.CreateRandomDcTx()}},
-		{Id: uint256.NewInt(0), BlockProof: &BlockProof{Tx: testtransaction.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(2), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(1), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(0), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte

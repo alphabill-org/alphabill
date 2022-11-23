@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/util"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	hasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -308,7 +308,7 @@ func TestExecuteCreateNFTType_InvalidSystemIdentifier(t *testing.T) {
 func TestExecuteCreateNFTType_InvalidTxType(t *testing.T) {
 	txs, err := New(WithSystemIdentifier([]byte{0, 0, 0, 0}))
 	require.NoError(t, err)
-	tx := testtransaction.RandomGenericBillTransfer(t)
+	tx := moneytesttx.RandomGenericBillTransfer(t)
 	require.ErrorContains(t, txs.Execute(tx), "unknown tx type")
 }
 

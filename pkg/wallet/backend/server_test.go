@@ -274,7 +274,7 @@ func TestBlockProofRequest_Ok(t *testing.T) {
 
 	response := &block.Bills{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGetProto(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), response)
+	httpRes := testhttp.DoGetProto(t, fmt.Sprintf("http://localhost:7777/api/v1/proof?bill_id=%s", billId), response)
 
 	require.Equal(t, 200, httpRes.StatusCode)
 	require.Len(t, response.Bills, 1)
@@ -294,7 +294,7 @@ func TestBlockProofRequest_MissingBillId(t *testing.T) {
 	startServer(t, &mockWalletService{})
 
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/block-proof", res)
+	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/proof", res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "missing required bill_id query parameter", res.Message)
@@ -305,19 +305,19 @@ func TestBlockProofRequest_InvalidBillIdLength(t *testing.T) {
 
 	// verify bill id larger than 32 bytes returns error
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/block-proof?bill_id=0x000000000000000000000000000000000000000000000000000000000000000001", res)
+	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/proof?bill_id=0x000000000000000000000000000000000000000000000000000000000000000001", res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &ErrorResponse{}
-	httpRes = testhttp.DoGet(t, "http://localhost:7777/api/v1/block-proof?bill_id=0x01", res)
+	httpRes = testhttp.DoGet(t, "http://localhost:7777/api/v1/proof?bill_id=0x01", res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &ErrorResponse{}
-	httpRes = testhttp.DoGet(t, "http://localhost:7777/api/v1/block-proof?bill_id=0000000000000000000000000000000000000000000000000000000000000001", res)
+	httpRes = testhttp.DoGet(t, "http://localhost:7777/api/v1/proof?bill_id=0000000000000000000000000000000000000000000000000000000000000001", res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 }
@@ -327,7 +327,7 @@ func TestBlockProofRequest_ErrMissingBlockProof(t *testing.T) {
 
 	res := &ErrorResponse{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.ErrorContains(t, ErrMissingBlockProof, res.Message)
@@ -338,7 +338,7 @@ func TestBlockProofRequest_ProofDoesNotExist(t *testing.T) {
 
 	res := &ErrorResponse{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/block-proof?bill_id=%s", billId), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/proof?bill_id=%s", billId), res)
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "block proof does not exist for given bill id", res.Message)
@@ -374,7 +374,7 @@ func TestAddBlockProofRequest_Ok(t *testing.T) {
 	}
 	res := &EmptyResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof/"+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
 	require.Equal(t, 200, httpRes.StatusCode)
 
 	bills, err := service.GetBills(pubkey)
@@ -416,7 +416,7 @@ func TestAddBlockProofRequest_UnindexedKey_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof/"+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, errKeyNotIndexed.Error(), res.Message)
 }
@@ -452,7 +452,7 @@ func TestAddBlockProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/block-proof/"+pubkeyHex, req, res)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "p2pkh predicate verification failed: invalid bearer predicate", res.Message)
 }

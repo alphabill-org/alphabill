@@ -76,8 +76,8 @@ func (s *RequestHandler) router() *mux.Router {
 
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/block-proof", s.getBlockProofFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/block-proof/{pubkey}", s.setBlockProofFunc).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/proof", s.getBlockProofFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/proof/{pubkey}", s.setBlockProofFunc).Methods("POST", "OPTIONS")
 
 	// TODO authorization
 	v1Admin := apiV1.PathPrefix("/admin/").Subrouter()
@@ -157,7 +157,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Request) {
 	billId, err := parseBillId(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /block-proof request: ", err)
+		wlog.Debug("error parsing GET /proof request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -169,16 +169,16 @@ func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	bill, err := s.service.GetBill(billId)
 	if err != nil {
 		if errors.Is(err, ErrMissingBlockProof) {
-			wlog.Debug("error on GET /block-proof: ", err)
+			wlog.Debug("error on GET /proof: ", err)
 			w.WriteHeader(http.StatusBadRequest)
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {
-			wlog.Error("error on GET /block-proof: ", err)
+			wlog.Error("error on GET /proof: ", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
 	if bill == nil {
-		wlog.Debug("GET /block-proof does not exist ", fmt.Sprintf("%X\n", billId))
+		wlog.Debug("GET /proof does not exist ", fmt.Sprintf("%X\n", billId))
 		w.WriteHeader(400)
 		writeAsJson(w, ErrorResponse{Message: "block proof does not exist for given bill id"})
 		return
@@ -191,7 +191,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	pubkeyParam := vars["pubkey"]
 	pubkey, err := parsePubKey(pubkeyParam)
 	if err != nil {
-		wlog.Debug("error parsing POST /block-proof/ request: ", err)
+		wlog.Debug("error parsing POST /proof/ request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -202,7 +202,7 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	}
 	req, err := s.readBillsProto(r)
 	if err != nil {
-		wlog.Debug("error decoding POST /block-proof/ request: ", err)
+		wlog.Debug("error decoding POST /proof/ request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
 		return
@@ -214,11 +214,11 @@ func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Reques
 			errors.Is(err, errKeyNotIndexed) ||
 			errors.Is(err, block.ErrProofVerificationFailed) ||
 			errors.Is(err, txverifier.ErrVerificationFailed) {
-			wlog.Debug("verification error POST /block-proof/ request: ", err)
+			wlog.Debug("verification error POST /proof/ request: ", err)
 			w.WriteHeader(http.StatusBadRequest)
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {
-			wlog.Error("error on POST /block-proof/ request: ", err)
+			wlog.Error("error on POST /proof/ request: ", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		return

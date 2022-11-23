@@ -23,7 +23,9 @@ var (
 )
 
 var (
-	ErrKeyAlreadyExists = errors.New("key already exists")
+	ErrKeyAlreadyExists  = errors.New("key already exists")
+	ErrPubKeyNotIndexed  = errors.New("pubkey not indexed")
+	ErrMissingBlockProof = errors.New("block proof does not exist")
 )
 
 type BoltBillStore struct {
@@ -78,7 +80,7 @@ func (s *BoltBillStore) GetBills(pubkey []byte) ([]*Bill, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubkey)
 		if pubkeyBillsBucket == nil {
-			return nil
+			return ErrPubKeyNotIndexed
 		}
 		return pubkeyBillsBucket.ForEach(func(billId, billBytes []byte) error {
 			var b *Bill
@@ -182,7 +184,7 @@ func (s *BoltBillStore) GetBlockProof(billId []byte) (*BlockProof, error) {
 	err := s.db.View(func(tx *bolt.Tx) error {
 		proofBytes := tx.Bucket(proofsBucket).Get(billId)
 		if proofBytes == nil {
-			return nil
+			return ErrMissingBlockProof
 		}
 		return json.Unmarshal(proofBytes, &proof)
 	})

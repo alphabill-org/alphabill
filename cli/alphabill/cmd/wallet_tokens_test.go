@@ -242,14 +242,14 @@ func TestTokens_withRunningPartition(t *testing.T) {
 	verifyStdout(t, execTokensCmd(t, "w1", ""), "Error: must specify a subcommand like new-type, send etc")
 	verifyStdout(t, execTokensCmd(t, "w1", "new-type"), "Error: must specify a subcommand: fungible|non-fungible")
 
-	testTokens_withRunningPartition_fungible(t, partition, unitState, w2key)
+	testFungibleTokensWithRunningPartition(t, partition, unitState, w2key)
 
-	testTokens_withRunningPartition_nft(t, partition, unitState, w2key)
+	testNFTsWithRunningPartition(t, partition, unitState, w2key)
 
-	testTokens_withRunningPartition_subtyping(t, partition, unitState, w2key)
+	testTokenSubtypingWithRunningPartition(t, partition, unitState, w2key)
 }
 
-func testTokens_withRunningPartition_fungible(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
+func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
 	typeId1 := uint64(0x01)
 	// fungible token types
 	symbol1 := "AB"
@@ -285,7 +285,7 @@ func testTokens_withRunningPartition_fungible(t *testing.T, partition *testparti
 
 }
 
-func testTokens_withRunningPartition_nft(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
+func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
 	// non-fungible token types
 	typeId2 := util.Uint256ToBytes(uint256.NewInt(uint64(0x10)))
 	nftID := util.Uint256ToBytes(uint256.NewInt(uint64(0x11)))
@@ -308,7 +308,7 @@ func testTokens_withRunningPartition_nft(t *testing.T, partition *testpartition.
 	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), "No tokens")
 }
 
-func testTokens_withRunningPartition_subtyping(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
+func testTokenSubtypingWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
 	symbol1 := "AB"
 	// test subtyping
 	typeId11, err := tw.RandomId()

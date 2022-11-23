@@ -78,10 +78,11 @@ func (s *BoltBillStore) SetBlockNumber(blockNumber uint64) error {
 func (s *BoltBillStore) GetBills(pubkey []byte) ([]*Bill, error) {
 	var bills []*Bill
 	err := s.db.View(func(tx *bolt.Tx) error {
-		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubkey)
-		if pubkeyBillsBucket == nil {
+		exists := tx.Bucket(keysBucket).Get(pubkey)
+		if exists == nil {
 			return ErrPubKeyNotIndexed
 		}
+		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubkey)
 		return pubkeyBillsBucket.ForEach(func(billId, billBytes []byte) error {
 			var b *Bill
 			err := json.Unmarshal(billBytes, &b)

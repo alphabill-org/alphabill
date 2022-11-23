@@ -5,14 +5,13 @@ import (
 	"crypto"
 	"testing"
 
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -148,7 +147,8 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	// and metadata is updated
 	verifyBlockHeight(t, w, dcTimeoutBlockCount)
 	verifyDcMetadata(t, w, nonce32[:], &dcMetadata{SwapTimeout: dcTimeoutBlockCount + swapTimeoutBlockCount})
-	verifyBalance(t, w, 3)
+	verifyBalance(t, w, 1)
+	verifyTotalBalance(t, w, 3)
 }
 
 func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
@@ -186,7 +186,8 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	// and metadata is updated
 	verifyBlockHeight(t, w, swapTimeoutBlockCount)
 	verifyDcMetadata(t, w, nonce32[:], &dcMetadata{SwapTimeout: swapTimeoutBlockCount * 2})
-	verifyBalance(t, w, 3)
+	verifyBalance(t, w, 1)
+	verifyTotalBalance(t, w, 3)
 }
 
 func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
@@ -237,9 +238,9 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.db.Do().GetAccountKey(0)
 
 	dcBills := []*Bill{
-		{Id: uint256.NewInt(2), Tx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(1), Tx: testtransaction.CreateRandomDcTx()},
-		{Id: uint256.NewInt(0), Tx: testtransaction.CreateRandomDcTx()},
+		{Id: uint256.NewInt(2), Tx: moneytesttx.CreateRandomDcTx()},
+		{Id: uint256.NewInt(1), Tx: moneytesttx.CreateRandomDcTx()},
+		{Id: uint256.NewInt(0), Tx: moneytesttx.CreateRandomDcTx()},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
@@ -445,9 +446,15 @@ func setBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
 }
 
 func verifyBalance(t *testing.T, w *Wallet, balance uint64) {
-	actualDcNonce, err := w.db.Do().GetBalance(0)
+	actualBalance, err := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.NoError(t, err)
-	require.EqualValues(t, balance, actualDcNonce)
+	require.EqualValues(t, balance, actualBalance)
+}
+
+func verifyTotalBalance(t *testing.T, w *Wallet, balance uint64) {
+	actualBalance, err := w.db.Do().GetBalance(GetBalanceCmd{CountDCBills: true})
+	require.NoError(t, err)
+	require.EqualValues(t, balance, actualBalance)
 }
 
 func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferOrder {

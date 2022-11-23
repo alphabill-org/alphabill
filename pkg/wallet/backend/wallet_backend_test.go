@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
@@ -34,7 +34,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 			Transactions: []*txsystem.Transaction{{
 				UnitId:                billId1Bytes[:],
 				SystemId:              alphabillMoneySystemId,
-				TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubKey1)),
+				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubKey1)),
 			}},
 		},
 		2: {
@@ -42,7 +42,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 			Transactions: []*txsystem.Transaction{{
 				UnitId:                billId2Bytes[:],
 				SystemId:              alphabillMoneySystemId,
-				TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubkey2)),
+				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
 			}},
 		},
 	})

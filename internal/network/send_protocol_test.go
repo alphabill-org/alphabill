@@ -5,7 +5,7 @@ import (
 	"time"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
@@ -60,7 +60,7 @@ func TestSend_UnknownPeer(t *testing.T) {
 	peer2Protocol, err := NewSendProtocol(peer2, testProtocolID, time.Second)
 	require.NoError(t, err)
 
-	err = peer2Protocol.Send(testtransaction.RandomBillTransfer(t), peer1.ID())
+	err = peer2Protocol.Send(moneytesttx.RandomBillTransfer(t), peer1.ID())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to open stream")
 }
@@ -83,7 +83,7 @@ func TestSend_ConnectionRefused(t *testing.T) {
 	peer2Protocol, err := NewSendProtocol(peer2, testProtocolID, time.Second)
 	require.NoError(t, err)
 
-	err = peer2Protocol.Send(testtransaction.RandomBillTransfer(t), peer1.ID())
+	err = peer2Protocol.Send(moneytesttx.RandomBillTransfer(t), peer1.ID())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "connection refused")
 }
@@ -116,7 +116,7 @@ func TestSend_Ok(t *testing.T) {
 	defer receive.Close()
 
 	// peer2 forwards tx to peer1
-	transfer := testtransaction.RandomBillTransfer(t)
+	transfer := moneytesttx.RandomBillTransfer(t)
 	err = p.Send(transfer, peer1.ID())
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {

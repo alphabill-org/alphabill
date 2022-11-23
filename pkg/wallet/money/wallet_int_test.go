@@ -22,7 +22,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -66,7 +66,7 @@ func TestSync(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x00}),
-					TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
+					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
 				},
@@ -74,7 +74,7 @@ func TestSync(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -82,7 +82,7 @@ func TestSync(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -90,7 +90,7 @@ func TestSync(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -111,7 +111,7 @@ func TestSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify starting balance
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -128,7 +128,7 @@ func TestSync(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 
 	// then balance is increased
-	balance, err = w.GetBalance(0)
+	balance, err = w.GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }
@@ -289,7 +289,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// verify initial bill tx is received by wallet
 	err = w.SyncToMaxBlockNumber(context.Background())
 	require.NoError(t, err)
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, initialBill.Value, balance)
 
@@ -331,14 +331,14 @@ func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
 	receiverPubkey, err := w.GetPublicKey(accountIndexTo)
 	require.NoError(t, err)
 
-	prevBalance, err := w.GetBalance(accountIndexTo)
+	prevBalance, err := w.GetBalance(GetBalanceCmd{AccountIndex: accountIndexTo})
 	require.NoError(t, err)
 
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: receiverPubkey, Amount: 1})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		_ = w.SyncToMaxBlockNumber(context.Background())
-		balance, _ := w.GetBalance(accountIndexTo)
+		balance, _ := w.GetBalance(GetBalanceCmd{AccountIndex: accountIndexTo})
 		return balance > prevBalance
 	}, test.WaitDuration, time.Second)
 }

@@ -31,7 +31,7 @@ func TestNewFungibleType(t *testing.T) {
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
-	_, err := tw.NewFungibleType(context.Background(), a, typeId)
+	_, err := tw.NewFungibleType(context.Background(), a, typeId, nil)
 	require.NoError(t, err)
 	txs := abClient.GetRecordedTransactions()
 	require.Len(t, txs, 1)
@@ -54,7 +54,7 @@ func TestNewNonFungibleType(t *testing.T) {
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
-	_, err := tw.NewNonFungibleType(context.Background(), a, typeId)
+	_, err := tw.NewNonFungibleType(context.Background(), a, typeId, nil)
 	require.NoError(t, err)
 	txs := abClient.GetRecordedTransactions()
 	require.Len(t, txs, 1)

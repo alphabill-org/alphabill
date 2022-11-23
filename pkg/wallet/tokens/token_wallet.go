@@ -60,14 +60,14 @@ func (w *Wallet) Shutdown() {
 	}
 }
 
-func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
+func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
 	log.Info("Creating new fungible token type")
-	return w.newType(ctx, attrs, typeId)
+	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
+func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
 	log.Info("Creating new NFT type")
-	return w.newType(ctx, attrs, typeId)
+	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenID, error) {
@@ -173,7 +173,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
 	}
 
-	sub, err := w.sendTx(tokenId, newNonFungibleTransferTxAttrs(t, receiverPubKey), acc)
+	sub, err := w.sendTx(tokenId, newNonFungibleTransferTxAttrs(t, receiverPubKey), acc, nil)
 	if err != nil {
 		return err
 	}

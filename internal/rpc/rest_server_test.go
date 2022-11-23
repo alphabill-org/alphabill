@@ -9,7 +9,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/stretchr/testify/require"
@@ -97,7 +97,7 @@ func TestNewRESTServer_NotFound(t *testing.T) {
 	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, MaxBodySize, peer)
 	require.NoError(t, err)
 
-	transferTx, err := json.Marshal(testtransaction.RandomBillTransfer(t))
+	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/notfound", bytes.NewReader(transferTx))
 	recorder := httptest.NewRecorder()
@@ -125,7 +125,7 @@ func TestNewRESTServer_RequestBodyTooLarge(t *testing.T) {
 	peer := peer.CreatePeer(t)
 	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, 10, peer)
 	require.NoError(t, err)
-	transferTx, err := json.Marshal(testtransaction.RandomBillTransfer(t))
+	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/transactions", bytes.NewReader(transferTx))
 	req.Header.Set("Content-Type", "application/json")
@@ -140,7 +140,7 @@ func TestRESTServer_RequestInfo(t *testing.T) {
 	peer := peer.CreatePeer(t)
 	s, err := NewRESTServer(&MockNode{}, "", money.TransactionTypes, 10, peer)
 	require.NoError(t, err)
-	transferTx, err := json.Marshal(testtransaction.RandomBillTransfer(t))
+	transferTx, err := json.Marshal(moneytesttx.RandomBillTransfer(t))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/info", bytes.NewReader(transferTx))
 	req.Header.Set("Content-Type", "application/json")

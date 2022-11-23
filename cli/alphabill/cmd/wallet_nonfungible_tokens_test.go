@@ -155,5 +155,5 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.
 		}
 		return false
 	}), test.WaitDuration, test.WaitTick)
-	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), "Tokens owned by account #1")
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
 }

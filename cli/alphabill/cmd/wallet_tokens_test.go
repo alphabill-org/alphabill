@@ -226,7 +226,7 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 	}
 }
 
-func TestTokens_withRunningPartition(t *testing.T) {
+func TestTokensWithRunningPartition(t *testing.T) {
 	partition, unitState := startTokensPartition(t)
 	startRPCServer(t, partition, listenAddr)
 
@@ -311,11 +311,10 @@ func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.Alphabi
 func testTokenSubtypingWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
 	symbol1 := "AB"
 	// test subtyping
-	typeId11, err := tw.RandomId()
-	typeId12, err := tw.RandomId()
-	typeId13, err := tw.RandomId()
-	typeId14, err := tw.RandomId()
-	require.NoError(t, err)
+	typeId11 := randomID(t)
+	typeId12 := randomID(t)
+	typeId13 := randomID(t)
+	typeId14 := randomID(t)
 	//push bool false, equal; to satisfy: 5100
 	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s", dialAddr, symbol1, typeId11, "0x53510087"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
@@ -404,4 +403,10 @@ func doExecTokensCmd(walletName string, command string) (*testConsoleWriter, err
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
+}
+
+func randomID(t *testing.T) tw.TokenID {
+	id, err := tw.RandomId()
+	require.NoError(t, err)
+	return id
 }

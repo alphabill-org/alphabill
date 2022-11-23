@@ -315,20 +315,18 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 }
 
 func signTx(gtx txsystem.GenericTransaction, ac *wallet.AccountKey) (tokens.Predicate, error) {
-	if ac != nil {
-		signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
-		if err != nil {
-			return nil, err
-		}
-		sig, err := signer.SignBytes(gtx.SigBytes())
-		if err != nil {
-			return nil, err
-		}
-		return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
-	} else {
+	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
-	return nil, nil
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
+	if err != nil {
+		return nil, err
+	}
+	sig, err := signer.SignBytes(gtx.SigBytes())
+	if err != nil {
+		return nil, err
+	}
+	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
 }
 
 func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {

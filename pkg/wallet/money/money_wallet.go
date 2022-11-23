@@ -64,6 +64,11 @@ type (
 		WaitForConfirmation bool
 		AccountIndex        uint64
 	}
+
+	GetBalanceCmd struct {
+		AccountIndex uint64
+		CountDCBills bool
+	}
 )
 
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
@@ -215,16 +220,16 @@ func (w *Wallet) StartDustCollectorJob() error {
 	return err
 }
 
-// GetBalance returns sum value of all bills currently owned by the wallet, for given account
-// the value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalance(accountIndex uint64) (uint64, error) {
-	return w.db.Do().GetBalance(accountIndex)
+// GetBalance returns sum value of all bills currently owned by the wallet, for given account.
+// The value returned is the smallest denomination of alphabills.
+func (w *Wallet) GetBalance(cmd GetBalanceCmd) (uint64, error) {
+	return w.db.Do().GetBalance(cmd)
 }
 
-// GetBalances returns sum value of all bills currently owned by the wallet, for all accounts
-// the value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalances() ([]uint64, error) {
-	return w.db.Do().GetBalances()
+// GetBalances returns sum value of all bills currently owned by the wallet, for all accounts.
+// The value returned is the smallest denomination of alphabills.
+func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, error) {
+	return w.db.Do().GetBalances(cmd)
 }
 
 // GetBill returns bill for the given bill id.
@@ -365,7 +370,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, ErrSwapInProgress
 	}
 
-	balance, err := w.GetBalance(cmd.AccountIndex)
+	balance, err := w.GetBalance(GetBalanceCmd{AccountIndex: cmd.AccountIndex})
 	if err != nil {
 		return nil, err
 	}

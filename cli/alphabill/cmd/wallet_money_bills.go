@@ -75,26 +75,33 @@ func listCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to list")
+	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "includes unswapped dust bills in output")
 	return cmd
 }
 
 func execListCmd(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+	showUnswapped, err := cmd.Flags().GetBool(showUnswappedCmdName)
+	if err != nil {
+		return err
+	}
+
 	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
 	if err != nil {
 		return err
 	}
 	defer w.Shutdown()
 
-	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
-	if err != nil {
-		return err
-	}
-
 	bills, err := w.GetBills(accountNumber - 1)
 	if err != nil {
 		return err
 	}
-	bills = filterDcBills(bills)
+	if !showUnswapped {
+		bills = filterDcBills(bills)
+	}
 	if len(bills) == 0 {
 		consoleWriter.Println("Wallet is empty.")
 		return nil

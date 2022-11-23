@@ -1,11 +1,13 @@
 package money
 
 import (
+	"bytes"
 	"crypto"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -14,6 +16,22 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+)
+
+var (
+	systemID        = []byte{0, 0, 0, 0}
+	unitID          = []byte{1}
+	ownerProof      = []byte{2}
+	newBearer       = []byte{3}
+	backlink        = []byte{4}
+	nonce           = []byte{5}
+	targetBearer    = []byte{6}
+	ownerCondition  = []byte{7}
+	billIdentifiers = [][]byte{util.Uint256ToBytes(uint256.NewInt(0)), util.Uint256ToBytes(uint256.NewInt(1))}
+	timeout         = uint64(100)
+	targetValue     = uint64(101)
+	remainingValue  = uint64(102)
+	amount          = uint64(103)
 )
 
 func TestWrapper_InterfaceAssertion(t *testing.T) {
@@ -209,6 +227,66 @@ func TestUint256Hashing_LeadingZeroByte(t *testing.T) {
 	require.EqualValues(t, h2, h1)
 }
 
+func TestTransferTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	tx := createTransferTxOrder(t)
+	sigBytes := tx.SigBytes()
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(newBearer)
+	b.Write(util.Uint64ToBytes(targetValue))
+	b.Write(backlink)
+	require.Equal(t, b.Bytes(), sigBytes)
+}
+
+func TestTransferDCTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	tx := createTransferDCTxOrder(t)
+	sigBytes := tx.SigBytes()
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(nonce)
+	b.Write(targetBearer)
+	b.Write(util.Uint64ToBytes(targetValue))
+	b.Write(backlink)
+	require.Equal(t, b.Bytes(), sigBytes)
+}
+
+func TestSplitTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	tx := createSplitTxOrder(t)
+	sigBytes := tx.SigBytes()
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(amount))
+	b.Write(targetBearer)
+	b.Write(util.Uint64ToBytes(remainingValue))
+	b.Write(backlink)
+	require.Equal(t, b.Bytes(), sigBytes)
+}
+
+func TestSwapTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	dcOrder := createTransferDCTxOrder(t)
+	dcProof := &block.BlockProof{BlockHeaderHash: make([]byte, 32)}
+	tx := createSwapTxOrder(t, []*txsystem.Transaction{dcOrder.ToProtoBuf()}, []*block.BlockProof{dcProof})
+	sigBytes := tx.SigBytes()
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(ownerCondition)
+	for _, billIdentifier := range billIdentifiers {
+		b.Write(billIdentifier)
+	}
+	b.Write(dcOrder.SigBytes())
+	b.Write(dcProof.Bytes())
+	b.Write(util.Uint64ToBytes(targetValue))
+	require.Equal(t, b.Bytes(), sigBytes)
+}
+
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
 func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDCOrder, pbTransaction *txsystem.Transaction, transfer TransferDC) {
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
@@ -277,4 +355,68 @@ func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*t
 
 func toUint256(b []byte) *uint256.Int {
 	return uint256.NewInt(0).SetBytes(b)
+}
+
+func createTransferTxOrder(t *testing.T) txsystem.GenericTransaction {
+	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
+		testtransaction.WithSystemID(systemID),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithTimeout(timeout),
+		testtransaction.WithOwnerProof(ownerProof),
+		testtransaction.WithAttributes(&TransferOrder{
+			NewBearer:   newBearer,
+			TargetValue: targetValue,
+			Backlink:    backlink,
+		}),
+	)
+}
+
+func createTransferDCTxOrder(t *testing.T) txsystem.GenericTransaction {
+	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
+		testtransaction.WithSystemID(systemID),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithTimeout(timeout),
+		testtransaction.WithOwnerProof(ownerProof),
+		testtransaction.WithAttributes(&TransferDCOrder{
+			Nonce:        nonce,
+			TargetBearer: targetBearer,
+			TargetValue:  targetValue,
+			Backlink:     backlink,
+		}),
+	)
+}
+
+func createSplitTxOrder(t *testing.T) txsystem.GenericTransaction {
+	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
+		testtransaction.WithSystemID(systemID),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithTimeout(timeout),
+		testtransaction.WithOwnerProof(ownerProof),
+		testtransaction.WithAttributes(&SplitOrder{
+			Amount:         amount,
+			TargetBearer:   targetBearer,
+			RemainingValue: remainingValue,
+			Backlink:       backlink,
+		}),
+	)
+}
+
+func createSwapTxOrder(t *testing.T, dcTransfers []*txsystem.Transaction, dcTransferProofs []*block.BlockProof) txsystem.GenericTransaction {
+	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
+		testtransaction.WithSystemID(systemID),
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithTimeout(timeout),
+		testtransaction.WithOwnerProof(ownerProof),
+		testtransaction.WithAttributes(&SwapOrder{
+			OwnerCondition:  ownerCondition,
+			BillIdentifiers: billIdentifiers,
+			DcTransfers:     dcTransfers,
+			Proofs:          dcTransferProofs,
+			TargetValue:     targetValue,
+		}),
+	)
+}
+
+func newMoneyGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return NewMoneyTx(systemID, tx)
 }

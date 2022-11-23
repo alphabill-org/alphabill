@@ -144,10 +144,10 @@ func (x *BlockProof) Bytes() []byte {
 	b.Write(x.TransactionsHash)
 	b.Write(x.HashValue)
 	if x.BlockTreeHashChain != nil {
-		x.BlockTreeHashChain.addToBuffer(b)
+		x.BlockTreeHashChain.addToBuffer(&b)
 	}
 	if x.SecTreeHashChain != nil {
-		x.SecTreeHashChain.addToBuffer(b)
+		x.SecTreeHashChain.addToBuffer(&b)
 	}
 	if x.UnicityCertificate != nil {
 		b.Write(x.UnicityCertificate.Bytes())
@@ -286,24 +286,24 @@ func newSecBlockProof(b *GenericBlock, secHash []byte, chain []*omt.Data, secCha
 	}
 }
 
-func (x *BlockTreeHashChain) addToBuffer(b bytes.Buffer) {
+func (x *BlockTreeHashChain) addToBuffer(b *bytes.Buffer) {
 	for _, item := range x.Items {
 		item.addToBuffer(b)
 	}
 }
 
-func (x *SecTreeHashChain) addToBuffer(b bytes.Buffer) {
+func (x *SecTreeHashChain) addToBuffer(b *bytes.Buffer) {
 	for _, item := range x.Items {
 		item.addToBuffer(b)
 	}
 }
 
-func (x *ChainItem) addToBuffer(b bytes.Buffer) {
+func (x *ChainItem) addToBuffer(b *bytes.Buffer) {
 	b.Write(x.Val)
 	b.Write(x.Hash)
 }
 
-func (x *MerklePathItem) addToBuffer(b bytes.Buffer) {
+func (x *MerklePathItem) addToBuffer(b *bytes.Buffer) {
 	if x.DirectionLeft {
 		b.WriteByte(1)
 	} else {

@@ -33,6 +33,12 @@ const (
 	cmdFlagTokenData           = "data"
 	cmdFlagTokenDataUpdate     = "data-update"
 	cmdFlagSync                = "sync"
+
+	predicateEmpty = "empty"
+	predicateTrue  = "true"
+	predicateFalse = "false"
+	predicatePtpkh = "ptpkh"
+	hexPrefix      = "0x"
 )
 
 var NoParent = []byte{0x00}
@@ -124,7 +130,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentInfo(cmd)
+	parentType, creationInputs, err := readParentInfo(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -136,14 +142,14 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		Symbol:                             symbol,
 		DecimalPlaces:                      decimals,
 		ParentTypeId:                       parentType,
-		SubTypeCreationPredicateSignatures: creationInputs,
+		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleType(ctx, a, typeId)
+	id, err := tw.NewFungibleType(ctx, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
@@ -151,12 +157,12 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	return nil
 }
 
-func readParentInfo(cmd *cobra.Command) ([]byte, [][]byte, error) {
+func readParentInfo(cmd *cobra.Command, am wallet.AccountManager) ([]byte, []*t.CreationInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err
 	}
-	creationInputs := make([][]byte, 0)
+	var creationInputs []*t.CreationInput
 	if len(parentType) == 0 {
 		parentType = NoParent
 	} else if !bytes.Equal(parentType, NoParent) {
@@ -164,19 +170,13 @@ func readParentInfo(cmd *cobra.Command) ([]byte, [][]byte, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, input := range creationInputStrs {
-			decoded, err := decodeHexOrEmpty(input)
-			if err != nil {
-				return nil, nil, err
-			}
-			if len(decoded) == 0 {
-				decoded = script.PredicateArgumentEmpty()
-			}
-			creationInputs = append(creationInputs, decoded)
+		creationInputs, err = parsePredicateArguments(creationInputStrs, am)
+		if err != nil {
+			return nil, nil, err
 		}
 	}
 	if len(creationInputs) == 0 {
-		creationInputs = append(creationInputs, script.PredicateArgumentEmpty())
+		creationInputs = []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}
 	}
 	return parentType, creationInputs, nil
 }
@@ -209,7 +209,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentInfo(cmd)
+	parentType, creationInputs, err := readParentInfo(cmd, nil)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	a := &tokens.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                             symbol,
 		ParentTypeId:                       parentType,
-		SubTypeCreationPredicateSignatures: creationInputs,
+		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
@@ -228,7 +228,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewNonFungibleType(ctx, a, typeId)
+	id, err := tw.NewNonFungibleType(ctx, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
@@ -488,7 +488,7 @@ func getPubKeyBytes(cmd *cobra.Command, flag string) ([]byte, error) {
 		return nil, err
 	}
 	var pubKey []byte
-	if pubKeyHex == "true" {
+	if pubKeyHex == predicateTrue {
 		pubKey = nil // this will assign 'always true' predicate
 	} else {
 		pk, ok := pubKeyHexToBytes(pubKeyHex)
@@ -777,19 +777,19 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountM
 }
 
 func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, error) {
-	if clause == "" || clause == "true" {
+	if len(clause) == 0 || clause == predicateTrue {
 		return script.PredicateAlwaysTrue(), nil
 	}
-	if clause == "false" {
+	if clause == predicateFalse {
 		return script.PredicateAlwaysFalse(), nil
 	}
 
 	keyNr := 1
 	var err error
-	if strings.HasPrefix(clause, "ptpkh") {
+	if strings.HasPrefix(clause, predicatePtpkh) {
 		if split := strings.Split(clause, ":"); len(split) == 2 {
 			keyStr := split[1]
-			if strings.HasPrefix(strings.ToLower(keyStr), "0x") {
+			if strings.HasPrefix(strings.ToLower(keyStr), hexPrefix) {
 				if len(keyStr) < 3 {
 					return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 				}
@@ -805,17 +805,76 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 				}
 			}
 		}
-		accountKey, err := am.GetAccountKey(uint64(keyNr))
+		if keyNr < 1 {
+			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, clause)
+		}
+		accountKey, err := am.GetAccountKey(uint64(keyNr - 1))
 		if err != nil {
 			return nil, err
 		}
 		return script.PredicatePayToPublicKeyHashDefault(accountKey.PubKeyHash.Sha256), nil
 
 	}
-	if strings.HasPrefix(clause, "0x") {
+	if strings.HasPrefix(clause, hexPrefix) {
 		return decodeHexOrEmpty(clause)
 	}
 	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
+}
+
+func parsePredicateArguments(arguments []string, am wallet.AccountManager) ([]*t.CreationInput, error) {
+	creationInputs := make([]*t.CreationInput, 0, len(arguments))
+	for _, argument := range arguments {
+		input, err := parsePredicateArgument(argument, am)
+		if err != nil {
+			return nil, err
+		}
+		creationInputs = append(creationInputs, input)
+	}
+	return creationInputs, nil
+}
+
+// parsePredicateArguments uses the following format:
+// empty|true|false|empty produce an empty predicate argument
+// ptpkh (key 1) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
+func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.CreationInput, error) {
+	if len(argument) == 0 || argument == predicateEmpty || argument == predicateTrue || argument == predicateFalse {
+		return &t.CreationInput{Argument: script.PredicateArgumentEmpty()}, nil
+	}
+	keyNr := 1
+	var err error
+	if strings.HasPrefix(argument, predicatePtpkh) {
+		if split := strings.Split(argument, ":"); len(split) == 2 {
+			keyStr := split[1]
+			if strings.HasPrefix(strings.ToLower(keyStr), hexPrefix) {
+				return nil, fmt.Errorf("invalid creation input: '%s'", argument)
+			} else {
+				keyNr, err = strconv.Atoi(keyStr)
+				if err != nil {
+					return nil, aberrors.Wrapf(err, "invalid creation input: '%s'", argument)
+				}
+			}
+		}
+		if keyNr < 1 {
+			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, argument)
+		}
+		_, err := am.GetAccountKey(uint64(keyNr - 1))
+		if err != nil {
+			return nil, err
+		}
+		return &t.CreationInput{AccountNumber: uint64(keyNr)}, nil
+
+	}
+	if strings.HasPrefix(argument, hexPrefix) {
+		decoded, err := decodeHexOrEmpty(argument)
+		if err != nil {
+			return nil, err
+		}
+		if len(decoded) == 0 {
+			decoded = script.PredicateArgumentEmpty()
+		}
+		return &t.CreationInput{Argument: decoded}, nil
+	}
+	return nil, fmt.Errorf("invalid creation input: '%s'", argument)
 }
 
 //getHexFlag returns nil in case array is empty (weird behaviour by cobra)
@@ -831,10 +890,10 @@ func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
 }
 
 func decodeHexOrEmpty(input string) ([]byte, error) {
-	if len(input) == 0 || input == "empty" {
+	if len(input) == 0 || input == predicateEmpty {
 		return []byte{}, nil
 	}
-	decoded, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(input), "0x"))
+	decoded, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(input), hexPrefix))
 	if err != nil {
 		return nil, err
 	}

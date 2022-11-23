@@ -295,7 +295,7 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 
 func writeAsProtoJson(w http.ResponseWriter, res proto.Message) {
 	w.Header().Set("Content-Type", "application/json")
-	bytes, err := protojson.Marshal(res)
+	bytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
 	if err != nil {
 		wlog.Error("error encoding response to proto json: ", err)
 		w.WriteHeader(http.StatusInternalServerError)

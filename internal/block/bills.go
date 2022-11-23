@@ -53,7 +53,7 @@ func ReadBillsFile(path string) (*Bills, error) {
 }
 
 func WriteBillsFile(path string, res *Bills) error {
-	b, err := protojson.Marshal(res)
+	b, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
 	if err != nil {
 		return err
 	}

@@ -297,7 +297,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWi
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func RandomId() (TokenID, error) {
+func RandomID() (TokenID, error) {
 	id := make([]byte, 32)
 	_, err := rand.Read(id)
 	if err != nil {
@@ -309,7 +309,7 @@ func RandomId() (TokenID, error) {
 func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountKey, txps txPreprocessor) (*submittedTx, error) {
 	txSub := &submittedTx{id: unitId}
 	if unitId == nil {
-		id, err := RandomId()
+		id, err := RandomID()
 		if err != nil {
 			return txSub, err
 		}

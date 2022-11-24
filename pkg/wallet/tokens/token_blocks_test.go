@@ -82,22 +82,30 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 	w.sync = true
 	blockNr := uint64(1)
 	//fungible
-	typeId1 := []byte{0x10}
+	typeId1 := [32]byte{0x10}
+	require.NoError(t, w.db.Do().AddTokenType(&TokenUnitType{
+		ID:     typeId1[:],
+		Symbol: "AB",
+	}))
 	id1 := []byte{0x11}
 	tx1 := createTx(id1, blockNr)
 	key, err := w.getAccountKey(1)
 	require.NoError(t, err)
 	require.NoError(t, anypb.MarshalFrom(tx1.TransactionAttributes, &tokens.MintFungibleTokenAttributes{
-		Type:   typeId1,
+		Type:   typeId1[:],
 		Value:  uint64(100),
 		Bearer: script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256),
 	}, proto.MarshalOptions{}))
 	//nft
-	typeId2 := []byte{0x20}
+	typeId2 := [32]byte{0x20}
+	require.NoError(t, w.db.Do().AddTokenType(&TokenUnitType{
+		ID:     typeId2[:],
+		Symbol: "ABNFT",
+	}))
 	id2 := []byte{0x21}
 	tx2 := createTx(id2, blockNr)
 	require.NoError(t, anypb.MarshalFrom(tx2.TransactionAttributes, &tokens.MintNonFungibleTokenAttributes{
-		NftType: typeId2,
+		NftType: typeId2[:],
 		Bearer:  script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256),
 	}, proto.MarshalOptions{}))
 	//build block
@@ -122,11 +130,11 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 
 	token1, err := w.db.Do().GetToken(1, util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id1)))
 	require.NoError(t, err)
-	require.Equal(t, TokenTypeID(typeId1), token1.GetTypeId())
+	require.Equal(t, TokenTypeID(typeId1[:]), token1.GetTypeId())
 
 	token2, err := w.db.Do().GetToken(1, util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id2)))
 	require.NoError(t, err)
-	require.Equal(t, TokenTypeID(typeId2), token2.GetTypeId())
+	require.Equal(t, TokenTypeID(typeId2[:]), token2.GetTypeId())
 }
 
 func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {

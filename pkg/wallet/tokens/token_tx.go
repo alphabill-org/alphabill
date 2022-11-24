@@ -61,6 +61,9 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			if err != nil {
 				return err
 			}
+			if tType == nil {
+				return errors.Errorf("Mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Kind:     FungibleToken,
@@ -81,11 +84,19 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 	case tokens.TransferFungibleToken:
 		log.Info("TransferFungibleToken tx")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &TokenUnit{
+			tokenInfo, err := txc.GetTokenType(ctx.TypeID())
+			if err != nil {
+				return err
+			}
+			if tokenInfo == nil {
+				return errors.Errorf("Fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
+			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				TypeID:   ctx.TypeID(),
 				Kind:     FungibleToken,
 				Amount:   ctx.Value(),
+				Symbol:   tokenInfo.Symbol,
 				Backlink: txHash,
 			})
 			if err != nil {
@@ -108,11 +119,11 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			tokenInfo = tok
 			log.Info("SplitFungibleToken updating existing unit")
 			if !bytes.Equal(tok.TypeID, ctx.TypeID()) {
-				return errors.Errorf("Split tx: type id does not match (received '%X', expected '%X'), token ID=%X", ctx.TypeID(), tok.TypeID, tok.ID)
+				return errors.Errorf("Split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
 			}
 			remainingValue := tok.Amount - ctx.TargetValue()
 			if ctx.RemainingValue() != remainingValue {
-				return errors.Errorf("Split tx: invalid remaining amount (received '%v', expected '%v'), token ID=%X", ctx.RemainingValue(), remainingValue, tok.ID)
+				return errors.Errorf("Split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
 			}
 			if err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -129,8 +140,8 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			if err != nil {
 				return err
 			}
-			if len(tokenInfo.GetTypeId()) == 0 {
-				tokenInfo = &TokenUnitType{ID: ctx.TypeID()}
+			if tokenInfo == nil {
+				return errors.Errorf("Split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
 		}
 
@@ -173,6 +184,9 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			if err != nil {
 				return err
 			}
+			if tType == nil {
+				return errors.Errorf("Mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Kind:     NonFungibleToken,
@@ -193,11 +207,19 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 	case tokens.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &TokenUnit{
+			tType, err := txc.GetTokenType(ctx.NFTTypeID())
+			if err != nil {
+				return err
+			}
+			if tType == nil {
+				return errors.Errorf("Transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+			}
+			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				TypeID:   ctx.NFTTypeID(),
 				Kind:     NonFungibleToken,
 				Backlink: txHash,
+				Symbol:   tType.Symbol,
 			})
 			if err != nil {
 				return err

@@ -71,7 +71,7 @@ func (t *tokensDbTx) AddTokenType(tType *TokenUnitType) error {
 	}, true)
 }
 
-// GetTokenType returns empty structure if typeId not found
+// GetTokenType returns nil if typeId not found
 func (t *tokensDbTx) GetTokenType(typeId TokenTypeID) (*TokenUnitType, error) {
 	var tokenType *TokenUnitType
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
@@ -309,13 +309,11 @@ func openTokensDb(walletDir string) (*tokensDb, error) {
 }
 
 func parseTokenType(v []byte) (*TokenUnitType, error) {
-	var t = &TokenUnitType{}
 	if v == nil {
-		return t, nil
+		return nil, nil
 	}
-
-	err := json.Unmarshal(v, &t)
-	return t, err
+	t := &TokenUnitType{}
+	return t, json.Unmarshal(v, &t)
 }
 
 func parseToken(v []byte) (*TokenUnit, error) {

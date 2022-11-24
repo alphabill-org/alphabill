@@ -135,13 +135,6 @@ func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
 			wantErrStr: "URI 'invalid_uri' is invalid",
 		},
 		{
-			name: "invalid URI",
-			attrs: &tokens.MintNonFungibleTokenAttributes{
-				Uri: "invalid_uri",
-			},
-			wantErrStr: "URI 'invalid_uri' is invalid",
-		},
-		{
 			name: "URI exceeds maximum allowed length",
 			attrs: &tokens.MintNonFungibleTokenAttributes{
 				Uri: string(test.RandomBytes(4097)),

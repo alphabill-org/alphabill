@@ -61,6 +61,9 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			if err != nil {
 				return err
 			}
+			if tType == nil {
+				return errors.Errorf("Mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Kind:     FungibleToken,
@@ -81,10 +84,19 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 	case tokens.TransferFungibleToken:
 		log.Info("TransferFungibleToken tx")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &TokenUnit{
+			tokenInfo, err := txc.GetTokenType(ctx.TypeID())
+			if err != nil {
+				return err
+			}
+			if tokenInfo == nil {
+				return errors.Errorf("Fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
+			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
+				TypeID:   ctx.TypeID(),
 				Kind:     FungibleToken,
 				Amount:   ctx.Value(),
+				Symbol:   tokenInfo.Symbol,
 				Backlink: txHash,
 			})
 			if err != nil {
@@ -106,19 +118,31 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 		if tok != nil {
 			tokenInfo = tok
 			log.Info("SplitFungibleToken updating existing unit")
-			err := txc.SetToken(accNr, &TokenUnit{
+			if !bytes.Equal(tok.TypeID, ctx.TypeID()) {
+				return errors.Errorf("Split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
+			}
+			remainingValue := tok.Amount - ctx.TargetValue()
+			if ctx.RemainingValue() != remainingValue {
+				return errors.Errorf("Split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
+			}
+			if err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Symbol:   tok.Symbol,
 				TypeID:   tok.TypeID,
 				Kind:     tok.Kind,
 				Amount:   tok.Amount - ctx.TargetValue(),
 				Backlink: txHash,
-			})
-			if err != nil {
+			}); err != nil {
 				return err
 			}
 		} else {
-			tokenInfo = &TokenUnit{}
+			tokenInfo, err = txc.GetTokenType(ctx.TypeID())
+			if err != nil {
+				return err
+			}
+			if tokenInfo == nil {
+				return errors.Errorf("Split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
 		}
 
 		if checkOwner(accNr, key, ctx.NewBearer()) {
@@ -160,6 +184,9 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			if err != nil {
 				return err
 			}
+			if tType == nil {
+				return errors.Errorf("Mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Kind:     NonFungibleToken,
@@ -180,10 +207,19 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 	case tokens.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &TokenUnit{
+			tType, err := txc.GetTokenType(ctx.NFTTypeID())
+			if err != nil {
+				return err
+			}
+			if tType == nil {
+				return errors.Errorf("Transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+			}
+			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
+				TypeID:   ctx.NFTTypeID(),
 				Kind:     NonFungibleToken,
 				Backlink: txHash,
+				Symbol:   tType.Symbol,
 			})
 			if err != nil {
 				return err
@@ -332,6 +368,7 @@ func signTx(gtx txsystem.GenericTransaction, ac *wallet.AccountKey) (tokens.Pred
 func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.Backlink))
 	return &tokens.TransferFungibleTokenAttributes{
+		Type:                        token.TypeID,
 		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
 		Value:                       token.Amount,
 		Backlink:                    token.Backlink,
@@ -342,6 +379,7 @@ func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens
 func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
 	return &tokens.TransferNonFungibleTokenAttributes{
+		NftType:                     token.TypeID,
 		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
@@ -374,8 +412,10 @@ func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *Tok
 func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
 	return &tokens.SplitFungibleTokenAttributes{
+		Type:                        token.TypeID,
 		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                 amount,
+		RemainingValue:              token.Amount - amount,
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}

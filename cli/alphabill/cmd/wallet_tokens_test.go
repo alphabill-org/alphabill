@@ -393,7 +393,7 @@ func execTokensCmd(t *testing.T, walletName string, command string) *testConsole
 }
 
 func doExecTokensCmd(walletName string, command string) (*testConsoleWriter, error) {
-	outputWriter := &testConsoleWriter{dumpToStdout: true}
+	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 
 	homeDir := path.Join(os.TempDir(), walletName)

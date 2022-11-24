@@ -365,10 +365,10 @@ func TestList(t *testing.T) {
 	_, _, err = tw.mw.AddAccount()  //#3 this acc has no tokens, should not be listed
 	require.NoError(t, err)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(0, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{13}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
-		require.NoError(t, c.SetToken(2, &TokenUnit{ID: []byte{14}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
+		require.NoError(t, c.SetToken(0, &TokenUnit{ID: []byte{11}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{13}, TypeID: []byte{0x02}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
+		require.NoError(t, c.SetToken(2, &TokenUnit{ID: []byte{14}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
 		return nil
 	}))
 	countTotals := func(toks map[int][]*TokenUnit) (totalKeys int, totalTokens int) {

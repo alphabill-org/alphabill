@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	bolt "go.etcd.io/bbolt"
@@ -57,6 +58,9 @@ type tokensDbTx struct {
 }
 
 func (t *tokensDbTx) AddTokenType(tType *TokenUnitType) error {
+	if len(tType.ID) == 0 {
+		return errors.Errorf("ID missing for token type %v", tType)
+	}
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(tType)
 		if err != nil {
@@ -105,6 +109,12 @@ func (t *tokensDbTx) GetTokenTypes() ([]*TokenUnitType, error) {
 }
 
 func (t *tokensDbTx) SetToken(accountNumber uint64, token *TokenUnit) error {
+	if len(token.ID) == 0 {
+		return errors.Errorf("ID missing for token %v", token)
+	}
+	if len(token.TypeID) == 0 {
+		return errors.Errorf("Type ID missing for token %X", token.ID)
+	}
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(token)
 		if err != nil {

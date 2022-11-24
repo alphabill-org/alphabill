@@ -137,11 +137,20 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	acc2idx, pubKey2, err := w.mw.AddAccount()
 	acc2 := acc2idx + 1
 	require.NoError(t, err)
-	// prepare tokens on account 1
+	//prepare types
 	typeID1 := util.Uint256ToBytes(uint256.NewInt(0).SetBytes([]byte{0x10}))
+	w.db.Do().AddTokenType(&TokenUnitType{
+		ID:   typeID1,
+		Kind: FungibleTokenType,
+	})
+	typeID2 := util.Uint256ToBytes(uint256.NewInt(0).SetBytes([]byte{0x20}))
+	w.db.Do().AddTokenType(&TokenUnitType{
+		ID:   typeID2,
+		Kind: NonFungibleTokenType,
+	})
+	// prepare tokens on account 1
 	id1 := util.Uint256ToBytes(uint256.NewInt(0).SetBytes([]byte{0x11}))
 	id2 := util.Uint256ToBytes(uint256.NewInt(0).SetBytes([]byte{0x12}))
-	typeID2 := util.Uint256ToBytes(uint256.NewInt(0).SetBytes([]byte{0x20}))
 	nft1 := util.Uint256ToBytes(uint256.NewInt(0).SetBytes([]byte{0x21}))
 
 	require.NoError(t, w.db.Do().SetToken(1, &TokenUnit{
@@ -180,6 +189,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, anypb.MarshalFrom(tx1.TransactionAttributes, &tokens.TransferFungibleTokenAttributes{
 		NewBearer: bearerPredicateFromPubKey(pubKey2),
+		Type:      typeID1,
 		Value:     uint64(1),
 	}, proto.MarshalOptions{}))
 
@@ -187,13 +197,16 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	tx2 := createTx(id2, blockNr)
 	require.NoError(t, err)
 	require.NoError(t, anypb.MarshalFrom(tx2.TransactionAttributes, &tokens.SplitFungibleTokenAttributes{
-		NewBearer:   bearerPredicateFromPubKey(pubKey2),
-		TargetValue: 2,
+		NewBearer:      bearerPredicateFromPubKey(pubKey2),
+		Type:           typeID1,
+		TargetValue:    2,
+		RemainingValue: 3,
 	}, proto.MarshalOptions{}))
 	// transfer nft
 	nftTx := createTx(nft1, blockNr)
 	require.NoError(t, anypb.MarshalFrom(nftTx.TransactionAttributes, &tokens.TransferNonFungibleTokenAttributes{
 		NewBearer: bearerPredicateFromPubKey(pubKey2),
+		NftType:   typeID2,
 	}, proto.MarshalOptions{}))
 	//build block
 	client.SetMaxBlockNumber(blockNr)

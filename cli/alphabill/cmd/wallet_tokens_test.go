@@ -262,7 +262,6 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 			if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes" {
 				attrs := &tokens.MintFungibleTokenAttributes{}
 				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
-				fmt.Printf("crit: %v vs amount %v", attrs.Value, amount)
 				return attrs.Value == amount
 			}
 			return false

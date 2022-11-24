@@ -74,13 +74,13 @@ func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 }
 
 func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
-	const DataFileTooBig = "/tmp/tooBig.bin"
+	const dataFileTooBig = "/tmp/tooBig.bin"
 	data := make([]byte, maxBinaryFile64Kb+1)
-	err := ioutil.WriteFile(DataFileTooBig, data, 0644)
+	err := ioutil.WriteFile(dataFileTooBig, data, 0644)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = os.RemoveAll(DataFileTooBig)
+		_ = os.RemoveAll(dataFileTooBig)
 	})
 
 	type args struct {
@@ -104,7 +104,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 		},
 		{
 			name:       "data-file too big",
-			args:       args{cmdParams: "token new non-fungible --type 12AB --data-file=" + DataFileTooBig},
+			args:       args{cmdParams: "token new non-fungible --type 12AB --data-file=" + dataFileTooBig},
 			wantErrStr: "data-file read error: file size over 64Kb limit",
 		},
 	}
@@ -136,16 +136,16 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.
 	ensureUnitBytes(t, unitState, typeId)
 	// create non-fungible token from using data-file
 	nftID := util.Uint256ToBytes(uint256.NewInt(uint64(0x11)))
-	const DataFile = "/tmp/data.bin"
+	const dataFile = "/tmp/data.bin"
 	data := make([]byte, 1024)
 	rand.Read(data)
-	err := ioutil.WriteFile(DataFile, data, 0644)
+	err := ioutil.WriteFile(dataFile, data, 0644)
 	require.NoError(t, err)
 	// remember to clean up the file
 	t.Cleanup(func() {
-		_ = os.RemoveAll(DataFile)
+		_ = os.RemoveAll(dataFile)
 	})
-	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file %s", dialAddr, typeId, nftID, DataFile))
+	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file %s", dialAddr, typeId, nftID, dataFile))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			mintNonFungibleAttr := &tokens.MintNonFungibleTokenAttributes{}

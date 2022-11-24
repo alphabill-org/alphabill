@@ -79,6 +79,7 @@ type (
 
 	TransferNonFungibleToken interface {
 		txsystem.GenericTransaction
+		NFTTypeID() []byte
 		NewBearer() []byte
 		Nonce() []byte
 		Backlink() []byte
@@ -114,6 +115,7 @@ type (
 
 	TransferFungibleToken interface {
 		txsystem.GenericTransaction
+		TypeID() []byte
 		NewBearer() []byte
 		Value() uint64
 		Nonce() []byte
@@ -123,9 +125,11 @@ type (
 
 	SplitFungibleToken interface {
 		txsystem.GenericTransaction
+		TypeID() []byte
 		HashForIDCalculation(hashFunc crypto.Hash) []byte
 		NewBearer() []byte
 		TargetValue() uint64
+		RemainingValue() uint64
 		Nonce() []byte
 		Backlink() []byte
 		InvariantPredicateSignature() []byte

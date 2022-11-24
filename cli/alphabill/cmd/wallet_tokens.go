@@ -40,6 +40,8 @@ const (
 	predicateFalse = "false"
 	predicatePtpkh = "ptpkh"
 	hexPrefix      = "0x"
+
+	maxDecimalPlaces = 8
 )
 
 var NoParent = []byte{0x00}
@@ -130,6 +132,13 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	decimals, err := cmd.Flags().GetUint32(cmdFlagDecimals)
 	if err != nil {
 		return err
+	}
+	if decimals > maxDecimalPlaces {
+		return fmt.Errorf("argument \"%v\" for \"--decimals\" flag is out of range, max value %v", decimals, maxDecimalPlaces)
+	}
+	// if --parent-type is set, then --creation-input is mandatory
+	if cmd.Flags().Lookup(cmdFlagParentType).Changed && !cmd.Flags().Lookup(cmdFlagCreationInput).Changed {
+		return fmt.Errorf("missing mandatory flag \"--creation-input\"")
 	}
 	parentType, creationInputs, err := readParentInfo(cmd, tw.GetAccountManager())
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -58,12 +59,11 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 
 		lst := w.blockListener
 		if lst != nil {
-			go func() {
-				err := lst.ProcessBlock(b)
-				if err != nil {
-					log.Info(fmt.Sprintf("Failed to process a block #%v with blockListener", b.BlockNumber))
-				}
-			}()
+			err := lst.ProcessBlock(b)
+			if err != nil {
+				log.Info(fmt.Sprintf("Failed to process a block #%v with blockListener", b.BlockNumber))
+				return err
+			}
 		}
 
 		return txc.SetBlockNumber(b.BlockNumber)
@@ -98,13 +98,6 @@ func (w *Wallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, 
 	log.Info("Waiting the transactions to be finalized")
 	var bl BlockListener = func(b *block.Block) error {
 		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
-		if b.BlockNumber > maxTimeout {
-			log.Info(fmt.Sprintf("Sync timeout is reached, block (#%v)", b.BlockNumber))
-			for _, sub := range subs {
-				log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
-			}
-			cancel()
-		}
 		for _, tx := range b.Transactions {
 			id := TokenID(tx.UnitId).String()
 			if sub, found := subs[id]; found {
@@ -113,6 +106,17 @@ func (w *Wallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, 
 			}
 			if len(subs) == 0 {
 				cancel()
+			}
+		}
+		if b.BlockNumber >= maxTimeout {
+			log.Info(fmt.Sprintf("Sync timeout is reached, block (#%v)", b.BlockNumber))
+			for _, sub := range subs {
+				log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
+			}
+			cancel()
+
+			if len(subs) > 0 {
+				return errors.Errorf("did not confirm all transactions, timed out: %v", len(subs))
 			}
 		}
 		return nil

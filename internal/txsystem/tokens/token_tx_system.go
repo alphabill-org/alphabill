@@ -153,7 +153,20 @@ type (
 		SetBearer([]byte)
 		GetBearer() []byte
 	}
+
+	AttrWithSubTypeCreationInputs interface {
+		proto.Message
+		SetSubTypeCreationPredicateSignatures([][]byte)
+	}
 )
+
+func (x *CreateFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(sigs [][]byte) {
+	x.SubTypeCreationPredicateSignatures = sigs
+}
+
+func (x *CreateNonFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(sigs [][]byte) {
+	x.SubTypeCreationPredicateSignatures = sigs
+}
 
 func (x *MintFungibleTokenAttributes) SetBearer(b []byte) {
 	x.Bearer = b

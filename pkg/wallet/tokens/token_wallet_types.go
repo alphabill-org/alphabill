@@ -3,6 +3,8 @@ package tokens
 import (
 	"bytes"
 	"strings"
+
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
 
 type (
@@ -40,6 +42,13 @@ type (
 	}
 
 	PublicKey []byte
+
+	CreationInput struct {
+		// first priority
+		Argument tokens.Predicate
+		// if Argument empty, check AccountNumber
+		AccountNumber uint64
+	}
 )
 
 const (

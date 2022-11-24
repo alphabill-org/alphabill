@@ -62,7 +62,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tType == nil {
-				return errors.Errorf("Mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+				return errors.Errorf("mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -89,7 +89,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tokenInfo == nil {
-				return errors.Errorf("Fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+				return errors.Errorf("fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -119,11 +119,11 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			tokenInfo = tok
 			log.Info("SplitFungibleToken updating existing unit")
 			if !bytes.Equal(tok.TypeID, ctx.TypeID()) {
-				return errors.Errorf("Split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
+				return errors.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
 			}
 			remainingValue := tok.Amount - ctx.TargetValue()
 			if ctx.RemainingValue() != remainingValue {
-				return errors.Errorf("Split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
+				return errors.Errorf("split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
 			}
 			if err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -141,7 +141,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tokenInfo == nil {
-				return errors.Errorf("Split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+				return errors.Errorf("split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
 		}
 
@@ -185,7 +185,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tType == nil {
-				return errors.Errorf("Mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+				return errors.Errorf("mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -212,7 +212,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tType == nil {
-				return errors.Errorf("Transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+				return errors.Errorf("transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -265,7 +265,7 @@ func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreati
 				}
 				signatures = append(signatures, sig)
 			} else {
-				return errors.Errorf("Invalid account for subtype creation input: %v", input.AccountNumber)
+				return errors.Errorf("invalid account for subtype creation input: %v", input.AccountNumber)
 			}
 		}
 		attrs.SetSubTypeCreationPredicateSignatures(signatures)

@@ -47,6 +47,8 @@ message TransferNonFungibleTokenAttributes {
   bytes backlink = 3;
   // the input to satisfy the token type invariant predicate
   bytes invariant_predicate_signature = 4;
+  // identifies the type of the token;
+  bytes nft_type = 5;
 }
 
 message UpdateNonFungibleTokenAttributes {
@@ -96,6 +98,8 @@ message TransferFungibleTokenAttributes {
   bytes backlink = 4;
   // the input to satisfy the token type invariant predicate
   bytes invariant_predicate_signature = 5;
+  // identifies the type of the token;
+  bytes type = 6;
 }
 
 message SplitFungibleTokenAttributes {
@@ -108,6 +112,10 @@ message SplitFungibleTokenAttributes {
   bytes backlink = 4;
   // the input to satisfy the token type invariant predicate
   bytes invariant_predicate_signature = 5;
+  // identifies the type of the token;
+  bytes type = 6;
+  // new value of the source token
+  uint64 remaining_value = 7;
 }
 
 message BurnFungibleTokenAttributes {

@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -32,16 +35,17 @@ const (
 	cmdFlagTokenId             = "token-identifier"
 	cmdFlagTokenURI            = "token-uri"
 	cmdFlagTokenData           = "data"
+	cmdFlagTokenDataFile       = "data-file"
 	cmdFlagTokenDataUpdate     = "data-update"
 	cmdFlagSync                = "sync"
 
-	predicateEmpty = "empty"
-	predicateTrue  = "true"
-	predicateFalse = "false"
-	predicatePtpkh = "ptpkh"
-	hexPrefix      = "0x"
-
-	maxDecimalPlaces = 8
+	predicateEmpty    = "empty"
+	predicateTrue     = "true"
+	predicateFalse    = "false"
+	predicatePtpkh    = "ptpkh"
+	hexPrefix         = "0x"
+	maxBinaryFile64Kb = 64 * 1024
+	maxDecimalPlaces  = 8
 )
 
 var NoParent = []byte{0x00}
@@ -336,6 +340,8 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().String(cmdFlagTokenURI, "", "URI to associated resource, ie. jpg file on IPFS")
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
+	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
+	// cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile) TODO use once 1.5.0 is released
 	cmd.Flags().BytesHex(cmdFlagTokenDataUpdate, nil, "data update predicate (hex)")
 	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
@@ -369,6 +375,21 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	data, err := getHexFlag(cmd, cmdFlagTokenData)
 	if err != nil {
 		return err
+	}
+	dataFilePath, err := cmd.Flags().GetString(cmdFlagTokenDataFile)
+	if err != nil {
+		return err
+	}
+	// TODO remove once 1.5.0 is released and use MarkFlagsMutuallyExclusive instead
+	// cannot specify both inputs, either data or data-file
+	if data != nil && len(dataFilePath) > 0 {
+		return fmt.Errorf("flags \"--%v\" and \"--%v\" are mutually exclusive", cmdFlagTokenData, cmdFlagTokenDataFile)
+	}
+	if len(dataFilePath) > 0 {
+		data, err = readDataFile(dataFilePath)
+		if err != nil {
+			return err
+		}
 	}
 	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput)
 	if err != nil {
@@ -919,4 +940,20 @@ func decodeHexOrEmpty(input string) ([]byte, error) {
 		return nil, err
 	}
 	return decoded, nil
+}
+
+func readDataFile(path string) ([]byte, error) {
+	size, err := util.GetFileSize(path)
+	if err != nil {
+		return nil, fmt.Errorf("data-file read error: %w", err)
+	}
+	// verify file max 64KB
+	if size > maxBinaryFile64Kb {
+		return nil, fmt.Errorf("data-file read error: file size over 64Kb limit")
+	}
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("data-file read error: %w", err)
+	}
+	return data, nil
 }

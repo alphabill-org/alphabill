@@ -475,15 +475,11 @@ func execWalletCmd(t *testing.T, walletName string, command string) *testConsole
 }
 
 type testConsoleWriter struct {
-	lines        []string
-	dumpToStdout bool
+	lines []string
 }
 
 func (w *testConsoleWriter) Println(a ...any) {
 	s := fmt.Sprint(a...)
-	if w.dumpToStdout {
-		fmt.Println(s)
-	}
 	w.lines = append(w.lines, s)
 }
 

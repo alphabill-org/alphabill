@@ -285,24 +285,9 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
-	return func() bool {
-		for _, n := range network.Nodes {
-			height := n.GetLatestBlock().GetBlockNumber()
-			for i := uint64(0); i <= height; i++ {
-				b, err := n.GetBlock(height - i)
-				if err != nil || b == nil {
-					continue
-				}
-				for _, t := range b.Transactions {
-					if proto.Equal(t, tx) {
-						return true
-					}
-				}
-			}
-
-		}
-		return false
-	}
+	return BlockchainContains(network, func(t *txsystem.Transaction) bool {
+		return proto.Equal(t, tx)
+	})
 }
 
 func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.Transaction) bool) func() bool {

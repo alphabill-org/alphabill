@@ -38,6 +38,7 @@ var (
 	fungibleTokenDecimalPlaces        uint32 = 8
 	fungibleTokenValue                uint64 = 100_000_002
 	transferValue                     uint64 = 1000
+	remainingValue                    uint64 = 1000
 	burnValue                         uint64 = 2000
 	burnType                                 = []byte{20}
 )
@@ -133,6 +134,7 @@ func TestTransferNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.
 	b.Write(nonce)
 	b.Write(backlink)
 	b.Write(invariantPredicateSignature)
+	b.Write(nftType)
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -148,6 +150,7 @@ func TestTransferNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing
 	b.Write(newBearer)
 	b.Write(nonce)
 	b.Write(backlink)
+	b.Write(nftType)
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
@@ -270,6 +273,7 @@ func TestTransferFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(nonce)
 	b.Write(backlink)
 	b.Write(invariantPredicateSignature)
+	b.Write(parentTypeId)
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -286,6 +290,7 @@ func TestTransferFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(transferValue))
 	b.Write(nonce)
 	b.Write(backlink)
+	b.Write(parentTypeId)
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
@@ -302,9 +307,11 @@ func TestSplitFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(timeout))
 	b.Write(newBearer)
 	b.Write(util.Uint64ToBytes(transferValue))
+	b.Write(util.Uint64ToBytes(remainingValue))
 	b.Write(nonce)
 	b.Write(backlink)
 	b.Write(invariantPredicateSignature)
+	b.Write(parentTypeId)
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -332,8 +339,10 @@ func TestSplitFungibleTokenTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(timeout))
 	b.Write(newBearer)
 	b.Write(util.Uint64ToBytes(transferValue))
+	b.Write(util.Uint64ToBytes(remainingValue))
 	b.Write(nonce)
 	b.Write(backlink)
+	b.Write(parentTypeId)
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
@@ -413,6 +422,7 @@ func transferFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsyst
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferFungibleTokenAttributes{
 			NewBearer:                   newBearer,
+			Type:                        parentTypeId,
 			Value:                       transferValue,
 			Nonce:                       nonce,
 			Backlink:                    backlink,
@@ -428,8 +438,10 @@ func splitFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&SplitFungibleTokenAttributes{
+			Type:                        parentTypeId,
 			NewBearer:                   newBearer,
 			TargetValue:                 transferValue,
+			RemainingValue:              remainingValue,
 			Nonce:                       nonce,
 			Backlink:                    backlink,
 			InvariantPredicateSignature: invariantPredicateSignature,
@@ -496,6 +508,7 @@ func createTransferNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NewBearer:                   newBearer,
+			NftType:                     nftType,
 			Nonce:                       nonce,
 			Backlink:                    backlink,
 			InvariantPredicateSignature: invariantPredicateSignature,

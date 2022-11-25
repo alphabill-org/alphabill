@@ -72,6 +72,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	abclient.SetMaxBlockNumber(2)
 
 	// verify new bill is indexed by pubkey
+	// TODO fix flaky test, possible cause abclient not thread safe?
 	require.Eventually(t, func() bool {
 		ok, _ := w.store.ContainsBill(pubkey2, billId2)
 		return ok

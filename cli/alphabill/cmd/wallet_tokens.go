@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -671,8 +670,20 @@ func tokenCmdListFungible(config *walletConfig) *cobra.Command {
 }
 
 func amountToString(amount uint64, decimals uint32) string {
-	famount := float64(amount) / math.Pow(10, float64(decimals))
-	return strconv.FormatFloat(famount, 'f', int(decimals), 64)
+	amountStr := strconv.FormatUint(amount, 10)
+	if decimals == 0 {
+		return amountStr
+	}
+	// length of amount string is less than decimal places, insert comma in value
+	if decimals < uint32(len(amountStr)) {
+		return amountStr[:uint32(len(amountStr))-decimals] + "." + amountStr[uint32(len(amountStr))-decimals:]
+	}
+	// resulting amount is less than 0
+	resultStr := "0."
+	for i := 0; i < int(decimals)-len(amountStr); i++ {
+		resultStr = resultStr + "0"
+	}
+	return resultStr + amountStr
 }
 
 func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error {

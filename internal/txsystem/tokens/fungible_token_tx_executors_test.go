@@ -246,20 +246,20 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "parent does not exist",
 			tx: createTx(t, uint256.NewInt(validUnitID), &MintFungibleTokenAttributes{
-				Bearer:                          script.PredicateAlwaysTrue(),
-				Type:                            util.Uint256ToBytes(uint256.NewInt(100)),
-				Value:                           1000,
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Bearer:                           script.PredicateAlwaysTrue(),
+				Type:                             util.Uint256ToBytes(uint256.NewInt(100)),
+				Value:                            1000,
+				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			}),
 			wantErrStr: fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uint256.NewInt(validUnitID))),
 		},
 		{
 			name: "invalid token creation predicate argument",
 			tx: createTx(t, uint256.NewInt(validUnitID), &MintFungibleTokenAttributes{
-				Bearer:                          script.PredicateAlwaysTrue(),
-				Type:                            existingTokenTypeUnitIDBytes[:],
-				Value:                           1000,
-				TokenCreationPredicateSignature: script.PredicateAlwaysFalse(),
+				Bearer:                           script.PredicateAlwaysTrue(),
+				Type:                             existingTokenTypeUnitIDBytes[:],
+				Value:                            1000,
+				TokenCreationPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			}),
 			wantErrStr: "script execution result yielded false or non-clean stack",
 		},
@@ -279,10 +279,10 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 		},
 	}
 	attributes := &MintFungibleTokenAttributes{
-		Bearer:                          script.PredicateAlwaysTrue(),
-		Type:                            existingTokenTypeUnitIDBytes[:],
-		Value:                           1000,
-		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Bearer:                           script.PredicateAlwaysTrue(),
+		Type:                             existingTokenTypeUnitIDBytes[:],
+		Value:                            1000,
+		TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 	tokenID := uint256.NewInt(validUnitID)
 	err := executor.Execute(createTx(t, tokenID, attributes), 10)

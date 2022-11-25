@@ -271,7 +271,7 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
-	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
+	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount, maximum uint64.Max")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
 		return nil
@@ -298,7 +298,8 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 
 	amount, err := cmd.Flags().GetUint64(cmdFlagAmount)
 	if err != nil {
-		return err
+		return fmt.Errorf("ivalid argument \"%s\" for \"--amount\" flag, coversion to uint64 failed",
+			cmd.Flags().Lookup(cmdFlagAmount).Value.String())
 	}
 	typeId, err := getHexFlag(cmd, cmdFlagType)
 	if err != nil {

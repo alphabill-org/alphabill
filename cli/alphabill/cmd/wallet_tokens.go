@@ -140,10 +140,6 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if decimals > maxDecimalPlaces {
 		return fmt.Errorf("argument \"%v\" for \"--decimals\" flag is out of range, max value %v", decimals, maxDecimalPlaces)
 	}
-	// if --parent-type is set, then --creation-input is mandatory
-	if cmd.Flags().Lookup(cmdFlagParentType).Changed && !cmd.Flags().Lookup(cmdFlagCreationInput).Changed {
-		return fmt.Errorf("missing mandatory flag \"--creation-input\"")
-	}
 	parentType, creationInputs, err := readParentInfo(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err

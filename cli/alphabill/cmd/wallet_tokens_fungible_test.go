@@ -41,13 +41,6 @@ func TestWalletCreateFungibleTokenTypeCmd_DecimalsFlag(t *testing.T) {
 	require.ErrorContains(t, err, "argument \"9\" for \"--decimals\" flag is out of range, max value 8")
 }
 
-func TestWalletCreateFungibleTokenTypeCmd_ParentTypeFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
-	// hidden parameter type (not a mandatory parameter)
-	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --parent-type 01")
-	require.ErrorContains(t, err, "missing mandatory flag \"--creation-input\"")
-}
-
 func TestWalletCreateFungibleTokenCmd_TypeFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	_, err := execCommand(homedir, "token new fungible --type A8B")

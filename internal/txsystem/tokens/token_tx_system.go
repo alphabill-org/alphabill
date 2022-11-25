@@ -74,7 +74,7 @@ type (
 		URI() string
 		Data() []byte
 		DataUpdatePredicate() []byte
-		TokenCreationPredicateSignature() []byte
+		TokenCreationPredicateSignatures() [][]byte
 	}
 
 	TransferNonFungibleToken interface {
@@ -110,7 +110,7 @@ type (
 		TypeID() []byte
 		Value() uint64
 		Bearer() []byte
-		TokenCreationPredicateSignature() []byte
+		TokenCreationPredicateSignatures() [][]byte
 	}
 
 	TransferFungibleToken interface {
@@ -152,10 +152,10 @@ type (
 		InvariantPredicateSignature() []byte
 	}
 
-	AttrWithBearer interface {
+	MintAttr interface {
 		proto.Message
 		SetBearer([]byte)
-		GetBearer() []byte
+		SetTokenCreationPredicateSignatures([][]byte)
 	}
 
 	AttrWithSubTypeCreationInputs interface {
@@ -176,8 +176,16 @@ func (x *MintFungibleTokenAttributes) SetBearer(b []byte) {
 	x.Bearer = b
 }
 
+func (x *MintFungibleTokenAttributes) SetTokenCreationPredicateSignatures(sigs [][]byte) {
+	x.TokenCreationPredicateSignatures = sigs
+}
+
 func (x *MintNonFungibleTokenAttributes) SetBearer(b []byte) {
 	x.Bearer = b
+}
+
+func (x *MintNonFungibleTokenAttributes) SetTokenCreationPredicateSignatures(sigs [][]byte) {
+	x.TokenCreationPredicateSignatures = sigs
 }
 
 func New(opts ...Option) (*tokensTxSystem, error) {

@@ -250,23 +250,9 @@ func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []
 
 func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
 	sub, err := w.sendTx(TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures := make([][]byte, 0, len(subtypePredicateArgs))
-		for _, input := range subtypePredicateArgs {
-			if len(input.Argument) > 0 {
-				signatures = append(signatures, input.Argument)
-			} else if input.AccountNumber > 0 {
-				ac, err := w.GetAccountManager().GetAccountKey(input.AccountNumber - 1)
-				if err != nil {
-					return err
-				}
-				sig, err := signTx(gtx, ac)
-				if err != nil {
-					return err
-				}
-				signatures = append(signatures, sig)
-			} else {
-				return errors.Errorf("invalid account for subtype creation input: %v", input.AccountNumber)
-			}
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), subtypePredicateArgs, gtx)
+		if err != nil {
+			return err
 		}
 		attrs.SetSubTypeCreationPredicateSignatures(signatures)
 		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
@@ -277,7 +263,29 @@ func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreati
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenID) (TokenID, error) {
+func preparePredicateSignatures(am wallet.AccountManager, args []*CreationInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
+	signatures := make([][]byte, 0, len(args))
+	for _, input := range args {
+		if len(input.Argument) > 0 {
+			signatures = append(signatures, input.Argument)
+		} else if input.AccountNumber > 0 {
+			ac, err := am.GetAccountKey(input.AccountNumber - 1)
+			if err != nil {
+				return nil, err
+			}
+			sig, err := signTx(gtx, ac)
+			if err != nil {
+				return nil, err
+			}
+			signatures = append(signatures, sig)
+		} else {
+			return nil, errors.Errorf("invalid account for creation input: %v", input.AccountNumber)
+		}
+	}
+	return signatures, nil
+}
+
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.MintAttr, tokenId TokenID, mintPredicateArgs []*CreationInput) (TokenID, error) {
 	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1
@@ -289,7 +297,14 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWi
 	}
 	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
-	sub, err := w.sendTx(tokenId, attrs, nil, nil) // key is not passed as signing of minting tx is not needed?
+	sub, err := w.sendTx(tokenId, attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), mintPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.SetTokenCreationPredicateSignatures(signatures)
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -135,11 +135,15 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentInfo(cmd, tw.GetAccountManager())
+	parentType, creationInputs, err := readParentTypeInfo(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -149,7 +153,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		ParentTypeId:                       parentType,
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
-		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		TokenCreationPredicate:             mintTokenPredicate,
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -162,28 +166,38 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	return nil
 }
 
-func readParentInfo(cmd *cobra.Command, am wallet.AccountManager) ([]byte, []*t.CreationInput, error) {
+func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Predicate, []*t.CreationInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err
 	}
-	var creationInputs []*t.CreationInput
-	if len(parentType) == 0 {
+
+	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
 		parentType = NoParent
-	} else if !bytes.Equal(parentType, NoParent) {
-		creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
-		if err != nil {
-			return nil, nil, err
-		}
-		creationInputs, err = parsePredicateArguments(creationInputStrs, am)
-		if err != nil {
-			return nil, nil, err
-		}
+		return NoParent, []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
-	if len(creationInputs) == 0 {
-		creationInputs = []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}
+
+	creationInputs, err := readCreationInput(cmd, am)
+	if err != nil {
+		return nil, nil, err
 	}
+
 	return parentType, creationInputs, nil
+}
+
+func readCreationInput(cmd *cobra.Command, am wallet.AccountManager) ([]*t.CreationInput, error) {
+	creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
+	if err != nil {
+		return nil, err
+	}
+	if len(creationInputStrs) == 0 {
+		return []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+	}
+	creationInputs, err := parsePredicateArguments(creationInputStrs, am)
+	if err != nil {
+		return nil, err
+	}
+	return creationInputs, nil
 }
 
 func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
@@ -214,11 +228,15 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentInfo(cmd, nil)
+	parentType, creationInputs, err := readParentTypeInfo(cmd, nil)
 	if err != nil {
 		return err
 	}
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -227,7 +245,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		ParentTypeId:                       parentType,
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
-		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		TokenCreationPredicate:             mintTokenPredicate,
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 		DataUpdatePredicate:                script.PredicateAlwaysTrue(),
 	}
@@ -295,19 +313,23 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput)
+	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput) //TODO
+	if err != nil {
+		return err
+	}
+	ci, err := readCreationInput(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
 	a := &tokens.MintFungibleTokenAttributes{
-		Bearer:                          nil, // will be set in the wallet
-		Type:                            typeId,
-		Value:                           amount,
-		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Bearer:                           nil, // will be set in the wallet
+		Type:                             typeId,
+		Value:                            amount,
+		TokenCreationPredicateSignatures: nil, // will be filled by the wallet
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleToken(ctx, accountNumber, a)
+	id, err := tw.NewFungibleToken(ctx, accountNumber, a, ci)
 	if err != nil {
 		return err
 	}
@@ -382,26 +404,26 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 			return err
 		}
 	}
-	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput)
+	ci, err := readCreationInput(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
 	a := &tokens.MintNonFungibleTokenAttributes{
-		Bearer:                          nil, // will be set in the wallet
-		NftType:                         typeId,
-		Uri:                             uri,
-		Data:                            data,
-		DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Bearer:                           nil, // will be set in the wallet
+		NftType:                          typeId,
+		Uri:                              uri,
+		Data:                             data,
+		DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+		TokenCreationPredicateSignatures: nil, // will be set in the wallet
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewNFT(ctx, accountNumber, a, tokenId)
+	id, err := tw.NewNFT(ctx, accountNumber, a, tokenId, ci)
 	if err != nil {
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Created new fungible token with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Created new non-fungible token with id=%X", id))
 	return nil
 }
 

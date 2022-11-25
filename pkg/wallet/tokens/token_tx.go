@@ -154,7 +154,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				TypeID:   tokenInfo.GetTypeId(),
 				Kind:     FungibleToken,
 				Amount:   ctx.TargetValue(),
-				Backlink: txHash,
+				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
 			})
 			if err != nil {
 				return err

@@ -232,6 +232,8 @@ func TestTokensWithRunningPartition(t *testing.T) {
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	w1 := createNewTokenWallet(t, "w1", dialAddr)
+	w1key, err := w1.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
 	w1.Shutdown()
 	w2 := createNewTokenWallet(t, "w2", dialAddr)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
@@ -241,14 +243,14 @@ func TestTokensWithRunningPartition(t *testing.T) {
 	verifyStdout(t, execTokensCmd(t, "w1", ""), "Error: must specify a subcommand like new-type, send etc")
 	verifyStdout(t, execTokensCmd(t, "w1", "new-type"), "Error: must specify a subcommand: fungible|non-fungible")
 
-	testFungibleTokensWithRunningPartition(t, partition, unitState, w2key)
+	testFungibleTokensWithRunningPartition(t, partition, unitState, w1key, w2key)
 
 	testNFTsWithRunningPartition(t, partition, unitState, w2key)
 
 	testTokenSubtypingWithRunningPartition(t, partition, unitState, w2key)
 }
 
-func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
+func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w1key, w2key *wallet.AccountKey) {
 	typeId1 := randomID(t)
 	// fungible token types
 	symbol1 := "AB"
@@ -275,14 +277,16 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 	// check w2 is empty
 	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list fungible --sync true -u %s", dialAddr)), "No tokens")
 	// transfer tokens w1 -> w2
-	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeId1, w2key.PubKey)) //split (9=>6+3)
-	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeId1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
+	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeId1, w2key.PubKey)) //split (9=>3+6)
+	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeId1, w2key.PubKey)) //transfer (5) + split (3=>1+2)
 	out := execTokensCmd(t, "w2", fmt.Sprintf("list fungible -u %s", dialAddr))
 	verifyStdout(t, out, "amount='6'", "amount='5'", "amount='1'", "Symbol='AB'")
 	verifyStdoutNotExists(t, out, "Symbol=''", "token-type=''")
 	//check what is left in w1
 	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'")
-
+	//transfer back w2->w1 (AB-513)
+	execTokensCmd(t, "w2", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeId1, w1key.PubKey))
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'", "amount='6'")
 }
 
 func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {

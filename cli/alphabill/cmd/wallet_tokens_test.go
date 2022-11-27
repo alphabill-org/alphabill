@@ -306,6 +306,10 @@ func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.Alphabi
 	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
 	//check what is left in w1, nothing, that is
 	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), "No tokens")
+	// list token types
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list-types")), "symbol=ABNFT, kind: 0x90", "symbol=AB, kind: 0x50")
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list-types fungible")), "symbol=AB, kind: 0x50")
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list-types non-fungible")), "symbol=ABNFT, kind: 0x90")
 }
 
 func testTokenSubtypingWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {

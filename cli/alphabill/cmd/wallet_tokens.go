@@ -734,13 +734,27 @@ func tokenCmdListTypes(config *walletConfig) *cobra.Command {
 		Use:   "list-types",
 		Short: "lists token types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdListTypes(cmd, config)
+			return execTokenCmdListTypes(cmd, config, t.Any)
 		},
 	}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "fungible",
+		Short: "lists fungible types",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdListTypes(cmd, config, t.FungibleTokenType)
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "non-fungible",
+		Short: "lists non-fungible types",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdListTypes(cmd, config, t.NonFungibleTokenType)
+		},
+	})
 	return cmd
 }
 
-func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
+func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
@@ -749,7 +763,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	res, err := tw.ListTokenTypes(ctx)
+	res, err := tw.ListTokenTypes(ctx, kind)
 	if err != nil {
 		return err
 	}

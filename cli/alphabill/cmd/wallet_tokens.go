@@ -314,7 +314,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 
 	amount, err := cmd.Flags().GetUint64(cmdFlagAmount)
 	if err != nil {
-		return fmt.Errorf("ivalid argument \"%s\" for \"--amount\" flag, coversion to uint64 failed",
+		return fmt.Errorf("invalid argument \"%s\" for \"--amount\" flag, coversion to uint64 failed",
 			cmd.Flags().Lookup(cmdFlagAmount).Value.String())
 	}
 	typeId, err := getHexFlag(cmd, cmdFlagType)
@@ -708,6 +708,42 @@ func amountToString(amount uint64, decimals uint32) string {
 	resultStr := "0."
 	resultStr += strings.Repeat("0", int(decimals)-len(amountStr))
 	return resultStr + amountStr
+}
+
+// stringToAmount converts string and decimals to uint64 amount
+func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
+	amountStr := strings.Split(amountIn, ".")
+	if len(amountStr) > 2 {
+		return 0, fmt.Errorf("invlid amount string %s: more than one comma", amountIn)
+	}
+	integerStr := amountStr[0]
+	fractionStr := amountStr[1]
+	if len(integerStr) == 0 {
+		return 0, fmt.Errorf("invalid amount string %s: missing integer part", amountIn)
+	}
+	// no comma
+	if len(amountStr) == 1 {
+		// pad with decimal number of 0's
+		integerStr += strings.Repeat("0", int(decimals))
+		amount, err := strconv.ParseUint(integerStr, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed", amountIn)
+		}
+		return amount, nil
+	}
+	// there is a comma in the value
+	if uint32(len(fractionStr)) > decimals {
+		return 0, fmt.Errorf("invalid precision: %s", amountIn)
+	}
+	// pad with 0's in input is smaller than decimals
+	if uint32(len(fractionStr)) < decimals {
+		fractionStr += strings.Repeat("0", int(decimals)-len(fractionStr))
+	}
+	amount, err := strconv.ParseUint(integerStr+fractionStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed", amountIn)
+	}
+	return amount, nil
 }
 
 func tokenCmdListNonFungible(config *walletConfig, runner runTokenListCmd, accountNumber *int) *cobra.Command {

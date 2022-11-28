@@ -79,12 +79,12 @@ func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNon
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes, mintPredicateArgs []*CreationInput) (TokenID, error) {
 	log.Info("Creating new fungible token")
-	return w.newToken(ctx, accNr, attrs, nil)
+	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
-func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID) (TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID, mintPredicateArgs []*CreationInput) (TokenID, error) {
 	log.Info("Creating new NFT")
 	if attrs == nil {
 		return nil, ErrAttributesMissing
@@ -98,16 +98,29 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNon
 	if len(attrs.Data) > dataMaxSize {
 		return nil, ErrInvalidDataLength
 	}
-	return w.newToken(ctx, accNr, attrs, tokenId)
+	return w.newToken(ctx, accNr, attrs, tokenId, mintPredicateArgs)
 }
 
-func (w *Wallet) ListTokenTypes(ctx context.Context) ([]*TokenUnitType, error) {
+func (w *Wallet) ListTokenTypes(ctx context.Context, kind TokenKind) ([]*TokenUnitType, error) {
 	err := w.Sync(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	return w.db.Do().GetTokenTypes()
+	tokenTypes, err := w.db.Do().GetTokenTypes()
+	if err != nil {
+		return nil, err
+	}
+	if kind&Any > 0 {
+		return tokenTypes, nil
+	}
+	res := make([]*TokenUnitType, 0)
+	// filter out specific type requested
+	for _, tt := range tokenTypes {
+		if tt.Kind&kind == kind {
+			res = append(res, tt)
+		}
+	}
+	return res, nil
 }
 
 // ListTokens specify accountNumber=-1 to list tokens from all accounts

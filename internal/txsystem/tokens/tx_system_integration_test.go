@@ -109,10 +109,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&MintFungibleTokenAttributes{
-				Bearer:                          script.PredicateAlwaysTrue(),
-				Type:                            fungibleTokenTypeID,
-				Value:                           totalValue,
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Bearer:                           script.PredicateAlwaysTrue(),
+				Type:                             fungibleTokenTypeID,
+				Value:                            totalValue,
+				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)

@@ -21,6 +21,7 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/holiman/uint256"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
@@ -339,6 +340,67 @@ func testTokenSubtypingWithRunningPartition(t *testing.T, partition *testpartiti
 		return bytes.Equal(tx.UnitId, typeId14)
 	}), test.WaitDuration, test.WaitTick)
 	ensureUnitBytes(t, unitState, typeId14)
+}
+
+func TestListTokensCommandInputs(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		accountNumber int
+		expectedKind  tw.TokenKind
+	}{
+		{
+			name:          "list all tokens",
+			args:          []string{},
+			accountNumber: -1, // all tokens
+			expectedKind:  tw.Any,
+		},
+		{
+			name:          "list account tokens",
+			args:          []string{"--key", "3"},
+			accountNumber: 3,
+			expectedKind:  tw.Any,
+		},
+		{
+			name:          "list all fungible tokens",
+			args:          []string{"fungible"},
+			accountNumber: -1,
+			expectedKind:  tw.FungibleToken,
+		},
+		{
+			name:          "list account fungible tokens",
+			args:          []string{"fungible", "--key", "4"},
+			accountNumber: 4,
+			expectedKind:  tw.FungibleToken,
+		},
+		{
+			name:          "list all non-fungible tokens",
+			args:          []string{"non-fungible"},
+			accountNumber: -1,
+			expectedKind:  tw.NonFungibleToken,
+		},
+		{
+			name:          "list account non-fungible tokens",
+			args:          []string{"non-fungible", "--key", "5"},
+			accountNumber: 5,
+			expectedKind:  tw.NonFungibleToken,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exec := false
+			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind, accountNumber *int) error {
+				require.Equal(t, tt.accountNumber, *accountNumber)
+				require.Equal(t, tt.expectedKind, kind)
+				exec = true
+				return nil
+			})
+			cmd.SetArgs(tt.args)
+			err := cmd.Execute()
+			require.NoError(t, err)
+			require.True(t, exec)
+		})
+	}
 }
 
 func ensureUnitBytes(t *testing.T, state tokens.TokenState, id []byte) {

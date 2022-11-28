@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"crypto"
 	"fmt"
 	"os"
 	"path"
@@ -10,8 +9,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -29,22 +26,9 @@ const (
 
 var (
 	errBillOrderNumberOutOfBounds = errors.New("bill order number out of bounds")
-	moneySystemIdentifier         = []byte{0, 0, 0, 0}
 )
 
 type (
-	// BillsDTO json schema for bill import and export.
-	BillsDTO struct {
-		Bills []*BillDTO `json:"bills"`
-	}
-	// BillDTO individual bill struct in import/export schema. All fields mandatory.
-	BillDTO struct {
-		Id     []byte                `json:"id"`
-		Value  uint64                `json:"value"`
-		TxHash []byte                `json:"txHash"`
-		Tx     *txsystem.Transaction `json:"tx"`
-		Proof  *block.BlockProof     `json:"proof"`
-	}
 	// TrustBase json schema for trust base file.
 	TrustBase struct {
 		RootValidators []*genesis.PublicKeyInfo `json:"root_validators"`
@@ -107,7 +91,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		return nil
 	}
 	for i, b := range bills {
-		consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", i+1, b.Id.Bytes32(), b.Value))
+		consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", i+1, b.GetID(), b.Value))
 	}
 	return nil
 }
@@ -257,18 +241,19 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	billFileJson, err := util.ReadJsonFile(billFile, &BillsDTO{})
+	billFileJson, err := block.ReadBillsFile(billFile)
 	if err != nil {
 		return err
 	}
 	if len(billFileJson.Bills) == 0 {
 		return errors.New("bill file does not contain any bills")
 	}
+	txConverter := &money.TxConverter{}
+	err = billFileJson.Verify(txConverter, verifiers)
+	if err != nil {
+		return err
+	}
 	for _, b := range billFileJson.Bills {
-		err = b.verifyProof(verifiers)
-		if err != nil {
-			return err
-		}
 		err = w.AddBill(accountNumber-1, newBill(b))
 		if err != nil {
 			return err
@@ -289,7 +274,7 @@ func writeBillsToFile(outputDir string, bills ...*money.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = util.WriteJsonFile(outputFile, newBillsDTO(bills...))
+	err = block.WriteBillsFile(outputFile, newBillsDTO(bills...))
 	if err != nil {
 		return "", err
 	}
@@ -301,7 +286,7 @@ func getOutputFile(outputDir string, bills []*money.Bill) (string, error) {
 	if len(bills) == 0 {
 		return "", errors.New("no bills to export")
 	} else if len(bills) == 1 {
-		billId := bills[0].Id.Bytes32()
+		billId := bills[0].GetID()
 		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
 		return path.Join(outputDir, filename), nil
 	} else {
@@ -319,44 +304,29 @@ func filterDcBills(bills []*money.Bill) []*money.Bill {
 	return normalBills
 }
 
-func newBillDTO(b *money.Bill) *BillDTO {
-	b32 := b.Id.Bytes32()
-	return &BillDTO{
-		Id:     b32[:],
-		Value:  b.Value,
-		TxHash: b.TxHash,
-		Tx:     b.Tx,
-		Proof:  b.BlockProof,
-	}
-}
-
-func newBillsDTO(bills ...*money.Bill) *BillsDTO {
-	var billsDTO []*BillDTO
+func newBillsDTO(bills ...*money.Bill) *block.Bills {
+	var billsDTO []*block.Bill
 	for _, b := range bills {
-		billsDTO = append(billsDTO, newBillDTO(b))
+		billsDTO = append(billsDTO, b.ToProto())
 	}
-	return &BillsDTO{Bills: billsDTO}
+	return &block.Bills{Bills: billsDTO}
 }
 
-func newBill(b *BillDTO) *money.Bill {
+func newBill(b *block.Bill) *money.Bill {
 	return &money.Bill{
 		Id:         uint256.NewInt(0).SetBytes(b.Id),
 		Value:      b.Value,
 		TxHash:     b.TxHash,
-		Tx:         b.Tx,
-		BlockProof: b.Proof,
+		BlockProof: newBlockProof(b.TxProof),
 	}
 }
 
-func (b *BillDTO) verifyProof(verifiers map[string]abcrypto.Verifier) error {
-	if b.Proof == nil {
-		return errors.New("proof is nil")
+func newBlockProof(b *block.TxProof) *money.BlockProof {
+	return &money.BlockProof{
+		Tx:          b.Tx,
+		BlockNumber: b.BlockNumber,
+		Proof:       b.Proof,
 	}
-	tx, err := moneytx.NewMoneyTx(moneySystemIdentifier, b.Tx)
-	if err != nil {
-		return err
-	}
-	return b.Proof.Verify(tx, verifiers, crypto.SHA256)
 }
 
 func (t *TrustBase) verify() error {

@@ -52,7 +52,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	require.Len(t, bills, 1)
 	b := bills[0]
 	require.EqualValues(t, b.Value, 3)
-	require.EqualValues(t, b.Id, uint256.NewInt(0).SetBytes(dcNonce))
+	require.EqualValues(t, b.GetID(), dcNonce)
 
 	// and the blocking dc should return
 	wg.Wait()
@@ -185,7 +185,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &txsystem.Transaction{
 			SystemId:              alphabillMoneySystemId,
-			UnitId:                b.GetId(),
+			UnitId:                b.GetID(),
 			TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),

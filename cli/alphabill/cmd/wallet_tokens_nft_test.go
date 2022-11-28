@@ -125,13 +125,13 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.
 	startRPCServer(t, partition, listenAddr)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1 := createNewTokenWallet(t, "w1", dialAddr)
+	w1, homedir := createNewTokenWallet(t, dialAddr)
 	require.NotNil(t, w1)
 	w1.Shutdown()
 	typeId := util.Uint256ToBytes(uint256.NewInt(uint64(0x10)))
 	symbol := "ABNFT"
 	// create type
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol, dialAddr, typeId))
+	execTokensCmd(t, homedir, fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol, dialAddr, typeId))
 	ensureUnitBytes(t, unitState, typeId)
 	// create non-fungible token from using data-file
 	nftID := util.Uint256ToBytes(uint256.NewInt(uint64(0x11)))
@@ -143,7 +143,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.
 	require.NoError(t, err)
 	// remember to clean up the file
 	defer os.Remove(tmpfile.Name())
-	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file %s", dialAddr, typeId, nftID, tmpfile.Name()))
+	execTokensCmd(t, homedir, fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file %s", dialAddr, typeId, nftID, tmpfile.Name()))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			mintNonFungibleAttr := &tokens.MintNonFungibleTokenAttributes{}
@@ -153,5 +153,5 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.
 		}
 		return false
 	}), test.WaitDuration, test.WaitTick)
-	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
+	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
 }

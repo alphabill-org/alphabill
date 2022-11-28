@@ -224,6 +224,82 @@ func TestDecodeHexOrEmpty(t *testing.T) {
 	}
 }
 
+func Test_amountToString(t *testing.T) {
+	type args struct {
+		amount    uint64
+		decPlaces uint32
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Conversion ok - decimals 2",
+			args: args{amount: 12345, decPlaces: 2},
+			want: "123.45",
+		},
+		{
+			name: "Conversion ok - decimals 1",
+			args: args{amount: 12345, decPlaces: 1},
+			want: "1234.5",
+		},
+		{
+			name: "Conversion ok - decimals 0",
+			args: args{amount: 12345, decPlaces: 0},
+			want: "12345",
+		},
+		{
+			name: "Conversion ok - decimals 7",
+			args: args{amount: 12345, decPlaces: 5},
+			want: "0.12345",
+		},
+		{
+			name: "Conversion ok - decimals 9",
+			args: args{amount: 12345, decPlaces: 9},
+			want: "0.000012345",
+		},
+		{
+			name: "Conversion ok - 99999 ",
+			args: args{amount: 99999, decPlaces: 7},
+			want: "0.0099999",
+		},
+		{
+			name: "Conversion ok - 9000 ",
+			args: args{amount: 9000, decPlaces: 5},
+			want: "0.09000",
+		},
+		{
+			name: "Conversion ok - 3 ",
+			args: args{amount: 3, decPlaces: 2},
+			want: "0.03",
+		},
+		{
+			name: "Conversion ok - 3 ",
+			args: args{amount: 3, decPlaces: 2},
+			want: "0.03",
+		},
+		{
+			name: "Conversion of max - 18446744073709551615 ",
+			args: args{amount: 18446744073709551615, decPlaces: 8},
+			want: "184467440737.09551615",
+		},
+		{
+			name: "decimals out of bounds - 18446744073709551615 ",
+			args: args{amount: 18446744073709551615, decPlaces: 32},
+			want: "0.00000000000018446744073709551615",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := amountToString(tt.args.amount, tt.args.decPlaces)
+			if got != tt.want {
+				t.Errorf("amountToString() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTokensWithRunningPartition(t *testing.T) {
 	partition, unitState := startTokensPartition(t)
 	startRPCServer(t, partition, listenAddr)
@@ -255,7 +331,7 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 	// fungible token types
 	symbol1 := "AB"
 	execTokensCmdWithError(t, homedirW1, "new-type fungible", "required flag(s) \"symbol\" not set")
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X", symbol1, dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X --decimals 2", symbol1, dialAddr, typeID1))
 	ensureUnit(t, unitState, uint256.NewInt(0).SetBytes(typeID1))
 	// mint tokens
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
@@ -280,13 +356,13 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //split (9=>6+3)
 	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
 	out := execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -u %s", dialAddr))
-	verifyStdout(t, out, "amount='6'", "amount='5'", "amount='1'", "Symbol='AB'")
+	verifyStdout(t, out, "amount='0.06'", "amount='0.05'", "amount='0.01'", "Symbol='AB'")
 	verifyStdoutNotExists(t, out, "Symbol=''", "token-type=''")
 	//check what is left in w1
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'")
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='0.03'", "amount='0.02'")
 	//transfer back w2->w1 (AB-513)
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w1key.PubKey))
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'", "amount='6'")
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='0.03'", "amount='0.02'", "amount='0.06'")
 }
 
 func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey, homedirW1, homedirW2 string) {

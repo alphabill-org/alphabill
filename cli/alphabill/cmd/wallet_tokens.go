@@ -38,12 +38,13 @@ const (
 	cmdFlagTokenDataUpdate     = "data-update"
 	cmdFlagSync                = "sync"
 
-	maxBinaryFile64Kb = 64 * 1024
 	predicateEmpty    = "empty"
 	predicateTrue     = "true"
 	predicateFalse    = "false"
 	predicatePtpkh    = "ptpkh"
 	hexPrefix         = "0x"
+	maxBinaryFile64Kb = 64 * 1024
+	maxDecimalPlaces  = 8
 )
 
 var NoParent = []byte{0x00}
@@ -137,6 +138,9 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	decimals, err := cmd.Flags().GetUint32(cmdFlagDecimals)
 	if err != nil {
 		return err
+	}
+	if decimals > maxDecimalPlaces {
+		return fmt.Errorf("argument \"%v\" for \"--decimals\" flag is out of range, max value %v", decimals, maxDecimalPlaces)
 	}
 	parentType, creationInputs, err := readParentTypeInfo(cmd, tw.GetAccountManager())
 	if err != nil {
@@ -687,6 +691,24 @@ func tokenCmdListFungible(config *walletConfig, runner runTokenListCmd, accountN
 	return cmd
 }
 
+// amountToString converts amount to string with specified decimals
+// NB! it is assumed that the decimal places value is sane and verified before
+// calling this method.
+func amountToString(amount uint64, decimals uint32) string {
+	amountStr := strconv.FormatUint(amount, 10)
+	if decimals == 0 {
+		return amountStr
+	}
+	// length of amount string is less than decimal places, insert comma in value
+	if decimals < uint32(len(amountStr)) {
+		return amountStr[:uint32(len(amountStr))-decimals] + "." + amountStr[uint32(len(amountStr))-decimals:]
+	}
+	// resulting amount is less than 0
+	resultStr := "0."
+	resultStr += strings.Repeat("0", int(decimals)-len(amountStr))
+	return resultStr + amountStr
+}
+
 func tokenCmdListNonFungible(config *walletConfig, runner runTokenListCmd, accountNumber *int) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "non-fungible",
@@ -735,7 +757,13 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 		for _, tok := range toks {
 			atLeastOneFound = true
 			if tok.IsFungible() {
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, tok.Amount, tok.TypeID))
+				tokUnit, err := tw.GetTokenType(ctx, tok.TypeID)
+				if err != nil {
+					return err
+				}
+				// format amount
+				amount := amountToString(tok.Amount, tokUnit.DecimalPlaces)
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, amount, tok.TypeID))
 			} else {
 				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.ID, tok.Symbol, tok.TypeID, tok.URI))
 			}

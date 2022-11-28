@@ -123,6 +123,14 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, kind TokenKind) ([]*TokenUn
 	return res, nil
 }
 
+func (w *Wallet) GetTokenType(ctx context.Context, typeId TokenTypeID) (*TokenUnitType, error) {
+	err := w.Sync(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return w.db.Do().GetTokenType(typeId)
+}
+
 // ListTokens specify accountNumber=-1 to list tokens from all accounts
 func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[int][]*TokenUnit, error) {
 

@@ -62,7 +62,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tType == nil {
-				return errors.Errorf("Mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+				return errors.Errorf("mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -89,7 +89,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tokenInfo == nil {
-				return errors.Errorf("Fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+				return errors.Errorf("fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -119,11 +119,11 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			tokenInfo = tok
 			log.Info("SplitFungibleToken updating existing unit")
 			if !bytes.Equal(tok.TypeID, ctx.TypeID()) {
-				return errors.Errorf("Split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
+				return errors.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
 			}
 			remainingValue := tok.Amount - ctx.TargetValue()
 			if ctx.RemainingValue() != remainingValue {
-				return errors.Errorf("Split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
+				return errors.Errorf("split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
 			}
 			if err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -141,7 +141,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tokenInfo == nil {
-				return errors.Errorf("Split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+				return errors.Errorf("split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
 		}
 
@@ -185,7 +185,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tType == nil {
-				return errors.Errorf("Mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+				return errors.Errorf("mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -212,7 +212,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				return err
 			}
 			if tType == nil {
-				return errors.Errorf("Transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+				return errors.Errorf("transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
 			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
@@ -250,23 +250,9 @@ func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []
 
 func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
 	sub, err := w.sendTx(TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures := make([][]byte, 0, len(subtypePredicateArgs))
-		for _, input := range subtypePredicateArgs {
-			if len(input.Argument) > 0 {
-				signatures = append(signatures, input.Argument)
-			} else if input.AccountNumber > 0 {
-				ac, err := w.GetAccountManager().GetAccountKey(input.AccountNumber - 1)
-				if err != nil {
-					return err
-				}
-				sig, err := signTx(gtx, ac)
-				if err != nil {
-					return err
-				}
-				signatures = append(signatures, sig)
-			} else {
-				return errors.Errorf("Invalid account for subtype creation input: %v", input.AccountNumber)
-			}
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), subtypePredicateArgs, gtx)
+		if err != nil {
+			return err
 		}
 		attrs.SetSubTypeCreationPredicateSignatures(signatures)
 		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
@@ -277,7 +263,29 @@ func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreati
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenID) (TokenID, error) {
+func preparePredicateSignatures(am wallet.AccountManager, args []*CreationInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
+	signatures := make([][]byte, 0, len(args))
+	for _, input := range args {
+		if len(input.Argument) > 0 {
+			signatures = append(signatures, input.Argument)
+		} else if input.AccountNumber > 0 {
+			ac, err := am.GetAccountKey(input.AccountNumber - 1)
+			if err != nil {
+				return nil, err
+			}
+			sig, err := signTx(gtx, ac)
+			if err != nil {
+				return nil, err
+			}
+			signatures = append(signatures, sig)
+		} else {
+			return nil, errors.Errorf("invalid account for creation input: %v", input.AccountNumber)
+		}
+	}
+	return signatures, nil
+}
+
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.MintAttr, tokenId TokenID, mintPredicateArgs []*CreationInput) (TokenID, error) {
 	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1
@@ -289,7 +297,14 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWi
 	}
 	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
-	sub, err := w.sendTx(tokenId, attrs, nil, nil) // key is not passed as signing of minting tx is not needed?
+	sub, err := w.sendTx(tokenId, attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), mintPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.SetTokenCreationPredicateSignatures(signatures)
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +312,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWi
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func RandomId() (TokenID, error) {
+func RandomID() (TokenID, error) {
 	id := make([]byte, 32)
 	_, err := rand.Read(id)
 	if err != nil {
@@ -309,7 +324,7 @@ func RandomId() (TokenID, error) {
 func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountKey, txps txPreprocessor) (*submittedTx, error) {
 	txSub := &submittedTx{id: unitId}
 	if unitId == nil {
-		id, err := RandomId()
+		id, err := RandomID()
 		if err != nil {
 			return txSub, err
 		}

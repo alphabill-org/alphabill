@@ -250,12 +250,12 @@ func TestTokensWithRunningPartition(t *testing.T) {
 }
 
 func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
-	typeId1 := randomID(t)
+	typeID1 := randomID(t)
 	// fungible token types
 	symbol1 := "AB"
 	execTokensCmdWithError(t, "w1", "new-type fungible", "required flag(s) \"symbol\" not set")
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X", symbol1, dialAddr, typeId1))
-	ensureUnit(t, unitState, uint256.NewInt(0).SetBytes(typeId1))
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X", symbol1, dialAddr, typeID1))
+	ensureUnit(t, unitState, uint256.NewInt(0).SetBytes(typeID1))
 	// mint tokens
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
 		return func(tx *txsystem.Transaction) bool {
@@ -267,17 +267,17 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 			return false
 		}
 	}
-	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 3", dialAddr, typeId1))
-	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 5", dialAddr, typeId1))
-	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 9", dialAddr, typeId1))
+	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 3", dialAddr, typeID1))
+	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 5", dialAddr, typeID1))
+	execTokensCmd(t, "w1", fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 9", dialAddr, typeID1))
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(3)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(5)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(9)), test.WaitDuration, test.WaitTick)
 	// check w2 is empty
 	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list fungible --sync true -u %s", dialAddr)), "No tokens")
 	// transfer tokens w1 -> w2
-	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeId1, w2key.PubKey)) //split (9=>6+3)
-	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeId1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
+	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //split (9=>6+3)
+	execTokensCmd(t, "w1", fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
 	out := execTokensCmd(t, "w2", fmt.Sprintf("list fungible -u %s", dialAddr))
 	verifyStdout(t, out, "amount='6'", "amount='5'", "amount='1'", "Symbol='AB'")
 	verifyStdoutNotExists(t, out, "Symbol=''", "token-type=''")
@@ -288,14 +288,14 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 
 func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
 	// non-fungible token types
-	typeId2 := randomID(t)
+	typeID := randomID(t)
 	nftID := randomID(t)
-	symbol2 := "ABNFT"
+	symbol := "ABNFT"
 	execTokensCmdWithError(t, "w1", "new-type non-fungible", "required flag(s) \"symbol\" not set")
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol2, dialAddr, typeId2))
-	ensureUnitBytes(t, unitState, typeId2)
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol, dialAddr, typeID))
+	ensureUnitBytes(t, unitState, typeID)
 	// mint NFT
-	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X", dialAddr, typeId2, nftID))
+	execTokensCmd(t, "w1", fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X", dialAddr, typeID, nftID))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
 	}), test.WaitDuration, test.WaitTick)
@@ -316,34 +316,34 @@ func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.Alphabi
 func testTokenSubtypingWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
 	symbol1 := "AB"
 	// test subtyping
-	typeId11 := randomID(t)
-	typeId12 := randomID(t)
-	typeId13 := randomID(t)
-	typeId14 := randomID(t)
+	typeID11 := randomID(t)
+	typeID12 := randomID(t)
+	typeID13 := randomID(t)
+	typeID14 := randomID(t)
 	//push bool false, equal; to satisfy: 5100
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s", dialAddr, symbol1, typeId11, "0x53510087"))
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s", dialAddr, symbol1, typeID11, "0x53510087"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeId11)
+		return bytes.Equal(tx.UnitId, typeID11)
 	}), test.WaitDuration, test.WaitTick)
-	ensureUnitBytes(t, unitState, typeId11)
+	ensureUnitBytes(t, unitState, typeID11)
 	//second type inheriting the first one and setting subtype clause to ptpkh
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeId12, "ptpkh", typeId11, "0x535100"))
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeID12, "ptpkh", typeID11, "0x535100"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeId12)
+		return bytes.Equal(tx.UnitId, typeID12)
 	}), test.WaitDuration, test.WaitTick)
-	ensureUnitBytes(t, unitState, typeId12)
+	ensureUnitBytes(t, unitState, typeID12)
 	//third type needs to satisfy both parents, immediate parent with ptpkh, grandparent with 0x535100
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeId13, "true", typeId12, "ptpkh,0x535100"))
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeID13, "true", typeID12, "ptpkh,0x535100"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeId13)
+		return bytes.Equal(tx.UnitId, typeID13)
 	}), test.WaitDuration, test.WaitTick)
-	ensureUnitBytes(t, unitState, typeId13)
+	ensureUnitBytes(t, unitState, typeID13)
 	//4th type
-	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeId14, "true", typeId13, "empty,ptpkh,0x535100"))
+	execTokensCmd(t, "w1", fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeID14, "true", typeID13, "empty,ptpkh,0x535100"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
-		return bytes.Equal(tx.UnitId, typeId14)
+		return bytes.Equal(tx.UnitId, typeID14)
 	}), test.WaitDuration, test.WaitTick)
-	ensureUnitBytes(t, unitState, typeId14)
+	ensureUnitBytes(t, unitState, typeID14)
 }
 
 func TestListTokensCommandInputs(t *testing.T) {
@@ -472,7 +472,7 @@ func doExecTokensCmd(walletName string, command string) (*testConsoleWriter, err
 }
 
 func randomID(t *testing.T) tw.TokenID {
-	id, err := tw.RandomId()
+	id, err := tw.RandomID()
 	require.NoError(t, err)
 	return id
 }

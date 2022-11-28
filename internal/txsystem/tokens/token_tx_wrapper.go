@@ -382,6 +382,9 @@ func (c *mintNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(c.URI()))
 	hasher.Write(c.Data())
 	hasher.Write(c.DataUpdatePredicate())
+	for _, bytes := range c.TokenCreationPredicateSignatures() {
+		hasher.Write(bytes)
+	}
 }
 
 func (c *mintNonFungibleTokenWrapper) Bearer() []byte {
@@ -400,8 +403,8 @@ func (c *mintNonFungibleTokenWrapper) DataUpdatePredicate() []byte {
 	return c.attributes.DataUpdatePredicate
 }
 
-func (c *mintNonFungibleTokenWrapper) TokenCreationPredicateSignature() []byte {
-	return c.attributes.TokenCreationPredicateSignature
+func (c *mintNonFungibleTokenWrapper) TokenCreationPredicateSignatures() [][]byte {
+	return c.attributes.TokenCreationPredicateSignatures
 }
 
 func (c *mintNonFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
@@ -603,8 +606,8 @@ func (m *mintFungibleTokenWrapper) Bearer() []byte {
 	return m.attributes.Bearer
 }
 
-func (m *mintFungibleTokenWrapper) TokenCreationPredicateSignature() []byte {
-	return m.attributes.TokenCreationPredicateSignature
+func (m *mintFungibleTokenWrapper) TokenCreationPredicateSignatures() [][]byte {
+	return m.attributes.TokenCreationPredicateSignatures
 }
 
 func (m *mintFungibleTokenWrapper) SigBytes() []byte {
@@ -621,7 +624,9 @@ func (m *mintFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(m.Bearer())
 	hasher.Write(m.TypeID())
 	hasher.Write(util.Uint64ToBytes(m.Value()))
-	hasher.Write(m.TokenCreationPredicateSignature())
+	for _, bytes := range m.TokenCreationPredicateSignatures() {
+		hasher.Write(bytes)
+	}
 }
 
 func (m *mintFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {

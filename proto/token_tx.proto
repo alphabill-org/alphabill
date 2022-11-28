@@ -34,8 +34,8 @@ message MintNonFungibleTokenAttributes {
   bytes data = 4;
   // the data update predicate of the new token;
   bytes data_update_predicate = 5;
-  // the input to satisfy the token creation predicate.
-  bytes token_creation_predicate_signature = 7;
+  // inputs to satisfy the token creation predicates of all parent types.
+  repeated bytes token_creation_predicate_signatures = 6;
 }
 
 message TransferNonFungibleTokenAttributes {
@@ -84,8 +84,8 @@ message MintFungibleTokenAttributes {
   bytes type = 2;
   // the value of the new token;
   uint64 value = 3;
-  // the input to satisfy the token creation predicate.
-  bytes token_creation_predicate_signature = 4;
+  // inputs to satisfy the token creation predicates of all parent types.
+  repeated bytes token_creation_predicate_signatures = 4;
 }
 
 message TransferFungibleTokenAttributes {

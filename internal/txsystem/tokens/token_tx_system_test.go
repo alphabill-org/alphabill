@@ -365,12 +365,12 @@ func TestMintNFT_Ok(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			Bearer:                          script.PredicateAlwaysTrue(),
-			NftType:                         nftTypeID,
-			Uri:                             validNFTURI,
-			Data:                            []byte{10},
-			DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-			TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+			Bearer:                           script.PredicateAlwaysTrue(),
+			NftType:                          nftTypeID,
+			Uri:                              validNFTURI,
+			Data:                             []byte{10},
+			DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+			TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.NoError(t, txs.Execute(tx))
@@ -423,12 +423,12 @@ func TestMintNFT_UnitIDExists(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			Bearer:                          script.PredicateAlwaysTrue(),
-			NftType:                         nftTypeID,
-			Uri:                             validNFTURI,
-			Data:                            []byte{10},
-			DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-			TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+			Bearer:                           script.PredicateAlwaysTrue(),
+			NftType:                          nftTypeID,
+			Uri:                              validNFTURI,
+			Data:                             []byte{10},
+			DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+			TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.NoError(t, txs.Execute(tx))
@@ -444,12 +444,12 @@ func TestMintNFT_NFTTypeIsZero(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			Bearer:                          script.PredicateAlwaysTrue(),
-			NftType:                         idBytes,
-			Uri:                             validNFTURI,
-			Data:                            []byte{10},
-			DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-			TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+			Bearer:                           script.PredicateAlwaysTrue(),
+			NftType:                          idBytes,
+			Uri:                              validNFTURI,
+			Data:                             []byte{10},
+			DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+			TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), fmt.Sprintf("item %X does not exist", idBytes))
@@ -840,12 +840,12 @@ func createNFTTypeAndMintToken(t *testing.T, txs *tokensTxSystem, nftTypeID []by
 		testtransaction.WithUnitId(nftID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			Bearer:                          script.PredicateAlwaysTrue(),
-			NftType:                         nftTypeID,
-			Uri:                             validNFTURI,
-			Data:                            []byte{10},
-			DataUpdatePredicate:             []byte{},
-			TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+			Bearer:                           script.PredicateAlwaysTrue(),
+			NftType:                          nftTypeID,
+			Uri:                              validNFTURI,
+			Data:                             []byte{10},
+			DataUpdatePredicate:              []byte{},
+			TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.NoError(t, txs.Execute(tx))

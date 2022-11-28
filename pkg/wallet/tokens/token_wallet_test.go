@@ -96,11 +96,11 @@ func TestNewFungibleToken(t *testing.T) {
 			typeId := []byte{1}
 			amount := uint64(100)
 			a := &tokens.MintFungibleTokenAttributes{
-				Type:                            typeId,
-				Value:                           amount,
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Type:                             typeId,
+				Value:                            amount,
+				TokenCreationPredicateSignatures: nil,
 			}
-			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a)
+			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
@@ -152,7 +152,7 @@ func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wallet := &Wallet{}
-			got, err := wallet.NewNFT(context.Background(), accNr, tt.attrs, tokenID)
+			got, err := wallet.NewNFT(context.Background(), accNr, tt.attrs, tokenID, nil)
 			require.ErrorContains(t, err, tt.wantErrStr)
 			require.Nil(t, got)
 		})
@@ -189,13 +189,13 @@ func TestNewNFT(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := []byte{1}
 			a := &tokens.MintNonFungibleTokenAttributes{
-				NftType:                         typeId,
-				Uri:                             "",
-				Data:                            nil,
-				DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				NftType:                          typeId,
+				Uri:                              "",
+				Data:                             nil,
+				DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+				TokenCreationPredicateSignatures: nil,
 			}
-			_, err := tw.NewNFT(context.Background(), tt.accNr, a, nil)
+			_, err := tw.NewNFT(context.Background(), tt.accNr, a, nil, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]

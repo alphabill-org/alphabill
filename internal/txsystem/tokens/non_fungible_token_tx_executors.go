@@ -179,10 +179,7 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if err != nil {
 		return err
 	}
-	if len(predicates) > 0 {
-		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO AB-478*/, tx.SigBytes())
-	}
-	return nil
+	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx)
 }
 
 func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTokenWrapper) error {

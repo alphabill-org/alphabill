@@ -116,6 +116,7 @@ func TestMintNonFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write([]byte(uri))
 	b.Write(data)
 	b.Write(dataUpdatePredicate)
+	b.Write(tokenCreationPredicateSignature)
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -406,10 +407,10 @@ func mintFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.T
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&MintFungibleTokenAttributes{
-			Bearer:                          bearer,
-			Type:                            parentTypeId,
-			Value:                           fungibleTokenValue,
-			TokenCreationPredicateSignature: tokenCreationPredicateSignature,
+			Bearer:                           bearer,
+			Type:                             parentTypeId,
+			Value:                            fungibleTokenValue,
+			TokenCreationPredicateSignatures: [][]byte{tokenCreationPredicateSignature},
 		}),
 	)
 }
@@ -490,12 +491,12 @@ func createMintNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *t
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&MintNonFungibleTokenAttributes{
-			Bearer:                          bearer,
-			NftType:                         nftType,
-			Uri:                             uri,
-			Data:                            data,
-			DataUpdatePredicate:             dataUpdatePredicate,
-			TokenCreationPredicateSignature: tokenCreationPredicateSignature,
+			Bearer:                           bearer,
+			NftType:                          nftType,
+			Uri:                              uri,
+			Data:                             data,
+			DataUpdatePredicate:              dataUpdatePredicate,
+			TokenCreationPredicateSignatures: [][]byte{tokenCreationPredicateSignature},
 		}),
 	)
 }

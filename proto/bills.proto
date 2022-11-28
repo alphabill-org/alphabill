@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+import "block_proof.proto";
+import "transaction.proto";
+
+option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
+
+// bills with tx proofs
+message Bills {
+  repeated Bill bills = 1;
+}
+
+// bill with tx proof
+message Bill {
+  bytes id = 1;
+  uint64 value = 2;
+  bytes tx_hash = 3;
+  TxProof tx_proof = 4;
+}
+
+// tx proof context
+message TxProof {
+  uint64 block_number = 1;
+  Transaction tx = 2;
+  BlockProof proof = 3;
+}

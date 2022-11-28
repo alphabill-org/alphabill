@@ -1,12 +1,12 @@
 package backend
 
 import (
-	"fmt"
-	"os"
 	"path"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -60,13 +60,13 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.Len(t, bills, 0)
 
 	// add bills
-	err = bs.AddBill(pubKey, newBill(1))
+	err = bs.SetBills(pubKey, newBillWithValue(1))
 	require.NoError(t, err)
 
-	err = bs.AddBill(pubKey, newBill(2))
+	err = bs.SetBills(pubKey, newBillWithValue(2))
 	require.NoError(t, err)
 
-	err = bs.AddBill(pubKey, newBill(3))
+	err = bs.SetBills(pubKey, newBillWithValue(3))
 	require.NoError(t, err)
 
 	// get bills
@@ -89,70 +89,47 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.EqualValues(t, 3, maxOrderNumber)
 
 	// test contains bill ok
-	f, err := bs.ContainsBill(pubKey, uint256.NewInt(1))
+	expectedBillId := newUnitId(1)
+	f, err := bs.ContainsBill(expectedBillId)
 	require.NoError(t, err)
 	require.True(t, f)
 
 	// test remove bill
-	err = bs.RemoveBill(pubKey, uint256.NewInt(1))
+	err = bs.RemoveBill(pubKey, expectedBillId)
 	require.Nil(t, err)
 
 	// test contains bill returns false after removal
-	f, err = bs.ContainsBill(pubKey, uint256.NewInt(1))
+	f, err = bs.ContainsBill(expectedBillId)
 	require.NoError(t, err)
 	require.False(t, f)
 }
 
 func TestBillStore_GetSetProofs(t *testing.T) {
 	bs, _ := createTestBillStore(t)
-	billId := uint256.NewInt(1)
-	billIdBytes := billId.Bytes32()
+	billId := newUnitId(1)
+	pubkey := []byte{0}
 
-	// verify block proof does not exist error
-	bp, err := bs.GetBlockProof(billIdBytes[:])
+	// verify nil bill
+	b, err := bs.GetBill(billId)
 	require.ErrorIs(t, err, ErrMissingBlockProof)
-	require.Nil(t, bp)
+	require.Nil(t, b)
 
-	// add proof
-	expectedBlockProof := &BlockProof{
-		BillId:      billId,
-		BlockNumber: 1,
-		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
+	// add bill
+	expectedBill := &Bill{
+		Id: billId,
+		TxProof: &TxProof{
+			BlockNumber: 1,
+			Proof:       &block.BlockProof{BlockHeaderHash: []byte{1}},
+			Tx:          testtransaction.NewTransaction(t),
+		},
 	}
-	err = bs.SetBlockProof(expectedBlockProof)
+	err = bs.SetBills(pubkey, expectedBill)
 	require.NoError(t, err)
 
-	// verify get proof
-	bp, err = bs.GetBlockProof(billIdBytes[:])
+	// verify get bill
+	b, err = bs.GetBill(billId)
 	require.NoError(t, err)
-	require.Equal(t, expectedBlockProof, bp)
-}
-
-func TestBillStore_AddBillWithProof(t *testing.T) {
-	bs, _ := createTestBillStore(t)
-	pubKey, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000000")
-
-	// add bill with proof
-	b := newBill(1)
-	billIdBytes := b.Id.Bytes32()
-	p := &BlockProof{
-		BillId:      b.Id,
-		BlockNumber: 1,
-		BlockProof:  &block.BlockProof{BlockHeaderHash: []byte{1}},
-	}
-	err := bs.AddBillWithProof(pubKey, b, p)
-	require.NoError(t, err)
-
-	// verify bill
-	f, err := bs.ContainsBill(pubKey, b.Id)
-	require.NoError(t, err)
-	require.True(t, f)
-
-	// verify proof
-	billIdBytes = b.Id.Bytes32()
-	actualProof, err := bs.GetBlockProof(billIdBytes[:])
-	require.NoError(t, err)
-	require.EqualValues(t, p, actualProof)
+	require.Equal(t, expectedBill, b)
 }
 
 func TestBillStore_GetSetKeys(t *testing.T) {
@@ -164,7 +141,7 @@ func TestBillStore_GetSetKeys(t *testing.T) {
 	err := bs.AddKey(pubkey)
 	require.NoError(t, err)
 
-	// verify getKeys
+	// verify GetKeys
 	keys, err := bs.GetKeys()
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
@@ -177,22 +154,27 @@ func TestBillStore_GetSetKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
 	require.Equal(t, pubkey, keys[0])
+
+	// verify GetKey returns key
+	key, err := bs.GetKey(pubkey.Pubkey)
+	require.NoError(t, err)
+	require.Equal(t, pubkey, key)
+
+	// verify GetKey returns nil for unindexed key
+	key, err = bs.GetKey([]byte{1, 1, 1, 1})
+	require.NoError(t, err)
+	require.Nil(t, key)
 }
 
 func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
-	dbFile := path.Join(os.TempDir(), BoltBillStoreFileName)
-	t.Cleanup(func() {
-		err := os.Remove(dbFile)
-		if err != nil {
-			fmt.Println("error deleting bills.db ", err)
-		}
-	})
+	dbFile := path.Join(t.TempDir(), BoltBillStoreFileName)
 	return NewBoltBillStore(dbFile)
 }
 
-func newBill(val uint64) *Bill {
+func newBillWithValue(val uint64) *Bill {
+	id := uint256.NewInt(val)
 	return &Bill{
-		Id:    uint256.NewInt(val),
+		Id:    util.Uint256ToBytes(id),
 		Value: val,
 	}
 }

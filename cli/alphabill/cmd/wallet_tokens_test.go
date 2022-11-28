@@ -5,7 +5,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
 	"path"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/holiman/uint256"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 

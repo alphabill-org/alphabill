@@ -41,9 +41,16 @@ func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error)
 
 func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 	if blockNumber <= c.maxBlockNumber {
+		var blocks []*block.Block
+		b, f := c.blocks[blockNumber]
+		if f {
+			blocks = []*block.Block{b}
+		} else {
+			blocks = []*block.Block{}
+		}
 		return &alphabill.GetBlocksResponse{
 			MaxBlockNumber: c.maxBlockNumber,
-			Blocks:         []*block.Block{c.blocks[blockNumber]},
+			Blocks:         blocks,
 		}, nil
 	}
 	return &alphabill.GetBlocksResponse{

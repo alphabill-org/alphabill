@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -27,6 +28,8 @@ type (
 		id      TokenID
 		timeout uint64
 	}
+
+	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
 )
 
 func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint64, key *wallet.KeyHashes) error {
@@ -58,6 +61,9 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			if err != nil {
 				return err
 			}
+			if tType == nil {
+				return errors.Errorf("mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Kind:     FungibleToken,
@@ -78,10 +84,19 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 	case tokens.TransferFungibleToken:
 		log.Info("TransferFungibleToken tx")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &TokenUnit{
+			tokenInfo, err := txc.GetTokenType(ctx.TypeID())
+			if err != nil {
+				return err
+			}
+			if tokenInfo == nil {
+				return errors.Errorf("fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
+			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
+				TypeID:   ctx.TypeID(),
 				Kind:     FungibleToken,
 				Amount:   ctx.Value(),
+				Symbol:   tokenInfo.Symbol,
 				Backlink: txHash,
 			})
 			if err != nil {
@@ -103,19 +118,31 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 		if tok != nil {
 			tokenInfo = tok
 			log.Info("SplitFungibleToken updating existing unit")
-			err := txc.SetToken(accNr, &TokenUnit{
+			if !bytes.Equal(tok.TypeID, ctx.TypeID()) {
+				return errors.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
+			}
+			remainingValue := tok.Amount - ctx.TargetValue()
+			if ctx.RemainingValue() != remainingValue {
+				return errors.Errorf("split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
+			}
+			if err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Symbol:   tok.Symbol,
 				TypeID:   tok.TypeID,
 				Kind:     tok.Kind,
 				Amount:   tok.Amount - ctx.TargetValue(),
 				Backlink: txHash,
-			})
-			if err != nil {
+			}); err != nil {
 				return err
 			}
 		} else {
-			tokenInfo = &TokenUnit{}
+			tokenInfo, err = txc.GetTokenType(ctx.TypeID())
+			if err != nil {
+				return err
+			}
+			if tokenInfo == nil {
+				return errors.Errorf("split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
+			}
 		}
 
 		if checkOwner(accNr, key, ctx.NewBearer()) {
@@ -127,7 +154,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 				TypeID:   tokenInfo.GetTypeId(),
 				Kind:     FungibleToken,
 				Amount:   ctx.TargetValue(),
-				Backlink: txHash,
+				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
 			})
 			if err != nil {
 				return err
@@ -157,10 +184,13 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 			if err != nil {
 				return err
 			}
+			if tType == nil {
+				return errors.Errorf("mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+			}
 			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
 				Kind:     NonFungibleToken,
-				TypeID:   tType.ID,
+				TypeID:   ctx.NFTTypeID(),
 				URI:      ctx.URI(),
 				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
 				Symbol:   tType.Symbol,
@@ -177,10 +207,19 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 	case tokens.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
-			err := txc.SetToken(accNr, &TokenUnit{
+			tType, err := txc.GetTokenType(ctx.NFTTypeID())
+			if err != nil {
+				return err
+			}
+			if tType == nil {
+				return errors.Errorf("transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
+			}
+			err = txc.SetToken(accNr, &TokenUnit{
 				ID:       id,
+				TypeID:   ctx.NFTTypeID(),
 				Kind:     NonFungibleToken,
 				Backlink: txHash,
+				Symbol:   tType.Symbol,
 			})
 			if err != nil {
 				return err
@@ -209,27 +248,63 @@ func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []
 	}
 }
 
-func (w *Wallet) newType(ctx context.Context, attrs proto.Message, typeId TokenTypeID) (TokenID, error) {
-	sub, err := w.sendTx(TokenID(typeId), attrs, nil)
+func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
+	sub, err := w.sendTx(TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), subtypePredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.SetSubTypeCreationPredicateSignatures(signatures)
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
 	if err != nil {
 		return nil, err
 	}
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWithBearer, tokenId TokenID) (TokenID, error) {
+func preparePredicateSignatures(am wallet.AccountManager, args []*CreationInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
+	signatures := make([][]byte, 0, len(args))
+	for _, input := range args {
+		if len(input.Argument) > 0 {
+			signatures = append(signatures, input.Argument)
+		} else if input.AccountNumber > 0 {
+			ac, err := am.GetAccountKey(input.AccountNumber - 1)
+			if err != nil {
+				return nil, err
+			}
+			sig, err := signTx(gtx, ac)
+			if err != nil {
+				return nil, err
+			}
+			signatures = append(signatures, sig)
+		} else {
+			return nil, errors.Errorf("invalid account for creation input: %v", input.AccountNumber)
+		}
+	}
+	return signatures, nil
+}
+
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.MintAttr, tokenId TokenID, mintPredicateArgs []*CreationInput) (TokenID, error) {
+	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1
 		key, err := w.mw.GetAccountKey(accIdx)
 		if err != nil {
 			return nil, err
 		}
-		attrs.SetBearer(script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256))
-	} else {
-		attrs.SetBearer(script.PredicateAlwaysTrue())
+		keyHash = key.PubKeyHash.Sha256
 	}
+	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
-	sub, err := w.sendTx(tokenId, attrs, nil) // key is not passed as signing of minting tx is not needed?
+	sub, err := w.sendTx(tokenId, attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), mintPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.SetTokenCreationPredicateSignatures(signatures)
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +312,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.AttrWi
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func randomId() (TokenID, error) {
+func RandomID() (TokenID, error) {
 	id := make([]byte, 32)
 	_, err := rand.Read(id)
 	if err != nil {
@@ -246,10 +321,10 @@ func randomId() (TokenID, error) {
 	return id, nil
 }
 
-func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountKey) (*submittedTx, error) {
+func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountKey, txps txPreprocessor) (*submittedTx, error) {
 	txSub := &submittedTx{id: unitId}
 	if unitId == nil {
-		id, err := randomId()
+		id, err := RandomID()
 		if err != nil {
 			return txSub, err
 		}
@@ -266,10 +341,22 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	if err != nil {
 		return txSub, err
 	}
-	err = signTx(tx, ac)
+	gtx, err := tokens.NewGenericTx(tx)
 	if err != nil {
 		return txSub, err
 	}
+	if txps != nil {
+		// set fields before tx is signed
+		err = txps(tx, gtx)
+		if err != nil {
+			return txSub, err
+		}
+	}
+	sig, err := signTx(gtx, ac)
+	if err != nil {
+		return txSub, err
+	}
+	tx.OwnerProof = sig
 	err = w.mw.SendTransaction(nil, tx, nil)
 	if err != nil {
 		return txSub, err
@@ -278,100 +365,75 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	return txSub, nil
 }
 
-func signTx(tx *txsystem.Transaction, ac *wallet.AccountKey) error {
-	gtx, err := tokens.NewGenericTx(tx)
+func signTx(gtx txsystem.GenericTransaction, ac *wallet.AccountKey) (tokens.Predicate, error) {
+	if ac == nil {
+		return script.PredicateArgumentEmpty(), nil
+	}
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if ac != nil {
-		signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
-		if err != nil {
-			return err
-		}
-		sig, err := signer.SignBytes(gtx.SigBytes())
-		if err != nil {
-			return err
-		}
-		tx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey)
-	} else {
-		tx.OwnerProof = script.PredicateArgumentEmpty()
+	sig, err := signer.SignBytes(gtx.SigBytes())
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
 }
 
 func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
-	var bearer []byte
-	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
-	} else {
-		bearer = script.PredicateAlwaysTrue()
-	}
-
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.Backlink))
-
 	return &tokens.TransferFungibleTokenAttributes{
-		NewBearer:                   bearer,
+		Type:                        token.TypeID,
+		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
 		Value:                       token.Amount,
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}
 }
 
+func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
+	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
+	return &tokens.TransferNonFungibleTokenAttributes{
+		NftType:                     token.TypeID,
+		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
+		Backlink:                    token.Backlink,
+		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+	}
+}
+
+func bearerPredicateFromHash(receiverPubKeyHash []byte) tokens.Predicate {
+	if receiverPubKeyHash != nil {
+		return script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash)
+	}
+	return script.PredicateAlwaysTrue()
+}
+
+func bearerPredicateFromPubKey(receiverPubKey PublicKey) tokens.Predicate {
+	if receiverPubKey == nil {
+		return bearerPredicateFromHash(nil)
+	}
+	return bearerPredicateFromHash(hash.Sum256(receiverPubKey))
+}
+
 func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, receiverPubKey []byte) error {
-	sub, err := w.sendTx(token.ID, newFungibleTransferTxAttrs(token, receiverPubKey), ac)
+	sub, err := w.sendTx(token.ID, newFungibleTransferTxAttrs(token, receiverPubKey), ac, nil)
 	if err != nil {
 		return err
 	}
 
 	return w.syncToUnit(ctx, token.ID, sub.timeout)
-}
-
-func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
-	var bearer []byte
-	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
-	} else {
-		bearer = script.PredicateAlwaysTrue()
-	}
-
-	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
-
-	return &tokens.TransferNonFungibleTokenAttributes{
-		NewBearer:                   bearer,
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
-	}
 }
 
 func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
-	var bearer []byte
-	if receiverPubKey != nil {
-		bearer = script.PredicatePayToPublicKeyHashDefault(hash.Sum256(receiverPubKey))
-	} else {
-		bearer = script.PredicateAlwaysTrue()
-	}
-
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
-
 	return &tokens.SplitFungibleTokenAttributes{
-		NewBearer:                   bearer,
+		Type:                        token.TypeID,
+		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                 amount,
+		RemainingValue:              token.Amount - amount,
 		Backlink:                    token.Backlink,
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	}
-}
-
-func (w *Wallet) split(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, amount uint64, receiverPubKey []byte) error {
-	if amount >= token.Amount {
-		return fmt.Errorf("invalid target value for split: %v, token value=%v, UnitId=%X", amount, token.Amount, token.ID)
-	}
-
-	sub, err := w.sendTx(token.ID, newSplitTxAttrs(token, amount, receiverPubKey), ac)
-	if err != nil {
-		return err
-	}
-
-	return w.syncToUnit(ctx, token.ID, sub.timeout)
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
@@ -407,7 +469,7 @@ func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, to
 	} else {
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 	}
-	sub, err := w.sendTx(token.ID, attrs, acc)
+	sub, err := w.sendTx(token.ID, attrs, acc, nil)
 	if err != nil {
 		return sub, err
 	}

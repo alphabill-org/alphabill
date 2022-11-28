@@ -382,6 +382,9 @@ func (c *mintNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write([]byte(c.URI()))
 	hasher.Write(c.Data())
 	hasher.Write(c.DataUpdatePredicate())
+	for _, bytes := range c.TokenCreationPredicateSignatures() {
+		hasher.Write(bytes)
+	}
 }
 
 func (c *mintNonFungibleTokenWrapper) Bearer() []byte {
@@ -400,8 +403,8 @@ func (c *mintNonFungibleTokenWrapper) DataUpdatePredicate() []byte {
 	return c.attributes.DataUpdatePredicate
 }
 
-func (c *mintNonFungibleTokenWrapper) TokenCreationPredicateSignature() []byte {
-	return c.attributes.TokenCreationPredicateSignature
+func (c *mintNonFungibleTokenWrapper) TokenCreationPredicateSignatures() [][]byte {
+	return c.attributes.TokenCreationPredicateSignatures
 }
 
 func (c *mintNonFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
@@ -425,6 +428,7 @@ func (t *transferNonFungibleTokenWrapper) SigBytes() []byte {
 	b.Write(t.NewBearer())
 	b.Write(t.Nonce())
 	b.Write(t.Backlink())
+	b.Write(t.NFTTypeID())
 	return b.Bytes()
 }
 
@@ -434,6 +438,11 @@ func (t *transferNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(t.Nonce())
 	hasher.Write(t.Backlink())
 	hasher.Write(t.InvariantPredicateSignature())
+	hasher.Write(t.NFTTypeID())
+}
+
+func (t *transferNonFungibleTokenWrapper) NFTTypeID() []byte {
+	return t.attributes.NftType
 }
 
 func (t *transferNonFungibleTokenWrapper) NewBearer() []byte {
@@ -597,8 +606,8 @@ func (m *mintFungibleTokenWrapper) Bearer() []byte {
 	return m.attributes.Bearer
 }
 
-func (m *mintFungibleTokenWrapper) TokenCreationPredicateSignature() []byte {
-	return m.attributes.TokenCreationPredicateSignature
+func (m *mintFungibleTokenWrapper) TokenCreationPredicateSignatures() [][]byte {
+	return m.attributes.TokenCreationPredicateSignatures
 }
 
 func (m *mintFungibleTokenWrapper) SigBytes() []byte {
@@ -615,11 +624,17 @@ func (m *mintFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(m.Bearer())
 	hasher.Write(m.TypeID())
 	hasher.Write(util.Uint64ToBytes(m.Value()))
-	hasher.Write(m.TokenCreationPredicateSignature())
+	for _, bytes := range m.TokenCreationPredicateSignatures() {
+		hasher.Write(bytes)
+	}
 }
 
 func (m *mintFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{m.UnitID()}
+}
+
+func (t *transferFungibleTokenWrapper) TypeID() []byte {
+	return t.attributes.Type
 }
 
 func (t *transferFungibleTokenWrapper) NewBearer() []byte {
@@ -660,6 +675,7 @@ func (t *transferFungibleTokenWrapper) SigBytes() []byte {
 	b.Write(util.Uint64ToBytes(t.Value()))
 	b.Write(t.Nonce())
 	b.Write(t.Backlink())
+	b.Write(t.TypeID())
 	return b.Bytes()
 }
 
@@ -670,6 +686,7 @@ func (t *transferFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(t.Nonce())
 	hasher.Write(t.Backlink())
 	hasher.Write(t.InvariantPredicateSignature())
+	hasher.Write(t.TypeID())
 }
 
 func (t *transferFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
@@ -699,9 +716,11 @@ func (s *splitFungibleTokenWrapper) HashForIDCalculation(hashFunc crypto.Hash) [
 func (s *splitFungibleTokenWrapper) addAttributesToHasher(hasher hash.Hash) {
 	hasher.Write(s.NewBearer())
 	hasher.Write(util.Uint64ToBytes(s.TargetValue()))
+	hasher.Write(util.Uint64ToBytes(s.RemainingValue()))
 	hasher.Write(s.Nonce())
 	hasher.Write(s.Backlink())
 	hasher.Write(s.InvariantPredicateSignature())
+	hasher.Write(s.TypeID())
 }
 
 func (s *splitFungibleTokenWrapper) SigBytes() []byte {
@@ -709,14 +728,24 @@ func (s *splitFungibleTokenWrapper) SigBytes() []byte {
 	s.wrapper.sigBytes(&b)
 	b.Write(s.NewBearer())
 	b.Write(util.Uint64ToBytes(s.TargetValue()))
+	b.Write(util.Uint64ToBytes(s.RemainingValue()))
 	b.Write(s.Nonce())
 	b.Write(s.Backlink())
+	b.Write(s.TypeID())
 	return b.Bytes()
 }
 
 func (s *splitFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	s.wrapper.addTransactionFieldsToHasher(hasher)
 	s.addAttributesToHasher(hasher)
+}
+
+func (s *splitFungibleTokenWrapper) TypeID() []byte {
+	return s.attributes.Type
+}
+
+func (s *splitFungibleTokenWrapper) RemainingValue() uint64 {
+	return s.attributes.RemainingValue
 }
 
 func (s *splitFungibleTokenWrapper) NewBearer() []byte {

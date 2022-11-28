@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -45,6 +46,18 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	bills, err := bs.GetBills(pubKey)
 	require.ErrorIs(t, err, ErrPubKeyNotIndexed)
 	require.Nil(t, bills)
+
+	// index key
+	err = bs.AddKey(&Pubkey{
+		Pubkey:     pubKey,
+		PubkeyHash: wallet.NewKeyHash(pubKey),
+	})
+	require.NoError(t, err)
+
+	// verify GetBills for indexed pubkey with no bills returns no error
+	bills, err = bs.GetBills(pubKey)
+	require.NoError(t, err)
+	require.Len(t, bills, 0)
 
 	// add bills
 	err = bs.SetBills(pubKey, newBillWithValue(1))

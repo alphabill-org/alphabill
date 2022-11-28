@@ -5,6 +5,7 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
+	"github.com/spf13/cobra"
 	"os"
 	"path"
 	"strings"
@@ -413,4 +414,42 @@ func randomID(t *testing.T) tw.TokenID {
 	id, err := tw.RandomId()
 	require.NoError(t, err)
 	return id
+}
+
+func TestListTokensTypesCommandInputs(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		expectedKind tw.TokenKind
+	}{
+		{
+			name:         "list all tokens",
+			args:         []string{},
+			expectedKind: tw.Any,
+		},
+		{
+			name:         "list all fungible tokens",
+			args:         []string{"fungible"},
+			expectedKind: tw.FungibleTokenType,
+		},
+		{
+			name:         "list all non-fungible tokens",
+			args:         []string{"non-fungible"},
+			expectedKind: tw.NonFungibleTokenType,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exec := false
+			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind) error {
+				require.Equal(t, tt.expectedKind, kind)
+				exec = true
+				return nil
+			})
+			cmd.SetArgs(tt.args)
+			err := cmd.Execute()
+			require.NoError(t, err)
+			require.True(t, exec)
+		})
+	}
 }

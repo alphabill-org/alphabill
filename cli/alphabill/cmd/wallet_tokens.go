@@ -48,6 +48,8 @@ const (
 
 var NoParent = []byte{0x00}
 
+type runTokenListTypesCmd func(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error
+
 func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "token",
@@ -62,7 +64,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config))
-	cmd.AddCommand(tokenCmdListTypes(config))
+	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
 	cmd.AddCommand(tokenCmdSync(config))
 	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	cmd.PersistentFlags().StringP(cmdFlagSync, "s", "true", "ensures wallet is up to date with the blockchain")
@@ -729,26 +731,27 @@ func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
-func tokenCmdListTypes(config *walletConfig) *cobra.Command {
+func tokenCmdListTypes(config *walletConfig, runner runTokenListTypesCmd) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list-types",
 		Short: "lists token types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdListTypes(cmd, config, t.Any)
+			return runner(cmd, config, t.Any)
 		},
 	}
+	// add optional sub-commands to filter fungible and non-fungible types
 	cmd.AddCommand(&cobra.Command{
 		Use:   "fungible",
 		Short: "lists fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdListTypes(cmd, config, t.FungibleTokenType)
+			return runner(cmd, config, t.FungibleTokenType)
 		},
 	})
 	cmd.AddCommand(&cobra.Command{
 		Use:   "non-fungible",
 		Short: "lists non-fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdListTypes(cmd, config, t.NonFungibleTokenType)
+			return runner(cmd, config, t.NonFungibleTokenType)
 		},
 	})
 	return cmd

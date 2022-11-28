@@ -428,7 +428,7 @@ func (w *Wallet) Sync(ctx context.Context) error {
 	return w.Wallet.Sync(ctx, blockNumber)
 }
 
-// Sync synchronises wallet from the last known block number with the given alphabill node.
+// SyncToMaxBlockNumber synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
 // Returns immediately with ErrWalletAlreadySynchronizing if already synchronizing.
 func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {

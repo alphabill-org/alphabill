@@ -75,9 +75,10 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
 			wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%x)", tx.UnitID()))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
-				Id:     txPb.UnitId,
-				Value:  tx.TargetValue(),
-				TxHash: tx.Hash(crypto.SHA256),
+				Id:       txPb.UnitId,
+				Value:    tx.TargetValue(),
+				TxHash:   tx.Hash(crypto.SHA256),
+				IsDCBill: true,
 			})
 			if err != nil {
 				return err

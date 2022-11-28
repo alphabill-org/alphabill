@@ -9,7 +9,7 @@ import (
 
 func TestTokenTypes_fungible(t *testing.T) {
 	db := openTestDB(t)
-	id, err := RandomId()
+	id, err := RandomID()
 	require.NoError(t, err)
 	typeFun := &TokenUnitType{
 		ID:            TokenTypeID(id),
@@ -29,7 +29,7 @@ func TestTokenTypes_fungible(t *testing.T) {
 
 func TestTokenTypes_nft(t *testing.T) {
 	db := openTestDB(t)
-	id, err := RandomId()
+	id, err := RandomID()
 	require.NoError(t, err)
 	typeNft := &TokenUnitType{
 		ID:     TokenTypeID(id),
@@ -48,9 +48,9 @@ func TestTokenTypes_nft(t *testing.T) {
 
 func TestTokens_fungible(t *testing.T) {
 	db := openTestDB(t)
-	typeId, err := RandomId()
+	typeId, err := RandomID()
 	require.NoError(t, err)
-	id, err := RandomId()
+	id, err := RandomID()
 	require.NoError(t, err)
 	token := &TokenUnit{
 		ID:       id,
@@ -76,9 +76,9 @@ func TestTokens_fungible(t *testing.T) {
 
 func TestTokens_nft(t *testing.T) {
 	db := openTestDB(t)
-	typeId, err := RandomId()
+	typeId, err := RandomID()
 	require.NoError(t, err)
-	id, err := RandomId()
+	id, err := RandomID()
 	require.NoError(t, err)
 	token := &TokenUnit{
 		ID:       id,

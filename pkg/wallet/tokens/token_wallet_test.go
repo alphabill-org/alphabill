@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
@@ -95,11 +96,11 @@ func TestNewFungibleToken(t *testing.T) {
 			typeId := []byte{1}
 			amount := uint64(100)
 			a := &tokens.MintFungibleTokenAttributes{
-				Type:                            typeId,
-				Value:                           amount,
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Type:                             typeId,
+				Value:                            amount,
+				TokenCreationPredicateSignatures: nil,
 			}
-			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a)
+			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
@@ -111,6 +112,52 @@ func TestNewFungibleToken(t *testing.T) {
 			tt.validateOwner(t, tt.accNr, newToken)
 		})
 	}
+}
+
+func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
+	tokenID := test.RandomBytes(32)
+	accNr := uint64(1)
+	tests := []struct {
+		name       string
+		attrs      *tokens.MintNonFungibleTokenAttributes
+		wantErrStr string
+	}{
+		{
+			name:       "attributes missing",
+			attrs:      nil,
+			wantErrStr: "attributes missing",
+		},
+		{
+			name: "invalid URI",
+			attrs: &tokens.MintNonFungibleTokenAttributes{
+				Uri: "invalid_uri",
+			},
+			wantErrStr: "URI 'invalid_uri' is invalid",
+		},
+		{
+			name: "URI exceeds maximum allowed length",
+			attrs: &tokens.MintNonFungibleTokenAttributes{
+				Uri: string(test.RandomBytes(4097)),
+			},
+			wantErrStr: "URI exceeds the maximum allowed size of 4096 bytes",
+		},
+		{
+			name: "data exceeds maximum allowed length",
+			attrs: &tokens.MintNonFungibleTokenAttributes{
+				Data: test.RandomBytes(65537),
+			},
+			wantErrStr: "data exceeds the maximum allowed size of 65536 bytes",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wallet := &Wallet{}
+			got, err := wallet.NewNFT(context.Background(), accNr, tt.attrs, tokenID, nil)
+			require.ErrorContains(t, err, tt.wantErrStr)
+			require.Nil(t, got)
+		})
+	}
+
 }
 
 func TestNewNFT(t *testing.T) {
@@ -142,13 +189,13 @@ func TestNewNFT(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := []byte{1}
 			a := &tokens.MintNonFungibleTokenAttributes{
-				NftType:                         typeId,
-				Uri:                             "",
-				Data:                            nil,
-				DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				NftType:                          typeId,
+				Uri:                              "",
+				Data:                             nil,
+				DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+				TokenCreationPredicateSignatures: nil,
 			}
-			_, err := tw.NewNFT(context.Background(), tt.accNr, a, nil)
+			_, err := tw.NewNFT(context.Background(), tt.accNr, a, nil, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]

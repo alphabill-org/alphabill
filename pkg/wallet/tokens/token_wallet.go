@@ -7,13 +7,22 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
+const (
+	uriMaxSize  = 4 * 1024
+	dataMaxSize = 64 * 1024
+)
+
 var (
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
+	ErrAttributesMissing    = errors.New("attributes missing")
+	ErrInvalidURILength     = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
+	ErrInvalidDataLength    = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 )
 
 type (
@@ -70,23 +79,48 @@ func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNon
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes, mintPredicateArgs []*CreationInput) (TokenID, error) {
 	log.Info("Creating new fungible token")
-	return w.newToken(ctx, accNr, attrs, nil)
+	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
-func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID) (TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID, mintPredicateArgs []*CreationInput) (TokenID, error) {
 	log.Info("Creating new NFT")
-	return w.newToken(ctx, accNr, attrs, tokenId)
+	if attrs == nil {
+		return nil, ErrAttributesMissing
+	}
+	if len(attrs.Uri) > uriMaxSize {
+		return nil, ErrInvalidURILength
+	}
+	if attrs.Uri != "" && !util.IsValidURI(attrs.Uri) {
+		return nil, fmt.Errorf("URI '%s' is invalid", attrs.Uri)
+	}
+	if len(attrs.Data) > dataMaxSize {
+		return nil, ErrInvalidDataLength
+	}
+	return w.newToken(ctx, accNr, attrs, tokenId, mintPredicateArgs)
 }
 
-func (w *Wallet) ListTokenTypes(ctx context.Context) ([]*TokenUnitType, error) {
+func (w *Wallet) ListTokenTypes(ctx context.Context, kind TokenKind) ([]*TokenUnitType, error) {
 	err := w.Sync(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	return w.db.Do().GetTokenTypes()
+	tokenTypes, err := w.db.Do().GetTokenTypes()
+	if err != nil {
+		return nil, err
+	}
+	if kind&Any > 0 {
+		return tokenTypes, nil
+	}
+	res := make([]*TokenUnitType, 0)
+	// filter out specific type requested
+	for _, tt := range tokenTypes {
+		if tt.Kind&kind == kind {
+			res = append(res, tt)
+		}
+	}
+	return res, nil
 }
 
 func (w *Wallet) GetTokenType(ctx context.Context, typeId TokenTypeID) (*TokenUnitType, error) {

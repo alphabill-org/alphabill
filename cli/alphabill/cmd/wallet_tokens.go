@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -50,6 +49,9 @@ const (
 
 var NoParent = []byte{0x00}
 
+type runTokenListTypesCmd func(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error
+type runTokenListCmd func(cmd *cobra.Command, config *walletConfig, kind t.TokenKind, accountNumber *int) error
+
 func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "token",
@@ -63,8 +65,8 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdTransfer(config))
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
-	cmd.AddCommand(tokenCmdList(config))
-	cmd.AddCommand(tokenCmdListTypes(config))
+	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
+	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
 	cmd.AddCommand(tokenCmdSync(config))
 	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
 	cmd.PersistentFlags().StringP(cmdFlagSync, "s", "true", "ensures wallet is up to date with the blockchain")
@@ -98,9 +100,9 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	}
 	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format, must start with 0x (optional)")
 	cmd.Flags().StringSlice(cmdFlagCreationInput, nil, "input to satisfy the parent types minting clause (mandatory with --parent-type)")
-	cmd.Flags().String(cmdFlagSybTypeClause, "true", "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
-	cmd.Flags().String(cmdFlagMintClause, "ptpkh", "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
-	cmd.Flags().String(cmdFlagInheritBearerClause, "true", "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
+	cmd.Flags().String(cmdFlagSybTypeClause, predicateTrue, "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
+	cmd.Flags().String(cmdFlagMintClause, predicatePtpkh, "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
+	cmd.Flags().String(cmdFlagInheritBearerClause, predicateTrue, "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	return cmd
 }
 
@@ -140,11 +142,15 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if decimals > maxDecimalPlaces {
 		return fmt.Errorf("argument \"%v\" for \"--decimals\" flag is out of range, max value %v", decimals, maxDecimalPlaces)
 	}
-	parentType, creationInputs, err := readParentInfo(cmd, tw.GetAccountManager())
+	parentType, creationInputs, err := readParentTypeInfo(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -154,7 +160,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		ParentTypeId:                       parentType,
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
-		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		TokenCreationPredicate:             mintTokenPredicate,
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -167,28 +173,38 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	return nil
 }
 
-func readParentInfo(cmd *cobra.Command, am wallet.AccountManager) ([]byte, []*t.CreationInput, error) {
+func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Predicate, []*t.CreationInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err
 	}
-	var creationInputs []*t.CreationInput
-	if len(parentType) == 0 {
+
+	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
 		parentType = NoParent
-	} else if !bytes.Equal(parentType, NoParent) {
-		creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
-		if err != nil {
-			return nil, nil, err
-		}
-		creationInputs, err = parsePredicateArguments(creationInputStrs, am)
-		if err != nil {
-			return nil, nil, err
-		}
+		return NoParent, []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
-	if len(creationInputs) == 0 {
-		creationInputs = []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}
+
+	creationInputs, err := readCreationInput(cmd, am)
+	if err != nil {
+		return nil, nil, err
 	}
+
 	return parentType, creationInputs, nil
+}
+
+func readCreationInput(cmd *cobra.Command, am wallet.AccountManager) ([]*t.CreationInput, error) {
+	creationInputStrs, err := cmd.Flags().GetStringSlice(cmdFlagCreationInput)
+	if err != nil {
+		return nil, err
+	}
+	if len(creationInputStrs) == 0 {
+		return []*t.CreationInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+	}
+	creationInputs, err := parsePredicateArguments(creationInputStrs, am)
+	if err != nil {
+		return nil, err
+	}
+	return creationInputs, nil
 }
 
 func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
@@ -219,11 +235,15 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentInfo(cmd, nil)
+	parentType, creationInputs, err := readParentTypeInfo(cmd, nil)
 	if err != nil {
 		return err
 	}
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
@@ -232,7 +252,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		ParentTypeId:                       parentType,
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
-		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		TokenCreationPredicate:             mintTokenPredicate,
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 		DataUpdatePredicate:                script.PredicateAlwaysTrue(),
 	}
@@ -277,7 +297,7 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 	if err != nil {
 		return nil
 	}
-	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")
+	cmd.Flags().StringSlice(cmdFlagCreationInput, []string{predicatePtpkh}, "input to satisfy the type's minting clause")
 	return cmd
 }
 
@@ -301,19 +321,19 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput)
+	ci, err := readCreationInput(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
 	a := &tokens.MintFungibleTokenAttributes{
-		Bearer:                          nil, // will be set in the wallet
-		Type:                            typeId,
-		Value:                           amount,
-		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Bearer:                           nil, // will be set in the wallet
+		Type:                             typeId,
+		Value:                            amount,
+		TokenCreationPredicateSignatures: nil, // will be filled by the wallet
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleToken(ctx, accountNumber, a)
+	id, err := tw.NewFungibleToken(ctx, accountNumber, a, ci)
 	if err != nil {
 		return err
 	}
@@ -340,7 +360,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
 	// cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile) TODO use once 1.5.0 is released
 	cmd.Flags().BytesHex(cmdFlagTokenDataUpdate, nil, "data update predicate (hex)")
-	cmd.Flags().StringArray(cmdFlagCreationInput, []string{"true"}, "input to satisfy the type's minting clause")
+	cmd.Flags().StringSlice(cmdFlagCreationInput, []string{predicatePtpkh}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagTokenId)
 	return cmd
@@ -388,26 +408,26 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 			return err
 		}
 	}
-	_, err = cmd.Flags().GetStringArray(cmdFlagCreationInput)
+	ci, err := readCreationInput(cmd, tw.GetAccountManager())
 	if err != nil {
 		return err
 	}
 	a := &tokens.MintNonFungibleTokenAttributes{
-		Bearer:                          nil, // will be set in the wallet
-		NftType:                         typeId,
-		Uri:                             uri,
-		Data:                            data,
-		DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Bearer:                           nil, // will be set in the wallet
+		NftType:                          typeId,
+		Uri:                              uri,
+		Data:                             data,
+		DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+		TokenCreationPredicateSignatures: nil, // will be set in the wallet
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewNFT(ctx, accountNumber, a, tokenId)
+	id, err := tw.NewNFT(ctx, accountNumber, a, tokenId, ci)
 	if err != nil {
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Created new fungible token with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Created new non-fungible token with id=%X", id))
 	return nil
 }
 
@@ -645,38 +665,63 @@ func execTokenCmdSync(cmd *cobra.Command, config *walletConfig) error {
 	return tw.Sync(ctx)
 }
 
-func tokenCmdList(config *walletConfig) *cobra.Command {
+func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
+	accountNumber := -1
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "lists all available tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.Any)
+			return runner(cmd, config, t.Any, &accountNumber)
 		},
 	}
-	cmd.AddCommand(tokenCmdListFungible(config))
-	cmd.AddCommand(tokenCmdListNonFungible(config))
+	cmd.AddCommand(tokenCmdListFungible(config, runner, &accountNumber))
+	cmd.AddCommand(tokenCmdListNonFungible(config, runner, &accountNumber))
 	addPasswordFlags(cmd)
-	cmd.PersistentFlags().IntP(keyCmdName, "k", -1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
+	cmd.PersistentFlags().IntVarP(&accountNumber, keyCmdName, "k", -1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
 	return cmd
 }
 
-func tokenCmdListFungible(config *walletConfig) *cobra.Command {
+func tokenCmdListFungible(config *walletConfig, runner runTokenListCmd, accountNumber *int) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fungible",
 		Short: "lists fungible tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.FungibleToken)
+			return runner(cmd, config, t.FungibleToken, accountNumber)
 		},
 	}
 	return cmd
 }
 
+// amountToString converts amount to string with specified decimals
+// NB! it is assumed that the decimal places value is sane and verified before
+// calling this method.
 func amountToString(amount uint64, decimals uint32) string {
-	famount := float64(amount) / math.Pow(10, float64(decimals))
-	return strconv.FormatFloat(famount, 'f', int(decimals), 64)
+	amountStr := strconv.FormatUint(amount, 10)
+	if decimals == 0 {
+		return amountStr
+	}
+	// length of amount string is less than decimal places, insert comma in value
+	if decimals < uint32(len(amountStr)) {
+		return amountStr[:uint32(len(amountStr))-decimals] + "." + amountStr[uint32(len(amountStr))-decimals:]
+	}
+	// resulting amount is less than 0
+	resultStr := "0."
+	resultStr += strings.Repeat("0", int(decimals)-len(amountStr))
+	return resultStr + amountStr
 }
 
-func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error {
+func tokenCmdListNonFungible(config *walletConfig, runner runTokenListCmd, accountNumber *int) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "non-fungible",
+		Short: "lists non-fungible tokens",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runner(cmd, config, t.NonFungibleToken, accountNumber)
+		},
+	}
+	return cmd
+}
+
+func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind, accountNumber *int) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
@@ -685,11 +730,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	accountNumber, err := cmd.Flags().GetInt(keyCmdName)
-	if err != nil {
-		return err
-	}
-	res, err := tw.ListTokens(ctx, kind, accountNumber)
+	res, err := tw.ListTokens(ctx, kind, *accountNumber)
 	if err != nil {
 		return err
 	}
@@ -735,29 +776,33 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 	return nil
 }
 
-func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "non-fungible",
-		Short: "lists non-fungible tokens",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.NonFungibleToken)
-		},
-	}
-	return cmd
-}
-
-func tokenCmdListTypes(config *walletConfig) *cobra.Command {
+func tokenCmdListTypes(config *walletConfig, runner runTokenListTypesCmd) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list-types",
 		Short: "lists token types",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdListTypes(cmd, config)
+			return runner(cmd, config, t.Any)
 		},
 	}
+	// add optional sub-commands to filter fungible and non-fungible types
+	cmd.AddCommand(&cobra.Command{
+		Use:   "fungible",
+		Short: "lists fungible types",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runner(cmd, config, t.FungibleTokenType)
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
+		Use:   "non-fungible",
+		Short: "lists non-fungible types",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runner(cmd, config, t.NonFungibleTokenType)
+		},
+	})
 	return cmd
 }
 
-func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
+func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
@@ -766,7 +811,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	res, err := tw.ListTokenTypes(ctx)
+	res, err := tw.ListTokenTypes(ctx, kind)
 	if err != nil {
 		return err
 	}

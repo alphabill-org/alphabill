@@ -383,6 +383,10 @@ func testNFTsWithRunningPartition(t *testing.T, partition *testpartition.Alphabi
 	verifyStdout(t, execTokensCmd(t, "w2", fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
 	//check what is left in w1, nothing, that is
 	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list non-fungible -u %s", dialAddr)), "No tokens")
+	// list token types
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list-types")), "symbol=ABNFT, kind: 0x90", "symbol=AB, kind: 0x50")
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list-types fungible")), "symbol=AB, kind: 0x50")
+	verifyStdout(t, execTokensCmd(t, "w1", fmt.Sprintf("list-types non-fungible")), "symbol=ABNFT, kind: 0x90")
 }
 
 func testTokenSubtypingWithRunningPartition(t *testing.T, partition *testpartition.AlphabillPartition, unitState tokens.TokenState, w2key *wallet.AccountKey) {
@@ -547,4 +551,42 @@ func randomID(t *testing.T) tw.TokenID {
 	id, err := tw.RandomId()
 	require.NoError(t, err)
 	return id
+}
+
+func TestListTokensTypesCommandInputs(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		expectedKind tw.TokenKind
+	}{
+		{
+			name:         "list all tokens",
+			args:         []string{},
+			expectedKind: tw.Any,
+		},
+		{
+			name:         "list all fungible tokens",
+			args:         []string{"fungible"},
+			expectedKind: tw.FungibleTokenType,
+		},
+		{
+			name:         "list all non-fungible tokens",
+			args:         []string{"non-fungible"},
+			expectedKind: tw.NonFungibleTokenType,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exec := false
+			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind) error {
+				require.Equal(t, tt.expectedKind, kind)
+				exec = true
+				return nil
+			})
+			cmd.SetArgs(tt.args)
+			err := cmd.Execute()
+			require.NoError(t, err)
+			require.True(t, exec)
+		})
+	}
 }

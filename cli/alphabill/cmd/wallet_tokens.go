@@ -763,9 +763,9 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 				}
 				// format amount
 				amount := amountToString(tok.Amount, tokUnit.DecimalPlaces)
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, amount, tok.TypeID))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (%s)", tok.ID, tok.Symbol, amount, tok.TypeID, tok.Kind.String()))
 			} else {
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.ID, tok.Symbol, tok.TypeID, tok.URI))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (%s)", tok.ID, tok.Symbol, tok.TypeID, tok.URI, tok.Kind.String()))
 			}
 		}
 	}
@@ -814,8 +814,8 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind t.Toke
 	if err != nil {
 		return err
 	}
-	for _, t := range res {
-		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s, kind: %#v", t.ID, t.Symbol, t.Kind))
+	for _, tok := range res {
+		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s (%s)", tok.ID, tok.Symbol, tok.Kind.String()))
 	}
 	return nil
 }

@@ -35,9 +35,10 @@ type (
 	}
 
 	ListBillVM struct {
-		Id     []byte `json:"id"`
-		Value  uint64 `json:"value"`
-		TxHash []byte `json:"txHash"`
+		Id       []byte `json:"id"`
+		Value    uint64 `json:"value"`
+		TxHash   []byte `json:"txHash"`
+		IsDCBill bool   `json:"isDCBill"`
 	}
 
 	BalanceResponse struct {
@@ -148,7 +149,9 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	sum := uint64(0)
 	for _, b := range bills {
-		sum += b.Value
+		if !b.IsDCBill {
+			sum += b.Value
+		}
 	}
 	res := &BalanceResponse{Balance: sum}
 	writeAsJson(w, res)
@@ -371,9 +374,10 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	billVMs := make([]*ListBillVM, len(bills))
 	for i, b := range bills {
 		billVMs[i] = &ListBillVM{
-			Id:     b.Id,
-			Value:  b.Value,
-			TxHash: b.TxHash,
+			Id:       b.Id,
+			Value:    b.Value,
+			TxHash:   b.TxHash,
+			IsDCBill: b.IsDCBill,
 		}
 	}
 	return billVMs

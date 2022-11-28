@@ -317,6 +317,7 @@ func newBill(b *block.Bill) *money.Bill {
 		Id:         uint256.NewInt(0).SetBytes(b.Id),
 		Value:      b.Value,
 		TxHash:     b.TxHash,
+		IsDcBill:   b.IsDcBill,
 		BlockProof: newBlockProof(b.TxProof),
 	}
 }

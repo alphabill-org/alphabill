@@ -409,11 +409,13 @@ func TestSendFungible(t *testing.T) {
 func TestList(t *testing.T) {
 	tw, _ := createTestWallet(t)
 	_, _, err := tw.mw.AddAccount() //#2
-	_, _, err = tw.mw.AddAccount()  //#3 this acc has no tokens, should not be listed
+	require.NoError(t, err)
+	_, _, err = tw.mw.AddAccount() //#3 this acc has no tokens, should not be listed
 	require.NoError(t, err)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
 		require.NoError(t, c.SetToken(0, &TokenUnit{ID: []byte{11}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
 		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{15}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 6}))
 		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{13}, TypeID: []byte{0x02}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
 		require.NoError(t, c.SetToken(2, &TokenUnit{ID: []byte{14}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
 		return nil
@@ -442,7 +444,7 @@ func TestList(t *testing.T) {
 			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 3, totalKeys)
-				require.Equal(t, 4, totalTokens)
+				require.Equal(t, 5, totalTokens)
 			},
 		}, {
 			name:      "only tokens spendable by anyone",
@@ -460,7 +462,25 @@ func TestList(t *testing.T) {
 			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 1, totalKeys)
-				require.Equal(t, 2, totalTokens)
+				require.Equal(t, 3, totalTokens)
+			},
+		}, {
+			name:      "account #2 only",
+			accountNr: 2,
+			kind:      Any,
+			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 1, totalKeys)
+				require.Equal(t, 1, totalTokens)
+			},
+		}, {
+			name:      "account #3 only",
+			accountNr: 2,
+			kind:      Any,
+			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 1, totalKeys)
+				require.Equal(t, 0, totalTokens)
 			},
 		}, {
 			name:      "all accounts, only fungible",
@@ -469,10 +489,10 @@ func TestList(t *testing.T) {
 			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 3, totalKeys)
-				require.Equal(t, 3, totalTokens)
+				require.Equal(t, 4, totalTokens)
 			},
 		}, {
-			name:      "accounts #1, only non-fungible",
+			name:      "all accounts, only non-fungible",
 			accountNr: AllAccounts,
 			kind:      NonFungibleToken,
 			verify: func(t *testing.T, toks map[int][]*TokenUnit) {

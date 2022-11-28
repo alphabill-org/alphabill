@@ -123,11 +123,11 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
-	w1, homedir1 := createNewNamedWallet(t, ":9543")
+	w1, homedir1 := createNewWallet(t, ":9543")
 	w1PubKey, _ := w1.GetPublicKey(0)
 	w1.Shutdown()
 
-	w2, homedir2 := createNewNamedWallet(t, ":9543")
+	w2, homedir2 := createNewWallet(t, ":9543")
 	w2PubKey, _ := w2.GetPublicKey(0)
 	w2.Shutdown()
 
@@ -189,7 +189,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	//walletName := "wallet"
-	w, homedir := createNewNamedWallet(t, ":9543")
+	w, homedir := createNewWallet(t, ":9543")
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
 
@@ -240,7 +240,7 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	w, homedir := createNewNamedWallet(t, ":9543")
+	w, homedir := createNewWallet(t, ":9543")
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
 
@@ -397,9 +397,8 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 	return tx, nil
 }
 
-func createNewNamedWallet(t *testing.T, addr string) (*money.Wallet, string) {
+func createNewWallet(t *testing.T, addr string) (*money.Wallet, string) {
 	walletDir := t.TempDir()
-
 	w, err := money.CreateNewWallet("", money.WalletConfig{
 		DbPath: path.Join(walletDir, "wallet"),
 		AlphabillClientConfig: client.AlphabillClientConfig{
@@ -409,10 +408,6 @@ func createNewNamedWallet(t *testing.T, addr string) (*money.Wallet, string) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, w)
-
-	t.Cleanup(func() {
-		_ = os.RemoveAll(walletDir)
-	})
 	return w, walletDir
 }
 

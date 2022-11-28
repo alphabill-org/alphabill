@@ -49,6 +49,8 @@ const (
 
 var NoParent = []byte{0x00}
 
+type runTokenListCmd func(cmd *cobra.Command, config *walletConfig, kind t.TokenKind, accountNumber *int) error
+
 func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "token",
@@ -62,7 +64,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdTransfer(config))
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
-	cmd.AddCommand(tokenCmdList(config))
+	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config))
 	cmd.AddCommand(tokenCmdSync(config))
 	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
@@ -643,27 +645,28 @@ func execTokenCmdSync(cmd *cobra.Command, config *walletConfig) error {
 	return tw.Sync(ctx)
 }
 
-func tokenCmdList(config *walletConfig) *cobra.Command {
+func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
+	accountNumber := -1
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "lists all available tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.Any)
+			return runner(cmd, config, t.Any, &accountNumber)
 		},
 	}
-	cmd.AddCommand(tokenCmdListFungible(config))
-	cmd.AddCommand(tokenCmdListNonFungible(config))
+	cmd.AddCommand(tokenCmdListFungible(config, runner, &accountNumber))
+	cmd.AddCommand(tokenCmdListNonFungible(config, runner, &accountNumber))
 	addPasswordFlags(cmd)
-	cmd.PersistentFlags().IntP(keyCmdName, "k", -1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
+	cmd.PersistentFlags().IntVarP(&accountNumber, keyCmdName, "k", -1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
 	return cmd
 }
 
-func tokenCmdListFungible(config *walletConfig) *cobra.Command {
+func tokenCmdListFungible(config *walletConfig, runner runTokenListCmd, accountNumber *int) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fungible",
 		Short: "lists fungible tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.FungibleToken)
+			return runner(cmd, config, t.FungibleToken, accountNumber)
 		},
 	}
 	return cmd
@@ -687,7 +690,18 @@ func amountToString(amount uint64, decimals uint32) string {
 	return resultStr + amountStr
 }
 
-func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind) error {
+func tokenCmdListNonFungible(config *walletConfig, runner runTokenListCmd, accountNumber *int) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "non-fungible",
+		Short: "lists non-fungible tokens",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runner(cmd, config, t.NonFungibleToken, accountNumber)
+		},
+	}
+	return cmd
+}
+
+func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind, accountNumber *int) error {
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
@@ -696,11 +710,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	accountNumber, err := cmd.Flags().GetInt(keyCmdName)
-	if err != nil {
-		return err
-	}
-	res, err := tw.ListTokens(ctx, kind, accountNumber)
+	res, err := tw.ListTokens(ctx, kind, *accountNumber)
 	if err != nil {
 		return err
 	}
@@ -744,17 +754,6 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 		consoleWriter.Println("No tokens")
 	}
 	return nil
-}
-
-func tokenCmdListNonFungible(config *walletConfig) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "non-fungible",
-		Short: "lists non-fungible tokens",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdList(cmd, config, t.NonFungibleToken)
-		},
-	}
-	return cmd
 }
 
 func tokenCmdListTypes(config *walletConfig) *cobra.Command {

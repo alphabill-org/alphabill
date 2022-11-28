@@ -3,7 +3,6 @@ package testhttp
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -48,28 +47,24 @@ func DoPostProto(t *testing.T, url string, req proto.Message, res interface{}) *
 func doGet(url string) (*http.Response, []byte, error) {
 	httpRes, err := http.Get(url) // #nosec G107
 	if err != nil {
-		fmt.Println(err)
 		return nil, nil, err
 	}
 	defer func() {
 		_ = httpRes.Body.Close()
 	}()
 	resBytes, _ := ioutil.ReadAll(httpRes.Body)
-	fmt.Printf("GET %s response: %s\n", url, string(resBytes))
 	return httpRes, resBytes, nil
 }
 
 func doPost(t *testing.T, url string, reqBody []byte, res interface{}) *http.Response {
 	httpRes, err := http.Post(url, "application/json", bytes.NewBuffer(reqBody)) // #nosec G107
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
 	defer func() {
 		_ = httpRes.Body.Close()
 	}()
 	resBytes, _ := ioutil.ReadAll(httpRes.Body)
-	fmt.Printf("POST %s response: %s\n", url, string(resBytes))
 	err = json.NewDecoder(bytes.NewReader(resBytes)).Decode(res)
 	require.NoError(t, err)
 	return httpRes

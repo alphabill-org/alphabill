@@ -163,9 +163,8 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 
 	// 4. import bill to wallet-backend
 	reqImportBill, _ := block.ReadBillsFile(exportFilePath)
-	resImportBill := &backend.EmptyResponse{}
 	url := fmt.Sprintf("http://%s/api/v1/proof/%s", serverAddr, pubkey1Hex)
-	httpRes = testhttp.DoPostProto(t, url, reqImportBill, resImportBill)
+	httpRes = testhttp.DoPostProto(t, url, reqImportBill, &backend.EmptyResponse{})
 	require.EqualValues(t, 200, httpRes.StatusCode)
 
 	// 5. verify list-bills shows imported bill

@@ -9,6 +9,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -42,4 +43,12 @@ func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *cert
 		make([]byte, 32),
 	)
 	return uc
+}
+
+func CertifyBlock(t *testing.T, b *block.Block, txConverter block.TxConverter) (*block.Block, map[string]abcrypto.Verifier) {
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	genericBlock, _ := b.ToGenericBlock(txConverter)
+	genericBlock.UnicityCertificate = CreateUC(t, genericBlock, signer)
+	return genericBlock.ToProtobuf(), verifiers
 }

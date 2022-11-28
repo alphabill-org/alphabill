@@ -11,11 +11,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -292,28 +290,18 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			},
 		},
 	}
-	certifiedBlock, verifiers := certifyBlock(t, testBlock)
+	certifiedBlock, verifiers := testblock.CertifyBlock(t, testBlock, txConverter)
 	err := w.ProcessBlock(certifiedBlock)
 	require.NoError(t, err)
 
 	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
 	for _, b := range bills {
-		proof := b.BlockProof
-		tx, _ := txConverter.ConvertTx(b.Tx)
-		err = proof.Verify(tx, verifiers, crypto.SHA256)
+		err = b.BlockProof.Verify(verifiers, crypto.SHA256)
 		require.NoError(t, err)
-		require.Equal(t, block.ProofType_PRIM, proof.ProofType)
-		require.Nil(t, proof.Verify(tx, verifiers, crypto.SHA256))
+		require.Equal(t, block.ProofType_PRIM, b.BlockProof.Proof.ProofType)
+		require.Nil(t, b.BlockProof.Verify(verifiers, crypto.SHA256))
 	}
-}
-
-func certifyBlock(t *testing.T, b *block.Block) (*block.Block, map[string]abcrypto.Verifier) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	genericBlock, _ := b.ToGenericBlock(txConverter)
-	genericBlock.UnicityCertificate = testblock.CreateUC(t, genericBlock, signer)
-	return genericBlock.ToProtobuf(), verifiers
 }
 
 func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
@@ -347,8 +335,8 @@ func TestWalletGetBills_Ok(t *testing.T) {
 	bills, err := w.GetBills(0)
 	require.NoError(t, err)
 	require.Len(t, bills, 2)
-	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000064", fmt.Sprintf("%X", bills[0].GetId()))
-	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetId()))
+	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000064", fmt.Sprintf("%X", bills[0].GetID()))
+	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetID()))
 }
 
 func TestWalletGetBill(t *testing.T) {
@@ -357,7 +345,7 @@ func TestWalletGetBill(t *testing.T) {
 	b1 := addBill(t, w, 100)
 
 	// verify getBill returns existing bill
-	b, err := w.GetBill(0, b1.GetId())
+	b, err := w.GetBill(0, b1.GetID())
 	require.NoError(t, err)
 	require.NotNil(t, b)
 
@@ -377,25 +365,34 @@ func TestWalletAddBill(t *testing.T) {
 	require.ErrorContains(t, err, "bill is nil")
 
 	// verify bill id is nil
-	err = w.AddBill(0, &Bill{Id: nil, Tx: nil})
+	err = w.AddBill(0, &Bill{Id: nil})
 	require.ErrorContains(t, err, "bill id is nil")
 
 	// verify bill tx is nil
-	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), Tx: nil})
-	require.ErrorContains(t, err, "bill tx is nil")
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0)})
+	require.ErrorContains(t, err, "bill tx hash is nil")
+
+	// verify bill block proof is nil
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), TxHash: []byte{}})
+	require.ErrorContains(t, err, "bill block proof is nil")
+
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), TxHash: []byte{}, BlockProof: &BlockProof{}})
+	require.ErrorContains(t, err, "bill block proof tx is nil")
 
 	// verify invalid bearer predicate
 	invalidPubkey := []byte{0}
 	err = w.AddBill(0, &Bill{
-		Id: uint256.NewInt(0),
-		Tx: createTransferTxForPubKey(invalidPubkey),
+		Id:         uint256.NewInt(0),
+		TxHash:     []byte{},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(invalidPubkey)},
 	})
 	require.ErrorContains(t, err, "invalid bearer predicate")
 
 	// verify valid bill no error
 	err = w.AddBill(0, &Bill{
-		Id: uint256.NewInt(0),
-		Tx: createTransferTxForPubKey(pubkey),
+		Id:         uint256.NewInt(0),
+		TxHash:     []byte{},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(pubkey)},
 	})
 	require.NoError(t, err)
 }

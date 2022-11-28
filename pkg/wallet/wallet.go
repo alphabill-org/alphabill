@@ -68,14 +68,18 @@ func (b *Builder) SetABClient(abc client.ABClient) *Builder {
 }
 
 func (b *Builder) Build() *Wallet {
-	w := &Wallet{syncFlag: newSyncFlagWrapper()}
-	w.BlockProcessor = b.bp
-	if b.abc != nil {
-		w.AlphabillClient = b.abc
-	} else {
-		w.AlphabillClient = client.New(b.abcConf)
+	return &Wallet{
+		syncFlag:        newSyncFlagWrapper(),
+		AlphabillClient: b.getOrCreateABClient(),
+		BlockProcessor:  b.bp,
 	}
-	return w
+}
+
+func (b *Builder) getOrCreateABClient() client.ABClient {
+	if b.abc != nil {
+		return b.abc
+	}
+	return client.New(b.abcConf)
 }
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.

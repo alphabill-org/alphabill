@@ -83,6 +83,9 @@ func (s *BoltBillStore) GetBills(pubkey []byte) ([]*Bill, error) {
 			return ErrPubKeyNotIndexed
 		}
 		pubkeyBillsBucket := tx.Bucket(billsBucket).Bucket(pubkey)
+		if pubkeyBillsBucket == nil {
+			return nil // key is indexed but nothing is added yet
+		}
 		return pubkeyBillsBucket.ForEach(func(billId, billBytes []byte) error {
 			var b *Bill
 			err := json.Unmarshal(billBytes, &b)

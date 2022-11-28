@@ -54,6 +54,11 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// verify GetBills for indexed pubkey with no bills returns no error
+	bills, err = bs.GetBills(pubKey)
+	require.NoError(t, err)
+	require.Len(t, bills, 0)
+
 	// add bills
 	err = bs.AddBill(pubKey, newBill(1))
 	require.NoError(t, err)

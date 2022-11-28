@@ -7,13 +7,22 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
+const (
+	uriMaxSize  = 4 * 1024
+	dataMaxSize = 64 * 1024
+)
+
 var (
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
+	ErrAttributesMissing    = errors.New("attributes missing")
+	ErrInvalidURILength     = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
+	ErrInvalidDataLength    = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 )
 
 type (
@@ -77,6 +86,18 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *toke
 
 func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID) (TokenID, error) {
 	log.Info("Creating new NFT")
+	if attrs == nil {
+		return nil, ErrAttributesMissing
+	}
+	if len(attrs.Uri) > uriMaxSize {
+		return nil, ErrInvalidURILength
+	}
+	if attrs.Uri != "" && !util.IsValidURI(attrs.Uri) {
+		return nil, fmt.Errorf("URI '%s' is invalid", attrs.Uri)
+	}
+	if len(attrs.Data) > dataMaxSize {
+		return nil, ErrInvalidDataLength
+	}
 	return w.newToken(ctx, accNr, attrs, tokenId)
 }
 

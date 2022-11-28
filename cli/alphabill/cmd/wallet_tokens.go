@@ -669,6 +669,9 @@ func tokenCmdListFungible(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
+// amountToString converts amount to string with specified decimals
+// NB! it is assumed that the decimal places value is sane and verified before
+// calling this method.
 func amountToString(amount uint64, decimals uint32) string {
 	amountStr := strconv.FormatUint(amount, 10)
 	if decimals == 0 {
@@ -680,9 +683,7 @@ func amountToString(amount uint64, decimals uint32) string {
 	}
 	// resulting amount is less than 0
 	resultStr := "0."
-	for i := 0; i < int(decimals)-len(amountStr); i++ {
-		resultStr = resultStr + "0"
-	}
+	resultStr += strings.Repeat("0", int(decimals)-len(amountStr))
 	return resultStr + amountStr
 }
 

@@ -270,6 +270,26 @@ func Test_amountToString(t *testing.T) {
 			args: args{amount: 9000, decPlaces: 5},
 			want: "0.09000",
 		},
+		{
+			name: "Conversion ok - 3 ",
+			args: args{amount: 3, decPlaces: 2},
+			want: "0.03",
+		},
+		{
+			name: "Conversion ok - 3 ",
+			args: args{amount: 3, decPlaces: 2},
+			want: "0.03",
+		},
+		{
+			name: "Conversion of max - 18446744073709551615 ",
+			args: args{amount: 18446744073709551615, decPlaces: 8},
+			want: "184467440737.09551615",
+		},
+		{
+			name: "decimals out of bounds - 18446744073709551615 ",
+			args: args{amount: 18446744073709551615, decPlaces: 32},
+			want: "0.00000000000018446744073709551615",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

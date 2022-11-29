@@ -69,7 +69,7 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	}
 
 	// add proof to bill
-	proof, err := block.NewPrimaryProof(genericBlock, bill.Id, crypto.SHA256)
+	proof, err := block.NewPrimaryProof(genericBlock, bill.GetID(), crypto.SHA256)
 	if err != nil {
 		return nil, err
 	}

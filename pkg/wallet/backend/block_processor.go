@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 )
 
 type BlockProcessor struct {
@@ -156,7 +155,7 @@ func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, tx *tx
 	if err != nil {
 		return err
 	}
-	blockProof, err := block.NewPrimaryProof(genericBlock, uint256.NewInt(0).SetBytes(bi.Id), crypto.SHA256)
+	blockProof, err := block.NewPrimaryProof(genericBlock, bi.Id, crypto.SHA256)
 	if err != nil {
 		return err
 	}

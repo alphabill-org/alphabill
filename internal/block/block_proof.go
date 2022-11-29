@@ -14,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/omt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 )
 
 var (
@@ -22,17 +21,17 @@ var (
 	ErrTxIsNil                 = errors.New("tx is nil")
 	ErrVerifierIsNil           = errors.New("verifier is nil")
 	ErrBlockIsNil              = errors.New("block is nil")
-	ErrUnitIDIsNil             = errors.New("unit id is nil")
+	ErrInvalidUnitID           = errors.New("unit id is invalid")
 	ErrUCIsNil                 = errors.New("unicity certificate is nil")
 )
 
 // NewPrimaryProof creates primary proof for given unit and block.
-func NewPrimaryProof(b *GenericBlock, unitID *uint256.Int, hashAlgorithm crypto.Hash) (*BlockProof, error) {
+func NewPrimaryProof(b *GenericBlock, unitID []byte, hashAlgorithm crypto.Hash) (*BlockProof, error) {
 	if b == nil {
 		return nil, ErrBlockIsNil
 	}
-	if unitID == nil {
-		return nil, ErrUnitIDIsNil
+	if len(unitID) != 32 {
+		return nil, ErrInvalidUnitID
 	}
 
 	if len(b.Transactions) == 0 {
@@ -62,12 +61,12 @@ func NewPrimaryProof(b *GenericBlock, unitID *uint256.Int, hashAlgorithm crypto.
 }
 
 // NewSecondaryProof creates secondary proof for given unit and block.
-func NewSecondaryProof(b *GenericBlock, unitID *uint256.Int, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProof, error) {
+func NewSecondaryProof(b *GenericBlock, unitID []byte, secTxIdx int, hashAlgorithm crypto.Hash) (*BlockProof, error) {
 	if b == nil {
 		return nil, ErrBlockIsNil
 	}
-	if unitID == nil {
-		return nil, ErrUnitIDIsNil
+	if len(unitID) != 32 {
+		return nil, ErrInvalidUnitID
 	}
 
 	if len(b.Transactions) == 0 {
@@ -91,9 +90,9 @@ func NewSecondaryProof(b *GenericBlock, unitID *uint256.Int, secTxIdx int, hashA
 }
 
 // Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
-func (x *BlockProof) Verify(unitID *uint256.Int, tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
-	if unitID == nil {
-		return ErrUnitIDIsNil
+func (x *BlockProof) Verify(unitID []byte, tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	if len(unitID) != 32 {
+		return ErrInvalidUnitID
 	}
 	if verifiers == nil {
 		return ErrVerifierIsNil
@@ -124,7 +123,7 @@ func (x *BlockProof) Verify(unitID *uint256.Int, tx txsystem.GenericTransaction,
 		return x.verifyChainHead(unitID, unithash)
 	case ProofType_NOTRANS:
 		chain := x.getChainItems()
-		if len(chain) > 0 && !bytes.Equal(chain[0].Val, util.Uint256ToBytes(unitID)) {
+		if len(chain) > 0 && !bytes.Equal(chain[0].Val, unitID) {
 			return nil
 		}
 		return ErrProofVerificationFailed
@@ -161,7 +160,7 @@ func (x *BlockProof) AddToHasher(hasher gohash.Hash) {
 	hasher.Write(x.Bytes())
 }
 
-func (x *BlockProof) verifyUC(unitID *uint256.Int, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (x *BlockProof) verifyUC(unitID []byte, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	if x.UnicityCertificate == nil {
 		return ErrUCIsNil
 	}
@@ -173,7 +172,7 @@ func (x *BlockProof) verifyUC(unitID *uint256.Int, verifiers map[string]abcrypto
 	}
 
 	chain := FromProtobufHashChain(x.getChainItems())
-	rblock := omt.EvalMerklePath(chain, util.Uint256ToBytes(unitID), hashAlgorithm)
+	rblock := omt.EvalMerklePath(chain, unitID, hashAlgorithm)
 	blockhash := hash.Sum(hashAlgorithm, x.BlockHeaderHash, x.TransactionsHash, rblock)
 	if !bytes.Equal(x.UnicityCertificate.InputRecord.BlockHash, blockhash) {
 		return aberrors.Wrap(
@@ -185,10 +184,10 @@ func (x *BlockProof) verifyUC(unitID *uint256.Int, verifiers map[string]abcrypto
 	return nil
 }
 
-func (x *BlockProof) verifyChainHead(unitID *uint256.Int, unithash []byte) error {
+func (x *BlockProof) verifyChainHead(unitID []byte, unithash []byte) error {
 	chain := x.getChainItems()
 	if len(chain) > 0 &&
-		bytes.Equal(chain[0].Val, util.Uint256ToBytes(unitID)) &&
+		bytes.Equal(chain[0].Val, unitID) &&
 		bytes.Equal(chain[0].Hash, unithash) {
 		return nil
 	}
@@ -205,23 +204,24 @@ func (x *BlockProof) getChainItems() []*ChainItem {
 }
 
 // treeChain returns hash tree chain from given unit to root
-func treeChain(unitID *uint256.Int, leaves []*omt.Data, hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
+func treeChain(unitID []byte, leaves []*omt.Data, hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
 	tree, err := omt.New(leaves, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
-	return tree.GetMerklePath(util.Uint256ToBytes(unitID))
+	return tree.GetMerklePath(unitID)
 }
 
-func unitIDInIdentifiers(items []*uint256.Int, target *uint256.Int) bool {
+func unitIDInIdentifiers(items [][]byte, target []byte) bool {
 	low := 0
 	high := len(items) - 1
 	for low <= high {
 		mid := low + (high-low)/2
 		midItem := items[mid]
-		if midItem.Lt(target) {
+		comp := bytes.Compare(midItem, target)
+		if comp < 0 {
 			low = mid + 1
-		} else if midItem.Gt(target) {
+		} else if comp > 0 {
 			high = mid - 1
 		} else {
 			return true

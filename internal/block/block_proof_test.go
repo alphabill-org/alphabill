@@ -57,15 +57,16 @@ func TestProofTypePrim(t *testing.T) {
 	for i, tx := range b.Transactions {
 		verifyHashChain(t, b, tx, hashAlgorithm)
 
-		p, err := NewPrimaryProof(b, tx.UnitID(), hashAlgorithm)
+		unitIDBytes := util.Uint256ToBytes(tx.UnitID())
+		p, err := NewPrimaryProof(b, unitIDBytes, hashAlgorithm)
 		require.NoError(t, err)
 		require.Equal(t, ProofType_PRIM, p.ProofType)
-		require.Nil(t, p.Verify(tx.UnitID(), tx, verifier, hashAlgorithm),
+		require.Nil(t, p.Verify(unitIDBytes, tx, verifier, hashAlgorithm),
 			"proof verification failed for tx_idx=%d", i)
 
 		// test proof does not verify for wrong transaction
 		tx = createPrimaryTx(maxTx + 1)
-		err = p.Verify(tx.UnitID(), tx, verifier, hashAlgorithm)
+		err = p.Verify(unitIDBytes, tx, verifier, hashAlgorithm)
 		require.ErrorIs(t, err, ErrProofVerificationFailed)
 	}
 }
@@ -81,15 +82,16 @@ func TestProofTypeSec(t *testing.T) {
 
 	// verify secondary proof for each transaction
 	for i, tx := range b.Transactions {
-		p, err := NewSecondaryProof(b, tx.UnitID(), i, hashAlgorithm)
+		unitIDBytes := util.Uint256ToBytes(tx.UnitID())
+		p, err := NewSecondaryProof(b, unitIDBytes, i, hashAlgorithm)
 		require.NoError(t, err)
 		require.Equal(t, ProofType_SEC, p.ProofType)
-		require.Nil(t, p.Verify(tx.UnitID(), tx, verifier, hashAlgorithm),
+		require.Nil(t, p.Verify(unitIDBytes, tx, verifier, hashAlgorithm),
 			"proof verification failed for tx_idx=%d", i)
 
 		// test proof does not verify invalid tx
 		nonExistentTxInBlock := createSecondaryTx(2)
-		require.ErrorIs(t, p.Verify(nonExistentTxInBlock.UnitID(), nonExistentTxInBlock, verifier, hashAlgorithm), ErrProofVerificationFailed,
+		require.ErrorIs(t, p.Verify(util.Uint256ToBytes(nonExistentTxInBlock.UnitID()), nonExistentTxInBlock, verifier, hashAlgorithm), ErrProofVerificationFailed,
 			"proof verification should fail for non existent tx in a block")
 	}
 }
@@ -108,15 +110,16 @@ func TestProofTypeOnlySec(t *testing.T) {
 	b.UnicityCertificate = uc
 
 	for i, tx := range b.Transactions {
-		p, err := NewPrimaryProof(b, tx.UnitID(), hashAlgorithm)
+		unitIDBytes := util.Uint256ToBytes(tx.UnitID())
+		p, err := NewPrimaryProof(b, unitIDBytes, hashAlgorithm)
 		require.NoError(t, err)
 		require.Equal(t, ProofType_ONLYSEC, p.ProofType)
-		require.Nil(t, p.Verify(tx.UnitID(), tx, verifier, hashAlgorithm),
+		require.Nil(t, p.Verify(unitIDBytes, tx, verifier, hashAlgorithm),
 			"proof verification failed for tx_idx=%d", i)
 
 		// test proof does not verify for wrong transaction
 		tx = createPrimaryTx(2)
-		err = p.Verify(tx.UnitID(), tx, verifier, hashAlgorithm)
+		err = p.Verify(util.Uint256ToBytes(tx.UnitID()), tx, verifier, hashAlgorithm)
 		require.ErrorIs(t, err, ErrProofVerificationFailed)
 
 		//tx = createPrimaryTx(1) // TODO This case fails, but AhtoB says it's by design
@@ -133,10 +136,11 @@ func TestProofTypeNoTrans(t *testing.T) {
 	b.UnicityCertificate = uc
 
 	tx := createPrimaryTx(11)
-	p, err := NewPrimaryProof(b, uint256.NewInt(11), hashAlgorithm)
+	unitIDBytes := util.Uint256ToBytes(tx.UnitID())
+	p, err := NewPrimaryProof(b, unitIDBytes, hashAlgorithm)
 	require.NoError(t, err)
 	require.Equal(t, ProofType_NOTRANS, p.ProofType)
-	require.Nil(t, p.Verify(tx.UnitID(), tx, verifier, hashAlgorithm))
+	require.Nil(t, p.Verify(unitIDBytes, tx, verifier, hashAlgorithm))
 }
 
 func TestProofTypeEmptyBlock(t *testing.T) {
@@ -145,11 +149,12 @@ func TestProofTypeEmptyBlock(t *testing.T) {
 	uc, verifier := createUC(t, b, hashAlgorithm)
 	b.UnicityCertificate = uc
 
-	p, err := NewPrimaryProof(b, uint256.NewInt(1), hashAlgorithm)
+	unitIDBytes := util.Uint256ToBytes(uint256.NewInt(1))
+	p, err := NewPrimaryProof(b, unitIDBytes, hashAlgorithm)
 	require.NoError(t, err)
 	require.Equal(t, ProofType_EMPTYBLOCK, p.ProofType)
 	tx := createPrimaryTx(1)
-	require.Nil(t, p.Verify(tx.UnitID(), tx, verifier, hashAlgorithm))
+	require.Nil(t, p.Verify(unitIDBytes, tx, verifier, hashAlgorithm))
 }
 
 func TestProofsForSecondaryTargetUnits(t *testing.T) {
@@ -170,13 +175,14 @@ func TestProofsForSecondaryTargetUnits(t *testing.T) {
 		units := gtx.TargetUnits(hashAlgorithm)
 		for _, unitID := range units {
 			msg := fmt.Sprintf("tx_idx=%d unitID=%X", i, unitID)
-			p, err := NewPrimaryProof(b, unitID, hashAlgorithm)
+			unitIDBytes := util.Uint256ToBytes(unitID)
+			p, err := NewPrimaryProof(b, unitIDBytes, hashAlgorithm)
 			require.NoError(t, err, msg)
 			require.Equal(t, ProofType_PRIM, p.ProofType, msg)
-			require.Nil(t, p.Verify(unitID, gtx, verifier, hashAlgorithm), msg)
+			require.Nil(t, p.Verify(unitIDBytes, gtx, verifier, hashAlgorithm), msg)
 
 			// test valid unitID with non-block tx returns errors
-			err = p.Verify(unitID, nonExistentTx, verifier, hashAlgorithm)
+			err = p.Verify(unitIDBytes, nonExistentTx, verifier, hashAlgorithm)
 			require.ErrorIs(t, err, ErrProofVerificationFailed, msg)
 		}
 	}
@@ -222,7 +228,7 @@ func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certif
 func verifyHashChain(t *testing.T, b *GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {
 	unitIDBytes := util.Uint256ToBytes(tx.UnitID())
 	leaves, _ := b.blockTreeLeaves(hashAlgorithm)
-	chain, _ := treeChain(tx.UnitID(), leaves, hashAlgorithm)
+	chain, _ := treeChain(unitIDBytes, leaves, hashAlgorithm)
 	root := omt.EvalMerklePath(chain, unitIDBytes[:], hashAlgorithm)
 	require.Equal(t, "690822883B5310DF3B8DA4232252A76E20E07F2F4FB184CEF85D35DC4AF4DF70", fmt.Sprintf("%X", root),
 		"hash chain verification failed for tx=%X", unitIDBytes[:])

@@ -746,36 +746,38 @@ func amountToString(amount uint64, decimals uint32) string {
 
 // stringToAmount converts string and decimals to uint64 amount
 func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
-	amountStr := strings.Split(amountIn, ".")
-	if len(amountStr) > 2 {
+	splitAmount := strings.Split(amountIn, ".")
+	if len(splitAmount) > 2 {
 		return 0, fmt.Errorf("invlid amount string %s: more than one comma", amountIn)
 	}
-	integerStr := amountStr[0]
+	integerStr := splitAmount[0]
 	if len(integerStr) == 0 {
 		return 0, fmt.Errorf("invalid amount string %s: missing integer part", amountIn)
 	}
-	// no comma
-	if len(amountStr) == 1 {
-		// pad with decimal number of 0's
+	// no comma, only integer part
+	if len(splitAmount) == 1 {
+		// pad with decimal number of 0's (alternative would be to convert and then multiply by 10 to the power of decimals)
 		integerStr += strings.Repeat("0", int(decimals))
 		amount, err := strconv.ParseUint(integerStr, 10, 64)
 		if err != nil {
-			return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed", amountIn)
+			return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed %v", amountIn, err)
 		}
 		return amount, nil
 	}
-	fractionStr := amountStr[1]
+	fractionStr := splitAmount[1]
 	// there is a comma in the value
 	if uint32(len(fractionStr)) > decimals {
 		return 0, fmt.Errorf("invalid precision: %s", amountIn)
 	}
 	// pad with 0's in input is smaller than decimals
 	if uint32(len(fractionStr)) < decimals {
+		// append 0's so that decimal number of fraction places are present
 		fractionStr += strings.Repeat("0", int(decimals)-len(fractionStr))
 	}
+	// convert the combined string "integer+fraction" to amount
 	amount, err := strconv.ParseUint(integerStr+fractionStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed", amountIn)
+		return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed %v", amountIn, err)
 	}
 	return amount, nil
 }

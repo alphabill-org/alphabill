@@ -327,10 +327,9 @@ func Test_stringToAmount(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name:       "100.23, decimals 2 - ok",
-			args:       args{amount: "100.23", decimals: 2},
-			want:       10023,
-			wantErrStr: "",
+			name: "100.23, decimals 2 - ok",
+			args: args{amount: "100.23", decimals: 2},
+			want: 10023,
 		},
 		{
 			name:       "100.2.3 error - too many commas",
@@ -363,34 +362,57 @@ func Test_stringToAmount(t *testing.T) {
 			wantErrStr: "invalid amount string \"12.3c0\": error conversion to uint64 failed",
 		},
 		{
-			name:       "2.30, decimals 2 - ok",
-			args:       args{amount: "2.30", decimals: 2},
-			want:       230,
-			wantErrStr: "",
+			name: "2.30, decimals 2 - ok",
+			args: args{amount: "2.30", decimals: 2},
+			want: 230,
 		},
 		{
-			name:       "0000000.3, decimals 2 - ok",
-			args:       args{amount: "0000000.3", decimals: 2},
-			want:       30,
-			wantErrStr: "",
+			name: "0000000.3, decimals 2 - ok",
+			args: args{amount: "0000000.3", decimals: 2},
+			want: 30,
 		},
 		{
-			name:       "0.300, decimals 3 - ok",
-			args:       args{amount: "0.300", decimals: 3},
-			want:       300,
-			wantErrStr: "",
+			name: "0.300, decimals 3 - ok",
+			args: args{amount: "0.300", decimals: 3},
+			want: 300,
 		},
 		{
-			name:       "100.23, decimals 3 - ok",
-			args:       args{amount: "100.23", decimals: 3},
-			want:       100230,
-			wantErrStr: "",
+			name: "100.23, decimals 3 - ok",
+			args: args{amount: "100.23", decimals: 3},
+			want: 100230,
 		},
 		{
-			name:       "100.23, decimals 3 - ok",
-			args:       args{amount: "100.230", decimals: 3},
-			want:       100230,
-			wantErrStr: "",
+			name: "100.23, decimals 3 - ok",
+			args: args{amount: "100.230", decimals: 3},
+			want: 100230,
+		},
+		{
+			name:       "18446744073709551615.2 out of range - error",
+			args:       args{amount: "18446744073709551615.2", decimals: 1},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name:       "18446744073709551616 out of range - error",
+			args:       args{amount: "18446744073709551616", decimals: 0},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name:       "18446744073709551615 out of range - error",
+			args:       args{amount: "18446744073709551615", decimals: 1},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name: "18446744073709551615 max - ok",
+			args: args{amount: "18446744073709551615", decimals: 0},
+			want: 18446744073709551615,
+		},
+		{
+			name: "184467440737.09551615 max with decimals - ok",
+			args: args{amount: "184467440737.09551615", decimals: 8},
+			want: 18446744073709551615,
 		},
 	}
 	for _, tt := range tests {

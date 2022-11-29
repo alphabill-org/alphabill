@@ -58,6 +58,10 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	for _, bill := range bills {
 		verifyProof(t, bill)
 	}
+
+	// verify tx2 is dcBill
+	bill, _ := store.GetBill(tx2.UnitId)
+	require.True(t, bill.IsDCBill)
 }
 
 func newUnitId(unitId uint64) []byte {

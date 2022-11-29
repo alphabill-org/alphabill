@@ -43,7 +43,7 @@ type (
 
 	PublicKey []byte
 
-	CreationInput struct {
+	PredicateInput struct {
 		// first priority
 		Argument tokens.Predicate
 		// if Argument empty, check AccountNumber

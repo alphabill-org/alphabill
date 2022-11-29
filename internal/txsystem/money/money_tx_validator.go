@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -128,7 +129,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 			return ErrInvalidProofType
 		}
 		// verify proof itself
-		err := proof.Verify(dcTx.UnitID(), dcTx, trustBase, hashAlgorithm)
+		err := proof.Verify(util.Uint256ToBytes(dcTx.UnitID()), dcTx, trustBase, hashAlgorithm)
 		if err != nil {
 			return errors.Wrap(err, "proof is not valid")
 		}

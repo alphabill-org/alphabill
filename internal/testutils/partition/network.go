@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/holiman/uint256"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
@@ -191,7 +190,7 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 					if err != nil {
 						return nil, nil, err
 					}
-					proof, err := block.NewPrimaryProof(genBlock, uint256.NewInt(0).SetBytes(tx.UnitId), gocrypto.SHA256)
+					proof, err := block.NewPrimaryProof(genBlock, tx.UnitId, gocrypto.SHA256)
 					if err != nil {
 						return nil, nil, err
 					}

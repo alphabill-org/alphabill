@@ -19,7 +19,6 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -582,7 +581,7 @@ func createBlockProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.Block
 	}
 	b, verifiers := testblock.CertifyBlock(t, b, txConverter)
 	genericBlock, _ := b.ToGenericBlock(txConverter)
-	proof, _ := block.NewPrimaryProof(genericBlock, uint256.NewInt(0).SetBytes(tx.UnitId), crypto.SHA256)
+	proof, _ := block.NewPrimaryProof(genericBlock, tx.UnitId, crypto.SHA256)
 	return proof, verifiers
 }
 

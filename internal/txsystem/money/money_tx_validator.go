@@ -128,7 +128,7 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 			return ErrInvalidProofType
 		}
 		// verify proof itself
-		err := proof.Verify(dcTx, trustBase, hashAlgorithm)
+		err := proof.Verify(dcTx.UnitID(), dcTx, trustBase, hashAlgorithm)
 		if err != nil {
 			return errors.Wrap(err, "proof is not valid")
 		}

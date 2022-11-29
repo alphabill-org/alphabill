@@ -3,19 +3,26 @@ package block
 import (
 	"crypto"
 
-	"github.com/alphabill-org/alphabill/internal/hash"
+	abhash "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/mt"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/holiman/uint256"
 )
 
-// unitHash creates unit hash for given primary and secondary unit transactions
-func unitHash(primTx txsystem.GenericTransaction, secTxs []txsystem.GenericTransaction, hashAlgorithm crypto.Hash) ([]byte, error) {
-	primhash := hashTx(primTx, hashAlgorithm)
-	sechash, err := mt.SecondaryHash(secTxs, hashAlgorithm)
+// unitTxs helper struct for optimizing block tree leaves calculation
+type unitTxs struct {
+	unitID *uint256.Int
+	primTx txsystem.GenericTransaction
+	secTxs []txsystem.GenericTransaction
+}
+
+func (u *unitTxs) hash(hashAlgorithm crypto.Hash) ([]byte, error) {
+	primhash := hashTx(u.primTx, hashAlgorithm)
+	sechash, err := mt.SecondaryHash(u.secTxs, hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
-	return hash.Sum(hashAlgorithm, primhash, sechash), nil
+	return abhash.Sum(hashAlgorithm, primhash, sechash), nil
 }
 
 // hashTx returns hash of given transaction or zero hash if nil transaction

@@ -652,6 +652,7 @@ func tokenCmdListFungible(config *walletConfig, runner runTokenListCmd, accountN
 			return runner(cmd, config, t.FungibleToken, accountNumber)
 		},
 	}
+	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -681,6 +682,7 @@ func tokenCmdListNonFungible(config *walletConfig, runner runTokenListCmd, accou
 			return runner(cmd, config, t.NonFungibleToken, accountNumber)
 		},
 	}
+	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -749,21 +751,34 @@ func tokenCmdListTypes(config *walletConfig, runner runTokenListTypesCmd) *cobra
 			return runner(cmd, config, t.Any)
 		},
 	}
+	addPasswordFlags(cmd)
 	// add optional sub-commands to filter fungible and non-fungible types
-	cmd.AddCommand(&cobra.Command{
+	cmd.AddCommand(tokenCmdListTypeFungible(config, runner))
+	cmd.AddCommand(tokenCmdListTypeNonFungible(config, runner))
+	return cmd
+}
+
+func tokenCmdListTypeFungible(config *walletConfig, runner runTokenListTypesCmd) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "fungible",
 		Short: "lists fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runner(cmd, config, t.FungibleTokenType)
 		},
-	})
-	cmd.AddCommand(&cobra.Command{
+	}
+	addPasswordFlags(cmd)
+	return cmd
+}
+
+func tokenCmdListTypeNonFungible(config *walletConfig, runner runTokenListTypesCmd) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "non-fungible",
 		Short: "lists non-fungible types",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runner(cmd, config, t.NonFungibleTokenType)
 		},
-	})
+	}
+	addPasswordFlags(cmd)
 	return cmd
 }
 

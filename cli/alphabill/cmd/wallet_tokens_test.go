@@ -302,12 +302,20 @@ func TestListTokensCommandInputs(t *testing.T) {
 		args          []string
 		accountNumber int
 		expectedKind  tw.TokenKind
+		expectedPass  string
 	}{
 		{
 			name:          "list all tokens",
 			args:          []string{},
 			accountNumber: -1, // all tokens
 			expectedKind:  tw.Any,
+		},
+		{
+			name:          "list all tokens, encrypted wallet",
+			args:          []string{"--pn", "some pass phrase"},
+			accountNumber: -1, // all tokens
+			expectedKind:  tw.Any,
+			expectedPass:  "some pass phrase",
 		},
 		{
 			name:          "list account tokens",
@@ -328,6 +336,13 @@ func TestListTokensCommandInputs(t *testing.T) {
 			expectedKind:  tw.FungibleToken,
 		},
 		{
+			name:          "list account fungible tokens, encrypted wallet",
+			args:          []string{"fungible", "--key", "4", "--pn", "some pass phrase"},
+			accountNumber: 4,
+			expectedKind:  tw.FungibleToken,
+			expectedPass:  "some pass phrase",
+		},
+		{
 			name:          "list all non-fungible tokens",
 			args:          []string{"non-fungible"},
 			accountNumber: -1,
@@ -339,6 +354,13 @@ func TestListTokensCommandInputs(t *testing.T) {
 			accountNumber: 5,
 			expectedKind:  tw.NonFungibleToken,
 		},
+		{
+			name:          "list account non-fungible tokens, encrypted walled",
+			args:          []string{"non-fungible", "--key", "5", "--pn", "some pass phrase"},
+			accountNumber: 5,
+			expectedKind:  tw.NonFungibleToken,
+			expectedPass:  "some pass phrase",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -346,6 +368,11 @@ func TestListTokensCommandInputs(t *testing.T) {
 			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind, accountNumber *int) error {
 				require.Equal(t, tt.accountNumber, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
+				if len(tt.expectedPass) > 0 {
+					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
+					require.NoError(t, err)
+					require.Equal(t, tt.expectedPass, passwordFromArg)
+				}
 				exec = true
 				return nil
 			})
@@ -431,6 +458,7 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 		name         string
 		args         []string
 		expectedKind tw.TokenKind
+		expectedPass string
 	}{
 		{
 			name:         "list all tokens",
@@ -438,14 +466,32 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 			expectedKind: tw.Any,
 		},
 		{
+			name:         "list all tokens, encrypted wallet",
+			args:         []string{"--pn", "test pass phrase"},
+			expectedKind: tw.Any,
+			expectedPass: "test pass phrase",
+		},
+		{
 			name:         "list all fungible tokens",
 			args:         []string{"fungible"},
 			expectedKind: tw.FungibleTokenType,
 		},
 		{
+			name:         "list all fungible tokens, encrypted wallet",
+			args:         []string{"fungible", "--pn", "test pass phrase"},
+			expectedKind: tw.FungibleTokenType,
+			expectedPass: "test pass phrase",
+		},
+		{
 			name:         "list all non-fungible tokens",
 			args:         []string{"non-fungible"},
 			expectedKind: tw.NonFungibleTokenType,
+		},
+		{
+			name:         "list all non-fungible tokens, encrypted wallet",
+			args:         []string{"non-fungible", "--pn", "test pass phrase"},
+			expectedKind: tw.NonFungibleTokenType,
+			expectedPass: "test pass phrase",
 		},
 	}
 	for _, tt := range tests {
@@ -453,6 +499,11 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 			exec := false
 			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind) error {
 				require.Equal(t, tt.expectedKind, kind)
+				if len(tt.expectedPass) != 0 {
+					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
+					require.NoError(t, err)
+					require.Equal(t, tt.expectedPass, passwordFromArg)
+				}
 				exec = true
 				return nil
 			})

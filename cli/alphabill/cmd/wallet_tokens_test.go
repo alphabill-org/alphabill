@@ -299,6 +299,11 @@ func Test_amountToString(t *testing.T) {
 			args: args{amount: 3, decPlaces: 3},
 			want: "0.003",
 		},
+		{
+			name: "Conversion ok - 100230, decimals 3 - ok",
+			args: args{amount: 100230, decPlaces: 3},
+			want: "100.230",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -364,7 +369,7 @@ func Test_stringToAmount(t *testing.T) {
 			wantErrStr: "",
 		},
 		{
-			name:       "0000000.3, decimals 3 - ok",
+			name:       "0000000.3, decimals 2 - ok",
 			args:       args{amount: "0000000.3", decimals: 2},
 			want:       30,
 			wantErrStr: "",
@@ -373,6 +378,18 @@ func Test_stringToAmount(t *testing.T) {
 			name:       "0.300, decimals 3 - ok",
 			args:       args{amount: "0.300", decimals: 3},
 			want:       300,
+			wantErrStr: "",
+		},
+		{
+			name:       "100.23, decimals 3 - ok",
+			args:       args{amount: "100.23", decimals: 3},
+			want:       100230,
+			wantErrStr: "",
+		},
+		{
+			name:       "100.23, decimals 3 - ok",
+			args:       args{amount: "100.230", decimals: 3},
+			want:       100230,
 			wantErrStr: "",
 		},
 	}

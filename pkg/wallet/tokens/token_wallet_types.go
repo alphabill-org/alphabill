@@ -77,21 +77,21 @@ func (t *TokenUnit) IsFungible() bool {
 	return t.Kind&FungibleToken == FungibleToken
 }
 
-func (k *TokenKind) String() string {
-	if *k&Any != 0 {
+func (k TokenKind) String() string {
+	if k&Any != 0 {
 		return "any"
 	}
 	res := make([]string, 0)
-	if *k&TokenType != 0 {
+	if k&TokenType != 0 {
 		res = append(res, "type")
 	}
-	if *k&Token != 0 {
+	if k&Token != 0 {
 		res = append(res, "token")
 	}
-	if *k&Fungible != 0 {
+	if k&Fungible != 0 {
 		res = append(res, "fungible")
 	}
-	if *k&NonFungible != 0 {
+	if k&NonFungible != 0 {
 		res = append(res, "non-fungible")
 	}
 	return strings.Join(res, ",")

@@ -284,11 +284,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	_, burnProof1, err := network.GetBlockProof(burnTx, NewGenericTx)
 	require.NoError(t, err)
 
-	require.NoError(t, burnProof1.Verify(burnGenTx, trustBase, hashAlgorithm))
+	require.NoError(t, burnProof1.Verify(burnGenTx.UnitID(), burnGenTx, trustBase, hashAlgorithm))
 
 	_, burnProof2, err := network.GetBlockProof(burnTx2, NewGenericTx)
 	require.NoError(t, err)
-	require.NoError(t, burnProof2.Verify(burnGenTx2, trustBase, hashAlgorithm))
+	require.NoError(t, burnProof2.Verify(burnGenTx2.UnitID(), burnGenTx2, trustBase, hashAlgorithm))
 	joinTx := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
@@ -327,7 +327,7 @@ func verifyProof(t *testing.T, tx *txsystem.Transaction, network *testpartition.
 	require.NoError(t, err)
 	_, ttt, err := network.GetBlockProof(tx, NewGenericTx)
 	require.NoError(t, err)
-	require.NoError(t, ttt.Verify(gtx, trustBase, hashAlgorithm))
+	require.NoError(t, ttt.Verify(gtx.UnitID(), gtx, trustBase, hashAlgorithm))
 }
 
 type fungibleTokenUnitData struct {

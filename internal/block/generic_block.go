@@ -73,27 +73,23 @@ func (x *GenericBlock) addTransactionsToHasher(hasher hash.Hash) {
 
 // blockTreeLeaves returns leaves for the ordered merkle tree
 func (x *GenericBlock) blockTreeLeaves(hashAlgorithm crypto.Hash) ([]*omt.Data, error) {
-	type unitTxs struct {
-		unitId *uint256.Int
-		primTx txsystem.GenericTransaction
-		secTxs []txsystem.GenericTransaction
-	}
 	res := make(map[uint256.Int]*unitTxs, len(x.Transactions))
 	for _, tx := range x.Transactions {
-		// create unitTx map entry if not exists already
-		unitTx, exists := res[*tx.UnitID()]
-		if !exists {
-			unitTx = &unitTxs{
-				unitId: tx.UnitID(),
+		unitIDs := tx.TargetUnits(hashAlgorithm)
+		for _, unitID := range unitIDs {
+			// create unitTx map entry if not exists already
+			unitTx, exists := res[*unitID]
+			if !exists {
+				unitTx = &unitTxs{unitID: unitID}
+				res[*unitID] = unitTx
 			}
-			res[*tx.UnitID()] = unitTx
-		}
 
-		// add tx to primary or secondary list
-		if tx.IsPrimary() {
-			unitTx.primTx = tx
-		} else {
-			unitTx.secTxs = append(unitTx.secTxs, tx)
+			// add tx to primary or secondary list
+			if tx.IsPrimary() {
+				unitTx.primTx = tx
+			} else {
+				unitTx.secTxs = append(unitTx.secTxs, tx)
+			}
 		}
 	}
 
@@ -105,18 +101,17 @@ func (x *GenericBlock) blockTreeLeaves(hashAlgorithm crypto.Hash) ([]*omt.Data, 
 
 	// sort values by unit id
 	sort.Slice(vals, func(i, j int) bool {
-		return vals[i].unitId.Cmp(vals[j].unitId) < 0
+		return vals[i].unitID.Cmp(vals[j].unitID) < 0
 	})
 
 	// create leaves from sorted grouped transactions
 	leaves := make([]*omt.Data, len(vals))
 	for i, unitTx := range vals {
-		h, err := unitHash(unitTx.primTx, unitTx.secTxs, hashAlgorithm)
+		h, err := unitTx.hash(hashAlgorithm)
 		if err != nil {
 			return nil, err
 		}
-		unitIdBytes := unitTx.unitId.Bytes32()
-		leaves[i] = &omt.Data{Val: unitIdBytes[:], Hash: h}
+		leaves[i] = &omt.Data{Val: util.Uint256ToBytes(unitTx.unitID), Hash: h}
 	}
 	return leaves, nil
 }
@@ -148,12 +143,12 @@ func (x *GenericBlock) extractIdentifiers(hashAlgorithm crypto.Hash) []*uint256.
 }
 
 // extractTransactions returns primary tx and list of secondary txs for given unit
-func (x *GenericBlock) extractTransactions(unitId *uint256.Int, hashAlgorithm crypto.Hash) (txsystem.GenericTransaction, []txsystem.GenericTransaction) {
+func (x *GenericBlock) extractTransactions(unitID *uint256.Int, hashAlgorithm crypto.Hash) (txsystem.GenericTransaction, []txsystem.GenericTransaction) {
 	var primaryTx txsystem.GenericTransaction
 	var secondaryTxs []txsystem.GenericTransaction
 	for _, tx := range x.Transactions {
 		for _, txUnitID := range tx.TargetUnits(hashAlgorithm) {
-			if txUnitID.Eq(unitId) {
+			if txUnitID.Eq(unitID) {
 				if tx.IsPrimary() {
 					primaryTx = tx
 				} else {

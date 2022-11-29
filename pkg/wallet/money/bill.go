@@ -47,12 +47,12 @@ func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumbe
 	}, nil
 }
 
-func (b *BlockProof) Verify(verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (b *BlockProof) Verify(unitID *uint256.Int, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	gtx, err := txConverter.ConvertTx(b.Tx)
 	if err != nil {
 		return err
 	}
-	return b.Proof.Verify(gtx, verifiers, hashAlgorithm)
+	return b.Proof.Verify(unitID, gtx, verifiers, hashAlgorithm)
 }
 
 // GetID returns bill id in 32-byte big endian array

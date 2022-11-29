@@ -769,7 +769,8 @@ func (s *splitFungibleTokenWrapper) InvariantPredicateSignature() []byte {
 }
 
 func (s *splitFungibleTokenWrapper) TargetUnits(hashFunc crypto.Hash) []*uint256.Int {
-	return []*uint256.Int{s.UnitID(), txutil.SameShardID(s.UnitID(), s.HashForIDCalculation(hashFunc))}
+	id := txutil.SameShardID(s.UnitID(), s.HashForIDCalculation(hashFunc))
+	return []*uint256.Int{s.UnitID(), id}
 }
 
 func (bw *burnFungibleTokenWrapper) Hash(hashFunc crypto.Hash) []byte {

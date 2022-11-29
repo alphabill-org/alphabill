@@ -46,29 +46,20 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	if err != nil {
 		return nil, err
 	}
-	proof, err := block.NewPrimaryProof(genericBlock, gtx.UnitID(), crypto.SHA256)
-	if err != nil {
-		return nil, err
-	}
-	blockProof, err := NewBlockProof(txPb, proof, b.BlockNumber)
-	if err != nil {
-		return nil, err
-	}
+	var bill *Bill
 	switch tx := gtx.(type) {
 	case money.Transfer:
-		return &Bill{
-			Id:         tx.UnitID(),
-			Value:      tx.TargetValue(),
-			TxHash:     tx.Hash(crypto.SHA256),
-			BlockProof: blockProof,
-		}, nil
+		bill = &Bill{
+			Id:     tx.UnitID(),
+			Value:  tx.TargetValue(),
+			TxHash: tx.Hash(crypto.SHA256),
+		}
 	case money.Split:
-		return &Bill{
-			Id:         utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
-			Value:      tx.Amount(),
-			TxHash:     tx.Hash(crypto.SHA256),
-			BlockProof: blockProof,
-		}, nil
+		bill = &Bill{
+			Id:     utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
+			Value:  tx.Amount(),
+			TxHash: tx.Hash(crypto.SHA256),
+		}
 	case money.TransferDC:
 		return nil, errors.New("recorded dc tx (should not happen as we only send transfer and split txs)")
 	case money.Swap:
@@ -76,6 +67,18 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	default:
 		return nil, errors.New("recorded unknown transaction type (should not happen as we only send transfer and split txs)")
 	}
+
+	// add proof to bill
+	proof, err := block.NewPrimaryProof(genericBlock, bill.Id, crypto.SHA256)
+	if err != nil {
+		return nil, err
+	}
+	blockProof, err := NewBlockProof(txPb, proof, b.BlockNumber)
+	if err != nil {
+		return nil, err
+	}
+	bill.BlockProof = blockProof
+	return bill, nil
 }
 
 func (t *txLog) isAllTxsConfirmed() bool {

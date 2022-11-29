@@ -378,7 +378,7 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 			return errors.New("invalid proof type")
 		}
 
-		err = proof.Verify(btx, j.trustBase, j.hashAlgorithm)
+		err = proof.Verify(btx.UnitID(), btx, j.trustBase, j.hashAlgorithm)
 		if err != nil {
 			return errors.Wrap(err, "proof is not valid")
 		}

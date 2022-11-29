@@ -287,7 +287,7 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
-	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount, maximum uint64.Max")
+	cmd.Flags().String(cmdFlagAmount, "", "amount value, must be bigger than 0 and match type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
 		return nil
@@ -312,10 +312,9 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	}
 	defer tw.Shutdown()
 
-	amount, err := cmd.Flags().GetUint64(cmdFlagAmount)
+	amountStr, err := cmd.Flags().GetString(cmdFlagAmount)
 	if err != nil {
-		return fmt.Errorf("invalid argument \"%s\" for \"--amount\" flag, coversion to uint64 failed",
-			cmd.Flags().Lookup(cmdFlagAmount).Value.String())
+		return err
 	}
 	typeId, err := getHexFlag(cmd, cmdFlagType)
 	if err != nil {
@@ -325,14 +324,31 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tt, err := tw.GetTokenType(ctx, typeId)
+	if err != nil {
+		return err
+	}
+	if tt == nil {
+		return fmt.Errorf("error token type %X not found", typeId)
+	}
+	// convert amount to uint64
+	amount, err := stringToAmount(amountStr, tt.DecimalPlaces)
+	if err != nil {
+		return err
+	}
+	if amount == 0 {
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
+	}
+
 	a := &tokens.MintFungibleTokenAttributes{
 		Bearer:                           nil, // will be set in the wallet
 		Type:                             typeId,
 		Value:                            amount,
 		TokenCreationPredicateSignatures: nil, // will be filled by the wallet
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	id, err := tw.NewFungibleToken(ctx, accountNumber, a, ci)
 	if err != nil {
 		return err
@@ -511,7 +527,7 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendFungible(cmd, config)
 		},
 	}
-	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
+	cmd.Flags().String(cmdFlagAmount, "", "amount value, must be bigger than 0 and match type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
 		return nil
@@ -564,7 +580,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	targetValue, err := cmd.Flags().GetUint64(cmdFlagAmount)
+	amountStr, err := cmd.Flags().GetString(cmdFlagAmount)
 	if err != nil {
 		return err
 	}
@@ -576,6 +592,21 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// get token type and convert amount string
+	tt, err := tw.GetTokenType(ctx, typeId)
+	if err != nil {
+		return err
+	}
+	if tt == nil {
+		return fmt.Errorf("error token type %X not found", typeId)
+	}
+	targetValue, err := stringToAmount(amountStr, tt.DecimalPlaces)
+	if err != nil {
+		return err
+	}
+	if targetValue == 0 {
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
+	}
 	return tw.SendFungible(ctx, accountNumber, typeId, targetValue, pubKey)
 }
 
@@ -717,7 +748,6 @@ func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
 		return 0, fmt.Errorf("invlid amount string %s: more than one comma", amountIn)
 	}
 	integerStr := amountStr[0]
-	fractionStr := amountStr[1]
 	if len(integerStr) == 0 {
 		return 0, fmt.Errorf("invalid amount string %s: missing integer part", amountIn)
 	}
@@ -731,6 +761,7 @@ func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
 		}
 		return amount, nil
 	}
+	fractionStr := amountStr[1]
 	// there is a comma in the value
 	if uint32(len(fractionStr)) > decimals {
 		return 0, fmt.Errorf("invalid precision: %s", amountIn)

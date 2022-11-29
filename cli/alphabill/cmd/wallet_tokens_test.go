@@ -434,24 +434,24 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 			return false
 		}
 	}
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 3", dialAddr, typeID1))
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 5", dialAddr, typeID1))
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 9", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 0.03", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 0.05", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 0.09", dialAddr, typeID1))
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(3)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(5)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(9)), test.WaitDuration, test.WaitTick)
 	// check w2 is empty
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible --sync true -u %s", dialAddr)), "No tokens")
 	// transfer tokens w1 -> w2
-	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //split (9=>6+3)
-	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 0.06 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //split (9=>6+3)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 0.06 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
 	out := execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -u %s", dialAddr))
 	verifyStdout(t, out, "amount='0.06'", "amount='0.05'", "amount='0.01'", "Symbol='AB'")
 	verifyStdoutNotExists(t, out, "Symbol=''", "token-type=''")
 	//check what is left in w1
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='0.03'", "amount='0.02'")
 	//transfer back w2->w1 (AB-513)
-	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w1key.PubKey))
+	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 0.06 --address 0x%X -k 1", dialAddr, typeID1, w1key.PubKey))
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='0.03'", "amount='0.02'", "amount='0.06'")
 }
 

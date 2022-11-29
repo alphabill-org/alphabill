@@ -69,22 +69,22 @@ func (w *Wallet) Shutdown() {
 	}
 }
 
-func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
+func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token type")
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
+func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new NFT type")
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes, mintPredicateArgs []*CreationInput) (TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes, mintPredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token")
 	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
-func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID, mintPredicateArgs []*CreationInput) (TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID, mintPredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new NFT")
 	if attrs == nil {
 		return nil, ErrAttributesMissing

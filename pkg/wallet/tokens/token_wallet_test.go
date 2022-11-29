@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
@@ -492,14 +493,15 @@ func TestList(t *testing.T) {
 }
 
 func createTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	_ = deleteFile(os.TempDir(), money.WalletFileName)
-	_ = deleteFile(os.TempDir(), tokensFileName)
-	c := money.WalletConfig{DbPath: os.TempDir()}
+	parentDir, err := ioutil.TempDir(os.TempDir(), "*-tests")
+	require.NoError(t, err)
+	c := money.WalletConfig{DbPath: parentDir}
 	w, err := money.CreateNewWallet("", c)
 	require.NoError(t, err)
 	tw, err := Load(w, false)
 	t.Cleanup(func() {
 		deleteWallet(tw)
+		os.RemoveAll(parentDir)
 	})
 	require.NoError(t, err)
 

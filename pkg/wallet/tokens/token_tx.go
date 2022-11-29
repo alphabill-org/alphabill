@@ -248,7 +248,7 @@ func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []
 	}
 }
 
-func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*CreationInput) (TokenID, error) {
+func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	sub, err := w.sendTx(TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.GetAccountManager(), subtypePredicateArgs, gtx)
 		if err != nil {
@@ -263,7 +263,7 @@ func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreati
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func preparePredicateSignatures(am wallet.AccountManager, args []*CreationInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
+func preparePredicateSignatures(am wallet.AccountManager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
 	signatures := make([][]byte, 0, len(args))
 	for _, input := range args {
 		if len(input.Argument) > 0 {
@@ -285,7 +285,7 @@ func preparePredicateSignatures(am wallet.AccountManager, args []*CreationInput,
 	return signatures, nil
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.MintAttr, tokenId TokenID, mintPredicateArgs []*CreationInput) (TokenID, error) {
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.MintAttr, tokenId TokenID, mintPredicateArgs []*PredicateInput) (TokenID, error) {
 	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1

@@ -29,10 +29,10 @@ typeId2=02
 typeId3=03
 typeId4=04
 build/alphabill wallet token new-type fungible $w1 --symbol AB --type $typeId1 --subtype-clause $pred1
-build/alphabill wallet token new-type fungible $w1 --symbol AB --type $typeId2 --parent-type $typeId1 --subtype-clause $pred --creation-input 0x535100
-build/alphabill wallet token new-type fungible $w1 --symbol AB --type $typeId3 --parent-type $typeId2 --creation-input 0x53,0x535100
+build/alphabill wallet token new-type fungible $w1 --symbol AB --type $typeId2 --parent-type $typeId1 --subtype-clause $pred --subtype-input 0x535100
+build/alphabill wallet token new-type fungible $w1 --symbol AB --type $typeId3 --parent-type $typeId2 --subtype-input 0x53,0x535100
 # the following command is a failing one, tx is rejected since creation input is invalid
-#build/alphabill wallet token new-type fungible $w1 --symbol AB --type $typeId4 --parent-type $typeId2 --creation-input empty,empty
+#build/alphabill wallet token new-type fungible $w1 --symbol AB --type $typeId4 --parent-type $typeId2 --subtype-input empty,empty
 
 echo "Create new NFT types"
 nftTypeId1=10
@@ -40,9 +40,9 @@ nftTypeId2=20
 nftTypeId3=30
 nftTypeId4=40
 build/alphabill wallet token new-type non-fungible $w1 --symbol ABNFT --type $nftTypeId1 --subtype-clause $pred1
-build/alphabill wallet token new-type non-fungible $w1 --symbol ABNFT --type $nftTypeId2 --parent-type $nftTypeId1 --subtype-clause $pred --creation-input 0x535100
-build/alphabill wallet token new-type non-fungible $w1 --symbol ABNFT --type $nftTypeId3 --parent-type $nftTypeId2 --creation-input 0x53,0x535100
-#build/alphabill wallet token new-type non-fungible $w1 --symbol ABNFT --type $nftTypeId4 --parent-type $nftTypeId2 --creation-input empty,empty
+build/alphabill wallet token new-type non-fungible $w1 --symbol ABNFT --type $nftTypeId2 --parent-type $nftTypeId1 --subtype-clause $pred --subtype-input 0x535100
+build/alphabill wallet token new-type non-fungible $w1 --symbol ABNFT --type $nftTypeId3 --parent-type $nftTypeId2 --subtype-input 0x53,0x535100
+#build/alphabill wallet token new-type non-fungible $w1 --symbol ABNFT --type $nftTypeId4 --parent-type $nftTypeId2 --subtype-input empty,empty
 
 
 echo "List token types"

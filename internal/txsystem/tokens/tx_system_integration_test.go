@@ -133,11 +133,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
-				NewBearer:                   script.PredicateAlwaysTrue(),
-				TargetValue:                 splitValue1,
-				Nonce:                       test.RandomBytes(32),
-				Backlink:                    make([]byte, 32),
-				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+				NewBearer:                    script.PredicateAlwaysTrue(),
+				TargetValue:                  splitValue1,
+				Nonce:                        test.RandomBytes(32),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)
@@ -168,11 +168,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
-				NewBearer:                   script.PredicateAlwaysTrue(),
-				TargetValue:                 splitValue2,
-				Nonce:                       nil,
-				Backlink:                    split1GenTx.Hash(hashAlgorithm),
-				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+				NewBearer:                    script.PredicateAlwaysTrue(),
+				TargetValue:                  splitValue2,
+				Nonce:                        nil,
+				Backlink:                     split1GenTx.Hash(hashAlgorithm),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)
@@ -204,11 +204,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&TransferFungibleTokenAttributes{
-				NewBearer:                   script.PredicateAlwaysTrue(),
-				Value:                       totalValue - splitValue1 - splitValue2,
-				Nonce:                       nil,
-				Backlink:                    splitGenTx2.Hash(hashAlgorithm),
-				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+				NewBearer:                    script.PredicateAlwaysTrue(),
+				Value:                        totalValue - splitValue1 - splitValue2,
+				Nonce:                        nil,
+				Backlink:                     splitGenTx2.Hash(hashAlgorithm),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)
@@ -231,11 +231,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(util.Uint256ToBytes(sUnitID1)),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
-				Type:                        fungibleTokenTypeID,
-				Value:                       splitValue1,
-				Nonce:                       transferGenTx.Hash(hashAlgorithm),
-				Backlink:                    make([]byte, 32),
-				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+				Type:                         fungibleTokenTypeID,
+				Value:                        splitValue1,
+				Nonce:                        transferGenTx.Hash(hashAlgorithm),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)
@@ -258,11 +258,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(util.Uint256ToBytes(sUnitID2)),
 		testtransaction.WithAttributes(
 			&BurnFungibleTokenAttributes{
-				Type:                        fungibleTokenTypeID,
-				Value:                       splitValue2,
-				Nonce:                       transferGenTx.Hash(hashAlgorithm),
-				Backlink:                    make([]byte, 32),
-				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+				Type:                         fungibleTokenTypeID,
+				Value:                        splitValue2,
+				Nonce:                        transferGenTx.Hash(hashAlgorithm),
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)
@@ -294,10 +294,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&JoinFungibleTokenAttributes{
-				BurnTransactions:            []*txsystem.Transaction{burnTx, burnTx2},
-				Proofs:                      []*block.BlockProof{burnProof1, burnProof2},
-				Backlink:                    transferGenTx.Hash(hashAlgorithm),
-				InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+				BurnTransactions:             []*txsystem.Transaction{burnTx, burnTx2},
+				Proofs:                       []*block.BlockProof{burnProof1, burnProof2},
+				Backlink:                     transferGenTx.Hash(hashAlgorithm),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
 	)

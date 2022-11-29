@@ -422,12 +422,12 @@ func transferFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsyst
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferFungibleTokenAttributes{
-			NewBearer:                   newBearer,
-			Type:                        parentTypeId,
-			Value:                       transferValue,
-			Nonce:                       nonce,
-			Backlink:                    backlink,
-			InvariantPredicateSignature: invariantPredicateSignature,
+			NewBearer:                    newBearer,
+			Type:                         parentTypeId,
+			Value:                        transferValue,
+			Nonce:                        nonce,
+			Backlink:                     backlink,
+			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
 		}),
 	)
 }
@@ -439,13 +439,13 @@ func splitFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&SplitFungibleTokenAttributes{
-			Type:                        parentTypeId,
-			NewBearer:                   newBearer,
-			TargetValue:                 transferValue,
-			RemainingValue:              remainingValue,
-			Nonce:                       nonce,
-			Backlink:                    backlink,
-			InvariantPredicateSignature: invariantPredicateSignature,
+			Type:                         parentTypeId,
+			NewBearer:                    newBearer,
+			TargetValue:                  transferValue,
+			RemainingValue:               remainingValue,
+			Nonce:                        nonce,
+			Backlink:                     backlink,
+			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
 		}),
 	)
 }
@@ -457,11 +457,11 @@ func burnFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.T
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&BurnFungibleTokenAttributes{
-			Type:                        burnType,
-			Value:                       burnValue,
-			Nonce:                       nonce,
-			Backlink:                    backlink,
-			InvariantPredicateSignature: invariantPredicateSignature,
+			Type:                         burnType,
+			Value:                        burnValue,
+			Nonce:                        nonce,
+			Backlink:                     backlink,
+			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
 		}),
 	)
 }
@@ -508,11 +508,11 @@ func createTransferNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NewBearer:                   newBearer,
-			NftType:                     nftType,
-			Nonce:                       nonce,
-			Backlink:                    backlink,
-			InvariantPredicateSignature: invariantPredicateSignature,
+			NewBearer:                    newBearer,
+			NftType:                      nftType,
+			Nonce:                        nonce,
+			Backlink:                     backlink,
+			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
 		}),
 	)
 }

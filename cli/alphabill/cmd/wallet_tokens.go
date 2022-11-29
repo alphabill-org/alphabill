@@ -836,9 +836,9 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 				}
 				// format amount
 				amount := amountToString(tok.Amount, tokUnit.DecimalPlaces)
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (fungible)", tok.ID, tok.Symbol, amount, tok.TypeID))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (%v)", tok.ID, tok.Symbol, amount, tok.TypeID, tok.Kind))
 			} else {
-				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (non-fungible)", tok.ID, tok.Symbol, tok.TypeID, tok.URI))
+				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (%v)", tok.ID, tok.Symbol, tok.TypeID, tok.URI, tok.Kind))
 			}
 		}
 	}
@@ -888,7 +888,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind t.Toke
 		return err
 	}
 	for _, tok := range res {
-		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s, kind: %#v", tok.ID, tok.Symbol, tok.Kind))
+		consoleWriter.Println(fmt.Sprintf("ID=%X, symbol=%s (%v)", tok.ID, tok.Symbol, tok.Kind))
 	}
 	return nil
 }

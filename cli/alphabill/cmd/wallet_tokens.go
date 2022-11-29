@@ -145,15 +145,20 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if decimals > maxDecimalPlaces {
 		return fmt.Errorf("argument \"%v\" for \"--decimals\" flag is out of range, max value %v", decimals, maxDecimalPlaces)
 	}
-	parentType, creationInputs, err := readParentTypeInfo(cmd, tw.GetAccountManager())
+	am := tw.GetAccountManager()
+	parentType, creationInputs, err := readParentTypeInfo(cmd, am)
 	if err != nil {
 		return err
 	}
-	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, am)
 	if err != nil {
 		return err
 	}
-	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, tw.GetAccountManager())
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, am)
+	if err != nil {
+		return err
+	}
+	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, am)
 	if err != nil {
 		return err
 	}
@@ -164,7 +169,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             mintTokenPredicate,
-		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 invariantPredicate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -242,11 +247,16 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, tw.GetAccountManager())
+	am := tw.GetAccountManager()
+	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, am)
 	if err != nil {
 		return err
 	}
-	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, tw.GetAccountManager())
+	mintTokenPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagMintClause, am)
+	if err != nil {
+		return err
+	}
+	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, am)
 	if err != nil {
 		return err
 	}
@@ -256,7 +266,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		SubTypeCreationPredicateSignatures: nil, // will be filled by the wallet
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             mintTokenPredicate,
-		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 invariantPredicate,
 		DataUpdatePredicate:                script.PredicateAlwaysTrue(),
 	}
 	ctx, cancel := context.WithCancel(context.Background())

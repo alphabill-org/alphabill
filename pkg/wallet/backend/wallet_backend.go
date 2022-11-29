@@ -59,7 +59,7 @@ type (
 		SetBlockNumber(blockNumber uint64) error
 		GetBills(pubKey []byte) ([]*Bill, error)
 		RemoveBill(pubKey []byte, id []byte) error
-		ContainsBill(id []byte) (bool, error)
+		ContainsBill(pubkey []byte, unitID []byte) (bool, error)
 		GetBill(billId []byte) (*Bill, error)
 		SetBills(pubkey []byte, bills ...*Bill) error
 		GetKeys() ([]*Pubkey, error)

@@ -60,7 +60,8 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.Len(t, bills, 0)
 
 	// add bills
-	err = bs.SetBills(pubKey, newBillWithValue(1))
+	bill1 := newBillWithValue(1)
+	err = bs.SetBills(pubKey, bill1)
 	require.NoError(t, err)
 
 	err = bs.SetBills(pubKey, newBillWithValue(2))
@@ -88,18 +89,22 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 3, maxOrderNumber)
 
-	// test contains bill ok
-	expectedBillId := newUnitId(1)
-	f, err := bs.ContainsBill(expectedBillId)
+	// test contains bill for pubkey ok
+	f, err := bs.ContainsBill(pubKey, bill1.Id)
 	require.NoError(t, err)
 	require.True(t, f)
 
+	// test contains bill for unknown pubkey nok
+	f, err = bs.ContainsBill([]byte{1, 2, 3, 4}, bill1.Id)
+	require.NoError(t, err)
+	require.False(t, f)
+
 	// test remove bill
-	err = bs.RemoveBill(pubKey, expectedBillId)
+	err = bs.RemoveBill(pubKey, bill1.Id)
 	require.Nil(t, err)
 
 	// test contains bill returns false after removal
-	f, err = bs.ContainsBill(expectedBillId)
+	f, err = bs.ContainsBill(pubKey, bill1.Id)
 	require.NoError(t, err)
 	require.False(t, f)
 }

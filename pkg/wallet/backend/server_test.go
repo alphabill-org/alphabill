@@ -137,6 +137,39 @@ func TestListBillsRequest_SortedByOrderNumber(t *testing.T) {
 	require.EqualValues(t, res.Bills[1].Value, 2)
 }
 
+func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
+	mockService := &mockWalletService{
+		bills: []*Bill{
+			{
+				Id:          newUnitId(1),
+				Value:       1,
+				OrderNumber: 1,
+			},
+			{
+				Id:          newUnitId(2),
+				Value:       2,
+				OrderNumber: 2,
+				IsDCBill:    true,
+			},
+		},
+	}
+	startServer(t, mockService)
+
+	res := &ListBillsResponse{}
+	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
+
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.Equal(t, 2, res.Total)
+	require.Len(t, res.Bills, 2)
+	bill := res.Bills[0]
+	require.EqualValues(t, bill.Value, 1)
+	require.False(t, bill.IsDCBill)
+	bill = res.Bills[1]
+	require.EqualValues(t, res.Bills[1].Value, 2)
+	require.True(t, res.Bills[1].IsDCBill)
+}
+
 func TestListBillsRequest_Paging(t *testing.T) {
 	// given set of bills
 	var bills []*Bill
@@ -252,6 +285,30 @@ func TestBalanceRequest_PubKeyNotIndexed(t *testing.T) {
 
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.ErrorContains(t, ErrPubKeyNotIndexed, res.Message)
+}
+
+func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
+	mockService := &mockWalletService{
+		bills: []*Bill{
+			{
+				Id:    newUnitId(1),
+				Value: 1,
+			},
+			{
+				Id:       newUnitId(2),
+				Value:    2,
+				IsDCBill: true,
+			},
+		},
+	}
+	startServer(t, mockService)
+
+	res := &BalanceResponse{}
+	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pk), res)
+
+	require.Equal(t, 200, httpRes.StatusCode)
+	require.EqualValues(t, 1, res.Balance)
 }
 
 func TestBlockProofRequest_Ok(t *testing.T) {
@@ -463,6 +520,57 @@ func TestAddBlockProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
 	require.Equal(t, 400, httpRes.StatusCode)
 	require.Equal(t, "p2pkh predicate verification failed: invalid bearer predicate", res.Message)
+}
+
+func TestAddDCBillBlockProofRequest_Ok(t *testing.T) {
+	_ = log.InitStdoutLogger(log.INFO)
+	pubkey := make([]byte, 33)
+	txValue := uint64(100)
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferDCOrder{
+		TargetValue:  txValue,
+		TargetBearer: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
+	}))
+	gtx, _ := txConverter.ConvertTx(tx)
+	txHash := gtx.Hash(crypto.SHA256)
+	proof, verifiers := createBlockProofForTx(t, tx)
+	service := New(nil, NewInmemoryBillStore(), verifiers)
+	_ = service.AddKey(pubkey)
+	startServer(t, service)
+
+	req := &block.Bills{
+		Bills: []*block.Bill{
+			{
+				Id:       tx.UnitId,
+				Value:    txValue,
+				TxHash:   txHash,
+				IsDcBill: true,
+				TxProof: &block.TxProof{
+					BlockNumber: 1,
+					Tx:          tx,
+					Proof:       proof,
+				},
+			},
+		},
+	}
+	res := &EmptyResponse{}
+	pubkeyHex := hexutil.Encode(pubkey)
+	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
+	require.Equal(t, 200, httpRes.StatusCode)
+
+	bills, err := service.GetBills(pubkey)
+	require.NoError(t, err)
+	require.Len(t, bills, 1)
+	b := bills[0]
+	require.Equal(t, tx.UnitId, b.Id)
+	require.Equal(t, txHash, b.TxHash)
+	require.EqualValues(t, txValue, b.Value)
+	require.True(t, b.IsDCBill)
+
+	txProof := b.TxProof
+	require.NotNil(t, txProof)
+	require.EqualValues(t, 1, txProof.BlockNumber)
+	require.Equal(t, tx, txProof.Tx)
+	require.NotNil(t, proof, txProof.Proof)
 }
 
 func createBlockProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof, map[string]abcrypto.Verifier) {

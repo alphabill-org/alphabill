@@ -15,7 +15,8 @@ message Bill {
   bytes id = 1;
   uint64 value = 2;
   bytes tx_hash = 3;
-  TxProof tx_proof = 4;
+  bool is_dc_bill = 4;
+  TxProof tx_proof = 5;
 }
 
 // tx proof context

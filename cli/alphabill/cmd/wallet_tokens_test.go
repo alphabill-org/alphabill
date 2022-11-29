@@ -496,19 +496,19 @@ func testTokenSubtypingWithRunningPartition(t *testing.T, partition *testpartiti
 	}), test.WaitDuration, test.WaitTick)
 	ensureUnitBytes(t, unitState, typeID11)
 	//second type inheriting the first one and setting subtype clause to ptpkh
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeID12, "ptpkh", typeID11, "0x535100"))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --subtype-input %s", dialAddr, symbol1, typeID12, "ptpkh", typeID11, "0x535100"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, typeID12)
 	}), test.WaitDuration, test.WaitTick)
 	ensureUnitBytes(t, unitState, typeID12)
 	//third type needs to satisfy both parents, immediate parent with ptpkh, grandparent with 0x535100
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeID13, "true", typeID12, "ptpkh,0x535100"))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --subtype-input %s", dialAddr, symbol1, typeID13, "true", typeID12, "ptpkh,0x535100"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, typeID13)
 	}), test.WaitDuration, test.WaitTick)
 	ensureUnitBytes(t, unitState, typeID13)
 	//4th type
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --creation-input %s", dialAddr, symbol1, typeID14, "true", typeID13, "empty,ptpkh,0x535100"))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --subtype-input %s", dialAddr, symbol1, typeID14, "true", typeID13, "empty,ptpkh,0x535100"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, typeID14)
 	}), test.WaitDuration, test.WaitTick)

@@ -133,7 +133,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx.SigBytes())
 }
 
 func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrapper) error {
@@ -179,7 +179,7 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx.SigBytes())
 }
 
 func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTokenWrapper) error {
@@ -209,7 +209,7 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }
 
 func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenWrapper) error {

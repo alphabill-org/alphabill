@@ -1,13 +1,13 @@
 package tokens
 
 import (
+	"bytes"
 	"crypto"
 	goerrors "errors"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/holiman/uint256"
 )
 
@@ -49,13 +49,22 @@ func (b *baseTxExecutor[T]) getChainedPredicates(unitID *uint256.Int, predicateF
 	return predicates, nil
 }
 
-func verifyPredicates(predicates []Predicate, signatures [][]byte, tx txsystem.GenericTransaction) error {
+func verifyPredicates(predicates []Predicate, signatures [][]byte, sigData []byte) error {
 	if len(predicates) > 0 {
 		if len(predicates) != len(signatures) {
-			return errors.Errorf("Number of signatures (%v) not equal to number of parent predicates (%v)", len(signatures), len(predicates))
+			// special case: if signatures are not provided or only a single one is given and is "empty",
+			// try to satisfy all predicates as they all might be "always true"
+			if len(signatures) == 0 || (len(signatures) == 1 && (len(signatures[0]) == 0 || bytes.Equal(signatures[0], script.PredicateArgumentEmpty()))) {
+				signatures = make([][]byte, len(predicates))
+				for i := 0; i < len(predicates); i++ {
+					signatures[i] = script.PredicateArgumentEmpty()
+				}
+			} else {
+				return errors.Errorf("Number of signatures (%v) not equal to number of parent predicates (%v)", len(signatures), len(predicates))
+			}
 		}
 		for i := 0; i < len(predicates); i++ {
-			err := script.RunScript(signatures[i], predicates[i], tx.SigBytes())
+			err := script.RunScript(signatures[i], predicates[i], sigData)
 			if err != nil {
 				return err
 			}

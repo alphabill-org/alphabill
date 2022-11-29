@@ -240,7 +240,7 @@ func (c *createFungibleTokenTypeTxExecutor) validate(tx *createFungibleTokenType
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx.SigBytes())
 }
 
 func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) error {
@@ -268,7 +268,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx.SigBytes())
 }
 
 func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrapper) error {
@@ -295,7 +295,7 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }
 
 func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) error {
@@ -321,7 +321,7 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }
 
 func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) error {
@@ -351,7 +351,7 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }
 
 func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) error {
@@ -398,5 +398,5 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }

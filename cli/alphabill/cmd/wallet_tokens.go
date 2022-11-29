@@ -737,11 +737,13 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind
 		return err
 	}
 
-	accounts := make([]int, 0, len(res))
+	accounts := make([]uint64, 0, len(res))
 	for accNr := range res {
 		accounts = append(accounts, accNr)
 	}
-	sort.Ints(accounts)
+	sort.Slice(accounts, func(i, j int) bool {
+		return accounts[i] < accounts[j]
+	})
 
 	atLeastOneFound := false
 	for _, accNr := range accounts {

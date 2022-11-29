@@ -83,7 +83,7 @@ type (
 		NewBearer() []byte
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	UpdateNonFungibleToken interface {
@@ -120,7 +120,7 @@ type (
 		Value() uint64
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	SplitFungibleToken interface {
@@ -132,7 +132,7 @@ type (
 		RemainingValue() uint64
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	BurnFungibleToken interface {
@@ -141,7 +141,7 @@ type (
 		Value() uint64
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	JoinFungibleToken interface {
@@ -149,7 +149,7 @@ type (
 		BurnTransactions() []BurnFungibleToken
 		BlockProofs() []*block.BlockProof
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	MintAttr interface {

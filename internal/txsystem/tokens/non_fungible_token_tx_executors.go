@@ -209,7 +209,7 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
 }
 
 func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenWrapper) error {

@@ -46,7 +46,7 @@ message TransferNonFungibleTokenAttributes {
   //the backlink to the previous transaction with the token
   bytes backlink = 3;
   // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 4;
+  repeated bytes invariant_predicate_signatures = 4;
   // identifies the type of the token;
   bytes nft_type = 5;
 }
@@ -97,7 +97,7 @@ message TransferFungibleTokenAttributes {
   // the backlink to the previous transaction with this token
   bytes backlink = 4;
   // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 5;
+  repeated bytes invariant_predicate_signatures = 5;
   // identifies the type of the token;
   bytes type = 6;
 }
@@ -111,7 +111,7 @@ message SplitFungibleTokenAttributes {
   // the backlink to the previous transaction with this token
   bytes backlink = 4;
   // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 5;
+  repeated bytes invariant_predicate_signatures = 5;
   // identifies the type of the token;
   bytes type = 6;
   // new value of the source token
@@ -127,7 +127,7 @@ message BurnFungibleTokenAttributes {
   // the backlink to the previous transaction with this token
   bytes backlink = 4;
   // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 5;
+  repeated bytes invariant_predicate_signatures = 5;
 }
 
 message JoinFungibleTokenAttributes {
@@ -138,5 +138,5 @@ message JoinFungibleTokenAttributes {
   // the backlink to the previous transaction with this token
   bytes backlink = 3;
   // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 4;
+  repeated bytes invariant_predicate_signatures = 4;
 }

@@ -295,7 +295,7 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
 }
 
 func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) error {
@@ -321,7 +321,7 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
 }
 
 func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) error {
@@ -351,7 +351,7 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
 }
 
 func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) error {
@@ -398,5 +398,5 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx)
 }

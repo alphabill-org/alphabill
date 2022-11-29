@@ -383,21 +383,21 @@ func signTx(gtx txsystem.GenericTransaction, ac *wallet.AccountKey) (tokens.Pred
 func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.Backlink))
 	return &tokens.TransferFungibleTokenAttributes{
-		Type:                        token.TypeID,
-		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
-		Value:                       token.Amount,
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		Type:                         token.TypeID,
+		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		Value:                        token.Amount,
+		Backlink:                     token.Backlink,
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 }
 
 func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
 	return &tokens.TransferNonFungibleTokenAttributes{
-		NftType:                     token.TypeID,
-		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		NftType:                      token.TypeID,
+		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		Backlink:                     token.Backlink,
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 }
 
@@ -427,12 +427,12 @@ func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *Tok
 func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
 	return &tokens.SplitFungibleTokenAttributes{
-		Type:                        token.TypeID,
-		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
-		TargetValue:                 amount,
-		RemainingValue:              token.Amount - amount,
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		Type:                         token.TypeID,
+		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		TargetValue:                  amount,
+		RemainingValue:               token.Amount - amount,
+		Backlink:                     token.Backlink,
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 }
 

@@ -30,7 +30,7 @@ func NewPrimaryProof(b *GenericBlock, unitID []byte, hashAlgorithm crypto.Hash) 
 	if b == nil {
 		return nil, ErrBlockIsNil
 	}
-	if len(unitID) != 32 {
+	if len(unitID) == 0 {
 		return nil, ErrInvalidUnitID
 	}
 
@@ -91,7 +91,7 @@ func NewSecondaryProof(b *GenericBlock, unitID []byte, secTxIdx int, hashAlgorit
 
 // Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
 func (x *BlockProof) Verify(unitID []byte, tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
-	if len(unitID) != 32 {
+	if len(unitID) == 0 {
 		return ErrInvalidUnitID
 	}
 	if verifiers == nil {

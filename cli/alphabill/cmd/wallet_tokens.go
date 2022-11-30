@@ -755,6 +755,9 @@ func amountToString(amount uint64, decimals uint32) string {
 
 // stringToAmount converts string and decimals to uint64 amount
 func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
+	if amountIn == "" {
+		return 0, fmt.Errorf("invalid empty amount string")
+	}
 	splitAmount := strings.Split(amountIn, ".")
 	if len(splitAmount) > 2 {
 		return 0, fmt.Errorf("invlid amount string %s: more than one comma", amountIn)

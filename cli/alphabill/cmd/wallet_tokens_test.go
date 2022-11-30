@@ -327,6 +327,12 @@ func Test_stringToAmount(t *testing.T) {
 		wantErrStr string
 	}{
 		{
+			name:       "empty",
+			args:       args{amount: "", decimals: 2},
+			want:       0,
+			wantErrStr: "invalid empty amount string",
+		},
+		{
 			name: "100.23, decimals 2 - ok",
 			args: args{amount: "100.23", decimals: 2},
 			want: 10023,

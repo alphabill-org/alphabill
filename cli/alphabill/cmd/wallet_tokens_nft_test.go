@@ -9,13 +9,11 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/partition"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
-
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/stretchr/testify/require"
 )
@@ -161,19 +159,19 @@ func TestNFTs_Integration(t *testing.T) {
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
-	partition, unitState := startTokensPartition(t)
+	node, unitState := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	w1, homedir := createNewTokenWallet(t, dialAddr)
 	require.NotNil(t, w1)
 	w1.Shutdown()
-	typeId := util.Uint256ToBytes(uint256.NewInt(uint64(0x10)))
+	typeId := randomID(t)
 	symbol := "ABNFT"
 	// create type
 	execTokensCmd(t, homedir, fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol, dialAddr, typeId))
 	ensureUnitBytes(t, unitState, typeId)
 	// create non-fungible token from using data-file
-	nftID := util.Uint256ToBytes(uint256.NewInt(uint64(0x11)))
+	nftID := randomID(t)
 	data := make([]byte, 1024)
 	rand.Read(data)
 	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
@@ -181,7 +179,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
 	execTokensCmd(t, homedir, fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file %s", dialAddr, typeId, nftID, tmpfile.Name()))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(node, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			mintNonFungibleAttr := &tokens.MintNonFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(mintNonFungibleAttr))
@@ -202,7 +200,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.NoError(t, err)
 	// update data
 	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --token-identifier %X --data-file %s", dialAddr, nftID, tmpfile.Name()))
-	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(node, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.UpdateNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			dataUpdateAttrs := &tokens.UpdateNonFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(dataUpdateAttrs))
@@ -212,6 +210,14 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 		return false
 	}), test.WaitDuration, test.WaitTick)
 	require.Equal(t, data2, reflect.ValueOf(ensureUnitBytes(t, unitState, nftID).Data).Elem().FieldByName("data").Bytes())
+
+	// create non-updatable nft
+	nftID2 := randomID(t)
+	execTokensCmd(t, homedir, fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data 01 --data-update-clause false", dialAddr, typeId, nftID2))
+	require.Equal(t, []byte{0x01}, reflect.ValueOf(ensureUnitBytes(t, unitState, nftID2).Data).Elem().FieldByName("data").Bytes())
+	//try to update and observe failure
+	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --sync false --token-identifier %X --data 02 --data-update-input false,true", dialAddr, nftID2))
+	testpartition.ContainsEvent(t, node.EventHandler, partition.EventTypeTransactionFailed)
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {

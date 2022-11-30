@@ -333,7 +333,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	// convert amount to uint64
+	// convert amount from string to uint64
 	amount, err := stringToAmount(amountStr, tt.DecimalPlaces)
 	if err != nil {
 		return err
@@ -597,6 +597,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
+	// convert amount from string to uint64
 	targetValue, err := stringToAmount(amountStr, tt.DecimalPlaces)
 	if err != nil {
 		return err

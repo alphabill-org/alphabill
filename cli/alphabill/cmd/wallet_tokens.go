@@ -290,7 +290,7 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
-	cmd.Flags().String(cmdFlagAmount, "", "amount value, must be bigger than 0 and match type precision (decimals)")
+	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
 		return nil
@@ -339,7 +339,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		return err
 	}
 	if amount == 0 {
-		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
 
 	a := &tokens.MintFungibleTokenAttributes{
@@ -527,7 +527,7 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendFungible(cmd, config)
 		},
 	}
-	cmd.Flags().String(cmdFlagAmount, "", "amount value, must be bigger than 0 and match type precision (decimals)")
+	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
 		return nil
@@ -602,7 +602,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	if targetValue == 0 {
-		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
 	return tw.SendFungible(ctx, accountNumber, typeId, targetValue, pubKey)
 }

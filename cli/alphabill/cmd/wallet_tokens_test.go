@@ -382,11 +382,6 @@ func Test_stringToAmount(t *testing.T) {
 			want: 100230,
 		},
 		{
-			name: "100.23, decimals 3 - ok",
-			args: args{amount: "100.230", decimals: 3},
-			want: 100230,
-		},
-		{
 			name:       "18446744073709551615.2 out of range - error",
 			args:       args{amount: "18446744073709551615.2", decimals: 1},
 			want:       0,

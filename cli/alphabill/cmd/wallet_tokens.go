@@ -333,9 +333,6 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	if tt == nil {
-		return fmt.Errorf("error token type %X not found", typeId)
-	}
 	// convert amount to uint64
 	amount, err := stringToAmount(amountStr, tt.DecimalPlaces)
 	if err != nil {
@@ -599,9 +596,6 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 	tt, err := tw.GetTokenType(ctx, typeId)
 	if err != nil {
 		return err
-	}
-	if tt == nil {
-		return fmt.Errorf("error token type %X not found", typeId)
 	}
 	targetValue, err := stringToAmount(amountStr, tt.DecimalPlaces)
 	if err != nil {

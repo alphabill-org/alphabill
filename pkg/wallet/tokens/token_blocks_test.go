@@ -337,14 +337,14 @@ func TestTokensProcessBlock_syncToUnit_timeout(t *testing.T) {
 	require.ErrorContains(t, w.syncToUnit(context.Background(), id, blockNr), "did not confirm all transactions, timed out: 1")
 }
 
-func verifyProof(t *testing.T, unitID []byte, proof *Proof, blockNo uint64, tx *txsystem.Transaction, txConerter block.TxConverter, verifiers map[string]abcrypto.Verifier) {
+func verifyProof(t *testing.T, unitID []byte, proof *Proof, blockNo uint64, tx *txsystem.Transaction, txConverter block.TxConverter, verifiers map[string]abcrypto.Verifier) {
 	require.NotNil(t, proof)
 	require.Equal(t, blockNo, proof.BlockNumber)
 	require.Equal(t, tx, proof.Tx)
 
 	blockProof := proof.Proof
 	require.NotNil(t, blockProof)
-	gtx, err := txConerter.ConvertTx(tx)
+	gtx, err := txConverter.ConvertTx(tx)
 	require.NoError(t, err)
 
 	err = blockProof.Verify(unitID, gtx, verifiers, crypto.SHA256)

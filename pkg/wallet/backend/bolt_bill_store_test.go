@@ -111,17 +111,17 @@ func TestBillStore_GetSetBills(t *testing.T) {
 
 func TestBillStore_GetSetProofs(t *testing.T) {
 	bs, _ := createTestBillStore(t)
-	billId := newUnitId(1)
+	billID := newUnitID(1)
 	pubkey := []byte{0}
 
-	// verify nil bill
-	b, err := bs.GetBill(billId)
-	require.ErrorIs(t, err, ErrMissingBlockProof)
+	// verify GetBill ErrPubKeyNotIndexed
+	b, err := bs.GetBill(pubkey, billID)
+	require.ErrorIs(t, err, ErrPubKeyNotIndexed)
 	require.Nil(t, b)
 
-	// add bill
+	// verify SetBills ErrPubKeyNotIndexed
 	expectedBill := &Bill{
-		Id: billId,
+		Id: billID,
 		TxProof: &TxProof{
 			BlockNumber: 1,
 			Proof:       &block.BlockProof{BlockHeaderHash: []byte{1}},
@@ -129,10 +129,25 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 		},
 	}
 	err = bs.SetBills(pubkey, expectedBill)
+	require.ErrorIs(t, err, ErrPubKeyNotIndexed)
+
+	// index key
+	err = bs.AddKey(&Pubkey{
+		Pubkey:     pubkey,
+		PubkeyHash: wallet.NewKeyHash(pubkey),
+	})
 	require.NoError(t, err)
 
-	// verify get bill
-	b, err = bs.GetBill(billId)
+	// verify GetBill ErrBillNotFound
+	b, err = bs.GetBill(pubkey, billID)
+	require.ErrorIs(t, err, ErrBillNotFound)
+
+	// verify SetBills ok
+	err = bs.SetBills(pubkey, expectedBill)
+	require.NoError(t, err)
+
+	// verify GetBill ok
+	b, err = bs.GetBill(pubkey, billID)
 	require.NoError(t, err)
 	require.Equal(t, expectedBill, b)
 }
@@ -182,4 +197,52 @@ func newBillWithValue(val uint64) *Bill {
 		Id:    util.Uint256ToBytes(id),
 		Value: val,
 	}
+}
+
+func TestBillStore_DeletingBillForKey1DoesNotAffectKey2(t *testing.T) {
+	bs, _ := createTestBillStore(t)
+	pk1, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000001")
+	pk2, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000002")
+
+	// index keys
+	key1 := &Pubkey{
+		Pubkey:     pk1,
+		PubkeyHash: wallet.NewKeyHash(pk1),
+	}
+	_ = bs.AddKey(key1)
+
+	key2 := &Pubkey{
+		Pubkey:     pk2,
+		PubkeyHash: wallet.NewKeyHash(pk2),
+	}
+	_ = bs.AddKey(key2)
+
+	// add bill to key1 and key2
+	bill := newBillWithValue(1)
+	_ = bs.SetBills(pk1, bill)
+	_ = bs.SetBills(pk2, bill)
+
+	// when bill is removed from key1
+	_ = bs.RemoveBill(pk1, bill.Id)
+
+	// then bill should remain for key2
+	actualBills, _ := bs.GetBills(pk2)
+	require.Len(t, actualBills, 1)
+	require.Equal(t, bill, actualBills[0])
+
+	actualBill, err := bs.GetBill(pk2, bill.Id)
+	require.NoError(t, err)
+	require.Equal(t, bill, actualBill)
+
+	containsBill, err := bs.ContainsBill(pk2, bill.Id)
+	require.NoError(t, err)
+	require.True(t, containsBill)
+
+	// and key1 bill should be removed
+	actualBill, err = bs.GetBill(pk1, bill.Id)
+	require.ErrorIs(t, err, ErrBillNotFound)
+
+	containsBill, err = bs.ContainsBill(pk1, bill.Id)
+	require.NoError(t, err)
+	require.False(t, containsBill)
 }

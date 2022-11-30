@@ -3,7 +3,6 @@ package backend
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -77,7 +76,7 @@ func (s *RequestHandler) router() *mux.Router {
 
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/proof/{pubkey}", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof/{pubkey}", s.setProofFunc).Methods("POST", "OPTIONS")
 
 	// TODO authorization
@@ -158,9 +157,20 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
-	billId, err := parseBillId(r)
+	pubkey, err := s.parsePubkeyURLParam(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /proof request: ", err)
+		wlog.Debug("error parsing GET /proof/{pubkey} request: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
+		}
+		return
+	}
+	billID, err := parseBillID(r)
+	if err != nil {
+		wlog.Debug("error parsing GET /proof{pubkey} request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -169,30 +179,23 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	bill, err := s.service.GetBill(billId)
+	bill, err := s.service.GetBill(pubkey, billID)
 	if err != nil {
-		if errors.Is(err, ErrMissingBlockProof) {
-			wlog.Debug("error on GET /proof: ", err)
+		if errors.Is(err, ErrPubKeyNotIndexed) || errors.Is(err, ErrBillNotFound) {
+			wlog.Debug("error on GET /proof/{pubkey}: ", err)
 			w.WriteHeader(http.StatusBadRequest)
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
 		} else {
-			wlog.Error("error on GET /proof: ", err)
+			wlog.Error("error on GET /proof/{pubkey}: ", err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
-	}
-	if bill == nil {
-		wlog.Debug("GET /proof does not exist ", fmt.Sprintf("%X\n", billId))
-		w.WriteHeader(400)
-		writeAsJson(w, ErrorResponse{Message: "block proof does not exist for given bill id"})
 		return
 	}
 	writeAsProtoJson(w, bill.toProtoBills())
 }
 
 func (s *RequestHandler) setProofFunc(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	pubkeyParam := vars["pubkey"]
-	pubkey, err := parsePubKey(pubkeyParam)
+	pubkey, err := s.parsePubkeyURLParam(r)
 	if err != nil {
 		wlog.Debug("error parsing POST /proof/{pubkey} request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -226,6 +229,12 @@ func (s *RequestHandler) setProofFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAsJson(w, EmptyResponse{})
+}
+
+func (s *RequestHandler) parsePubkeyURLParam(r *http.Request) ([]byte, error) {
+	vars := mux.Vars(r)
+	pubkeyParam := vars["pubkey"]
+	return parsePubKey(pubkeyParam)
 }
 
 func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
@@ -332,7 +341,7 @@ func decodePubKeyHex(pubKey string) ([]byte, error) {
 	return bytes, nil
 }
 
-func parseBillId(r *http.Request) ([]byte, error) {
+func parseBillID(r *http.Request) ([]byte, error) {
 	billIdHex := r.URL.Query().Get("bill_id")
 	if billIdHex == "" {
 		return nil, errMissingBillIDQueryParam

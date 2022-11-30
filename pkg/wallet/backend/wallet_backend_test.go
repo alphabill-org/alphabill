@@ -26,9 +26,9 @@ import (
 func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	// create wallet backend with mock abclient
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	billId1 := newUnitId(1)
+	billId1 := newUnitID(1)
 	pubKey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
-	billId2 := newUnitId(2)
+	billId2 := newUnitID(2)
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 
 	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{
@@ -91,7 +91,7 @@ func TestSetBill_OK(t *testing.T) {
 	}))
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(gocrypto.SHA256)
-	proof, verifiers := createBlockProofForTx(t, tx)
+	proof, verifiers := createProofForTx(t, tx)
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)
 	b := &Bill{
@@ -119,7 +119,7 @@ func TestSetBill_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify saved bill can be queried by id
-	bill, err := service.GetBill(tx.UnitId)
+	bill, err := service.GetBill(pubkey, tx.UnitId)
 	require.NoError(t, err)
 	require.Equal(t, b, bill)
 
@@ -137,7 +137,7 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	}))
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(gocrypto.SHA256)
-	proof, verifiers := createBlockProofForTx(t, tx)
+	proof, verifiers := createProofForTx(t, tx)
 	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
 
 	service := New(nil, NewInmemoryBillStore(), verifiers)

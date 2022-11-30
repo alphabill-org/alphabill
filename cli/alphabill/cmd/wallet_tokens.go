@@ -117,6 +117,7 @@ func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTypeFungible(cmd, config)
 		},
 	}
+	addPasswordFlags(cmd)
 	cmd.Flags().Uint32(cmdFlagDecimals, 8, "token decimal (optional)")
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagType)
@@ -683,7 +684,7 @@ func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
 	cmd.PersistentFlags().IntVarP(&accountNumber, keyCmdName, "k", -1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
 	// add persistent password flags
 	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
-	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)	
+	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	return cmd
 }
 

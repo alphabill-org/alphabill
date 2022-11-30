@@ -225,7 +225,7 @@ func TestDcNonceHashIsCalculatedInCorrectBillOrder(t *testing.T) {
 	}
 	hasher := crypto.SHA256.New()
 	for i := len(bills) - 1; i >= 0; i-- {
-		hasher.Write(bills[i].GetId())
+		hasher.Write(bills[i].GetID())
 	}
 	expectedNonce := hasher.Sum(nil)
 
@@ -238,14 +238,14 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 	k, _ := w.db.Do().GetAccountKey(0)
 
 	dcBills := []*Bill{
-		{Id: uint256.NewInt(2), Tx: moneytesttx.CreateRandomDcTx()},
-		{Id: uint256.NewInt(1), Tx: moneytesttx.CreateRandomDcTx()},
-		{Id: uint256.NewInt(0), Tx: moneytesttx.CreateRandomDcTx()},
+		{Id: uint256.NewInt(2), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(1), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
+		{Id: uint256.NewInt(0), BlockProof: &BlockProof{Tx: moneytesttx.CreateRandomDcTx()}},
 	}
 	dcNonce := calculateDcNonce(dcBills)
 	var dcBillIds [][]byte
 	for _, dcBill := range dcBills {
-		dcBillIds = append(dcBillIds, dcBill.GetId())
+		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
 	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
@@ -401,9 +401,9 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 
 	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
 	require.NoError(t, err)
+	b.BlockProof = &BlockProof{Tx: tx}
 
 	b.IsDcBill = true
-	b.Tx = tx
 	b.DcNonce = nonceB32[:]
 	b.DcTimeout = timeout
 	b.DcExpirationTimeout = dustBillDeletionTimeout

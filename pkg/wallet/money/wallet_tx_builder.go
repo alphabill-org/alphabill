@@ -49,7 +49,7 @@ func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, b *Bi
 }
 
 func createTransferTx(pubKey []byte, k *wallet.AccountKey, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(bill.GetId(), timeout)
+	tx := createGenericTx(bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: bill.Value,
@@ -76,7 +76,7 @@ func createGenericTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 }
 
 func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(bill.GetId(), timeout)
+	tx := createGenericTx(bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
@@ -94,7 +94,7 @@ func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, bill *Bil
 }
 
 func createDustTx(k *wallet.AccountKey, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(bill.GetId(), timeout)
+	tx := createGenericTx(bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
@@ -120,15 +120,15 @@ func createSwapTx(k *wallet.AccountKey, dcBills []*Bill, dcNonce []byte, billIds
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})
 	sort.Slice(dcBills, func(i, j int) bool {
-		return bytes.Compare(dcBills[i].GetId(), dcBills[j].GetId()) < 0
+		return bytes.Compare(dcBills[i].GetID(), dcBills[j].GetID()) < 0
 	})
 
 	var dustTransferProofs []*block.BlockProof
 	var dustTransferOrders []*txsystem.Transaction
 	var billValueSum uint64
 	for _, b := range dcBills {
-		dustTransferOrders = append(dustTransferOrders, b.Tx)
-		dustTransferProofs = append(dustTransferProofs, b.BlockProof)
+		dustTransferOrders = append(dustTransferOrders, b.BlockProof.Tx)
+		dustTransferProofs = append(dustTransferProofs, b.BlockProof.Proof)
 		billValueSum += b.Value
 	}
 

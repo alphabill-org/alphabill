@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -54,32 +55,32 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	bills, err := store.GetBills(pubKeyBytes)
 	require.NoError(t, err)
 	require.Len(t, bills, 4)
-
-	// verify proofs exist
-	for _, bi := range bills {
-		billIdBytes := bi.Id.Bytes32()
-		proof, err := store.GetBlockProof(billIdBytes[:])
-		require.NoError(t, err)
-		verifyProof(t, proof, bi.Id)
+	for _, bill := range bills {
+		verifyProof(t, bill)
 	}
+
+	// verify tx2 is dcBill
+	bill, _ := store.GetBill(tx2.UnitId)
+	require.True(t, bill.IsDCBill)
 }
 
 func newUnitId(unitId uint64) []byte {
-	bytes32 := uint256.NewInt(unitId).Bytes32()
-	return bytes32[:]
+	return util.Uint256ToBytes(uint256.NewInt(unitId))
 }
 
-func verifyProof(t *testing.T, proof *BlockProof, billId *uint256.Int) {
-	require.NotNil(t, proof)
-	require.EqualValues(t, 1, proof.BlockNumber)
-	require.Equal(t, billId, proof.BillId)
-
-	blockProof := proof.BlockProof
+func verifyProof(t *testing.T, b *Bill) {
+	require.NotNil(t, b)
+	blockProof := b.TxProof
 	require.NotNil(t, blockProof)
-	require.NotNil(t, blockProof.BlockHeaderHash)
-	require.NotNil(t, blockProof.TransactionsHash)
-	require.NotNil(t, blockProof.HashValue)
-	require.NotNil(t, blockProof.BlockTreeHashChain)
-	require.Nil(t, blockProof.SecTreeHashChain)
-	require.NotNil(t, blockProof.UnicityCertificate)
+	require.EqualValues(t, 1, blockProof.BlockNumber)
+	require.NotNil(t, blockProof.Tx)
+
+	p := blockProof.Proof
+	require.NotNil(t, p)
+	require.NotNil(t, p.BlockHeaderHash)
+	require.NotNil(t, p.TransactionsHash)
+	require.NotNil(t, p.HashValue)
+	require.NotNil(t, p.BlockTreeHashChain)
+	require.Nil(t, p.SecTreeHashChain)
+	require.NotNil(t, p.UnicityCertificate)
 }

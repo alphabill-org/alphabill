@@ -1,25 +1,24 @@
 package backend
 
 import (
+	"bytes"
 	"sync"
-
-	"github.com/holiman/uint256"
 )
 
 type InmemoryBillStore struct {
 	blockNumber uint64
-	bills       map[string]map[string]*Bill // pubkey => map[bill_id]*Bill
-	proofs      map[string]*BlockProof      // bill_id => block_proof
-	keys        map[string]*Pubkey          // pubkey => hashed pubkeys
+	pubkeyIndex map[string]map[string]bool // pubkey => map[bill_id]blank
+	bills       map[string]*Bill           // bill_id => bill
+	keys        map[string]*Pubkey         // pubkey => hashed pubkeys
 
 	mu sync.Mutex
 }
 
 func NewInmemoryBillStore() *InmemoryBillStore {
 	return &InmemoryBillStore{
-		bills:  map[string]map[string]*Bill{},
-		proofs: map[string]*BlockProof{},
-		keys:   map[string]*Pubkey{},
+		pubkeyIndex: map[string]map[string]bool{},
+		bills:       map[string]*Bill{},
+		keys:        map[string]*Pubkey{},
 	}
 }
 
@@ -40,71 +39,47 @@ func (s *InmemoryBillStore) GetBills(pubkey []byte) ([]*Bill, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var bills []*Bill
-	for _, b := range s.bills[string(pubkey)] {
-		bills = append(bills, b)
+	for k := range s.pubkeyIndex[string(pubkey)] {
+		bills = append(bills, s.bills[k])
 	}
 	return bills, nil
 }
 
-func (s *InmemoryBillStore) AddBill(pubKey []byte, b *Bill) error {
+func (s *InmemoryBillStore) RemoveBill(pubKey []byte, id []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	bills, f := s.bills[string(pubKey)]
-	if !f {
-		bills = map[string]*Bill{}
-		s.bills[string(pubKey)] = bills
+	bills := s.pubkeyIndex[string(pubKey)]
+	delete(bills, string(id))
+	delete(s.bills, string(id))
+	return nil
+}
+
+func (s *InmemoryBillStore) ContainsBill(pubkey []byte, unitID []byte) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.pubkeyIndex[string(pubkey)]
+	_, exists := m[string(unitID)]
+	return exists, nil
+}
+
+func (s *InmemoryBillStore) GetBill(billId []byte) (*Bill, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.bills[string(billId)], nil
+}
+
+func (s *InmemoryBillStore) SetBills(pubkey []byte, billsIn ...*Bill) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, bill := range billsIn {
+		s.bills[string(bill.Id)] = bill
+		bills, f := s.pubkeyIndex[string(pubkey)]
+		if !f {
+			bills = map[string]bool{}
+			s.pubkeyIndex[string(pubkey)] = bills
+		}
+		bills[string(bill.Id)] = true
 	}
-	b32 := b.Id.Bytes32()
-	bills[string(b32[:])] = b
-	return nil
-}
-
-func (s *InmemoryBillStore) AddBillWithProof(pubKey []byte, b *Bill, p *BlockProof) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	bills, f := s.bills[string(pubKey)]
-	if !f {
-		bills = map[string]*Bill{}
-		s.bills[string(pubKey)] = bills
-	}
-	b32 := b.Id.Bytes32()
-	bId := string(b32[:])
-	bills[bId] = b
-
-	s.proofs[bId] = p
-
-	return nil
-}
-
-func (s *InmemoryBillStore) RemoveBill(pubKey []byte, id *uint256.Int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	bills := s.bills[string(pubKey)]
-	b32 := id.Bytes32()
-	delete(bills, string(b32[:]))
-	return nil
-}
-
-func (s *InmemoryBillStore) ContainsBill(pubKey []byte, id *uint256.Int) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	bills := s.bills[string(pubKey)]
-	b32 := id.Bytes32()
-	_, ok := bills[string(b32[:])]
-	return ok, nil
-}
-
-func (s *InmemoryBillStore) GetBlockProof(billId []byte) (*BlockProof, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.proofs[string(billId)], nil
-}
-
-func (s *InmemoryBillStore) SetBlockProof(proof *BlockProof) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b32 := proof.BillId.Bytes32()
-	s.proofs[string(b32[:])] = proof
 	return nil
 }
 
@@ -116,6 +91,17 @@ func (s *InmemoryBillStore) GetKeys() ([]*Pubkey, error) {
 		keys = append(keys, k)
 	}
 	return keys, nil
+}
+
+func (s *InmemoryBillStore) GetKey(pubkey []byte) (*Pubkey, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, k := range s.keys {
+		if bytes.Equal(pubkey, k.Pubkey) {
+			return k, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *InmemoryBillStore) AddKey(k *Pubkey) error {

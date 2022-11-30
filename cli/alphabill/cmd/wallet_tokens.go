@@ -224,6 +224,7 @@ func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagType)
+	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	return cmd
 }
 
@@ -255,6 +256,10 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
+	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, am)
+	if err != nil {
+		return err
+	}
 	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, am)
 	if err != nil {
 		return err
@@ -266,7 +271,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             mintTokenPredicate,
 		InvariantPredicate:                 invariantPredicate,
-		DataUpdatePredicate:                script.PredicateAlwaysTrue(),
+		DataUpdatePredicate:                dataUpdatePredicate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -370,7 +375,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
 	// cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile) TODO use once 1.5.0 is released
-	cmd.Flags().BytesHex(cmdFlagTokenDataUpdateClause, nil, "data update predicate (hex)")
+	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().StringSlice(cmdFlagMintClauseInput, []string{predicatePtpkh}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagTokenId)
@@ -419,7 +424,12 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 			return err
 		}
 	}
-	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, tw.GetAccountManager())
+	am := tw.GetAccountManager()
+	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, am)
+	if err != nil {
+		return err
+	}
+	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, am)
 	if err != nil {
 		return err
 	}
@@ -428,7 +438,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		NftType:                          typeId,
 		Uri:                              uri,
 		Data:                             data,
-		DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+		DataUpdatePredicate:              dataUpdatePredicate,
 		TokenCreationPredicateSignatures: nil, // will be set in the wallet
 	}
 	ctx, cancel := context.WithCancel(context.Background())

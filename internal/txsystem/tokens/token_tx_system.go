@@ -88,7 +88,7 @@ type (
 		txsystem.GenericTransaction
 		Data() []byte
 		Backlink() []byte
-		DataUpdateSignature() []byte
+		DataUpdateSignatures() [][]byte
 	}
 
 	CreateFungibleTokenType interface {

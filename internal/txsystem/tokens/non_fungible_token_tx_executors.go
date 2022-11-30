@@ -237,9 +237,9 @@ func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenW
 			return d.parentTypeId
 		},
 	)
-	predicates = append(predicates, data.dataUpdatePredicate) // TODO check order
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.DataUpdateSignature, predicates[0] /*TODO AB-476*/, tx.SigBytes())
+	predicates = append([]Predicate{data.dataUpdatePredicate}, predicates...)
+	return verifyPredicates(predicates, tx.DataUpdateSignatures(), tx.SigBytes())
 }

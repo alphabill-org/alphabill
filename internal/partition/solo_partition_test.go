@@ -11,6 +11,7 @@ import (
 
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
+	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -43,30 +44,7 @@ type SingleNodePartition struct {
 	rootState  *rootchain.State
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
-	eh         *eventHandler
-}
-
-type eventHandler struct {
-	mutex  sync.Mutex
-	events []Event
-}
-
-func (eh *eventHandler) handleEvent(e Event) {
-	eh.mutex.Lock()
-	defer eh.mutex.Unlock()
-	eh.events = append(eh.events, e)
-}
-
-func (eh *eventHandler) GetEvents() []Event {
-	eh.mutex.Lock()
-	defer eh.mutex.Unlock()
-	return eh.events
-}
-
-func (eh *eventHandler) Reset() {
-	eh.mutex.Lock()
-	defer eh.mutex.Unlock()
-	eh.events = []Event{}
+	eh         *testpartition.TestEventHandler
 }
 
 func (t *AlwaysValidTransactionValidator) Validate(txsystem.GenericTransaction, uint64) error {
@@ -116,7 +94,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
-	eh := &eventHandler{}
+	eh := &testpartition.TestEventHandler{}
 	// partition
 	n, err := New(
 		p,
@@ -131,7 +109,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 				currentNode: "1",
 			}),
 			WithTxValidator(&AlwaysValidTransactionValidator{}),
-			WithEventHandler(eh.handleEvent, 100),
+			WithEventHandler(eh.HandleEvent, 100),
 			WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
 		}, nodeOptions...)...,
 	)
@@ -252,7 +230,7 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 		Protocol: network.ProtocolUnicityCertificates,
 		Message:  uc,
 	})
-	ContainsEvent(t, sn, EventTypeBlockFinalized)
+	testpartition.ContainsEvent(t, sn.eh, EventTypeBlockFinalized)
 
 	sn.eh.Reset()
 	return nil
@@ -366,18 +344,5 @@ func ContainsError(t *testing.T, tp *SingleNodePartition, errStr string) {
 			}
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick)
-}
-
-func ContainsEvent(t *testing.T, tp *SingleNodePartition, et EventType) {
-	require.Eventually(t, func() bool {
-		events := tp.eh.GetEvents()
-		for _, e := range events {
-			if e.EventType == et {
-				return true
-			}
-		}
-		return false
-
 	}, test.WaitDuration, test.WaitTick)
 }

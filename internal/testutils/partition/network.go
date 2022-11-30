@@ -5,6 +5,8 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	"sync"
+	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -14,20 +16,23 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
 // AlphabillPartition for integration tests
 type AlphabillPartition struct {
-	RootChain *rootchain.RootChain
-	Nodes     []*partition.Node
-	ctxCancel context.CancelFunc
-	ctx       context.Context
-	TrustBase map[string]crypto.Verifier
+	RootChain    *rootchain.RootChain
+	Nodes        []*partition.Node
+	ctxCancel    context.CancelFunc
+	ctx          context.Context
+	TrustBase    map[string]crypto.Verifier
+	EventHandler *TestEventHandler
 }
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
@@ -118,6 +123,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// start Nodes
 	var nodes = make([]*partition.Node, partitionNodes)
+	eh := &TestEventHandler{}
 	for i := 0; i < partitionNodes; i++ {
 		if err != nil {
 			return nil, err
@@ -135,6 +141,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			pn,
 			partition.WithContext(ctx),
 			partition.WithRootAddressAndIdentifier(rootPeer.MultiAddresses()[0], rootPeer.ID()),
+			partition.WithEventHandler(eh.HandleEvent, 100),
 		)
 		if err != nil {
 			return nil, err
@@ -147,11 +154,12 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		return nil, err
 	}
 	return &AlphabillPartition{
-		RootChain: root,
-		Nodes:     nodes,
-		ctx:       ctx,
-		ctxCancel: ctxCancel,
-		TrustBase: trustBase,
+		RootChain:    root,
+		Nodes:        nodes,
+		ctx:          ctx,
+		ctxCancel:    ctxCancel,
+		TrustBase:    trustBase,
+		EventHandler: eh,
 	}, nil
 }
 
@@ -308,4 +316,40 @@ func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.
 		}
 		return false
 	}
+}
+
+type TestEventHandler struct {
+	mutex  sync.Mutex
+	events []*partition.Event
+}
+
+func (eh *TestEventHandler) HandleEvent(e *partition.Event) {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	eh.events = append(eh.events, e)
+}
+
+func (eh *TestEventHandler) GetEvents() []*partition.Event {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	return eh.events
+}
+
+func (eh *TestEventHandler) Reset() {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	eh.events = []*partition.Event{}
+}
+
+func ContainsEvent(t *testing.T, eh *TestEventHandler, et partition.EventType) {
+	require.Eventually(t, func() bool {
+		events := eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == et {
+				return true
+			}
+		}
+		return false
+
+	}, test.WaitDuration, test.WaitTick)
 }

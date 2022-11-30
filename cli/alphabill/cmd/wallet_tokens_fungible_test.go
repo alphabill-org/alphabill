@@ -49,7 +49,7 @@ func TestWalletCreateFungibleTokenTypeCmd_DecimalsFlag(t *testing.T) {
 	require.ErrorContains(t, err, "argument \"9\" for \"--decimals\" flag is out of range, max value 8")
 }
 
-func TestFungibleTokenSubtyping_Integration(t *testing.T) {
+func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	partition, unitState := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
@@ -67,7 +67,7 @@ func TestFungibleTokenSubtyping_Integration(t *testing.T) {
 	typeID13 := randomID(t)
 	typeID14 := randomID(t)
 	//push bool false, equal; to satisfy: 5100
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s", dialAddr, symbol1, typeID11, "0x53510087"))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause 0x53510087", dialAddr, symbol1, typeID11))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, typeID11)
 	}), test.WaitDuration, test.WaitTick)
@@ -92,7 +92,44 @@ func TestFungibleTokenSubtyping_Integration(t *testing.T) {
 	ensureUnitBytes(t, unitState, typeID14)
 }
 
-func TestFungibleTokensCmd_Integration(t *testing.T) {
+func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
+	partition, unitState := startTokensPartition(t)
+
+	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
+
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	_, err := w1.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w1.Shutdown()
+
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2key, err := w2.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w2.Shutdown()
+
+	symbol1 := "AB"
+	typeID11 := randomID(t)
+	typeID12 := randomID(t)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --decimals 0 --inherit-bearer-clause %s", dialAddr, symbol1, typeID11, predicatePtpkh))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return bytes.Equal(tx.UnitId, typeID11)
+	}), test.WaitDuration, test.WaitTick)
+	ensureUnitBytes(t, unitState, typeID11)
+	//second type inheriting the first one and leaves inherit-bearer clause to default (true)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --decimals 0 --parent-type %X --subtype-input %s", dialAddr, symbol1, typeID12, typeID11, predicateTrue))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return bytes.Equal(tx.UnitId, typeID12)
+	}), test.WaitDuration, test.WaitTick)
+	ensureUnitBytes(t, unitState, typeID12)
+	//mint
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible -u %s --sync true --type %X --amount %v --mint-input %s,%s", dialAddr, typeID12, 1000, predicatePtpkh, predicatePtpkh))
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='1000'")
+	//send to w2
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 100 --address 0x%X -k 1 --inherit-bearer-input %s,%s", dialAddr, typeID12, w2key.PubKey, predicateTrue, predicatePtpkh))
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='100'")
+}
+
+func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	partition, unitState := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))

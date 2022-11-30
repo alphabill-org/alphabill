@@ -43,6 +43,27 @@ func TestNewFungibleType(t *testing.T) {
 	require.Equal(t, typeId, tx.UnitId)
 	require.Equal(t, a.Symbol, newFungibleTx.Symbol)
 	require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
+	// pretend it was saved to db
+	tw.db.Do().AddTokenType(&TokenUnitType{
+		ID:            tx.UnitId,
+		DecimalPlaces: a.DecimalPlaces,
+		ParentTypeID:  nil,
+		Kind:          FungibleTokenType,
+		Symbol:        a.Symbol,
+	})
+	// new subtype
+	b := &tokens.CreateFungibleTokenTypeAttributes{
+		Symbol:                             "AB",
+		DecimalPlaces:                      2,
+		ParentTypeId:                       typeId,
+		SubTypeCreationPredicateSignatures: nil,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+	}
+	//check decimal places are validated against the parent type
+	_, err = tw.NewFungibleType(context.Background(), b, []byte{2}, nil)
+	require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
 }
 
 func TestNewNonFungibleType(t *testing.T) {

@@ -2,10 +2,11 @@ package tokens
 
 import (
 	"context"
-	"errors"
+	goerrors "errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -19,8 +20,8 @@ const (
 )
 
 var (
-	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
-	ErrAttributesMissing    = errors.New("attributes missing")
+	ErrInvalidBlockSystemID = goerrors.New("invalid system identifier")
+	ErrAttributesMissing    = goerrors.New("attributes missing")
 	ErrInvalidURILength     = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
 	ErrInvalidDataLength    = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 )
@@ -71,6 +72,13 @@ func (w *Wallet) Shutdown() {
 
 func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token type")
+	parentType, err := w.db.Do().GetTokenType(attrs.ParentTypeId)
+	if err != nil {
+		return nil, err
+	}
+	if parentType != nil && parentType.DecimalPlaces != attrs.DecimalPlaces {
+		return nil, errors.Errorf("invalid decimal places. allowed %v, got %v", parentType.DecimalPlaces, attrs.DecimalPlaces)
+	}
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 

@@ -230,58 +230,6 @@ func TestNewNFT(t *testing.T) {
 	}
 }
 
-func TestTransferFungible(t *testing.T) {
-	tw, abClient := createTestWallet(t)
-	err := tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 1}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 2}))
-		return nil
-	})
-	require.NoError(t, err)
-	first := func(s PublicKey, e error) PublicKey {
-		require.NoError(t, e)
-		return s
-	}
-	tests := []struct {
-		name          string
-		tokenId       TokenID
-		amount        uint64
-		key           PublicKey
-		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes)
-	}{
-		{
-			name:    "to 'always true' predicate",
-			tokenId: []byte{11},
-			amount:  1,
-			key:     nil,
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes) {
-				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
-			},
-		},
-		{
-			name:    "to public key hash predicate",
-			tokenId: []byte{12},
-			amount:  2,
-			key:     first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes) {
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err = tw.Transfer(context.Background(), 1, tt.tokenId, tt.key)
-			require.NoError(t, err)
-			txs := abClient.GetRecordedTransactions()
-			tx := txs[len(txs)-1]
-			require.NotEqual(t, tt.tokenId, tx.UnitId)
-			newTransfer := parseFungibleTransfer(t, tx)
-			require.Equal(t, tt.amount, newTransfer.Value)
-			tt.validateOwner(t, 1, tt.key, newTransfer)
-		})
-	}
-}
-
 func TestTransferNFT(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {

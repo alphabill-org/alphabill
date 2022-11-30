@@ -65,7 +65,6 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.AddCommand(tokenCmdNewType(config))
 	cmd.AddCommand(tokenCmdNewToken(config))
-	cmd.AddCommand(tokenCmdTransfer(config))
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
@@ -441,65 +440,6 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 
 	consoleWriter.Println(fmt.Sprintf("Created new non-fungible token with id=%X", id))
 	return nil
-}
-
-func tokenCmdTransfer(config *walletConfig) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "transfer",
-		Short: "transfer a token by its id",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
-		},
-	}
-	cmd.AddCommand(tokenCmdTransferFungible(config))
-	return cmd
-}
-
-func tokenCmdTransferFungible(config *walletConfig) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "fungible",
-		Short: "transfer fungible token",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenCmdTransferFungible(cmd, config)
-		},
-	}
-	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
-	err := cmd.MarkFlagRequired(cmdFlagTokenId)
-	if err != nil {
-		return nil
-	}
-	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	err = cmd.MarkFlagRequired(addressCmdName)
-	if err != nil {
-		return nil
-	}
-	return addCommonAccountFlags(cmd)
-}
-
-func execTokenCmdTransferFungible(cmd *cobra.Command, config *walletConfig) error {
-	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
-	if err != nil {
-		return err
-	}
-	tw, err := initTokensWallet(cmd, config)
-	if err != nil {
-		return err
-	}
-	defer tw.Shutdown()
-
-	tokenId, err := getHexFlag(cmd, cmdFlagTokenId)
-	if err != nil {
-		return err
-	}
-
-	pubKey, err := getPubKeyBytes(cmd, addressCmdName)
-	if err != nil {
-		return err
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	return tw.Transfer(ctx, accountNumber, tokenId, pubKey)
 }
 
 func tokenCmdSend(config *walletConfig) *cobra.Command {

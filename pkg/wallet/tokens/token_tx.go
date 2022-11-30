@@ -415,15 +415,6 @@ func bearerPredicateFromPubKey(receiverPubKey PublicKey) tokens.Predicate {
 	return bearerPredicateFromHash(hash.Sum256(receiverPubKey))
 }
 
-func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, receiverPubKey []byte) error {
-	sub, err := w.sendTx(token.ID, newFungibleTransferTxAttrs(token, receiverPubKey), ac, nil)
-	if err != nil {
-		return err
-	}
-
-	return w.syncToUnit(ctx, token.ID, sub.timeout)
-}
-
 func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
 	return &tokens.SplitFungibleTokenAttributes{

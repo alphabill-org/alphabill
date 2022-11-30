@@ -197,22 +197,7 @@ func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber i
 	return res, nil
 }
 
-func (w *Wallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
-	acc, err := w.getAccountKey(accountNumber)
-	if err != nil {
-		return err
-	}
-	t, err := w.db.Do().GetToken(accountNumber, tokenId)
-	if err != nil {
-		return err
-	}
-	if t == nil {
-		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
-	}
-	return w.transfer(ctx, acc, t, receiverPubKey)
-}
-
-func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
+func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey, invariantPredicateArgs []*PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err

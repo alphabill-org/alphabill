@@ -180,40 +180,6 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	return nil
 }
 
-func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Predicate, []*t.PredicateInput, error) {
-	parentType, err := getHexFlag(cmd, cmdFlagParentType)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
-		parentType = NoParent
-		return NoParent, []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
-	}
-
-	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, am)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return parentType, creationInputs, nil
-}
-
-func readPredicateInput(cmd *cobra.Command, flag string, am wallet.AccountManager) ([]*t.PredicateInput, error) {
-	creationInputStrs, err := cmd.Flags().GetStringSlice(flag)
-	if err != nil {
-		return nil, err
-	}
-	if len(creationInputStrs) == 0 {
-		return []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
-	}
-	creationInputs, err := parsePredicateArguments(creationInputStrs, am)
-	if err != nil {
-		return nil, err
-	}
-	return creationInputs, nil
-}
-
 func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "non-fungible",
@@ -824,6 +790,40 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, erro
 		return nil, err
 	}
 	return tw, nil
+}
+
+func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Predicate, []*t.PredicateInput, error) {
+	parentType, err := getHexFlag(cmd, cmdFlagParentType)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
+		parentType = NoParent
+		return NoParent, []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+	}
+
+	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, am)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return parentType, creationInputs, nil
+}
+
+func readPredicateInput(cmd *cobra.Command, flag string, am wallet.AccountManager) ([]*t.PredicateInput, error) {
+	creationInputStrs, err := cmd.Flags().GetStringSlice(flag)
+	if err != nil {
+		return nil, err
+	}
+	if len(creationInputStrs) == 0 {
+		return []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+	}
+	creationInputs, err := parsePredicateArguments(creationInputStrs, am)
+	if err != nil {
+		return nil, err
+	}
+	return creationInputs, nil
 }
 
 // parsePredicateClause uses the following format:

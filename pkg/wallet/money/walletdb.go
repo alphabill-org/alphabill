@@ -76,6 +76,7 @@ type TxContext interface {
 	ContainsBill(accountIndex uint64, id *uint256.Int) (bool, error)
 	RemoveBill(accountIndex uint64, id *uint256.Int) error
 	GetBills(accountIndex uint64) ([]*Bill, error)
+	GetAllBills() ([][]*Bill, error)
 	GetBalance(cmd GetBalanceCmd) (uint64, error)
 	GetBalances(cmd GetBalanceCmd) ([]uint64, error)
 
@@ -377,6 +378,28 @@ func (w *wdbtx) GetBills(accountIndex uint64) ([]*Bill, error) {
 				return err
 			}
 			res = append(res, b)
+		}
+		return nil
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (w *wdbtx) GetAllBills() ([][]*Bill, error) {
+	var res [][]*Bill
+	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+		maxAccountIndex, err := w.GetMaxAccountIndex()
+		if err != nil {
+			return err
+		}
+		for accountIndex := uint64(0); accountIndex <= maxAccountIndex; accountIndex++ {
+			accountBills, err := w.GetBills(accountIndex)
+			if err != nil {
+				return err
+			}
+			res = append(res, accountBills)
 		}
 		return nil
 	}, false)

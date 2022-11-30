@@ -289,3 +289,37 @@ func (w *Wallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, error)
 	}
 	return nil, nil
 }
+
+func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) error {
+	acc, err := w.getAccountKey(accountNumber)
+	if err != nil {
+		return err
+	}
+	t, err := w.db.Do().GetToken(accountNumber, tokenId)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
+	}
+
+	attrs := &tokens.UpdateNonFungibleTokenAttributes{
+		Data:                 data,
+		Backlink:             t.Backlink,
+		DataUpdateSignatures: nil,
+	}
+
+	sub, err := w.sendTx(tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), updatePredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.DataUpdateSignatures = signatures
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
+	if err != nil {
+		return err
+	}
+
+	return w.syncToUnit(ctx, tokenId, sub.timeout)
+}

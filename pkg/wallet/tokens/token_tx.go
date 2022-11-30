@@ -232,7 +232,16 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, accNr uint
 		}
 	case tokens.UpdateNonFungibleToken:
 		log.Info("Token tx: UpdateNonFungibleToken")
-		panic("not implemented") // TODO
+		tok, err := txc.GetToken(accNr, id)
+		if err != nil {
+			return err
+		}
+		if tok != nil {
+			tok.Backlink = txHash
+			if err = txc.SetToken(accNr, tok); err != nil {
+				return err
+			}
+		}
 	default:
 		log.Warning(fmt.Sprintf("received unknown token transaction type, skipped processing: %s", ctx))
 		return nil

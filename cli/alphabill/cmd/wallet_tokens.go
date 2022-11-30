@@ -452,6 +452,7 @@ func tokenCmdSend(config *walletConfig) *cobra.Command {
 	}
 	cmd.AddCommand(tokenCmdSendFungible(config))
 	cmd.AddCommand(tokenCmdSendNonFungible(config))
+	cmd.PersistentFlags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
 	return cmd
 }
 
@@ -526,9 +527,14 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	return tw.SendFungible(ctx, accountNumber, typeId, targetValue, pubKey)
+	return tw.SendFungible(ctx, accountNumber, typeId, targetValue, pubKey, ib)
 }
 
 func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
@@ -573,9 +579,14 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 		return err
 	}
 
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	return tw.TransferNFT(ctx, accountNumber, tokenId, pubKey)
+	return tw.TransferNFT(ctx, accountNumber, tokenId, pubKey, ib)
 }
 
 func tokenCmdDC(config *walletConfig) *cobra.Command {

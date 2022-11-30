@@ -7,11 +7,14 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -210,7 +213,15 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
 	}
 
-	sub, err := w.sendTx(tokenId, newNonFungibleTransferTxAttrs(t, receiverPubKey), acc, nil)
+	attrs := newNonFungibleTransferTxAttrs(t, receiverPubKey)
+	sub, err := w.sendTx(tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.InvariantPredicateSignatures = signatures
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
 	if err != nil {
 		return err
 	}
@@ -218,7 +229,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 	return w.syncToUnit(ctx, tokenId, sub.timeout)
 }
 
-func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte) error {
+func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -255,12 +266,12 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	// optimization: first try to make a single operation instead of iterating through all tokens in doSendMultiple
 	if closestMatch.Amount >= targetAmount {
 		var sub *submittedTx
-		sub, err = w.sendSplitOrTransferTx(acc, targetAmount, closestMatch, receiverPubKey)
+		sub, err = w.sendSplitOrTransferTx(acc, targetAmount, closestMatch, receiverPubKey, invariantPredicateArgs)
 		submissions = make(map[string]*submittedTx, 1)
 		submissions[sub.id.String()] = sub
 		maxTimeout = sub.timeout
 	} else {
-		submissions, maxTimeout, err = w.doSendMultiple(targetAmount, fungibleTokens, acc, receiverPubKey)
+		submissions, maxTimeout, err = w.doSendMultiple(targetAmount, fungibleTokens, acc, receiverPubKey, invariantPredicateArgs)
 	}
 
 	// error might have happened, but some submissions could have succeeded

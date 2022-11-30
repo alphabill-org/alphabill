@@ -267,7 +267,7 @@ func TestTransferNFT(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err = tw.TransferNFT(context.Background(), 1, tt.tokenId, tt.key)
+			err = tw.TransferNFT(context.Background(), 1, tt.tokenId, tt.key, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
@@ -364,7 +364,7 @@ func TestSendFungible(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			abClient.ClearRecordedTransactions()
-			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil)
+			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil, nil)
 			if tt.expectedErrorMsg != "" {
 				require.ErrorContains(t, err, tt.expectedErrorMsg)
 				return

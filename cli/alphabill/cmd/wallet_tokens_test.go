@@ -344,6 +344,12 @@ func Test_stringToAmount(t *testing.T) {
 			wantErrStr: "missing integer part",
 		},
 		{
+			name:       "30. error - no fraction",
+			args:       args{amount: "30.", decimals: 2},
+			want:       0,
+			wantErrStr: "missing fraction part",
+		},
+		{
 			name:       "1.000, decimals 2 - error invalid precision",
 			args:       args{amount: "1.000", decimals: 2},
 			want:       0,

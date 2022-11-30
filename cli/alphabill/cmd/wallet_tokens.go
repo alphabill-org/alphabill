@@ -773,6 +773,9 @@ func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
 		return amount, nil
 	}
 	fractionStr := splitAmount[1]
+	if len(fractionStr) == 0 {
+		return 0, fmt.Errorf("invalid amount string %s: missing fraction part", amountIn)
+	}
 	// there is a comma in the value
 	if uint32(len(fractionStr)) > decimals {
 		return 0, fmt.Errorf("invalid precision: %s", amountIn)

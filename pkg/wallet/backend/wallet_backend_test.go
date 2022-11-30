@@ -63,7 +63,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 
 	// verify first pubkey is indexed
 	require.Eventually(t, func() bool {
-		ok, _ := w.store.ContainsBill(billId1)
+		ok, _ := w.store.ContainsBill(pubKey1, billId1)
 		return ok
 	}, test.WaitDuration, test.WaitTick)
 
@@ -77,7 +77,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	// verify new bill is indexed by pubkey
 	// TODO fix flaky test, possible cause abclient not thread safe?
 	require.Eventually(t, func() bool {
-		ok, _ := w.store.ContainsBill(billId2)
+		ok, _ := w.store.ContainsBill(pubkey2, billId2)
 		return ok
 	}, test.WaitDuration, test.WaitTick)
 }

@@ -11,11 +11,10 @@ import (
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.Signer, unitID *uint256.Int) *block.BlockProof {
+func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.Signer, unitID []byte) *block.BlockProof {
 	b := &block.GenericBlock{}
 	if tx != nil {
 		b.Transactions = []txsystem.GenericTransaction{tx}

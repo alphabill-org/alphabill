@@ -9,7 +9,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/holiman/uint256"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -37,7 +36,7 @@ func (x *Bill) Verify(unitID []byte, txConverter TxConverter, verifiers map[stri
 }
 
 func (x *TxProof) Verify(unitID []byte, gtx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgo crypto.Hash) error {
-	return x.Proof.Verify(uint256.NewInt(0).SetBytes(unitID), gtx, verifiers, hashAlgo)
+	return x.Proof.Verify(unitID, gtx, verifiers, hashAlgo)
 }
 
 func ReadBillsFile(path string) (*Bills, error) {

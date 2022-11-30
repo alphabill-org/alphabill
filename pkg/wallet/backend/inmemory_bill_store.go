@@ -54,10 +54,11 @@ func (s *InmemoryBillStore) RemoveBill(pubKey []byte, id []byte) error {
 	return nil
 }
 
-func (s *InmemoryBillStore) ContainsBill(id []byte) (bool, error) {
+func (s *InmemoryBillStore) ContainsBill(pubkey []byte, unitID []byte) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, exists := s.bills[string(id)]
+	m := s.pubkeyIndex[string(pubkey)]
+	_, exists := m[string(unitID)]
 	return exists, nil
 }
 

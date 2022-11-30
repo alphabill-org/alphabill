@@ -47,7 +47,7 @@ type (
 
 	PublicKey []byte
 
-	CreationInput struct {
+	PredicateInput struct {
 		// first priority
 		Argument tokens.Predicate
 		// if Argument empty, check AccountNumber
@@ -61,16 +61,21 @@ type (
 	}
 )
 
+// TokenKind enum
+// Only insert new values to the end of the enum
+// NB! remember to update stringer method
 const (
-	txTimeoutBlockCount               = 100
-	AllAccounts                   int = -1
-	alwaysTrueTokensAccountNumber     = 0
-
 	Any TokenKind = 1 << iota
 	TokenType
 	Token
 	Fungible
 	NonFungible
+)
+
+const (
+	txTimeoutBlockCount               = 100
+	AllAccounts                   int = -1
+	alwaysTrueTokensAccountNumber     = 0
 
 	FungibleTokenType    = TokenType | Fungible
 	NonFungibleTokenType = TokenType | NonFungible
@@ -82,22 +87,24 @@ func (t *TokenUnit) IsFungible() bool {
 	return t.Kind&FungibleToken == FungibleToken
 }
 
-func (k *TokenKind) String() string {
-	if *k&Any != 0 {
-		return "[any]"
+func (k TokenKind) String() string {
+	if k&Any != 0 {
+		return "any"
 	}
 	res := make([]string, 0)
-	if *k&TokenType != 0 {
+	if k&TokenType != 0 {
 		res = append(res, "type")
-	} else {
+	}
+	if k&Token != 0 {
 		res = append(res, "token")
 	}
-	if *k&Fungible != 0 {
+	if k&Fungible != 0 {
 		res = append(res, "fungible")
-	} else {
+	}
+	if k&NonFungible != 0 {
 		res = append(res, "non-fungible")
 	}
-	return "[" + strings.Join(res, ",") + "]"
+	return strings.Join(res, ",")
 }
 
 func (t TokenTypeID) equal(to TokenTypeID) bool {

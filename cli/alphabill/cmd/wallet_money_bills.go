@@ -103,6 +103,7 @@ func exportCmd(config *walletConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execExportCmd(cmd, config)
 		},
+		Hidden: true,
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to export")
 	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
@@ -195,6 +196,7 @@ func importCmd(config *walletConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execImportCmd(cmd, config)
 		},
+		Hidden: true,
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to import the bills")
 	cmd.Flags().StringP(billFileCmdName, "b", "", "path to bill file (any file from export command output)")

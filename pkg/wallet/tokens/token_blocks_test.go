@@ -347,6 +347,6 @@ func verifyProof(t *testing.T, unitID []byte, proof *Proof, blockNo uint64, tx *
 	gtx, err := txConerter.ConvertTx(tx)
 	require.NoError(t, err)
 
-	err = blockProof.Verify(uint256.NewInt(0).SetBytes(unitID), gtx, verifiers, crypto.SHA256)
+	err = blockProof.Verify(unitID, gtx, verifiers, crypto.SHA256)
 	require.NoError(t, err)
 }

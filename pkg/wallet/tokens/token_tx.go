@@ -20,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -512,8 +511,7 @@ func (w *Wallet) createProof(unitID []byte, b *block.Block, tx *txsystem.Transac
 	if err != nil {
 		return nil, err
 	}
-	unitID256 := uint256.NewInt(0).SetBytes(unitID)
-	proof, err := block.NewPrimaryProof(gblock, unitID256, crypto.SHA256)
+	proof, err := block.NewPrimaryProof(gblock, unitID, crypto.SHA256)
 	if err != nil {
 		return nil, err
 	}

@@ -77,8 +77,8 @@ func (s *RequestHandler) router() *mux.Router {
 
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/proof", s.getBlockProofFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/proof/{pubkey}", s.setBlockProofFunc).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/proof/{pubkey}", s.setProofFunc).Methods("POST", "OPTIONS")
 
 	// TODO authorization
 	v1Admin := apiV1.PathPrefix("/admin/").Subrouter()
@@ -157,7 +157,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, res)
 }
 
-func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Request) {
+func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billId, err := parseBillId(r)
 	if err != nil {
 		wlog.Debug("error parsing GET /proof request: ", err)
@@ -189,7 +189,7 @@ func (s *RequestHandler) getBlockProofFunc(w http.ResponseWriter, r *http.Reques
 	writeAsProtoJson(w, bill.toProtoBills())
 }
 
-func (s *RequestHandler) setBlockProofFunc(w http.ResponseWriter, r *http.Request) {
+func (s *RequestHandler) setProofFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	pubkeyParam := vars["pubkey"]
 	pubkey, err := parsePubKey(pubkeyParam)

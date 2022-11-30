@@ -118,7 +118,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_DataFileFlagIntegration
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(1100)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(1110)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(1111)), test.WaitDuration, test.WaitTick)
-	
+
 	// test send fails
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 2 --address 0x%X -k 1", dialAddr, nonExistingTypeId, w2key.PubKey), fmt.Sprintf("error token type %X not found", nonExistingTypeId))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 0 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("0 is not valid amount"))
@@ -127,5 +127,4 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_DataFileFlagIntegration
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount .00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("missing integer part"))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount a.00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("invalid amount string"))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 1.1111 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("invalid precision"))
-
 }

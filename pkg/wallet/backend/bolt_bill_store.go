@@ -116,11 +116,15 @@ func (s *BoltBillStore) RemoveBill(pubKey []byte, id []byte) error {
 	})
 }
 
-func (s *BoltBillStore) ContainsBill(id []byte) (bool, error) {
+func (s *BoltBillStore) ContainsBill(pubkey []byte, unitID []byte) (bool, error) {
 	res := false
 	err := s.db.View(func(tx *bolt.Tx) error {
-		billBytes := tx.Bucket(billsBucket).Get(id)
-		if len(billBytes) > 0 {
+		pubkeyBucket := tx.Bucket(pubkeyIndexBucket).Bucket(pubkey)
+		if pubkeyBucket == nil {
+			return nil
+		}
+		exists := pubkeyBucket.Get(unitID)
+		if exists != nil {
 			res = true
 		}
 		return nil

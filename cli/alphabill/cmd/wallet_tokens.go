@@ -218,6 +218,7 @@ func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTypeNonFungible(cmd, config)
 		},
 	}
+	addPasswordFlags(cmd)
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagType)
 	return cmd
@@ -676,13 +677,13 @@ func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
 			return runner(cmd, config, t.Any, &accountNumber)
 		},
 	}
-	// ass persistent password flags
-	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
-	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	// add sub commands
 	cmd.AddCommand(tokenCmdListFungible(config, runner, &accountNumber))
 	cmd.AddCommand(tokenCmdListNonFungible(config, runner, &accountNumber))
 	cmd.PersistentFlags().IntVarP(&accountNumber, keyCmdName, "k", -1, "which key to use for sending the transaction, 0 for tokens spendable by anyone, -1 for all tokens from all accounts")
+	// add persistent password flags
+	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
+	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)	
 	return cmd
 }
 
@@ -791,9 +792,6 @@ func tokenCmdListTypes(config *walletConfig, runner runTokenListTypesCmd) *cobra
 			return runner(cmd, config, t.Any)
 		},
 	}
-	// add password flags as persistent
-	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
-	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	// add optional sub-commands to filter fungible and non-fungible types
 	cmd.AddCommand(&cobra.Command{
 		Use:   "fungible",

@@ -594,32 +594,14 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 			expectedKind: tw.Any,
 		},
 		{
-			name:         "list all tokens, encrypted wallet",
-			args:         []string{"--pn", "test pass phrase"},
-			expectedKind: tw.Any,
-			expectedPass: "test pass phrase",
-		},
-		{
 			name:         "list all fungible tokens",
 			args:         []string{"fungible"},
 			expectedKind: tw.FungibleTokenType,
 		},
 		{
-			name:         "list all fungible tokens, encrypted wallet",
-			args:         []string{"fungible", "--pn", "test pass phrase"},
-			expectedKind: tw.FungibleTokenType,
-			expectedPass: "test pass phrase",
-		},
-		{
 			name:         "list all non-fungible tokens",
 			args:         []string{"non-fungible"},
 			expectedKind: tw.NonFungibleTokenType,
-		},
-		{
-			name:         "list all non-fungible tokens, encrypted wallet",
-			args:         []string{"non-fungible", "--pn", "test pass phrase"},
-			expectedKind: tw.NonFungibleTokenType,
-			expectedPass: "test pass phrase",
 		},
 	}
 	for _, tt := range tests {

@@ -384,14 +384,15 @@ func TestListTokensCommandInputs(t *testing.T) {
 	}
 }
 
-func ensureUnitBytes(t *testing.T, state tokens.TokenState, id []byte) {
-	ensureUnit(t, state, uint256.NewInt(0).SetBytes(id))
+func ensureUnitBytes(t *testing.T, state tokens.TokenState, id []byte) *rma.Unit {
+	return ensureUnit(t, state, uint256.NewInt(0).SetBytes(id))
 }
 
-func ensureUnit(t *testing.T, state tokens.TokenState, id *uint256.Int) {
+func ensureUnit(t *testing.T, state tokens.TokenState, id *uint256.Int) *rma.Unit {
 	unit, err := state.GetUnit(id)
 	require.NoError(t, err)
 	require.NotNil(t, unit)
+	return unit
 }
 
 func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, tokens.TokenState) {

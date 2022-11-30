@@ -47,12 +47,12 @@ func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumbe
 	}, nil
 }
 
-func (b *BlockProof) Verify(verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (b *BlockProof) Verify(unitID []byte, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	gtx, err := txConverter.ConvertTx(b.Tx)
 	if err != nil {
 		return err
 	}
-	return b.Proof.Verify(gtx, verifiers, hashAlgorithm)
+	return b.Proof.Verify(unitID, gtx, verifiers, hashAlgorithm)
 }
 
 // GetID returns bill id in 32-byte big endian array
@@ -87,7 +87,7 @@ func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction) error {
 	if err != nil {
 		return err
 	}
-	proof, err := block.NewPrimaryProof(genericBlock, b.Id, crypto.SHA256)
+	proof, err := block.NewPrimaryProof(genericBlock, b.GetID(), crypto.SHA256)
 	if err != nil {
 		return err
 	}

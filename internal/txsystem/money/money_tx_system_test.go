@@ -420,7 +420,7 @@ func createDCTransferAndSwapTxs(
 		dcTransfers[i] = createDCTransfer(id, billData.V, billData.Backlink, newBillID)
 		tx, err := NewMoneyTx(systemIdentifier, dcTransfers[i])
 		require.NoError(t, err)
-		proofs[i] = testblock.CreateProof(t, tx, signer, id)
+		proofs[i] = testblock.CreateProof(t, tx, signer, util.Uint256ToBytes(id))
 	}
 
 	tx := &txsystem.Transaction{

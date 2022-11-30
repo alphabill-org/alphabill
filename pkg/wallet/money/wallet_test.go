@@ -297,10 +297,9 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
 	for _, b := range bills {
-		err = b.BlockProof.Verify(verifiers, crypto.SHA256)
+		err = b.BlockProof.Verify(b.GetID(), verifiers, crypto.SHA256)
 		require.NoError(t, err)
 		require.Equal(t, block.ProofType_PRIM, b.BlockProof.Proof.ProofType)
-		require.Nil(t, b.BlockProof.Verify(verifiers, crypto.SHA256))
 	}
 }
 

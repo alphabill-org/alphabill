@@ -36,6 +36,7 @@ const (
 const (
 	EventTypeError EventType = iota
 	EventTypeTransactionProcessed
+	EventTypeTransactionFailed
 	EventTypeNewRoundStarted
 	EventTypeUnicityCertificateHandled
 	EventTypeBlockFinalized
@@ -95,7 +96,7 @@ type (
 
 	EventType int
 
-	EventHandler func(e Event)
+	EventHandler func(e *Event)
 
 	status int
 )
@@ -428,7 +429,7 @@ func (n *Node) eventHandlerLoop() {
 		case <-n.eventChCancel:
 			return
 		case e := <-n.eventCh:
-			n.eventHandler(e)
+			n.eventHandler(&e)
 		}
 	}
 }
@@ -487,6 +488,7 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 func (n *Node) process(tx txsystem.GenericTransaction) {
 	defer trackExecutionTime(time.Now(), "Processing transaction")
 	if err := n.validateAndExecuteTx(tx, n.blockStore.LatestBlock().BlockNumber); err != nil {
+		n.sendEvent(EventTypeTransactionFailed, tx)
 		return
 	}
 	n.proposedTransactions = append(n.proposedTransactions, tx)

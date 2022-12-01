@@ -289,6 +289,21 @@ func Test_amountToString(t *testing.T) {
 			args: args{amount: 18446744073709551615, decPlaces: 32},
 			want: "0.00000000000018446744073709551615",
 		},
+		{
+			name: "Conversion ok - 2.30",
+			args: args{amount: 230, decPlaces: 2},
+			want: "2.30",
+		},
+		{
+			name: "Conversion ok - 0.300",
+			args: args{amount: 3, decPlaces: 3},
+			want: "0.003",
+		},
+		{
+			name: "Conversion ok - 100230, decimals 3 - ok",
+			args: args{amount: 100230, decPlaces: 3},
+			want: "100.230",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -296,6 +311,127 @@ func Test_amountToString(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("amountToString() got = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_stringToAmount(t *testing.T) {
+	type args struct {
+		amount   string
+		decimals uint32
+	}
+	tests := []struct {
+		name       string
+		args       args
+		want       uint64
+		wantErrStr string
+	}{
+		{
+			name:       "empty",
+			args:       args{amount: "", decimals: 2},
+			want:       0,
+			wantErrStr: "invalid empty amount string",
+		},
+		{
+			name: "100.23, decimals 2 - ok",
+			args: args{amount: "100.23", decimals: 2},
+			want: 10023,
+		},
+		{
+			name:       "100.2.3 error - too many commas",
+			args:       args{amount: "100.2.3", decimals: 2},
+			want:       0,
+			wantErrStr: "more than one comma",
+		},
+		{
+			name:       ".30 error - no whole number",
+			args:       args{amount: ".3", decimals: 2},
+			want:       0,
+			wantErrStr: "missing integer part",
+		},
+		{
+			name:       "30. error - no fraction",
+			args:       args{amount: "30.", decimals: 2},
+			want:       0,
+			wantErrStr: "missing fraction part",
+		},
+		{
+			name:       "1.000, decimals 2 - error invalid precision",
+			args:       args{amount: "1.000", decimals: 2},
+			want:       0,
+			wantErrStr: "invalid precision",
+		},
+		{
+			name:       "in.300, decimals 3 - error not number",
+			args:       args{amount: "in.300", decimals: 3},
+			want:       0,
+			wantErrStr: "invalid amount string \"in.300\": error conversion to uint64 failed",
+		},
+		{
+			name:       "12.3c0, decimals 3 - error not number",
+			args:       args{amount: "12.3c0", decimals: 3},
+			want:       0,
+			wantErrStr: "invalid amount string \"12.3c0\": error conversion to uint64 failed",
+		},
+		{
+			name: "2.30, decimals 2 - ok",
+			args: args{amount: "2.30", decimals: 2},
+			want: 230,
+		},
+		{
+			name: "0000000.3, decimals 2 - ok",
+			args: args{amount: "0000000.3", decimals: 2},
+			want: 30,
+		},
+		{
+			name: "0.300, decimals 3 - ok",
+			args: args{amount: "0.300", decimals: 3},
+			want: 300,
+		},
+		{
+			name: "100.23, decimals 3 - ok",
+			args: args{amount: "100.23", decimals: 3},
+			want: 100230,
+		},
+		{
+			name:       "18446744073709551615.2 out of range - error",
+			args:       args{amount: "18446744073709551615.2", decimals: 1},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name:       "18446744073709551616 out of range - error",
+			args:       args{amount: "18446744073709551616", decimals: 0},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name:       "18446744073709551615 out of range - error",
+			args:       args{amount: "18446744073709551615", decimals: 1},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name: "18446744073709551615 max - ok",
+			args: args{amount: "18446744073709551615", decimals: 0},
+			want: 18446744073709551615,
+		},
+		{
+			name: "184467440737.09551615 max with decimals - ok",
+			args: args{amount: "184467440737.09551615", decimals: 8},
+			want: 18446744073709551615,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := stringToAmount(tt.args.amount, tt.args.decimals)
+			if len(tt.wantErrStr) > 0 {
+				require.ErrorContains(t, err, tt.wantErrStr)
+				require.Equal(t, uint64(0), got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -344,24 +480,24 @@ func testFungibleTokensWithRunningPartition(t *testing.T, partition *testpartiti
 			return false
 		}
 	}
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 3", dialAddr, typeID1))
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 5", dialAddr, typeID1))
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 9", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 0.03", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 0.05", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 0.09", dialAddr, typeID1))
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(3)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(5)), test.WaitDuration, test.WaitTick)
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(9)), test.WaitDuration, test.WaitTick)
 	// check w2 is empty
 	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible --sync true -u %s", dialAddr)), "No tokens")
 	// transfer tokens w1 -> w2
-	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //split (9=>6+3)
-	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 0.06 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //split (9=>6+3)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 0.06 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
 	out := execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -u %s", dialAddr))
 	verifyStdout(t, out, "amount='0.06'", "amount='0.05'", "amount='0.01'", "Symbol='AB'")
 	verifyStdoutNotExists(t, out, "Symbol=''", "token-type=''")
 	//check what is left in w1
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='0.03'", "amount='0.02'")
 	//transfer back w2->w1 (AB-513)
-	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w1key.PubKey))
+	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 0.06 --address 0x%X -k 1", dialAddr, typeID1, w1key.PubKey))
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='0.03'", "amount='0.02'", "amount='0.06'")
 }
 

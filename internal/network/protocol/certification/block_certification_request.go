@@ -18,7 +18,7 @@ var (
 )
 
 type PartitionVerifier interface {
-	VerifySignature(id protocol.SystemIdentifier, nodeId string, sig []byte, tlg []byte) error
+	VerifySignature(id protocol.SystemIdentifier, nodeId string, tlg []byte, sig []byte) error
 }
 
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
@@ -59,7 +59,7 @@ func (x *BlockCertificationRequest) Verify(partitionVer PartitionVerifier) error
 	if err := x.InputRecord.IsValid(); err != nil {
 		return err
 	}
-	if err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), x.NodeIdentifier, x.Signature, x.Bytes()); err != nil {
+	if err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), x.NodeIdentifier, x.Bytes(), x.Signature); err != nil {
 		return err
 	}
 	return nil

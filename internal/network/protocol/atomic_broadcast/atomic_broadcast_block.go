@@ -7,7 +7,6 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -23,15 +22,13 @@ var (
 )
 
 type AtomicVerifier interface {
+	GetQuorumThreshold() uint32
 	VerifySignature(hash []byte, sig []byte, author peer.ID) error
 	VerifyBytes(bytes []byte, sig []byte, author peer.ID) error
-
-	ValidateQuorum(authors []string) error
-	VerifyQuorumSignatures(hash []byte, signatures map[string][]byte) error
 }
 
 type PartitionVerifier interface {
-	VerifySignature(id protocol.SystemIdentifier, nodeId string, sig []byte, tlg []byte) error
+	VerifySignature(id protocol.SystemIdentifier, nodeId string, tlg []byte, sig []byte) error
 }
 
 func (x *Payload) AddToHasher(hasher hash.Hash) {

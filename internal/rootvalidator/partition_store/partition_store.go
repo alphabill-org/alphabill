@@ -154,7 +154,7 @@ func (ps *PartitionStore) GetPartitionVerifier(id p.SystemIdentifier, nodeId str
 	return ver, err
 }
 
-func (ps *PartitionStore) VerifySignature(id p.SystemIdentifier, nodeId string, sig []byte, data []byte) error {
+func (ps *PartitionStore) VerifySignature(id p.SystemIdentifier, nodeId string, data []byte, sig []byte) error {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	info, err := ps.getInfo(id)

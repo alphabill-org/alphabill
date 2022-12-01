@@ -3,12 +3,11 @@ package distributed
 import (
 	"bytes"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 )
 

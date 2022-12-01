@@ -4,9 +4,8 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/stretchr/testify/require"
 )
 
 type DummyQuorum struct {

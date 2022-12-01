@@ -5,12 +5,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/libp2p/go-libp2p/core/peer"
-
 	"github.com/stretchr/testify/require"
-
-	"github.com/alphabill-org/alphabill/internal/crypto"
 )
 
 func generateDummyValidatorMap(nofValidators uint64) map[string]crypto.Verifier {

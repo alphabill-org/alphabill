@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -18,6 +15,8 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -49,7 +48,7 @@ type (
 	PartitionStore interface {
 		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
 		GetNofNodesInPartition(id p.SystemIdentifier) (int, error)
-		VerifySignature(id p.SystemIdentifier, nodeId string, sig []byte, data []byte) error
+		VerifySignature(id p.SystemIdentifier, nodeId string, data []byte, sig []byte) error
 	}
 
 	StateStore interface {

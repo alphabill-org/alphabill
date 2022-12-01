@@ -5,25 +5,21 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
-
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
-
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
+	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (

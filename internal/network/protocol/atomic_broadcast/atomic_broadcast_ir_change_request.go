@@ -38,7 +38,7 @@ func (x *IRChangeReqMsg) IsValid(partitionVer PartitionVerifier) error {
 		if bytes.Equal(req.SystemIdentifier, x.SystemIdentifier) == false {
 			return ErrIncompatibleReq
 		}
-		err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), req.NodeIdentifier, req.Signature, req.Bytes())
+		err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), req.NodeIdentifier, req.Bytes(), req.Signature)
 		if err != nil {
 			return err
 		}

@@ -32,7 +32,7 @@ func (x *DummyPartitionVerifier) SignBytes(t *testing.T, data []byte) []byte {
 	return sig
 }
 
-func (x *DummyPartitionVerifier) VerifySignature(id protocol.SystemIdentifier, nodeId string, sig []byte, tlg []byte) error {
+func (x *DummyPartitionVerifier) VerifySignature(id protocol.SystemIdentifier, nodeId string, tlg []byte, sig []byte) error {
 	return nil
 }
 

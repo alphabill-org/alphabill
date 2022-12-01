@@ -3,12 +3,9 @@ package partition_store
 import (
 	"testing"
 
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 

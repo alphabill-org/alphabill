@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var (
@@ -50,13 +52,21 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 	hasher := gocrypto.SHA256.New()
 	x.VoteInfo.AddToHasher(hasher)
 	if !bytes.Equal(hasher.Sum(nil), x.LedgerCommitInfo.VoteInfoHash) {
-		return errors.New("vote info hash verification failed")
+		return fmt.Errorf("quorum certificate not valid: vote info hash verification failed")
 	}
 	hasher.Reset()
 	hasher.Write(x.LedgerCommitInfo.Bytes())
-	err := v.VerifyQuorumSignatures(hasher.Sum(nil), x.Signatures)
-	if err != nil {
-		return fmt.Errorf("QC verify failed: %w", err)
+	// Check quorum, if not fail without checking signatures itself
+	if uint32(len(x.Signatures)) < v.GetQuorumThreshold() {
+		return fmt.Errorf("quorum certificate not valid: less than quorum %d/%d have signed",
+			len(x.Signatures), v.GetQuorumThreshold())
+	}
+	// Verify all signatures
+	for author, sig := range x.Signatures {
+		err := v.VerifySignature(hasher.Sum(nil), sig, peer.ID(author))
+		if err != nil {
+			return fmt.Errorf("quorum certificate not valid: %w", err)
+		}
 	}
 	return nil
 }

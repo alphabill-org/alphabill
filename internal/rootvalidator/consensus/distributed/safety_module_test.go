@@ -4,10 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/stretchr/testify/require"
 )
 
 func initSafetyModule(t *testing.T) *SafetyModule {

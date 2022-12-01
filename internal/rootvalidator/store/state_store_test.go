@@ -2,11 +2,11 @@ package store
 
 import (
 	gocrypto "crypto"
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/stretchr/testify/require"
 )
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())

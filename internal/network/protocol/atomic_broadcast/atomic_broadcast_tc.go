@@ -2,6 +2,7 @@ package atomic_broadcast
 
 import (
 	gocrypto "crypto"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -76,13 +77,11 @@ func (x *TimeoutCert) Verify(v AtomicVerifier) error {
 	// 1. verify stored quorum certificate is valid and contains quorum of signatures
 	err := x.Timeout.Verify(v)
 	if err != nil {
-		return errors.Wrap(err, "TimeoutCertificate verify failed")
+		return errors.Wrap(err, "timeout certificate not valid")
 	}
 	// 2. Check if there is quorum of signatures for TC
-	authors := x.GetAuthors()
-	err = v.ValidateQuorum(authors)
-	if err != nil {
-		return errors.Wrap(err, "TimeoutCertificate verify failed")
+	if uint32(len(x.Signatures)) < v.GetQuorumThreshold() {
+		return fmt.Errorf("timeout certificate not valid: less than quorum %v/%v have signed certificate", len(x.Signatures), v.GetQuorumThreshold())
 	}
 	maxSignedRound := uint64(0)
 	// Extract attached the highest QC round number and compare it later to the round extracted from signatures
@@ -93,7 +92,7 @@ func (x *TimeoutCert) Verify(v AtomicVerifier) error {
 		timeout := NewTimeoutSign(x.Timeout.GetRound(), x.Timeout.GetEpoch(), timeoutSig.HqcRound)
 		err := v.VerifySignature(timeout.Hash(gocrypto.SHA256), timeoutSig.Signature, peer.ID(author))
 		if err != nil {
-			return errors.Wrap(err, "TimeoutCertificate verify failed, invalid signature")
+			return errors.Wrap(err, "timeout certificate not valid: invalid signature")
 		}
 		if maxSignedRound < timeoutSig.HqcRound {
 			maxSignedRound = timeoutSig.HqcRound
@@ -101,7 +100,7 @@ func (x *TimeoutCert) Verify(v AtomicVerifier) error {
 	}
 	// 4. Verify that the highest quorum certificate stored has max QC round over all timeout votes received
 	if highQcRound != maxSignedRound {
-		return errors.New("TimeoutCertificate verify failed, QC and max QC round do not match")
+		return errors.New("timeout certificate not valid: QC and max QC round do not match")
 	}
 	return nil
 }

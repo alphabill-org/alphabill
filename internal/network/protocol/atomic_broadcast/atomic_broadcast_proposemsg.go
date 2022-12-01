@@ -4,9 +4,8 @@ import (
 	gocrypto "crypto"
 	"errors"
 
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

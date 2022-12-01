@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
@@ -160,7 +160,7 @@ func TestNFTs_Integration(t *testing.T) {
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
-	node, unitState := startTokensPartition(t)
+	partition, unitState := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	w1, homedir := createNewTokenWallet(t, dialAddr)
@@ -180,7 +180,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
 	execTokensCmd(t, homedir, fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X --data-file %s", dialAddr, typeId, nftID, tmpfile.Name()))
-	require.Eventually(t, testpartition.BlockchainContains(node, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			mintNonFungibleAttr := &tokens.MintNonFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(mintNonFungibleAttr))
@@ -201,7 +201,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.NoError(t, err)
 	// update data
 	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --token-identifier %X --data-file %s", dialAddr, nftID, tmpfile.Name()))
-	require.Eventually(t, testpartition.BlockchainContains(node, func(tx *txsystem.Transaction) bool {
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.UpdateNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			dataUpdateAttrs := &tokens.UpdateNonFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(dataUpdateAttrs))
@@ -218,7 +218,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.Equal(t, []byte{0x01}, reflect.ValueOf(ensureUnitBytes(t, unitState, nftID2).Data).Elem().FieldByName("data").Bytes())
 	//try to update and observe failure
 	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --sync false --token-identifier %X --data 02 --data-update-input false,true", dialAddr, nftID2))
-	testevent.ContainsEvent(t, node.EventHandler, partition.EventTypeTransactionFailed)
+	testevent.ContainsEvent(t, partition.EventHandler, event.TransactionFailed)
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {

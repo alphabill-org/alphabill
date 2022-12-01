@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -50,7 +51,7 @@ type (
 		rootChainAddress            multiaddr.Multiaddr
 		rootChainID                 peer.ID
 		network                     Net
-		eventHandler                EventHandler
+		eventHandler                event.Handler
 		eventChCapacity             int
 	}
 
@@ -106,7 +107,7 @@ func WithRootAddressAndIdentifier(address multiaddr.Multiaddr, id peer.ID) NodeO
 	}
 }
 
-func WithEventHandler(eh EventHandler, eventChCapacity int) NodeOption {
+func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
 	return func(c *configuration) {
 		c.eventHandler = eh
 		c.eventChCapacity = eventChCapacity

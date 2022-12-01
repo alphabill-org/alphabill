@@ -3,6 +3,8 @@ package partition
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/partition/event"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -43,7 +45,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
 	require.Equal(t, recovering, tp.partition.status)
-	ContainsEvent(t, tp.eh, EventTypeRecoveryStarted)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// make sure replication request is sent
 	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
 	require.Equal(t, 1, len(reqs))
@@ -66,7 +68,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, recovering, tp.partition.status)
-	ContainsEvent(t, tp.eh, EventTypeRecoveryStarted)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 
 	// make sure replication request is sent
 	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
@@ -93,7 +95,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 			Blocks: []*block.Block{newBlock3},
 		},
 	})
-	ContainsEvent(t, tp.eh, EventTypeRecoveryFinished)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, idle, tp.partition.status)
 }
 

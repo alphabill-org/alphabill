@@ -277,6 +277,45 @@ func TestTransferNFT(t *testing.T) {
 	}
 }
 
+func TestUpdateNFTData(t *testing.T) {
+	tw, abClient := createTestWallet(t)
+	key, err := tw.getAccountKey(1)
+	require.NoError(t, err)
+
+	tok := &TokenUnit{ID: randomBytes(t), Kind: NonFungibleToken, Symbol: "AB", TypeID: randomBytes(t), Backlink: randomBytes(t)}
+	require.NoError(t, tw.db.Do().SetToken(1, tok))
+
+	// test data, backlink and predicate inputs are submitted correctly
+	data := randomBytes(t)
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}}))
+	txs := abClient.GetRecordedTransactions()
+	tx := txs[len(txs)-1]
+	dataUpdate := parseNFTDataUpdate(t, tx)
+	require.Equal(t, data, dataUpdate.Data)
+	require.Equal(t, tok.Backlink, dataUpdate.Backlink)
+	require.Equal(t, [][]byte{{script.StartByte}}, dataUpdate.DataUpdateSignatures)
+
+	// test that wallet not only sends the tx, but also reads it correctly
+	data2 := randomBytes(t)
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}}))
+	txs = abClient.GetRecordedTransactions()
+	tx = txs[len(txs)-1]
+	dataUpdate = parseNFTDataUpdate(t, tx)
+	require.NotEqual(t, data, dataUpdate.Data)
+	require.Equal(t, data2, dataUpdate.Data)
+	require.Len(t, dataUpdate.DataUpdateSignatures, 2)
+	require.Equal(t, []byte{script.StartByte}, dataUpdate.DataUpdateSignatures[0])
+	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
+
+	require.NoError(t, tw.db.WithTransaction(func(txc TokenTxContext) error {
+		require.NoError(t, tw.readTx(txc, tx, 1, key.PubKeyHash))
+		return nil
+	}))
+	updatedTok, err := tw.db.Do().GetToken(1, tok.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, tok.Backlink, updatedTok.Backlink)
+}
+
 func parseFungibleTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferFungibleTokenAttributes) {
 	newTransfer = &tokens.TransferFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
@@ -285,6 +324,12 @@ func parseFungibleTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer 
 
 func parseNFTTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferNonFungibleTokenAttributes) {
 	newTransfer = &tokens.TransferNonFungibleTokenAttributes{}
+	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+	return
+}
+
+func parseNFTDataUpdate(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.UpdateNonFungibleTokenAttributes) {
+	newTransfer = &tokens.UpdateNonFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 	return
 }
@@ -505,4 +550,10 @@ func deleteWallet(w *Wallet) {
 		w.mw.DeleteDb()
 		w.db.DeleteDb()
 	}
+}
+
+func randomBytes(t *testing.T) []byte {
+	id, err := RandomID()
+	require.NoError(t, err)
+	return id
 }

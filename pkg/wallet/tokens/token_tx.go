@@ -240,7 +240,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 		}
 		if tok != nil {
 			tok.Backlink = txHash
-			if err = txc.SetToken(accNr, tok); err != nil {
+			if err = w.addTokenWithProof(accNr, tok, b, tx, txc); err != nil {
 				return err
 			}
 		}
@@ -514,6 +514,9 @@ func (w *Wallet) addTokenWithProof(accountNumber uint64, unit *TokenUnit, b *blo
 }
 
 func (w *Wallet) createProof(unitID []byte, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
+	if b == nil {
+		return nil, nil
+	}
 	gblock, err := b.ToGenericBlock(w.txs)
 	if err != nil {
 		return nil, err

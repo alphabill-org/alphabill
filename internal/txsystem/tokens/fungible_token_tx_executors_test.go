@@ -246,20 +246,20 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "parent does not exist",
 			tx: createTx(t, uint256.NewInt(validUnitID), &MintFungibleTokenAttributes{
-				Bearer:                          script.PredicateAlwaysTrue(),
-				Type:                            util.Uint256ToBytes(uint256.NewInt(100)),
-				Value:                           1000,
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Bearer:                           script.PredicateAlwaysTrue(),
+				Type:                             util.Uint256ToBytes(uint256.NewInt(100)),
+				Value:                            1000,
+				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			}),
 			wantErrStr: fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uint256.NewInt(validUnitID))),
 		},
 		{
 			name: "invalid token creation predicate argument",
 			tx: createTx(t, uint256.NewInt(validUnitID), &MintFungibleTokenAttributes{
-				Bearer:                          script.PredicateAlwaysTrue(),
-				Type:                            existingTokenTypeUnitIDBytes[:],
-				Value:                           1000,
-				TokenCreationPredicateSignature: script.PredicateAlwaysFalse(),
+				Bearer:                           script.PredicateAlwaysTrue(),
+				Type:                             existingTokenTypeUnitIDBytes[:],
+				Value:                            1000,
+				TokenCreationPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			}),
 			wantErrStr: "script execution result yielded false or non-clean stack",
 		},
@@ -279,10 +279,10 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 		},
 	}
 	attributes := &MintFungibleTokenAttributes{
-		Bearer:                          script.PredicateAlwaysTrue(),
-		Type:                            existingTokenTypeUnitIDBytes[:],
-		Value:                           1000,
-		TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+		Bearer:                           script.PredicateAlwaysTrue(),
+		Type:                             existingTokenTypeUnitIDBytes[:],
+		Value:                            1000,
+		TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 	tokenID := uint256.NewInt(validUnitID)
 	err := executor.Execute(createTx(t, tokenID, attributes), 10)
@@ -687,9 +687,9 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		Backlink:                    make([]byte, 32),
 		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
 	})
-	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer, uint256.NewInt(existingTokenUnitID))
-	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer, uint256.NewInt(existingTokenUnitID2))
-	emptyBlockProof := testblock.CreateProof(t, nil, signer, uint256.NewInt(existingTokenUnitID))
+	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
+	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID2)))
+	emptyBlockProof := testblock.CreateProof(t, nil, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
 
 	tests := []struct {
 		name       string

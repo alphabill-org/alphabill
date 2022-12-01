@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
@@ -156,7 +156,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer(t)},
+		Transactions: []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			},
 			UnicitySeal: seal,
 		},
-		Transactions: []*txsystem.Transaction{testtransaction.RandomBillTransfer(t)},
+		Transactions: []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)

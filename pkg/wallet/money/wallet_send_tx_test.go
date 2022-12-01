@@ -78,13 +78,13 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	}})
 
 	// verify balance before transaction
-	balance, _ := w.db.Do().GetBalance(0)
+	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.Equal(t, b.Value, balance)
 
 	// test send successfully waits for confirmation
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
 	require.NoError(t, err)
-	balance, _ = w.db.Do().GetBalance(0)
+	balance, _ = w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 }
 
@@ -113,7 +113,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	}})
 
 	// verify balance before transactions
-	balance, _ := w.db.Do().GetBalance(0)
+	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, b1.Value+b2.Value, balance)
 
 	// test send successfully waits for confirmation
@@ -121,7 +121,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify balance after transactions
-	balance, _ = w.db.Do().GetBalance(0)
+	balance, _ = w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 }
 
@@ -153,7 +153,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	}})
 
 	// verify balance before transactions
-	balance, _ := w.db.Do().GetBalance(0)
+	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, b1.Value+b2.Value, balance)
 
 	// test send successfully waits for confirmation
@@ -162,7 +162,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	require.NoError(t, err)
 
 	// verify balance after transactions
-	balance, _ = w.db.Do().GetBalance(0)
+	balance, _ = w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 }
 

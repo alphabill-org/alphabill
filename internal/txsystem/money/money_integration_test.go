@@ -148,7 +148,7 @@ func TestPartition_SwapOk(t *testing.T) {
 	for i, proof := range blockProofs {
 		gtx, err := NewMoneyTx(systemIdentifier, dcTxs[i])
 		require.NoError(t, err)
-		require.NoError(t, proof.Verify(gtx, trustBase, hashAlgorithm))
+		require.NoError(t, proof.Verify(dcTxs[i].UnitId, gtx, trustBase, hashAlgorithm))
 	}
 	// create swap order
 	swapOrder, err := anypb.New(&SwapOrder{

@@ -10,7 +10,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/util"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
 
@@ -108,7 +109,7 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 	}
 	d := u.Data.(*fungibleTokenData)
 	// add new token unit
-	newTokenID := util.SameShardID(tx.UnitID(), tx.HashForIDCalculation(s.hashAlgorithm))
+	newTokenID := txutil.SameShardID(tx.UnitID(), tx.HashForIDCalculation(s.hashAlgorithm))
 	logger.Debug("Adding a fungible token with ID %v", newTokenID)
 	txHash := tx.Hash(s.hashAlgorithm)
 	return s.state.AtomicUpdate(
@@ -268,10 +269,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	if len(predicates) > 0 {
-		return script.RunScript(tx.attributes.TokenCreationPredicateSignature, predicates[0] /*TODO AB-478*/, tx.SigBytes())
-	}
-	return nil
+	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx)
 }
 
 func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrapper) error {
@@ -381,7 +379,7 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 			return errors.New("invalid proof type")
 		}
 
-		err = proof.Verify(btx, j.trustBase, j.hashAlgorithm)
+		err = proof.Verify(util.Uint256ToBytes(btx.UnitID()), btx, j.trustBase, j.hashAlgorithm)
 		if err != nil {
 			return errors.Wrap(err, "proof is not valid")
 		}

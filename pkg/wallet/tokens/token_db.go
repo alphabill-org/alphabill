@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	bolt "go.etcd.io/bbolt"
@@ -57,6 +58,9 @@ type tokensDbTx struct {
 }
 
 func (t *tokensDbTx) AddTokenType(tType *TokenUnitType) error {
+	if len(tType.ID) == 0 {
+		return errors.Errorf("ID missing for token type %v", tType)
+	}
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(tType)
 		if err != nil {
@@ -67,6 +71,7 @@ func (t *tokensDbTx) AddTokenType(tType *TokenUnitType) error {
 	}, true)
 }
 
+// GetTokenType returns nil if typeId not found
 func (t *tokensDbTx) GetTokenType(typeId TokenTypeID) (*TokenUnitType, error) {
 	var tokenType *TokenUnitType
 	err := t.withTx(t.tx, func(tx *bolt.Tx) error {
@@ -104,6 +109,12 @@ func (t *tokensDbTx) GetTokenTypes() ([]*TokenUnitType, error) {
 }
 
 func (t *tokensDbTx) SetToken(accountNumber uint64, token *TokenUnit) error {
+	if len(token.ID) == 0 {
+		return errors.Errorf("ID missing for token %v", token)
+	}
+	if len(token.TypeID) == 0 {
+		return errors.Errorf("Type ID missing for token %X", token.ID)
+	}
 	return t.withTx(t.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(token)
 		if err != nil {
@@ -238,10 +249,6 @@ func (w *tokensDb) Do() TokenTxContext {
 	return &tokensDbTx{db: w, tx: nil}
 }
 
-func (w *tokensDb) Path() string {
-	return w.dbFilePath
-}
-
 func (w *tokensDb) Close() {
 	if w.db == nil {
 		return
@@ -302,13 +309,11 @@ func openTokensDb(walletDir string) (*tokensDb, error) {
 }
 
 func parseTokenType(v []byte) (*TokenUnitType, error) {
-	var t = &TokenUnitType{}
 	if v == nil {
-		return t, nil
+		return nil, nil
 	}
-
-	err := json.Unmarshal(v, &t)
-	return t, err
+	t := &TokenUnitType{}
+	return t, json.Unmarshal(v, &t)
 }
 
 func parseToken(v []byte) (*TokenUnit, error) {

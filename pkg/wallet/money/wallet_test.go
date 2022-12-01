@@ -11,12 +11,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -42,7 +40,7 @@ const (
 func TestWalletCanBeCreated(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -120,7 +118,7 @@ func TestWallet_AddKey(t *testing.T) {
 
 func TestWallet_GetBalance(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
-	balance, err := w.GetBalance(0)
+	balance, err := w.GetBalance(GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 0, balance)
 }
@@ -134,7 +132,7 @@ func TestWallet_GetBalances(t *testing.T) {
 	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(2), Value: 2})
 	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(3), Value: 2})
 
-	balances, err := w.GetBalances()
+	balances, err := w.GetBalances(GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 2, balances[0])
 	require.EqualValues(t, 4, balances[1])
@@ -174,7 +172,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x00}),
-					TransactionAttributes: testtransaction.CreateRandomDustTransferTx(),
+					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
 				},
@@ -182,7 +180,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x01}),
-					TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -190,7 +188,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x02}),
-					TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -198,7 +196,7 @@ func TestBlockProcessing(t *testing.T) {
 				{
 					SystemId:              alphabillMoneySystemId,
 					UnitId:                hash.Sum256([]byte{0x03}),
-					TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
@@ -213,7 +211,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify balance 0 before processing
-	balance, err := w.db.Do().GetBalance(0)
+	balance, err := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 0, balance)
 	require.NoError(t, err)
 
@@ -229,7 +227,7 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify balance after block processing
-	balance, err = w.db.Do().GetBalance(0)
+	balance, err = w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, 300, balance)
 	require.NoError(t, err)
 }
@@ -262,7 +260,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x00}),
-				TransactionAttributes: testtransaction.CreateBillTransferTx(k.PubKeyHash.Sha256),
+				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
@@ -270,7 +268,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x01}),
-				TransactionAttributes: testtransaction.CreateDustTransferTx(k.PubKeyHash.Sha256),
+				TransactionAttributes: moneytesttx.CreateDustTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
@@ -278,7 +276,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x02}),
-				TransactionAttributes: testtransaction.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
@@ -286,34 +284,23 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			{
 				SystemId:              alphabillMoneySystemId,
 				UnitId:                hash.Sum256([]byte{0x03}),
-				TransactionAttributes: testtransaction.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
 		},
 	}
-	certifiedBlock, verifiers := certifyBlock(t, testBlock)
+	certifiedBlock, verifiers := testblock.CertifyBlock(t, testBlock, txConverter)
 	err := w.ProcessBlock(certifiedBlock)
 	require.NoError(t, err)
 
 	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
 	for _, b := range bills {
-		proof := b.BlockProof
-		tx, _ := txConverter.ConvertTx(b.Tx)
-		err = proof.Verify(tx, verifiers, crypto.SHA256)
+		err = b.BlockProof.Verify(b.GetID(), verifiers, crypto.SHA256)
 		require.NoError(t, err)
-		require.Equal(t, block.ProofType_PRIM, proof.ProofType)
-		require.Nil(t, proof.Verify(tx, verifiers, crypto.SHA256))
+		require.Equal(t, block.ProofType_PRIM, b.BlockProof.Proof.ProofType)
 	}
-}
-
-func certifyBlock(t *testing.T, b *block.Block) (*block.Block, map[string]abcrypto.Verifier) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	genericBlock, _ := b.ToGenericBlock(txConverter)
-	genericBlock.UnicityCertificate = testblock.CreateUC(t, genericBlock, signer)
-	return genericBlock.ToProtobuf(), verifiers
 }
 
 func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
@@ -347,8 +334,8 @@ func TestWalletGetBills_Ok(t *testing.T) {
 	bills, err := w.GetBills(0)
 	require.NoError(t, err)
 	require.Len(t, bills, 2)
-	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000064", fmt.Sprintf("%X", bills[0].GetId()))
-	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetId()))
+	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000064", fmt.Sprintf("%X", bills[0].GetID()))
+	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetID()))
 }
 
 func TestWalletGetBill(t *testing.T) {
@@ -357,7 +344,7 @@ func TestWalletGetBill(t *testing.T) {
 	b1 := addBill(t, w, 100)
 
 	// verify getBill returns existing bill
-	b, err := w.GetBill(0, b1.GetId())
+	b, err := w.GetBill(0, b1.GetID())
 	require.NoError(t, err)
 	require.NotNil(t, b)
 
@@ -377,25 +364,34 @@ func TestWalletAddBill(t *testing.T) {
 	require.ErrorContains(t, err, "bill is nil")
 
 	// verify bill id is nil
-	err = w.AddBill(0, &Bill{Id: nil, Tx: nil})
+	err = w.AddBill(0, &Bill{Id: nil})
 	require.ErrorContains(t, err, "bill id is nil")
 
 	// verify bill tx is nil
-	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), Tx: nil})
-	require.ErrorContains(t, err, "bill tx is nil")
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0)})
+	require.ErrorContains(t, err, "bill tx hash is nil")
+
+	// verify bill block proof is nil
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), TxHash: []byte{}})
+	require.ErrorContains(t, err, "bill block proof is nil")
+
+	err = w.AddBill(0, &Bill{Id: uint256.NewInt(0), TxHash: []byte{}, BlockProof: &BlockProof{}})
+	require.ErrorContains(t, err, "bill block proof tx is nil")
 
 	// verify invalid bearer predicate
 	invalidPubkey := []byte{0}
 	err = w.AddBill(0, &Bill{
-		Id: uint256.NewInt(0),
-		Tx: createTransferTxForPubKey(invalidPubkey),
+		Id:         uint256.NewInt(0),
+		TxHash:     []byte{},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(invalidPubkey)},
 	})
 	require.ErrorContains(t, err, "invalid bearer predicate")
 
 	// verify valid bill no error
 	err = w.AddBill(0, &Bill{
-		Id: uint256.NewInt(0),
-		Tx: createTransferTxForPubKey(pubkey),
+		Id:         uint256.NewInt(0),
+		TxHash:     []byte{},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(pubkey)},
 	})
 	require.NoError(t, err)
 }
@@ -420,7 +416,7 @@ func createTransferTxForPubKey(pubkey []byte) *txsystem.Transaction {
 	return &txsystem.Transaction{
 		SystemId:              alphabillMoneySystemId,
 		UnitId:                hash.Sum256([]byte{0x01}),
-		TransactionAttributes: testtransaction.CreateBillTransferTx(hash.Sum256(pubkey)),
+		TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey)),
 		Timeout:               1000,
 		OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, pubkey),
 	}

@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
@@ -31,7 +33,7 @@ func TestNewFungibleType(t *testing.T) {
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
-	_, err := tw.NewFungibleType(context.Background(), a, typeId)
+	_, err := tw.NewFungibleType(context.Background(), a, typeId, nil)
 	require.NoError(t, err)
 	txs := abClient.GetRecordedTransactions()
 	require.Len(t, txs, 1)
@@ -54,7 +56,7 @@ func TestNewNonFungibleType(t *testing.T) {
 		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
 		InvariantPredicate:                 script.PredicateAlwaysTrue(),
 	}
-	_, err := tw.NewNonFungibleType(context.Background(), a, typeId)
+	_, err := tw.NewNonFungibleType(context.Background(), a, typeId, nil)
 	require.NoError(t, err)
 	txs := abClient.GetRecordedTransactions()
 	require.Len(t, txs, 1)
@@ -95,11 +97,11 @@ func TestNewFungibleToken(t *testing.T) {
 			typeId := []byte{1}
 			amount := uint64(100)
 			a := &tokens.MintFungibleTokenAttributes{
-				Type:                            typeId,
-				Value:                           amount,
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				Type:                             typeId,
+				Value:                            amount,
+				TokenCreationPredicateSignatures: nil,
 			}
-			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a)
+			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
@@ -111,6 +113,52 @@ func TestNewFungibleToken(t *testing.T) {
 			tt.validateOwner(t, tt.accNr, newToken)
 		})
 	}
+}
+
+func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
+	tokenID := test.RandomBytes(32)
+	accNr := uint64(1)
+	tests := []struct {
+		name       string
+		attrs      *tokens.MintNonFungibleTokenAttributes
+		wantErrStr string
+	}{
+		{
+			name:       "attributes missing",
+			attrs:      nil,
+			wantErrStr: "attributes missing",
+		},
+		{
+			name: "invalid URI",
+			attrs: &tokens.MintNonFungibleTokenAttributes{
+				Uri: "invalid_uri",
+			},
+			wantErrStr: "URI 'invalid_uri' is invalid",
+		},
+		{
+			name: "URI exceeds maximum allowed length",
+			attrs: &tokens.MintNonFungibleTokenAttributes{
+				Uri: string(test.RandomBytes(4097)),
+			},
+			wantErrStr: "URI exceeds the maximum allowed size of 4096 bytes",
+		},
+		{
+			name: "data exceeds maximum allowed length",
+			attrs: &tokens.MintNonFungibleTokenAttributes{
+				Data: test.RandomBytes(65537),
+			},
+			wantErrStr: "data exceeds the maximum allowed size of 65536 bytes",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wallet := &Wallet{}
+			got, err := wallet.NewNFT(context.Background(), accNr, tt.attrs, tokenID, nil)
+			require.ErrorContains(t, err, tt.wantErrStr)
+			require.Nil(t, got)
+		})
+	}
+
 }
 
 func TestNewNFT(t *testing.T) {
@@ -142,13 +190,13 @@ func TestNewNFT(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := []byte{1}
 			a := &tokens.MintNonFungibleTokenAttributes{
-				NftType:                         typeId,
-				Uri:                             "",
-				Data:                            nil,
-				DataUpdatePredicate:             script.PredicateAlwaysTrue(),
-				TokenCreationPredicateSignature: script.PredicateArgumentEmpty(),
+				NftType:                          typeId,
+				Uri:                              "",
+				Data:                             nil,
+				DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+				TokenCreationPredicateSignatures: nil,
 			}
-			_, err := tw.NewNFT(context.Background(), tt.accNr, a, nil)
+			_, err := tw.NewNFT(context.Background(), tt.accNr, a, nil, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
@@ -362,16 +410,18 @@ func TestSendFungible(t *testing.T) {
 func TestList(t *testing.T) {
 	tw, _ := createTestWallet(t)
 	_, _, err := tw.mw.AddAccount() //#2
-	_, _, err = tw.mw.AddAccount()  //#3 this acc has no tokens, should not be listed
+	require.NoError(t, err)
+	_, _, err = tw.mw.AddAccount() //#3 this acc has no tokens, should not be listed
 	require.NoError(t, err)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(0, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{13}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
-		require.NoError(t, c.SetToken(2, &TokenUnit{ID: []byte{14}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
+		require.NoError(t, c.SetToken(0, &TokenUnit{ID: []byte{11}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 5}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{15}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 6}))
+		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{13}, TypeID: []byte{0x02}, Kind: NonFungibleToken, Symbol: "AB", URI: "alphabill.org"}))
+		require.NoError(t, c.SetToken(2, &TokenUnit{ID: []byte{14}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 18}))
 		return nil
 	}))
-	countTotals := func(toks map[int][]*TokenUnit) (totalKeys int, totalTokens int) {
+	countTotals := func(toks map[uint64][]*TokenUnit) (totalKeys int, totalTokens int) {
 		for k, v := range toks {
 			totalKeys++
 			fmt.Printf("Key #%v\n", k)
@@ -386,22 +436,22 @@ func TestList(t *testing.T) {
 		name      string
 		accountNr int
 		kind      TokenKind
-		verify    func(t *testing.T, toks map[int][]*TokenUnit)
+		verify    func(t *testing.T, toks map[uint64][]*TokenUnit)
 	}{
 		{
 			name:      "list all tokens across all accounts",
 			accountNr: AllAccounts,
 			kind:      Any,
-			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
+			verify: func(t *testing.T, toks map[uint64][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 3, totalKeys)
-				require.Equal(t, 4, totalTokens)
+				require.Equal(t, 5, totalTokens)
 			},
 		}, {
 			name:      "only tokens spendable by anyone",
 			accountNr: 0,
 			kind:      Any,
-			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
+			verify: func(t *testing.T, toks map[uint64][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 1, totalKeys)
 				require.Equal(t, 1, totalTokens)
@@ -410,25 +460,43 @@ func TestList(t *testing.T) {
 			name:      "account #1 only",
 			accountNr: 1,
 			kind:      Any,
-			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
+			verify: func(t *testing.T, toks map[uint64][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 1, totalKeys)
-				require.Equal(t, 2, totalTokens)
+				require.Equal(t, 3, totalTokens)
+			},
+		}, {
+			name:      "account #2 only",
+			accountNr: 2,
+			kind:      Any,
+			verify: func(t *testing.T, toks map[uint64][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 1, totalKeys)
+				require.Equal(t, 1, totalTokens)
+			},
+		}, {
+			name:      "account #3 only",
+			accountNr: 3,
+			kind:      Any,
+			verify: func(t *testing.T, toks map[uint64][]*TokenUnit) {
+				totalKeys, totalTokens := countTotals(toks)
+				require.Equal(t, 0, totalKeys)
+				require.Equal(t, 0, totalTokens)
 			},
 		}, {
 			name:      "all accounts, only fungible",
 			accountNr: AllAccounts,
 			kind:      FungibleToken,
-			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
+			verify: func(t *testing.T, toks map[uint64][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 3, totalKeys)
-				require.Equal(t, 3, totalTokens)
+				require.Equal(t, 4, totalTokens)
 			},
 		}, {
-			name:      "accounts #1, only non-fungible",
+			name:      "all accounts, only non-fungible",
 			accountNr: AllAccounts,
 			kind:      NonFungibleToken,
-			verify: func(t *testing.T, toks map[int][]*TokenUnit) {
+			verify: func(t *testing.T, toks map[uint64][]*TokenUnit) {
 				totalKeys, totalTokens := countTotals(toks)
 				require.Equal(t, 1, totalKeys)
 				require.Equal(t, 1, totalTokens)
@@ -445,14 +513,15 @@ func TestList(t *testing.T) {
 }
 
 func createTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	_ = deleteFile(os.TempDir(), money.WalletFileName)
-	_ = deleteFile(os.TempDir(), tokensFileName)
-	c := money.WalletConfig{DbPath: os.TempDir()}
+	parentDir, err := ioutil.TempDir(os.TempDir(), "*-tests")
+	require.NoError(t, err)
+	c := money.WalletConfig{DbPath: parentDir}
 	w, err := money.CreateNewWallet("", c)
 	require.NoError(t, err)
 	tw, err := Load(w, false)
 	t.Cleanup(func() {
 		deleteWallet(tw)
+		os.RemoveAll(parentDir)
 	})
 	require.NoError(t, err)
 

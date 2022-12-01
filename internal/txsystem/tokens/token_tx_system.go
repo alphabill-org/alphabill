@@ -74,11 +74,12 @@ type (
 		URI() string
 		Data() []byte
 		DataUpdatePredicate() []byte
-		TokenCreationPredicateSignature() []byte
+		TokenCreationPredicateSignatures() [][]byte
 	}
 
 	TransferNonFungibleToken interface {
 		txsystem.GenericTransaction
+		NFTTypeID() []byte
 		NewBearer() []byte
 		Nonce() []byte
 		Backlink() []byte
@@ -109,11 +110,12 @@ type (
 		TypeID() []byte
 		Value() uint64
 		Bearer() []byte
-		TokenCreationPredicateSignature() []byte
+		TokenCreationPredicateSignatures() [][]byte
 	}
 
 	TransferFungibleToken interface {
 		txsystem.GenericTransaction
+		TypeID() []byte
 		NewBearer() []byte
 		Value() uint64
 		Nonce() []byte
@@ -123,9 +125,11 @@ type (
 
 	SplitFungibleToken interface {
 		txsystem.GenericTransaction
+		TypeID() []byte
 		HashForIDCalculation(hashFunc crypto.Hash) []byte
 		NewBearer() []byte
 		TargetValue() uint64
+		RemainingValue() uint64
 		Nonce() []byte
 		Backlink() []byte
 		InvariantPredicateSignature() []byte
@@ -148,19 +152,40 @@ type (
 		InvariantPredicateSignature() []byte
 	}
 
-	AttrWithBearer interface {
+	MintAttr interface {
 		proto.Message
 		SetBearer([]byte)
-		GetBearer() []byte
+		SetTokenCreationPredicateSignatures([][]byte)
+	}
+
+	AttrWithSubTypeCreationInputs interface {
+		proto.Message
+		SetSubTypeCreationPredicateSignatures([][]byte)
 	}
 )
+
+func (x *CreateFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(sigs [][]byte) {
+	x.SubTypeCreationPredicateSignatures = sigs
+}
+
+func (x *CreateNonFungibleTokenTypeAttributes) SetSubTypeCreationPredicateSignatures(sigs [][]byte) {
+	x.SubTypeCreationPredicateSignatures = sigs
+}
 
 func (x *MintFungibleTokenAttributes) SetBearer(b []byte) {
 	x.Bearer = b
 }
 
+func (x *MintFungibleTokenAttributes) SetTokenCreationPredicateSignatures(sigs [][]byte) {
+	x.TokenCreationPredicateSignatures = sigs
+}
+
 func (x *MintNonFungibleTokenAttributes) SetBearer(b []byte) {
 	x.Bearer = b
+}
+
+func (x *MintNonFungibleTokenAttributes) SetTokenCreationPredicateSignatures(sigs [][]byte) {
+	x.TokenCreationPredicateSignatures = sigs
 }
 
 func New(opts ...Option) (*tokensTxSystem, error) {

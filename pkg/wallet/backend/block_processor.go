@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
@@ -33,9 +34,9 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 	if err != nil {
 		return err
 	}
-	for i, tx := range b.Transactions {
+	for _, tx := range b.Transactions {
 		for _, key := range keys {
-			err := p.processTx(tx, b, i, key)
+			err := p.processTx(tx, b, key)
 			if err != nil {
 				return err
 			}
@@ -44,7 +45,7 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 	return p.store.SetBlockNumber(b.BlockNumber)
 }
 
-func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, txIdx int, pubKey *Pubkey) error {
+func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, pubKey *Pubkey) error {
 	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
@@ -54,32 +55,35 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 	switch tx := stx.(type) {
 	case moneytx.Transfer:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.NewBearer()) {
-			wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x)", tx.UnitID()))
-			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
-				Id:    tx.UnitID(),
-				Value: tx.TargetValue(),
+			wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
+				Id:     txPb.UnitId,
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
 			}
 		} else {
-			err := p.store.RemoveBill(pubKey.Pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.Pubkey, txPb.UnitId)
 			if err != nil {
 				return err
 			}
 		}
 	case moneytx.TransferDC:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
-			wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%x)", tx.UnitID()))
-			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
-				Id:    tx.UnitID(),
-				Value: tx.TargetValue(),
+			wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
+				Id:       txPb.UnitId,
+				Value:    tx.TargetValue(),
+				TxHash:   tx.Hash(crypto.SHA256),
+				IsDCBill: true,
 			})
 			if err != nil {
 				return err
 			}
 		} else {
-			err := p.store.RemoveBill(pubKey.Pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.Pubkey, txPb.UnitId)
 			if err != nil {
 				return err
 			}
@@ -89,15 +93,16 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
 		// 2) add the new bill
-		containsBill, err := p.store.ContainsBill(pubKey.Pubkey, tx.UnitID())
+		containsBill, err := p.store.ContainsBill(pubKey.Pubkey, txPb.UnitId)
 		if err != nil {
 			return err
 		}
 		if containsBill {
-			wlog.Info(fmt.Sprintf("received split order (existing UnitID=%x)", tx.UnitID()))
-			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
-				Id:    tx.UnitID(),
-				Value: tx.RemainingValue(),
+			wlog.Info(fmt.Sprintf("received split order (existing UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
+				Id:     txPb.UnitId,
+				Value:  tx.RemainingValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
@@ -105,10 +110,11 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
 			id := utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
-			wlog.Info(fmt.Sprintf("received split order (new UnitID=%x)", id))
-			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
-				Id:    id,
-				Value: tx.Amount(),
+			wlog.Info(fmt.Sprintf("received split order (new UnitID=%x) for pubkey=%x", id, pubKey.Pubkey))
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
+				Id:     util.Uint256ToBytes(id),
+				Value:  tx.Amount(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
@@ -116,22 +122,23 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 		}
 	case moneytx.Swap:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.OwnerCondition()) {
-			wlog.Info(fmt.Sprintf("received swap order (UnitID=%x)", tx.UnitID()))
-			err = p.saveBillWithProof(pubKey.Pubkey, b, &Bill{
-				Id:    tx.UnitID(),
-				Value: tx.TargetValue(),
+			wlog.Info(fmt.Sprintf("received swap order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
+			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
+				Id:     txPb.UnitId,
+				Value:  tx.TargetValue(),
+				TxHash: tx.Hash(crypto.SHA256),
 			})
 			if err != nil {
 				return err
 			}
 			for _, dustTransfer := range tx.DCTransfers() {
-				err := p.store.RemoveBill(pubKey.Pubkey, dustTransfer.UnitID())
+				err := p.store.RemoveBill(pubKey.Pubkey, util.Uint256ToBytes(dustTransfer.UnitID()))
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			err := p.store.RemoveBill(pubKey.Pubkey, tx.UnitID())
+			err := p.store.RemoveBill(pubKey.Pubkey, txPb.UnitId)
 			if err != nil {
 				return err
 			}
@@ -143,7 +150,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, t
 	return nil
 }
 
-func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, bi *Bill) error {
+func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, tx *txsystem.Transaction, bi *Bill) error {
 	genericBlock, err := b.ToGenericBlock(txConverter)
 	if err != nil {
 		return err
@@ -152,10 +159,11 @@ func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, bi *Bi
 	if err != nil {
 		return err
 	}
-	proof := &BlockProof{
-		BillId:      bi.Id,
+	proof := &TxProof{
 		BlockNumber: b.BlockNumber,
-		BlockProof:  blockProof,
+		Tx:          tx,
+		Proof:       blockProof,
 	}
-	return p.store.AddBillWithProof(pubkey, bi, proof)
+	bi.TxProof = proof
+	return p.store.SetBills(pubkey, bi)
 }

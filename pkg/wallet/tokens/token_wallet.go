@@ -7,13 +7,22 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 )
 
+const (
+	uriMaxSize  = 4 * 1024
+	dataMaxSize = 64 * 1024
+)
+
 var (
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
+	ErrAttributesMissing    = errors.New("attributes missing")
+	ErrInvalidURILength     = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
+	ErrInvalidDataLength    = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 )
 
 type (
@@ -55,39 +64,83 @@ func (w *Wallet) GetAccountManager() wallet.AccountManager {
 
 func (w *Wallet) Shutdown() {
 	w.mw.Shutdown()
+	if w.db != nil {
+		w.db.Close()
+	}
 }
 
-func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
+func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token type")
-	return w.newType(ctx, attrs, typeId)
+	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID) (TokenID, error) {
+func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new NFT type")
-	return w.newType(ctx, attrs, typeId)
+	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes) (TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes, mintPredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token")
-	return w.newToken(ctx, accNr, attrs, nil)
+	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
-func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID) (TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID, mintPredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new NFT")
-	return w.newToken(ctx, accNr, attrs, tokenId)
+	if attrs == nil {
+		return nil, ErrAttributesMissing
+	}
+	if len(attrs.Uri) > uriMaxSize {
+		return nil, ErrInvalidURILength
+	}
+	if attrs.Uri != "" && !util.IsValidURI(attrs.Uri) {
+		return nil, fmt.Errorf("URI '%s' is invalid", attrs.Uri)
+	}
+	if len(attrs.Data) > dataMaxSize {
+		return nil, ErrInvalidDataLength
+	}
+	return w.newToken(ctx, accNr, attrs, tokenId, mintPredicateArgs)
 }
 
-func (w *Wallet) ListTokenTypes(ctx context.Context) ([]*TokenUnitType, error) {
+func (w *Wallet) ListTokenTypes(ctx context.Context, kind TokenKind) ([]*TokenUnitType, error) {
 	err := w.Sync(ctx)
 	if err != nil {
 		return nil, err
 	}
+	tokenTypes, err := w.db.Do().GetTokenTypes()
+	if err != nil {
+		return nil, err
+	}
+	if kind&Any > 0 {
+		return tokenTypes, nil
+	}
+	res := make([]*TokenUnitType, 0)
+	// filter out specific type requested
+	for _, tt := range tokenTypes {
+		if tt.Kind&kind == kind {
+			res = append(res, tt)
+		}
+	}
+	return res, nil
+}
 
-	return w.db.Do().GetTokenTypes()
+// GetTokenType returns non-nil TokenUnitType or error if not found or other issues
+func (w *Wallet) GetTokenType(ctx context.Context, typeId TokenTypeID) (*TokenUnitType, error) {
+	err := w.Sync(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tt, err := w.db.Do().GetTokenType(typeId)
+	if err != nil {
+		return nil, err
+	}
+	if tt == nil {
+		return nil, fmt.Errorf("error token type %X not found", typeId)
+	}
+	return tt, nil
 }
 
 // ListTokens specify accountNumber=-1 to list tokens from all accounts
-func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[int][]*TokenUnit, error) {
+func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber int) (map[uint64][]*TokenUnit, error) {
 
 	err := w.Sync(ctx)
 	if err != nil {
@@ -95,14 +148,14 @@ func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber i
 	}
 
 	var pubKeys [][]byte
-	skipAlwaysTrue := false
+	singleKey := false
 	if accountNumber > AllAccounts+1 {
 		key, err := w.mw.GetPublicKey(uint64(accountNumber - 1))
 		if err != nil {
 			return nil, err
 		}
 		pubKeys = append(pubKeys, key)
-		skipAlwaysTrue = true
+		singleKey = true
 	} else if accountNumber != alwaysTrueTokensAccountNumber {
 		pubKeys, err = w.mw.GetPublicKeys()
 		if err != nil {
@@ -110,25 +163,35 @@ func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber i
 		}
 	}
 
-	res := make(map[int][]*TokenUnit, 0)
-	// NB! n=0 is a special index for always true predicates, thus iteration goes until len, not len-1
-	for n := 0; n <= len(pubKeys); n++ {
-		if n == alwaysTrueTokensAccountNumber && skipAlwaysTrue {
-			continue
-		}
-		tokens, err := w.db.Do().GetTokens(uint64(n))
+	// account number -> list of its tokens
+	res := make(map[uint64][]*TokenUnit, 0)
+
+	fetchTokens := func(accNr uint64) error {
+		tokenz, err := w.db.Do().GetTokens(accNr)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		for _, tok := range tokens {
+		for _, tok := range tokenz {
 			if kind&Any > 0 || tok.Kind&kind == kind {
-				tokens, found := res[n]
+				units, found := res[accNr]
 				if found {
-					res[n] = append(tokens, tok)
+					res[accNr] = append(units, tok)
 				} else {
-					res[n] = []*TokenUnit{tok}
+					res[accNr] = []*TokenUnit{tok}
 				}
 			}
+		}
+		return nil
+	}
+
+	if singleKey {
+		return res, fetchTokens(uint64(accountNumber))
+	}
+	// NB! n=0 is a special index for always true predicates, thus iteration goes until len, not len-1
+	for n := 0; n <= len(pubKeys); n++ {
+		err := fetchTokens(uint64(n))
+		if err != nil {
+			return nil, err
 		}
 	}
 	return res, nil
@@ -162,7 +225,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
 	}
 
-	sub, err := w.sendTx(tokenId, newNonFungibleTransferTxAttrs(t, receiverPubKey), acc)
+	sub, err := w.sendTx(tokenId, newNonFungibleTransferTxAttrs(t, receiverPubKey), acc, nil)
 	if err != nil {
 		return err
 	}

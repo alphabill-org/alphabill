@@ -18,22 +18,22 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
 	tx1 := &txsystem.Transaction{
-		UnitId:                newUnitId(1),
+		UnitId:                newUnitID(1),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateBillTransferTx(pubKeyHash),
 	}
 	tx2 := &txsystem.Transaction{
-		UnitId:                newUnitId(2),
+		UnitId:                newUnitID(2),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateDustTransferTx(pubKeyHash),
 	}
 	tx3 := &txsystem.Transaction{
-		UnitId:                newUnitId(3),
+		UnitId:                newUnitID(3),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateBillSplitTx(pubKeyHash, 1, 1),
 	}
 	tx4 := &txsystem.Transaction{
-		UnitId:                newUnitId(4),
+		UnitId:                newUnitID(4),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(pubKeyHash),
 	}
@@ -60,12 +60,12 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	}
 
 	// verify tx2 is dcBill
-	bill, _ := store.GetBill(tx2.UnitId)
+	bill, _ := store.GetBill(pubKeyBytes, tx2.UnitId)
 	require.True(t, bill.IsDCBill)
 }
 
-func newUnitId(unitId uint64) []byte {
-	return util.Uint256ToBytes(uint256.NewInt(unitId))
+func newUnitID(unitID uint64) []byte {
+	return util.Uint256ToBytes(uint256.NewInt(unitID))
 }
 
 func verifyProof(t *testing.T, b *Bill) {

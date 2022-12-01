@@ -60,7 +60,7 @@ type (
 		GetBills(pubKey []byte) ([]*Bill, error)
 		RemoveBill(pubKey []byte, id []byte) error
 		ContainsBill(pubkey []byte, unitID []byte) (bool, error)
-		GetBill(billId []byte) (*Bill, error)
+		GetBill(pubkey []byte, unitID []byte) (*Bill, error)
 		SetBills(pubkey []byte, bills ...*Bill) error
 		GetKeys() ([]*Pubkey, error)
 		GetKey(pubkey []byte) (*Pubkey, error)
@@ -123,8 +123,8 @@ func (w *WalletBackend) GetBills(pubkey []byte) ([]*Bill, error) {
 }
 
 // GetBill returns most recently seen bill with given unit id.
-func (w *WalletBackend) GetBill(unitId []byte) (*Bill, error) {
-	return w.store.GetBill(unitId)
+func (w *WalletBackend) GetBill(pubkey []byte, unitID []byte) (*Bill, error) {
+	return w.store.GetBill(pubkey, unitID)
 }
 
 // SetBill adds new bill to the index.

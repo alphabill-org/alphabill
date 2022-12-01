@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"testing"
+
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -9,8 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
-	"testing"
-
 	"github.com/stretchr/testify/require"
 )
 

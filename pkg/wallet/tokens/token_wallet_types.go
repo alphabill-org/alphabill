@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
 
@@ -14,6 +16,7 @@ type (
 		Kind          TokenKind   `json:"kind"`
 		Symbol        string      `json:"symbol"`
 		DecimalPlaces uint32      `json:"decimalPlaces"`
+		Proof         *Proof      `json:"proof"`
 	}
 
 	TokenUnit struct {
@@ -24,6 +27,7 @@ type (
 		Amount   uint64      `json:"amount"`        // fungible only
 		URI      string      `json:"uri,omitempty"` // nft only
 		Backlink []byte      `json:"backlink"`
+		Proof    *Proof      `json:"proof"`
 	}
 
 	TokenKind uint
@@ -48,6 +52,12 @@ type (
 		Argument tokens.Predicate
 		// if Argument empty, check AccountNumber
 		AccountNumber uint64
+	}
+
+	Proof struct {
+		BlockNumber uint64                `json:"blockNumber"`
+		Tx          *txsystem.Transaction `json:"tx"`
+		Proof       *block.BlockProof     `json:"proof"`
 	}
 )
 

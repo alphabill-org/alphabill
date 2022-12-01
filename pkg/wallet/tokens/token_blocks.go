@@ -48,7 +48,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 					if n > 0 {
 						keyHashes = accounts[n-1].PubKeyHash
 					}
-					err = w.readTx(txc, tx, uint64(n), keyHashes)
+					err = w.readTx(txc, tx, b, uint64(n), keyHashes)
 					if err != nil {
 						return err
 					}

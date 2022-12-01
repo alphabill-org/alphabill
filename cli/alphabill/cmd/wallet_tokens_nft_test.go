@@ -200,7 +200,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	_, err = tmpfile.Write(data2)
 	require.NoError(t, err)
 	// update data
-	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --token-identifier %X --data-file %s", dialAddr, nftID, tmpfile.Name()))
+	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --token-identifier %X --data-file %s --data-update-input true,true", dialAddr, nftID, tmpfile.Name()))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.UpdateNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID) {
 			dataUpdateAttrs := &tokens.UpdateNonFungibleTokenAttributes{}

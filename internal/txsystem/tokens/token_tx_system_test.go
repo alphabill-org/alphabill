@@ -796,7 +796,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
 			Backlink:             make([]byte, 32),
 			Data:                 updatedData,
-			DataUpdateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			DataUpdateSignatures: [][]byte{script.PredicateArgumentEmpty(), script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.NoError(t, txs.Execute(tx))

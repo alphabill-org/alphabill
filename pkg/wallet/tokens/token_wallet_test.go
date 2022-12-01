@@ -308,7 +308,7 @@ func TestUpdateNFTData(t *testing.T) {
 	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
 
 	require.NoError(t, tw.db.WithTransaction(func(txc TokenTxContext) error {
-		require.NoError(t, tw.readTx(txc, tx, 1, key.PubKeyHash))
+		require.NoError(t, tw.readTx(txc, tx, nil, 1, key.PubKeyHash))
 		return nil
 	}))
 	updatedTok, err := tw.db.Do().GetToken(1, tok.ID)

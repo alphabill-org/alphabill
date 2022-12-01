@@ -52,11 +52,6 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 	if !bytes.Equal(hasher.Sum(nil), x.LedgerCommitInfo.VoteInfoHash) {
 		return errors.New("vote info hash verification failed")
 	}
-	// verify that it is signed by quorum
-	// if less than quorum, then there is no need to verify the signatures
-	if uint32(len(x.Signatures)) < v.GetQuorumThreshold() {
-		return ErrSealNotSignedByQuorum
-	}
 	hasher.Reset()
 	hasher.Write(x.LedgerCommitInfo.Bytes())
 	err := v.VerifyQuorumSignatures(hasher.Sum(nil), x.Signatures)

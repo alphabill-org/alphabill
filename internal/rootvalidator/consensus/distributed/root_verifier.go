@@ -62,13 +62,14 @@ func (r *RootNodeVerifier) VerifyBytes(bytes []byte, sig []byte, author peer.ID)
 }
 
 func (r *RootNodeVerifier) ValidateQuorum(authors []string) error {
+	// 1. Check if authors are known
 	for _, author := range authors {
 		_, err := r.GetVerifier(peer.ID(author))
 		if err != nil {
 			return fmt.Errorf("invalid quorum: unknown author %v", author)
 		}
 	}
-	// check less than quorum of authors
+	// 2. Check that at least quorum number of authors present
 	if uint32(len(authors)) < r.GetQuorumThreshold() {
 		return fmt.Errorf("invalid quorum: requires %v only %v present",
 			r.GetQuorumThreshold(), len(authors))

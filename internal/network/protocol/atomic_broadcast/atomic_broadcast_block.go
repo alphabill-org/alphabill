@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -24,13 +23,11 @@ var (
 )
 
 type AtomicVerifier interface {
-	GetQuorumThreshold() uint32
 	VerifySignature(hash []byte, sig []byte, author peer.ID) error
 	VerifyBytes(bytes []byte, sig []byte, author peer.ID) error
 
 	ValidateQuorum(authors []string) error
 	VerifyQuorumSignatures(hash []byte, signatures map[string][]byte) error
-	GetVerifier(nodeId peer.ID) (crypto.Verifier, error)
 }
 
 type PartitionVerifier interface {

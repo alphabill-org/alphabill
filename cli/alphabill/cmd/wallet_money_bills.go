@@ -79,33 +79,41 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	var bills [][]*money.Bill
+	type accountBillGroup struct {
+		accountIndex uint64
+		bills        []*money.Bill
+	}
+	var accountBillGroups []*accountBillGroup
 	if accountNumber == 0 {
-		bills, err = w.GetAllBills()
+		bills, err := w.GetAllBills()
 		if err != nil {
 			return err
+		}
+		for accIdx, accBills := range bills {
+			accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: uint64(accIdx), bills: accBills})
 		}
 	} else {
-		accBills, err := w.GetBills(accountNumber - 1)
+		accountIndex := accountNumber - 1
+		accountBills, err := w.GetBills(accountIndex)
 		if err != nil {
 			return err
 		}
-		bills = append(bills, accBills)
+		accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: accountIndex, bills: accountBills})
 	}
 
 	if !showUnswapped {
-		for i, accBills := range bills {
-			bills[i] = filterDcBills(accBills)
+		for i, accBillGroup := range accountBillGroups {
+			accountBillGroups[i].bills = filterDcBills(accBillGroup.bills)
 		}
 	}
 
-	for i, accBills := range bills {
-		if len(accBills) == 0 {
-			consoleWriter.Println(fmt.Sprintf("Account #%d - empty", i+1))
+	for _, group := range accountBillGroups {
+		if len(group.bills) == 0 {
+			consoleWriter.Println(fmt.Sprintf("Account #%d - empty", group.accountIndex+1))
 		} else {
-			consoleWriter.Println(fmt.Sprintf("Account #%d", i+1))
+			consoleWriter.Println(fmt.Sprintf("Account #%d", group.accountIndex+1))
 		}
-		for j, bill := range accBills {
+		for j, bill := range group.bills {
 			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", j+1, bill.GetID(), bill.Value))
 		}
 	}

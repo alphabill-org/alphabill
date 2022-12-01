@@ -80,6 +80,9 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
+	// add passwords flags for (encrypted)wallet
+	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
+	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
 	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", fmt.Sprintf("wallet home directory (default $AB_HOME/wallet)"))
@@ -94,7 +97,6 @@ func createCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(seedCmdName, "s", "", "mnemonic seed, the number of words should be 12, 15, 18, 21 or 24")
-	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -137,7 +139,6 @@ func syncCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
-	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -179,7 +180,6 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "saves transaction proof(s) to given directory")
-	addPasswordFlags(cmd)
 	err := cmd.MarkFlagRequired(addressCmdName)
 	if err != nil {
 		return nil
@@ -274,7 +274,6 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, "+
 		"e.g. account key numbers, can only be used together with key or total flag")
 	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "includes unswapped dust bills in balance output")
-	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -343,7 +342,6 @@ func getPubKeysCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolP(quietCmdName, "q", false, "hides info irrelevant for scripting, e.g. account key numbers")
-	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -379,7 +377,6 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
-	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -430,7 +427,6 @@ func addKeyCmd(config *walletConfig) *cobra.Command {
 			return execAddKeyCmd(cmd, config)
 		},
 	}
-	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -549,11 +545,6 @@ func readPassword(promptMessage string) (string, error) {
 	}
 	consoleWriter.Println("") // line break after reading password
 	return string(passwordBytes), nil
-}
-
-func addPasswordFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
-	cmd.Flags().String(passwordArgCmdName, "", passwordArgUsage)
 }
 
 func pubKeyHexToBytes(s string) ([]byte, bool) {

@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -217,7 +218,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	require.Equal(t, []byte{0x01}, reflect.ValueOf(ensureUnitBytes(t, unitState, nftID2).Data).Elem().FieldByName("data").Bytes())
 	//try to update and observe failure
 	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --sync false --token-identifier %X --data 02 --data-update-input false,true", dialAddr, nftID2))
-	testpartition.ContainsEvent(t, node.EventHandler, partition.EventTypeTransactionFailed)
+	testevent.ContainsEvent(t, node.EventHandler, partition.EventTypeTransactionFailed)
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {

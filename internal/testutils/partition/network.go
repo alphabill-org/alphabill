@@ -5,8 +5,6 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
-	"sync"
-	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -16,12 +14,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -32,7 +29,7 @@ type AlphabillPartition struct {
 	ctxCancel    context.CancelFunc
 	ctx          context.Context
 	TrustBase    map[string]crypto.Verifier
-	EventHandler *TestEventHandler
+	EventHandler *testevent.TestEventHandler
 }
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
@@ -123,7 +120,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	// start Nodes
 	var nodes = make([]*partition.Node, partitionNodes)
-	eh := &TestEventHandler{}
+	eh := &testevent.TestEventHandler{}
 	for i := 0; i < partitionNodes; i++ {
 		if err != nil {
 			return nil, err
@@ -316,40 +313,4 @@ func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.
 		}
 		return false
 	}
-}
-
-type TestEventHandler struct {
-	mutex  sync.Mutex
-	events []*partition.Event
-}
-
-func (eh *TestEventHandler) HandleEvent(e *partition.Event) {
-	eh.mutex.Lock()
-	defer eh.mutex.Unlock()
-	eh.events = append(eh.events, e)
-}
-
-func (eh *TestEventHandler) GetEvents() []*partition.Event {
-	eh.mutex.Lock()
-	defer eh.mutex.Unlock()
-	return eh.events
-}
-
-func (eh *TestEventHandler) Reset() {
-	eh.mutex.Lock()
-	defer eh.mutex.Unlock()
-	eh.events = []*partition.Event{}
-}
-
-func ContainsEvent(t *testing.T, eh *TestEventHandler, et partition.EventType) {
-	require.Eventually(t, func() bool {
-		events := eh.GetEvents()
-		for _, e := range events {
-			if e.EventType == et {
-				return true
-			}
-		}
-		return false
-
-	}, test.WaitDuration, test.WaitTick)
 }

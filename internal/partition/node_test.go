@@ -11,7 +11,6 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -504,7 +503,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	tp.SubmitBlockProposal(bp)
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
-	testpartition.ContainsEvent(t, tp.eh, EventTypeStateReverted)
+	ContainsEvent(t, tp.eh, EventTypeStateReverted)
 	require.Equal(t, recovering, tp.partition.status)
 }
 

@@ -9,20 +9,18 @@ import (
 	"testing"
 	"time"
 
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
-	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rstore "github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/rootchain/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -44,7 +42,7 @@ type SingleNodePartition struct {
 	rootState  *rootchain.State
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
-	eh         *testpartition.TestEventHandler
+	eh         *TestEventHandler
 }
 
 func (t *AlwaysValidTransactionValidator) Validate(txsystem.GenericTransaction, uint64) error {
@@ -94,7 +92,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	require.NoError(t, err)
 
 	net := testnetwork.NewMockNetwork()
-	eh := &testpartition.TestEventHandler{}
+	eh := &TestEventHandler{}
 	// partition
 	n, err := New(
 		p,
@@ -230,7 +228,7 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 		Protocol: network.ProtocolUnicityCertificates,
 		Message:  uc,
 	})
-	testpartition.ContainsEvent(t, sn.eh, EventTypeBlockFinalized)
+	ContainsEvent(t, sn.eh, EventTypeBlockFinalized)
 
 	sn.eh.Reset()
 	return nil
@@ -344,5 +342,41 @@ func ContainsError(t *testing.T, tp *SingleNodePartition, errStr string) {
 			}
 		}
 		return false
+	}, test.WaitDuration, test.WaitTick)
+}
+
+type TestEventHandler struct {
+	mutex  sync.Mutex
+	events []*Event
+}
+
+func (eh *TestEventHandler) HandleEvent(e *Event) {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	eh.events = append(eh.events, e)
+}
+
+func (eh *TestEventHandler) GetEvents() []*Event {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	return eh.events
+}
+
+func (eh *TestEventHandler) Reset() {
+	eh.mutex.Lock()
+	defer eh.mutex.Unlock()
+	eh.events = []*Event{}
+}
+
+func ContainsEvent(t *testing.T, eh *TestEventHandler, et EventType) {
+	require.Eventually(t, func() bool {
+		events := eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == et {
+				return true
+			}
+		}
+		return false
+
 	}, test.WaitDuration, test.WaitTick)
 }

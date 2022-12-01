@@ -244,6 +244,11 @@ func (w *Wallet) GetBills(accountIndex uint64) ([]*Bill, error) {
 	return w.db.Do().GetBills(accountIndex)
 }
 
+// GetAllBills returns all bills owned by the wallet for all accounts.
+func (w *Wallet) GetAllBills() ([][]*Bill, error) {
+	return w.db.Do().GetAllBills()
+}
+
 // AddBill adds bill to wallet.
 // Given bill must have a valid transaction with P2PKH predicate for given account.
 // Block proof is not verified, but transaction is required.

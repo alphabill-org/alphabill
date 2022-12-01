@@ -338,6 +338,33 @@ func TestWalletGetBills_Ok(t *testing.T) {
 	require.Equal(t, "00000000000000000000000000000000000000000000000000000000000000C8", fmt.Sprintf("%X", bills[1].GetID()))
 }
 
+func TestWalletGetAllBills_Ok(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+	_, _, _ = w.AddAccount()
+	_ = w.db.Do().SetBill(0, &Bill{
+		Id:     uint256.NewInt(100),
+		Value:  100,
+		TxHash: hash.Sum256([]byte{byte(100)}),
+	})
+	_ = w.db.Do().SetBill(1, &Bill{
+		Id:     uint256.NewInt(200),
+		Value:  200,
+		TxHash: hash.Sum256([]byte{byte(200)}),
+	})
+
+	accBills, err := w.GetAllBills()
+	require.NoError(t, err)
+	require.Len(t, accBills, 2)
+
+	acc0Bills := accBills[0]
+	require.Len(t, acc0Bills, 1)
+	require.EqualValues(t, acc0Bills[0].Value, 100)
+
+	acc1Bills := accBills[1]
+	require.Len(t, acc1Bills, 1)
+	require.EqualValues(t, acc1Bills[0].Value, 200)
+}
+
 func TestWalletGetBill(t *testing.T) {
 	// setup wallet with a bill
 	w, _ := CreateTestWallet(t)

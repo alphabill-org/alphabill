@@ -69,7 +69,6 @@ func (s *InmemoryBillStore) SetBills(pubkey []byte, billsIn ...*Bill) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, bill := range billsIn {
-		//s.pubkeyIndex[string(bill.Id)] = bill
 		bills, f := s.pubkeyIndex[string(pubkey)]
 		if !f {
 			bills = map[string]*Bill{}

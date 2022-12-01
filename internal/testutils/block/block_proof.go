@@ -11,11 +11,10 @@ import (
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
-func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.Signer, unitID *uint256.Int) *block.BlockProof {
+func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.Signer, unitID []byte) *block.BlockProof {
 	b := &block.GenericBlock{}
 	if tx != nil {
 		b.Transactions = []txsystem.GenericTransaction{tx}
@@ -46,9 +45,15 @@ func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *cert
 }
 
 func CertifyBlock(t *testing.T, b *block.Block, txConverter block.TxConverter) (*block.Block, map[string]abcrypto.Verifier) {
+	gblock, err := b.ToGenericBlock(txConverter)
+	require.NoError(t, err)
+	verifiers := CertifyGenericBlock(t, gblock)
+	return gblock.ToProtobuf(), verifiers
+}
+
+func CertifyGenericBlock(t *testing.T, b *block.GenericBlock) map[string]abcrypto.Verifier {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	genericBlock, _ := b.ToGenericBlock(txConverter)
-	genericBlock.UnicityCertificate = CreateUC(t, genericBlock, signer)
-	return genericBlock.ToProtobuf(), verifiers
+	b.UnicityCertificate = CreateUC(t, b, signer)
+	return verifiers
 }

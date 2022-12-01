@@ -285,6 +285,21 @@ func Test_amountToString(t *testing.T) {
 			args: args{amount: 18446744073709551615, decPlaces: 32},
 			want: "0.00000000000018446744073709551615",
 		},
+		{
+			name: "Conversion ok - 2.30",
+			args: args{amount: 230, decPlaces: 2},
+			want: "2.30",
+		},
+		{
+			name: "Conversion ok - 0.300",
+			args: args{amount: 3, decPlaces: 3},
+			want: "0.003",
+		},
+		{
+			name: "Conversion ok - 100230, decimals 3 - ok",
+			args: args{amount: 100230, decPlaces: 3},
+			want: "100.230",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -292,6 +307,127 @@ func Test_amountToString(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("amountToString() got = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_stringToAmount(t *testing.T) {
+	type args struct {
+		amount   string
+		decimals uint32
+	}
+	tests := []struct {
+		name       string
+		args       args
+		want       uint64
+		wantErrStr string
+	}{
+		{
+			name:       "empty",
+			args:       args{amount: "", decimals: 2},
+			want:       0,
+			wantErrStr: "invalid empty amount string",
+		},
+		{
+			name: "100.23, decimals 2 - ok",
+			args: args{amount: "100.23", decimals: 2},
+			want: 10023,
+		},
+		{
+			name:       "100.2.3 error - too many commas",
+			args:       args{amount: "100.2.3", decimals: 2},
+			want:       0,
+			wantErrStr: "more than one comma",
+		},
+		{
+			name:       ".30 error - no whole number",
+			args:       args{amount: ".3", decimals: 2},
+			want:       0,
+			wantErrStr: "missing integer part",
+		},
+		{
+			name:       "30. error - no fraction",
+			args:       args{amount: "30.", decimals: 2},
+			want:       0,
+			wantErrStr: "missing fraction part",
+		},
+		{
+			name:       "1.000, decimals 2 - error invalid precision",
+			args:       args{amount: "1.000", decimals: 2},
+			want:       0,
+			wantErrStr: "invalid precision",
+		},
+		{
+			name:       "in.300, decimals 3 - error not number",
+			args:       args{amount: "in.300", decimals: 3},
+			want:       0,
+			wantErrStr: "invalid amount string \"in.300\": error conversion to uint64 failed",
+		},
+		{
+			name:       "12.3c0, decimals 3 - error not number",
+			args:       args{amount: "12.3c0", decimals: 3},
+			want:       0,
+			wantErrStr: "invalid amount string \"12.3c0\": error conversion to uint64 failed",
+		},
+		{
+			name: "2.30, decimals 2 - ok",
+			args: args{amount: "2.30", decimals: 2},
+			want: 230,
+		},
+		{
+			name: "0000000.3, decimals 2 - ok",
+			args: args{amount: "0000000.3", decimals: 2},
+			want: 30,
+		},
+		{
+			name: "0.300, decimals 3 - ok",
+			args: args{amount: "0.300", decimals: 3},
+			want: 300,
+		},
+		{
+			name: "100.23, decimals 3 - ok",
+			args: args{amount: "100.23", decimals: 3},
+			want: 100230,
+		},
+		{
+			name:       "18446744073709551615.2 out of range - error",
+			args:       args{amount: "18446744073709551615.2", decimals: 1},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name:       "18446744073709551616 out of range - error",
+			args:       args{amount: "18446744073709551616", decimals: 0},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name:       "18446744073709551615 out of range - error",
+			args:       args{amount: "18446744073709551615", decimals: 1},
+			want:       0,
+			wantErrStr: "value out of range",
+		},
+		{
+			name: "18446744073709551615 max - ok",
+			args: args{amount: "18446744073709551615", decimals: 0},
+			want: 18446744073709551615,
+		},
+		{
+			name: "184467440737.09551615 max with decimals - ok",
+			args: args{amount: "184467440737.09551615", decimals: 8},
+			want: 18446744073709551615,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := stringToAmount(tt.args.amount, tt.args.decimals)
+			if len(tt.wantErrStr) > 0 {
+				require.ErrorContains(t, err, tt.wantErrStr)
+				require.Equal(t, uint64(0), got)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -431,6 +567,7 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 		name         string
 		args         []string
 		expectedKind tw.TokenKind
+		expectedPass string
 	}{
 		{
 			name:         "list all tokens",
@@ -453,6 +590,11 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 			exec := false
 			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind) error {
 				require.Equal(t, tt.expectedKind, kind)
+				if len(tt.expectedPass) != 0 {
+					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)
+					require.NoError(t, err)
+					require.Equal(t, tt.expectedPass, passwordFromArg)
+				}
 				exec = true
 				return nil
 			})

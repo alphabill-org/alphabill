@@ -244,6 +244,11 @@ func (w *Wallet) GetBills(accountIndex uint64) ([]*Bill, error) {
 	return w.db.Do().GetBills(accountIndex)
 }
 
+// GetAllBills returns all bills owned by the wallet for all accounts.
+func (w *Wallet) GetAllBills() ([][]*Bill, error) {
+	return w.db.Do().GetAllBills()
+}
+
 // AddBill adds bill to wallet.
 // Given bill must have a valid transaction with P2PKH predicate for given account.
 // Block proof is not verified, but transaction is required.
@@ -440,7 +445,7 @@ func (w *Wallet) Sync(ctx context.Context) error {
 	return w.Wallet.Sync(ctx, blockNumber)
 }
 
-// Sync synchronises wallet from the last known block number with the given alphabill node.
+// SyncToMaxBlockNumber synchronises wallet from the last known block number with the given alphabill node.
 // The function blocks until maximum block height, calculated at the start of the process, is reached.
 // Returns immediately with ErrWalletAlreadySynchronizing if already synchronizing.
 func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {

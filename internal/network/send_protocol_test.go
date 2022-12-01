@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -102,7 +103,7 @@ func TestSend_Ok(t *testing.T) {
 	peer2.Network().Peerstore().AddAddrs(peer1.ID(), peer1.MultiAddresses(), peerstore.PermanentAddrTTL)
 
 	// init send protocol
-	p, err := NewSendProtocol(peer2, testProtocolID, 40*time.Millisecond)
+	p, err := NewSendProtocol(peer2, testProtocolID, 120*time.Millisecond)
 	require.NoError(t, err)
 
 	ch := make(chan ReceivedMessage)
@@ -114,6 +115,12 @@ func TestSend_Ok(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer receive.Close()
+	ctx := context.Background()
+	con, err := peer2.Network().DialPeer(ctx, peer1.ID())
+	require.NoError(t, err, "dial failed rom address %v to address %v", peer2.MultiAddresses(), peer1.MultiAddresses())
+	defer con.Close()
+
+	require.NotEmpty(t, peer2.Network().Conns())
 
 	// peer2 forwards tx to peer1
 	transfer := moneytesttx.RandomBillTransfer(t)

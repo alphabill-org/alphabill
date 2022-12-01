@@ -21,7 +21,7 @@ func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	stdout, err := execBillsCommand(homedir, "list")
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Wallet is empty.")
+	verifyStdout(t, stdout, "Account #1 - empty")
 }
 
 func TestWalletBillsListCmd(t *testing.T) {
@@ -42,10 +42,12 @@ func TestWalletBillsListCmd(t *testing.T) {
 	// verify list bills shows all 4 bills
 	stdout, err = execBillsCommand(homedir, "list")
 	require.NoError(t, err)
+
+	verifyStdout(t, stdout, "Account #1")
 	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 9994")
 	// remining 3 bills are in sorted by bill ids which can change because of undeterministic timeout value,
 	// so we just check the length
-	require.Len(t, stdout.lines, 4)
+	require.Len(t, stdout.lines, 5)
 }
 
 func TestWalletBillsExportCmd(t *testing.T) {

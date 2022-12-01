@@ -211,7 +211,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// and wallet synchronization is started
 	go func() {
-		_ = w.Sync(context.Background())
+		err := w.Sync(context.Background())
+		if err != nil {
+			log.Warning("Wallet sync failed: ", err)
+		}
 	}()
 
 	// then dc transactions are sent
@@ -224,8 +227,6 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	dcNonce := calculateExpectedDcNonce(t, w)
 	require.EqualValues(t, w.dcWg.swaps[*uint256.NewInt(0).SetBytes(dcNonce)], dcTimeoutBlockCount)
 
-	// when dc timeout is reached
-	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &block.Block{
 			SystemIdentifier:   alphabillMoneySystemId,
@@ -236,6 +237,8 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 		}
 		serverService.SetBlock(blockNo, b)
 	}
+	// when dc timeout is reached
+	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
 
 	// then collect dust should finish
 	wg.Wait()

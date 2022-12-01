@@ -687,9 +687,9 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	})
-	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer, uint256.NewInt(existingTokenUnitID))
-	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer, uint256.NewInt(existingTokenUnitID2))
-	emptyBlockProof := testblock.CreateProof(t, nil, signer, uint256.NewInt(existingTokenUnitID))
+	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
+	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID2)))
+	emptyBlockProof := testblock.CreateProof(t, nil, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
 
 	tests := []struct {
 		name       string

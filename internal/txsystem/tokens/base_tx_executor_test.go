@@ -30,15 +30,11 @@ func TestVerifyPredicates(t *testing.T) {
 			signatures: [][]byte{script.PredicateArgumentEmpty()},
 		},
 		{
-			name:       "one 'true' predicate, no signatures",
-			predicates: []Predicate{script.PredicateAlwaysTrue()},
-			signatures: [][]byte{},
-		},
-		{
-			name:       "one 'false' predicate, no signatures",
+			name:       "one predicate, no signatures",
 			predicates: []Predicate{script.PredicateAlwaysFalse()},
 			signatures: [][]byte{},
-			err:        "script execution result yielded false",
+			err:        "Number of signatures (0) not equal to number of parent predicates (1)",
+			//err:        "script execution result yielded false",
 		},
 		{
 			name:       "one predicate, one empty signature",
@@ -47,19 +43,9 @@ func TestVerifyPredicates(t *testing.T) {
 			err:        "invalid script format",
 		},
 		{
-			name:       "two predicates, one default signature",
-			predicates: []Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysTrue()},
-			signatures: [][]byte{script.PredicateArgumentEmpty()},
-		},
-		{
-			name:       "two predicates, one empty signature",
-			predicates: []Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysTrue()},
-			signatures: [][]byte{{}},
-		},
-		{
-			name:       "two predicates (true and false), one empty signature",
+			name:       "two predicates (true and false), two signatures, unsatisfiable",
 			predicates: []Predicate{script.PredicateAlwaysTrue(), script.PredicateAlwaysFalse()},
-			signatures: [][]byte{{}},
+			signatures: [][]byte{script.PredicateArgumentEmpty(), script.PredicateArgumentEmpty()},
 			err:        "script execution result yielded false",
 		},
 		{

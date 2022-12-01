@@ -134,12 +134,20 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, kind TokenKind) ([]*TokenUn
 	return res, nil
 }
 
+// GetTokenType returns non-nil TokenUnitType or error if not found or other issues
 func (w *Wallet) GetTokenType(ctx context.Context, typeId TokenTypeID) (*TokenUnitType, error) {
 	err := w.Sync(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return w.db.Do().GetTokenType(typeId)
+	tt, err := w.db.Do().GetTokenType(typeId)
+	if err != nil {
+		return nil, err
+	}
+	if tt == nil {
+		return nil, fmt.Errorf("error token type %X not found", typeId)
+	}
+	return tt, nil
 }
 
 // ListTokens specify accountNumber=-1 to list tokens from all accounts

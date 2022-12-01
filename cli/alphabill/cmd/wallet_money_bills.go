@@ -58,7 +58,7 @@ func listCmd(config *walletConfig) *cobra.Command {
 			return execListCmd(cmd, config)
 		},
 	}
-	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to list")
+	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account bills to list (default: all accounts)")
 	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "includes unswapped dust bills in output")
 	return cmd
 }
@@ -79,19 +79,35 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	bills, err := w.GetBills(accountNumber - 1)
-	if err != nil {
-		return err
+	var bills [][]*money.Bill
+	if accountNumber == 0 {
+		bills, err = w.GetAllBills()
+		if err != nil {
+			return err
+		}
+	} else {
+		accBills, err := w.GetBills(accountNumber - 1)
+		if err != nil {
+			return err
+		}
+		bills = append(bills, accBills)
 	}
+
 	if !showUnswapped {
-		bills = filterDcBills(bills)
+		for i, accBills := range bills {
+			bills[i] = filterDcBills(accBills)
+		}
 	}
-	if len(bills) == 0 {
-		consoleWriter.Println("Wallet is empty.")
-		return nil
-	}
-	for i, b := range bills {
-		consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", i+1, b.GetID(), b.Value))
+
+	for i, accBills := range bills {
+		if len(accBills) == 0 {
+			consoleWriter.Println(fmt.Sprintf("Account #%d - empty", i+1))
+		} else {
+			consoleWriter.Println(fmt.Sprintf("Account #%d", i+1))
+		}
+		for j, bill := range accBills {
+			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", j+1, bill.GetID(), bill.Value))
+		}
 	}
 	return nil
 }
@@ -103,6 +119,7 @@ func exportCmd(config *walletConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execExportCmd(cmd, config)
 		},
+		Hidden: true,
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to export")
 	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
@@ -195,6 +212,7 @@ func importCmd(config *walletConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execImportCmd(cmd, config)
 		},
+		Hidden: true,
 	}
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to import the bills")
 	cmd.Flags().StringP(billFileCmdName, "b", "", "path to bill file (any file from export command output)")

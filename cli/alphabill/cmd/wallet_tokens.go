@@ -91,7 +91,6 @@ func tokenCmdNewType(config *walletConfig) *cobra.Command {
 
 func addCommonAccountFlags(cmd *cobra.Command) *cobra.Command {
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
-	addPasswordFlags(cmd)
 	return cmd
 }
 
@@ -271,7 +270,7 @@ func tokenCmdNewTokenFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdNewTokenFungible(cmd, config)
 		},
 	}
-	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
+	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
 		return nil
@@ -296,7 +295,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	}
 	defer tw.Shutdown()
 
-	amount, err := cmd.Flags().GetUint64(cmdFlagAmount)
+	amountStr, err := cmd.Flags().GetString(cmdFlagAmount)
 	if err != nil {
 		return err
 	}
@@ -308,14 +307,28 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tt, err := tw.GetTokenType(ctx, typeId)
+	if err != nil {
+		return err
+	}
+	// convert amount from string to uint64
+	amount, err := stringToAmount(amountStr, tt.DecimalPlaces)
+	if err != nil {
+		return err
+	}
+	if amount == 0 {
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
+	}
+
 	a := &tokens.MintFungibleTokenAttributes{
 		Bearer:                           nil, // will be set in the wallet
 		Type:                             typeId,
 		Value:                            amount,
 		TokenCreationPredicateSignatures: nil, // will be filled by the wallet
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	id, err := tw.NewFungibleToken(ctx, accountNumber, a, ci)
 	if err != nil {
 		return err
@@ -426,7 +439,7 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendFungible(cmd, config)
 		},
 	}
-	cmd.Flags().Uint64(cmdFlagAmount, 0, "amount")
+	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
 		return nil
@@ -479,7 +492,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	targetValue, err := cmd.Flags().GetUint64(cmdFlagAmount)
+	amountStr, err := cmd.Flags().GetString(cmdFlagAmount)
 	if err != nil {
 		return err
 	}
@@ -496,6 +509,19 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// get token type and convert amount string
+	tt, err := tw.GetTokenType(ctx, typeId)
+	if err != nil {
+		return err
+	}
+	// convert amount from string to uint64
+	targetValue, err := stringToAmount(amountStr, tt.DecimalPlaces)
+	if err != nil {
+		return err
+	}
+	if targetValue == 0 {
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
+	}
 	return tw.SendFungible(ctx, accountNumber, typeId, targetValue, pubKey, ib)
 }
 
@@ -648,7 +674,7 @@ func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
 			return runner(cmd, config, t.Any, &accountNumber)
 		},
 	}
-	// ass persistent password flags
+	// add persistent password flags
 	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	// add sub commands
@@ -696,6 +722,50 @@ func amountToString(amount uint64, decimals uint32) string {
 	resultStr := "0."
 	resultStr += strings.Repeat("0", int(decimals)-len(amountStr))
 	return resultStr + amountStr
+}
+
+// stringToAmount converts string and decimals to uint64 amount
+func stringToAmount(amountIn string, decimals uint32) (uint64, error) {
+	if amountIn == "" {
+		return 0, fmt.Errorf("invalid empty amount string")
+	}
+	splitAmount := strings.Split(amountIn, ".")
+	if len(splitAmount) > 2 {
+		return 0, fmt.Errorf("invlid amount string %s: more than one comma", amountIn)
+	}
+	integerStr := splitAmount[0]
+	if len(integerStr) == 0 {
+		return 0, fmt.Errorf("invalid amount string %s: missing integer part", amountIn)
+	}
+	// no comma, only integer part
+	if len(splitAmount) == 1 {
+		// pad with decimal number of 0's (alternative would be to convert and then multiply by 10 to the power of decimals)
+		integerStr += strings.Repeat("0", int(decimals))
+		amount, err := strconv.ParseUint(integerStr, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed, %v", amountIn, err)
+		}
+		return amount, nil
+	}
+	fractionStr := splitAmount[1]
+	if len(fractionStr) == 0 {
+		return 0, fmt.Errorf("invalid amount string %s: missing fraction part", amountIn)
+	}
+	// there is a comma in the value
+	if uint32(len(fractionStr)) > decimals {
+		return 0, fmt.Errorf("invalid precision: %s", amountIn)
+	}
+	// pad with 0's in input is smaller than decimals
+	if uint32(len(fractionStr)) < decimals {
+		// append 0's so that decimal number of fraction places are present
+		fractionStr += strings.Repeat("0", int(decimals)-len(fractionStr))
+	}
+	// convert the combined string "integer+fraction" to amount
+	amount, err := strconv.ParseUint(integerStr+fractionStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid amount string \"%s\": error conversion to uint64 failed, %v", amountIn, err)
+	}
+	return amount, nil
 }
 
 func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind t.TokenKind, accountNumber *int) error {

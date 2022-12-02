@@ -55,10 +55,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		totalValue          uint64 = 1000
 		splitValue1         uint64 = 100
 		splitValue2         uint64 = 10
-		zeroBacklink               = make([]byte, 32)
 		trustBase                  = map[string]crypto.Verifier{}
 	)
 
+	var txConverter block.TxConverter
 	// setup network
 	network, err := testpartition.NewNetwork(3, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
@@ -69,6 +69,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		system, err := New(WithState(state), WithTrustBase(tb))
 		require.NoError(t, err)
 		states = append(states, state)
+		txConverter = system
 		return system
 	}, DefaultTokenTxSystemIdentifier)
 	require.NoError(t, err)
@@ -117,11 +118,14 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		),
 	)
 	require.NoError(t, network.BroadcastTx(mintTx))
+	gtx, err := txConverter.ConvertTx(mintTx)
+	require.NoError(t, err)
+	txHash := gtx.Hash(gocrypto.SHA256)
 	require.Eventually(t, testpartition.BlockchainContainsTx(mintTx, network), test.WaitDuration*4, test.WaitTick)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   zeroBacklink,
+		backlink:   txHash,
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: totalValue,
 	})
@@ -136,7 +140,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  splitValue1,
 				Nonce:                        test.RandomBytes(32),
-				Backlink:                     make([]byte, 32),
+				Backlink:                     txHash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
@@ -144,11 +148,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	require.NoError(t, network.BroadcastTx(splitTx1))
 	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx1, network), test.WaitDuration, test.WaitTick)
 	split1GenTx, err := NewGenericTx(splitTx1)
+	split1GenTxHash := split1GenTx.Hash(hashAlgorithm)
 	require.NoError(t, err)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   split1GenTx.Hash(hashAlgorithm),
+		backlink:   split1GenTxHash,
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: totalValue - splitValue1,
 	})
@@ -158,7 +163,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     util.Uint256ToBytes(sUnitID1),
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   zeroBacklink,
+		backlink:   split1GenTxHash,
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: splitValue1,
 	})
@@ -181,10 +186,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	verifyProof(t, splitTx2, network, trustBase, hashAlgorithm)
 	splitGenTx2, err := NewGenericTx(splitTx2)
 	require.NoError(t, err)
+	splitGenTx2Hash := splitGenTx2.Hash(hashAlgorithm)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   splitGenTx2.Hash(hashAlgorithm),
+		backlink:   splitGenTx2Hash,
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
@@ -193,7 +199,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     util.Uint256ToBytes(sUnitID2),
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   zeroBacklink,
+		backlink:   splitGenTx2Hash,
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: splitValue2,
 	})
@@ -217,10 +223,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	verifyProof(t, transferTx, network, trustBase, hashAlgorithm)
 	transferGenTx, err := NewGenericTx(transferTx)
 	require.NoError(t, err)
+	transferGenTxHash := transferGenTx.Hash(hashAlgorithm)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     fungibleTokenID1,
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   transferGenTx.Hash(hashAlgorithm),
+		backlink:   transferGenTxHash,
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
@@ -234,7 +241,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Type:                         fungibleTokenTypeID,
 				Value:                        splitValue1,
 				Nonce:                        transferGenTx.Hash(hashAlgorithm),
-				Backlink:                     make([]byte, 32),
+				Backlink:                     split1GenTxHash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
@@ -244,11 +251,11 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	verifyProof(t, burnTx, network, trustBase, hashAlgorithm)
 	burnGenTx, err := NewGenericTx(burnTx)
 	require.NoError(t, err)
-
+	burnGenTxHash := burnGenTx.Hash(hashAlgorithm)
 	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
 		unitID:     util.Uint256ToBytes(sUnitID1),
 		typeUnitID: fungibleTokenTypeID,
-		backlink:   burnGenTx.Hash(hashAlgorithm),
+		backlink:   burnGenTxHash,
 		bearer:     []byte{0},
 		tokenValue: splitValue1,
 	})
@@ -261,7 +268,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				Type:                         fungibleTokenTypeID,
 				Value:                        splitValue2,
 				Nonce:                        transferGenTx.Hash(hashAlgorithm),
-				Backlink:                     make([]byte, 32),
+				Backlink:                     splitGenTx2Hash,
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),

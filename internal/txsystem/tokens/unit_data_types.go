@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"crypto"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/rma"
@@ -67,25 +66,25 @@ func newNonFungibleTokenTypeData(tx *createNonFungibleTokenTypeWrapper) rma.Unit
 	}
 }
 
-func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
+func newNonFungibleTokenData(tx *mintNonFungibleTokenWrapper, txHash []byte, currentBlockNr uint64) rma.UnitData {
 	attr := tx.attributes
 	return &nonFungibleTokenData{
 		nftType:             tx.NFTTypeIDInt(),
 		uri:                 attr.Uri,
 		data:                attr.Data,
 		dataUpdatePredicate: attr.DataUpdatePredicate,
-		t:                   0,                           // we don't have previous tx
-		backlink:            make([]byte, hasher.Size()), // in case of new NFT token the backlink is zero hash
+		t:                   currentBlockNr,
+		backlink:            txHash,
 	}
 }
 
-func newFungibleTokenData(tx *mintFungibleTokenWrapper, hasher crypto.Hash) rma.UnitData {
+func newFungibleTokenData(tx *mintFungibleTokenWrapper, txHash []byte, currentBlockNr uint64) rma.UnitData {
 	attr := tx.attributes
 	return &fungibleTokenData{
 		tokenType: tx.TypeIDInt(),
 		value:     attr.Value,
-		t:         0,                           // we don't have previous tx
-		backlink:  make([]byte, hasher.Size()), // in case of new NFT token the backlink is zero hash
+		t:         currentBlockNr,
+		backlink:  txHash,
 	}
 }
 

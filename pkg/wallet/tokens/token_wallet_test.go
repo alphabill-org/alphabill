@@ -43,6 +43,27 @@ func TestNewFungibleType(t *testing.T) {
 	require.Equal(t, typeId, tx.UnitId)
 	require.Equal(t, a.Symbol, newFungibleTx.Symbol)
 	require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
+	// pretend it was saved to db
+	tw.db.Do().AddTokenType(&TokenUnitType{
+		ID:            tx.UnitId,
+		DecimalPlaces: a.DecimalPlaces,
+		ParentTypeID:  nil,
+		Kind:          FungibleTokenType,
+		Symbol:        a.Symbol,
+	})
+	// new subtype
+	b := &tokens.CreateFungibleTokenTypeAttributes{
+		Symbol:                             "AB",
+		DecimalPlaces:                      2,
+		ParentTypeId:                       typeId,
+		SubTypeCreationPredicateSignatures: nil,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+	}
+	//check decimal places are validated against the parent type
+	_, err = tw.NewFungibleType(context.Background(), b, []byte{2}, nil)
+	require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
 }
 
 func TestNewNonFungibleType(t *testing.T) {
@@ -209,58 +230,6 @@ func TestNewNFT(t *testing.T) {
 	}
 }
 
-func TestTransferFungible(t *testing.T) {
-	tw, abClient := createTestWallet(t)
-	err := tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 1}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 2}))
-		return nil
-	})
-	require.NoError(t, err)
-	first := func(s PublicKey, e error) PublicKey {
-		require.NoError(t, e)
-		return s
-	}
-	tests := []struct {
-		name          string
-		tokenId       TokenID
-		amount        uint64
-		key           PublicKey
-		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes)
-	}{
-		{
-			name:    "to 'always true' predicate",
-			tokenId: []byte{11},
-			amount:  1,
-			key:     nil,
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes) {
-				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
-			},
-		},
-		{
-			name:    "to public key hash predicate",
-			tokenId: []byte{12},
-			amount:  2,
-			key:     first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes) {
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err = tw.Transfer(context.Background(), 1, tt.tokenId, tt.key)
-			require.NoError(t, err)
-			txs := abClient.GetRecordedTransactions()
-			tx := txs[len(txs)-1]
-			require.NotEqual(t, tt.tokenId, tx.UnitId)
-			newTransfer := parseFungibleTransfer(t, tx)
-			require.Equal(t, tt.amount, newTransfer.Value)
-			tt.validateOwner(t, 1, tt.key, newTransfer)
-		})
-	}
-}
-
 func TestTransferNFT(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {
@@ -298,7 +267,7 @@ func TestTransferNFT(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err = tw.TransferNFT(context.Background(), 1, tt.tokenId, tt.key)
+			err = tw.TransferNFT(context.Background(), 1, tt.tokenId, tt.key, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
@@ -395,7 +364,7 @@ func TestSendFungible(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			abClient.ClearRecordedTransactions()
-			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil)
+			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil, nil)
 			if tt.expectedErrorMsg != "" {
 				require.ErrorContains(t, err, tt.expectedErrorMsg)
 				return

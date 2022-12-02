@@ -250,7 +250,7 @@ func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []
 	}
 }
 
-func (w *Wallet) newType(ctx context.Context, attrs tokens.AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	sub, err := w.sendTx(TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.GetAccountManager(), subtypePredicateArgs, gtx)
 		if err != nil {
@@ -287,7 +287,7 @@ func preparePredicateSignatures(am wallet.AccountManager, args []*PredicateInput
 	return signatures, nil
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs tokens.MintAttr, tokenId TokenID, mintPredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId TokenID, mintPredicateArgs []*PredicateInput) (TokenID, error) {
 	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1
@@ -385,21 +385,21 @@ func signTx(gtx txsystem.GenericTransaction, ac *wallet.AccountKey) (tokens.Pred
 func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.Backlink))
 	return &tokens.TransferFungibleTokenAttributes{
-		Type:                        token.TypeID,
-		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
-		Value:                       token.Amount,
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		Type:                         token.TypeID,
+		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		Value:                        token.Amount,
+		Backlink:                     token.Backlink,
+		InvariantPredicateSignatures: nil,
 	}
 }
 
 func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
 	return &tokens.TransferNonFungibleTokenAttributes{
-		NftType:                     token.TypeID,
-		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		NftType:                      token.TypeID,
+		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		Backlink:                     token.Backlink,
+		InvariantPredicateSignatures: nil,
 	}
 }
 
@@ -417,29 +417,20 @@ func bearerPredicateFromPubKey(receiverPubKey PublicKey) tokens.Predicate {
 	return bearerPredicateFromHash(hash.Sum256(receiverPubKey))
 }
 
-func (w *Wallet) transfer(ctx context.Context, ac *wallet.AccountKey, token *TokenUnit, receiverPubKey []byte) error {
-	sub, err := w.sendTx(token.ID, newFungibleTransferTxAttrs(token, receiverPubKey), ac, nil)
-	if err != nil {
-		return err
-	}
-
-	return w.syncToUnit(ctx, token.ID, sub.timeout)
-}
-
 func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
 	return &tokens.SplitFungibleTokenAttributes{
-		Type:                        token.TypeID,
-		NewBearer:                   bearerPredicateFromPubKey(receiverPubKey),
-		TargetValue:                 amount,
-		RemainingValue:              token.Amount - amount,
-		Backlink:                    token.Backlink,
-		InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+		Type:                         token.TypeID,
+		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
+		TargetValue:                  amount,
+		RemainingValue:               token.Amount - amount,
+		Backlink:                     token.Backlink,
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte) (map[string]*submittedTx, uint64, error) {
+func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (map[string]*submittedTx, uint64, error) {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
@@ -448,7 +439,7 @@ func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.
 	submissions := make(map[string]*submittedTx, 2)
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
-		sub, err := w.sendSplitOrTransferTx(acc, remainingAmount, t, receiverPubKey)
+		sub, err := w.sendSplitOrTransferTx(acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
 		if sub.timeout > maxTimeout {
 			maxTimeout = sub.timeout
 		}
@@ -464,14 +455,21 @@ func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.
 	return submissions, maxTimeout, nil
 }
 
-func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte) (*submittedTx, error) {
-	var attrs proto.Message
+func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submittedTx, error) {
+	var attrs AttrWithInvariantPredicateInputs
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
 	} else {
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 	}
-	sub, err := w.sendTx(token.ID, attrs, acc, nil)
+	sub, err := w.sendTx(token.ID, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.SetInvariantPredicateSignatures(signatures)
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
 	if err != nil {
 		return sub, err
 	}

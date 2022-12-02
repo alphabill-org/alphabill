@@ -8,11 +8,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 
@@ -120,9 +119,48 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 	}
 }
 
+func TestNFTs_Integration(t *testing.T) {
+	partition, unitState := startTokensPartition(t)
+
+	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
+
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	_, err := w1.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w1.Shutdown()
+
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2key, err := w2.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w2.Shutdown()
+
+	// non-fungible token types
+	typeID := randomID(t)
+	nftID := randomID(t)
+	symbol := "ABNFT"
+	execTokensCmdWithError(t, homedirW1, "new-type non-fungible", "required flag(s) \"symbol\" not set")
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol, dialAddr, typeID))
+	ensureUnitBytes(t, unitState, typeID)
+	// mint NFT
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X", dialAddr, typeID, nftID))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
+	}), test.WaitDuration, test.WaitTick)
+	// transfer NFT
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send non-fungible --sync false -u %s --token-identifier %X --address 0x%X -k 1", dialAddr, nftID, w2key.PubKey))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.TransferNonFungibleTokenAttributes" && bytes.Equal(tx.UnitId, nftID)
+	}), test.WaitDuration, test.WaitTick)
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
+	//check what is left in w1, nothing, that is
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -u %s", dialAddr)), "No tokens")
+	// list token types
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types")), "symbol=ABNFT (type,non-fungible)")
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types non-fungible")), "symbol=ABNFT (type,non-fungible)")
+}
+
 func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.T) {
 	partition, unitState := startTokensPartition(t)
-	startRPCServer(t, partition, listenAddr)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	w1, homedir := createNewTokenWallet(t, dialAddr)
@@ -154,4 +192,42 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlagIntegrationTest(t *testing.
 		return false
 	}), test.WaitDuration, test.WaitTick)
 	verifyStdout(t, execTokensCmd(t, homedir, fmt.Sprintf("list non-fungible -u %s", dialAddr)), fmt.Sprintf("ID='%X'", nftID))
+}
+
+func TestNFT_InvariantPredicate_Integration(t *testing.T) {
+	partition, unitState := startTokensPartition(t)
+
+	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
+
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	_, err := w1.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w1.Shutdown()
+
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2key, err := w2.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w2.Shutdown()
+
+	symbol1 := "ABNFT"
+	typeID11 := randomID(t)
+	typeID12 := randomID(t)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible -u %s --sync true --symbol %s --type %X --inherit-bearer-clause %s", dialAddr, symbol1, typeID11, predicatePtpkh))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return bytes.Equal(tx.UnitId, typeID11)
+	}), test.WaitDuration, test.WaitTick)
+	ensureUnitBytes(t, unitState, typeID11)
+	//second type inheriting the first one and leaves inherit-bearer clause to default (true)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible -u %s --sync true --symbol %s --type %X --parent-type %X --subtype-input %s", dialAddr, symbol1, typeID12, typeID11, predicateTrue))
+	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
+		return bytes.Equal(tx.UnitId, typeID12)
+	}), test.WaitDuration, test.WaitTick)
+	ensureUnitBytes(t, unitState, typeID12)
+	//mint
+	id := randomID(t)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible -u %s --sync true --type %X --token-identifier %X --mint-input %s,%s", dialAddr, typeID12, id, predicatePtpkh, predicatePtpkh))
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -u %s", dialAddr)), "Symbol='ABNFT'")
+	//send to w2
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send non-fungible -u %s --token-identifier %X --address 0x%X -k 1 --inherit-bearer-input %s,%s", dialAddr, id, w2key.PubKey, predicateTrue, predicatePtpkh))
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list non-fungible -u %s", dialAddr)), "Symbol='ABNFT'")
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"google.golang.org/protobuf/proto"
 )
 
 type (
@@ -52,6 +53,22 @@ type (
 		Argument tokens.Predicate
 		// if Argument empty, check AccountNumber
 		AccountNumber uint64
+	}
+
+	MintAttr interface {
+		proto.Message
+		SetBearer([]byte)
+		SetTokenCreationPredicateSignatures([][]byte)
+	}
+
+	AttrWithSubTypeCreationInputs interface {
+		proto.Message
+		SetSubTypeCreationPredicateSignatures([][]byte)
+	}
+
+	AttrWithInvariantPredicateInputs interface {
+		proto.Message
+		SetInvariantPredicateSignatures([][]byte)
 	}
 
 	Proof struct {

@@ -5,8 +5,6 @@ import (
 	"reflect"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -83,7 +81,7 @@ type (
 		NewBearer() []byte
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	UpdateNonFungibleToken interface {
@@ -120,7 +118,7 @@ type (
 		Value() uint64
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	SplitFungibleToken interface {
@@ -132,7 +130,7 @@ type (
 		RemainingValue() uint64
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	BurnFungibleToken interface {
@@ -141,7 +139,7 @@ type (
 		Value() uint64
 		Nonce() []byte
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
+		InvariantPredicateSignatures() [][]byte
 	}
 
 	JoinFungibleToken interface {
@@ -149,18 +147,7 @@ type (
 		BurnTransactions() []BurnFungibleToken
 		BlockProofs() []*block.BlockProof
 		Backlink() []byte
-		InvariantPredicateSignature() []byte
-	}
-
-	MintAttr interface {
-		proto.Message
-		SetBearer([]byte)
-		SetTokenCreationPredicateSignatures([][]byte)
-	}
-
-	AttrWithSubTypeCreationInputs interface {
-		proto.Message
-		SetSubTypeCreationPredicateSignatures([][]byte)
+		InvariantPredicateSignatures() [][]byte
 	}
 )
 
@@ -186,6 +173,26 @@ func (x *MintNonFungibleTokenAttributes) SetBearer(b []byte) {
 
 func (x *MintNonFungibleTokenAttributes) SetTokenCreationPredicateSignatures(sigs [][]byte) {
 	x.TokenCreationPredicateSignatures = sigs
+}
+
+func (x *TransferNonFungibleTokenAttributes) SetInvariantPredicateSignatures(sigs [][]byte) {
+	x.InvariantPredicateSignatures = sigs
+}
+
+func (x *TransferFungibleTokenAttributes) SetInvariantPredicateSignatures(sigs [][]byte) {
+	x.InvariantPredicateSignatures = sigs
+}
+
+func (x *SplitFungibleTokenAttributes) SetInvariantPredicateSignatures(sigs [][]byte) {
+	x.InvariantPredicateSignatures = sigs
+}
+
+func (x *BurnFungibleTokenAttributes) SetInvariantPredicateSignatures(sigs [][]byte) {
+	x.InvariantPredicateSignatures = sigs
+}
+
+func (x *JoinFungibleTokenAttributes) SetInvariantPredicateSignatures(sigs [][]byte) {
+	x.InvariantPredicateSignatures = sigs
 }
 
 func New(opts ...Option) (*tokensTxSystem, error) {

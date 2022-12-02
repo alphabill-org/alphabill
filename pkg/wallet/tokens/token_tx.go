@@ -70,7 +70,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				Kind:     FungibleToken,
 				TypeID:   ctx.TypeID(),
 				Amount:   ctx.Value(),
-				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
+				Backlink: txHash,
 				Symbol:   tType.Symbol,
 			}, b, tx, txc)
 			if err != nil {
@@ -156,7 +156,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				TypeID:   tokenInfo.GetTypeId(),
 				Kind:     FungibleToken,
 				Amount:   ctx.TargetValue(),
-				Backlink: make([]byte, crypto.SHA256.Size()),
+				Backlink: txHash,
 			}, b, tx, txc)
 			if err != nil {
 				return err
@@ -194,7 +194,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				Kind:     NonFungibleToken,
 				TypeID:   ctx.NFTTypeID(),
 				URI:      ctx.URI(),
-				Backlink: make([]byte, crypto.SHA256.Size()), //zerohash
+				Backlink: txHash,
 				Symbol:   tType.Symbol,
 			}, b, tx, txc)
 			if err != nil {

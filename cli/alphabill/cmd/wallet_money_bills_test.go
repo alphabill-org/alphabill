@@ -51,19 +51,21 @@ func TestWalletBillsListCmd(t *testing.T) {
 
 	// add new key and send transactions to it
 	address2 := "0x02d36c574db299904b285aaeb57eb7b1fa145c43af90bec3c635c4174c224587b6"
-	stdout, _ = execCommand(homedir, "add-key")
-	stdout, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 1, address2))
-	stdout, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 2, address2))
-	stdout, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 3, address2))
-	stdout, _ = execCommand(homedir, "sync -u localhost:9543")
+	_, _ = execCommand(homedir, "add-key")
+	_, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 1, address2))
+	_, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 2, address2))
+	_, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 3, address2))
+	_, _ = execCommand(homedir, "sync -u localhost:9543")
 
 	// verify list bills for specfic account only shows given account bills
 	stdout, err = execBillsCommand(homedir, "list -k 2")
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Account #2")
-	verifyStdout(t, stdout, "#1")
-	verifyStdout(t, stdout, "#2")
-	verifyStdout(t, stdout, "#3")
+	lines := stdout.lines
+	require.Len(t, lines, 4)
+	require.Contains(t, lines[0], "Account #2")
+	require.Contains(t, lines[1], "#1")
+	require.Contains(t, lines[2], "#2")
+	require.Contains(t, lines[3], "#3")
 }
 
 func TestWalletBillsExportCmd(t *testing.T) {

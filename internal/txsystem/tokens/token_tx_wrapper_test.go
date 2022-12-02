@@ -13,34 +13,34 @@ import (
 )
 
 var (
-	systemID                                 = []byte{0, 0, 4, 2}
-	unitID                                   = []byte{1}
-	ownerProof                               = []byte{2}
-	symbol                                   = "TEST"
-	parentTypeId                             = []byte{3}
-	subTypeCreationPredicate                 = []byte{4}
-	tokenCreationPredicate                   = []byte{5}
-	invariantPredicate                       = []byte{6}
-	dataUpdatePredicate                      = []byte{7}
-	subTypeCreationPredicateSignature        = []byte{8}
-	timeout                                  = uint64(100)
-	bearer                                   = []byte{10}
-	nftType                                  = []byte{11}
-	data                                     = []byte{12}
-	updatedData                              = []byte{0, 12}
-	uri                                      = "https://alphabill.org"
-	tokenCreationPredicateSignature          = []byte{14}
-	newBearer                                = []byte{15}
-	nonce                                    = []byte{16}
-	backlink                                 = []byte{17}
-	invariantPredicateSignature              = []byte{18}
-	dataUpdateSignature                      = []byte{19}
-	fungibleTokenDecimalPlaces        uint32 = 8
-	fungibleTokenValue                uint64 = 100_000_002
-	transferValue                     uint64 = 1000
-	remainingValue                    uint64 = 1000
-	burnValue                         uint64 = 2000
-	burnType                                 = []byte{20}
+	systemID                                  = []byte{0, 0, 4, 2}
+	unitID                                    = []byte{1}
+	ownerProof                                = []byte{2}
+	symbol                                    = "TEST"
+	parentTypeId                              = []byte{3}
+	subTypeCreationPredicate                  = []byte{4}
+	tokenCreationPredicate                    = []byte{5}
+	invariantPredicate                        = []byte{6}
+	dataUpdatePredicate                       = []byte{7}
+	subTypeCreationPredicateSignatures        = [][]byte{{8}, {8}}
+	timeout                                   = uint64(100)
+	bearer                                    = []byte{10}
+	nftType                                   = []byte{11}
+	data                                      = []byte{12}
+	updatedData                               = []byte{0, 12}
+	uri                                       = "https://alphabill.org"
+	tokenCreationPredicateSignatures          = [][]byte{{14}, {14}}
+	newBearer                                 = []byte{15}
+	nonce                                     = []byte{16}
+	backlink                                  = []byte{17}
+	invariantPredicateSignatures              = [][]byte{{18}, {18}}
+	dataUpdateSignatures                      = [][]byte{{19}, {19}}
+	fungibleTokenDecimalPlaces         uint32 = 8
+	fungibleTokenValue                 uint64 = 100_000_002
+	transferValue                      uint64 = 1000
+	remainingValue                     uint64 = 1000
+	burnValue                          uint64 = 2000
+	burnType                                  = []byte{20}
 )
 
 func TestCreateNonFungibleTokenTypeTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
@@ -96,7 +96,9 @@ func TestCreateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T)
 	b.Write(tokenCreationPredicate)
 	b.Write(invariantPredicate)
 	b.Write(dataUpdatePredicate)
-	b.Write(subTypeCreationPredicateSignature)
+	for _, sig := range subTypeCreationPredicateSignatures {
+		b.Write(sig)
+	}
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -116,7 +118,9 @@ func TestMintNonFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write([]byte(uri))
 	b.Write(data)
 	b.Write(dataUpdatePredicate)
-	b.Write(tokenCreationPredicateSignature)
+	for _, sig := range tokenCreationPredicateSignatures {
+		b.Write(sig)
+	}
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -134,7 +138,9 @@ func TestTransferNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.
 	b.Write(newBearer)
 	b.Write(nonce)
 	b.Write(backlink)
-	b.Write(invariantPredicateSignature)
+	for _, sig := range invariantPredicateSignatures {
+		b.Write(sig)
+	}
 	b.Write(nftType)
 	require.Equal(t, b.Sum(nil), hash)
 }
@@ -168,7 +174,9 @@ func TestUpdateNonFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T)
 	b.Write(util.Uint64ToBytes(timeout))
 	b.Write(updatedData)
 	b.Write(backlink)
-	b.Write(dataUpdateSignature)
+	for _, sig := range dataUpdateSignatures {
+		b.Write(sig)
+	}
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -203,7 +211,9 @@ func TestCreateFungibleTokenTypeTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(subTypeCreationPredicate)
 	b.Write(tokenCreationPredicate)
 	b.Write(invariantPredicate)
-	b.Write(subTypeCreationPredicateSignature)
+	for _, sig := range subTypeCreationPredicateSignatures {
+		b.Write(sig)
+	}
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -239,7 +249,9 @@ func TestMintFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(bearer)
 	b.Write(parentTypeId)
 	b.Write(util.Uint64ToBytes(fungibleTokenValue))
-	b.Write(tokenCreationPredicateSignature)
+	for _, sig := range tokenCreationPredicateSignatures {
+		b.Write(sig)
+	}
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -273,7 +285,9 @@ func TestTransferFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(transferValue))
 	b.Write(nonce)
 	b.Write(backlink)
-	b.Write(invariantPredicateSignature)
+	for _, sig := range invariantPredicateSignatures {
+		b.Write(sig)
+	}
 	b.Write(parentTypeId)
 	require.Equal(t, b.Sum(nil), hash)
 }
@@ -311,7 +325,9 @@ func TestSplitFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(remainingValue))
 	b.Write(nonce)
 	b.Write(backlink)
-	b.Write(invariantPredicateSignature)
+	for _, sig := range invariantPredicateSignatures {
+		b.Write(sig)
+	}
 	b.Write(parentTypeId)
 	require.Equal(t, b.Sum(nil), hash)
 }
@@ -362,7 +378,9 @@ func TestBurnFungibleTokenTx_GetHashIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(burnValue))
 	b.Write(nonce)
 	b.Write(backlink)
-	b.Write(invariantPredicateSignature)
+	for _, sig := range invariantPredicateSignatures {
+		b.Write(sig)
+	}
 	require.Equal(t, b.Sum(nil), hash)
 }
 
@@ -395,7 +413,7 @@ func createFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *txsy
 			SubTypeCreationPredicate:           subTypeCreationPredicate,
 			TokenCreationPredicate:             tokenCreationPredicate,
 			InvariantPredicate:                 invariantPredicate,
-			SubTypeCreationPredicateSignatures: [][]byte{subTypeCreationPredicateSignature},
+			SubTypeCreationPredicateSignatures: subTypeCreationPredicateSignatures,
 		}),
 	)
 }
@@ -410,7 +428,7 @@ func mintFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.T
 			Bearer:                           bearer,
 			Type:                             parentTypeId,
 			Value:                            fungibleTokenValue,
-			TokenCreationPredicateSignatures: [][]byte{tokenCreationPredicateSignature},
+			TokenCreationPredicateSignatures: tokenCreationPredicateSignatures,
 		}),
 	)
 }
@@ -427,7 +445,7 @@ func transferFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsyst
 			Value:                        transferValue,
 			Nonce:                        nonce,
 			Backlink:                     backlink,
-			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
+			InvariantPredicateSignatures: invariantPredicateSignatures,
 		}),
 	)
 }
@@ -445,7 +463,7 @@ func splitFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.
 			RemainingValue:               remainingValue,
 			Nonce:                        nonce,
 			Backlink:                     backlink,
-			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
+			InvariantPredicateSignatures: invariantPredicateSignatures,
 		}),
 	)
 }
@@ -461,7 +479,7 @@ func burnFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *txsystem.T
 			Value:                        burnValue,
 			Nonce:                        nonce,
 			Backlink:                     backlink,
-			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
+			InvariantPredicateSignatures: invariantPredicateSignatures,
 		}),
 	)
 }
@@ -479,7 +497,7 @@ func createNonFungibleTokenTypeTxOrder(t *testing.T, systemIdentifier []byte) *t
 			TokenCreationPredicate:             tokenCreationPredicate,
 			InvariantPredicate:                 invariantPredicate,
 			DataUpdatePredicate:                dataUpdatePredicate,
-			SubTypeCreationPredicateSignatures: [][]byte{subTypeCreationPredicateSignature},
+			SubTypeCreationPredicateSignatures: subTypeCreationPredicateSignatures,
 		}),
 	)
 }
@@ -496,7 +514,7 @@ func createMintNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) *t
 			Uri:                              uri,
 			Data:                             data,
 			DataUpdatePredicate:              dataUpdatePredicate,
-			TokenCreationPredicateSignatures: [][]byte{tokenCreationPredicateSignature},
+			TokenCreationPredicateSignatures: tokenCreationPredicateSignatures,
 		}),
 	)
 }
@@ -512,7 +530,7 @@ func createTransferNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte
 			NftType:                      nftType,
 			Nonce:                        nonce,
 			Backlink:                     backlink,
-			InvariantPredicateSignatures: [][]byte{invariantPredicateSignature},
+			InvariantPredicateSignatures: invariantPredicateSignatures,
 		}),
 	)
 }
@@ -524,9 +542,9 @@ func createUpdateNonFungibleTokenTxOrder(t *testing.T, systemIdentifier []byte) 
 		testtransaction.WithTimeout(timeout),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
-			Data:                updatedData,
-			Backlink:            backlink,
-			DataUpdateSignature: dataUpdateSignature,
+			Data:                 updatedData,
+			Backlink:             backlink,
+			DataUpdateSignatures: dataUpdateSignatures,
 		}),
 	)
 }

@@ -65,6 +65,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	}
 	cmd.AddCommand(tokenCmdNewType(config))
 	cmd.AddCommand(tokenCmdNewToken(config))
+	cmd.AddCommand(tokenCmdUpdateNFTData(config))
 	cmd.AddCommand(tokenCmdSend(config))
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
@@ -179,40 +180,6 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	return nil
 }
 
-func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Predicate, []*t.PredicateInput, error) {
-	parentType, err := getHexFlag(cmd, cmdFlagParentType)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
-		parentType = NoParent
-		return NoParent, []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
-	}
-
-	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, am)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return parentType, creationInputs, nil
-}
-
-func readPredicateInput(cmd *cobra.Command, flag string, am wallet.AccountManager) ([]*t.PredicateInput, error) {
-	creationInputStrs, err := cmd.Flags().GetStringSlice(flag)
-	if err != nil {
-		return nil, err
-	}
-	if len(creationInputStrs) == 0 {
-		return []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
-	}
-	creationInputs, err := parsePredicateArguments(creationInputStrs, am)
-	if err != nil {
-		return nil, err
-	}
-	return creationInputs, nil
-}
-
 func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "non-fungible",
@@ -223,6 +190,7 @@ func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().BytesHex(cmdFlagType, nil, "type unit identifier (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagType)
+	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	return cmd
 }
 
@@ -254,6 +222,10 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
+	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, am)
+	if err != nil {
+		return err
+	}
 	invariantPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagInheritBearerClause, am)
 	if err != nil {
 		return err
@@ -265,7 +237,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		SubTypeCreationPredicate:           subTypeCreationPredicate,
 		TokenCreationPredicate:             mintTokenPredicate,
 		InvariantPredicate:                 invariantPredicate,
-		DataUpdatePredicate:                script.PredicateAlwaysTrue(),
+		DataUpdatePredicate:                dataUpdatePredicate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -383,7 +355,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
 	// cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile) TODO use once 1.5.0 is released
-	cmd.Flags().BytesHex(cmdFlagTokenDataUpdateClause, nil, "data update predicate (hex)")
+	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().StringSlice(cmdFlagMintClauseInput, []string{predicatePtpkh}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
 	_ = cmd.Flags().MarkHidden(cmdFlagTokenId)
@@ -413,26 +385,16 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
-	data, err := getHexFlag(cmd, cmdFlagTokenData)
+	data, err := readNFTData(cmd)
 	if err != nil {
 		return err
 	}
-	dataFilePath, err := cmd.Flags().GetString(cmdFlagTokenDataFile)
+	am := tw.GetAccountManager()
+	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, am)
 	if err != nil {
 		return err
 	}
-	// TODO remove once 1.5.0 is released and use MarkFlagsMutuallyExclusive instead
-	// cannot specify both inputs, either data or data-file
-	if data != nil && len(dataFilePath) > 0 {
-		return fmt.Errorf("flags \"--%v\" and \"--%v\" are mutually exclusive", cmdFlagTokenData, cmdFlagTokenDataFile)
-	}
-	if len(dataFilePath) > 0 {
-		data, err = readDataFile(dataFilePath)
-		if err != nil {
-			return err
-		}
-	}
-	ci, err := readPredicateInput(cmd, cmdFlagMintClauseInput, tw.GetAccountManager())
+	dataUpdatePredicate, err := parsePredicateClauseCmd(cmd, cmdFlagTokenDataUpdateClause, am)
 	if err != nil {
 		return err
 	}
@@ -441,7 +403,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		NftType:                          typeId,
 		Uri:                              uri,
 		Data:                             data,
-		DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+		DataUpdatePredicate:              dataUpdatePredicate,
 		TokenCreationPredicateSignatures: nil, // will be set in the wallet
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -654,6 +616,55 @@ func execTokenCmdSync(cmd *cobra.Command, config *walletConfig) error {
 	return tw.Sync(ctx)
 }
 
+func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "update the data field on a non-fungible token",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return execTokenCmdUpdateNFTData(cmd, config)
+		},
+	}
+	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "token identifier (hex)")
+	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
+	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
+	// cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile) TODO use once 1.5.0 is released
+	cmd.Flags().StringSlice(cmdFlagTokenDataUpdateClauseInput, []string{predicateTrue}, "input to satisfy the data-update clauses")
+	return addCommonAccountFlags(cmd)
+}
+
+func execTokenCmdUpdateNFTData(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
+
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	tokenId, err := getHexFlag(cmd, cmdFlagTokenId)
+	if err != nil {
+		return err
+	}
+
+	data, err := readNFTData(cmd)
+	if err != nil {
+		return err
+	}
+
+	du, err := readPredicateInput(cmd, cmdFlagTokenDataUpdateClauseInput, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	return tw.UpdateNFTData(ctx, accountNumber, tokenId, data, du)
+}
+
 func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
 	accountNumber := -1
 	cmd := &cobra.Command{
@@ -663,6 +674,9 @@ func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
 			return runner(cmd, config, t.Any, &accountNumber)
 		},
 	}
+	// add persistent password flags
+	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
+	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	// add sub commands
 	cmd.AddCommand(tokenCmdListFungible(config, runner, &accountNumber))
 	cmd.AddCommand(tokenCmdListNonFungible(config, runner, &accountNumber))
@@ -819,6 +833,9 @@ func tokenCmdListTypes(config *walletConfig, runner runTokenListTypesCmd) *cobra
 			return runner(cmd, config, t.Any)
 		},
 	}
+	// add password flags as persistent
+	cmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
+	cmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
 	// add optional sub-commands to filter fungible and non-fungible types
 	cmd.AddCommand(&cobra.Command{
 		Use:   "fungible",
@@ -878,6 +895,40 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, erro
 		return nil, err
 	}
 	return tw, nil
+}
+
+func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Predicate, []*t.PredicateInput, error) {
+	parentType, err := getHexFlag(cmd, cmdFlagParentType)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
+		parentType = NoParent
+		return NoParent, []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+	}
+
+	creationInputs, err := readPredicateInput(cmd, cmdFlagSybTypeClauseInput, am)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return parentType, creationInputs, nil
+}
+
+func readPredicateInput(cmd *cobra.Command, flag string, am wallet.AccountManager) ([]*t.PredicateInput, error) {
+	creationInputStrs, err := cmd.Flags().GetStringSlice(flag)
+	if err != nil {
+		return nil, err
+	}
+	if len(creationInputStrs) == 0 {
+		return []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
+	}
+	creationInputs, err := parsePredicateArguments(creationInputStrs, am)
+	if err != nil {
+		return nil, err
+	}
+	return creationInputs, nil
 }
 
 // parsePredicateClause uses the following format:
@@ -994,6 +1045,29 @@ func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.Predi
 		return &t.PredicateInput{Argument: decoded}, nil
 	}
 	return nil, fmt.Errorf("invalid creation input: '%s'", argument)
+}
+
+func readNFTData(cmd *cobra.Command) ([]byte, error) {
+	data, err := getHexFlag(cmd, cmdFlagTokenData)
+	if err != nil {
+		return nil, err
+	}
+	dataFilePath, err := cmd.Flags().GetString(cmdFlagTokenDataFile)
+	if err != nil {
+		return nil, err
+	}
+	// TODO remove once 1.5.0 is released and use MarkFlagsMutuallyExclusive instead
+	// cannot specify both inputs, either data or data-file
+	if data != nil && len(dataFilePath) > 0 {
+		return nil, fmt.Errorf("flags \"--%v\" and \"--%v\" are mutually exclusive", cmdFlagTokenData, cmdFlagTokenDataFile)
+	}
+	if len(dataFilePath) > 0 {
+		data, err = readDataFile(dataFilePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return data, nil
 }
 
 //getHexFlag returns nil in case array is empty (weird behaviour by cobra)

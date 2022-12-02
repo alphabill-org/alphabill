@@ -490,7 +490,9 @@ func (u *updateNonFungibleTokenWrapper) AddToHasher(hasher hash.Hash) {
 	u.wrapper.addTransactionFieldsToHasher(hasher)
 	hasher.Write(u.Data())
 	hasher.Write(u.Backlink())
-	hasher.Write(u.DataUpdateSignature())
+	for _, bs := range u.DataUpdateSignatures() {
+		hasher.Write(bs)
+	}
 }
 
 func (u *updateNonFungibleTokenWrapper) Data() []byte {
@@ -501,8 +503,8 @@ func (u *updateNonFungibleTokenWrapper) Backlink() []byte {
 	return u.attributes.Backlink
 }
 
-func (u *updateNonFungibleTokenWrapper) DataUpdateSignature() []byte {
-	return u.attributes.DataUpdateSignature
+func (u *updateNonFungibleTokenWrapper) DataUpdateSignatures() [][]byte {
+	return u.attributes.DataUpdateSignatures
 }
 
 func (u *updateNonFungibleTokenWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {

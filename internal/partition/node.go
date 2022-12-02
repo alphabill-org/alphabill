@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
@@ -31,17 +32,6 @@ import (
 const (
 	idle status = iota
 	recovering
-)
-
-const (
-	EventTypeError EventType = iota
-	EventTypeTransactionProcessed
-	EventTypeNewRoundStarted
-	EventTypeUnicityCertificateHandled
-	EventTypeBlockFinalized
-	EventTypeRecoveryStarted
-	EventTypeRecoveryFinished
-	EventTypeStateReverted
 )
 
 const t1TimerName = "t1"
@@ -83,19 +73,10 @@ type (
 		txCancel                    context.CancelFunc
 		txWaitGroup                 *sync.WaitGroup
 		txCh                        chan txsystem.GenericTransaction
-		eventCh                     chan Event
+		eventCh                     chan event.Event
 		eventChCancel               chan bool
-		eventHandler                EventHandler
+		eventHandler                event.Handler
 	}
-
-	Event struct {
-		EventType EventType
-		Content   any
-	}
-
-	EventType int
-
-	EventHandler func(e Event)
 
 	status int
 )
@@ -158,7 +139,7 @@ func New(
 	n.timers.Start(t1TimerName, conf.t1Timeout)
 	n.txCh = make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity())
 	if n.eventHandler != nil {
-		n.eventCh = make(chan Event, conf.eventChCapacity)
+		n.eventCh = make(chan event.Event, conf.eventChCapacity)
 		n.eventChCancel = make(chan bool)
 		go n.eventHandlerLoop()
 	}
@@ -334,7 +315,7 @@ func (n *Node) loop() {
 				err := n.txBuffer.Add(tx)
 				if err != nil {
 					logger.Warning("Invalid transaction: %v", err)
-					n.sendEvent(EventTypeError, err)
+					n.sendEvent(event.Error, err)
 				}
 			} else {
 				n.process(tx)
@@ -353,7 +334,7 @@ func (n *Node) loop() {
 				err := n.handleTxMessage(m)
 				if err != nil {
 					logger.Warning("Invalid transaction: %v", err)
-					n.sendEvent(EventTypeError, err)
+					n.sendEvent(event.Error, err)
 				}
 			case network.ProtocolUnicityCertificates:
 				success, uc := convertType[*certificates.UnicityCertificate](m.Message)
@@ -364,10 +345,10 @@ func (n *Node) loop() {
 				err := n.handleUnicityCertificate(uc)
 				if err != nil {
 					logger.Warning("Unicity Certificate processing failed: %v", err)
-					n.sendEvent(EventTypeError, err)
+					n.sendEvent(event.Error, err)
 					continue
 				}
-				n.sendEvent(EventTypeUnicityCertificateHandled, uc)
+				n.sendEvent(event.UnicityCertificateHandled, uc)
 			case network.ProtocolBlockProposal:
 				success, bp := convertType[*blockproposal.BlockProposal](m.Message)
 				if !success {
@@ -377,7 +358,7 @@ func (n *Node) loop() {
 				err := n.handleBlockProposal(bp)
 				if err != nil {
 					logger.Warning("Block proposal processing failed by node %v: %v", n.configuration.peer.ID(), err)
-					n.sendEvent(EventTypeError, err)
+					n.sendEvent(event.Error, err)
 					continue
 				}
 			case network.ProtocolLedgerReplicationReq:
@@ -412,9 +393,9 @@ func (n *Node) loop() {
 	}
 }
 
-func (n *Node) sendEvent(eventType EventType, content any) {
+func (n *Node) sendEvent(eventType event.Type, content any) {
 	if n.eventHandler != nil {
-		n.eventCh <- Event{
+		n.eventCh <- event.Event{
 			EventType: eventType,
 			Content:   content,
 		}
@@ -428,7 +409,7 @@ func (n *Node) eventHandlerLoop() {
 		case <-n.eventChCancel:
 			return
 		case e := <-n.eventCh:
-			n.eventHandler(e)
+			n.eventHandler(&e)
 		}
 	}
 }
@@ -458,7 +439,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	n.startHandleOrForwardTransactions()
 	n.luc = uc
 	n.timers.Restart(t1TimerName)
-	n.sendEvent(EventTypeNewRoundStarted, newBlockNr)
+	n.sendEvent(event.NewRoundStarted, newBlockNr)
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
@@ -487,10 +468,11 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 func (n *Node) process(tx txsystem.GenericTransaction) {
 	defer trackExecutionTime(time.Now(), "Processing transaction")
 	if err := n.validateAndExecuteTx(tx, n.blockStore.LatestBlock().BlockNumber); err != nil {
+		n.sendEvent(event.TransactionFailed, tx)
 		return
 	}
 	n.proposedTransactions = append(n.proposedTransactions, tx)
-	n.sendEvent(EventTypeTransactionProcessed, tx)
+	n.sendEvent(event.TransactionProcessed, tx)
 	logger.Debug("Transaction processed by node %v. Proposal size: %v", n.configuration.peer.ID(), len(n.proposedTransactions))
 }
 
@@ -691,7 +673,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 
 func (n *Node) revertState() {
 	logger.Warning("Reverting state")
-	n.sendEvent(EventTypeStateReverted, nil)
+	n.sendEvent(event.StateReverted, nil)
 	n.transactionSystem.Revert()
 }
 
@@ -722,7 +704,7 @@ func (n *Node) finalizeBlock(b *block.Block) error {
 	}
 	n.transactionSystem.Commit()
 	transactionsCounter.Inc(int64(len(b.Transactions)))
-	n.sendEvent(EventTypeBlockFinalized, b)
+	n.sendEvent(event.BlockFinalized, b)
 	return nil
 }
 
@@ -856,7 +838,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 func (n *Node) stopRecovery(uc *certificates.UnicityCertificate) {
 	logger.Info("Node is recovered until the given UC, block '%X', root round: %v ", uc.InputRecord.BlockHash, uc.UnicitySeal.RootChainRoundNumber)
 	n.status = idle
-	n.sendEvent(EventTypeRecoveryFinished, uc)
+	n.sendEvent(event.RecoveryFinished, uc)
 }
 
 func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
@@ -871,7 +853,7 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
 	n.luc = uc // recover up to this UC
 	util.WriteDebugJsonLog(logger, "Recovering node up to the given LUC", n.luc)
 	fromBlockNr := n.blockStore.LatestBlock().GetBlockNumber() + 1
-	n.sendEvent(EventTypeRecoveryStarted, fromBlockNr)
+	n.sendEvent(event.RecoveryStarted, fromBlockNr)
 
 	go n.sendLedgerReplicationRequest(fromBlockNr)
 

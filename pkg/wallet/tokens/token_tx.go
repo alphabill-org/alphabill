@@ -234,7 +234,16 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 		}
 	case tokens.UpdateNonFungibleToken:
 		log.Info("Token tx: UpdateNonFungibleToken")
-		panic("not implemented") // TODO
+		tok, err := txc.GetToken(accNr, id)
+		if err != nil {
+			return err
+		}
+		if tok != nil {
+			tok.Backlink = txHash
+			if err = w.addTokenWithProof(accNr, tok, b, tx, txc); err != nil {
+				return err
+			}
+		}
 	default:
 		log.Warning(fmt.Sprintf("received unknown token transaction type, skipped processing: %s", ctx))
 		return nil
@@ -505,6 +514,9 @@ func (w *Wallet) addTokenWithProof(accountNumber uint64, unit *TokenUnit, b *blo
 }
 
 func (w *Wallet) createProof(unitID []byte, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
+	if b == nil {
+		return nil, nil
+	}
 	gblock, err := b.ToGenericBlock(w.txs)
 	if err != nil {
 		return nil, err

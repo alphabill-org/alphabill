@@ -41,20 +41,6 @@ const (
 
 type Predicate []byte
 
-// TransactionTypes contains all transaction types supported by the user token partition.
-var TransactionTypes = map[string]proto.Message{
-	TypeCreateNonFungibleTokenTypeAttributes: &CreateNonFungibleTokenTypeAttributes{},
-	TypeMintNonFungibleTokenAttributes:       &MintNonFungibleTokenAttributes{},
-	TypeTransferNonFungibleTokenAttributes:   &TransferNonFungibleTokenAttributes{},
-	TypeUpdateNonFungibleTokenAttributes:     &UpdateNonFungibleTokenAttributes{},
-	TypeCreateFungibleTokenTypeAttributes:    &CreateFungibleTokenTypeAttributes{},
-	TypeMintFungibleTokenAttributes:          &MintFungibleTokenAttributes{},
-	TypeTransferFungibleTokenAttributes:      &TransferFungibleTokenAttributes{},
-	TypeSplitFungibleTokenAttributes:         &SplitFungibleTokenAttributes{},
-	TypeBurnFungibleTokenAttributes:          &BurnFungibleTokenAttributes{},
-	TypeJoinFungibleTokenAttributes:          &JoinFungibleTokenAttributes{},
-}
-
 type (
 	wrapper struct {
 		transaction *txsystem.Transaction

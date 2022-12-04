@@ -15,8 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/multiformats/go-multiaddr"
 	"golang.org/x/exp/slices"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const (
@@ -31,19 +30,9 @@ var receivedInvalidTransactionsRESTMeter = metrics.GetOrRegisterCounter("transac
 type (
 	RestServer struct {
 		*http.Server
-		node                partitionNode
-		supportedAttributes map[string]proto.Message
-		maxBodySize         int64
-		self                *network.Peer
-	}
-
-	SubmitTx struct {
-		SystemId              []byte         `json:"system_id,omitempty"`
-		UnitId                []byte         `json:"unit_id,omitempty"`
-		TransactionType       string         `json:"type,omitempty"`
-		TransactionAttributes map[string]any `json:"attributes,omitempty"`
-		Timeout               uint64         `json:"timeout,omitempty"`
-		OwnerProof            []byte         `json:"owner_proof,omitempty"`
+		node        partitionNode
+		maxBodySize int64
+		self        *network.Peer
 	}
 
 	infoResponse struct {
@@ -60,25 +49,20 @@ type (
 	}
 )
 
-func NewRESTServer(node partitionNode, addr string, txTypes map[string]proto.Message, maxBodySize int64, self *network.Peer) (*RestServer, error) {
+func NewRESTServer(node partitionNode, addr string, maxBodySize int64, self *network.Peer) (*RestServer, error) {
 	if node == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, "partition node is nil")
 	}
 	if self == nil {
 		return nil, errors.Wrap(errors.ErrInvalidArgument, "network peer is nil")
 	}
-	var types = map[string]proto.Message{}
-	if txTypes != nil {
-		types = txTypes
-	}
 	rs := &RestServer{
 		Server: &http.Server{
 			Addr: addr,
 		},
-		maxBodySize:         maxBodySize,
-		node:                node,
-		supportedAttributes: types,
-		self:                self,
+		maxBodySize: maxBodySize,
+		node:        node,
+		self:        self,
 	}
 
 	r := mux.NewRouter()
@@ -120,68 +104,30 @@ func (s *RestServer) infoHandler(w http.ResponseWriter, _ *http.Request) {
 
 func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Request) {
 	receivedTransactionsRESTMeter.Inc(1)
-	jsonReq := &SubmitTx{}
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	err := dec.Decode(jsonReq)
+	tx := &txsystem.Transaction{}
+	buf := new(bytes.Buffer)
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		err = fmt.Errorf("reading request body failed: %w", err)
+		receivedInvalidTransactionsRESTMeter.Inc(1)
+		writeError(writer, err, http.StatusBadRequest)
+		return
+	}
+	bb := buf.Bytes()
+	err = protojson.Unmarshal(bb, tx)
 	if err != nil {
 		err = fmt.Errorf("json decode error: %w", err)
 		receivedInvalidTransactionsRESTMeter.Inc(1)
 		writeError(writer, err, http.StatusBadRequest)
 		return
 	}
-	protoTx := &txsystem.Transaction{
-		SystemId:              jsonReq.SystemId,
-		UnitId:                jsonReq.UnitId,
-		Timeout:               jsonReq.Timeout,
-		OwnerProof:            jsonReq.OwnerProof,
-		TransactionAttributes: new(anypb.Any),
-	}
-
-	// get the type of the attributes struct
-	p, err := s.getAttributesType(jsonReq)
-	if err != nil {
-		receivedInvalidTransactionsRESTMeter.Inc(1)
-		writeError(writer, err, http.StatusBadRequest)
-		return
-	}
-
-	// TODO this code must be refactored after we have specified how hashing works in AB (AB-409).
-	attrBytes, err := json.Marshal(jsonReq.TransactionAttributes)
-	if err != nil {
-		receivedInvalidTransactionsRESTMeter.Inc(1)
-		writeError(writer, err, http.StatusBadRequest)
-		return
-	}
-
-	dec = json.NewDecoder(bytes.NewReader(attrBytes))
-	dec.DisallowUnknownFields()
-	err = dec.Decode(p)
-
-	err = protoTx.TransactionAttributes.MarshalFrom(p)
-	if err != nil {
-		receivedInvalidTransactionsRESTMeter.Inc(1)
-		writeError(writer, err, http.StatusBadRequest)
-		return
-	}
-
-	// submit to the node
-	err = s.node.SubmitTx(protoTx)
+	err = s.node.SubmitTx(tx)
 	if err != nil {
 		receivedInvalidTransactionsRESTMeter.Inc(1)
 		writeError(writer, err, http.StatusBadRequest)
 		return
 	}
 	writer.WriteHeader(http.StatusAccepted)
-}
-
-func (s *RestServer) getAttributesType(jsonReq *SubmitTx) (proto.Message, error) {
-	attrType := jsonReq.TransactionType
-	attrProtoType, f := s.supportedAttributes[attrType]
-	if !f {
-		return nil, fmt.Errorf("unsupported type %v", attrType)
-	}
-	return proto.Clone(attrProtoType), nil
 }
 
 func (s *RestServer) maxBytesHandler(f http.HandlerFunc) http.HandlerFunc {

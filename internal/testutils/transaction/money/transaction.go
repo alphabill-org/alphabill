@@ -7,9 +7,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -27,23 +31,11 @@ func ConvertNewGenericMoneyTx(tx *txsystem.Transaction) (txsystem.GenericTransac
 }
 
 func RandomBillTransfer(t *testing.T) *txsystem.Transaction {
-	return testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
-		NewBearer: testtransaction.RandomBytes(3),
-		// #nosec G404
-		TargetValue: rand.Uint64(),
-		Backlink:    testtransaction.RandomBytes(3),
-	}))
+	return testtransaction.NewTransaction(t, testtransaction.WithAttributes(RandomTransferAttributes()))
 }
 
 func RandomBillSplit(t *testing.T) *txsystem.Transaction {
-	return testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.SplitOrder{
-		// #nosec G404
-		Amount:       rand.Uint64(),
-		TargetBearer: testtransaction.RandomBytes(3),
-		// #nosec G404
-		RemainingValue: rand.Uint64(),
-		Backlink:       testtransaction.RandomBytes(3),
-	}))
+	return testtransaction.NewTransaction(t, testtransaction.WithAttributes(RandomSplitAttributes()))
 }
 
 func CreateBillTransferTx(pubKeyHash []byte) *anypb.Any {
@@ -85,12 +77,7 @@ func CreateRandomDcTx() *txsystem.Transaction {
 }
 
 func CreateRandomDustTransferTx() *anypb.Any {
-	tx, _ := anypb.New(&moneytx.TransferDCOrder{
-		TargetBearer: script.PredicateAlwaysTrue(),
-		Backlink:     hash.Sum256([]byte{}),
-		Nonce:        hash.Sum256([]byte{}),
-		TargetValue:  100,
-	})
+	tx, _ := anypb.New(RandomTransferDCAttributes())
 	return tx
 }
 
@@ -103,4 +90,52 @@ func CreateRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
 		TargetValue:     100,
 	})
 	return tx
+}
+
+func RandomTransferDCAttributes() *moneytx.TransferDCOrder {
+	return &moneytx.TransferDCOrder{
+		TargetBearer: script.PredicateAlwaysTrue(),
+		Backlink:     hash.Sum256([]byte{}),
+		Nonce:        hash.Sum256([]byte{}),
+		TargetValue:  100,
+	}
+}
+
+func RandomSplitAttributes() *moneytx.SplitOrder {
+	return &moneytx.SplitOrder{
+		// #nosec G404
+		Amount:       rand.Uint64(),
+		TargetBearer: testtransaction.RandomBytes(3),
+		// #nosec G404
+		RemainingValue: rand.Uint64(),
+		Backlink:       testtransaction.RandomBytes(3),
+	}
+}
+
+func RandomTransferAttributes() *moneytx.TransferOrder {
+	return &moneytx.TransferOrder{
+		NewBearer: testtransaction.RandomBytes(3),
+		// #nosec G404
+		TargetValue: rand.Uint64(),
+		Backlink:    testtransaction.RandomBytes(3),
+	}
+}
+
+func CreateRandomSwapAttributes(t *testing.T, txCount int) *moneytx.SwapOrder {
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	swap := &moneytx.SwapOrder{
+		OwnerCondition: script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
+		TargetValue:    100,
+	}
+	var gtxs []txsystem.GenericTransaction
+	for i := 0; i < txCount; i++ {
+		tx := CreateRandomDcTx()
+		swap.DcTransfers = append(swap.DcTransfers, tx)
+		swap.BillIdentifiers = append(swap.BillIdentifiers, tx.UnitId)
+		gtx, err := moneytx.NewMoneyTx(tx.SystemId, tx)
+		require.NoError(t, err)
+		gtxs = append(gtxs, gtx)
+	}
+	swap.Proofs = testblock.CreatePrimaryProofs(t, gtxs, signer)
+	return swap
 }

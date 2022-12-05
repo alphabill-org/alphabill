@@ -100,7 +100,7 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	if err != nil {
 		return nil
 	}
-	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format, must start with 0x (optional)")
+	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format (optional)")
 	cmd.Flags().StringSlice(cmdFlagSybTypeClauseInput, nil, "input to satisfy the parent type creation clause (mandatory with --parent-type)")
 	cmd.MarkFlagsRequiredTogether(cmdFlagParentType, cmdFlagSybTypeClauseInput)
 	cmd.Flags().String(cmdFlagSybTypeClause, predicateTrue, "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")

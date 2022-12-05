@@ -209,11 +209,11 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	parentType, creationInputs, err := readParentTypeInfo(cmd, nil)
+	am := tw.GetAccountManager()
+	parentType, creationInputs, err := readParentTypeInfo(cmd, am)
 	if err != nil {
 		return err
 	}
-	am := tw.GetAccountManager()
 	subTypeCreationPredicate, err := parsePredicateClauseCmd(cmd, cmdFlagSybTypeClause, am)
 	if err != nil {
 		return err

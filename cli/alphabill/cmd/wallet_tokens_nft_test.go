@@ -136,10 +136,12 @@ func TestNFTs_Integration(t *testing.T) {
 
 	// non-fungible token types
 	typeID := randomID(t)
+	typeID2 := randomID(t)
 	nftID := randomID(t)
 	symbol := "ABNFT"
 	execTokensCmdWithError(t, homedirW1, "new-type non-fungible", "required flag(s) \"symbol\" not set")
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X", symbol, dialAddr, typeID))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X --subtype-clause ptpkh", symbol, dialAddr, typeID))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type non-fungible --sync true --symbol %s -u %s --type %X --parent-type %X --subtype-input ptpkh", symbol+"2", dialAddr, typeID2, typeID))
 	ensureUnitBytes(t, unitState, typeID)
 	// mint NFT
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new non-fungible --sync true -u %s --type %X --token-identifier %X", dialAddr, typeID, nftID))

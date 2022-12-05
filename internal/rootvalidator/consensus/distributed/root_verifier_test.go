@@ -239,6 +239,7 @@ func TestRootNodeVerifier_VerifySignature(t *testing.T) {
 		Qc: &atomic_broadcast.QuorumCert{
 			VoteInfo:         &atomic_broadcast.VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 			LedgerCommitInfo: &atomic_broadcast.LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+			Signatures:       map[string][]byte{"0": {1, 2, 3}},
 		},
 	}
 	signer, _ := signers["0"]

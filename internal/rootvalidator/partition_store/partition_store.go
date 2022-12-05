@@ -154,18 +154,14 @@ func (ps *PartitionStore) GetPartitionVerifier(id p.SystemIdentifier, nodeId str
 	return ver, err
 }
 
-func (ps *PartitionStore) VerifySignature(id p.SystemIdentifier, nodeId string, data []byte, sig []byte) error {
+func (ps *PartitionStore) GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	info, err := ps.getInfo(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	ver, found := info.TrustBase[nodeId]
-	if !found {
-		return fmt.Errorf("unknown node id %v", nodeId)
-	}
-	return ver.VerifyBytes(sig, data)
+	return info.TrustBase, nil
 }
 
 // Size returns the number of partition in the partition store.

@@ -2,6 +2,7 @@ package atomic_broadcast
 
 import (
 	"crypto"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"reflect"
 	"testing"
 
@@ -39,12 +40,13 @@ func TestBlockData_Hash(t *testing.T) {
 				Qc: &QuorumCert{
 					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					Signatures:       map[string][]byte{"1": {1, 2}},
 				},
 			},
 			args: args{
 				algo: crypto.SHA256,
 			},
-			want:    []byte{141, 97, 153, 122, 191, 167, 167, 46, 135, 120, 31, 49, 190, 238, 47, 255, 222, 92, 173, 176, 73, 179, 253, 165, 179, 1, 127, 44, 33, 184, 171, 39},
+			want:    []byte{157, 28, 40, 64, 232, 0, 175, 169, 175, 175, 30, 23, 10, 180, 12, 2, 94, 235, 253, 152, 6, 40, 213, 244, 103, 101, 66, 72, 91, 135, 224, 147},
 			wantErr: false,
 		},
 	}
@@ -82,8 +84,9 @@ func TestBlockData_IsValid(t *testing.T) {
 		Qc        *QuorumCert
 	}
 	type args struct {
-		p PartitionVerifier
-		v AtomicVerifier
+		p         PartitionStore
+		quorum    uint32
+		rootTrust map[string]abcrypto.Verifier
 	}
 	tests := []struct {
 		name       string
@@ -105,7 +108,7 @@ func TestBlockData_IsValid(t *testing.T) {
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 				},
 			},
-			args:       args{p: nil, v: nil},
+			args:       args{p: nil, quorum: 1, rootTrust: nil},
 			wantErrStr: ErrInvalidBlockId,
 		},
 		{
@@ -122,7 +125,7 @@ func TestBlockData_IsValid(t *testing.T) {
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 				},
 			},
-			args:       args{p: nil, v: nil},
+			args:       args{p: nil, quorum: 1, rootTrust: nil},
 			wantErrStr: ErrInvalidRound,
 		},
 		{
@@ -139,7 +142,7 @@ func TestBlockData_IsValid(t *testing.T) {
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 				},
 			},
-			args:       args{p: nil, v: nil},
+			args:       args{p: nil, quorum: 1, rootTrust: nil},
 			wantErrStr: ErrMissingPayload,
 		},
 		{
@@ -153,7 +156,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Payload:   &Payload{}, // empty payload
 				Qc:        nil,
 			},
-			args:       args{p: nil, v: nil},
+			args:       args{p: nil, quorum: 1, rootTrust: nil},
 			wantErrStr: ErrMissingQuorumCertificate,
 		},
 	}
@@ -168,7 +171,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Payload:   tt.fields.Payload,
 				Qc:        tt.fields.Qc,
 			}
-			err := x.IsValid(tt.args.p, tt.args.v)
+			err := x.IsValid(tt.args.p, tt.args.quorum, tt.args.rootTrust)
 			require.ErrorIs(t, err, tt.wantErrStr)
 		})
 	}
@@ -218,7 +221,7 @@ func TestPayload_IsValid(t *testing.T) {
 		Requests []*IRChangeReqMsg
 	}
 	type args struct {
-		partitions PartitionVerifier
+		partitions PartitionStore
 	}
 	tests := []struct {
 		name       string

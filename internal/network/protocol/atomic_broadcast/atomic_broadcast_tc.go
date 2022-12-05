@@ -3,10 +3,10 @@ package atomic_broadcast
 import (
 	gocrypto "crypto"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // TimeoutSigned since the quorum certificate contains more info than needed. Only round number
@@ -36,14 +36,14 @@ func (t *TimeoutSigned) Hash(algo gocrypto.Hash) []byte {
 }
 
 // Verify verifies timeout vote received.
-func (x *Timeout) Verify(v AtomicVerifier) error {
+func (x *Timeout) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	// Make sure that the quorum certificate received with the vote does not have higher round than the round
 	// voted timeout
 	if x.Hqc.VoteInfo.RootRound > x.Round {
 		return errors.New("Malformed timeout, consensus round is bigger that timeout round")
 	}
 	// Verify attached quorum certificate
-	return x.Hqc.Verify(v)
+	return x.Hqc.Verify(quorum, rootTrust)
 }
 
 func NewPartialTimeoutCertificate(vote *VoteMsg) *TimeoutCert {
@@ -73,15 +73,15 @@ func (x *TimeoutCert) AddSignature(author string, signedTimeout *TimeoutWithSign
 }
 
 // Verify timeout certificate
-func (x *TimeoutCert) Verify(v AtomicVerifier) error {
+func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	// 1. verify stored quorum certificate is valid and contains quorum of signatures
-	err := x.Timeout.Verify(v)
+	err := x.Timeout.Verify(quorum, rootTrust)
 	if err != nil {
 		return errors.Wrap(err, "timeout certificate not valid")
 	}
 	// 2. Check if there is quorum of signatures for TC
-	if uint32(len(x.Signatures)) < v.GetQuorumThreshold() {
-		return fmt.Errorf("timeout certificate not valid: less than quorum %v/%v have signed certificate", len(x.Signatures), v.GetQuorumThreshold())
+	if uint32(len(x.Signatures)) < quorum {
+		return fmt.Errorf("timeout certificate not valid: less than quorum %v/%v have signed certificate", len(x.Signatures), quorum)
 	}
 	maxSignedRound := uint64(0)
 	// Extract attached the highest QC round number and compare it later to the round extracted from signatures
@@ -90,7 +90,11 @@ func (x *TimeoutCert) Verify(v AtomicVerifier) error {
 	for author, timeoutSig := range x.Signatures {
 		// verify signature
 		timeout := NewTimeoutSign(x.Timeout.GetRound(), x.Timeout.GetEpoch(), timeoutSig.HqcRound)
-		err := v.VerifySignature(timeout.Hash(gocrypto.SHA256), timeoutSig.Signature, peer.ID(author))
+		v, f := rootTrust[author]
+		if !f {
+			return fmt.Errorf("failed to find public key for author %v", author)
+		}
+		err := v.VerifyHash(timeout.Hash(gocrypto.SHA256), timeoutSig.Signature)
 		if err != nil {
 			return errors.Wrap(err, "timeout certificate not valid: invalid signature")
 		}

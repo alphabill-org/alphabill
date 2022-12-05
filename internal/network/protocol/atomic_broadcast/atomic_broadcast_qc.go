@@ -5,16 +5,15 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"hash"
-
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var (
 	ErrTimeoutIsNil          = errors.New("timeout is nil")
-	ErrSealNotSignedByQuorum = errors.New("seal not signed by quorum")
-	ErrMissingVoteInfo       = errors.New("vote info is nil")
+	ErrVoteInfoIsNil         = errors.New("vote info is nil")
 	ErrLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
+	ErrMissingSignatures     = errors.New("qc is missing signatures")
 )
 
 func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, signatures map[string][]byte) *QuorumCert {
@@ -28,7 +27,7 @@ func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, sign
 func (x *QuorumCert) IsValid() error {
 	// QC must have valid vote info
 	if x.VoteInfo == nil {
-		return ErrMissingVoteInfo
+		return ErrVoteInfoIsNil
 	}
 	if err := x.VoteInfo.IsValid(); err != nil {
 		return err
@@ -40,11 +39,13 @@ func (x *QuorumCert) IsValid() error {
 	if err := x.LedgerCommitInfo.IsValid(); err != nil {
 		return err
 	}
-	// Perhaps check for presents of signatures?
+	if len(x.Signatures) < 1 {
+		return ErrMissingSignatures
+	}
 	return nil
 }
 
-func (x *QuorumCert) Verify(v AtomicVerifier) error {
+func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	if err := x.IsValid(); err != nil {
 		return err
 	}
@@ -57,13 +58,17 @@ func (x *QuorumCert) Verify(v AtomicVerifier) error {
 	hasher.Reset()
 	hasher.Write(x.LedgerCommitInfo.Bytes())
 	// Check quorum, if not fail without checking signatures itself
-	if uint32(len(x.Signatures)) < v.GetQuorumThreshold() {
+	if uint32(len(x.Signatures)) < quorum {
 		return fmt.Errorf("quorum certificate not valid: less than quorum %d/%d have signed",
-			len(x.Signatures), v.GetQuorumThreshold())
+			len(x.Signatures), quorum)
 	}
 	// Verify all signatures
 	for author, sig := range x.Signatures {
-		err := v.VerifySignature(hasher.Sum(nil), sig, peer.ID(author))
+		ver, f := rootTrust[author]
+		if !f {
+			return fmt.Errorf("failed to find public key for author %v", author)
+		}
+		err := ver.VerifyHash(hasher.Sum(nil), sig)
 		if err != nil {
 			return fmt.Errorf("quorum certificate not valid: %w", err)
 		}

@@ -4,11 +4,11 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var (
@@ -21,14 +21,8 @@ var (
 	ErrUnknownRequest           = errors.New("unknown request, sender not known")
 )
 
-type AtomicVerifier interface {
-	GetQuorumThreshold() uint32
-	VerifySignature(hash []byte, sig []byte, author peer.ID) error
-	VerifyBytes(bytes []byte, sig []byte, author peer.ID) error
-}
-
-type PartitionVerifier interface {
-	VerifySignature(id protocol.SystemIdentifier, nodeId string, tlg []byte, sig []byte) error
+type PartitionStore interface {
+	GetTrustBase(id protocol.SystemIdentifier) (map[string]crypto.Verifier, error)
 }
 
 func (x *Payload) AddToHasher(hasher hash.Hash) {
@@ -38,12 +32,12 @@ func (x *Payload) AddToHasher(hasher hash.Hash) {
 	}
 }
 
-func (x *Payload) IsValid(partitionVer PartitionVerifier) error {
+func (x *Payload) IsValid(partitions PartitionStore) error {
 	// there can only be one request per system identifier in a block
 	sysIdSet := map[string]bool{}
 
 	for _, req := range x.Requests {
-		if err := req.IsValid(partitionVer); err != nil {
+		if err := req.IsValid(partitions); err != nil {
 			return fmt.Errorf("invalid payload: %X invalid proof, err %w", req.SystemIdentifier, err)
 		}
 		// Timeout requests do not contain proof
@@ -62,7 +56,7 @@ func (x *Payload) IsEmpty() bool {
 	return len(x.Requests) == 0
 }
 
-func (x *BlockData) IsValid(partitionVer PartitionVerifier, rootVer AtomicVerifier) error {
+func (x *BlockData) IsValid(partitionVer PartitionStore, quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	if len(x.Id) < 1 {
 		return ErrInvalidBlockId
 	}
@@ -79,7 +73,7 @@ func (x *BlockData) IsValid(partitionVer PartitionVerifier, rootVer AtomicVerifi
 	if err := x.Payload.IsValid(partitionVer); err != nil {
 		return err
 	}
-	if err := x.Qc.Verify(rootVer); err != nil {
+	if err := x.Qc.Verify(quorum, rootTrust); err != nil {
 		return err
 	}
 	return nil

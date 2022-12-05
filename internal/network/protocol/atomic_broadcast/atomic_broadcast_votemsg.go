@@ -3,11 +3,11 @@ package atomic_broadcast
 import (
 	"bytes"
 	gocrypto "crypto"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 func (x *VoteMsg) IsTimeout() bool {
@@ -29,10 +29,7 @@ func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *VoteMsg) Verify(v AtomicVerifier) error {
-	if v == nil {
-		return ErrVerifierIsNil
-	}
+func (x *VoteMsg) Verify(rootTrust map[string]crypto.Verifier) error {
 	if err := x.VoteInfo.IsValid(); err != nil {
 		return errors.Wrap(err, "invalid vote message")
 	}
@@ -46,7 +43,11 @@ func (x *VoteMsg) Verify(v AtomicVerifier) error {
 		return errors.New("Vote message is missing author")
 	}
 	// verify signature
-	if err := v.VerifyBytes(x.LedgerCommitInfo.Bytes(), x.Signature, peer.ID(x.Author)); err != nil {
+	v, f := rootTrust[x.Author]
+	if !f {
+		return fmt.Errorf("failed to find public key for author %v", x.Author)
+	}
+	if err := v.VerifyBytes(x.LedgerCommitInfo.Bytes(), x.Signature); err != nil {
 		return errors.Wrap(err, "Vote message signature verification failed")
 	}
 	return nil

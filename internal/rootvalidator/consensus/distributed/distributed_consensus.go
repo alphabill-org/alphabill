@@ -48,7 +48,7 @@ type (
 	PartitionStore interface {
 		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
 		GetNofNodesInPartition(id p.SystemIdentifier) (int, error)
-		VerifySignature(id p.SystemIdentifier, nodeId string, data []byte, sig []byte) error
+		GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error)
 	}
 
 	StateStore interface {
@@ -425,7 +425,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 // onVoteMsg handle votes and timeout votes
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
-	err := vote.Verify(x.rootVerifier)
+	err := vote.Verify(x.rootVerifier.GetVerifiers())
 	if err != nil {
 		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
 	}
@@ -461,7 +461,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
 	// verify signature on proposal
-	err := proposal.Verify(x.partitions, x.rootVerifier)
+	err := proposal.Verify(x.partitions, x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
 	if err != nil {
 		logger.Warning("Atomic broadcast proposal verify failed: %v", err)
 	}

@@ -3,6 +3,7 @@ package atomic_broadcast
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -18,7 +19,7 @@ var (
 	ErrTimeoutRequestReasonNotEmpty = errors.New("invalid timeout certification request, proof not empty")
 )
 
-func (x *IRChangeReqMsg) IsValid(partitionVer PartitionVerifier) error {
+func (x *IRChangeReqMsg) IsValid(partitions PartitionStore) error {
 	if len(x.SystemIdentifier) != 4 {
 		return ErrInvalidSystemId
 	}
@@ -38,7 +39,16 @@ func (x *IRChangeReqMsg) IsValid(partitionVer PartitionVerifier) error {
 		if bytes.Equal(req.SystemIdentifier, x.SystemIdentifier) == false {
 			return ErrIncompatibleReq
 		}
-		err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), req.NodeIdentifier, req.Bytes(), req.Signature)
+		trustBase, err := partitions.GetTrustBase(protocol.SystemIdentifier(x.SystemIdentifier))
+		// partition is unknown?
+		if err != nil {
+			return err
+		}
+		v, f := trustBase[req.NodeIdentifier]
+		if !f {
+			return fmt.Errorf("uknnonwn partition %X node %v", x.SystemIdentifier, req.NodeIdentifier)
+		}
+		err = v.VerifyBytes(req.Bytes(), req.Signature)
 		if err != nil {
 			return err
 		}

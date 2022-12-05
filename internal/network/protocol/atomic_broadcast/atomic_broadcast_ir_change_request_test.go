@@ -16,24 +16,24 @@ import (
 	certification "github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 )
 
-type DummyPartitionVerifier struct {
+type DummyPartitionStore struct {
 	signer   abcrypto.Signer
 	verifier abcrypto.Verifier
 }
 
-func NewDummyPartitionVerifier(t *testing.T) *DummyPartitionVerifier {
+func NewDummyPartitionStore(t *testing.T) *DummyPartitionStore {
 	s, v := testsig.CreateSignerAndVerifier(t)
-	return &DummyPartitionVerifier{signer: s, verifier: v}
+	return &DummyPartitionStore{signer: s, verifier: v}
 }
 
-func (x *DummyPartitionVerifier) SignBytes(t *testing.T, data []byte) []byte {
+func (x *DummyPartitionStore) SignBytes(t *testing.T, data []byte) []byte {
 	sig, err := x.signer.SignBytes(data)
 	require.NoError(t, err)
 	return sig
 }
 
-func (x *DummyPartitionVerifier) VerifySignature(id protocol.SystemIdentifier, nodeId string, tlg []byte, sig []byte) error {
-	return nil
+func (x *DummyPartitionStore) GetTrustBase(id protocol.SystemIdentifier) (map[string]abcrypto.Verifier, error) {
+	return map[string]abcrypto.Verifier{"0": x.verifier}, nil
 }
 
 func TestIRChangeReqMsg_Bytes(t *testing.T) {
@@ -99,7 +99,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 		Requests         []*certification.BlockCertificationRequest
 	}
 	type args struct {
-		partitionVer PartitionVerifier
+		partitions PartitionStore
 	}
 	tests := []struct {
 		name    string
@@ -127,7 +127,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 					},
 				},
 			},
-			args:    args{partitionVer: NewDummyPartitionVerifier(t)},
+			args:    args{partitions: NewDummyPartitionStore(t)},
 			wantErr: true,
 		},
 	}
@@ -138,7 +138,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 				CertReason:       tt.fields.CertReason,
 				Requests:         tt.fields.Requests,
 			}
-			if err := x.IsValid(tt.args.partitionVer); (err != nil) != tt.wantErr {
+			if err := x.IsValid(tt.args.partitions); (err != nil) != tt.wantErr {
 				t.Errorf("IsValid() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

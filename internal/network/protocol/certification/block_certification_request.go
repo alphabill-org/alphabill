@@ -3,8 +3,6 @@ package certification
 import (
 	"bytes"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -16,10 +14,6 @@ var (
 	ErrVerifierIsNil                  = errors.New("verifier is nil")
 	ErrEmptyNodeIdentifier            = errors.New("node identifier is empty")
 )
-
-type PartitionVerifier interface {
-	VerifySignature(id protocol.SystemIdentifier, nodeId string, tlg []byte, sig []byte) error
-}
 
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if x == nil {
@@ -43,6 +37,7 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	return nil
 }
 
+/*
 func (x *BlockCertificationRequest) Verify(partitionVer PartitionVerifier) error {
 	if x == nil {
 		return ErrBlockCertificationRequestIsNil
@@ -64,7 +59,7 @@ func (x *BlockCertificationRequest) Verify(partitionVer PartitionVerifier) error
 	}
 	return nil
 }
-
+*/
 func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 	if signer == nil {
 		return errors.New("signer is nil")

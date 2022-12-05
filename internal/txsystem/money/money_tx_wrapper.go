@@ -248,6 +248,7 @@ func (w *swapWrapper) SigBytes() []byte {
 	}
 	for _, dcTx := range w.DCTransfers() {
 		b.Write(dcTx.SigBytes())
+		b.Write(dcTx.OwnerProof())
 	}
 	for _, proof := range w.Proofs() {
 		b.Write(proof.Bytes())

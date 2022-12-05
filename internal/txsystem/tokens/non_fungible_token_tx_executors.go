@@ -44,7 +44,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTrans
 		rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(tx), h))
 }
 
-func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _ uint64) error {
+func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
 	tx, ok := gtx.(*mintNonFungibleTokenWrapper)
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
@@ -55,7 +55,7 @@ func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction
 	}
 	h := tx.Hash(m.hashAlgorithm)
 	return m.state.AtomicUpdate(
-		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newNonFungibleTokenData(tx, m.hashAlgorithm), h))
+		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newNonFungibleTokenData(tx, h, currentBlockNr), h))
 }
 
 func (t *transferNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {

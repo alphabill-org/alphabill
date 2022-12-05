@@ -56,7 +56,7 @@ func (c *createFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTransact
 		rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newFungibleTokenTypeData(tx), h))
 }
 
-func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _ uint64) error {
+func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
 	tx, ok := gtx.(*mintFungibleTokenWrapper)
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
@@ -67,7 +67,7 @@ func (m *mintFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _
 	}
 	h := tx.Hash(m.hashAlgorithm)
 	return m.state.AtomicUpdate(
-		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newFungibleTokenData(tx, m.hashAlgorithm), h))
+		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newFungibleTokenData(tx, h, currentBlockNr), h))
 }
 
 func (t *transferFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -118,8 +118,8 @@ func (s *splitFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, 
 			&fungibleTokenData{
 				tokenType: d.tokenType,
 				value:     tx.attributes.TargetValue,
-				t:         0,
-				backlink:  make([]byte, s.hashAlgorithm.Size()),
+				t:         currentBlockNr,
+				backlink:  txHash,
 			}, txHash),
 		rma.UpdateData(tx.UnitID(),
 			func(data rma.UnitData) (newData rma.UnitData) {

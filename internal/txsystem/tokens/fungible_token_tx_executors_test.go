@@ -285,7 +285,8 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 		TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	}
 	tokenID := uint256.NewInt(validUnitID)
-	err := executor.Execute(createTx(t, tokenID, attributes), 10)
+	tx := createTx(t, tokenID, attributes)
+	err := executor.Execute(tx, 10)
 	require.NoError(t, err)
 
 	unit, err := executor.state.GetUnit(tokenID)
@@ -296,8 +297,8 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	d := unit.Data.(*fungibleTokenData)
 	require.Equal(t, attributes.Type, d.tokenType.PaddedBytes(32))
 	require.Equal(t, attributes.Value, d.value)
-	require.Equal(t, make([]byte, 32), d.backlink)
-	require.Equal(t, uint64(0), d.t)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
+	require.Equal(t, uint64(10), d.t)
 	require.Equal(t, attributes.Bearer, []byte(unit.Bearer))
 }
 
@@ -529,8 +530,8 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 
 	require.Equal(t, transferAttributes.NewBearer, []byte(newUnit.Bearer))
 	require.Equal(t, existingTokenValue-remainingValue, newUnitData.value)
-	require.Equal(t, make([]byte, 32), newUnitData.backlink)
-	require.Equal(t, uint64(0), newUnitData.t)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), newUnitData.backlink)
+	require.Equal(t, roundNr, newUnitData.t)
 }
 
 func TestBurnFungibleToken_NotOk(t *testing.T) {

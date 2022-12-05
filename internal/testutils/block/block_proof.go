@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -23,6 +25,18 @@ func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.S
 	p, err := block.NewPrimaryProof(b, unitID, crypto.SHA256)
 	require.NoError(t, err)
 	return p
+}
+
+func CreatePrimaryProofs(t *testing.T, txs []txsystem.GenericTransaction, signer abcrypto.Signer) (proofs []*block.BlockProof) {
+	b := &block.GenericBlock{}
+	b.Transactions = txs
+	b.UnicityCertificate = CreateUC(t, b, signer)
+	for _, tx := range txs {
+		p, err := block.NewPrimaryProof(b, util.Uint256ToBytes(tx.UnitID()), crypto.SHA256)
+		require.NoError(t, err)
+		proofs = append(proofs, p)
+	}
+	return
 }
 
 func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *certificates.UnicityCertificate {

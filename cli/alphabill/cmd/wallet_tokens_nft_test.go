@@ -93,7 +93,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 		{
 			name:       "both data and data-file specified",
 			args:       args{cmdParams: "token new non-fungible --type 12AB --data 1122aabb --data-file=/tmp/test/foo.bin"},
-			wantErrStr: "flags \"--data\" and \"--data-file\" are mutually exclusive",
+			wantErrStr: "if any flags in the group [data data-file] are set none of the others can be; [data data-file] were all set",
 		},
 		{
 			name:       "data-file not found",

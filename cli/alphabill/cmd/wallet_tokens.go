@@ -102,6 +102,7 @@ func addCommonTypeFlags(cmd *cobra.Command) *cobra.Command {
 	}
 	cmd.Flags().BytesHex(cmdFlagParentType, NoParent, "unit identifier of a parent type in hexadecimal format, must start with 0x (optional)")
 	cmd.Flags().StringSlice(cmdFlagSybTypeClauseInput, nil, "input to satisfy the parent type creation clause (mandatory with --parent-type)")
+	cmd.MarkFlagsRequiredTogether(cmdFlagParentType, cmdFlagSybTypeClauseInput)
 	cmd.Flags().String(cmdFlagSybTypeClause, predicateTrue, "predicate to control sub typing, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().String(cmdFlagMintClause, predicatePtpkh, "predicate to control minting of this type, values <true|false|ptpkh>, defaults to 'ptpkh' (optional)")
 	cmd.Flags().String(cmdFlagInheritBearerClause, predicateTrue, "predicate that will be inherited by subtypes into their bearer clauses, values <true|false|ptpkh>, defaults to 'true' (optional)")
@@ -354,7 +355,7 @@ func tokenCmdNewTokenNonFungible(config *walletConfig) *cobra.Command {
 	cmd.Flags().String(cmdFlagTokenURI, "", "URI to associated resource, ie. jpg file on IPFS")
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
-	// cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile) TODO use once 1.5.0 is released
+	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)
 	cmd.Flags().String(cmdFlagTokenDataUpdateClause, predicateTrue, "data update predicate, values <true|false|ptpkh>, defaults to 'true' (optional)")
 	cmd.Flags().StringSlice(cmdFlagMintClauseInput, []string{predicatePtpkh}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
@@ -627,7 +628,7 @@ func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "token identifier (hex)")
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
-	// cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile) TODO use once 1.5.0 is released
+	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile)
 	cmd.Flags().StringSlice(cmdFlagTokenDataUpdateClauseInput, []string{predicateTrue}, "input to satisfy the data-update clauses")
 	return addCommonAccountFlags(cmd)
 }
@@ -1055,11 +1056,6 @@ func readNFTData(cmd *cobra.Command) ([]byte, error) {
 	dataFilePath, err := cmd.Flags().GetString(cmdFlagTokenDataFile)
 	if err != nil {
 		return nil, err
-	}
-	// TODO remove once 1.5.0 is released and use MarkFlagsMutuallyExclusive instead
-	// cannot specify both inputs, either data or data-file
-	if data != nil && len(dataFilePath) > 0 {
-		return nil, fmt.Errorf("flags \"--%v\" and \"--%v\" are mutually exclusive", cmdFlagTokenData, cmdFlagTokenDataFile)
 	}
 	if len(dataFilePath) > 0 {
 		data, err = readDataFile(dataFilePath)

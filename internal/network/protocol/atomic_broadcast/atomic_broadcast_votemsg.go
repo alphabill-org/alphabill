@@ -4,7 +4,6 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -34,9 +33,8 @@ func (x *VoteMsg) Verify(rootTrust map[string]crypto.Verifier) error {
 		return errors.Wrap(err, "invalid vote message")
 	}
 	// Verify hash of vote info
-	hasher := gocrypto.SHA256.New()
-	x.VoteInfo.AddToHasher(hasher)
-	if !bytes.Equal(hasher.Sum(nil), x.LedgerCommitInfo.VoteInfoHash) {
+	hash := x.VoteInfo.Hash(gocrypto.SHA256)
+	if !bytes.Equal(hash, x.LedgerCommitInfo.VoteInfoHash) {
 		return errors.New("vote info hash verification failed")
 	}
 	if len(x.Author) == 0 {

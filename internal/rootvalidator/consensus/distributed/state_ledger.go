@@ -98,7 +98,7 @@ func (s *StateLedger) ProcessTc(tc *atomic_broadcast.TimeoutCert) {
 	s.stateLedgerMap = make(map[uint64]*StateLedgerEntry)
 }
 
-func (s *StateLedger) ExecuteProposalPayload(round uint64, req *atomic_broadcast.Payload, partitions PartitionStore) error {
+func (s *StateLedger) ExecuteProposal(round uint64, req *atomic_broadcast.Payload, partitions PartitionStore) error {
 	if req == nil {
 		return errors.New("no payload")
 	}

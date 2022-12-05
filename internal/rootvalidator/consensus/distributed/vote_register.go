@@ -91,7 +91,10 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, quorumInfo Quo
 	if vote.IsTimeout() {
 		// Create partial timeout cert on first vote received
 		if v.TimeoutCert == nil {
-			v.TimeoutCert = atomic_broadcast.NewPartialTimeoutCertificate(vote)
+			v.TimeoutCert = &atomic_broadcast.TimeoutCert{
+				Timeout:    vote.TimeoutSignature.Timeout,
+				Signatures: make(map[string]*atomic_broadcast.TimeoutVote),
+			}
 		}
 		// append signature
 		v.TimeoutCert.AddSignature(vote.Author, vote.TimeoutSignature)

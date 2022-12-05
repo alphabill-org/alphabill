@@ -18,11 +18,11 @@ type TimeoutSigned struct {
 }
 
 // NewTimeoutSign constructs TimoutStructure to be signed with the VoteMsg
-func NewTimeoutSign(epoch uint64, round uint64, hgqRound uint64) *TimeoutSigned {
+func NewTimeoutSign(epoch uint64, round uint64, hqcRound uint64) *TimeoutSigned {
 	return &TimeoutSigned{
 		epoch:    epoch,
 		round:    round,
-		hqcRound: hgqRound,
+		hqcRound: hqcRound,
 	}
 }
 
@@ -40,17 +40,10 @@ func (x *Timeout) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 	// Make sure that the quorum certificate received with the vote does not have higher round than the round
 	// voted timeout
 	if x.Hqc.VoteInfo.RootRound > x.Round {
-		return errors.New("Malformed timeout, consensus round is bigger that timeout round")
+		return fmt.Errorf("invalid timeout, qc round %v is bigger than timeout round %v", x.Hqc.VoteInfo.RootRound, x.Round)
 	}
 	// Verify attached quorum certificate
 	return x.Hqc.Verify(quorum, rootTrust)
-}
-
-func NewPartialTimeoutCertificate(vote *VoteMsg) *TimeoutCert {
-	return &TimeoutCert{
-		Timeout:    vote.TimeoutSignature.Timeout,
-		Signatures: make(map[string]*TimeoutVote),
-	}
 }
 
 func (x *TimeoutCert) GetAuthors() []string {
@@ -94,7 +87,7 @@ func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 		if !f {
 			return fmt.Errorf("failed to find public key for author %v", author)
 		}
-		err := v.VerifyHash(timeout.Hash(gocrypto.SHA256), timeoutSig.Signature)
+		err := v.VerifyHash(timeoutSig.Signature, timeout.Hash(gocrypto.SHA256))
 		if err != nil {
 			return errors.Wrap(err, "timeout certificate not valid: invalid signature")
 		}

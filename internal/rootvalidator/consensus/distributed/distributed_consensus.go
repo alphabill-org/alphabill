@@ -492,7 +492,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		return
 	}
 	// speculatively execute proposal
-	err = x.stateLedger.ExecuteProposalPayload(x.roundState.GetCurrentRound(), proposal.Block.Payload, x.partitions)
+	err = x.stateLedger.ExecuteProposal(x.roundState.GetCurrentRound(), proposal.Block.Payload, x.partitions)
 	if err != nil {
 		logger.Warning("Failed to execute proposal: %v", err.Error())
 		// cannot send vote, so just return anc wait for local timeout or new proposal (and recover then)

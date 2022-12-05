@@ -50,13 +50,10 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 		return err
 	}
 	// check vote info hash
-	hasher := gocrypto.SHA256.New()
-	x.VoteInfo.AddToHasher(hasher)
-	if !bytes.Equal(hasher.Sum(nil), x.LedgerCommitInfo.VoteInfoHash) {
+	hash := x.VoteInfo.Hash(gocrypto.SHA256)
+	if !bytes.Equal(hash, x.LedgerCommitInfo.VoteInfoHash) {
 		return fmt.Errorf("quorum certificate not valid: vote info hash verification failed")
 	}
-	hasher.Reset()
-	hasher.Write(x.LedgerCommitInfo.Bytes())
 	// Check quorum, if not fail without checking signatures itself
 	if uint32(len(x.Signatures)) < quorum {
 		return fmt.Errorf("quorum certificate not valid: less than quorum %d/%d have signed",
@@ -68,7 +65,7 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 		if !f {
 			return fmt.Errorf("failed to find public key for author %v", author)
 		}
-		err := ver.VerifyHash(hasher.Sum(nil), sig)
+		err := ver.VerifyBytes(sig, x.LedgerCommitInfo.Bytes())
 		if err != nil {
 			return fmt.Errorf("quorum certificate not valid: %w", err)
 		}

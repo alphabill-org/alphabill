@@ -9,6 +9,17 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
+// NewTimeout creates new Timeout for round (epoch) and highest QC seen
+func NewTimeout(round, epoch uint64, hqc *QuorumCert) (*Timeout, error) {
+	if hqc == nil {
+		return nil, fmt.Errorf("invalid timeout, high qc is nil")
+	}
+	if round <= hqc.VoteInfo.RootRound {
+		return nil, fmt.Errorf("invalid timeout round, round is smaller or equal to highest qc seen")
+	}
+	return &Timeout{Epoch: epoch, Round: round, Hqc: hqc}, nil
+}
+
 func (x *VoteMsg) IsTimeout() bool {
 	if x.TimeoutSignature == nil {
 		return false
@@ -20,6 +31,10 @@ func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 	if signer == nil {
 		return ErrSignerIsNil
 	}
+	// make sure ledger commit info is populated
+	if err := x.LedgerCommitInfo.IsValid(); err != nil {
+		return err
+	}
 	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
 	if err != nil {
 		return err
@@ -28,32 +43,39 @@ func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *VoteMsg) Verify(rootTrust map[string]crypto.Verifier) error {
+func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+	if x.VoteInfo == nil {
+		return fmt.Errorf("invalid vote message, vote info is nil")
+	}
 	if err := x.VoteInfo.IsValid(); err != nil {
-		return errors.Wrap(err, "invalid vote message")
+		return fmt.Errorf("invalid vote message, %w", err)
 	}
 	// Verify hash of vote info
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
 	if !bytes.Equal(hash, x.LedgerCommitInfo.VoteInfoHash) {
-		return errors.New("vote info hash verification failed")
+		return errors.New("invalid vote message, vote info hash verification failed")
 	}
 	if len(x.Author) == 0 {
-		return errors.New("Vote message is missing author")
+		return errors.New("invalid vote message, no author")
+	}
+	if err := x.HighCommitQc.Verify(quorum, rootTrust); err != nil {
+		return fmt.Errorf("invalid vote message, %w", err)
 	}
 	// verify signature
 	v, f := rootTrust[x.Author]
 	if !f {
 		return fmt.Errorf("failed to find public key for author %v", x.Author)
 	}
-	if err := v.VerifyBytes(x.LedgerCommitInfo.Bytes(), x.Signature); err != nil {
-		return errors.Wrap(err, "Vote message signature verification failed")
+	if err := v.VerifyBytes(x.Signature, x.LedgerCommitInfo.Bytes()); err != nil {
+		return errors.Wrap(err, "invalid vote message, signature verification failed")
+	}
+	if x.IsTimeout() {
+		err := v.VerifyBytes(x.TimeoutSignature.Signature, x.TimeoutSignature.Timeout.Bytes())
+		if err != nil {
+			return errors.Wrap(err, "timeout vote signature")
+		}
 	}
 	return nil
-}
-
-// NewTimeout creates new Timeout for timeout vote
-func (x *VoteMsg) NewTimeout(qc *QuorumCert) *Timeout {
-	return &Timeout{Epoch: x.VoteInfo.Epoch, Round: x.VoteInfo.RootRound, Hqc: qc}
 }
 
 // AddTimeoutSignature adds timeout signature to vote message, turning it into a timeout vote
@@ -61,22 +83,11 @@ func (x *VoteMsg) AddTimeoutSignature(timeout *Timeout, signature []byte) error 
 	if timeout == nil {
 		return ErrTimeoutIsNil
 	}
+	if len(signature) < 1 {
+		return fmt.Errorf("error timeout is not signed")
+	}
 	x.TimeoutSignature = &TimeoutWithSignature{Timeout: timeout, Signature: signature}
 	return nil
-}
-
-func (x *VoteMsg) VerifyTimeoutSignature(timeout *Timeout, v crypto.Verifier) error {
-	if v == nil {
-		return ErrVerifierIsNil
-	}
-	if timeout == nil {
-		return ErrTimeoutIsNil
-	}
-	err := v.VerifyBytes(x.TimeoutSignature.Signature, timeout.Bytes())
-	if err != nil {
-		return errors.Wrap(err, "invalid unicity seal signature")
-	}
-	return err
 }
 
 func (x *Timeout) Bytes() []byte {

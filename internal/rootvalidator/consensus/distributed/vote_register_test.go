@@ -58,8 +58,9 @@ func NewDummyVote(author string, round uint64, rootHash []byte) *atomic_broadcas
 	}
 }
 
-func NewDummyTimeoutVote(hqc *atomic_broadcast.QuorumCert, vote *atomic_broadcast.VoteMsg) *atomic_broadcast.VoteMsg {
-	timeout := vote.NewTimeout(hqc)
+func NewDummyTimeoutVote(t *testing.T, hqc *atomic_broadcast.QuorumCert, vote *atomic_broadcast.VoteMsg) *atomic_broadcast.VoteMsg {
+	timeout, err := atomic_broadcast.NewTimeout(vote.VoteInfo.RootRound, vote.VoteInfo.Epoch, hqc)
+	require.NoError(t, err)
 	// will not actually sign it, but just create a dummy sig
 	dummySig := []byte{0, 1, 2, 3}
 	_ = vote.AddTimeoutSignature(timeout, dummySig)
@@ -227,17 +228,17 @@ func TestVoteRegister_Tc(t *testing.T) {
 	// create dummy timeout vote
 
 	vote := NewDummyVote("node1", 4, []byte{1, 2, 3})
-	timeoutVoteMsg := NewDummyTimeoutVote(QcRound1, vote)
+	timeoutVoteMsg := NewDummyTimeoutVote(t, QcRound1, vote)
 	qc, tc, err := register.InsertVote(timeoutVoteMsg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, qc, tc)
 	vote2 := NewDummyVote("node2", 4, []byte{1, 2, 4})
-	timeoutVote2Msg := NewDummyTimeoutVote(QcRound2, vote2)
+	timeoutVote2Msg := NewDummyTimeoutVote(t, QcRound2, vote2)
 	qc, tc, err = register.InsertVote(timeoutVote2Msg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, qc, tc)
 	vote3 := NewDummyVote("node3", 4, []byte{1, 2, 5})
-	timeoutVote3Msg := NewDummyTimeoutVote(QcRound3, vote3)
+	timeoutVote3Msg := NewDummyTimeoutVote(t, QcRound3, vote3)
 	qc, tc, err = register.InsertVote(timeoutVote3Msg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, qc)

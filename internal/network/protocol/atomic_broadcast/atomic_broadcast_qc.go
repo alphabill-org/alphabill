@@ -13,7 +13,7 @@ var (
 	ErrTimeoutIsNil          = errors.New("timeout is nil")
 	ErrVoteInfoIsNil         = errors.New("vote info is nil")
 	ErrLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
-	ErrMissingSignatures     = errors.New("qc is missing signatures")
+	ErrQcIsMissingSignatures = errors.New("qc is missing signatures")
 )
 
 func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, signatures map[string][]byte) *QuorumCert {
@@ -40,7 +40,7 @@ func (x *QuorumCert) IsValid() error {
 		return err
 	}
 	if len(x.Signatures) < 1 {
-		return ErrMissingSignatures
+		return ErrQcIsMissingSignatures
 	}
 	return nil
 }

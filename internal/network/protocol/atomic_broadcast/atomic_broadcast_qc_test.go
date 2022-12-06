@@ -13,6 +13,11 @@ import (
 var dummyVoteInfo = &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 10, Epoch: 0,
 	Timestamp: 9, ParentBlockId: []byte{0, 1}, ParentRound: 9, ExecStateId: []byte{0, 1, 3}}
 
+func NewDummyVoteInfo(round, parentRound uint64) *VoteInfo {
+	return &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: round, Epoch: 0,
+		Timestamp: 1670314583523, ParentBlockId: []byte{0, 1}, ParentRound: parentRound, ExecStateId: []byte{0, 1, 3}}
+}
+
 func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *VoteInfo) *LedgerCommitInfo {
 	hash := voteInfo.Hash(algo)
 	return &LedgerCommitInfo{VoteInfoHash: hash, CommitStateId: nil}
@@ -129,7 +134,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, dummyVoteInfo),
 				Signatures:       nil,
 			},
-			wantErrStr: ErrMissingSignatures.Error(),
+			wantErrStr: ErrQcIsMissingSignatures.Error(),
 		},
 		// Is valid, but would not verify
 		{

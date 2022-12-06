@@ -348,10 +348,14 @@ func (x *ConsensusManager) onLocalTimeout() {
 	// either validator has already voted in this round already or a dummy vote was created
 	if !voteMsg.IsTimeout() {
 		// add timeout with signature and resend vote
-		timeout := voteMsg.NewTimeout(x.stateLedger.HighQC)
+		timeout, err := atomic_broadcast.NewTimeout(voteMsg.VoteInfo.RootRound, voteMsg.VoteInfo.Epoch, x.stateLedger.HighQC)
+		if err != nil {
+			logger.Warning("Local timeout error %v", err)
+			return
+		}
 		sig, err := x.safety.SignTimeout(timeout, x.roundState.LastRoundTC())
 		if err != nil {
-			logger.Warning("Local timeout error")
+			logger.Warning("Local timeout error %v", err)
 			return
 		}
 		// Add timeout to vote
@@ -425,7 +429,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 // onVoteMsg handle votes and timeout votes
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
-	err := vote.Verify(x.rootVerifier.GetVerifiers())
+	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
 	if err != nil {
 		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
 	}

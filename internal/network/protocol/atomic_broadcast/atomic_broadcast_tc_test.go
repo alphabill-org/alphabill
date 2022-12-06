@@ -97,7 +97,8 @@ func TestTimeoutCert_AddSignature(t *testing.T) {
 		Signature: []byte{1, 2, 2},
 	}
 	timeoutCert.AddSignature("2", t2)
-	require.Equal(t, []string{"1", "2"}, timeoutCert.GetAuthors())
+	require.Contains(t, timeoutCert.GetAuthors(), "1")
+	require.Contains(t, timeoutCert.GetAuthors(), "2")
 	require.Equal(t, uint64(8), timeoutCert.Timeout.Hqc.VoteInfo.RootRound)
 	// Add a third vote, but with higher QC round so QC in the certificate gets updated
 	t3 := &TimeoutWithSignature{
@@ -117,9 +118,10 @@ func TestTimeoutCert_AddSignature(t *testing.T) {
 		Signature: []byte{1, 2, 2},
 	}
 	timeoutCert.AddSignature("3", t3)
-	require.Equal(t, []string{"1", "2", "3"}, timeoutCert.GetAuthors())
+	require.Contains(t, timeoutCert.GetAuthors(), "1")
+	require.Contains(t, timeoutCert.GetAuthors(), "2")
+	require.Contains(t, timeoutCert.GetAuthors(), "3")
 	require.Equal(t, uint64(9), timeoutCert.Timeout.Hqc.VoteInfo.RootRound)
-
 }
 
 func TestTimeoutCert_Verify(t *testing.T) {

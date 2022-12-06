@@ -428,7 +428,6 @@ func tokenCmdSend(config *walletConfig) *cobra.Command {
 	}
 	cmd.AddCommand(tokenCmdSendFungible(config))
 	cmd.AddCommand(tokenCmdSendNonFungible(config))
-	cmd.PersistentFlags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
 	return cmd
 }
 
@@ -440,6 +439,7 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendFungible(cmd, config)
 		},
 	}
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
 	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
@@ -534,6 +534,7 @@ func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendNonFungible(cmd, config)
 		},
 	}
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
 	err := cmd.MarkFlagRequired(cmdFlagTokenId)
 	if err != nil {

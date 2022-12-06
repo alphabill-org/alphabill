@@ -310,7 +310,7 @@ type UpdateNonFungibleTokenAttributes struct {
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	// the backlink to the previous transaction with the token
 	Backlink []byte `protobuf:"bytes,2,opt,name=backlink,proto3" json:"backlink,omitempty"`
-	//  inputs to satisfy the token data update predicates down the inheritance chain
+	// inputs to satisfy the token data update predicates down the inheritance chain
 	DataUpdateSignatures [][]byte `protobuf:"bytes,3,rep,name=data_update_signatures,json=dataUpdateSignatures,proto3" json:"data_update_signatures,omitempty"`
 }
 

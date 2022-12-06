@@ -73,7 +73,12 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 		return bytes.Equal(tx.UnitId, typeID11)
 	}), test.WaitDuration, test.WaitTick)
 	ensureUnitBytes(t, unitState, typeID11)
-	//second type inheriting the first one and setting subtype clause to ptpkh
+	//second type
+	//--parent-type without --subtype-input gives error
+	execTokensCmdWithError(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X", dialAddr, symbol1, typeID12, "ptpkh", typeID11), "missing [subtype-input]")
+	//--subtype-input without --parent-type also gives error
+	execTokensCmdWithError(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --subtype-input %s", dialAddr, symbol1, typeID12, "ptpkh", "0x535100"), "missing [parent-type]")
+	//inheriting the first one and setting subtype clause to ptpkh
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible -u %s --sync true --symbol %s --type %X --subtype-clause %s --parent-type %X --subtype-input %s", dialAddr, symbol1, typeID12, "ptpkh", typeID11, "0x535100"))
 	require.Eventually(t, testpartition.BlockchainContains(partition, func(tx *txsystem.Transaction) bool {
 		return bytes.Equal(tx.UnitId, typeID12)

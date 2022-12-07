@@ -6,17 +6,19 @@ import (
 )
 
 type InmemoryBillStore struct {
-	blockNumber uint64
-	pubkeyIndex map[string]map[string]*Bill // pubkey => map[bill_id]bill
-	keys        map[string]*Pubkey          // pubkey => hashed pubkeys
+	blockNumber     uint64
+	pubkeyIndex     map[string]map[string]*Bill // pubkey => map[bill_id]bill
+	keys            map[string]*Pubkey          // pubkey => hashed pubkeys
+	expirationIndex map[uint64][]*expiredBill   // expiration order number => list of expired bills
 
 	mu sync.Mutex
 }
 
 func NewInmemoryBillStore() *InmemoryBillStore {
 	return &InmemoryBillStore{
-		pubkeyIndex: map[string]map[string]*Bill{},
-		keys:        map[string]*Pubkey{},
+		pubkeyIndex:     map[string]map[string]*Bill{},
+		keys:            map[string]*Pubkey{},
+		expirationIndex: map[uint64][]*expiredBill{},
 	}
 }
 
@@ -107,5 +109,34 @@ func (s *InmemoryBillStore) AddKey(k *Pubkey) error {
 	if !f {
 		s.keys[string(k.Pubkey)] = k
 	}
+	return nil
+}
+
+func (s *InmemoryBillStore) SetBillExpirationTime(expirationBlockNumber uint64, pubkey []byte, unitID []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	expiredBills, f := s.expirationIndex[expirationBlockNumber]
+	if !f {
+		expiredBills = []*expiredBill{}
+		s.expirationIndex[expirationBlockNumber] = expiredBills
+	}
+	expiredBills = append(expiredBills, &expiredBill{Pubkey: pubkey, UnitID: unitID})
+	return nil
+}
+
+func (s *InmemoryBillStore) DeleteExpiredBills(blockNumber uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	expiredBills := s.expirationIndex[blockNumber]
+	for _, b := range expiredBills {
+		err := s.RemoveBill(b.Pubkey, b.UnitID)
+		if err != nil {
+			return err
+		}
+	}
+
+	delete(s.expirationIndex, blockNumber)
 	return nil
 }

@@ -11,7 +11,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
@@ -58,16 +57,9 @@ func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *cert
 	return uc
 }
 
-func CertifyBlock(t *testing.T, b *block.Block, txConverter block.TxConverter) (*block.Block, map[string]abcrypto.Verifier) {
+func CertifyBlock(t *testing.T, b *block.Block, txConverter block.TxConverter, signer abcrypto.Signer) *block.Block {
 	gblock, err := b.ToGenericBlock(txConverter)
 	require.NoError(t, err)
-	verifiers := CertifyGenericBlock(t, gblock)
-	return gblock.ToProtobuf(), verifiers
-}
-
-func CertifyGenericBlock(t *testing.T, b *block.GenericBlock) map[string]abcrypto.Verifier {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	verifiers := map[string]abcrypto.Verifier{"test": verifier}
-	b.UnicityCertificate = CreateUC(t, b, signer)
-	return verifiers
+	gblock.UnicityCertificate = CreateUC(t, gblock, signer)
+	return gblock.ToProtobuf()
 }

@@ -32,3 +32,20 @@ func CreateSignerAndVerifier(t *testing.T) (crypto.Signer, crypto.Verifier) {
 	require.NoError(t, err)
 	return signer, verifier
 }
+
+func CreateVerifier(t *testing.T) crypto.Verifier {
+	t.Helper()
+	signer, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+	return verifier
+}
+
+func VerifierBytes(t *testing.T, v crypto.Verifier) (pubKey []byte) {
+	t.Helper()
+	pubKey, err := v.MarshalPublicKey()
+	require.NoError(t, err)
+	return
+}

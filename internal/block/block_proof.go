@@ -164,6 +164,9 @@ func (x *BlockProof) verifyUC(unitID []byte, verifiers map[string]abcrypto.Verif
 	if x.UnicityCertificate == nil {
 		return ErrUCIsNil
 	}
+	if x.UnicityCertificate.UnicityTreeCertificate == nil {
+		return errors.New("unicity tree certificate is nil")
+	}
 	sysid := x.UnicityCertificate.UnicityTreeCertificate.SystemIdentifier
 	sdr := x.UnicityCertificate.UnicityTreeCertificate.SystemDescriptionHash
 	err := x.UnicityCertificate.IsValid(verifiers, hashAlgorithm, sysid, sdr)

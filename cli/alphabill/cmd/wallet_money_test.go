@@ -12,13 +12,16 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -32,6 +35,7 @@ func TestWalletCreateCmd(t *testing.T) {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
 	homeDir := setupTestHomeDir(t, "wallet-test")
+	setupTrustBase(t, map[string]abcrypto.Verifier{"test": testsig.CreateVerifier(t)}, homeDir)
 
 	cmd := New()
 	args := "wallet --home " + homeDir + " create"
@@ -45,14 +49,26 @@ func TestWalletCreateCmd(t *testing.T) {
 	)
 }
 
+func TestWalletCreateCmd_TrustBaseNotFound(t *testing.T) {
+	outputWriter := &testConsoleWriter{}
+	consoleWriter = outputWriter
+	homeDir := setupTestHomeDir(t, "wallet-test")
+
+	cmd := New()
+	args := "wallet --home " + homeDir + " create"
+	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.ErrorContains(t, err, "invalid trust base")
+}
+
 func TestWalletGetBalanceCmd(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	stdout, _ := execCommand(homedir, "get-balance")
 	verifyStdout(t, stdout, "#1 0", "Total 0")
 }
 
 func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	addAccount(t, homedir)
 	stdout, _ := execCommand(homedir, "get-balance --key 2")
 	verifyStdout(t, stdout, "#2 0")
@@ -60,21 +76,21 @@ func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 }
 
 func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	stdout, _ := execCommand(homedir, "get-balance --total")
 	verifyStdout(t, stdout, "Total 0")
 	verifyStdoutNotExists(t, stdout, "#1 0")
 }
 
 func TestWalletGetBalanceCmdTotalWithKeyFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	stdout, _ := execCommand(homedir, "get-balance --key 1 --total")
 	verifyStdout(t, stdout, "#1 0")
 	verifyStdoutNotExists(t, stdout, "Total 0")
 }
 
 func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 
 	// verify quiet flag does nothing if no key or total flag is not provided
 	stdout, _ := execCommand(homedir, "get-balance --quiet")
@@ -98,7 +114,7 @@ func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
 }
 
 func TestPubKeysCmd(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	stdout, _ := execCommand(homedir, "get-pubkeys")
 	verifyStdout(t, stdout, "#1 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 }
@@ -116,18 +132,18 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 		Value: 10000,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network, trustBase := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, ":9543")
 
 	// create 2 wallets
 	err := wlog.InitStdoutLogger(wlog.INFO)
 	require.NoError(t, err)
 
-	w1, homedir1 := createNewWallet(t, ":9543")
+	w1, homedir1 := createNewWallet(t, ":9543", trustBase)
 	w1PubKey, _ := w1.GetPublicKey(0)
 	w1.Shutdown()
 
-	w2, homedir2 := createNewWallet(t, ":9543")
+	w2, homedir2 := createNewWallet(t, ":9543", trustBase)
 	w2PubKey, _ := w2.GetPublicKey(0)
 	w2.Shutdown()
 
@@ -183,13 +199,13 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 		Value: 10000,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network, trustBase := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, ":9543")
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	//walletName := "wallet"
-	w, homedir := createNewWallet(t, ":9543")
+	w, homedir := createNewWallet(t, ":9543", trustBase)
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
 
@@ -235,12 +251,12 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 		Value: 10000,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network, trustBase := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, ":9543")
 
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	w, homedir := createNewWallet(t, ":9543")
+	w, homedir := createNewWallet(t, ":9543", trustBase)
 	pubKey1, _ := w.GetPublicKey(0)
 	w.Shutdown()
 
@@ -266,11 +282,11 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 		Value: 10000,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network, trustBase := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, ":9543")
 
 	// create wallet
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, trustBase)
 	pubKey1Hex := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
 	pubKey2Hex := addAccount(t, homedir)
 
@@ -302,7 +318,8 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	require.Contains(t, stdout.lines[1], fmt.Sprintf("Transaction proof(s) saved to: %s", path.Join(homedir, "bills.json")))
 }
 
-func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
+func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) (*testpartition.AlphabillPartition, map[string]abcrypto.Verifier) {
+	var trustBase map[string]abcrypto.Verifier
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
@@ -311,13 +328,14 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 			moneytx.SchemeOpts.TrustBase(tb),
 		)
 		require.NoError(t, err)
+		trustBase = tb
 		return system
 	}, []byte{0, 0, 0, 0})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = network.Close()
 	})
-	return network
+	return network, trustBase
 }
 
 func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, addr string) {
@@ -397,10 +415,11 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 	return tx, nil
 }
 
-func createNewWallet(t *testing.T, addr string) (*money.Wallet, string) {
+func createNewWallet(t *testing.T, addr string, trustBase map[string]abcrypto.Verifier) (*money.Wallet, string) {
 	walletDir := t.TempDir()
 	w, err := money.CreateNewWallet("", money.WalletConfig{
-		DbPath: path.Join(walletDir, "wallet"),
+		DbPath:        path.Join(walletDir, "wallet"),
+		TrustBaseFile: setupTrustBase(t, trustBase, walletDir),
 		AlphabillClientConfig: client.AlphabillClientConfig{
 			Uri:          addr,
 			WaitForReady: false,
@@ -411,16 +430,39 @@ func createNewWallet(t *testing.T, addr string) (*money.Wallet, string) {
 	return w, walletDir
 }
 
-func createNewTestWallet(t *testing.T) string {
+func createNewTestWallet(t *testing.T, tb map[string]abcrypto.Verifier) string {
 	homeDir := t.TempDir()
 	walletDir := path.Join(homeDir, "wallet")
 	w, err := money.CreateNewWallet("dinosaur simple verify deliver bless ridge monkey design venue six problem lucky", money.WalletConfig{
-		DbPath: walletDir,
+		DbPath:        walletDir,
+		TrustBaseFile: setupTrustBase(t, tb, homeDir),
 	})
 	defer w.Shutdown()
 	require.NoError(t, err)
 	require.NotNil(t, w)
 	return homeDir
+}
+
+func setupTrustBase(t *testing.T, trustBase map[string]abcrypto.Verifier, walletDir string) string {
+	var infos []*genesis.PublicKeyInfo
+	for key, verifier := range trustBase {
+		infos = append(infos, &genesis.PublicKeyInfo{
+			NodeIdentifier:   key,
+			SigningPublicKey: testsig.VerifierBytes(t, verifier),
+		})
+	}
+	require.NoError(t, os.MkdirAll(path.Join(walletDir, "wallet"), 0700))
+	trustBaseFile := path.Join(walletDir, "wallet", "trust-base.json")
+	require.NoError(t, util.WriteJsonFile(trustBaseFile, &wallet.TrustBase{
+		RootValidators: infos,
+	}))
+	return trustBaseFile
+}
+
+func createRandomTrustBase(t *testing.T) map[string]abcrypto.Verifier {
+	return map[string]abcrypto.Verifier{
+		"test": testsig.CreateVerifier(t),
+	}
 }
 
 func verifyStdout(t *testing.T, consoleWriter *testConsoleWriter, expectedLines ...string) {

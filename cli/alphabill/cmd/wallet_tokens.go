@@ -878,7 +878,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, erro
 	if err != nil {
 		return nil, err
 	}
-	mw, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
+	mw, err := loadExistingWallet(cmd, config.WalletHomeDir, uri, config.TrustBaseFile)
 	if err != nil {
 		return nil, err
 	}

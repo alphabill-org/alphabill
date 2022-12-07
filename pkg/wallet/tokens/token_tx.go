@@ -33,19 +33,17 @@ type (
 	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
 )
 
-func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.Block, accNr uint64, key *wallet.KeyHashes) error {
-	gtx, err := w.txs.ConvertTx(tx)
-	if err != nil {
-		return err
-	}
+func (w *Wallet) readTx(txc TokenTxContext, gtx txsystem.GenericTransaction, b *block.Block, accNr uint64, key *wallet.KeyHashes) error {
 	id := util.Uint256ToBytes(gtx.UnitID())
 	txHash := gtx.Hash(crypto.SHA256)
+	tx := gtx.ToProtoBuf()
 	log.Info(fmt.Sprintf("Converted tx: UnitId=%X, TxId=%X", id, txHash))
 
 	switch ctx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		log.Info("CreateFungibleTokenType tx")
-		err = w.addTokenTypeWithProof(&TokenUnitType{
+
+		err := w.addTokenTypeWithProof(&TokenUnitType{
 			ID:            id,
 			Kind:          FungibleTokenType,
 			Symbol:        ctx.Symbol(),

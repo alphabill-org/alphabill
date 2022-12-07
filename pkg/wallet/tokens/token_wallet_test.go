@@ -9,19 +9,25 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewFungibleType(t *testing.T) {
-	tw, abClient := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, abClient := createTestWallet(t, rcPublicKey)
 	typeId := []byte{1}
 	a := &tokens.CreateFungibleTokenTypeAttributes{
 		Symbol:                             "AB",
@@ -66,7 +72,8 @@ func TestNewFungibleType(t *testing.T) {
 }
 
 func TestNewNonFungibleType(t *testing.T) {
-	tw, abClient := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, abClient := createTestWallet(t, rcPublicKey)
 	typeId := []byte{2}
 	a := &tokens.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                             "ABNFT",
@@ -88,7 +95,8 @@ func TestNewNonFungibleType(t *testing.T) {
 }
 
 func TestNewFungibleToken(t *testing.T) {
-	tw, abClient := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, abClient := createTestWallet(t, rcPublicKey)
 	tests := []struct {
 		name          string
 		accNr         uint64
@@ -182,7 +190,8 @@ func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
 }
 
 func TestNewNFT(t *testing.T) {
-	tw, abClient := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, abClient := createTestWallet(t, rcPublicKey)
 	tests := []struct {
 		name          string
 		accNr         uint64
@@ -230,7 +239,8 @@ func TestNewNFT(t *testing.T) {
 }
 
 func TestTransferNFT(t *testing.T) {
-	tw, abClient := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, abClient := createTestWallet(t, rcPublicKey)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {
 		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: NonFungibleToken, Symbol: "AB", TypeID: []byte{10}}))
 		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: NonFungibleToken, Symbol: "AB", TypeID: []byte{10}}))
@@ -278,7 +288,8 @@ func TestTransferNFT(t *testing.T) {
 }
 
 func TestUpdateNFTData(t *testing.T) {
-	tw, abClient := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, abClient := createTestWallet(t, rcPublicKey)
 	key, err := tw.getAccountKey(1)
 	require.NoError(t, err)
 
@@ -306,9 +317,10 @@ func TestUpdateNFTData(t *testing.T) {
 	require.Len(t, dataUpdate.DataUpdateSignatures, 2)
 	require.Equal(t, []byte{script.StartByte}, dataUpdate.DataUpdateSignatures[0])
 	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
-
+	genericTx, err := tokens.NewGenericTx(tx)
+	require.NoError(t, err)
 	require.NoError(t, tw.db.WithTransaction(func(txc TokenTxContext) error {
-		require.NoError(t, tw.readTx(txc, tx, nil, 1, key.PubKeyHash))
+		require.NoError(t, tw.readTx(txc, genericTx, nil, 1, key.PubKeyHash))
 		return nil
 	}))
 	updatedTok, err := tw.db.Do().GetToken(1, tok.ID)
@@ -342,7 +354,8 @@ func parseSplit(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.Spl
 
 func TestSendFungible(t *testing.T) {
 	typeId := []byte{10}
-	tw, abClient := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, abClient := createTestWallet(t, rcPublicKey)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
 		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeID: typeId, Amount: 3}))
 		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeID: typeId, Amount: 5}))
@@ -421,7 +434,8 @@ func TestSendFungible(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	tw, _ := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	tw, _ := createTestWallet(t, rcPublicKey)
 	_, _, err := tw.mw.AddAccount() //#2
 	require.NoError(t, err)
 	_, _, err = tw.mw.AddAccount() //#3 this acc has no tokens, should not be listed
@@ -525,8 +539,23 @@ func TestList(t *testing.T) {
 	}
 }
 
-func createTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	c := money.WalletConfig{DbPath: t.TempDir()}
+func createTestWallet(t *testing.T, key crypto.Verifier) (*Wallet, *clientmock.MockAlphabillClient) {
+	require.NotNil(t, key)
+	dir := t.TempDir()
+	trustBaseFile := path.Join(dir, "trust-base.json")
+
+	err := util.WriteJsonFile(trustBaseFile, &wallet.TrustBase{
+		RootValidators: []*genesis.PublicKeyInfo{
+			{
+				NodeIdentifier:      "test",
+				SigningPublicKey:    testsig.VerifierBytes(t, key),
+				EncryptionPublicKey: nil,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	c := money.WalletConfig{DbPath: dir, TrustBaseFile: trustBaseFile}
 	w, err := money.CreateNewWallet("", c)
 	require.NoError(t, err)
 	tw, err := Load(w, false)

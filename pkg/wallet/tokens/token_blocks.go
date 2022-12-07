@@ -24,6 +24,11 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 	if !bytes.Equal(tokens.DefaultTokenTxSystemIdentifier, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
+	genericBlock, err := b.ToGenericBlock(w.txs)
+	if err != nil {
+		return err
+	}
+
 	return w.db.WithTransaction(func(txc TokenTxContext) error {
 		blockNumber := b.BlockNumber
 		lastBlockNumber, err := txc.GetBlockNumber()
@@ -48,7 +53,17 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 					if n > 0 {
 						keyHashes = accounts[n-1].PubKeyHash
 					}
-					err = w.readTx(txc, tx, b, uint64(n), keyHashes)
+					gtx, err := w.txs.ConvertTx(tx)
+					if err != nil {
+						return err
+					}
+
+					err = w.mw.TxVerifier.Verify(gtx, genericBlock)
+					if err != nil {
+						return fmt.Errorf("invalid tx: %v", err)
+					}
+					err = w.readTx(txc, gtx, b, uint64(n), keyHashes)
+
 					if err != nil {
 						return err
 					}

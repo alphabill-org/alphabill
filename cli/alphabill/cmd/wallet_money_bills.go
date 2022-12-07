@@ -6,10 +6,9 @@ import (
 	"path"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -26,13 +25,6 @@ const (
 
 var (
 	errBillOrderNumberOutOfBounds = errors.New("bill order number out of bounds")
-)
-
-type (
-	// TrustBase json schema for trust base file.
-	TrustBase struct {
-		RootValidators []*genesis.PublicKeyInfo `json:"root_validators"`
-	}
 )
 
 // newWalletBillsCmd creates a new cobra command for the wallet bills component.
@@ -73,7 +65,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "", config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -137,7 +129,7 @@ func exportCmd(config *walletConfig) *cobra.Command {
 }
 
 func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "", config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -237,7 +229,7 @@ func importCmd(config *walletConfig) *cobra.Command {
 }
 
 func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "", config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -255,15 +247,15 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	trustBase, err := util.ReadJsonFile(trustBaseFile, &TrustBase{})
+	trustBase, err := util.ReadJsonFile(trustBaseFile, &wallet.TrustBase{})
 	if err != nil {
 		return err
 	}
-	err = trustBase.verify()
+	err = trustBase.Verify()
 	if err != nil {
 		return err
 	}
-	verifiers, err := trustBase.toVerifiers()
+	verifiers, err := trustBase.ToVerifiers()
 	if err != nil {
 		return err
 	}
@@ -354,23 +346,4 @@ func newBlockProof(b *block.TxProof) *money.BlockProof {
 		BlockNumber: b.BlockNumber,
 		Proof:       b.Proof,
 	}
-}
-
-func (t *TrustBase) verify() error {
-	if len(t.RootValidators) == 0 {
-		return errors.New("missing trust base key info")
-	}
-	for _, rv := range t.RootValidators {
-		if len(rv.SigningPublicKey) == 0 {
-			return errors.New("missing trust base signing public key")
-		}
-		if len(rv.NodeIdentifier) == 0 {
-			return errors.New("missing trust base node identifier")
-		}
-	}
-	return nil
-}
-
-func (t *TrustBase) toVerifiers() (map[string]abcrypto.Verifier, error) {
-	return genesis.NewValidatorTrustBase(t.RootValidators)
 }

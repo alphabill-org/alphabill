@@ -26,6 +26,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -45,11 +46,13 @@ func TestSync(t *testing.T) {
 		DbPath:                os.TempDir(),
 		Db:                    nil,
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
+		trustBase:             map[string]abcrypto.Verifier{},
 	})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
+	w.TxVerifier = &wallet.AlwaysValidTxVerifier{}
 
 	k, err := w.db.Do().GetAccountKey(0)
 	require.NoError(t, err)
@@ -139,12 +142,14 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	_ = log.InitStdoutLogger(log.DEBUG)
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
+		trustBase:             map[string]abcrypto.Verifier{},
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
+	w.TxVerifier = &wallet.AlwaysValidTxVerifier{}
 
 	// start server that sends given blocks to wallet
 	serviceServer := testserver.NewTestAlphabillServiceServer()
@@ -184,6 +189,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
+		trustBase:             map[string]abcrypto.Verifier{},
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
 	})
 	t.Cleanup(func() {
@@ -269,13 +275,14 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet("", WalletConfig{
 		DbPath:                os.TempDir(),
+		trustBase:             map[string]abcrypto.Verifier{},
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: addr},
 	})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
-
+	w.TxVerifier = &wallet.AlwaysValidTxVerifier{}
 	_, _, _ = w.AddAccount()
 	_, _, _ = w.AddAccount()
 

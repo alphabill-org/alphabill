@@ -32,7 +32,7 @@ func TestWalletBackendCli(t *testing.T) {
 	}
 	initialBillBytes32 := initialBill.ID.Bytes32()
 	initialBillHex := hexutil.Encode(initialBillBytes32[:])
-	network := startAlphabillPartition(t, initialBill)
+	network, _ := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, defaultServerAddr)
 
 	// create trust base file
@@ -109,7 +109,7 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 	}
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
 	initialBillIDHex := hexutil.Encode(initialBillID)
-	network := startAlphabillPartition(t, initialBill)
+	network, tb := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, defaultServerAddr)
 
 	// create trust base file
@@ -139,7 +139,7 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 	}()
 
 	// create wallet
-	walletHomedir := createNewTestWallet(t)
+	walletHomedir := createNewTestWallet(t, tb)
 
 	// 1. send initial bill to wallet account 1
 	transferInitialBillTx, err := createInitialBillTransferTx(pubkey1, initialBill.ID, initialBill.Value, 10000)
@@ -187,7 +187,7 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 	require.NoError(t, err)
 
 	// 7. import downloaded proof to a same but new wallet
-	wallet2Homedir := createNewTestWallet(t)
+	wallet2Homedir := createNewTestWallet(t, tb)
 	stdout, err = execBillsCommand(wallet2Homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", downloadedBillFile, trustBaseFilePath))
 	require.NoError(t, err)
 	require.Contains(t, stdout.lines[0], "Successfully imported bill(s).")

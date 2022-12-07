@@ -11,9 +11,11 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -66,7 +68,7 @@ func TestExistingWalletCanBeLoaded(t *testing.T) {
 	walletDbPath, err := CopyWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, trustBase: map[string]abcrypto.Verifier{}})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()
@@ -290,7 +292,9 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			},
 		},
 	}
-	certifiedBlock, verifiers := testblock.CertifyBlock(t, testBlock, txConverter)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	certifiedBlock := testblock.CertifyBlock(t, testBlock, txConverter, signer)
 	err := w.ProcessBlock(certifiedBlock)
 	require.NoError(t, err)
 

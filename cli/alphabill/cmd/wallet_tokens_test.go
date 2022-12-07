@@ -531,16 +531,18 @@ func ensureUnit(t *testing.T, state tokens.TokenState, id *uint256.Int) *rma.Uni
 	return unit
 }
 
-func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, tokens.TokenState) {
+func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, tokens.TokenState, map[string]abcrypto.Verifier) {
 	tokensState, err := rma.New(&rma.Config{
 		HashAlgorithm: gocrypto.SHA256,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, tokensState)
+	var verifiers map[string]abcrypto.Verifier
 	network, err := testpartition.NewNetwork(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.New(tokens.WithState(tokensState))
 			require.NoError(t, err)
+			verifiers = tb
 			return system
 		}, tokens.DefaultTokenTxSystemIdentifier)
 	require.NoError(t, err)
@@ -548,11 +550,11 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, toke
 		_ = network.Close()
 	})
 	startRPCServer(t, network, listenAddr)
-	return network, tokensState
+	return network, tokensState, verifiers
 }
 
-func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
-	mw, homedir := createNewWallet(t, addr)
+func createNewTokenWallet(t *testing.T, addr string, trustBase map[string]abcrypto.Verifier) (*tw.Wallet, string) {
+	mw, homedir := createNewWallet(t, addr, trustBase)
 
 	w, err := tw.Load(mw, false)
 	require.NoError(t, err)

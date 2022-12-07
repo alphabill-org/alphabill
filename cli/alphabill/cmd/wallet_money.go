@@ -47,6 +47,7 @@ type walletConfig struct {
 	WalletHomeDir string
 	LogLevel      string
 	LogFile       string
+	TrustBaseFile string
 }
 
 // newWalletCmd creates a new cobra command for the wallet component.
@@ -86,6 +87,7 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
 	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", fmt.Sprintf("wallet home directory (default $AB_HOME/wallet)"))
+	walletCmd.PersistentFlags().StringVarP(&config.TrustBaseFile, trustBaseFileCmdName, "", "", fmt.Sprintf("path to the trust base file (default $AB_HOME/wallet/trust-base.json)"))
 	return walletCmd
 }
 
@@ -109,7 +111,7 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password}
+	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password, TrustBaseFile: config.TrustBaseFile}
 	var w *money.Wallet
 	consoleWriter.Println("Creating new wallet...")
 	w, err = money.CreateNewWallet(mnemonic, c)
@@ -147,7 +149,7 @@ func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri, config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -196,7 +198,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri, config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -278,7 +280,7 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 }
 
 func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "", config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -346,7 +348,7 @@ func getPubKeysCmd(config *walletConfig) *cobra.Command {
 }
 
 func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "", config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -385,7 +387,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri, config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -431,7 +433,7 @@ func addKeyCmd(config *walletConfig) *cobra.Command {
 }
 
 func execAddKeyCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "", config.TrustBaseFile)
 	if err != nil {
 		return err
 	}
@@ -445,9 +447,10 @@ func execAddKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*money.Wallet, error) {
+func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string, trustBaseFile string) (*money.Wallet, error) {
 	config := money.WalletConfig{
 		DbPath:                walletDir,
+		TrustBaseFile:         trustBaseFile,
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: uri},
 	}
 	isEncrypted, err := money.IsEncrypted(config)

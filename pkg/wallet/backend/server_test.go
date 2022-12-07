@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -589,10 +590,11 @@ func createProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof
 		PreviousBlockHash: hash.Sum256([]byte{}),
 		Transactions:      []*txsystem.Transaction{tx},
 	}
-	b, verifiers := testblock.CertifyBlock(t, b, txConverter)
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	b = testblock.CertifyBlock(t, b, txConverter, signer)
 	genericBlock, _ := b.ToGenericBlock(txConverter)
 	proof, _ := block.NewPrimaryProof(genericBlock, tx.UnitId, crypto.SHA256)
-	return proof, verifiers
+	return proof, map[string]abcrypto.Verifier{"test": verifier}
 }
 
 func TestAddKeyRequest_Ok(t *testing.T) {

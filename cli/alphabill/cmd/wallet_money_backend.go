@@ -11,7 +11,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
@@ -68,19 +67,7 @@ func (c *walletBackendConfig) GetDbFile() (string, error) {
 }
 
 func (c *walletBackendConfig) GetTrustBase() (map[string]crypto.Verifier, error) {
-	trustBase, err := util.ReadJsonFile(c.TrustBaseFile, &TrustBase{})
-	if err != nil {
-		return nil, err
-	}
-	err = trustBase.verify()
-	if err != nil {
-		return nil, err
-	}
-	verifiers, err := trustBase.toVerifiers()
-	if err != nil {
-		return nil, err
-	}
-	return verifiers, nil
+	return wallet.ReadTrustBaseFile(c.TrustBaseFile)
 }
 
 // newWalletBackendCmd creates a new cobra command for the wallet-backend component.
@@ -152,8 +139,14 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 		}
 	}
 	bp := backend.NewBlockProcessor(store)
-	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
-
+	w, err := wallet.New(
+		wallet.WithBlockProcessor(bp),
+		wallet.WithTrustBase(verifiers),
+		wallet.WithAlphabillClient(abclient),
+	)
+	if err != nil {
+		return err
+	}
 	service := backend.New(w, store, verifiers)
 	wg := sync.WaitGroup{}
 	wg.Add(1)

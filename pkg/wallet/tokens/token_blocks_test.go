@@ -9,6 +9,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
@@ -20,7 +21,8 @@ import (
 )
 
 func TestTokensProcessBlock_empty(t *testing.T) {
-	w, client := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	w, client := createTestWallet(t, rcPublicKey)
 	defer w.Shutdown()
 	w.sync = true
 	blockNr, err := w.db.Do().GetBlockNumber()
@@ -37,7 +39,8 @@ func TestTokensProcessBlock_empty(t *testing.T) {
 }
 
 func TestTokensProcessBlock_withTx_tokenTypes(t *testing.T) {
-	w, client := createTestWallet(t)
+	rcSigner, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	w, client := createTestWallet(t, rcPublicKey)
 	defer w.Shutdown()
 	w.sync = true
 	blockNr := uint64(1)
@@ -55,7 +58,7 @@ func TestTokensProcessBlock_withTx_tokenTypes(t *testing.T) {
 		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
 		BlockNumber:      blockNr,
 		Transactions:     []*txsystem.Transaction{tx1, tx2}}
-	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
+	certifiedBlock := testblock.CertifyBlock(t, b, w.txs, rcSigner)
 	client.SetBlock(certifiedBlock)
 
 	types, err := w.db.Do().GetTokenTypes()
@@ -75,6 +78,7 @@ func TestTokensProcessBlock_withTx_tokenTypes(t *testing.T) {
 	tokenType1, err := w.db.Do().GetTokenType(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id1)))
 	require.NoError(t, err)
 	require.Equal(t, "AB", tokenType1.Symbol)
+	verifiers := map[string]abcrypto.Verifier{"test": rcPublicKey}
 	verifyProof(t, tokenType1.ID, tokenType1.Proof, blockNr, tx1, w.txs, verifiers)
 
 	tokenType2, err := w.db.Do().GetTokenType(util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id2)))
@@ -84,7 +88,8 @@ func TestTokensProcessBlock_withTx_tokenTypes(t *testing.T) {
 }
 
 func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
-	w, client := createTestWallet(t)
+	signer, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	w, client := createTestWallet(t, rcPublicKey)
 	defer w.Shutdown()
 	w.sync = true
 	blockNr := uint64(1)
@@ -121,7 +126,7 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
 		BlockNumber:      blockNr,
 		Transactions:     []*txsystem.Transaction{tx1, tx2}}
-	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
+	certifiedBlock := testblock.CertifyBlock(t, b, w.txs, signer)
 	client.SetBlock(certifiedBlock)
 
 	tokens, err := w.db.Do().GetTokens(1)
@@ -141,6 +146,7 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 	token1, err := w.db.Do().GetToken(1, util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id1)))
 	require.NoError(t, err)
 	require.Equal(t, TokenTypeID(typeId1[:]), token1.GetTypeId())
+	verifiers := map[string]abcrypto.Verifier{"test": rcPublicKey}
 	verifyProof(t, token1.ID, token1.Proof, blockNr, tx1, w.txs, verifiers)
 
 	token2, err := w.db.Do().GetToken(1, util.Uint256ToBytes(uint256.NewInt(0).SetBytes(id2)))
@@ -150,7 +156,8 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 }
 
 func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
-	w, client := createTestWallet(t)
+	signer, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	w, client := createTestWallet(t, rcPublicKey)
 	w.sync = true
 	defer w.Shutdown()
 
@@ -237,7 +244,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
 		BlockNumber:      blockNr,
 		Transactions:     []*txsystem.Transaction{tx1, tx2, nftTx}}
-	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
+	certifiedBlock := testblock.CertifyBlock(t, b, w.txs, signer)
 	client.SetBlock(certifiedBlock)
 
 	require.NoError(t, w.Sync(context.Background()))
@@ -259,6 +266,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	//require.Equal(t, TokenID(id1), token1.GetTypeId()) // TODO type info is missing
 	require.Equal(t, FungibleToken, token1.Kind)
 	require.Equal(t, uint64(1), token1.Amount)
+	verifiers := map[string]abcrypto.Verifier{"test": rcPublicKey}
 	verifyProof(t, token1.ID, token1.Proof, blockNr, tx1, w.txs, verifiers)
 
 	// split token
@@ -286,7 +294,8 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 }
 
 func TestTokensProcessBlock_syncToUnit(t *testing.T) {
-	w, client := createTestWallet(t)
+	signer, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	w, client := createTestWallet(t, rcPublicKey)
 	defer w.Shutdown()
 	w.sync = true
 	blockNr := uint64(1)
@@ -295,10 +304,13 @@ func TestTokensProcessBlock_syncToUnit(t *testing.T) {
 	tx := createTx(id, blockNr)
 	require.NoError(t, anypb.MarshalFrom(tx.TransactionAttributes, &tokens.CreateFungibleTokenTypeAttributes{Symbol: "AB"}, proto.MarshalOptions{}))
 	client.SetMaxBlockNumber(blockNr)
-	client.SetBlock(&block.Block{
+
+	b := &block.Block{
 		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
 		BlockNumber:      blockNr,
-		Transactions:     []*txsystem.Transaction{tx}})
+		Transactions:     []*txsystem.Transaction{tx}}
+	certifiedBlock := testblock.CertifyBlock(t, b, w.txs, signer)
+	client.SetBlock(certifiedBlock)
 	types, err := w.db.Do().GetTokenTypes()
 	require.NoError(t, err)
 	require.Len(t, types, 0)
@@ -319,7 +331,8 @@ func TestTokensProcessBlock_syncToUnit(t *testing.T) {
 }
 
 func TestTokensProcessBlock_syncToUnit_timeout(t *testing.T) {
-	w, client := createTestWallet(t)
+	_, rcPublicKey := testsig.CreateSignerAndVerifier(t)
+	w, client := createTestWallet(t, rcPublicKey)
 	defer w.Shutdown()
 	w.sync = true
 	blockNr := uint64(1)

@@ -160,7 +160,12 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
 	storage := NewInmemoryBillStore()
 	bp := NewBlockProcessor(storage)
-	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
+	genericWallet, err := wallet.New(
+		wallet.WithBlockProcessor(bp),
+		wallet.WithAlphabillClient(abclient),
+		wallet.WithTxVerifier(&wallet.AlwaysValidTxVerifier{}),
+	)
+	require.NoError(t, err)
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	return New(genericWallet, storage, map[string]crypto.Verifier{"test": verifier})
 }

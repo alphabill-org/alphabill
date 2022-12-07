@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -11,7 +12,7 @@ const walletPass = "default-wallet-pass"
 
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass})
+	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass, trustBase: map[string]crypto.Verifier{}})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
@@ -26,7 +27,7 @@ func TestEncryptedWalletCanBeLoaded(t *testing.T) {
 	walletDbPath, err := CopyEncryptedWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, WalletPass: walletPass})
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath, WalletPass: walletPass, trustBase: map[string]crypto.Verifier{}})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()

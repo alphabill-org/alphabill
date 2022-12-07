@@ -16,7 +16,7 @@ func (p DummyBlockProcessor) ProcessBlock(b *block.Block) error {
 type DummyAlphabillClient struct {
 }
 
-func (c *DummyAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (c *DummyAlphabillClient) SendTransaction(_ *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	return &txsystem.TransactionResponse{Ok: true}, nil
 }
 
@@ -24,7 +24,7 @@ func (c *DummyAlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
 	return &block.Block{BlockNumber: blockNo}, nil
 }
 
-func (c *DummyAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+func (c *DummyAlphabillClient) GetBlocks(blockNumber, _ uint64) (*alphabill.GetBlocksResponse, error) {
 	return &alphabill.GetBlocksResponse{MaxBlockNumber: 10, Blocks: []*block.Block{{BlockNumber: blockNumber}}}, nil
 }
 

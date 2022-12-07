@@ -143,11 +143,15 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	return nil
 }
 
-func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) error {
-	v.wallet = wallet.New().
-		SetBlockProcessor(v.prepareProcessor(timeout, hash)).
-		SetABClient(v.abClient).
-		Build()
+func (v *VDClient) sync(currentBlock uint64, timeout uint64, hash []byte) (err error) {
+	v.wallet, err = wallet.New(
+		wallet.WithBlockProcessor(v.prepareProcessor(timeout, hash)),
+		wallet.WithAlphabillClient(v.abClient),
+		wallet.WithTxVerifier(&wallet.AlwaysValidTxVerifier{}),
+	)
+	if err != nil {
+		return err
+	}
 	return v.wallet.Sync(v.ctx, currentBlock)
 }
 

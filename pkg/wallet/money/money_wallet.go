@@ -110,11 +110,18 @@ func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
 	}
 	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup(), accounts: &accounts{accounts: accs}}
 
-	mw.Wallet = wallet.New().
-		SetBlockProcessor(mw).
-		SetABClientConf(config.AlphabillClientConfig).
-		Build()
-
+	tb, err := config.GetTrustBase()
+	if err != nil {
+		return nil, err
+	}
+	mw.Wallet, err = wallet.New(
+		wallet.WithBlockProcessor(mw),
+		wallet.WithAlphabillClientConfig(config.AlphabillClientConfig),
+		wallet.WithTrustBase(tb),
+	)
+	if err != nil {
+		return nil, err
+	}
 	return mw, nil
 }
 
@@ -196,7 +203,9 @@ func (w *Wallet) Shutdown() {
 
 // DeleteDb deletes the wallet database.
 func (w *Wallet) DeleteDb() {
-	w.db.DeleteDb()
+	if w.db != nil {
+		w.db.DeleteDb()
+	}
 }
 
 // CollectDust starts the dust collector process for all accounts in the wallet.
@@ -462,6 +471,15 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		return err
 	}
 	stx := gtx.(txsystem.GenericTransaction)
+	genericBlock, err := b.ToGenericBlock(&TxConverter{})
+	if err != nil {
+		return fmt.Errorf("invalid block: %v", err)
+	}
+	err = w.TxVerifier.Verify(gtx, genericBlock)
+	if err != nil {
+		return fmt.Errorf("invalid tx: %v", err)
+	}
+
 	switch tx := stx.(type) {
 	case money.Transfer:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
@@ -857,7 +875,7 @@ func (s *SendCmd) isValid() error {
 func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet, err error) {
 	mw = &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup(), accounts: newAccountsCache()}
 	defer func() {
-		if err != nil {
+		if err != nil && mw != nil {
 			// delete database if any error occurs after creating it
 			mw.DeleteDb()
 		}
@@ -868,10 +886,19 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string) (mw *Wallet,
 		return
 	}
 
-	mw.Wallet = wallet.New().
-		SetBlockProcessor(mw).
-		SetABClientConf(config.AlphabillClientConfig).
-		Build()
+	tb, err := config.GetTrustBase()
+	if err != nil {
+		return nil, fmt.Errorf("invalid trust base: %w", err)
+	}
+
+	mw.Wallet, err = wallet.New(
+		wallet.WithBlockProcessor(mw),
+		wallet.WithTrustBase(tb),
+		wallet.WithAlphabillClientConfig(config.AlphabillClientConfig),
+	)
+	if err != nil {
+		return
+	}
 
 	err = saveKeys(db, keys, config.WalletPass)
 	if err != nil {

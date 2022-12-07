@@ -28,58 +28,46 @@ var (
 )
 
 type (
-	// Wallet To synchronize wallet with a node call Sync.
+	// Wallet contains a common functionality for all Alphabill wallets. To synchronize wallet with a node call Sync.
 	// Shutdown needs to be called to release resources used by wallet.
 	Wallet struct {
 		BlockProcessor  BlockProcessor
-		config          Config
 		AlphabillClient client.ABClient
+		TxVerifier      TxVerifier
 		syncFlag        *syncFlagWrapper
 	}
-	Builder struct {
-		bp      BlockProcessor
-		abcConf client.AlphabillClientConfig
-		// overrides abcConf
-		abc client.ABClient
+
+	TxVerifier interface {
+		Verify(tx txsystem.GenericTransaction, block *block.GenericBlock) error
 	}
+
 	SendOpts struct {
 		// RetryOnFullTxBuffer retries to send transaction when tx buffer is full
 		RetryOnFullTxBuffer bool
 	}
 )
 
-func New() *Builder {
-	return &Builder{}
-}
-
-func (b *Builder) SetBlockProcessor(bp BlockProcessor) *Builder {
-	b.bp = bp
-	return b
-}
-
-func (b *Builder) SetABClientConf(abcConf client.AlphabillClientConfig) *Builder {
-	b.abcConf = abcConf
-	return b
-}
-
-func (b *Builder) SetABClient(abc client.ABClient) *Builder {
-	b.abc = abc
-	return b
-}
-
-func (b *Builder) Build() *Wallet {
-	return &Wallet{
-		syncFlag:        newSyncFlagWrapper(),
-		AlphabillClient: b.getOrCreateABClient(),
-		BlockProcessor:  b.bp,
+// New creates a new wallet. The following Option functions are required:
+//   * WithBlockProcessor and
+//   * WithAlphabillClient or WithAlphabillClientConfig and
+//   * WithTxVerifier or WithTrustBase.
+// If WithAlphabillClient and WithAlphabillClientConfig are present then the last one is used.
+// If WithTxVerifier and WithTrustBase are present then the last one is used.
+func New(opts ...Option) (*Wallet, error) {
+	w := &Wallet{syncFlag: newSyncFlagWrapper()}
+	for _, o := range opts {
+		o(w)
 	}
-}
-
-func (b *Builder) getOrCreateABClient() client.ABClient {
-	if b.abc != nil {
-		return b.abc
+	if w.BlockProcessor == nil {
+		return nil, errors.New("block processor is nil")
 	}
-	return client.New(b.abcConf)
+	if w.AlphabillClient == nil {
+		return nil, errors.New("alphabill client is nil")
+	}
+	if w.TxVerifier == nil {
+		return nil, errors.New("tx verifier is nil: trust base not specified")
+	}
+	return w, nil
 }
 
 // Sync synchronises wallet from the last known block number with the given alphabill node.

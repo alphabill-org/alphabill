@@ -16,7 +16,7 @@ import (
 )
 
 func TestWalletCreateFungibleTokenTypeCmd_SymbolFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	// missing symbol parameter
 	_, err := execCommand(homedir, "token new-type fungible --decimals 3")
 	require.ErrorContains(t, err, "required flag(s) \"symbol\" not set")
@@ -26,7 +26,7 @@ func TestWalletCreateFungibleTokenTypeCmd_SymbolFlag(t *testing.T) {
 }
 
 func TestWalletCreateFungibleTokenTypeCmd_TypeIdlFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	// hidden parameter type (not a mandatory parameter)
 	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --type")
 	require.ErrorContains(t, err, "flag needs an argument: --type")
@@ -38,7 +38,7 @@ func TestWalletCreateFungibleTokenTypeCmd_TypeIdlFlag(t *testing.T) {
 }
 
 func TestWalletCreateFungibleTokenTypeCmd_DecimalsFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	// hidden parameter type (not a mandatory parameter)
 	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals")
 	require.ErrorContains(t, err, "flag needs an argument: --decimals")
@@ -51,11 +51,11 @@ func TestWalletCreateFungibleTokenTypeCmd_DecimalsFlag(t *testing.T) {
 }
 
 func TestFungibleToken_Subtyping_Integration(t *testing.T) {
-	partition, unitState := startTokensPartition(t)
+	partition, unitState, verifiers := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr, verifiers)
 	w1.Shutdown()
 
 	verifyStdout(t, execTokensCmd(t, homedirW1, ""), "Error: must specify a subcommand like new-type, send etc")
@@ -94,16 +94,16 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 }
 
 func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
-	partition, unitState := startTokensPartition(t)
+	partition, unitState, trustBase := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr, trustBase)
 	_, err := w1.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w1.Shutdown()
 
-	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr, trustBase)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()
@@ -131,16 +131,16 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 }
 
 func TestFungibleTokens_Sending_Integration(t *testing.T) {
-	partition, unitState := startTokensPartition(t)
+	partition, unitState, trustBase := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr, trustBase)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w1.Shutdown()
 
-	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr, trustBase)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()
@@ -185,7 +185,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 }
 
 func TestWalletCreateFungibleTokenCmd_TypeFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	_, err := execCommand(homedir, "token new fungible --type A8B")
 	require.ErrorContains(t, err, "invalid argument \"A8B\" for \"--type\" flag: encoding/hex: odd length hex string")
 	_, err = execCommand(homedir, "token new fungible --type nothex")
@@ -195,7 +195,7 @@ func TestWalletCreateFungibleTokenCmd_TypeFlag(t *testing.T) {
 }
 
 func TestWalletCreateFungibleTokenCmd_AmountFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	_, err := execCommand(homedir, "token new fungible --type A8BB")
 	require.ErrorContains(t, err, "required flag(s) \"amount\" not set")
 }
@@ -214,13 +214,13 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_DataFileFlagIntegration
 		}
 	}
 
-	partition, unitState := startTokensPartition(t)
+	partition, unitState, trustBase := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1, homedir := createNewTokenWallet(t, dialAddr)
+	w1, homedir := createNewTokenWallet(t, dialAddr, trustBase)
 	require.NotNil(t, w1)
 	w1.Shutdown()
-	w2, _ := createNewTokenWallet(t, dialAddr) // homedirW2
+	w2, _ := createNewTokenWallet(t, dialAddr, trustBase) // homedirW2
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()

@@ -6,19 +6,22 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/crypto"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
 
 func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
-	c := WalletConfig{DbPath: os.TempDir()}
+	c := WalletConfig{DbPath: os.TempDir(), trustBase: map[string]crypto.Verifier{}}
 	w, err := CreateNewWallet("", c)
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})
 	require.NoError(t, err)
-
+	w.TxVerifier = &wallet.AlwaysValidTxVerifier{}
 	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
 	w.AlphabillClient = mockClient
 	return w, mockClient
@@ -26,7 +29,7 @@ func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 
 func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir()})
+	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir(), trustBase: map[string]abcrypto.Verifier{}})
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})

@@ -12,13 +12,14 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	stdout, err := execBillsCommand(homedir, "list")
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1 - empty")
@@ -156,7 +157,7 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 		Value: 10000,
 		Owner: script.PredicateAlwaysTrue(),
 	}
-	network := startAlphabillPartition(t, initialBill)
+	network, tb := startAlphabillPartition(t, initialBill)
 	startRPCServer(t, network, ":9543")
 
 	// transfer initial bill to wallet pubkey
@@ -168,7 +169,7 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// create wallet
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, tb)
 
 	// sync wallet
 	waitForBalance(t, homedir, initialBill.Value, 0)
@@ -178,7 +179,7 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 
 // createTrustBaseFile extracts and saves trust-base file from testpartition.AlphabillPartition
 func createTrustBaseFile(filePath string, network *testpartition.AlphabillPartition) error {
-	tb := &TrustBase{RootValidators: []*genesis.PublicKeyInfo{}}
+	tb := &wallet.TrustBase{RootValidators: []*genesis.PublicKeyInfo{}}
 	for k, v := range network.TrustBase {
 		pk, _ := v.MarshalPublicKey()
 		tb.RootValidators = append(tb.RootValidators, &genesis.PublicKeyInfo{

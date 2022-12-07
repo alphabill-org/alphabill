@@ -55,10 +55,18 @@ func Load(mw *money.Wallet, sync bool) (*Wallet, error) {
 		return nil, err
 	}
 	w := &Wallet{mw: mw, db: db, txs: txs, sync: sync, blockListener: nil}
-	w.mw.Wallet = wallet.New().
-		SetBlockProcessor(w).
-		SetABClient(mw.AlphabillClient).
-		Build()
+	tb, err := config.GetTrustBase()
+	if err != nil {
+		return nil, err
+	}
+	w.mw.Wallet, err = wallet.New(
+		wallet.WithBlockProcessor(w),
+		wallet.WithAlphabillClient(mw.AlphabillClient),
+		wallet.WithTrustBase(tb),
+	)
+	if err != nil {
+		return nil, err
+	}
 	return w, nil
 }
 

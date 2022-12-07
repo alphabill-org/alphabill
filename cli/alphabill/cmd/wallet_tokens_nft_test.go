@@ -52,7 +52,7 @@ func TestWalletCreateNonFungibleTokenCmd_TypeFlag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			homedir := createNewTestWallet(t)
+			homedir := createNewTestWallet(t, createRandomTrustBase(t))
 			_, err := execCommand(homedir, tt.args.cmdParams)
 			if len(tt.wantErrStr) != 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
@@ -65,7 +65,7 @@ func TestWalletCreateNonFungibleTokenCmd_TypeFlag(t *testing.T) {
 
 func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 	//token-identifier parameter is odd length
-	homedir := createNewTestWallet(t)
+	homedir := createNewTestWallet(t, createRandomTrustBase(t))
 	_, err := execCommand(homedir, "token new non-fungible --type A8B0 --token-identifier A8B09")
 	require.ErrorContains(t, err, "invalid argument \"A8B09\" for \"--token-identifier\" flag: encoding/hex: odd length hex string")
 	_, err = execCommand(homedir, "token new non-fungible --type A8B0 --token-identifier nothex")
@@ -108,7 +108,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			homedir := createNewTestWallet(t)
+			homedir := createNewTestWallet(t, createRandomTrustBase(t))
 			_, err := execCommand(homedir, tt.args.cmdParams)
 			if len(tt.wantErrStr) != 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
@@ -120,16 +120,16 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 }
 
 func TestNFTs_Integration(t *testing.T) {
-	partition, unitState := startTokensPartition(t)
+	partition, unitState, trustBase := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr, trustBase)
 	_, err := w1.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w1.Shutdown()
 
-	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr, trustBase)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()
@@ -160,10 +160,10 @@ func TestNFTs_Integration(t *testing.T) {
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
-	partition, unitState := startTokensPartition(t)
+	partition, unitState, trustBase := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1, homedir := createNewTokenWallet(t, dialAddr)
+	w1, homedir := createNewTokenWallet(t, dialAddr, trustBase)
 	require.NotNil(t, w1)
 	w1.Shutdown()
 	typeId := randomID(t)
@@ -222,16 +222,16 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {
-	partition, unitState := startTokensPartition(t)
+	partition, unitState, trustBase := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr, trustBase)
 	_, err := w1.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w1.Shutdown()
 
-	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr, trustBase)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()

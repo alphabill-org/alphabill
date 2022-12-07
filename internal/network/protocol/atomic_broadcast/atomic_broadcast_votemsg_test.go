@@ -26,7 +26,7 @@ func TestTimeout_Bytes(t *testing.T) {
 				Epoch: 1,
 				Round: 2,
 				Hqc: &QuorumCert{
-					VoteInfo:         dummyVoteInfo,
+					VoteInfo:         NewDummyVoteInfo(10),
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{2, 3, 4}},
 					Signatures:       map[string][]byte{},
 				},
@@ -60,6 +60,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 		signer crypto.Signer
 	}
 	s1, _ := testsig.CreateSignerAndVerifier(t)
+	voteInfo := NewDummyVoteInfo(10)
 	tests := []struct {
 		name       string
 		fields     fields
@@ -69,8 +70,8 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 		{
 			name: "Sign ok",
 			fields: fields{
-				VoteInfo:         dummyVoteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, dummyVoteInfo),
+				VoteInfo:         voteInfo,
+				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
 				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 			},
@@ -135,7 +136,7 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 	const timeoutRound = 10
 	s1, _ := testsig.CreateSignerAndVerifier(t)
 	// previous round qc
-	voteInfo := NewDummyVoteInfo(timeoutRound-1, timeoutRound-2)
+	voteInfo := NewDummyVoteInfo(timeoutRound - 1)
 	prevRoundQc := &QuorumCert{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
@@ -153,7 +154,7 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 		{
 			name: "Pure timeout vote",
 			fields: fields{
-				VoteInfo:         dummyVoteInfo,
+				VoteInfo:         NewDummyVoteInfo(timeoutRound),
 				LedgerCommitInfo: nil,
 				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
@@ -164,7 +165,7 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 		{
 			name: "Missing timeout",
 			fields: fields{
-				VoteInfo:         dummyVoteInfo,
+				VoteInfo:         NewDummyVoteInfo(timeoutRound),
 				LedgerCommitInfo: nil,
 				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
@@ -175,7 +176,7 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 		{
 			name: "Missing signatures",
 			fields: fields{
-				VoteInfo:         dummyVoteInfo,
+				VoteInfo:         NewDummyVoteInfo(timeoutRound),
 				LedgerCommitInfo: nil,
 				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
@@ -212,7 +213,7 @@ func TestVoteMsg_NewTimeout(t *testing.T) {
 		qc    *QuorumCert
 	}
 	const timeoutRound = 10
-	prevRoundInfo := NewDummyVoteInfo(timeoutRound-1, timeoutRound-2)
+	prevRoundInfo := NewDummyVoteInfo(timeoutRound - 1)
 	tests := []struct {
 		name       string
 		args       args
@@ -285,7 +286,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	commitQcInfo := NewDummyVoteInfo(votedRound-2, votedRound-3)
+	commitQcInfo := NewDummyVoteInfo(votedRound - 2)
 	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
@@ -298,7 +299,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 		LedgerCommitInfo: commitInfo,
 		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
 	}
-	voteMsgInfo := NewDummyVoteInfo(votedRound, votedRound-1)
+	voteMsgInfo := NewDummyVoteInfo(votedRound)
 	tests := []struct {
 		name       string
 		fields     fields
@@ -411,7 +412,7 @@ func TestVoteMsg_VerifyOk(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	commitQcInfo := NewDummyVoteInfo(votedRound-2, votedRound-3)
+	commitQcInfo := NewDummyVoteInfo(votedRound - 2)
 	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
@@ -424,7 +425,7 @@ func TestVoteMsg_VerifyOk(t *testing.T) {
 		LedgerCommitInfo: commitInfo,
 		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
 	}
-	voteMsgInfo := NewDummyVoteInfo(votedRound, votedRound-1)
+	voteMsgInfo := NewDummyVoteInfo(votedRound)
 	voteMsg := &VoteMsg{
 		VoteInfo:         voteMsgInfo,
 		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
@@ -451,7 +452,7 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	commitQcInfo := NewDummyVoteInfo(votedRound-2, votedRound-3)
+	commitQcInfo := NewDummyVoteInfo(votedRound - 2)
 	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
@@ -464,7 +465,7 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 		LedgerCommitInfo: commitInfo,
 		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
 	}
-	voteMsgInfo := NewDummyVoteInfo(votedRound, votedRound-1)
+	voteMsgInfo := NewDummyVoteInfo(votedRound)
 	voteMsg := &VoteMsg{
 		VoteInfo:         voteMsgInfo,
 		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),

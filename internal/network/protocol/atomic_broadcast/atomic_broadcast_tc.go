@@ -82,7 +82,7 @@ func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 	// 3. Check all signatures and remember the max QC round over all the signatures received
 	for author, timeoutSig := range x.Signatures {
 		// verify signature
-		timeout := NewTimeoutSign(x.Timeout.GetRound(), x.Timeout.GetEpoch(), timeoutSig.HqcRound)
+		timeout := NewTimeoutSign(x.Timeout.GetEpoch(), x.Timeout.GetRound(), timeoutSig.HqcRound)
 		v, f := rootTrust[author]
 		if !f {
 			return fmt.Errorf("failed to find public key for author %v", author)

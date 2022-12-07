@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrInvalidBlockId      = errors.New("invalid block hash")
+	ErrInvalidBlockId      = errors.New("invalid block id")
 	ErrInvalidStateHash    = errors.New("invalid state hash")
 	ErrInvalidVoteInfoHash = errors.New("invalid vote info hash")
 )

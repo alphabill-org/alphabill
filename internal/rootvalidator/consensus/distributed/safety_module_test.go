@@ -127,6 +127,7 @@ func TestSafetyModule_SignProposal(t *testing.T) {
 	signatures := map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	qc := NewDummyQuorumCertificate(voteInfo, signatures)
 	proposal.Block.Qc = qc
+	proposal.HighCommitQc = qc
 	require.NoError(t, s.SignProposal(proposal))
 	require.Greater(t, len(proposal.Signature), 1)
 }

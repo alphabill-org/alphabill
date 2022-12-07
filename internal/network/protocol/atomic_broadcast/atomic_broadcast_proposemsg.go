@@ -1,6 +1,7 @@
 package atomic_broadcast
 
 import (
+	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -13,6 +14,22 @@ var (
 	ErrSignerIsNil   = errors.New("signer is nil")
 	ErrVerifierIsNil = errors.New("verifier is nil")
 )
+
+func (x *ProposalMsg) IsValid() error {
+	if x.Block == nil {
+		return fmt.Errorf("proposal msg not valid, block is nil")
+	}
+	if err := x.Block.IsValid(); err != nil {
+		return fmt.Errorf("proposal msg not valid, block error: %w", err)
+	}
+	if x.HighCommitQc == nil {
+		return fmt.Errorf("proposal msg not valid, missing high commit qc")
+	}
+	if err := x.HighCommitQc.IsValid(); err != nil {
+		return fmt.Errorf("proposal msg not valid, high commit qc validation error: %w", err)
+	}
+	return nil
+}
 
 func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	if signer == nil {
@@ -30,29 +47,32 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 		return err
 	}
 	x.Signature = signature
+	// Since sign sets block id, check validity after signing
+	if err := x.IsValid(); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (x *ProposalMsg) Verify(p PartitionStore, quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *ProposalMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	hash, err := x.Block.Hash(gocrypto.SHA256)
 	if err != nil {
 		return err
 	}
+	// block id must match hash of block
+	if bytes.Equal(x.Block.Id, hash) == false {
+		return fmt.Errorf("error proposal bock hash does not match block id")
+	}
+	// Find author public key
 	v, f := rootTrust[x.Block.Author]
 	if !f {
 		return fmt.Errorf("failed to find public key for root validator %v", x.Block.Author)
 	}
-	err = v.VerifyHash(hash, x.Signature)
-	if err != nil {
+	if err := v.VerifyHash(x.Signature, hash); err != nil {
 		return aberrors.Wrap(err, "proposal verification failed")
 	}
-	// Check certificates
-	if err := x.Block.Qc.Verify(quorum, rootTrust); err != nil {
-		return aberrors.Wrap(err, "proposal verification failed")
-	}
-	// If there is a high commit QC certificate (is this optional at all)
-	if x.HighCommitQc == nil {
-		return errors.New("proposal is missing commit certificate")
+	if err := x.IsValid(); err != nil {
+		return err
 	}
 	if err := x.HighCommitQc.Verify(quorum, rootTrust); err != nil {
 		return aberrors.Wrap(err, "proposal verification failed")
@@ -63,7 +83,7 @@ func (x *ProposalMsg) Verify(p PartitionStore, quorum uint32, rootTrust map[stri
 			return aberrors.Wrap(err, "proposal verification failed")
 		}
 	}
-	if err := x.Block.IsValid(p, quorum, rootTrust); err != nil {
+	if err := x.Block.Verify(quorum, rootTrust); err != nil {
 		return err
 	}
 	return nil

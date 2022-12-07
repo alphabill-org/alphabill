@@ -397,7 +397,11 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		logger.Warning("IR change error, failed to get total nods for partition %X, error: %v", sysId.Bytes(), err)
 		return
 	}
-	if err := irChange.IsValid(x.partitions); err != nil {
+	trustBase, err := x.partitions.GetTrustBase(sysId)
+	if err != nil {
+		return
+	}
+	if err := irChange.Verify(trustBase); err != nil {
 		logger.Warning("Invalid IR change request error: %v", err)
 		return
 	}
@@ -464,8 +468,8 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 
 func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
-	// verify signature on proposal
-	err := proposal.Verify(x.partitions, x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
+	// verify signature on proposal (does not verify partition request signatures)
+	err := proposal.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
 	if err != nil {
 		logger.Warning("Atomic broadcast proposal verify failed: %v", err)
 	}

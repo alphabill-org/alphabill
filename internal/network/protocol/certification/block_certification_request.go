@@ -51,7 +51,7 @@ func (x *BlockCertificationRequest) Verify(partitionVer PartitionVerifier) error
 	if x.NodeIdentifier == "" {
 		return ErrEmptyNodeIdentifier
 	}
-	if err := x.InputRecord.IsValid(); err != nil {
+	if err := x.InputRecord.Verify(); err != nil {
 		return err
 	}
 	if err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), x.NodeIdentifier, x.Bytes(), x.Signature); err != nil {

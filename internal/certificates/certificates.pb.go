@@ -90,7 +90,7 @@ type InputRecord struct {
 
 	// previously certified root hash
 	PreviousHash []byte `protobuf:"bytes,1,opt,name=previous_hash,json=previousHash,proto3" json:"previous_hash,omitempty"`
-	//  hash to be certified
+	// hash to be certified
 	Hash []byte `protobuf:"bytes,2,opt,name=hash,proto3" json:"hash,omitempty"`
 	// hash of the block
 	BlockHash []byte `protobuf:"bytes,3,opt,name=block_hash,json=blockHash,proto3" json:"block_hash,omitempty"`

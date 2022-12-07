@@ -7,7 +7,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"hash"
 
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -21,10 +20,6 @@ var (
 	ErrUnknownRequest           = errors.New("unknown request, sender not known")
 )
 
-type PartitionStore interface {
-	GetTrustBase(id protocol.SystemIdentifier) (map[string]crypto.Verifier, error)
-}
-
 func (x *Payload) AddToHasher(hasher hash.Hash) {
 	certRequests := x.Requests
 	for _, r := range certRequests {
@@ -32,13 +27,13 @@ func (x *Payload) AddToHasher(hasher hash.Hash) {
 	}
 }
 
-func (x *Payload) IsValid(partitions PartitionStore) error {
+func (x *Payload) IsValid() error {
 	// there can only be one request per system identifier in a block
 	sysIdSet := map[string]bool{}
 
 	for _, req := range x.Requests {
-		if err := req.IsValid(partitions); err != nil {
-			return fmt.Errorf("invalid payload: %X invalid proof, err %w", req.SystemIdentifier, err)
+		if err := req.IsValid(); err != nil {
+			return fmt.Errorf("invalid payload: IR change request for %X err %w", req.SystemIdentifier, err)
 		}
 		// Timeout requests do not contain proof
 		if req.CertReason == IRChangeReqMsg_T2_TIMEOUT && len(req.Requests) > 0 {
@@ -56,7 +51,7 @@ func (x *Payload) IsEmpty() bool {
 	return len(x.Requests) == 0
 }
 
-func (x *BlockData) IsValid(partitionVer PartitionStore, quorum uint32, rootTrust map[string]crypto.Verifier) error {
+func (x *BlockData) IsValid() error {
 	if len(x.Id) < 1 {
 		return ErrInvalidBlockId
 	}
@@ -66,11 +61,24 @@ func (x *BlockData) IsValid(partitionVer PartitionStore, quorum uint32, rootTrus
 	if x.Payload == nil {
 		return ErrMissingPayload
 	}
+	// does not verify request signatures, this will need to be done later
+	if err := x.Payload.IsValid(); err != nil {
+		return err
+	}
 	if x.Qc == nil {
 		return ErrMissingQuorumCertificate
 	}
-	// expensive op's
-	if err := x.Payload.IsValid(partitionVer); err != nil {
+	if err := x.Qc.IsValid(); err != nil {
+		return err
+	}
+	if x.Round <= x.Qc.VoteInfo.RootRound {
+		return fmt.Errorf("invalid block round: round %v is not bigger than last qc round %v", x.Round, x.Qc.VoteInfo.RootRound)
+	}
+	return nil
+}
+
+func (x *BlockData) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
+	if err := x.IsValid(); err != nil {
 		return err
 	}
 	if err := x.Qc.Verify(quorum, rootTrust); err != nil {

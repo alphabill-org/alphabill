@@ -43,18 +43,14 @@ func TestNewTimeoutSign(t *testing.T) {
 
 func TestTimeoutCert_AddSignature(t *testing.T) {
 	// create partial timeout certificate
-	voteInfo := &VoteInfo{
-		RootRound:   8,
-		Epoch:       0,
-		ParentRound: 7,
-	}
+	voteInfo := NewDummyVoteInfo(8)
 	timeoutCert := &TimeoutCert{
 		Timeout: &Timeout{
 			Epoch: 0,
 			Round: 10,
 			Hqc: &QuorumCert{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, dummyVoteInfo),
+				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, voteInfo),
 				Signatures:       map[string][]byte{"1": {1, 2, 1}},
 			},
 		},
@@ -65,12 +61,8 @@ func TestTimeoutCert_AddSignature(t *testing.T) {
 			Epoch: 0,
 			Round: 10,
 			Hqc: &QuorumCert{
-				VoteInfo: &VoteInfo{
-					RootRound:   8,
-					Epoch:       0,
-					ParentRound: 7,
-				},
-				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, dummyVoteInfo),
+				VoteInfo:         voteInfo,
+				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, voteInfo),
 				Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 			},
 		},
@@ -85,12 +77,8 @@ func TestTimeoutCert_AddSignature(t *testing.T) {
 			Epoch: 0,
 			Round: 10,
 			Hqc: &QuorumCert{
-				VoteInfo: &VoteInfo{
-					RootRound:   7,
-					Epoch:       0,
-					ParentRound: 6,
-				},
-				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, dummyVoteInfo),
+				VoteInfo:         NewDummyVoteInfo(7),
+				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, NewDummyVoteInfo(7)),
 				Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 			},
 		},
@@ -106,12 +94,8 @@ func TestTimeoutCert_AddSignature(t *testing.T) {
 			Epoch: 0,
 			Round: 10,
 			Hqc: &QuorumCert{
-				VoteInfo: &VoteInfo{
-					RootRound:   9,
-					Epoch:       0,
-					ParentRound: 8,
-				},
-				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, dummyVoteInfo),
+				VoteInfo:         NewDummyVoteInfo(9),
+				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, NewDummyVoteInfo(9)),
 				Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 			},
 		},
@@ -139,15 +123,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]abcrypto.Verifier{"1": v1, "2": v2, "3": v3}
-	voteInfo := &VoteInfo{
-		BlockId:       []byte{0, 1, 1},
-		RootRound:     timeoutRound - 1,
-		Epoch:         0,
-		Timestamp:     9,
-		ParentBlockId: []byte{0, 1},
-		ParentRound:   timeoutRound - 2,
-		ExecStateId:   []byte{0, 1, 3},
-	}
+	voteInfo := NewDummyVoteInfo(timeoutRound - 1)
 	commitInfo := NewDummyCommitInfo(crypto.SHA256, voteInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
@@ -155,17 +131,17 @@ func TestTimeoutCert_Verify(t *testing.T) {
 	require.NoError(t, err)
 	sig3, err := s3.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
-	timeoutMsg1 := NewTimeoutSign(timeoutRound, 0, timeoutRound-2)
+	timeoutMsg1 := NewTimeoutSign(0, timeoutRound, timeoutRound-2)
 	tMsgSig1, err := s1.SignHash(timeoutMsg1.Hash(crypto.SHA256))
 	require.NoError(t, err)
-	timeoutMsg2 := NewTimeoutSign(timeoutRound, 0, timeoutRound-1)
+	timeoutMsg2 := NewTimeoutSign(0, timeoutRound, timeoutRound-1)
 	tMsgSig2, err := s2.SignHash(timeoutMsg2.Hash(crypto.SHA256))
 	require.NoError(t, err)
-	timeoutMsg2Rnd := NewTimeoutSign(timeoutRound, 0, timeoutRound-2)
+	timeoutMsg2Rnd := NewTimeoutSign(0, timeoutRound, timeoutRound-2)
 	tMsgSig2Rnd, err := s2.SignHash(timeoutMsg2Rnd.Hash(crypto.SHA256))
 	require.NoError(t, err)
 
-	timeoutMsg3 := NewTimeoutSign(timeoutRound, 0, timeoutRound-2)
+	timeoutMsg3 := NewTimeoutSign(0, timeoutRound, timeoutRound-2)
 	tMsgSig3, err := s3.SignHash(timeoutMsg3.Hash(crypto.SHA256))
 	require.NoError(t, err)
 

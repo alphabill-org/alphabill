@@ -2,10 +2,11 @@ package atomic_broadcast
 
 import (
 	gocrypto "crypto"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func (x *QuorumCert) addSignatureToQc(t *testing.T, author string, signer crypto.Signer) {

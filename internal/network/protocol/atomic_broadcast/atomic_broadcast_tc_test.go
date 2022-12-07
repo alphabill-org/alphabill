@@ -3,12 +3,12 @@ package atomic_broadcast
 import (
 	"crypto"
 	"crypto/sha256"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewTimeoutSign(t *testing.T) {

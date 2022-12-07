@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"hash"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 

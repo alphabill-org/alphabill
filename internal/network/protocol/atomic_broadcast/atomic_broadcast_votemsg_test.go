@@ -2,11 +2,12 @@ package atomic_broadcast
 
 import (
 	gocrypto "crypto"
+	"reflect"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"reflect"
-	"testing"
 )
 
 func TestTimeout_Bytes(t *testing.T) {

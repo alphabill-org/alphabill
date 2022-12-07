@@ -3,16 +3,15 @@ package atomic_broadcast
 import (
 	gocrypto "crypto"
 	"crypto/sha256"
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/runtime/protoimpl"
 	"hash"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	certification "github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/runtime/protoimpl"
 )
 
 func TestIRChangeReqMsg_IsValid(t *testing.T) {

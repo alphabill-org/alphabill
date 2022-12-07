@@ -2,12 +2,11 @@ package atomic_broadcast
 
 import (
 	gocrypto "crypto"
-	"crypto/sha256"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
-	"hash"
-	"testing"
 )
 
 type Option func(*VoteInfo)
@@ -37,55 +36,6 @@ func TestNewQuorumCertificate(t *testing.T) {
 	commitInfo := &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}}
 	qc := NewQuorumCertificate(voteInfo, commitInfo, nil)
 	require.NotNil(t, qc)
-}
-
-func TestQuorumCert_AddToHasher(t *testing.T) {
-	type fields struct {
-		VoteInfo         *VoteInfo
-		LedgerCommitInfo *LedgerCommitInfo
-		Signatures       map[string][]byte
-	}
-	type args struct {
-		hasher hash.Hash
-	}
-	voteInfo := NewDummyVoteInfo(10)
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		{
-			name: "Hash QC - no signatures",
-			fields: fields{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
-				Signatures:       nil,
-			},
-			args: args{hasher: sha256.New()},
-		},
-		{
-			name: "Hash QC - with signatures",
-			fields: fields{
-				VoteInfo:         voteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
-				Signatures: map[string][]byte{
-					"test1": {0, 1, 2},
-					"test2": {1, 2, 3},
-				},
-			},
-			args: args{hasher: sha256.New()},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &QuorumCert{
-				VoteInfo:         tt.fields.VoteInfo,
-				LedgerCommitInfo: tt.fields.LedgerCommitInfo,
-				Signatures:       tt.fields.Signatures,
-			}
-			x.AddToHasher(tt.args.hasher)
-		})
-	}
 }
 
 func TestQuorumCert_IsValid(t *testing.T) {

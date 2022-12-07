@@ -2,17 +2,14 @@ package atomic_broadcast
 
 import (
 	"crypto"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"crypto/sha256"
 	"testing"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBlockData_Hash(t *testing.T) {
-	expectedHash := []byte{0xad, 0x16, 0x4f, 0x4d, 0x68, 0x81, 0x51, 0x9, 0x6, 0xc8, 0x33, 0xf4, 0x7e, 0x5b, 0x9c, 0x37,
-		0x3e, 0x12, 0x6d, 0x18, 0x18, 0xb9, 0xfe, 0xb3, 0x1e, 0x61, 0x30, 0xcf, 0x87, 0x9c, 0x91, 0x67}
-
-	info := NewDummyVoteInfo(2)
 	block := &BlockData{
 		Author:    "test",
 		Round:     2,
@@ -20,14 +17,32 @@ func TestBlockData_Hash(t *testing.T) {
 		Timestamp: 0x0102030405060708,
 		Payload:   &Payload{},
 		Qc: &QuorumCert{
-			VoteInfo:         info,
-			LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, info),
+			VoteInfo: &VoteInfo{
+				BlockId:       []byte{0, 1, 1},
+				RootRound:     2,
+				Epoch:         0,
+				Timestamp:     0x0010670314583523,
+				ParentBlockId: []byte{0, 1},
+				ParentRound:   1,
+				ExecStateId:   []byte{0, 1, 3}},
+			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
 			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
 	}
+	serializedBlock := []byte{
+		't', 'e', 's', 't',
+		0, 0, 0, 0, 0, 0, 0, 2,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+		// Empty payload
+		1, 2, 3, // "1" QC signature (in alphabetical order)
+		1, 2, 4, // "2" QC signature
+		1, 2, 5, // "3" QC signature
+	}
+	expected := sha256.Sum256(serializedBlock)
 	hash, err := block.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	require.Equal(t, expectedHash, hash)
+	require.Equal(t, expected[:], hash)
 	// Block id is hash and not included in hashing
 	block.Id = hash
 	hash2, err := block.Hash(crypto.SHA256)

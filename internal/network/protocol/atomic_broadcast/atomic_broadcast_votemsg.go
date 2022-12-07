@@ -4,6 +4,7 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"

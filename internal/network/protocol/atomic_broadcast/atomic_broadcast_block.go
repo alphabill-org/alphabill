@@ -4,20 +4,19 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/crypto"
 	"hash"
+	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
 	ErrInvalidRound             = errors.New("invalid round number")
-	ErrInvalidEpoch             = errors.New("invalid epoch number")
 	ErrInvalidSystemId          = errors.New("invalid system identifier")
 	ErrMissingPayload           = errors.New("proposed block is missing payload")
 	ErrMissingQuorumCertificate = errors.New("proposed block is missing quorum certificate")
 	ErrIncompatibleReq          = errors.New("different system identifier and request system identifier")
-	ErrUnknownRequest           = errors.New("unknown request, sender not known")
 )
 
 func (x *Payload) AddToHasher(hasher hash.Hash) {
@@ -104,6 +103,18 @@ func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
 	hasher.Write(util.Uint64ToBytes(x.Epoch))
 	hasher.Write(util.Uint64ToBytes(x.Timestamp))
 	x.Payload.AddToHasher(hasher)
-	x.Qc.AddToHasher(hasher)
+	// Only add QC signatures
+	signatures := x.Qc.Signatures
+	authors := make([]string, 0, len(signatures))
+	for k := range signatures {
+		authors = append(authors, k)
+	}
+	// sort the slice by keys
+	sort.Strings(authors)
+	// add signatures to hash in alphabetical order
+	for _, author := range authors {
+		sig, _ := signatures[author]
+		hasher.Write(sig)
+	}
 	return hasher.Sum(nil), nil
 }

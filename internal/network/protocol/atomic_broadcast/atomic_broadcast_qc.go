@@ -5,9 +5,8 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"hash"
-	"sort"
 )
 
 var (
@@ -72,23 +71,4 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 		}
 	}
 	return nil
-}
-
-func (x *QuorumCert) AddToHasher(hasher hash.Hash) {
-	x.VoteInfo.AddToHasher(hasher)
-	hasher.Write(x.LedgerCommitInfo.Bytes())
-	// Add all signatures
-	// create slice and store keys
-	authors := make([]string, 0, len(x.Signatures))
-	for k := range x.Signatures {
-		authors = append(authors, k)
-	}
-	// sort the slice by keys
-	sort.Strings(authors)
-	// add signatures to hash in alphabetical order
-	for _, author := range authors {
-		sig, _ := x.Signatures[author]
-		hasher.Write([]byte(author))
-		hasher.Write(sig)
-	}
 }

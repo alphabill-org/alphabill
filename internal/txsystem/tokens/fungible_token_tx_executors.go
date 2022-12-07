@@ -149,7 +149,7 @@ func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 	unitID := tx.UnitID()
 	h := tx.Hash(b.hashAlgorithm)
 	return b.state.AtomicUpdate(
-		rma.SetOwner(unitID, []byte{0}, h),
+		rma.SetOwner(unitID, script.PredicateAlwaysFalse(), h),
 		rma.UpdateData(unitID,
 			func(data rma.UnitData) rma.UnitData {
 				d, ok := data.(*fungibleTokenData)

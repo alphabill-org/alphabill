@@ -3,13 +3,14 @@ package atomic_broadcast
 import (
 	"crypto"
 	"crypto/sha256"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBlockData_Hash(t *testing.T) {
+func TestBlockDataHash(t *testing.T) {
 	block := &BlockData{
 		Author:    "test",
 		Round:     2,
@@ -49,6 +50,70 @@ func TestBlockData_Hash(t *testing.T) {
 	require.Equal(t, hash, hash2)
 }
 
+func TestBlockDataHash_HashPayloadNil(t *testing.T) {
+	block := &BlockData{
+		Author:    "test",
+		Round:     2,
+		Epoch:     0,
+		Timestamp: 0x0102030405060708,
+		Payload:   nil,
+		Qc: &QuorumCert{
+			VoteInfo: &VoteInfo{
+				BlockId:       []byte{0, 1, 1},
+				RootRound:     2,
+				Epoch:         0,
+				Timestamp:     0x0010670314583523,
+				ParentBlockId: []byte{0, 1},
+				ParentRound:   1,
+				ExecStateId:   []byte{0, 1, 3}},
+			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
+			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
+		},
+	}
+	hash, err := block.Hash(crypto.SHA256)
+	require.ErrorContains(t, err, "block is missing payload")
+	require.Nil(t, hash)
+}
+
+func TestBlockDataHash_QcIsNil(t *testing.T) {
+	block := &BlockData{
+		Author:    "test",
+		Round:     0,
+		Epoch:     0,
+		Timestamp: 0x0102030405060708,
+		Payload:   &Payload{},
+		Qc:        nil,
+	}
+	hash, err := block.Hash(crypto.SHA256)
+	require.ErrorContains(t, err, "proposed block is missing quorum certificate")
+	require.Nil(t, hash)
+}
+
+func TestBlockDataHash_QcNoSignatures(t *testing.T) {
+	block := &BlockData{
+		Author:    "test",
+		Round:     0,
+		Epoch:     0,
+		Timestamp: 0x0102030405060708,
+		Payload:   &Payload{},
+		Qc: &QuorumCert{
+			VoteInfo: &VoteInfo{
+				BlockId:       []byte{0, 1, 1},
+				RootRound:     2,
+				Epoch:         0,
+				Timestamp:     0x0010670314583523,
+				ParentBlockId: []byte{0, 1},
+				ParentRound:   1,
+				ExecStateId:   []byte{0, 1, 3}},
+			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
+			Signatures:       nil,
+		},
+	}
+	hash, err := block.Hash(crypto.SHA256)
+	require.ErrorContains(t, err, "qc is missing signatures")
+	require.Nil(t, hash)
+}
+
 func TestBlockData_IsValid(t *testing.T) {
 	type fields struct {
 		Id        []byte
@@ -67,7 +132,7 @@ func TestBlockData_IsValid(t *testing.T) {
 		name       string
 		fields     fields
 		args       args
-		wantErrStr error
+		wantErrStr string
 	}{
 		{
 			name: "Invalid block id",
@@ -84,7 +149,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrInvalidBlockId,
+			wantErrStr: ErrInvalidBlockId.Error(),
 		},
 		{
 			name: "Invalid round number",
@@ -101,7 +166,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrInvalidRound,
+			wantErrStr: ErrInvalidRound.Error(),
 		},
 		{
 			name: "Invalid payload",
@@ -118,10 +183,10 @@ func TestBlockData_IsValid(t *testing.T) {
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrMissingPayload,
+			wantErrStr: ErrMissingPayload.Error(),
 		},
 		{
-			name: "Invalid QC",
+			name: "Invalid QC is nil",
 			fields: fields{
 				Id:        []byte{0, 1, 2},
 				Author:    "test",
@@ -132,7 +197,59 @@ func TestBlockData_IsValid(t *testing.T) {
 				Qc:        nil,
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrMissingQuorumCertificate,
+			wantErrStr: ErrMissingQuorumCertificate.Error(),
+		},
+		{
+			name: "Invalid Qc is missing signatures",
+			fields: fields{
+				Id:        []byte{0, 1, 2},
+				Author:    "test",
+				Round:     2,
+				Epoch:     0,
+				Timestamp: 0x0102030405060708,
+				Payload:   &Payload{}, // empty payload
+				Qc: &QuorumCert{
+					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+				},
+			},
+			args:       args{quorum: 1, rootTrust: nil},
+			wantErrStr: "qc is missing signatures",
+		},
+		{
+			name: "Invalid block round, Qc round is higher",
+			fields: fields{
+				Id:        []byte{0, 1, 2},
+				Author:    "test",
+				Round:     2,
+				Epoch:     0,
+				Timestamp: 0x0102030405060708,
+				Payload:   &Payload{}, // empty payload
+				Qc: &QuorumCert{
+					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 3, ExecStateId: []byte{0, 1, 3}},
+					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					Signatures:       map[string][]byte{"1": {0, 1, 2}},
+				},
+			},
+			args:       args{quorum: 1, rootTrust: nil},
+			wantErrStr: "invalid block round: round 2 is not bigger than last qc round 3",
+		},
+		{
+			name: "Valid",
+			fields: fields{
+				Id:        []byte{0, 1, 2},
+				Author:    "test",
+				Round:     2,
+				Epoch:     0,
+				Timestamp: 0x0102030405060708,
+				Payload:   &Payload{}, // empty payload
+				Qc: &QuorumCert{
+					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					Signatures:       map[string][]byte{"1": {0, 1, 2}},
+				},
+			},
+			args: args{quorum: 1, rootTrust: nil},
 		},
 	}
 	for _, tt := range tests {
@@ -146,10 +263,44 @@ func TestBlockData_IsValid(t *testing.T) {
 				Payload:   tt.fields.Payload,
 				Qc:        tt.fields.Qc,
 			}
-			err := x.Verify(tt.args.quorum, tt.args.rootTrust)
-			require.ErrorIs(t, err, tt.wantErrStr)
+			err := x.IsValid()
+			if tt.wantErrStr != "" {
+				require.ErrorContains(t, err, tt.wantErrStr)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
+}
+
+func TestBlockData_Verify(t *testing.T) {
+	// not valid case
+	s1, v1 := testsig.CreateSignerAndVerifier(t)
+	s2, v2 := testsig.CreateSignerAndVerifier(t)
+	s3, v3 := testsig.CreateSignerAndVerifier(t)
+	rootTrust := map[string]abcrypto.Verifier{"1": v1, "2": v2, "3": v3}
+	info := NewDummyVoteInfo(1)
+	block := &BlockData{
+		Id:        []byte{0, 1, 2},
+		Author:    "test",
+		Round:     2,
+		Epoch:     0,
+		Timestamp: 0x0102030405060708,
+		Payload:   &Payload{}, // empty payload
+		Qc: &QuorumCert{
+			VoteInfo:         info,
+			LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, info),
+			Signatures:       map[string][]byte{},
+		},
+	}
+	require.ErrorContains(t, block.Verify(3, rootTrust), "qc is missing signatures")
+	block.Qc.addSignatureToQc(t, "1", s1)
+	block.Qc.addSignatureToQc(t, "2", s2)
+	block.Qc.addSignatureToQc(t, "3", s3)
+	require.NoError(t, block.Verify(3, rootTrust))
+	// remove a signature from QC
+	delete(block.Qc.Signatures, "2")
+	require.ErrorContains(t, block.Verify(3, rootTrust), "quorum certificate not valid: less than quorum 2/3 have signed")
 }
 
 func TestPayload_IsEmpty(t *testing.T) {

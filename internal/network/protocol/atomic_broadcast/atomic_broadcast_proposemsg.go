@@ -57,34 +57,34 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 func (x *ProposalMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	hash, err := x.Block.Hash(gocrypto.SHA256)
 	if err != nil {
-		return err
+		return fmt.Errorf("proposal msg, unexpected hash error %w", err)
 	}
 	// block id must match hash of block
 	if bytes.Equal(x.Block.Id, hash) == false {
-		return fmt.Errorf("error proposal bock hash does not match block id")
+		return fmt.Errorf("proposal msg error, bock hash does not match block id")
 	}
 	// Find author public key
 	v, f := rootTrust[x.Block.Author]
 	if !f {
-		return fmt.Errorf("failed to find public key for root validator %v", x.Block.Author)
+		return fmt.Errorf("proposal msg error, failed to find public key for root validator %v", x.Block.Author)
 	}
 	if err := v.VerifyHash(x.Signature, hash); err != nil {
-		return aberrors.Wrap(err, "proposal verification failed")
+		return aberrors.Wrap(err, "proposal msg signature verification failed")
 	}
 	if err := x.IsValid(); err != nil {
-		return err
+		return fmt.Errorf("proposal msg not valid: %w", err)
 	}
 	if err := x.HighCommitQc.Verify(quorum, rootTrust); err != nil {
-		return aberrors.Wrap(err, "proposal verification failed")
+		return aberrors.Wrap(err, "proposal msg commit qc verification failed")
 	}
 	// Optional timeout certificate
 	if x.LastRoundTc != nil {
 		if err := x.LastRoundTc.Verify(quorum, rootTrust); err != nil {
-			return aberrors.Wrap(err, "proposal verification failed")
+			return aberrors.Wrap(err, "proposal msg tc verification failed")
 		}
 	}
 	if err := x.Block.Verify(quorum, rootTrust); err != nil {
-		return err
+		return aberrors.Wrap(err, "proposal msg block verification failed")
 	}
 	return nil
 }

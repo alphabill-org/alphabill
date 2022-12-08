@@ -94,7 +94,7 @@ func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
 		return nil, ErrMissingQuorumCertificate
 	}
 	if err := x.Qc.IsValid(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("proposed block qc not valid %w", err)
 	}
 	hasher := algo.New()
 	// Block ID is defined as block hash, so hence it is not included

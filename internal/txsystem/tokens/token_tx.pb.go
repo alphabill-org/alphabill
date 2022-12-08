@@ -226,7 +226,7 @@ type TransferNonFungibleTokenAttributes struct {
 	NewBearer []byte `protobuf:"bytes,1,opt,name=new_bearer,json=newBearer,proto3" json:"new_bearer,omitempty"`
 	// optional nonce
 	Nonce []byte `protobuf:"bytes,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
-	//the backlink to the previous transaction with the token
+	// the backlink to the previous transaction with the token
 	Backlink []byte `protobuf:"bytes,3,opt,name=backlink,proto3" json:"backlink,omitempty"`
 	// inputs to satisfy the token type invariant predicates down the inheritance chain
 	InvariantPredicateSignatures [][]byte `protobuf:"bytes,4,rep,name=invariant_predicate_signatures,json=invariantPredicateSignatures,proto3" json:"invariant_predicate_signatures,omitempty"`

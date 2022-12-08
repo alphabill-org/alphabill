@@ -7,17 +7,15 @@ import (
 
 type InmemoryBillStore struct {
 	blockNumber uint64
-	pubkeyIndex map[string]map[string]bool // pubkey => map[bill_id]blank
-	bills       map[string]*Bill           // bill_id => bill
-	keys        map[string]*Pubkey         // pubkey => hashed pubkeys
+	pubkeyIndex map[string]map[string]*Bill // pubkey => map[bill_id]bill
+	keys        map[string]*Pubkey          // pubkey => hashed pubkeys
 
 	mu sync.Mutex
 }
 
 func NewInmemoryBillStore() *InmemoryBillStore {
 	return &InmemoryBillStore{
-		pubkeyIndex: map[string]map[string]bool{},
-		bills:       map[string]*Bill{},
+		pubkeyIndex: map[string]map[string]*Bill{},
 		keys:        map[string]*Pubkey{},
 	}
 }
@@ -39,8 +37,8 @@ func (s *InmemoryBillStore) GetBills(pubkey []byte) ([]*Bill, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var bills []*Bill
-	for k := range s.pubkeyIndex[string(pubkey)] {
-		bills = append(bills, s.bills[k])
+	for _, v := range s.pubkeyIndex[string(pubkey)] {
+		bills = append(bills, v)
 	}
 	return bills, nil
 }
@@ -50,7 +48,6 @@ func (s *InmemoryBillStore) RemoveBill(pubKey []byte, id []byte) error {
 	defer s.mu.Unlock()
 	bills := s.pubkeyIndex[string(pubKey)]
 	delete(bills, string(id))
-	delete(s.bills, string(id))
 	return nil
 }
 
@@ -62,23 +59,22 @@ func (s *InmemoryBillStore) ContainsBill(pubkey []byte, unitID []byte) (bool, er
 	return exists, nil
 }
 
-func (s *InmemoryBillStore) GetBill(billId []byte) (*Bill, error) {
+func (s *InmemoryBillStore) GetBill(pubkey []byte, billID []byte) (*Bill, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.bills[string(billId)], nil
+	return s.pubkeyIndex[string(pubkey)][string(billID)], nil
 }
 
 func (s *InmemoryBillStore) SetBills(pubkey []byte, billsIn ...*Bill) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, bill := range billsIn {
-		s.bills[string(bill.Id)] = bill
 		bills, f := s.pubkeyIndex[string(pubkey)]
 		if !f {
-			bills = map[string]bool{}
+			bills = map[string]*Bill{}
 			s.pubkeyIndex[string(pubkey)] = bills
 		}
-		bills[string(bill.Id)] = true
+		bills[string(bill.Id)] = bill
 	}
 	return nil
 }

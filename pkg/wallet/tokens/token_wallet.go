@@ -2,15 +2,19 @@ package tokens
 
 import (
 	"context"
-	"errors"
+	goerrors "errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -19,8 +23,8 @@ const (
 )
 
 var (
-	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
-	ErrAttributesMissing    = errors.New("attributes missing")
+	ErrInvalidBlockSystemID = goerrors.New("invalid system identifier")
+	ErrAttributesMissing    = goerrors.New("attributes missing")
 	ErrInvalidURILength     = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
 	ErrInvalidDataLength    = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 )
@@ -71,6 +75,13 @@ func (w *Wallet) Shutdown() {
 
 func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token type")
+	parentType, err := w.db.Do().GetTokenType(attrs.ParentTypeId)
+	if err != nil {
+		return nil, err
+	}
+	if parentType != nil && parentType.DecimalPlaces != attrs.DecimalPlaces {
+		return nil, errors.Errorf("invalid decimal places. allowed %v, got %v", parentType.DecimalPlaces, attrs.DecimalPlaces)
+	}
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
@@ -197,22 +208,7 @@ func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber i
 	return res, nil
 }
 
-func (w *Wallet) Transfer(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
-	acc, err := w.getAccountKey(accountNumber)
-	if err != nil {
-		return err
-	}
-	t, err := w.db.Do().GetToken(accountNumber, tokenId)
-	if err != nil {
-		return err
-	}
-	if t == nil {
-		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
-	}
-	return w.transfer(ctx, acc, t, receiverPubKey)
-}
-
-func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey) error {
+func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey, invariantPredicateArgs []*PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -225,7 +221,15 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
 	}
 
-	sub, err := w.sendTx(tokenId, newNonFungibleTransferTxAttrs(t, receiverPubKey), acc, nil)
+	attrs := newNonFungibleTransferTxAttrs(t, receiverPubKey)
+	sub, err := w.sendTx(tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.InvariantPredicateSignatures = signatures
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
 	if err != nil {
 		return err
 	}
@@ -233,7 +237,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 	return w.syncToUnit(ctx, tokenId, sub.timeout)
 }
 
-func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte) error {
+func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -270,12 +274,12 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	// optimization: first try to make a single operation instead of iterating through all tokens in doSendMultiple
 	if closestMatch.Amount >= targetAmount {
 		var sub *submittedTx
-		sub, err = w.sendSplitOrTransferTx(acc, targetAmount, closestMatch, receiverPubKey)
+		sub, err = w.sendSplitOrTransferTx(acc, targetAmount, closestMatch, receiverPubKey, invariantPredicateArgs)
 		submissions = make(map[string]*submittedTx, 1)
 		submissions[sub.id.String()] = sub
 		maxTimeout = sub.timeout
 	} else {
-		submissions, maxTimeout, err = w.doSendMultiple(targetAmount, fungibleTokens, acc, receiverPubKey)
+		submissions, maxTimeout, err = w.doSendMultiple(targetAmount, fungibleTokens, acc, receiverPubKey, invariantPredicateArgs)
 	}
 
 	// error might have happened, but some submissions could have succeeded
@@ -292,4 +296,38 @@ func (w *Wallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, error)
 		return w.mw.GetAccountKey(accountNumber - 1)
 	}
 	return nil, nil
+}
+
+func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) error {
+	acc, err := w.getAccountKey(accountNumber)
+	if err != nil {
+		return err
+	}
+	t, err := w.db.Do().GetToken(accountNumber, tokenId)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
+	}
+
+	attrs := &tokens.UpdateNonFungibleTokenAttributes{
+		Data:                 data,
+		Backlink:             t.Backlink,
+		DataUpdateSignatures: nil,
+	}
+
+	sub, err := w.sendTx(tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.GetAccountManager(), updatePredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.DataUpdateSignatures = signatures
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
+	if err != nil {
+		return err
+	}
+
+	return w.syncToUnit(ctx, tokenId, sub.timeout)
 }

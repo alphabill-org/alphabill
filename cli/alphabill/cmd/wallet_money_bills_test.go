@@ -21,7 +21,7 @@ func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	stdout, err := execBillsCommand(homedir, "list")
 	require.NoError(t, err)
-	verifyStdout(t, stdout, "Wallet is empty.")
+	verifyStdout(t, stdout, "Account #1 - empty")
 }
 
 func TestWalletBillsListCmd(t *testing.T) {
@@ -42,10 +42,30 @@ func TestWalletBillsListCmd(t *testing.T) {
 	// verify list bills shows all 4 bills
 	stdout, err = execBillsCommand(homedir, "list")
 	require.NoError(t, err)
+
+	verifyStdout(t, stdout, "Account #1")
 	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 9994")
 	// remining 3 bills are in sorted by bill ids which can change because of undeterministic timeout value,
 	// so we just check the length
-	require.Len(t, stdout.lines, 4)
+	require.Len(t, stdout.lines, 5)
+
+	// add new key and send transactions to it
+	address2 := "0x02d36c574db299904b285aaeb57eb7b1fa145c43af90bec3c635c4174c224587b6"
+	_, _ = execCommand(homedir, "add-key")
+	_, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 1, address2))
+	_, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 2, address2))
+	_, _ = execCommand(homedir, fmt.Sprintf("send -k 1 --amount %d --address %s", 3, address2))
+	_, _ = execCommand(homedir, "sync -u localhost:9543")
+
+	// verify list bills for specfic account only shows given account bills
+	stdout, err = execBillsCommand(homedir, "list -k 2")
+	require.NoError(t, err)
+	lines := stdout.lines
+	require.Len(t, lines, 4)
+	require.Contains(t, lines[0], "Account #2")
+	require.Contains(t, lines[1], "#1")
+	require.Contains(t, lines[2], "#2")
+	require.Contains(t, lines[3], "#3")
 }
 
 func TestWalletBillsExportCmd(t *testing.T) {

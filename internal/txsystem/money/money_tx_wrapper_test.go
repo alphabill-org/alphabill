@@ -282,6 +282,7 @@ func TestSwapTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 		b.Write(billIdentifier)
 	}
 	b.Write(dcOrder.SigBytes())
+	b.Write(dcOrder.OwnerProof())
 	b.Write(dcProof.Bytes())
 	b.Write(util.Uint64ToBytes(targetValue))
 	require.Equal(t, b.Bytes(), sigBytes)

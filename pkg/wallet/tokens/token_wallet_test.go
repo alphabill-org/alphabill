@@ -3,7 +3,6 @@ package tokens
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
@@ -43,6 +42,27 @@ func TestNewFungibleType(t *testing.T) {
 	require.Equal(t, typeId, tx.UnitId)
 	require.Equal(t, a.Symbol, newFungibleTx.Symbol)
 	require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
+	// pretend it was saved to db
+	tw.db.Do().AddTokenType(&TokenUnitType{
+		ID:            tx.UnitId,
+		DecimalPlaces: a.DecimalPlaces,
+		ParentTypeID:  nil,
+		Kind:          FungibleTokenType,
+		Symbol:        a.Symbol,
+	})
+	// new subtype
+	b := &tokens.CreateFungibleTokenTypeAttributes{
+		Symbol:                             "AB",
+		DecimalPlaces:                      2,
+		ParentTypeId:                       typeId,
+		SubTypeCreationPredicateSignatures: nil,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+	}
+	//check decimal places are validated against the parent type
+	_, err = tw.NewFungibleType(context.Background(), b, []byte{2}, nil)
+	require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
 }
 
 func TestNewNonFungibleType(t *testing.T) {
@@ -209,58 +229,6 @@ func TestNewNFT(t *testing.T) {
 	}
 }
 
-func TestTransferFungible(t *testing.T) {
-	tw, abClient := createTestWallet(t)
-	err := tw.db.WithTransaction(func(c TokenTxContext) error {
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{11}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 1}))
-		require.NoError(t, c.SetToken(1, &TokenUnit{ID: []byte{12}, Kind: FungibleToken, Symbol: "AB", TypeID: []byte{10}, Amount: 2}))
-		return nil
-	})
-	require.NoError(t, err)
-	first := func(s PublicKey, e error) PublicKey {
-		require.NoError(t, e)
-		return s
-	}
-	tests := []struct {
-		name          string
-		tokenId       TokenID
-		amount        uint64
-		key           PublicKey
-		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes)
-	}{
-		{
-			name:    "to 'always true' predicate",
-			tokenId: []byte{11},
-			amount:  1,
-			key:     nil,
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes) {
-				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
-			},
-		},
-		{
-			name:    "to public key hash predicate",
-			tokenId: []byte{12},
-			amount:  2,
-			key:     first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferFungibleTokenAttributes) {
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err = tw.Transfer(context.Background(), 1, tt.tokenId, tt.key)
-			require.NoError(t, err)
-			txs := abClient.GetRecordedTransactions()
-			tx := txs[len(txs)-1]
-			require.NotEqual(t, tt.tokenId, tx.UnitId)
-			newTransfer := parseFungibleTransfer(t, tx)
-			require.Equal(t, tt.amount, newTransfer.Value)
-			tt.validateOwner(t, 1, tt.key, newTransfer)
-		})
-	}
-}
-
 func TestTransferNFT(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	err := tw.db.WithTransaction(func(c TokenTxContext) error {
@@ -298,7 +266,7 @@ func TestTransferNFT(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err = tw.TransferNFT(context.Background(), 1, tt.tokenId, tt.key)
+			err = tw.TransferNFT(context.Background(), 1, tt.tokenId, tt.key, nil)
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
@@ -309,6 +277,45 @@ func TestTransferNFT(t *testing.T) {
 	}
 }
 
+func TestUpdateNFTData(t *testing.T) {
+	tw, abClient := createTestWallet(t)
+	key, err := tw.getAccountKey(1)
+	require.NoError(t, err)
+
+	tok := &TokenUnit{ID: randomBytes(t), Kind: NonFungibleToken, Symbol: "AB", TypeID: randomBytes(t), Backlink: randomBytes(t)}
+	require.NoError(t, tw.db.Do().SetToken(1, tok))
+
+	// test data, backlink and predicate inputs are submitted correctly
+	data := randomBytes(t)
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}}))
+	txs := abClient.GetRecordedTransactions()
+	tx := txs[len(txs)-1]
+	dataUpdate := parseNFTDataUpdate(t, tx)
+	require.Equal(t, data, dataUpdate.Data)
+	require.Equal(t, tok.Backlink, dataUpdate.Backlink)
+	require.Equal(t, [][]byte{{script.StartByte}}, dataUpdate.DataUpdateSignatures)
+
+	// test that wallet not only sends the tx, but also reads it correctly
+	data2 := randomBytes(t)
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}}))
+	txs = abClient.GetRecordedTransactions()
+	tx = txs[len(txs)-1]
+	dataUpdate = parseNFTDataUpdate(t, tx)
+	require.NotEqual(t, data, dataUpdate.Data)
+	require.Equal(t, data2, dataUpdate.Data)
+	require.Len(t, dataUpdate.DataUpdateSignatures, 2)
+	require.Equal(t, []byte{script.StartByte}, dataUpdate.DataUpdateSignatures[0])
+	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
+
+	require.NoError(t, tw.db.WithTransaction(func(txc TokenTxContext) error {
+		require.NoError(t, tw.readTx(txc, tx, nil, 1, key.PubKeyHash))
+		return nil
+	}))
+	updatedTok, err := tw.db.Do().GetToken(1, tok.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, tok.Backlink, updatedTok.Backlink)
+}
+
 func parseFungibleTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferFungibleTokenAttributes) {
 	newTransfer = &tokens.TransferFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
@@ -317,6 +324,12 @@ func parseFungibleTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer 
 
 func parseNFTTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferNonFungibleTokenAttributes) {
 	newTransfer = &tokens.TransferNonFungibleTokenAttributes{}
+	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+	return
+}
+
+func parseNFTDataUpdate(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.UpdateNonFungibleTokenAttributes) {
+	newTransfer = &tokens.UpdateNonFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 	return
 }
@@ -395,7 +408,7 @@ func TestSendFungible(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			abClient.ClearRecordedTransactions()
-			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil)
+			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil, nil)
 			if tt.expectedErrorMsg != "" {
 				require.ErrorContains(t, err, tt.expectedErrorMsg)
 				return
@@ -513,15 +526,12 @@ func TestList(t *testing.T) {
 }
 
 func createTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	parentDir, err := ioutil.TempDir(os.TempDir(), "*-tests")
-	require.NoError(t, err)
-	c := money.WalletConfig{DbPath: parentDir}
+	c := money.WalletConfig{DbPath: t.TempDir()}
 	w, err := money.CreateNewWallet("", c)
 	require.NoError(t, err)
 	tw, err := Load(w, false)
 	t.Cleanup(func() {
 		deleteWallet(tw)
-		os.RemoveAll(parentDir)
 	})
 	require.NoError(t, err)
 
@@ -540,4 +550,10 @@ func deleteWallet(w *Wallet) {
 		w.mw.DeleteDb()
 		w.db.DeleteDb()
 	}
+}
+
+func randomBytes(t *testing.T) []byte {
+	id, err := RandomID()
+	require.NoError(t, err)
+	return id
 }

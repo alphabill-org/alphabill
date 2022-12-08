@@ -376,7 +376,8 @@ func TestMintNFT_Ok(t *testing.T) {
 	require.NoError(t, txs.Execute(tx))
 	u, err := txs.state.GetUnit(uint256.NewInt(0).SetBytes(unitID))
 	require.NoError(t, err)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), u.StateHash)
+	txHash := tx.Hash(gocrypto.SHA256)
+	require.Equal(t, txHash, u.StateHash)
 	require.IsType(t, &nonFungibleTokenData{}, u.Data)
 	d := u.Data.(*nonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.Value())
@@ -385,7 +386,7 @@ func TestMintNFT_Ok(t *testing.T) {
 	require.Equal(t, validNFTURI, d.uri)
 	require.Equal(t, script.PredicateAlwaysTrue(), d.dataUpdatePredicate)
 	require.Equal(t, uint64(0), d.t)
-	require.Equal(t, make([]byte, 32), d.backlink)
+	require.Equal(t, txHash, d.backlink)
 }
 
 func TestMintNFT_UnitIDIsZero(t *testing.T) {
@@ -532,10 +533,10 @@ func TestTransferNFT_UnitDoesNotExist(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NewBearer:                   script.PredicateAlwaysTrue(),
-			Nonce:                       test.RandomBytes(32),
-			Backlink:                    test.RandomBytes(32),
-			InvariantPredicateSignature: script.PredicateAlwaysTrue(),
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     test.RandomBytes(32),
+			InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysTrue()},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "item 0000000000000000000000000000000000000000000000000000000000000001 does not exist")
@@ -564,10 +565,10 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 		testtransaction.WithUnitId(util.Uint256ToBytes(unitIdentifier)),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NewBearer:                   script.PredicateAlwaysTrue(),
-			Nonce:                       test.RandomBytes(32),
-			Backlink:                    test.RandomBytes(32),
-			InvariantPredicateSignature: script.PredicateAlwaysTrue(),
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     test.RandomBytes(32),
+			InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysTrue()},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "unit 10 is not a non-fungible token type")
@@ -584,10 +585,10 @@ func TestTransferNFT_InvalidBacklink(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NewBearer:                   script.PredicateAlwaysTrue(),
-			Nonce:                       test.RandomBytes(32),
-			Backlink:                    []byte{1},
-			InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     []byte{1},
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "invalid backlink")
@@ -604,10 +605,10 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NewBearer:                   script.PredicateAlwaysTrue(),
-			Nonce:                       test.RandomBytes(32),
-			Backlink:                    make([]byte, 32),
-			InvariantPredicateSignature: []byte{0, 0, 0, 1},
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{{0, 0, 0, 1}},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "invalid script format")
@@ -624,10 +625,10 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NewBearer:                   script.PredicateAlwaysTrue(),
-			Nonce:                       test.RandomBytes(32),
-			Backlink:                    make([]byte, 32),
-			InvariantPredicateSignature: script.PredicateAlwaysFalse(),
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "script execution result yielded false or non-clean stack")
@@ -644,10 +645,10 @@ func TestTransferNFT_Ok(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
-			NewBearer:                   script.PredicateAlwaysTrue(),
-			Nonce:                       test.RandomBytes(32),
-			Backlink:                    make([]byte, 32),
-			InvariantPredicateSignature: script.PredicateArgumentEmpty(),
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.NoError(t, txs.Execute(tx))
@@ -661,7 +662,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 	require.Equal(t, uint256.NewInt(0).SetBytes(nftTypeID), d.nftType)
 	require.Equal(t, []byte{10}, d.data)
 	require.Equal(t, validNFTURI, d.uri)
-	require.Nil(t, d.dataUpdatePredicate)
+	require.Equal(t, script.PredicateAlwaysTrue(), d.dataUpdatePredicate)
 	require.Equal(t, uint64(0), d.t)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
@@ -757,8 +758,9 @@ func TestUpdateNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
-			Data:     test.RandomBytes(10),
-			Backlink: make([]byte, 32),
+			Data:                 test.RandomBytes(10),
+			Backlink:             tx.Hash(gocrypto.SHA256),
+			DataUpdateSignatures: [][]byte{script.PredicateArgumentEmpty(), {}},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "invalid script format")
@@ -774,9 +776,9 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
-			Data:                test.RandomBytes(10),
-			Backlink:            make([]byte, 32),
-			DataUpdateSignature: script.PredicateAlwaysFalse(),
+			Data:                 test.RandomBytes(10),
+			Backlink:             tx.Hash(gocrypto.SHA256),
+			DataUpdateSignatures: [][]byte{script.PredicateAlwaysTrue(), script.PredicateAlwaysFalse()},
 		}),
 	)
 	require.ErrorContains(t, txs.Execute(tx), "script execution result yielded false or non-clean stack")
@@ -793,9 +795,9 @@ func TestUpdateNFT_Ok(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&UpdateNonFungibleTokenAttributes{
-			Backlink:            make([]byte, 32),
-			Data:                updatedData,
-			DataUpdateSignature: script.PredicateArgumentEmpty(),
+			Backlink:             tx.Hash(gocrypto.SHA256),
+			Data:                 updatedData,
+			DataUpdateSignatures: [][]byte{script.PredicateArgumentEmpty(), script.PredicateArgumentEmpty()},
 		}),
 	)
 	require.NoError(t, txs.Execute(tx))
@@ -809,7 +811,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	require.Equal(t, uint256.NewInt(0).SetBytes(nftTypeID), d.nftType)
 	require.Equal(t, updatedData, d.data)
 	require.Equal(t, validNFTURI, d.uri)
-	require.Nil(t, d.dataUpdatePredicate)
+	require.Equal(t, script.PredicateAlwaysTrue(), d.dataUpdatePredicate)
 	require.Equal(t, uint64(0), d.t)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
@@ -844,7 +846,7 @@ func createNFTTypeAndMintToken(t *testing.T, txs *tokensTxSystem, nftTypeID []by
 			NftType:                          nftTypeID,
 			Uri:                              validNFTURI,
 			Data:                             []byte{10},
-			DataUpdatePredicate:              []byte{},
+			DataUpdatePredicate:              script.PredicateAlwaysTrue(),
 			TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 		}),
 	)

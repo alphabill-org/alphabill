@@ -45,8 +45,8 @@ message TransferNonFungibleTokenAttributes {
   bytes nonce = 2;
   //the backlink to the previous transaction with the token
   bytes backlink = 3;
-  // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 4;
+  // inputs to satisfy the token type invariant predicates down the inheritance chain
+  repeated bytes invariant_predicate_signatures = 4;
   // identifies the type of the token;
   bytes nft_type = 5;
 }
@@ -56,8 +56,8 @@ message UpdateNonFungibleTokenAttributes {
   bytes data = 1;
   // the backlink to the previous transaction with the token
   bytes backlink = 2;
-  //  the input to satisfy the token data update predicate.
-  bytes data_update_signature = 4;
+  // inputs to satisfy the token data update predicates down the inheritance chain
+  repeated bytes data_update_signatures = 3;
 }
 
 message CreateFungibleTokenTypeAttributes {
@@ -96,8 +96,8 @@ message TransferFungibleTokenAttributes {
   bytes nonce = 3;
   // the backlink to the previous transaction with this token
   bytes backlink = 4;
-  // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 5;
+  // inputs to satisfy the token type invariant predicates down the inheritance chain
+  repeated bytes invariant_predicate_signatures = 5;
   // identifies the type of the token;
   bytes type = 6;
 }
@@ -110,8 +110,8 @@ message SplitFungibleTokenAttributes {
   bytes nonce = 3;
   // the backlink to the previous transaction with this token
   bytes backlink = 4;
-  // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 5;
+  // inputs to satisfy the token type invariant predicates down the inheritance chain
+  repeated bytes invariant_predicate_signatures = 5;
   // identifies the type of the token;
   bytes type = 6;
   // new value of the source token
@@ -126,8 +126,8 @@ message BurnFungibleTokenAttributes {
   bytes nonce = 3;
   // the backlink to the previous transaction with this token
   bytes backlink = 4;
-  // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 5;
+  // inputs to satisfy the token type invariant predicates down the inheritance chain
+  repeated bytes invariant_predicate_signatures = 5;
 }
 
 message JoinFungibleTokenAttributes {
@@ -137,6 +137,6 @@ message JoinFungibleTokenAttributes {
   repeated BlockProof proofs = 2;
   // the backlink to the previous transaction with this token
   bytes backlink = 3;
-  // the input to satisfy the token type invariant predicate
-  bytes invariant_predicate_signature = 4;
+  // inputs to satisfy the token type invariant predicates down the inheritance chain
+  repeated bytes invariant_predicate_signatures = 4;
 }

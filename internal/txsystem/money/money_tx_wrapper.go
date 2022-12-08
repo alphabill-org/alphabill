@@ -11,7 +11,6 @@ import (
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -26,14 +25,6 @@ const (
 	typeURLSplitOrder      = protobufTypeUrlPrefix + TypeSplitOrder
 	typeURLSwapOrder       = protobufTypeUrlPrefix + TypeSwapOrder
 )
-
-// TransactionTypes contains all transaction types supported by the money partition.
-var TransactionTypes = map[string]proto.Message{
-	TypeTransferOrder:   &TransferOrder{},
-	TypeTransferDCOrder: &TransferDCOrder{},
-	TypeSplitOrder:      &SplitOrder{},
-	TypeSwapOrder:       &SwapOrder{},
-}
 
 type (
 	wrapper struct {
@@ -257,6 +248,7 @@ func (w *swapWrapper) SigBytes() []byte {
 	}
 	for _, dcTx := range w.DCTransfers() {
 		b.Write(dcTx.SigBytes())
+		b.Write(dcTx.OwnerProof())
 	}
 	for _, proof := range w.Proofs() {
 		b.Write(proof.Bytes())

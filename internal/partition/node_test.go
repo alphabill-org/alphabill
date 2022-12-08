@@ -12,7 +12,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -108,8 +110,8 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(transfer))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
-		for _, event := range events {
-			if event.EventType == EventTypeTransactionProcessed {
+		for _, e := range events {
+			if e.EventType == event.TransactionProcessed {
 				return true
 			}
 		}
@@ -124,8 +126,8 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(tx1))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
-		for _, event := range events {
-			if event.EventType == EventTypeTransactionProcessed {
+		for _, e := range events {
+			if e.EventType == event.TransactionProcessed {
 				return true
 			}
 		}
@@ -136,8 +138,8 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(tx2))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
-		for _, event := range events {
-			if event.EventType == EventTypeTransactionProcessed {
+		for _, e := range events {
+			if e.EventType == event.TransactionProcessed {
 				return true
 			}
 		}
@@ -193,7 +195,7 @@ func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
-			if e.EventType == EventTypeNewRoundStarted {
+			if e.EventType == event.NewRoundStarted {
 				return true
 			}
 		}
@@ -506,7 +508,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	tp.SubmitBlockProposal(bp)
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
-	ContainsEvent(t, tp, EventTypeStateReverted)
+	testevent.ContainsEvent(t, tp.eh, event.StateReverted)
 	require.Equal(t, recovering, tp.partition.status)
 }
 

@@ -44,7 +44,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) Execute(gtx txsystem.GenericTrans
 		rma.AddItem(tx.UnitID(), script.PredicateAlwaysTrue(), newNonFungibleTokenTypeData(tx), h))
 }
 
-func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, _ uint64) error {
+func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
 	tx, ok := gtx.(*mintNonFungibleTokenWrapper)
 	if !ok {
 		return errors.Errorf("invalid tx type: %T", gtx)
@@ -55,7 +55,7 @@ func (m *mintNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction
 	}
 	h := tx.Hash(m.hashAlgorithm)
 	return m.state.AtomicUpdate(
-		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newNonFungibleTokenData(tx, m.hashAlgorithm), h))
+		rma.AddItem(tx.UnitID(), tx.attributes.Bearer, newNonFungibleTokenData(tx, h, currentBlockNr), h))
 }
 
 func (t *transferNonFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -133,7 +133,7 @@ func (c *createNonFungibleTokenTypeTxExecutor) validate(tx *createNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.SubTypeCreationPredicateSignatures(), tx.SigBytes())
 }
 
 func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrapper) error {
@@ -179,7 +179,7 @@ func (m *mintNonFungibleTokenTxExecutor) validate(tx *mintNonFungibleTokenWrappe
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx)
+	return verifyPredicates(predicates, tx.TokenCreationPredicateSignatures(), tx.SigBytes())
 }
 
 func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTokenWrapper) error {
@@ -209,7 +209,7 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.InvariantPredicateSignature, predicates[0] /*TODO AB-479*/, tx.SigBytes())
+	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }
 
 func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenWrapper) error {
@@ -237,9 +237,9 @@ func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenW
 			return d.parentTypeId
 		},
 	)
-	predicates = append(predicates, data.dataUpdatePredicate) // TODO check order
 	if err != nil {
 		return err
 	}
-	return script.RunScript(tx.attributes.DataUpdateSignature, predicates[0] /*TODO AB-476*/, tx.SigBytes())
+	predicates = append([]Predicate{data.dataUpdatePredicate}, predicates...)
+	return verifyPredicates(predicates, tx.DataUpdateSignatures(), tx.SigBytes())
 }

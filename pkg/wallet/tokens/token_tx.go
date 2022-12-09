@@ -26,12 +26,32 @@ import (
 
 type (
 	submittedTx struct {
-		id      TokenID
-		timeout uint64
+		id TokenID
+		tx *txsystem.Transaction
+	}
+
+	submissionSet struct {
+		submissions map[string]*submittedTx
+		maxTimeout  uint64
 	}
 
 	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
 )
+
+func newSubmissionSet() *submissionSet {
+	return &submissionSet{
+		submissions: make(map[string]*submittedTx, 1),
+		maxTimeout:  0,
+	}
+}
+
+func (s *submissionSet) add(sub *submittedTx) *submissionSet {
+	if sub.tx.Timeout > s.maxTimeout {
+		s.maxTimeout = sub.tx.Timeout
+	}
+	s.submissions[sub.id.String()] = sub
+	return s
+}
 
 func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.Block, accNr uint64, key *wallet.KeyHashes) error {
 	gtx, err := w.txs.ConvertTx(tx)
@@ -271,7 +291,7 @@ func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInput
 	if err != nil {
 		return nil, err
 	}
-	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
+	return sub.id, w.syncToUnit(ctx, sub.id, sub.tx.Timeout)
 }
 
 func preparePredicateSignatures(am wallet.AccountManager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
@@ -320,7 +340,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 		return nil, err
 	}
 
-	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
+	return sub.id, w.syncToUnit(ctx, sub.id, sub.tx.Timeout)
 }
 
 func RandomID() (TokenID, error) {
@@ -372,7 +392,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	if err != nil {
 		return txSub, err
 	}
-	txSub.timeout = tx.Timeout
+	txSub.tx = tx
 	return txSub, nil
 }
 
@@ -434,34 +454,41 @@ func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *to
 		TargetValue:                  amount,
 		RemainingValue:               token.Amount - amount,
 		Backlink:                     token.Backlink,
-		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		InvariantPredicateSignatures: nil,
+	}
+}
+
+func newBurnTxAttrs(tok *TokenUnit, targetStateHash []byte) *tokens.BurnFungibleTokenAttributes {
+	log.Info(fmt.Sprintf("Creating burn tx of unit=%X with bl=%X, new value=%v", tok.ID, tok.Backlink, tok.Amount))
+	return &tokens.BurnFungibleTokenAttributes{
+		Type:                         tok.TypeID,
+		Value:                        tok.Amount,
+		Nonce:                        targetStateHash,
+		Backlink:                     tok.Backlink,
+		InvariantPredicateSignatures: nil,
 	}
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (map[string]*submittedTx, uint64, error) {
+func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submissionSet, error) {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
 	})
-	var maxTimeout uint64 = 0
-	submissions := make(map[string]*submittedTx, 2)
+	submissions := newSubmissionSet()
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
 		sub, err := w.sendSplitOrTransferTx(acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
-		if sub.timeout > maxTimeout {
-			maxTimeout = sub.timeout
-		}
 		if err != nil {
-			return submissions, maxTimeout, err
+			return submissions, err
 		}
-		submissions[sub.id.String()] = sub
+		submissions.add(sub)
 		accumulatedSum += t.Amount
 		if accumulatedSum >= amount {
 			break
 		}
 	}
-	return submissions, maxTimeout, nil
+	return submissions, nil
 }
 
 func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submittedTx, error) {

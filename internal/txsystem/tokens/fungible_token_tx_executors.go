@@ -366,12 +366,12 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
 	for i, btx := range transactions {
-		tokenTypeID := d.tokenType.Bytes32()
-		if !bytes.Equal(btx.TypeID(), tokenTypeID[:]) {
+		tokenTypeID := util.Uint256ToBytes(d.tokenType)
+		if !bytes.Equal(btx.TypeID(), tokenTypeID) {
 			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeID())
 		}
 
-		if !bytes.Equal(btx.Nonce(), tx.attributes.Backlink) {
+		if !bytes.Equal(btx.Nonce(), tx.Backlink()) {
 			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.Nonce(), tx.Backlink())
 		}
 		proof := proofs[i]

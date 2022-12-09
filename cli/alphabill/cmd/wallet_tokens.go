@@ -439,7 +439,7 @@ func tokenCmdSendFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendFungible(cmd, config)
 		},
 	}
-	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
 	cmd.Flags().String(cmdFlagAmount, "", "amount, must be bigger than 0 and is interpreted according to token type precision (decimals)")
 	err := cmd.MarkFlagRequired(cmdFlagAmount)
 	if err != nil {
@@ -534,7 +534,7 @@ func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
 			return execTokenCmdSendNonFungible(cmd, config)
 		},
 	}
-	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's minting clause")
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "unit identifier of token (hex)")
 	err := cmd.MarkFlagRequired(cmdFlagTokenId)
 	if err != nil {
@@ -587,12 +587,36 @@ func tokenCmdDC(config *walletConfig) *cobra.Command {
 			return execTokenCmdDC(cmd, config)
 		},
 	}
+	// account #0 with tokens spendable by anyone will be skipped
+	cmd.Flags().IntP(keyCmdName, "k", -1, "which account key to use for dust collection, -1 for all tokens from all accounts (optional)")
+	cmd.Flags().StringSlice(cmdFlagType, nil, "type unit identifier (hex)")
+	cmd.Flags().StringSlice(cmdFlagInheritBearerClauseInput, []string{predicateTrue}, "input to satisfy the type's invariant clause")
 	return cmd
 }
 
 func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
-	return nil
+	accountNumber, err := cmd.Flags().GetInt(keyCmdName)
+	if err != nil {
+		return err
+	}
+	tw, err := initTokensWallet(cmd, config)
+	if err != nil {
+		return err
+	}
+	defer tw.Shutdown()
+
+	typeId, err := getHexFlag(cmd, cmdFlagType)
+	if err != nil {
+		return err
+	}
+	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, tw.GetAccountManager())
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	return tw.CollectDust(ctx, accountNumber, typeId, ib)
 }
 
 func tokenCmdSync(config *walletConfig) *cobra.Command {

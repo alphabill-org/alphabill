@@ -128,6 +128,10 @@ func (t TokenTypeID) equal(to TokenTypeID) bool {
 	return bytes.Equal(t, to)
 }
 
+func (t TokenTypeID) String() string {
+	return string(t)
+}
+
 func (tp *TokenUnitType) GetSymbol() string {
 	return tp.Symbol
 }

@@ -83,12 +83,10 @@ func (w *Wallet) Sync(ctx context.Context) error {
 }
 
 func (w *Wallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
-	submissions := make(map[string]*submittedTx, 1)
-	submissions[id.String()] = &submittedTx{id, timeout}
-	return w.syncToUnits(ctx, submissions, timeout)
+	return w.syncToUnits(ctx, newSubmissionSet().add(&submittedTx{id, timeout}))
 }
 
-func (w *Wallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
+func (w *Wallet) syncToUnits(ctx context.Context, subs *submissionSet) error {
 	// ...or don't
 	if !w.sync {
 		return nil
@@ -100,23 +98,23 @@ func (w *Wallet) syncToUnits(ctx context.Context, subs map[string]*submittedTx, 
 		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
 		for _, tx := range b.Transactions {
 			id := TokenID(tx.UnitId).String()
-			if sub, found := subs[id]; found {
+			if sub, found := subs.submissions[id]; found {
 				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.BlockNumber))
-				delete(subs, id)
+				delete(subs.submissions, id)
 			}
-			if len(subs) == 0 {
+			if len(subs.submissions) == 0 {
 				cancel()
 			}
 		}
-		if b.BlockNumber >= maxTimeout {
+		if b.BlockNumber >= subs.maxTimeout {
 			log.Info(fmt.Sprintf("Sync timeout is reached, block (#%v)", b.BlockNumber))
-			for _, sub := range subs {
+			for _, sub := range subs.submissions {
 				log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
 			}
 			cancel()
 
-			if len(subs) > 0 {
-				return errors.Errorf("did not confirm all transactions, timed out: %v", len(subs))
+			if len(subs.submissions) > 0 {
+				return errors.Errorf("did not confirm all transactions, timed out: %v", len(subs.submissions))
 			}
 		}
 		return nil

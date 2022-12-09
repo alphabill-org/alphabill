@@ -386,7 +386,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 	if err != nil {
 		return err
 	}
-	data, err := readNFTData(cmd)
+	data, err := readNFTData(cmd, false)
 	if err != nil {
 		return err
 	}
@@ -627,9 +627,13 @@ func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BytesHex(cmdFlagTokenId, nil, "token identifier (hex)")
+	err := cmd.MarkFlagRequired(cmdFlagTokenId)
+	if err != nil {
+		panic(err)
+	}
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
-	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile)
+	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenData, cmdFlagTokenDataFile)
 	cmd.Flags().StringSlice(cmdFlagTokenDataUpdateClauseInput, []string{predicateTrue}, "input to satisfy the data-update clauses")
 	return addCommonAccountFlags(cmd)
 }
@@ -651,7 +655,7 @@ func execTokenCmdUpdateNFTData(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	data, err := readNFTData(cmd)
+	data, err := readNFTData(cmd, true)
 	if err != nil {
 		return err
 	}
@@ -1049,7 +1053,7 @@ func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.Predi
 	return nil, fmt.Errorf("invalid creation input: '%s'", argument)
 }
 
-func readNFTData(cmd *cobra.Command) ([]byte, error) {
+func readNFTData(cmd *cobra.Command, required bool) ([]byte, error) {
 	data, err := getHexFlag(cmd, cmdFlagTokenData)
 	if err != nil {
 		return nil, err
@@ -1063,6 +1067,9 @@ func readNFTData(cmd *cobra.Command) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	if required && !cmd.Flags().Changed(cmdFlagTokenData) && !cmd.Flags().Changed(cmdFlagTokenDataFile) {
+		return nil, aberrors.Errorf("Either of ['--%s', '--%s'] flags must be specified", cmdFlagTokenData, cmdFlagTokenDataFile)
 	}
 	return data, nil
 }

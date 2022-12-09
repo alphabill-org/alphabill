@@ -601,6 +601,43 @@ func Test_RemoveNode_BiggerTree(t *testing.T) {
 	}
 }
 
+func Test_RemoveNode_BiggerTree_ReverseOrder(t *testing.T) {
+	maxNrOfNodes := 25
+	createTree := func(nrOfNodes int) *Tree {
+		at, _ := New(defaultConfig())
+		for i := nrOfNodes; i >= 0; i-- {
+			at.setNode(uint256.NewInt(uint64(i)), newNodeContent(i))
+		}
+		at.Commit()
+		at.GetRootHash()
+		return at
+	}
+
+	// Try all tree sizes up the maxNrOfNodes
+	for nrOfNodes := 1; nrOfNodes <= maxNrOfNodes; nrOfNodes++ {
+		for i := nrOfNodes; i >= 0; i-- {
+			idToRemove := uint256.NewInt(uint64(i))
+			tree := createTree(nrOfNodes)
+			treeBeforeRemoval := tree.print()
+
+			tree.removeNode(idToRemove)
+			treeBeforeRootHash := tree.print()
+
+			tree.GetRootHash()
+			treeAfterRootHash := tree.print()
+
+			forceRecomputeFullTree(tree)
+			treeAfterFullRecalc := tree.print()
+			require.Equal(t, treeAfterRootHash, treeAfterFullRecalc,
+				"trees are not equal after removing %d and full recalc\n  before removal:\n  %s\n  after removal:\n  %s",
+				i,
+				treeBeforeRemoval,
+				treeBeforeRootHash,
+			)
+		}
+	}
+}
+
 func TestRemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
 	at, _ := New(defaultConfig())
 	at.setNode(key1, newNodeContent(1))
@@ -613,6 +650,25 @@ func TestRemoveNode_TwoNodes_DeleteRoot(t *testing.T) {
 
 	actualRootHash := at.GetRootHash()
 	require.Equal(t, forceRecomputeFullTree(at), actualRootHash)
+}
+
+func TestRemoveNode_TwoNodes_DeleteRoot_2(t *testing.T) {
+	// nil pointer:
+	// tree with two nodes (root and left child)
+	// if the root node ID is larger than child ID then removing root node produces nil pointer
+	at, _ := New(defaultConfig())
+	at.setNode(key2, newNodeContent(2))
+	at.setNode(key1, newNodeContent(1))
+
+	at.Commit()
+	require.NotPanics(t, func() {
+		at.removeNode(key2)
+	})
+	require.Equal(t, key1, at.root.ID)
+
+	// also verify that deletion can be reverted
+	at.Revert()
+	require.Equal(t, key2, at.root.ID)
 }
 
 func TestRevert_RemoveNode_TwoNodes_DeleteRoot(t *testing.T) {

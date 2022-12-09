@@ -630,7 +630,7 @@ func tokenCmdUpdateNFTData(config *walletConfig) *cobra.Command {
 	cmd.Flags().BytesHex(cmdFlagTokenData, nil, "custom data (hex)")
 	cmd.Flags().String(cmdFlagTokenDataFile, "", "data file (max 64Kb) path")
 	cmd.MarkFlagsMutuallyExclusive(cmdFlagTokenDataFile, cmdFlagTokenDataFile)
-	cmd.Flags().StringSlice(cmdFlagTokenDataUpdateClauseInput, []string{predicateTrue}, "input to satisfy the data-update clauses")
+	cmd.Flags().StringSlice(cmdFlagTokenDataUpdateClauseInput, []string{predicateTrue, predicateTrue}, "input to satisfy the data-update clauses")
 	return addCommonAccountFlags(cmd)
 }
 

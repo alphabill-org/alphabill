@@ -170,6 +170,11 @@ func (w *WalletBackend) AddKey(pubkey []byte) error {
 	return w.store.AddKey(NewPubkey(pubkey))
 }
 
+// GetMaxBlockNumber returns max block number known to the connected AB node.
+func (w *WalletBackend) GetMaxBlockNumber() (uint64, error) {
+	return w.genericWallet.GetMaxBlockNumber()
+}
+
 // Shutdown terminates wallet backend service.
 func (w *WalletBackend) Shutdown() {
 	// send signal to cancel channel if channel is not full

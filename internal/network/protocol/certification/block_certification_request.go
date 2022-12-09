@@ -37,29 +37,6 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	return nil
 }
 
-/*
-func (x *BlockCertificationRequest) Verify(partitionVer PartitionVerifier) error {
-	if x == nil {
-		return ErrBlockCertificationRequestIsNil
-	}
-	if partitionVer == nil {
-		return ErrVerifierIsNil
-	}
-	if len(x.SystemIdentifier) != 4 {
-		return ErrInvalidSystemIdentifierLength
-	}
-	if x.NodeIdentifier == "" {
-		return ErrEmptyNodeIdentifier
-	}
-	if err := x.InputRecord.Verify(); err != nil {
-		return err
-	}
-	if err := partitionVer.VerifySignature(protocol.SystemIdentifier(x.SystemIdentifier), x.NodeIdentifier, x.Bytes(), x.Signature); err != nil {
-		return err
-	}
-	return nil
-}
-*/
 func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 	if signer == nil {
 		return errors.New("signer is nil")

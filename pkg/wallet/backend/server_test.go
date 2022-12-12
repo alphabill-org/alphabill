@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -422,7 +423,8 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
@@ -455,7 +457,7 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.EqualValues(t, 1, txProof.BlockNumber)
-	require.Equal(t, tx, txProof.Tx)
+	require.True(t, proto.Equal(tx, txProof.Tx))
 	require.NotNil(t, proof, txProof.Proof)
 }
 
@@ -469,7 +471,8 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	startServer(t, service)
 
 	pubkey := make([]byte, 33)
@@ -506,7 +509,8 @@ func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	proof, verifiers := createProofForTx(t, tx)
 
 	pubkey := make([]byte, 33)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
@@ -542,7 +546,8 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
@@ -578,7 +583,7 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.EqualValues(t, 1, txProof.BlockNumber)
-	require.Equal(t, tx, txProof.Tx)
+	require.True(t, proto.Equal(tx, txProof.Tx))
 	require.NotNil(t, proof, txProof.Proof)
 }
 

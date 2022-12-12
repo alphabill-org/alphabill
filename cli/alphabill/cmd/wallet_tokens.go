@@ -1055,7 +1055,7 @@ func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.Predi
 
 func readNFTData(cmd *cobra.Command, required bool) ([]byte, error) {
 	if required && !cmd.Flags().Changed(cmdFlagTokenData) && !cmd.Flags().Changed(cmdFlagTokenDataFile) {
-		return nil, aberrors.Errorf("Either of ['--%s', '--%s'] flags must be specified", cmdFlagTokenData, cmdFlagTokenDataFile)
+		return nil, fmt.Errorf("either of ['--%s', '--%s'] flags must be specified", cmdFlagTokenData, cmdFlagTokenDataFile)
 	}
 	data, err := getHexFlag(cmd, cmdFlagTokenData)
 	if err != nil {

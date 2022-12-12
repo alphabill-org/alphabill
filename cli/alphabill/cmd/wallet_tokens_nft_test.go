@@ -99,11 +99,6 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 			cmdParams:  "token new non-fungible --type 12AB --data-file=" + tmpfile.Name(),
 			wantErrStr: "data-file read error: file size over 64Kb limit",
 		},
-		{
-			name:       "update nft: both data flags missing",
-			cmdParams:  "token update --token-identifier 12AB",
-			wantErrStr: "Either of ['--data', '--data-file'] flags must be specified",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

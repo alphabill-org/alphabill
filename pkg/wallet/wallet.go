@@ -177,7 +177,14 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 			return nil
 		default:
 			if maxBlockNumber != 0 && lastBlockNumber == maxBlockNumber {
-				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
+				// wait for some time before retrying to fetch new block
+				timer := time.NewTimer(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					return nil
+				}
 			}
 			lastBlockNumber, maxBlockNumber, err = w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
 			if err != nil {

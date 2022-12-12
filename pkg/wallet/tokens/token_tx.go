@@ -184,10 +184,58 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 		}
 	case tokens.BurnFungibleToken:
 		log.Info("Token tx: BurnFungibleToken")
-		panic("not implemented") // TODO
+		tok, err := txc.GetToken(accNr, id)
+		if err != nil {
+			return err
+		}
+		if tok != nil {
+			if tok.Amount != ctx.Value() {
+				return fmt.Errorf("expected burned amount: %v, got %v. token id='%X', type id='%X'", tok.Amount, ctx.Value(), tok.ID, tok.TypeID)
+			}
+			tok.Burned = true
+			err = w.addTokenWithProof(accNr, tok, b, tx, txc)
+			if err != nil {
+				return err
+			}
+		}
 	case tokens.JoinFungibleToken:
 		log.Info("Token tx: JoinFungibleToken")
-		panic("not implemented") // TODO
+		joinedToken, err := txc.GetToken(accNr, id)
+		if err != nil {
+			return err
+		}
+		if joinedToken == nil {
+			return nil
+		}
+		bl := joinedToken.Backlink
+		// burned tokens must be on the same account as the target unit
+		var burnedValue uint64
+		for _, burnTx := range ctx.BurnTransactions() {
+			burnedID := util.Uint256ToBytes(burnTx.UnitID())
+			burnedToken, err := txc.GetToken(accNr, burnedID)
+			if err != nil {
+				return err
+			}
+			if burnedToken == nil {
+				return fmt.Errorf("burned token with id '%X' not found", burnedID)
+			}
+			if !burnedToken.Burned {
+				return fmt.Errorf("token with id '%X' is expected to be burned, but it is not", burnedID)
+			}
+			if !bytes.Equal(bl, burnTx.Nonce()) {
+				return fmt.Errorf("expected burned token's nonce '%X', got %X", bl, burnTx.Nonce())
+			}
+			err = txc.RemoveToken(accNr, burnedID)
+			if err != nil {
+				return err
+			}
+			burnedValue += burnTx.Value()
+		}
+		joinedToken.Amount += burnedValue
+		err = w.addTokenWithProof(accNr, joinedToken, b, tx, txc)
+		if err != nil {
+			return err
+		}
 	case tokens.CreateNonFungibleTokenType:
 		log.Info("Token tx: CreateNonFungibleTokenType")
 		err := w.addTokenTypeWithProof(&TokenUnitType{
@@ -291,7 +339,7 @@ func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInput
 	if err != nil {
 		return nil, err
 	}
-	return sub.id, w.syncToUnit(ctx, sub.id, sub.tx.Timeout)
+	return sub.id, w.syncToUnit(ctx, sub)
 }
 
 func preparePredicateSignatures(am wallet.AccountManager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
@@ -340,7 +388,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 		return nil, err
 	}
 
-	return sub.id, w.syncToUnit(ctx, sub.id, sub.tx.Timeout)
+	return sub.id, w.syncToUnit(ctx, sub)
 }
 
 func RandomID() (TokenID, error) {

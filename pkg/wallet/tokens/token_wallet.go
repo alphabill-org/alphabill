@@ -234,7 +234,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 
-	return w.syncToUnit(ctx, tokenId, sub.timeout)
+	return w.syncToUnit(ctx, sub)
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
@@ -326,7 +326,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		return err
 	}
 
-	return w.syncToUnit(ctx, tokenId, sub.timeout)
+	return w.syncToUnit(ctx, sub)
 }
 
 func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenType TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
@@ -392,11 +392,12 @@ func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenTyp
 			delete(tokensByTypes, k)
 			continue
 		}
+		// first token to be joined into
 		targetToken := v[0]
 		submissions := newSubmissionSet()
+		// burn the rest
 		for i := 1; i < len(v); i++ {
 			token := v[i]
-			// burn the rest
 			attrs := newBurnTxAttrs(token, targetToken.Backlink)
 			sub, err := w.sendTx(token.ID, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 				signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
@@ -415,11 +416,28 @@ func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenTyp
 		if err != nil {
 			return err
 		}
+		burnTxs := make([]*txsystem.Transaction, 1)
+		proofs := make([]*block.BlockProof, 1)
 		joinAttrs := &tokens.JoinFungibleTokenAttributes{
-			BurnTransactions:             v[1:],
-			Proofs:                       nil,
+			BurnTransactions:             burnTxs,
+			Proofs:                       proofs,
 			Backlink:                     targetToken.Backlink,
 			InvariantPredicateSignatures: nil,
+		}
+		sub, err := w.sendTx(targetToken.ID, joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+			if err != nil {
+				return err
+			}
+			joinAttrs.SetInvariantPredicateSignatures(signatures)
+			return anypb.MarshalFrom(tx.TransactionAttributes, joinAttrs, proto.MarshalOptions{})
+		})
+		if err != nil {
+			return err
+		}
+		err = w.syncToUnit(ctx, sub)
+		if err != nil {
+			return err
 		}
 	}
 	return nil

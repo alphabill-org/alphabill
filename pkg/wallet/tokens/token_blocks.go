@@ -82,8 +82,8 @@ func (w *Wallet) Sync(ctx context.Context) error {
 	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
 }
 
-func (w *Wallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
-	return w.syncToUnits(ctx, newSubmissionSet().add(&submittedTx{id, timeout}))
+func (w *Wallet) syncToUnit(ctx context.Context, sub *submittedTx) error {
+	return w.syncToUnits(ctx, newSubmissionSet().add(sub))
 }
 
 func (w *Wallet) syncToUnits(ctx context.Context, subs *submissionSet) error {

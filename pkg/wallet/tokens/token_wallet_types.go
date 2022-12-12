@@ -29,6 +29,7 @@ type (
 		URI      string      `json:"uri,omitempty"` // nft only
 		Backlink []byte      `json:"backlink"`
 		Proof    *Proof      `json:"proof"`
+		Burned   bool        `json:"burned"`
 	}
 
 	TokenKind uint

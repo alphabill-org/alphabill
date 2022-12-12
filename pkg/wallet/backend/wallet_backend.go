@@ -106,7 +106,13 @@ func (w *WalletBackend) StartProcess(ctx context.Context) {
 		default:
 			if retryCount > 0 {
 				wlog.Info("sleeping 10s before retrying alphabill connection")
-				time.Sleep(10 * time.Second)
+				timer := time.NewTimer(10 * time.Second)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				}
 			}
 			err := w.Start(ctx)
 			if err != nil {

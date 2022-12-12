@@ -81,7 +81,7 @@ type (
 		rootVerifier *RootNodeVerifier
 		proposalGen  *ProposalGenerator
 		safety       *SafetyModule
-		stateLedger  *StateLedger
+		stateLedger  *StatePipeline
 		partitions   PartitionStore
 	}
 )
@@ -175,7 +175,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	if err != nil {
 		return nil, err
 	}
-	ledger, err := NewStateLedger(conf.stateStore, conf.HashAlgorithm)
+	ledger, err := NewStatePipeline(conf.stateStore, conf.HashAlgorithm)
 	if err != nil {
 		return nil, err
 	}

@@ -26,17 +26,17 @@ type (
 		SysDesc *genesis.SystemDescriptionRecord
 	}
 
-	StateLedgerEntry struct {
+	StateEntry struct {
 		State   store.RootState
 		Changed ChangeSet
 	}
 
-	StateLedger struct {
-		stateLedgerMap map[uint64]*StateLedgerEntry
-		HighQC         *atomic_broadcast.QuorumCert // highest QC seen
-		HighCommitQC   *atomic_broadcast.QuorumCert // highest QC serving as commit certificate
-		stateStore     StateStore                   // certified and committed states
-		hashAlgorithm  gocrypto.Hash                // hash algorithm
+	StatePipeline struct {
+		stateMap      map[uint64]*StateEntry
+		HighQC        *atomic_broadcast.QuorumCert // highest QC seen
+		HighCommitQC  *atomic_broadcast.QuorumCert // highest QC serving as commit certificate
+		stateStore    StateStore                   // certified and committed states
+		hashAlgorithm gocrypto.Hash                // hash algorithm
 	}
 )
 
@@ -53,7 +53,7 @@ func (s *ChangeSet) contains(sysId protocol.SystemIdentifier) bool {
 	return ok
 }
 
-func NewStateLedger(stateStore StateStore, hash gocrypto.Hash) (*StateLedger, error) {
+func NewStatePipeline(stateStore StateStore, hash gocrypto.Hash) (*StatePipeline, error) {
 	if stateStore == nil {
 		return nil, errors.New(ErrStr)
 	}
@@ -62,27 +62,27 @@ func NewStateLedger(stateStore StateStore, hash gocrypto.Hash) (*StateLedger, er
 		return nil, err
 	}
 	// populate pending state with existing state
-	return &StateLedger{
-		stateLedgerMap: make(map[uint64]*StateLedgerEntry),
-		stateStore:     stateStore,
-		hashAlgorithm:  hash,
+	return &StatePipeline{
+		stateMap:      make(map[uint64]*StateEntry),
+		stateStore:    stateStore,
+		hashAlgorithm: hash,
 	}, nil
 }
 
-func (s *StateLedger) ProcessQc(qc *atomic_broadcast.QuorumCert) {
+func (s *StatePipeline) ProcessQc(qc *atomic_broadcast.QuorumCert) {
 	if qc == nil {
 		return
 	}
 	// If the QC commits a state
 	if len(qc.LedgerCommitInfo.CommitStateId) != 0 {
-		state, found := s.stateLedgerMap[qc.VoteInfo.ParentRound]
+		state, found := s.stateMap[qc.VoteInfo.ParentRound]
 		if found {
 			// Commit pending state if it has the same state hash
 			if bytes.Equal(state.State.LatestRootHash, qc.LedgerCommitInfo.CommitStateId) {
 				//todo: create new UnicitySeal structure and store to DB
 				// return state for sending result to partition manager
 				// delete ledger entry
-				delete(s.stateLedgerMap, qc.VoteInfo.ParentRound)
+				delete(s.stateMap, qc.VoteInfo.ParentRound)
 			}
 		}
 		s.HighCommitQC = qc
@@ -90,15 +90,15 @@ func (s *StateLedger) ProcessQc(qc *atomic_broadcast.QuorumCert) {
 	s.HighQC = qc
 }
 
-func (s *StateLedger) ProcessTc(tc *atomic_broadcast.TimeoutCert) {
+func (s *StatePipeline) ProcessTc(tc *atomic_broadcast.TimeoutCert) {
 	if tc == nil {
 		return
 	}
 	// clear map, the states will never be committed anyway
-	s.stateLedgerMap = make(map[uint64]*StateLedgerEntry)
+	s.stateMap = make(map[uint64]*StateEntry)
 }
 
-func (s *StateLedger) ExecuteProposal(round uint64, req *atomic_broadcast.Payload, partitions PartitionStore) error {
+func (s *StatePipeline) ExecuteProposal(round uint64, req *atomic_broadcast.Payload, partitions PartitionStore) error {
 	if req == nil {
 		return errors.New("no payload")
 	}
@@ -106,7 +106,7 @@ func (s *StateLedger) ExecuteProposal(round uint64, req *atomic_broadcast.Payloa
 	// trust the proposer is honest
 	requests := request_store.NewCertificationRequestStore()
 	// Get previous state, is the previous round pending
-	previousState, found := s.stateLedgerMap[round-1]
+	previousState, found := s.stateMap[round-1]
 	// If there is nothing pending, then just read the latest stored state
 	if !found {
 		// Nothing concerning this round is pending certification, get state from store
@@ -114,7 +114,7 @@ func (s *StateLedger) ExecuteProposal(round uint64, req *atomic_broadcast.Payloa
 		if err != nil {
 			return err
 		}
-		previousState = &StateLedgerEntry{
+		previousState = &StateEntry{
 			State:   state,
 			Changed: make(map[protocol.SystemIdentifier]struct{}),
 		}
@@ -200,7 +200,7 @@ func (s *StateLedger) ExecuteProposal(round uint64, req *atomic_broadcast.Payloa
 		logger.Warning("Failed to generate unicity certificates for round %v", round)
 		return err
 	}
-	s.stateLedgerMap[round] = &StateLedgerEntry{State: *newState, Changed: changed}
+	s.stateMap[round] = &StateEntry{State: *newState, Changed: changed}
 	return nil
 }
 
@@ -262,8 +262,8 @@ func CreateUnicityCertificates(algo gocrypto.Hash, round uint64, prevHash []byte
 		Certificates:   certs}, nil
 }
 
-func (s *StateLedger) GetRoundState(round uint64) (*StateLedgerEntry, error) {
-	entry, found := s.stateLedgerMap[round]
+func (s *StatePipeline) GetRoundState(round uint64) (*StateEntry, error) {
+	entry, found := s.stateMap[round]
 	if !found {
 		// Nothing concerning this round is pending certification, get state from store
 		state, err := s.stateStore.Get()
@@ -273,7 +273,7 @@ func (s *StateLedger) GetRoundState(round uint64) (*StateLedgerEntry, error) {
 		if state.LatestRound != round {
 			return nil, fmt.Errorf("round not found")
 		}
-		return &StateLedgerEntry{
+		return &StateEntry{
 			State:   state,
 			Changed: make(map[protocol.SystemIdentifier]struct{}),
 		}, nil

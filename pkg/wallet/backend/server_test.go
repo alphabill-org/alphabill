@@ -80,6 +80,10 @@ func (m *mockWalletService) getKeys() ([]*Pubkey, error) {
 	return m.store.GetKeys()
 }
 
+func (m *mockWalletService) GetMaxBlockNumber() (uint64, error) {
+	return m.store.GetBlockNumber()
+}
+
 func TestListBillsRequest_Ok(t *testing.T) {
 	expectedBill := &Bill{
 		Id:    newUnitID(1),
@@ -633,6 +637,19 @@ func TestAddKeyRequest_InvalidKey(t *testing.T) {
 	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, res.Message, "pubkey hex string must be 68 characters long (with 0x prefix)")
+}
+
+func TestBlockHeightRequest_Ok(t *testing.T) {
+	service := newMockWalletService(t)
+	startServer(t, service)
+
+	blockNumber := uint64(100)
+	_ = service.store.SetBlockNumber(blockNumber)
+	res := &BlockHeightResponse{}
+	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/block-height", res)
+
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.EqualValues(t, blockNumber, res.BlockHeight)
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {

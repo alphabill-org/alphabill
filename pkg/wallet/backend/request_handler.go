@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -48,6 +49,10 @@ type (
 		Pubkey string `json:"pubkey"`
 	}
 
+	BlockHeightResponse struct {
+		BlockHeight uint64 `json:"blockHeight"`
+	}
+
 	EmptyResponse struct{}
 
 	ErrorResponse struct {
@@ -78,6 +83,7 @@ func (s *RequestHandler) router() *mux.Router {
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof/{pubkey}", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof/{pubkey}", s.setProofFunc).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
 
 	// TODO authorization
 	v1Admin := apiV1.PathPrefix("/admin/").Subrouter()
@@ -279,6 +285,16 @@ func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAsJson(w, EmptyResponse{})
+}
+
+func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request) {
+	maxBlockNumber, err := s.service.GetMaxBlockNumber()
+	if err != nil {
+		log.Err(err).Msg("GET /block-height error fetching max block number")
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber})
+	}
 }
 
 func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {

@@ -1,4 +1,4 @@
-package rootchain
+package rootvalidator
 
 import (
 	gocrypto "crypto"

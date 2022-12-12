@@ -186,19 +186,6 @@ func TestBillStore_GetSetKeys(t *testing.T) {
 	require.Nil(t, key)
 }
 
-func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
-	dbFile := path.Join(t.TempDir(), BoltBillStoreFileName)
-	return NewBoltBillStore(dbFile)
-}
-
-func newBillWithValue(val uint64) *Bill {
-	id := uint256.NewInt(val)
-	return &Bill{
-		Id:    util.Uint256ToBytes(id),
-		Value: val,
-	}
-}
-
 func TestBillStore_DeletingBillForKey1DoesNotAffectKey2(t *testing.T) {
 	bs, _ := createTestBillStore(t)
 	pk1, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000001")
@@ -245,4 +232,54 @@ func TestBillStore_DeletingBillForKey1DoesNotAffectKey2(t *testing.T) {
 	containsBill, err = bs.ContainsBill(pk1, bill.Id)
 	require.NoError(t, err)
 	require.False(t, containsBill)
+}
+
+func TestBillStore_DeleteExpiredBills(t *testing.T) {
+	s, _ := createTestBillStore(t)
+	pubKeyBytes, _ := hexutil.Decode("0x000000000000000000000000000000000000000000000000000000000000000000")
+	pubkey := NewPubkey(pubKeyBytes)
+	expirationBlockNo := uint64(100)
+	unitIDs := [][]byte{{1}, {2}, {3}}
+	_ = s.AddKey(pubkey)
+
+	// add three bills and set expiration time
+	for _, unitID := range unitIDs {
+		err := s.SetBills(pubkey.Pubkey, &Bill{Id: unitID})
+		require.NoError(t, err)
+
+		err = s.SetBillExpirationTime(expirationBlockNo, pubkey.Pubkey, unitID)
+		require.NoError(t, err)
+	}
+
+	// when expiration time is reached
+	err := s.DeleteExpiredBills(expirationBlockNo)
+	require.NoError(t, err)
+
+	// then expired bills should be deleted
+	bills, err := s.GetBills(pubkey.Pubkey)
+	require.NoError(t, err)
+	require.Len(t, bills, 0)
+
+	// and expired bills metadata should also be cleared
+	var expiredBills []*expiredBill
+	err = s.db.View(func(tx *bolt.Tx) error {
+		var err error
+		expiredBills, err = s.getExpiredBills(tx, expirationBlockNo)
+		return err
+	})
+	require.NoError(t, err)
+	require.Nil(t, expiredBills)
+}
+
+func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
+	dbFile := path.Join(t.TempDir(), BoltBillStoreFileName)
+	return NewBoltBillStore(dbFile)
+}
+
+func newBillWithValue(val uint64) *Bill {
+	id := uint256.NewInt(val)
+	return &Bill{
+		Id:    util.Uint256ToBytes(id),
+		Value: val,
+	}
 }

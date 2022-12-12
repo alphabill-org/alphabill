@@ -43,12 +43,12 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		UnicityCertificate: &certificates.UnicityCertificate{},
 	}
 
-	store := NewInmemoryBillStore()
+	store, err := createTestBillStore(t)
 	_ = store.AddKey(NewPubkey(pubKeyBytes))
 	bp := NewBlockProcessor(store)
 
 	// process transactions
-	err := bp.ProcessBlock(b)
+	err = bp.ProcessBlock(b)
 	require.NoError(t, err)
 
 	// verify bills exist

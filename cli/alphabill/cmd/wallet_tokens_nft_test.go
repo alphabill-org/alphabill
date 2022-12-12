@@ -144,7 +144,7 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 		{
 			name:       "update nft: both data flags missing",
 			cmdParams:  "token update --token-identifier 12AB",
-			wantErrStr: "Either of ['--data', '--data-file'] flags must be specified",
+			wantErrStr: "either of ['--data', '--data-file'] flags must be specified",
 		},
 		{
 			name:       "update nft: token id missing",

@@ -97,7 +97,7 @@ done
 tokensNodeAddresses="${tokensNodeAddresses:1}"
 
 tokensPort=28666
-tokensGrpcPort=28866
+tokensGrpcPort=28766
 tokensRestPort=28866
 #start tokens partition nodes
 for i in 1 2 3

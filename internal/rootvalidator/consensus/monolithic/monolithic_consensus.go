@@ -24,14 +24,12 @@ const (
 	defaultT3Timeout = 900 * time.Millisecond
 	t3TimerID        = "t3timer"
 	defaultHash      = gocrypto.SHA256
-	// todo: consider response handling taking time
-	ChannelBuffer = 10
+	channelBuffer    = 100
 )
 
 type (
 	PartitionStore interface {
 		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
-		GetSystemDescriptions() []*genesis.SystemDescriptionRecord // todo: to be removed
 	}
 
 	StateStore interface {
@@ -54,12 +52,14 @@ type (
 		conf         *consensusConfig
 		selfId       string // node identifier
 		partitions   PartitionStore
-		inputData    map[p.SystemIdentifier]*unicitytree.Data
+		ir           map[p.SystemIdentifier]*certificates.InputRecord
+		changes      map[p.SystemIdentifier]*certificates.InputRecord
 		signer       crypto.Signer // private key of the root chain
-		verifier     map[string]crypto.Verifier
+		trustBase    map[string]crypto.Verifier
 	}
 
-	Option func(c *consensusConfig)
+	Option          func(c *consensusConfig)
+	UnicitySealFunc func(rootHash []byte) (*certificates.UnicitySeal, error)
 )
 
 func WithT3Timeout(timeout time.Duration) Option {
@@ -80,12 +80,16 @@ func WithHashAlgo(algo gocrypto.Hash) Option {
 	}
 }
 
-func NewUnicityTreeData(ir *certificates.InputRecord, sd *genesis.SystemDescriptionRecord, algo gocrypto.Hash) *unicitytree.Data {
-	return &unicitytree.Data{
-		SystemIdentifier:            sd.SystemIdentifier,
-		InputRecord:                 ir,
-		SystemDescriptionRecordHash: sd.Hash(algo),
+func trackExecutionTime(start time.Time, name string) {
+	logger.Debug(name, " took ", time.Since(start))
+}
+
+func loadInputRecords(state *store.RootState) map[p.SystemIdentifier]*certificates.InputRecord {
+	ir := make(map[p.SystemIdentifier]*certificates.InputRecord)
+	for id, uc := range state.Certificates {
+		ir[id] = uc.InputRecord
 	}
+	return ir
 }
 
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
@@ -102,17 +106,22 @@ func NewMonolithicConsensusManager(peer *network.Peer, partitionStore PartitionS
 	}
 	config := loadConf(opts)
 	timers := timer.NewTimers()
-
+	// verify that we can read the persisted state from store
+	state, err := config.stateStore.Get()
+	if err != nil {
+		return nil, err
+	}
 	consensusManager := &ConsensusManager{
-		certReqCh:    make(chan consensus.IRChangeRequest, ChannelBuffer),
-		certResultCh: make(chan certificates.UnicityCertificate, ChannelBuffer),
+		certReqCh:    make(chan consensus.IRChangeRequest, channelBuffer),
+		certResultCh: make(chan certificates.UnicityCertificate, channelBuffer),
 		timers:       timers,
 		conf:         config,
 		selfId:       selfId,
 		partitions:   partitionStore,
-		inputData:    make(map[p.SystemIdentifier]*unicitytree.Data),
+		ir:           loadInputRecords(&state),
+		changes:      make(map[p.SystemIdentifier]*certificates.InputRecord),
 		signer:       signer,
-		verifier:     map[string]crypto.Verifier{selfId: verifier},
+		trustBase:    map[string]crypto.Verifier{selfId: verifier},
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
 	return consensusManager, nil
@@ -127,14 +136,8 @@ func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCert
 }
 
 func (x *ConsensusManager) Start() {
-	// Start timers
+	// Start T3 timer
 	x.timers.Start(t3TimerID, x.conf.t3Timeout)
-	// todo: should refactor to use round number or UC seal timestamp for partition timeouts
-	// this needs new specification updates to be finalized
-	for _, sysDesc := range x.partitions.GetSystemDescriptions() {
-		duration := time.Duration(sysDesc.T2Timeout) * time.Millisecond
-		x.timers.Start(string(sysDesc.SystemIdentifier), duration)
-	}
 	go x.loop()
 }
 
@@ -154,14 +157,14 @@ func (x *ConsensusManager) loop() {
 				logger.Warning("certification channel closed, exiting consensus main loop")
 				return
 			}
-			logger.Debug("IR change request from partition")
-			// The request is sent internally, assume correct handling and do not double-check the attached requests
-			sysDescription, err := x.partitions.GetSystemDescription(req.SystemIdentifier)
-			if err != nil {
-				logger.Warning("Unexpected error, cannot certify IR from %X: %v", req.SystemIdentifier, err)
+			ir, found := x.changes[req.SystemIdentifier]
+			if found {
+				logger.Debug("Partition %X, pending request exists %v, ignoring new %v", req.SystemIdentifier,
+					ir, req.IR)
 				break
 			}
-			x.inputData[req.SystemIdentifier] = NewUnicityTreeData(req.IR, sysDescription, x.conf.hashAlgo)
+			logger.Debug("Partition %X, IR change request received")
+			x.changes[req.SystemIdentifier] = req.IR
 		// handle timeouts
 		case nt := <-x.timers.C:
 			if nt == nil {
@@ -172,119 +175,138 @@ func (x *ConsensusManager) loop() {
 			case timerId == t3TimerID:
 				logger.Debug("T3 timeout")
 				x.timers.Restart(timerId)
-				if len(x.inputData) == 0 {
-					logger.Debug("Nothing to certify, no inputs or timeouts, skip round")
-					break
-				}
-				newState, err := x.CreateUnicityCertificates()
-				if err != nil {
-					logger.Warning("Round %v failed: %v", newState.LatestRound, err)
-					break
-				}
-				for id, cert := range newState.Certificates {
-					logger.Debug("Sending new UC for '%X'", id.Bytes())
-					x.certResultCh <- *cert
-				}
-			default:
-				x.timers.Restart(timerId)
-				systemdId := p.SystemIdentifier(timerId)
-				logger.Debug("Handling T2 timeout with a name '%X'", systemdId.Bytes())
-				state, err := x.conf.stateStore.Get()
-				if err != nil {
-					logger.Warning("Unable to re-certify partition %X, error: %v", systemdId.Bytes(), err.Error())
-					break
-				}
-				luc, f := state.Certificates[systemdId]
-				if !f {
-					logger.Warning("Unable to re-certify partition %X, error: no certificate found", systemdId.Bytes(), err.Error())
-					break
-				}
-				sysDescription, err := x.partitions.GetSystemDescription(systemdId)
-				if err != nil {
-					logger.Warning("Unexpected error, cannot certify IR from %X: %v", systemdId.Bytes(), err)
-					break
-				}
-				x.inputData[systemdId] = NewUnicityTreeData(luc.InputRecord, sysDescription, x.conf.hashAlgo)
+				x.onT3Timeout()
 			}
 		}
 	}
 }
 
-func (x *ConsensusManager) CreateUnicityCertificates() (*store.RootState, error) {
-	nofInputs := len(x.inputData)
-	data := make([]*unicitytree.Data, nofInputs)
-	logger.Debug("Input records are:")
-	i := 0
-	for _, ucData := range x.inputData {
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("IR for partition %X is:", ucData.SystemIdentifier), ucData)
-		data[i] = ucData
-		i++
+func (x *ConsensusManager) onT3Timeout() {
+	defer trackExecutionTime(time.Now(), fmt.Sprintf("t3 timeout handling"))
+	state, err := x.conf.stateStore.Get()
+	if err != nil {
+		logger.Warning("T3 timeout, failed to read last state from storage: %v", err.Error())
+		return
 	}
-	ut, err := unicitytree.New(x.conf.hashAlgo.New(), data)
+	newState, err := x.generateUnicityCertificates(&state)
+	if err != nil {
+		logger.Warning("T3 timeout round %v failed: %v", state.LatestRound+1, err)
+		// restore input records form store
+		x.ir = loadInputRecords(&state)
+		return
+	}
+	// persist new state
+	if err := x.conf.stateStore.Save(*newState); err != nil {
+		logger.Warning("T3 timeout: failed to persist new root state, %v", err)
+		return
+	}
+	// Only deliver updated (new input or repeat) certificates
+	for id, cert := range newState.Certificates {
+		logger.Debug("T3 timeout: sending new UC for '%X'", id.Bytes())
+		x.certResultCh <- *cert
+	}
+}
+
+func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) error {
+	// evaluate timeouts
+	for id, cert := range state.Certificates {
+		// if new input was this partition id was not received for this round
+		if _, found := x.changes[id]; !found {
+			partInfo, err := x.partitions.GetSystemDescription(id)
+			if err != nil {
+				return err
+			}
+			if time.Duration(round-cert.UnicitySeal.RootChainRoundNumber)*x.conf.t3Timeout >
+				time.Duration(partInfo.T2Timeout)*time.Millisecond {
+				// timeout
+				logger.Debug("Round %v, partition %X T2 timeout", round, id.Bytes())
+				x.changes[id] = cert.InputRecord
+			}
+		}
+	}
+	return nil
+}
+
+func (x *ConsensusManager) generateUnicityCertificates(lastState *store.RootState) (*store.RootState, error) {
+	newRound := lastState.LatestRound + 1
+	// evaluate timeouts and add repeat UC requests if timeout
+	if err := x.checkT2Timeout(newRound, lastState); err != nil {
+		return nil, err
+	}
+	// log all changes for this round
+	logger.Debug("Round %v, changed input records are:")
+	// apply changes
+	for id, ch := range x.changes {
+		// add some sanity checks
+		// log and store
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("Partition %X IR:", id), ch)
+		x.ir[id] = ch
+	}
+	utData := make([]*unicitytree.Data, 0, len(x.ir))
+	// remember system description records hashes and system id for verification
+	sdrhs := make(map[p.SystemIdentifier][]byte, len(x.ir))
+	for id, ir := range x.ir {
+		partInfo, err := x.partitions.GetSystemDescription(id)
+		if err != nil {
+			return nil, err
+		}
+		sdrh := partInfo.Hash(x.conf.hashAlgo)
+		sdrhs[id] = sdrh
+		// if it is valid it must have at least one validator with a valid certification request
+		// if there is more, all input records are matching
+		utData = append(utData, &unicitytree.Data{
+			SystemIdentifier:            partInfo.SystemIdentifier,
+			InputRecord:                 ir,
+			SystemDescriptionRecordHash: sdrh,
+		})
+	}
+	certs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	// create unicity tree
+	ut, err := unicitytree.New(x.conf.hashAlgo.New(), utData)
 	if err != nil {
 		return nil, err
 	}
 	rootHash := ut.GetRootHash()
-	logger.Info("New root hash is %X", rootHash)
-	lastState, err := x.conf.stateStore.Get()
-	if err != nil {
-		logger.Info("Failed to read last state from storage: %v", err.Error())
-		return nil, err
-	}
-	newRound := lastState.LatestRound + 1
-	unicitySeal, err := x.createUnicitySeal(newRound, rootHash, lastState.LatestRootHash)
-	if err != nil {
-		return nil, err
-	}
-	logger.Info("Creating unicity certificates. RoundNr %v, inputRecords: %v", newRound, len(data))
-
-	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
-	for _, d := range data {
-		cert, err := ut.GetCertificate(d.SystemIdentifier)
-		if err != nil {
-			// this should never happen. if it does then exit with panic because we cannot generate
-			// unicity tree certificates.
-			panic(err)
-		}
-		identifier := p.SystemIdentifier(d.SystemIdentifier)
-
-		certificate := &certificates.UnicityCertificate{
-			InputRecord: d.InputRecord,
-			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
-				SystemIdentifier:      cert.SystemIdentifier,
-				SiblingHashes:         cert.SiblingHashes,
-				SystemDescriptionHash: d.SystemDescriptionRecordHash,
-			},
-			UnicitySeal: unicitySeal,
-		}
-
-		// check the certificate
-		err = certificate.IsValid(x.verifier, x.conf.hashAlgo, d.SystemIdentifier, d.SystemDescriptionRecordHash)
-		if err != nil {
-			// should never happen.
-			panic(err)
-		}
-		certs[identifier] = certificate
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", d.SystemIdentifier), certificate)
-	}
-	// Save state
-	newState := store.RootState{LatestRound: newRound, Certificates: certs, LatestRootHash: rootHash}
-	if err := x.conf.stateStore.Save(newState); err != nil {
-		return nil, err
-	}
-	// clear input data, all handled and certificates created
-	x.inputData = make(map[p.SystemIdentifier]*unicitytree.Data)
-	return &newState, nil
-}
-
-func (x *ConsensusManager) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte) (*certificates.UnicitySeal, error) {
-	u := &certificates.UnicitySeal{
+	uSeal := &certificates.UnicitySeal{
 		RootChainRoundNumber: newRound,
-		PreviousHash:         prevRoot,
-		Hash:                 newRootHash,
+		PreviousHash:         lastState.LatestRootHash,
+		Hash:                 rootHash,
 		RoundCreationTime:    util.MakeTimestamp(),
 	}
-	return u, u.Sign(x.selfId, x.signer)
+	if err := uSeal.Sign(x.selfId, x.signer); err != nil {
+		return nil, err
+	}
+	// extract certificates for all changed IR's
+	for sysId, ir := range x.changes {
+		// get certificate for change
+		utCert, err := ut.GetCertificate(sysId.Bytes())
+		if err != nil {
+			return nil, err
+		}
+		uc := &certificates.UnicityCertificate{
+			InputRecord: ir,
+			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+				SystemIdentifier:      utCert.SystemIdentifier,
+				SiblingHashes:         utCert.SiblingHashes,
+				SystemDescriptionHash: utCert.SystemDescriptionHash,
+			},
+			UnicitySeal: uSeal,
+		}
+		// verify certificate
+		// ignore error, we just put it there and if not, then verify will fail anyway
+		srdh, _ := sdrhs[sysId]
+		if err := uc.IsValid(x.trustBase, x.conf.hashAlgo, sysId.Bytes(), srdh); err != nil {
+			// should never happen.
+			return nil, fmt.Errorf("error invalid genese unicity certificate: %w", err)
+		}
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", sysId.Bytes()), uc)
+		certs[sysId] = uc
+	}
+	// Persist all changes
+	newState := store.RootState{LatestRound: newRound, Certificates: certs, LatestRootHash: rootHash}
+	// clear changed and return new certificates
+	x.changes = make(map[p.SystemIdentifier]*certificates.InputRecord)
+	return &newState, nil
 }
 
 func loadConf(opts []Option) *consensusConfig {

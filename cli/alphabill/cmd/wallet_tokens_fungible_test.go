@@ -188,6 +188,46 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w1key.PubKey))
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'", "amount='6'")
 }
+func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
+	partition, unitState := startTokensPartition(t)
+
+	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
+
+	w1, homedirW1 := createNewTokenWallet(t, dialAddr)
+	//w1key
+	_, err := w1.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w1.Shutdown()
+
+	typeID1 := randomID(t)
+	symbol1 := "AB"
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X --decimals 0", symbol1, dialAddr, typeID1))
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types fungible")), "symbol=AB (type,fungible)")
+	ensureUnit(t, unitState, uint256.NewInt(0).SetBytes(typeID1))
+	// mint tokens
+	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
+		return func(tx *txsystem.Transaction) bool {
+			if tx.TransactionAttributes.GetTypeUrl() == "type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes" {
+				attrs := &tokens.MintFungibleTokenAttributes{}
+				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+				return attrs.Value == amount
+			}
+			return false
+		}
+	}
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 300", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 700", dialAddr, typeID1))
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new fungible --sync false -u %s --type %X --amount 1000", dialAddr, typeID1))
+	require.Eventually(t, testpartition.BlockchainContains(partition, crit(300)), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContains(partition, crit(700)), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, testpartition.BlockchainContains(partition, crit(1000)), test.WaitDuration, test.WaitTick)
+	//check w1
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='300'", "amount='700'", "amount='1000'")
+	// DC
+	execTokensCmd(t, homedirW1, fmt.Sprintf("collect-dust --sync true -u %s", dialAddr))
+
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='2000'")
+}
 
 func TestWalletCreateFungibleTokenCmd_TypeFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)

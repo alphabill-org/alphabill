@@ -26,8 +26,9 @@ import (
 
 type (
 	submittedTx struct {
-		id TokenID
-		tx *txsystem.Transaction
+		id        TokenID
+		tx        *txsystem.Transaction
+		confirmed bool
 	}
 
 	submissionSet struct {
@@ -43,6 +44,19 @@ func newSubmissionSet() *submissionSet {
 		submissions: make(map[string]*submittedTx, 1),
 		maxTimeout:  0,
 	}
+}
+
+func (s *submittedTx) confirm() {
+	s.confirmed = true
+}
+
+func (s *submissionSet) confirmed() bool {
+	for _, sub := range s.submissions {
+		if !sub.confirmed {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *submissionSet) add(sub *submittedTx) *submissionSet {
@@ -189,6 +203,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 			return err
 		}
 		if tok != nil {
+			log.Info("Token was burned on account #", accNr)
 			if tok.Amount != ctx.Value() {
 				return fmt.Errorf("expected burned amount: %v, got %v. token id='%X', type id='%X'", tok.Amount, ctx.Value(), tok.ID, tok.TypeID)
 			}

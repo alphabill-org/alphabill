@@ -100,21 +100,24 @@ func (w *Wallet) syncToUnits(ctx context.Context, subs *submissionSet) error {
 			id := TokenID(tx.UnitId).String()
 			if sub, found := subs.submissions[id]; found {
 				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.BlockNumber))
-				delete(subs.submissions, id)
+				sub.confirm()
 			}
-			if len(subs.submissions) == 0 {
-				cancel()
-			}
+		}
+		confirmed := subs.confirmed()
+		if confirmed {
+			cancel()
 		}
 		if b.BlockNumber >= subs.maxTimeout {
 			log.Info(fmt.Sprintf("Sync timeout is reached, block (#%v)", b.BlockNumber))
 			for _, sub := range subs.submissions {
-				log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
+				if !sub.confirmed {
+					log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
+				}
 			}
 			cancel()
 
-			if len(subs.submissions) > 0 {
-				return errors.Errorf("did not confirm all transactions, timed out: %v", len(subs.submissions))
+			if !confirmed {
+				return errors.Errorf("did not confirm all transactions, timeout reached")
 			}
 		}
 		return nil

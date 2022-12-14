@@ -605,9 +605,19 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer tw.Shutdown()
 
-	typeId, err := getHexFlag(cmd, cmdFlagType)
+	typeIDStrs, err := cmd.Flags().GetStringSlice(cmdFlagType)
 	if err != nil {
 		return err
+	}
+	var types []t.TokenTypeID
+	for _, tokenType := range typeIDStrs {
+		typeBytes, err := decodeHexOrEmpty(tokenType)
+		if err != nil {
+			return err
+		}
+		if len(typeBytes) > 0 {
+			types = append(types, typeBytes)
+		}
 	}
 	ib, err := readPredicateInput(cmd, cmdFlagInheritBearerClauseInput, tw.GetAccountManager())
 	if err != nil {
@@ -616,7 +626,7 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	return tw.CollectDust(ctx, accountNumber, typeId, ib)
+	return tw.CollectDust(ctx, accountNumber, types, ib)
 }
 
 func tokenCmdSync(config *walletConfig) *cobra.Command {

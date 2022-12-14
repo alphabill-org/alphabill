@@ -329,7 +329,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	return w.syncToUnit(ctx, sub)
 }
 
-func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenType TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenTypes []TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
 	w.sync = true // force sync
 	if accountNumber == alwaysTrueTokensAccountNumber {
 		return errors.New("invalid account number for dust collection (#0)")
@@ -352,10 +352,10 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenType T
 		}
 	}
 	if singleKey {
-		return w.collectDust(ctx, uint64(accountNumber), tokenType, invariantPredicateArgs)
+		return w.collectDust(ctx, uint64(accountNumber), tokenTypes, invariantPredicateArgs)
 	}
 	for idx := range keys {
-		err := w.collectDust(ctx, uint64(idx+1), tokenType, invariantPredicateArgs)
+		err := w.collectDust(ctx, uint64(idx+1), tokenTypes, invariantPredicateArgs)
 		if err != nil {
 			return err
 		}
@@ -363,7 +363,7 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenType T
 	return nil
 }
 
-func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenType TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenTypes []TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -374,15 +374,20 @@ func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenTyp
 		return err
 	}
 	// group tokens by type
-	var tokensByTypes = make(map[string][]*TokenUnit, 0)
+	var tokensByTypes = make(map[string][]*TokenUnit, len(tokenTypes))
+	for _, tokenType := range tokenTypes {
+		tokensByTypes[tokenType.String()] = make([]*TokenUnit, 0)
+	}
 	for _, tok := range allTokens {
-		if len(tokenType) > 0 && !tok.TypeID.equal(tokenType) {
-			continue
-		}
 		tokenTypeStr := tok.TypeID.String()
 		tokenz, found := tokensByTypes[tokenTypeStr]
 		if !found {
-			tokenz = make([]*TokenUnit, 1)
+			if len(tokenTypes) == 0 {
+				// any type
+				tokenz = make([]*TokenUnit, 0, 1)
+			} else {
+				continue
+			}
 		}
 		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
 	}
@@ -416,8 +421,20 @@ func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenTyp
 		if err != nil {
 			return err
 		}
-		burnTxs := make([]*txsystem.Transaction, 1)
-		proofs := make([]*block.BlockProof, 1)
+		burnTxs := make([]*txsystem.Transaction, 0, 1)
+		proofs := make([]*block.BlockProof, 0, 1)
+		for _, tx := range submissions.submissions {
+			tok, err := w.db.Do().GetToken(accountNumber, tx.id)
+			if err != nil {
+				return err
+			}
+			if !tok.Burned {
+				return fmt.Errorf("token not burned, ID='%X'", tok.ID)
+			}
+			burnTxs = append(burnTxs, tx.tx)
+			proofs = append(proofs, tok.Proof.Proof)
+		}
+
 		joinAttrs := &tokens.JoinFungibleTokenAttributes{
 			BurnTransactions:             burnTxs,
 			Proofs:                       proofs,

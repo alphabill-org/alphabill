@@ -13,7 +13,7 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
-const dustBillDeletionTimeout = 300
+const dustBillDeletionTimeout = 65536
 
 type BlockProcessor struct {
 	store BillStore

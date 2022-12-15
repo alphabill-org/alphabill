@@ -4,22 +4,15 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (
-	CertInputData struct {
-		Ir      *certificates.InputRecord
-		SysDesc *genesis.SystemDescriptionRecord
-	}
-
 	StateEntry struct {
 		State   *store.RootState
 		Changed map[protocol.SystemIdentifier]*certificates.InputRecord
@@ -55,56 +48,67 @@ func NewRoundPipeline(hash gocrypto.Hash, persistedState store.RootState, partit
 	}, nil
 }
 
-func (s *RoundPipeline) Update(qc *atomic_broadcast.QuorumCert) *store.RootState {
+func (x *RoundPipeline) Reset(persistedState store.RootState) {
+	// clear map, the states will never be committed anyway
+	x.statePipeline = make(map[uint64]*StateEntry)
+	x.inProgress = make(map[protocol.SystemIdentifier]struct{})
+	x.ir = make(map[protocol.SystemIdentifier]*certificates.InputRecord)
+	for id, cert := range persistedState.Certificates {
+		x.ir[id] = cert.InputRecord
+	}
+	x.execStateId = persistedState.LatestRootHash
+	return
+}
+
+func (x *RoundPipeline) IsChangeInPipeline(sysId protocol.SystemIdentifier) bool {
+	_, f := x.inProgress[sysId]
+	return f
+}
+
+func (x *RoundPipeline) GetExecStateId() []byte {
+	return x.execStateId
+}
+
+func (x *RoundPipeline) removeCompleted(changes map[protocol.SystemIdentifier]*certificates.InputRecord) {
+	for ch := range changes {
+		delete(x.inProgress, ch)
+	}
+}
+
+func (x *RoundPipeline) Update(qc *atomic_broadcast.QuorumCert) *store.RootState {
 	var commitState *store.RootState = nil
 	if qc == nil {
 		return commitState
 	}
 	// If the QC commits a state
 	if len(qc.LedgerCommitInfo.CommitStateId) != 0 {
-		state, found := s.statePipeline[qc.VoteInfo.ParentRound]
+		state, found := x.statePipeline[qc.VoteInfo.ParentRound]
 		if found {
 			// Commit pending state if it has the same state hash
 			if bytes.Equal(state.State.LatestRootHash, qc.LedgerCommitInfo.CommitStateId) {
 				//todo: AB-548 create new UnicitySeal structure and complete certificates
 				// return state for sending result to partition manager
 				commitState = state.State
+				x.removeCompleted(state.Changed)
 				// remove completed round from pipeline
-				delete(s.statePipeline, qc.VoteInfo.ParentRound)
+				delete(x.statePipeline, qc.VoteInfo.ParentRound)
 			}
 		}
-		s.HighCommitQC = qc
+		x.HighCommitQC = qc
 	}
 	// Add qc to pending state
-	state, found := s.statePipeline[qc.VoteInfo.RootRound]
+	state, found := x.statePipeline[qc.VoteInfo.RootRound]
 	if found {
 		state.Qc = qc
 	}
-	s.HighQC = qc
+	x.HighQC = qc
 	return commitState
 }
 
-func (s *RoundPipeline) Reset(persistedState store.RootState) {
-	// clear map, the states will never be committed anyway
-	s.statePipeline = make(map[uint64]*StateEntry)
-	s.inProgress = make(map[protocol.SystemIdentifier]struct{})
-	s.ir = make(map[protocol.SystemIdentifier]*certificates.InputRecord)
-	for id, cert := range persistedState.Certificates {
-		s.ir[id] = cert.InputRecord
-	}
-	s.execStateId = persistedState.LatestRootHash
-	return
-}
-
-func (s *RoundPipeline) IsChangeInPipeline(sysId protocol.SystemIdentifier) bool {
-	_, f := s.inProgress[sysId]
-	return f
-}
-
-func (s *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]*certificates.InputRecord) ([]byte, error) {
+func (x *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]*certificates.InputRecord) ([]byte, error) {
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
 	for sysId := range changes {
-		if _, f := s.inProgress[sysId]; f {
+		if _, f := x.inProgress[sysId]; f {
 			return nil, fmt.Errorf("add state failed: partition %X has pending chnages in pipeline", sysId.Bytes())
 		}
 	}
@@ -112,16 +116,16 @@ func (s *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 	logger.Debug("Round %v, changed input records are:", round)
 	for id, ch := range changes {
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("Round %v partition %X IR:", round, id), ch)
-		s.ir[id] = ch
-		s.inProgress[id] = struct{}{}
+		x.ir[id] = ch
+		x.inProgress[id] = struct{}{}
 	}
-	utData := make([]*unicitytree.Data, 0, len(s.ir))
-	for id, ir := range s.ir {
-		partInfo, err := s.partitions.GetPartitionInfo(id)
+	utData := make([]*unicitytree.Data, 0, len(x.ir))
+	for id, ir := range x.ir {
+		partInfo, err := x.partitions.GetPartitionInfo(id)
 		if err != nil {
 			return nil, err
 		}
-		sdrh := partInfo.SystemDescription.Hash(s.hashAlgorithm)
+		sdrh := partInfo.SystemDescription.Hash(x.hashAlgorithm)
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
@@ -130,7 +134,7 @@ func (s *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 			SystemDescriptionRecordHash: sdrh,
 		})
 	}
-	ut, err := unicitytree.New(s.hashAlgorithm.New(), utData)
+	ut, err := unicitytree.New(x.hashAlgorithm.New(), utData)
 	if err != nil {
 		return nil, err
 	}
@@ -153,15 +157,11 @@ func (s *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 		}
 		certs[sysId] = certificate
 	}
-	s.execStateId = rootHash
-	s.statePipeline[round] = &StateEntry{State: &store.RootState{
+	x.execStateId = rootHash
+	x.statePipeline[round] = &StateEntry{State: &store.RootState{
 		LatestRound:    round,
 		LatestRootHash: rootHash,
 		Certificates:   certs,
 	}, Changed: changes, Qc: nil}
 	return rootHash, nil
-}
-
-func (s *RoundPipeline) GetExecStateId() []byte {
-	return s.execStateId
 }

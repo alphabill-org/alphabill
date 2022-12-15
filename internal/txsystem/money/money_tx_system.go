@@ -17,7 +17,7 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const dustBillDeletionTimeout uint64 = 300
+const dustBillDeletionTimeout uint64 = 65536
 
 var (
 	log = logger.CreateForPackage()

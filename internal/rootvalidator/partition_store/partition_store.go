@@ -93,37 +93,6 @@ func (ps *PartitionStore) AddPartition(partition *genesis.PartitionRecord) error
 	return nil
 }
 
-func (ps *PartitionStore) GetSystemDescriptions() []*genesis.SystemDescriptionRecord {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	descriptions := make([]*genesis.SystemDescriptionRecord, len(ps.partitions))
-	i := 0
-	for _, info := range ps.partitions {
-		descriptions[i] = info.SystemDescription
-		i++
-	}
-	return descriptions
-}
-
-func (ps *PartitionStore) GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	info, err := ps.getInfo(id)
-	if err != nil {
-		return nil, err
-	}
-	return info.SystemDescription, err
-}
-func (ps *PartitionStore) GetNofNodesInPartition(id p.SystemIdentifier) (int, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	info, err := ps.getInfo(id)
-	if err != nil {
-		return 0, err
-	}
-	return len(info.TrustBase), err
-}
-
 func (ps *PartitionStore) GetPartitionNodes(id p.SystemIdentifier) ([]string, error) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -133,42 +102,24 @@ func (ps *PartitionStore) GetPartitionNodes(id p.SystemIdentifier) ([]string, er
 	}
 	nodes := make([]string, len(info.TrustBase))
 	i := 0
-	for node, _ := range info.TrustBase {
+	for node := range info.TrustBase {
 		nodes[i] = node
 		i++
 	}
 	return nodes, nil
 }
 
-func (ps *PartitionStore) GetPartitionVerifier(id p.SystemIdentifier, nodeId string) (crypto.Verifier, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	info, err := ps.getInfo(id)
-	if err != nil {
-		return nil, err
-	}
-	ver, found := info.TrustBase[nodeId]
-	if !found {
-		return nil, fmt.Errorf("unknown node id %v", nodeId)
-	}
-	return ver, err
-}
-
-func (ps *PartitionStore) GetTrustBase(id p.SystemIdentifier) (map[string]crypto.Verifier, error) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	info, err := ps.getInfo(id)
-	if err != nil {
-		return nil, err
-	}
-	return info.TrustBase, nil
-}
-
-// Size returns the number of partition in the partition store.
+// Size returns the number of partitions in the partition store.
 func (ps *PartitionStore) Size() int {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	return len(ps.partitions)
+}
+
+func (ps *PartitionStore) GetPartitionInfo(id p.SystemIdentifier) (PartitionInfo, error) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	return ps.getInfo(id)
 }
 
 func (ps *PartitionStore) getInfo(id p.SystemIdentifier) (PartitionInfo, error) {

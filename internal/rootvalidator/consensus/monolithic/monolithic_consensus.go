@@ -4,6 +4,7 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -12,7 +13,6 @@ import (
 	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
@@ -29,7 +29,7 @@ const (
 
 type (
 	PartitionStore interface {
-		GetSystemDescription(id p.SystemIdentifier) (*genesis.SystemDescriptionRecord, error)
+		GetPartitionInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
 	StateStore interface {
@@ -212,12 +212,12 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) 
 	for id, cert := range state.Certificates {
 		// if new input was this partition id was not received for this round
 		if _, found := x.changes[id]; !found {
-			partInfo, err := x.partitions.GetSystemDescription(id)
+			partInfo, err := x.partitions.GetPartitionInfo(id)
 			if err != nil {
 				return err
 			}
 			if time.Duration(round-cert.UnicitySeal.RootChainRoundNumber)*x.conf.t3Timeout >
-				time.Duration(partInfo.T2Timeout)*time.Millisecond {
+				time.Duration(partInfo.SystemDescription.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Debug("Round %v, partition %X T2 timeout", round, id.Bytes())
 				x.changes[id] = cert.InputRecord
@@ -234,28 +234,25 @@ func (x *ConsensusManager) generateUnicityCertificates(lastState *store.RootStat
 		return nil, err
 	}
 	// log all changes for this round
-	logger.Debug("Round %v, changed input records are:")
+	logger.Debug("Round %v, changed input records are:", newRound)
 	// apply changes
 	for id, ch := range x.changes {
-		// add some sanity checks
+		// add sanity checks
 		// log and store
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("Partition %X IR:", id), ch)
 		x.ir[id] = ch
 	}
 	utData := make([]*unicitytree.Data, 0, len(x.ir))
-	// remember system description records hashes and system id for verification
-	sdrhs := make(map[p.SystemIdentifier][]byte, len(x.ir))
 	for id, ir := range x.ir {
-		partInfo, err := x.partitions.GetSystemDescription(id)
+		partInfo, err := x.partitions.GetPartitionInfo(id)
 		if err != nil {
 			return nil, err
 		}
-		sdrh := partInfo.Hash(x.conf.hashAlgo)
-		sdrhs[id] = sdrh
+		sdrh := partInfo.SystemDescription.Hash(x.conf.hashAlgo)
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
-			SystemIdentifier:            partInfo.SystemIdentifier,
+			SystemIdentifier:            partInfo.SystemDescription.SystemIdentifier,
 			InputRecord:                 ir,
 			SystemDescriptionRecordHash: sdrh,
 		})
@@ -293,9 +290,7 @@ func (x *ConsensusManager) generateUnicityCertificates(lastState *store.RootStat
 			UnicitySeal: uSeal,
 		}
 		// verify certificate
-		// ignore error, we just put it there and if not, then verify will fail anyway
-		srdh, _ := sdrhs[sysId]
-		if err := uc.IsValid(x.trustBase, x.conf.hashAlgo, sysId.Bytes(), srdh); err != nil {
+		if err := uc.IsValid(x.trustBase, x.conf.hashAlgo, utCert.SystemIdentifier, utCert.SystemDescriptionHash); err != nil {
 			// should never happen.
 			return nil, fmt.Errorf("error invalid genese unicity certificate: %w", err)
 		}

@@ -62,6 +62,8 @@ type (
 		ContainsBill(pubkey []byte, unitID []byte) (bool, error)
 		GetBill(pubkey []byte, unitID []byte) (*Bill, error)
 		SetBills(pubkey []byte, bills ...*Bill) error
+		SetBillExpirationTime(blockNumber uint64, pubkey []byte, unitID []byte) error
+		DeleteExpiredBills(blockNumber uint64) error
 		GetKeys() ([]*Pubkey, error)
 		GetKey(pubkey []byte) (*Pubkey, error)
 		AddKey(key *Pubkey) error
@@ -168,6 +170,11 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *block.Bills) error {
 // Returns ErrKeyAlreadyExists error if key already exists.
 func (w *WalletBackend) AddKey(pubkey []byte) error {
 	return w.store.AddKey(NewPubkey(pubkey))
+}
+
+// GetMaxBlockNumber returns max block number known to the connected AB node.
+func (w *WalletBackend) GetMaxBlockNumber() (uint64, error) {
+	return w.genericWallet.GetMaxBlockNumber()
 }
 
 // Shutdown terminates wallet backend service.

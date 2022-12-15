@@ -14,10 +14,12 @@ nodeAddresses="${nodeAddresses:1}"
 
 port=26666
 grpcPort=26766
+restPort=26866
 #start partition nodes
 for i in 1 2 3
 do
-  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" -g testab/rootchain/genesis/partition-genesis-0.json -p "$nodeAddresses" >> "testab/money$i/money$i.log" &
+  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g testab/rootchain/genesis/partition-genesis-0.json -p "$nodeAddresses" >> "testab/money$i/money$i.log" &
   ((port=port+1))
   ((grpcPort=grpcPort+1))
+  ((restPort=restPort+1))
 done

@@ -387,7 +387,6 @@ func (tree *Tree) remove(key *uint256.Int, qp **Node) bool {
 	if c == 0 {
 		if q.Children[1] == nil {
 			if q.Children[0] != nil {
-				tree.assignRecompute(q.Parent, true)
 				tree.assignNode(&q.Children[0].Parent, q.Parent)
 			}
 

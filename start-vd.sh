@@ -33,10 +33,12 @@ nodeAddresses="${nodeAddresses:1}"
 
 port=27666
 grpcPort=27766
+restPort=27866
 #start partition nodes
 for i in 1 2 3
 do
-  build/alphabill vd --home testab/vd$i -f testab/vd$i/vd/blocks.db -k testab/vd$i/vd/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" -g testab/rootchain/genesis/partition-genesis-1.json -p "$nodeAddresses" > "testab/vd$i/vd$i.log" &
+  build/alphabill vd --home testab/vd$i -f testab/vd$i/vd/blocks.db -k testab/vd$i/vd/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$port" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g testab/rootchain/genesis/partition-genesis-1.json -p "$nodeAddresses" > "testab/vd$i/vd$i.log" &
   ((port=port+1))
   ((grpcPort=grpcPort+1))
+  ((restPort=restPort+1))
 done

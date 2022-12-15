@@ -21,6 +21,7 @@ type (
 		GetBill(pubkey []byte, unitID []byte) (*Bill, error)
 		SetBills(pubkey []byte, bills *block.Bills) error
 		AddKey(pubkey []byte) error
+		GetMaxBlockNumber() (uint64, error)
 	}
 )
 

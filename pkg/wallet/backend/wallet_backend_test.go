@@ -93,11 +93,13 @@ func TestSetBill_OK(t *testing.T) {
 	txHash := gtx.Hash(gocrypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	b := &Bill{
-		Id:     tx.UnitId,
-		Value:  txValue,
-		TxHash: txHash,
+		Id:          tx.UnitId,
+		Value:       txValue,
+		TxHash:      txHash,
+		OrderNumber: 1,
 		TxProof: &TxProof{
 			BlockNumber: 1,
 			Tx:          tx,
@@ -140,7 +142,8 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	proof, verifiers := createProofForTx(t, tx)
 	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
 
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	pubkey := []byte{0}
 	_ = service.AddKey(pubkey)
 	b := &Bill{
@@ -158,7 +161,7 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 }
 
 func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
-	storage := NewInmemoryBillStore()
+	storage, _ := createTestBillStore(t)
 	bp := NewBlockProcessor(storage)
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 	_, verifier := testsig.CreateSignerAndVerifier(t)

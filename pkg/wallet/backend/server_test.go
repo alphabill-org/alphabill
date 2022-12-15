@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -78,6 +79,10 @@ func (m *mockWalletService) addBills(pubkey []byte, bill ...*Bill) error {
 
 func (m *mockWalletService) getKeys() ([]*Pubkey, error) {
 	return m.store.GetKeys()
+}
+
+func (m *mockWalletService) GetMaxBlockNumber() (uint64, error) {
+	return m.store.GetBlockNumber()
 }
 
 func TestListBillsRequest_Ok(t *testing.T) {
@@ -422,7 +427,8 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
@@ -455,7 +461,7 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.EqualValues(t, 1, txProof.BlockNumber)
-	require.Equal(t, tx, txProof.Tx)
+	require.True(t, proto.Equal(tx, txProof.Tx))
 	require.NotNil(t, proof, txProof.Proof)
 }
 
@@ -469,7 +475,8 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	startServer(t, service)
 
 	pubkey := make([]byte, 33)
@@ -506,7 +513,8 @@ func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	proof, verifiers := createProofForTx(t, tx)
 
 	pubkey := make([]byte, 33)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
@@ -542,7 +550,8 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
 	startServer(t, service)
 
@@ -578,7 +587,7 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.EqualValues(t, 1, txProof.BlockNumber)
-	require.Equal(t, tx, txProof.Tx)
+	require.True(t, proto.Equal(tx, txProof.Tx))
 	require.NotNil(t, proof, txProof.Proof)
 }
 
@@ -633,6 +642,19 @@ func TestAddKeyRequest_InvalidKey(t *testing.T) {
 	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, res.Message, "pubkey hex string must be 68 characters long (with 0x prefix)")
+}
+
+func TestBlockHeightRequest_Ok(t *testing.T) {
+	service := newMockWalletService(t)
+	startServer(t, service)
+
+	blockNumber := uint64(100)
+	_ = service.store.SetBlockNumber(blockNumber)
+	res := &BlockHeightResponse{}
+	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/block-height", res)
+
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.EqualValues(t, blockNumber, res.BlockHeight)
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {

@@ -431,14 +431,13 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 // onVoteMsg handle votes and timeout votes
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
-	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
+	err := vote.Verify(x.rootVerifier.GetVerifiers())
 	if err != nil {
 		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
 	}
 	// Todo: AB-320 Check state and recover if required
 
 	// Was the proposal received? If not, should we recover it? Or should it be included in the vote?
-
 	round := vote.VoteInfo.RootRound
 	// Normal votes are only sent to the next leader,
 	// timeout votes are broadcast to everybody
@@ -563,7 +562,6 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	// Every proposal must carry a QC for previous round
 	// Process QC first, update round
 	x.processCertificateQC(proposal.Block.Qc)
-	// ignore proposal.HighCommitQc for now, maybe this can be optimized and removed
 	x.processTC(proposal.LastRoundTc)
 	changes, err := x.VerifyProposal(proposal.Block.Payload)
 	// execute proposal
@@ -579,10 +577,6 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		logger.Warning("Failed to sign vote, vote not sent: %v", err.Error())
 		return
 	}
-	// Add high commit Qc
-	// Todo: check if this is actually needed for anything?
-	voteMsg.HighCommitQc = x.roundPipeline.HighCommitQC
-
 	x.roundState.SetVoted(voteMsg)
 	// send vote to the next leader
 	receivers := make([]peer.ID, 1)
@@ -642,9 +636,8 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		}
 		block.Id = hash
 		proposalMsg := &atomic_broadcast.ProposalMsg{
-			Block:        block,
-			HighCommitQc: x.roundPipeline.HighCommitQC,
-			LastRoundTc:  x.roundState.LastRoundTC(),
+			Block:       block,
+			LastRoundTc: x.roundState.LastRoundTC(),
 		}
 		if err := x.safety.SignProposal(proposalMsg); err != nil {
 			logger.Warning("Failed to send proposal message, message signing failed: %v", err)

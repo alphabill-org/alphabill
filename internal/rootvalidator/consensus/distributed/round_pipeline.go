@@ -21,7 +21,6 @@ type (
 
 	RoundPipeline struct {
 		HighQC        *atomic_broadcast.QuorumCert                            // highest QC seen
-		HighCommitQC  *atomic_broadcast.QuorumCert                            // highest QC serving as commit certificate
 		hashAlgorithm gocrypto.Hash                                           // hash algorithm
 		partitions    PartitionStore                                          // partition store
 		ir            map[protocol.SystemIdentifier]*certificates.InputRecord // currently valid input records
@@ -76,10 +75,10 @@ func (x *RoundPipeline) removeCompleted(changes map[protocol.SystemIdentifier]*c
 }
 
 func (x *RoundPipeline) Update(qc *atomic_broadcast.QuorumCert) *store.RootState {
-	var commitState *store.RootState = nil
 	if qc == nil {
-		return commitState
+		return nil
 	}
+	var commitState *store.RootState = nil
 	// If the QC commits a state
 	if len(qc.LedgerCommitInfo.CommitStateId) != 0 {
 		state, found := x.statePipeline[qc.VoteInfo.ParentRound]
@@ -94,7 +93,6 @@ func (x *RoundPipeline) Update(qc *atomic_broadcast.QuorumCert) *store.RootState
 				delete(x.statePipeline, qc.VoteInfo.ParentRound)
 			}
 		}
-		x.HighCommitQC = qc
 	}
 	// Add qc to pending state
 	state, found := x.statePipeline[qc.VoteInfo.RootRound]

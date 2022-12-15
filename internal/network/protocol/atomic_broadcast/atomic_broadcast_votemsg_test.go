@@ -54,7 +54,6 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 	type fields struct {
 		VoteInfo         *VoteInfo
 		LedgerCommitInfo *LedgerCommitInfo
-		HighCommitQc     *QuorumCert
 		Author           string
 	}
 	type args struct {
@@ -73,7 +72,6 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			fields: fields{
 				VoteInfo:         voteInfo,
 				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 			},
 			args:       args{signer: s1},
@@ -84,7 +82,6 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			fields: fields{
 				VoteInfo:         nil,
 				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 			},
 			args:       args{signer: s1},
@@ -95,7 +92,6 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			fields: fields{
 				VoteInfo:         nil,
 				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 			},
 			args:       args{signer: nil},
@@ -107,7 +103,6 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			x := &VoteMsg{
 				VoteInfo:         tt.fields.VoteInfo,
 				LedgerCommitInfo: tt.fields.LedgerCommitInfo,
-				HighCommitQc:     tt.fields.HighCommitQc,
 				Author:           tt.fields.Author,
 			}
 			err := x.AddSignature(tt.args.signer)
@@ -125,7 +120,6 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 	type fields struct {
 		VoteInfo         *VoteInfo
 		LedgerCommitInfo *LedgerCommitInfo
-		HighCommitQc     *QuorumCert
 		Author           string
 		Signature        []byte
 		TimeoutSignature *TimeoutWithSignature
@@ -157,7 +151,6 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 			fields: fields{
 				VoteInfo:         NewDummyVoteInfo(timeoutRound),
 				LedgerCommitInfo: nil,
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 			},
 			args:       args{timeout: timeout, signature: sig},
@@ -168,7 +161,6 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 			fields: fields{
 				VoteInfo:         NewDummyVoteInfo(timeoutRound),
 				LedgerCommitInfo: nil,
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 			},
 			args:       args{timeout: nil, signature: sig},
@@ -179,7 +171,6 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 			fields: fields{
 				VoteInfo:         NewDummyVoteInfo(timeoutRound),
 				LedgerCommitInfo: nil,
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 			},
 			args:       args{timeout: timeout, signature: nil},
@@ -191,7 +182,6 @@ func TestVoteMsg_AddTimeoutSignature(t *testing.T) {
 			x := &VoteMsg{
 				VoteInfo:         tt.fields.VoteInfo,
 				LedgerCommitInfo: tt.fields.LedgerCommitInfo,
-				HighCommitQc:     tt.fields.HighCommitQc,
 				Author:           tt.fields.Author,
 				Signature:        tt.fields.Signature,
 				TimeoutSignature: tt.fields.TimeoutSignature,
@@ -272,34 +262,18 @@ func TestVoteMsg_Verify(t *testing.T) {
 	type fields struct {
 		VoteInfo         *VoteInfo
 		LedgerCommitInfo *LedgerCommitInfo
-		HighCommitQc     *QuorumCert
 		Author           string
 		Signature        []byte
 		TimeoutSignature *TimeoutWithSignature
 	}
 	type args struct {
-		quorum    uint32
 		rootTrust map[string]crypto.Verifier
 	}
 	const votedRound = 10
-	const quorum = 3
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
+	_, v1 := testsig.CreateSignerAndVerifier(t)
+	_, v2 := testsig.CreateSignerAndVerifier(t)
+	_, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	commitQcInfo := NewDummyVoteInfo(votedRound - 2)
-	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
-	sig1, err := s1.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig2, err := s2.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	sig3, err := s3.SignBytes(commitInfo.Bytes())
-	require.NoError(t, err)
-	commitQc := &QuorumCert{
-		VoteInfo:         commitQcInfo,
-		LedgerCommitInfo: commitInfo,
-		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
-	}
 	voteMsgInfo := NewDummyVoteInfo(votedRound)
 	tests := []struct {
 		name       string
@@ -312,12 +286,11 @@ func TestVoteMsg_Verify(t *testing.T) {
 			fields: fields{
 				VoteInfo:         nil,
 				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
 				TimeoutSignature: nil,
 			},
-			args:       args{quorum: quorum, rootTrust: nil},
+			args:       args{rootTrust: nil},
 			wantErrStr: "invalid vote message, vote info is nil",
 		},
 		{
@@ -325,12 +298,11 @@ func TestVoteMsg_Verify(t *testing.T) {
 			fields: fields{
 				VoteInfo:         &VoteInfo{RootRound: 8, ParentRound: 9},
 				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
 				TimeoutSignature: nil,
 			},
-			args:       args{quorum: quorum, rootTrust: nil},
+			args:       args{rootTrust: nil},
 			wantErrStr: "invalid vote message, invalid round number",
 		},
 		{
@@ -338,12 +310,11 @@ func TestVoteMsg_Verify(t *testing.T) {
 			fields: fields{
 				VoteInfo:         voteMsgInfo,
 				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 3}, CommitStateId: nil},
-				HighCommitQc:     &QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
 				TimeoutSignature: nil,
 			},
-			args:       args{quorum: quorum, rootTrust: nil},
+			args:       args{rootTrust: nil},
 			wantErrStr: "invalid vote message, vote info hash verification failed",
 		},
 		{
@@ -351,12 +322,11 @@ func TestVoteMsg_Verify(t *testing.T) {
 			fields: fields{
 				VoteInfo:         voteMsgInfo,
 				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-				HighCommitQc:     &QuorumCert{},
 				Author:           "",
 				Signature:        nil,
 				TimeoutSignature: nil,
 			},
-			args:       args{quorum: quorum, rootTrust: rootTrust},
+			args:       args{rootTrust: rootTrust},
 			wantErrStr: "invalid vote message, no author",
 		},
 		{
@@ -364,12 +334,11 @@ func TestVoteMsg_Verify(t *testing.T) {
 			fields: fields{
 				VoteInfo:         voteMsgInfo,
 				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-				HighCommitQc:     commitQc,
 				Author:           "test",
 				Signature:        nil,
 				TimeoutSignature: nil,
 			},
-			args:       args{quorum: quorum, rootTrust: rootTrust},
+			args:       args{rootTrust: rootTrust},
 			wantErrStr: "failed to find public key for author test",
 		},
 		{
@@ -377,12 +346,11 @@ func TestVoteMsg_Verify(t *testing.T) {
 			fields: fields{
 				VoteInfo:         voteMsgInfo,
 				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-				HighCommitQc:     commitQc,
 				Author:           "1",
 				Signature:        nil,
 				TimeoutSignature: nil,
 			},
-			args:       args{quorum: quorum, rootTrust: rootTrust},
+			args:       args{rootTrust: rootTrust},
 			wantErrStr: "signature verification failed",
 		},
 	}
@@ -391,12 +359,11 @@ func TestVoteMsg_Verify(t *testing.T) {
 			x := &VoteMsg{
 				VoteInfo:         tt.fields.VoteInfo,
 				LedgerCommitInfo: tt.fields.LedgerCommitInfo,
-				HighCommitQc:     tt.fields.HighCommitQc,
 				Author:           tt.fields.Author,
 				Signature:        tt.fields.Signature,
 				TimeoutSignature: tt.fields.TimeoutSignature,
 			}
-			err := x.Verify(tt.args.quorum, tt.args.rootTrust)
+			err := x.Verify(tt.args.rootTrust)
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 				return
@@ -408,21 +375,20 @@ func TestVoteMsg_Verify(t *testing.T) {
 
 func TestVoteMsg_VerifyOk(t *testing.T) {
 	const votedRound = 10
-	const quorum = 3
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	commitQcInfo := NewDummyVoteInfo(votedRound - 2)
-	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
+	highQcInfo := NewDummyVoteInfo(votedRound - 2)
+	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, highQcInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
 	sig2, err := s2.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
 	sig3, err := s3.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
-	commitQc := &QuorumCert{
-		VoteInfo:         commitQcInfo,
+	highQc := &QuorumCert{
+		VoteInfo:         highQcInfo,
 		LedgerCommitInfo: commitInfo,
 		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
 	}
@@ -430,39 +396,37 @@ func TestVoteMsg_VerifyOk(t *testing.T) {
 	voteMsg := &VoteMsg{
 		VoteInfo:         voteMsgInfo,
 		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-		HighCommitQc:     commitQc,
 		Author:           "1",
 	}
 	require.NoError(t, voteMsg.AddSignature(s1))
 	require.False(t, voteMsg.IsTimeout())
-	require.NoError(t, voteMsg.Verify(quorum, rootTrust))
+	require.NoError(t, voteMsg.Verify(rootTrust))
 	// Add timeout signature to make it a timeout vote
-	timeout, err := NewTimeout(voteMsg.VoteInfo.RootRound, voteMsg.VoteInfo.Epoch, voteMsg.HighCommitQc)
+	timeout, err := NewTimeout(voteMsg.VoteInfo.RootRound, voteMsg.VoteInfo.Epoch, highQc)
 	require.NoError(t, err)
 	sig, err := s1.SignBytes(timeout.Bytes())
 	require.NoError(t, err)
 	require.NoError(t, voteMsg.AddTimeoutSignature(timeout, sig))
-	require.NoError(t, voteMsg.Verify(quorum, rootTrust))
+	require.NoError(t, voteMsg.Verify(rootTrust))
 	require.True(t, voteMsg.IsTimeout())
 }
 
 func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	const votedRound = 10
-	const quorum = 3
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	commitQcInfo := NewDummyVoteInfo(votedRound - 2)
-	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
+	highQcInfo := NewDummyVoteInfo(votedRound - 2)
+	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, highQcInfo)
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
 	sig2, err := s2.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
 	sig3, err := s3.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
-	commitQc := &QuorumCert{
-		VoteInfo:         commitQcInfo,
+	highQc := &QuorumCert{
+		VoteInfo:         highQcInfo,
 		LedgerCommitInfo: commitInfo,
 		Signatures:       map[string][]byte{"1": sig1, "2": sig2, "3": sig3},
 	}
@@ -470,18 +434,17 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	voteMsg := &VoteMsg{
 		VoteInfo:         voteMsgInfo,
 		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-		HighCommitQc:     commitQc,
 		Author:           "1",
 	}
 	require.NoError(t, voteMsg.AddSignature(s1))
 	require.False(t, voteMsg.IsTimeout())
-	require.NoError(t, voteMsg.Verify(quorum, rootTrust))
+	require.NoError(t, voteMsg.Verify(rootTrust))
 	// Add timeout signature to make it a timeout vote
-	timeout, err := NewTimeout(voteMsg.VoteInfo.RootRound, voteMsg.VoteInfo.Epoch, voteMsg.HighCommitQc)
+	timeout, err := NewTimeout(voteMsg.VoteInfo.RootRound, voteMsg.VoteInfo.Epoch, highQc)
 	require.NoError(t, err)
 	sig, err := s1.SignBytes(timeout.Bytes())
 	require.NoError(t, err)
 	require.NoError(t, voteMsg.AddTimeoutSignature(timeout, sig))
-	require.NoError(t, voteMsg.Verify(quorum, rootTrust))
+	require.NoError(t, voteMsg.Verify(rootTrust))
 	require.True(t, voteMsg.IsTimeout())
 }

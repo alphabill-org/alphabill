@@ -22,12 +22,6 @@ func (x *ProposalMsg) IsValid() error {
 	if err := x.Block.IsValid(); err != nil {
 		return fmt.Errorf("proposal msg not valid, block error: %w", err)
 	}
-	if x.HighCommitQc == nil {
-		return fmt.Errorf("proposal msg not valid, missing high commit qc")
-	}
-	if err := x.HighCommitQc.IsValid(); err != nil {
-		return fmt.Errorf("proposal msg not valid, high commit qc validation error: %w", err)
-	}
 	return nil
 }
 
@@ -73,9 +67,6 @@ func (x *ProposalMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 	}
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("proposal msg not valid: %w", err)
-	}
-	if err := x.HighCommitQc.Verify(quorum, rootTrust); err != nil {
-		return aberrors.Wrap(err, "proposal msg commit qc verification failed")
 	}
 	// Optional timeout certificate
 	if x.LastRoundTc != nil {

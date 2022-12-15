@@ -17,10 +17,8 @@ func (x *QuorumCert) addSignatureToQc(t *testing.T, author string, signer crypto
 
 func TestProposalMsg_IsValid(t *testing.T) {
 	type fields struct {
-		Block        *BlockData
-		HighCommitQc *QuorumCert
+		Block *BlockData
 	}
-	qcInfo := NewDummyVoteInfo(8)
 	tests := []struct {
 		name       string
 		fields     fields
@@ -29,8 +27,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 		{
 			name: "Block is nil",
 			fields: fields{
-				Block:        nil,
-				HighCommitQc: nil,
+				Block: nil,
 			},
 			wantErrStr: "proposal msg not valid, block is nil",
 		},
@@ -46,64 +43,16 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Payload:   nil,
 					Qc:        nil,
 				},
-				HighCommitQc: nil,
 			},
 			wantErrStr: "proposal msg not valid, block error: invalid block id",
-		},
-		{
-			name: "High commit QC is nil",
-			fields: fields{
-				Block: &BlockData{
-					Id:        []byte{0, 1, 2},
-					Author:    "1",
-					Round:     9,
-					Epoch:     0,
-					Timestamp: 1234,
-					Payload:   &Payload{},
-					Qc: &QuorumCert{
-						VoteInfo:         qcInfo,
-						LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, qcInfo),
-						Signatures:       map[string][]byte{"1": {1, 2, 3}},
-					},
-				},
-				HighCommitQc: nil,
-			},
-
-			wantErrStr: "proposal msg not valid, missing high commit qc",
-		},
-		{
-			name: "High commit QC not valid",
-			fields: fields{
-				Block: &BlockData{
-					Id:        []byte{0, 1, 2},
-					Author:    "1",
-					Round:     9,
-					Epoch:     0,
-					Timestamp: 1234,
-					Payload:   &Payload{},
-					Qc: &QuorumCert{
-						VoteInfo:         qcInfo,
-						LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, qcInfo),
-						Signatures:       map[string][]byte{"1": {1, 2, 3}},
-					},
-				},
-				HighCommitQc: &QuorumCert{
-					VoteInfo:         qcInfo,
-					LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, qcInfo),
-					Signatures:       nil,
-				},
-			},
-
-			wantErrStr: "proposal msg not valid, high commit qc validation error: qc is missing signatures",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &ProposalMsg{
-				Block:        tt.fields.Block,
-				HighCommitQc: tt.fields.HighCommitQc,
-				LastRoundTc:  nil, // timeout certificate is optional
-				Signature:    nil, // IsValid does not check signatures
+				Block:       tt.fields.Block,
+				LastRoundTc: nil, // timeout certificate is optional
+				Signature:   nil, // IsValid does not check signatures
 			}
 			err := x.IsValid()
 			if tt.wantErrStr != "" {
@@ -117,7 +66,6 @@ func TestProposalMsg_IsValid(t *testing.T) {
 
 func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 	prevRoundInfo := NewDummyVoteInfo(8)
-	commitRoundInfo := NewDummyVoteInfo(7)
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
 			Author:    "1",
@@ -131,11 +79,6 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
-		HighCommitQc: &QuorumCert{
-			VoteInfo:         commitRoundInfo,
-			LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, commitRoundInfo),
-			Signatures:       map[string][]byte{"1": {0, 1, 2}},
-		},
 		LastRoundTc: nil,
 	}
 	require.ErrorIs(t, ErrSignerIsNil, proposeMsg.Sign(nil))
@@ -143,7 +86,6 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 
 func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 	qcInfo := NewDummyVoteInfo(8)
-	commitRoundInfo := NewDummyVoteInfo(7)
 
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
@@ -158,11 +100,6 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
-		HighCommitQc: &QuorumCert{
-			VoteInfo:         commitRoundInfo,
-			LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, commitRoundInfo),
-			Signatures:       map[string][]byte{"1": {0, 1, 2}},
-		},
 		LastRoundTc: nil,
 	}
 	s1, _ := testsig.CreateSignerAndVerifier(t)
@@ -171,7 +108,6 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 
 func TestProposalMsg_Sign_Ok(t *testing.T) {
 	qcInfo := NewDummyVoteInfo(8)
-	commitRoundInfo := NewDummyVoteInfo(7)
 
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
@@ -185,11 +121,6 @@ func TestProposalMsg_Sign_Ok(t *testing.T) {
 				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, qcInfo),
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
-		},
-		HighCommitQc: &QuorumCert{
-			VoteInfo:         commitRoundInfo,
-			LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, commitRoundInfo),
-			Signatures:       map[string][]byte{"1": {1, 2, 3}},
 		},
 		LastRoundTc: nil,
 	}
@@ -211,15 +142,6 @@ func TestProposalMsg_Verify_UnknownSigner(t *testing.T) {
 	lastRoundQc.addSignatureToQc(t, "1", s1)
 	lastRoundQc.addSignatureToQc(t, "2", s2)
 	lastRoundQc.addSignatureToQc(t, "3", s3)
-	lastCommitInfo := NewDummyVoteInfo(8)
-	lastCommitQc := &QuorumCert{
-		VoteInfo:         lastCommitInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastCommitInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastCommitQc.addSignatureToQc(t, "1", s1)
-	lastCommitQc.addSignatureToQc(t, "2", s2)
-	lastCommitQc.addSignatureToQc(t, "3", s3)
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
 			Author:    "12",
@@ -229,8 +151,7 @@ func TestProposalMsg_Verify_UnknownSigner(t *testing.T) {
 			Payload:   &Payload{},
 			Qc:        lastRoundQc,
 		},
-		HighCommitQc: lastCommitQc,
-		LastRoundTc:  nil,
+		LastRoundTc: nil,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "failed to find public key for root validator 12")
@@ -250,15 +171,6 @@ func TestProposalMsg_Verify_BlockHashDoesNotMatchId(t *testing.T) {
 	lastRoundQc.addSignatureToQc(t, "1", s1)
 	lastRoundQc.addSignatureToQc(t, "2", s2)
 	lastRoundQc.addSignatureToQc(t, "3", s3)
-	lastCommitInfo := NewDummyVoteInfo(8)
-	lastCommitQc := &QuorumCert{
-		VoteInfo:         lastCommitInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastCommitInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastCommitQc.addSignatureToQc(t, "1", s1)
-	lastCommitQc.addSignatureToQc(t, "2", s2)
-	lastCommitQc.addSignatureToQc(t, "3", s3)
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
 			Author:    "1",
@@ -268,8 +180,7 @@ func TestProposalMsg_Verify_BlockHashDoesNotMatchId(t *testing.T) {
 			Payload:   &Payload{},
 			Qc:        lastRoundQc,
 		},
-		HighCommitQc: lastCommitQc,
-		LastRoundTc:  nil,
+		LastRoundTc: nil,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	// change block after signing
@@ -277,10 +188,10 @@ func TestProposalMsg_Verify_BlockHashDoesNotMatchId(t *testing.T) {
 	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg error, bock hash does not match block id")
 }
 
-func TestProposalMsg_Verify_NotValidCommitQcNil(t *testing.T) {
+func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
+	_, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
 	lastRoundVoteInfo := NewDummyVoteInfo(9)
 	lastRoundQc := &QuorumCert{
@@ -290,7 +201,6 @@ func TestProposalMsg_Verify_NotValidCommitQcNil(t *testing.T) {
 	}
 	lastRoundQc.addSignatureToQc(t, "1", s1)
 	lastRoundQc.addSignatureToQc(t, "2", s2)
-	lastRoundQc.addSignatureToQc(t, "3", s3)
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
 			Author:    "1",
@@ -300,97 +210,7 @@ func TestProposalMsg_Verify_NotValidCommitQcNil(t *testing.T) {
 			Payload:   &Payload{},
 			Qc:        lastRoundQc,
 		},
-		HighCommitQc: nil,
-		LastRoundTc:  nil,
-	}
-	require.ErrorContains(t, proposeMsg.Sign(s1), "proposal msg not valid, missing high commit qc")
-	// force signature
-	hash, err := proposeMsg.Block.Hash(gocrypto.SHA256)
-	require.NoError(t, err)
-	// Set block id
-	proposeMsg.Block.Id = hash
-	// Sign block hash
-	signature, err := s1.SignHash(hash)
-	require.NoError(t, err)
-	proposeMsg.Signature = signature
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg not valid, missing high commit qc")
-}
-
-func TestProposalMsg_Verify_CommitQcNoQuorum(t *testing.T) {
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	lastRoundVoteInfo := NewDummyVoteInfo(9)
-	lastRoundQc := &QuorumCert{
-		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastRoundQc.addSignatureToQc(t, "1", s1)
-	lastRoundQc.addSignatureToQc(t, "2", s2)
-	lastRoundQc.addSignatureToQc(t, "3", s3)
-	// last commit qc
-	lastCommitInfo := NewDummyVoteInfo(8)
-	lastCommitQc := &QuorumCert{
-		VoteInfo:         lastCommitInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastCommitInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastCommitQc.addSignatureToQc(t, "1", s1)
-	lastCommitQc.addSignatureToQc(t, "2", s2)
-
-	proposeMsg := &ProposalMsg{
-		Block: &BlockData{
-			Author:    "1",
-			Round:     10,
-			Epoch:     0,
-			Timestamp: 1234,
-			Payload:   &Payload{},
-			Qc:        lastRoundQc,
-		},
-		HighCommitQc: lastCommitQc,
-		LastRoundTc:  nil,
-	}
-	require.NoError(t, proposeMsg.Sign(s1))
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg commit qc verification failed")
-}
-
-func TestProposalMsg_Verify_BlockQcNotValid(t *testing.T) {
-	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	s2, v2 := testsig.CreateSignerAndVerifier(t)
-	s3, v3 := testsig.CreateSignerAndVerifier(t)
-	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	lastRoundVoteInfo := NewDummyVoteInfo(9)
-	lastRoundQc := &QuorumCert{
-		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastRoundQc.addSignatureToQc(t, "1", s1)
-	lastRoundQc.addSignatureToQc(t, "2", s2)
-	// last commit qc
-	lastCommitInfo := NewDummyVoteInfo(8)
-	lastCommitQc := &QuorumCert{
-		VoteInfo:         lastCommitInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastCommitInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastCommitQc.addSignatureToQc(t, "1", s1)
-	lastCommitQc.addSignatureToQc(t, "2", s2)
-	lastCommitQc.addSignatureToQc(t, "3", s3)
-
-	proposeMsg := &ProposalMsg{
-		Block: &BlockData{
-			Author:    "1",
-			Round:     10,
-			Epoch:     0,
-			Timestamp: 1234,
-			Payload:   &Payload{},
-			Qc:        lastRoundQc,
-		},
-		HighCommitQc: lastCommitQc,
-		LastRoundTc:  nil,
+		LastRoundTc: nil,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg block verification failed")
@@ -410,15 +230,6 @@ func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
 	lastRoundQc.addSignatureToQc(t, "1", s1)
 	lastRoundQc.addSignatureToQc(t, "2", s2)
 	lastRoundQc.addSignatureToQc(t, "3", s3)
-	lastCommitInfo := NewDummyVoteInfo(8)
-	lastCommitQc := &QuorumCert{
-		VoteInfo:         lastCommitInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastCommitInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastCommitQc.addSignatureToQc(t, "1", s1)
-	lastCommitQc.addSignatureToQc(t, "2", s2)
-	lastCommitQc.addSignatureToQc(t, "3", s3)
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
 			Author:    "1",
@@ -428,8 +239,7 @@ func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
 			Payload:   &Payload{},
 			Qc:        lastRoundQc,
 		},
-		HighCommitQc: lastCommitQc,
-		LastRoundTc:  nil,
+		LastRoundTc: nil,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	proposeMsg.Signature = []byte{0, 1, 2, 3, 4}
@@ -450,15 +260,6 @@ func TestProposalMsg_Verify_OK(t *testing.T) {
 	lastRoundQc.addSignatureToQc(t, "1", s1)
 	lastRoundQc.addSignatureToQc(t, "2", s2)
 	lastRoundQc.addSignatureToQc(t, "3", s3)
-	lastCommitInfo := NewDummyVoteInfo(8)
-	lastCommitQc := &QuorumCert{
-		VoteInfo:         lastCommitInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastCommitInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastCommitQc.addSignatureToQc(t, "1", s1)
-	lastCommitQc.addSignatureToQc(t, "2", s2)
-	lastCommitQc.addSignatureToQc(t, "3", s3)
 	proposeMsg := &ProposalMsg{
 		Block: &BlockData{
 			Author:    "1",
@@ -468,8 +269,7 @@ func TestProposalMsg_Verify_OK(t *testing.T) {
 			Payload:   &Payload{},
 			Qc:        lastRoundQc,
 		},
-		HighCommitQc: lastCommitQc,
-		LastRoundTc:  nil,
+		LastRoundTc: nil,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	require.NoError(t, proposeMsg.Verify(3, rootTrust))
@@ -489,15 +289,6 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	lastRoundQc.addSignatureToQc(t, "1", s1)
 	lastRoundQc.addSignatureToQc(t, "2", s2)
 	lastRoundQc.addSignatureToQc(t, "3", s3)
-	lastCommitInfo := NewDummyVoteInfo(7)
-	lastCommitQc := &QuorumCert{
-		VoteInfo:         lastCommitInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastCommitInfo),
-		Signatures:       map[string][]byte{},
-	}
-	lastCommitQc.addSignatureToQc(t, "1", s1)
-	lastCommitQc.addSignatureToQc(t, "2", s2)
-	lastCommitQc.addSignatureToQc(t, "3", s3)
 	// round 9 was timeout
 	timeout := &Timeout{
 		Epoch: 0,
@@ -530,8 +321,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 			Payload:   &Payload{},
 			Qc:        lastRoundQc,
 		},
-		HighCommitQc: lastCommitQc,
-		LastRoundTc:  lastRoundTc,
+		LastRoundTc: lastRoundTc,
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	require.NoError(t, proposeMsg.Verify(3, rootTrust))

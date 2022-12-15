@@ -106,12 +106,10 @@ message TimeoutCert {
 message ProposalMsg {
   // Proposed change
   BlockData block = 1;
-  // highest QC that serves as commit QC, to synchronise on committed state/block
-  QuorumCert high_commit_qc = 2;
   // Last timeout certificate for block.round - 1 if block.qc.round != block.round - 1
-  optional TimeoutCert last_round_tc = 3;
+  optional TimeoutCert last_round_tc = 2;
   // Signature, sign(block_id)
-  optional bytes signature = 4;
+  optional bytes signature = 3;
 }
 
 // Message for both timeout and proposal vote
@@ -120,15 +118,13 @@ message VoteMsg {
   VoteInfo vote_info = 1;
   // Commit info
   LedgerCommitInfo ledger_commit_info = 2;
-  // Sync highest QC that serves as commit QC
-  QuorumCert high_commit_qc = 3;
   // Voter node identifier
-  string author = 4;
+  string author = 3;
   // Vote signature on hash of consensus info
-  bytes signature = 5;
+  bytes signature = 4;
   // When local timeout expires node may issue a timeout vote (also after voted for proposal).
   // Timeout quorum is aggregated into a TimeoutCert (TC).
-  optional TimeoutWithSignature timeout_signature = 6;
+  optional TimeoutWithSignature timeout_signature = 5;
 }
 
 message TimeoutMsg {

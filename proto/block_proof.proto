@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 import "certificates.proto";
+import "transaction.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
 
@@ -10,6 +11,13 @@ enum ProofType {
   ONLYSEC = 2;
   NOTRANS = 3;
   EMPTYBLOCK = 4;
+}
+
+// wrapper around block proof with transaction data
+message TxProof {
+  uint64 block_number = 1;
+  Transaction tx = 2;
+  BlockProof proof = 3;
 }
 
 message BlockProof {

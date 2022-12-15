@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/alphabill-org/alphabill/internal/block"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -19,7 +19,7 @@ type (
 	WalletBackendService interface {
 		GetBills(pubkey []byte) ([]*Bill, error)
 		GetBill(pubkey []byte, unitID []byte) (*Bill, error)
-		SetBills(pubkey []byte, bills *block.Bills) error
+		SetBills(pubkey []byte, bills *moneytx.Bills) error
 		AddKey(pubkey []byte) error
 		GetMaxBlockNumber() (uint64, error)
 	}

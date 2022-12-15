@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
@@ -137,7 +138,7 @@ func (w *WalletBackend) GetBill(pubkey []byte, unitID []byte) (*Bill, error) {
 // Bill most have a valid block proof.
 // Overwrites existing bill, if one exists.
 // Returns error if given pubkey is not indexed.
-func (w *WalletBackend) SetBills(pubkey []byte, bills *block.Bills) error {
+func (w *WalletBackend) SetBills(pubkey []byte, bills *moneytx.Bills) error {
 	if bills == nil {
 		return errBillsIsNil
 	}
@@ -191,8 +192,8 @@ func (w *WalletBackend) Shutdown() {
 	w.genericWallet.Shutdown()
 }
 
-func (b *Bill) toProto() *block.Bill {
-	return &block.Bill{
+func (b *Bill) toProto() *moneytx.Bill {
+	return &moneytx.Bill{
 		Id:       b.Id,
 		Value:    b.Value,
 		TxHash:   b.TxHash,
@@ -209,15 +210,15 @@ func (b *TxProof) toProto() *block.TxProof {
 	}
 }
 
-func (b *Bill) toProtoBills() *block.Bills {
-	return &block.Bills{
-		Bills: []*block.Bill{
+func (b *Bill) toProtoBills() *moneytx.Bills {
+	return &moneytx.Bills{
+		Bills: []*moneytx.Bill{
 			b.toProto(),
 		},
 	}
 }
 
-func newBillsFromProto(src *block.Bills) []*Bill {
+func newBillsFromProto(src *moneytx.Bills) []*Bill {
 	dst := make([]*Bill, len(src.Bills))
 	for i, b := range src.Bills {
 		dst[i] = newBill(b)
@@ -225,7 +226,7 @@ func newBillsFromProto(src *block.Bills) []*Bill {
 	return dst
 }
 
-func newBill(b *block.Bill) *Bill {
+func newBill(b *moneytx.Bill) *Bill {
 	return &Bill{
 		Id:       b.Id,
 		Value:    b.Value,

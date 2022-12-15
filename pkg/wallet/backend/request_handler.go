@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -243,12 +244,12 @@ func (s *RequestHandler) parsePubkeyURLParam(r *http.Request) ([]byte, error) {
 	return parsePubKey(pubkeyParam)
 }
 
-func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
+func (s *RequestHandler) readBillsProto(r *http.Request) (*moneytx.Bills, error) {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
-	req := &block.Bills{}
+	req := &moneytx.Bills{}
 	err = protojson.Unmarshal(b, req)
 	if err != nil {
 		return nil, err

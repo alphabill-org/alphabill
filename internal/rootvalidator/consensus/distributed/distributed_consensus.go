@@ -169,21 +169,11 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	}
 	roundState := NewRoundState(lastState.LatestRound, conf.LocalTimeoutMs)
 	timers := timer.NewTimers()
-	timers.Start(localTimeoutId, roundState.GetRoundTimeout())
-	// read state
-	state, err := conf.stateStore.Get()
-	if err != nil {
-		return nil, err
-	}
 	ledger, err := NewRoundPipeline(conf.HashAlgorithm, lastState, partitionStore)
 	if err != nil {
 		return nil, err
 	}
-	// Am I the next leader?
-	if l.GetLeaderForRound(state.LatestRound+1) == host.ID() {
-		// Start timer and wait for requests from partition nodes
-		timers.Start(blockRateId, conf.BlockRateMs)
-	}
+
 	consensusManager := &ConsensusManager{
 		certReqCh:     make(chan consensus.IRChangeRequest, 1),
 		certResultCh:  make(chan certificates.UnicityCertificate, 1),
@@ -212,6 +202,13 @@ func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCert
 }
 
 func (x *ConsensusManager) Start() {
+	x.timers.Start(localTimeoutId, x.config.LocalTimeoutMs)
+	// Am I the next leader?
+	currentRound := x.roundState.GetCurrentRound()
+	if x.proposer.GetLeaderForRound(currentRound) == x.peer.ID() {
+		// add a small start-up delay
+		x.timers.Start(blockRateId, x.config.BlockRateMs)
+	}
 	go x.loop()
 }
 
@@ -262,6 +259,15 @@ func (x *ConsensusManager) loop() {
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Vote from %s", req.Author), req)
 				logger.Debug("Vote received from %v", msg.From)
 				x.onVoteMsg(req)
+				break
+			case network.ProtocolRootTimeout:
+				req, correctType := msg.Message.(*atomic_broadcast.TimeoutMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+				}
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Timeout vote from %s", req.Author), req)
+				logger.Debug("Vote received from %v", msg.From)
+				x.onTimeoutMsg(req)
 				break
 			case network.ProtocolRootStateReq:
 				req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
@@ -324,7 +330,6 @@ func (x *ConsensusManager) loop() {
 			case timerId == localTimeoutId:
 				logger.Warning("handle local timeout")
 				x.onLocalTimeout()
-				x.timers.Restart(timerId)
 			case timerId == blockRateId:
 				logger.Warning("Throttling not yet implemented")
 			default:
@@ -337,35 +342,22 @@ func (x *ConsensusManager) loop() {
 // onLocalTimeout handle timeouts
 func (x *ConsensusManager) onLocalTimeout() {
 	// always restart timer
-	// Has the validator voted in this round
-	voteMsg := x.roundState.GetVoted()
+	defer x.timers.Restart(localTimeoutId)
+
+	// Has the validator voted in this round, if true send the same vote
+	// maybe less than quorum of nodes where operational the last time
+	voteMsg := x.roundState.GetTimeoutVote()
 	if voteMsg == nil {
-		// todo: generate empty proposal and execute it (not yet specified)
-		// remove below lines once able to generate a empty proposal and execute
-		return
-	}
-	// here voteMsg is not nil
-	// either validator has already voted in this round already or a dummy vote was created
-	if !voteMsg.IsTimeout() {
-		// add timeout with signature and resend vote
-		timeout, err := atomic_broadcast.NewTimeout(voteMsg.VoteInfo.RootRound, voteMsg.VoteInfo.Epoch, x.roundPipeline.HighQC)
-		if err != nil {
+		voteMsg = atomic_broadcast.NewTimeoutMsg(atomic_broadcast.NewTimeout(
+			x.roundState.GetCurrentRound(), 0, x.roundPipeline.HighQC), string(x.peer.ID()))
+		// sign
+		if err := x.safety.SignTimeout(voteMsg, x.roundState.LastRoundTC()); err != nil {
 			logger.Warning("Local timeout error %v", err)
-			return
-		}
-		sig, err := x.safety.SignTimeout(timeout, x.roundState.LastRoundTC())
-		if err != nil {
-			logger.Warning("Local timeout error %v", err)
-			return
-		}
-		// Add timeout to vote
-		if err := voteMsg.AddTimeoutSignature(timeout, sig); err != nil {
-			logger.Warning("Atomic broadcast local timeout handing failed: %v", err)
 			return
 		}
 	}
 	// Record vote
-	x.roundState.SetVoted(voteMsg)
+	x.roundState.SetTimeoutVote(voteMsg)
 	// broadcast timeout vote
 	allValidators := x.proposer.GetRootNodes()
 	receivers := make([]peer.ID, len(allValidators))
@@ -441,27 +433,38 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	round := vote.VoteInfo.RootRound
 	// Normal votes are only sent to the next leader,
 	// timeout votes are broadcast to everybody
-	if vote.IsTimeout() == false {
-		nextRound := round + 1
-		// verify that the validator is correct leader in next round
-		if x.proposer.IsValidLeader(x.peer.ID(), nextRound) == false {
-			logger.Warning("Received vote, validator is not leader in next round %v, vote ignored", nextRound)
-			return
-		}
+	nextRound := round + 1
+	// verify that the validator is correct leader in next round
+	if x.proposer.IsValidLeader(x.peer.ID(), nextRound) == false {
+		logger.Warning("Received vote, validator is not leader in next round %v, vote ignored", nextRound)
+		return
 	}
-	// Store vote, check for QC and TC.
-	qc, tc := x.roundState.RegisterVote(vote, x.rootVerifier)
+	// Store vote, check for QC
+	qc := x.roundState.RegisterVote(vote, x.rootVerifier)
 	if qc != nil {
 		logger.Warning("Round %v quorum achieved", vote.VoteInfo.RootRound)
 		// advance round
 		x.processCertificateQC(qc)
 	}
-	if tc != nil {
-		logger.Warning("Round %v timeout quorum achieved", vote.VoteInfo.RootRound)
-		x.processTC(tc)
-	}
 	// This node is the new leader in this round/view, generate proposal
 	x.processNewRoundEvent()
+}
+
+func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
+	// verify signature on vote
+	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
+	if err != nil {
+		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
+	}
+	// Author voted timeout, proceed
+	logger.Info("Received timout vote from %v, round %v",
+		vote.Author, vote.Timeout.Round)
+
+	tc := x.roundState.RegisterTimeoutVote(vote, x.rootVerifier)
+	if tc != nil {
+		logger.Info("Round %v timeout quorum achieved", vote.Timeout.Round)
+		x.processTC(tc)
+	}
 }
 
 func (x *ConsensusManager) checkRootState(qc *atomic_broadcast.QuorumCert) {

@@ -23,12 +23,12 @@ type (
 
 	VoteRegister struct {
 		// Hash of ConsensusInfo to signatures/votes for it
-		HashToSignatures map[string]*ConsensusWithSignatures
+		hashToSignatures map[string]*ConsensusWithSignatures
 		// Tracks all timout votes for this round
 		// if 2f+1 or threshold votes, then TC is formed
-		TimeoutCert *atomic_broadcast.TimeoutCert
+		timeoutCert *atomic_broadcast.TimeoutCert
 		// Helper, to avoid duplicate votes
-		AuthorToVote map[peer.ID]*atomic_broadcast.VoteMsg
+		authorToVote map[peer.ID]*atomic_broadcast.VoteMsg
 	}
 )
 
@@ -36,79 +36,74 @@ var ErrVoteIsNil = errors.New("vote is nil")
 
 func NewVoteRegister() *VoteRegister {
 	return &VoteRegister{
-		HashToSignatures: make(map[string]*ConsensusWithSignatures),
-		TimeoutCert:      nil,
-		AuthorToVote:     make(map[peer.ID]*atomic_broadcast.VoteMsg),
+		hashToSignatures: make(map[string]*ConsensusWithSignatures),
+		timeoutCert:      nil,
+		authorToVote:     make(map[peer.ID]*atomic_broadcast.VoteMsg),
 	}
 }
 
-func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, quorumInfo QuorumInfo) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert, error) {
+func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, quorumInfo QuorumInfo) (*atomic_broadcast.QuorumCert, error) {
 	if vote == nil {
-		return nil, nil, ErrVoteIsNil
+		return nil, ErrVoteIsNil
 	}
 
 	// Get hash of consensus structure
 	commitInfoHash := vote.LedgerCommitInfo.Hash(crypto.SHA256)
 
 	// has the author already voted in this round?
-	prevVote, voted := v.AuthorToVote[peer.ID(vote.Author)]
+	prevVote, voted := v.authorToVote[peer.ID(vote.Author)]
 	if voted {
 		prevVoteHash := prevVote.LedgerCommitInfo.Hash(crypto.SHA256)
 		// Check if vote has changed
 		if !bytes.Equal(commitInfoHash, prevVoteHash) {
 			// new equivocating vote, this is a security event
-			return nil, nil, fmt.Errorf("equivocating vote, previous %X, new %X", prevVoteHash, commitInfoHash)
+			return nil, fmt.Errorf("equivocating vote, previous %X, new %X", prevVoteHash, commitInfoHash)
 		}
-		// Is new vote for timeout
-		newTimeoutVote := vote.IsTimeout() && !prevVote.IsTimeout()
-		if !newTimeoutVote {
-			return nil, nil, fmt.Errorf("duplicate vote")
-		}
-		// Author voted timeout, proceed
-		logger.Info("Received timout vote from %v, round %v",
-			vote.Author, vote.VoteInfo.RootRound)
+		return nil, fmt.Errorf("duplicate vote")
 	}
 	// Store vote from author
-	v.AuthorToVote[peer.ID(vote.Author)] = vote
+	v.authorToVote[peer.ID(vote.Author)] = vote
 	// register commit hash
 	// Create new entry if not present
-	if _, present := v.HashToSignatures[string(commitInfoHash)]; !present {
-		v.HashToSignatures[string(commitInfoHash)] = &ConsensusWithSignatures{
+	if _, present := v.hashToSignatures[string(commitInfoHash)]; !present {
+		v.hashToSignatures[string(commitInfoHash)] = &ConsensusWithSignatures{
 			commitInfo: vote.LedgerCommitInfo,
 			voteInfo:   vote.VoteInfo,
 			signatures: make(map[string][]byte),
 		}
 	}
 	// Add signature from vote
-	quorum := v.HashToSignatures[string(commitInfoHash)]
+	quorum := v.hashToSignatures[string(commitInfoHash)]
 	quorum.signatures[vote.Author] = vote.Signature
 	// Check QC
 	if uint32(len(quorum.signatures)) >= quorumInfo.GetQuorumThreshold() {
 		qc := atomic_broadcast.NewQuorumCertificate(quorum.voteInfo, quorum.commitInfo, quorum.signatures)
-		return qc, nil, nil
+		return qc, nil
 	}
-	// Check TC
-	if vote.IsTimeout() {
-		// Create partial timeout cert on first vote received
-		if v.TimeoutCert == nil {
-			v.TimeoutCert = &atomic_broadcast.TimeoutCert{
-				Timeout:    vote.TimeoutSignature.Timeout,
-				Signatures: make(map[string]*atomic_broadcast.TimeoutVote),
-			}
-		}
-		// append signature
-		v.TimeoutCert.AddSignature(vote.Author, vote.TimeoutSignature)
-		// Check if TC can be formed
-		if uint32(len(v.TimeoutCert.GetSignatures())) >= quorumInfo.GetQuorumThreshold() {
-			return nil, v.TimeoutCert, nil
+	// Vote registered, no QC could be formed
+	return nil, nil
+}
+
+func (v *VoteRegister) InsertTimeoutVote(timeout *atomic_broadcast.TimeoutMsg, quorumInfo QuorumInfo) (*atomic_broadcast.TimeoutCert, error) {
+	// Create partial timeout cert on first vote received
+	if v.timeoutCert == nil {
+		v.timeoutCert = &atomic_broadcast.TimeoutCert{
+			Timeout:    timeout.Timeout,
+			Signatures: make(map[string]*atomic_broadcast.TimeoutVote),
 		}
 	}
-	// Vote registered, no QC or TC could be formed
-	return nil, nil, nil
+	// append signature
+	v.timeoutCert.Add(timeout.Author, timeout.Timeout, timeout.Signature)
+	// Check if TC can be formed
+	if uint32(len(v.timeoutCert.GetSignatures())) >= quorumInfo.GetQuorumThreshold() {
+		return v.timeoutCert, nil
+	}
+	// No quorum yet, but also no error all is fine
+	return nil, nil
 }
 
 func (v *VoteRegister) Reset() {
-	v.HashToSignatures = make(map[string]*ConsensusWithSignatures)
-	v.TimeoutCert = nil
-	v.AuthorToVote = make(map[peer.ID]*atomic_broadcast.VoteMsg)
+	v.hashToSignatures = make(map[string]*ConsensusWithSignatures)
+	v.timeoutCert = nil
+	v.authorToVote = make(map[peer.ID]*atomic_broadcast.VoteMsg)
 }

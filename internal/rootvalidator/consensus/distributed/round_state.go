@@ -39,7 +39,8 @@ type (
 		// Last round timeout certificate
 		lastRoundTC *atomic_broadcast.TimeoutCert
 		// Vote sent locally for the current round.
-		voteSent *atomic_broadcast.VoteMsg
+		voteSent    *atomic_broadcast.VoteMsg
+		timeoutVote *atomic_broadcast.TimeoutMsg
 	}
 )
 
@@ -70,7 +71,13 @@ func NewRoundState(lastRound uint64, localTimeout time.Duration) *RoundState {
 		pendingVotes:       NewVoteRegister(),
 		lastRoundTC:        nil,
 		voteSent:           nil,
+		timeoutVote:        nil,
 	}
+}
+
+func (x *RoundState) clear() {
+	x.voteSent = nil
+	x.timeoutVote = nil
 }
 
 func (x *RoundState) GetCurrentRound() uint64 {
@@ -82,27 +89,46 @@ func (x *RoundState) SetVoted(vote *atomic_broadcast.VoteMsg) {
 		x.voteSent = vote
 	}
 }
+
+func (x *RoundState) SetTimeoutVote(vote *atomic_broadcast.TimeoutMsg) {
+	if vote.Timeout.Round == x.currentRound {
+		x.timeoutVote = vote
+	}
+}
+
 func (x *RoundState) GetVoted() *atomic_broadcast.VoteMsg {
 	return x.voteSent
+}
+func (x *RoundState) GetTimeoutVote() *atomic_broadcast.TimeoutMsg {
+	return x.timeoutVote
 }
 
 func (x *RoundState) GetRoundTimeout() time.Duration {
 	return x.roundTimeout.Sub(time.Now())
 }
 
-func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumInfo) (*atomic_broadcast.QuorumCert, *atomic_broadcast.TimeoutCert) {
+func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumInfo) *atomic_broadcast.QuorumCert {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.RootRound != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
 			x.currentRound, vote.VoteInfo.RootRound)
-		return nil, nil
+		return nil
 	}
-	qc, tc, err := x.pendingVotes.InsertVote(vote, quorum)
+	qc, err := x.pendingVotes.InsertVote(vote, quorum)
 	if err != nil {
 		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
-		return nil, nil
+		return nil
 	}
-	return qc, tc
+	return qc
+}
+
+func (x *RoundState) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quorum QuorumInfo) *atomic_broadcast.TimeoutCert {
+	tc, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
+	if err != nil {
+		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
+		return nil
+	}
+	return tc
 }
 
 func (x *RoundState) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
@@ -132,6 +158,7 @@ func (x *RoundState) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
 }
 
 func (x *RoundState) startNewRound(round uint64) {
+	x.clear()
 	x.currentRound = round
 	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.highCommittedRound - 1))
 }

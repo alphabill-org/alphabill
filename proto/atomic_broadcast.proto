@@ -82,17 +82,13 @@ message Timeout {
   // Root round number
   uint64 round = 2;
   // Highest quorum certificate of the validator
-  QuorumCert hqc = 3;
-}
-
-message TimeoutWithSignature {
-  Timeout timeout = 1;
-  bytes signature = 2;
+  QuorumCert high_qc = 3;
 }
 
 message TimeoutVote {
   // round from timeout.hqc.consensus.round
   uint64 hqc_round = 1;
+  // timeout signature is TimeoutMsg signature - round, epoch, hqc_round, author
   bytes signature = 2;
 }
 
@@ -124,14 +120,12 @@ message VoteMsg {
   string author = 4;
   // Vote signature on hash of consensus info
   bytes signature = 5;
-  // When local timeout expires node may issue a timeout vote (also after voted for proposal).
-  // Timeout quorum is aggregated into a TimeoutCert (TC).
-  optional TimeoutWithSignature timeout_signature = 6;
 }
 
 message TimeoutMsg {
   Timeout timeout = 1;
-  bytes signature = 2;
+  string author = 2;
+  bytes signature = 3;
 }
 
 // Recover state
@@ -147,6 +141,6 @@ message StateReplyMsg {
     UNKNOWN_STATE = 1;
   }
   Status status = 1;
-  repeated UnicityCertificate uc = 2;
-  repeated QuorumCert qc = 3;
+  repeated InputRecord ir = 2;
+  UnicitySeal seal = 3;
 }

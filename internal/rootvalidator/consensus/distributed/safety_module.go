@@ -31,7 +31,7 @@ func isSafeToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert
 	if !isConsecutive(blockRound, tc.Timeout.Round) {
 		return false
 	}
-	if qcRound < tc.Timeout.Hqc.VoteInfo.RootRound {
+	if qcRound < tc.Timeout.HighQc.VoteInfo.RootRound {
 		return false
 	}
 	//return isConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound
@@ -95,30 +95,24 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId [
 		LedgerCommitInfo: ledgerCommitInfo,
 		HighQc:           block.Qc,
 		Author:           author,
-		TimeoutSignature: nil,
 	}
 	// signs commit info hash
-	if err := voteMsg.AddSignature(s.signer); err != nil {
+	if err := voteMsg.Sign(s.signer); err != nil {
 		return nil, err
 	}
 	return voteMsg, nil
 }
 
-func (s SafetyModule) SignTimeout(timeout *atomic_broadcast.Timeout, lastRoundTC *atomic_broadcast.TimeoutCert) ([]byte, error) {
-	qcRound := timeout.Hqc.VoteInfo.RootRound
-	round := timeout.Round
+func (s SafetyModule) SignTimeout(vote *atomic_broadcast.TimeoutMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+	qcRound := vote.Timeout.HighQc.VoteInfo.RootRound
+	round := vote.Timeout.Round
 	if !s.isSafeToTimeout(round, qcRound, lastRoundTC) {
-		return nil, errors.New("not safe to timeout")
+		return errors.New("not safe to timeout")
 	}
 	// stop voting for this round, all other request to sign a vote for this round will be rejected
 	s.increaseHigestVoteRound(round)
 	// Sign timeout
-	signTimeout := atomic_broadcast.NewTimeoutSign(round, timeout.GetEpoch(), qcRound)
-	signature, err := s.signer.SignHash(signTimeout.Hash(gocrypto.SHA256))
-	if err != nil {
-		return nil, err
-	}
-	return signature, nil
+	return vote.Sign(s.signer)
 }
 
 func (s SafetyModule) SignProposal(proposalMsg *atomic_broadcast.ProposalMsg) error {

@@ -1,49 +1,21 @@
 package atomic_broadcast
 
 import (
-	gocrypto "crypto"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
-
-// TimeoutSigned since the quorum certificate contains more info than needed. Only round number
-// from quorum certificate is used to sign timeout vote.
-type TimeoutSigned struct {
-	epoch    uint64
-	round    uint64
-	hqcRound uint64
-}
-
-// NewTimeoutSign constructs TimoutStructure to be signed with the VoteMsg
-func NewTimeoutSign(epoch uint64, round uint64, hqcRound uint64) *TimeoutSigned {
-	return &TimeoutSigned{
-		epoch:    epoch,
-		round:    round,
-		hqcRound: hqcRound,
-	}
-}
-
-// Hash computes hash of the TimeoutSign structure that is gets signed and added as timeout vote
-func (t *TimeoutSigned) Hash(algo gocrypto.Hash) []byte {
-	hasher := algo.New()
-	hasher.Write(util.Uint64ToBytes(t.epoch))
-	hasher.Write(util.Uint64ToBytes(t.round))
-	hasher.Write(util.Uint64ToBytes(t.hqcRound))
-	return hasher.Sum(nil)
-}
 
 // Verify verifies timeout vote received.
 func (x *Timeout) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	// Make sure that the quorum certificate received with the vote does not have higher round than the round
 	// voted timeout
-	if x.Hqc.VoteInfo.RootRound > x.Round {
-		return fmt.Errorf("invalid timeout, qc round %v is bigger than timeout round %v", x.Hqc.VoteInfo.RootRound, x.Round)
+	if x.HighQc.VoteInfo.RootRound > x.Round {
+		return fmt.Errorf("invalid timeout, qc round %v is bigger than timeout round %v", x.HighQc.VoteInfo.RootRound, x.Round)
 	}
 	// Verify attached quorum certificate
-	return x.Hqc.Verify(quorum, rootTrust)
+	return x.HighQc.Verify(quorum, rootTrust)
 }
 
 func (x *TimeoutCert) GetAuthors() []string {
@@ -54,15 +26,14 @@ func (x *TimeoutCert) GetAuthors() []string {
 	return authors
 }
 
-func (x *TimeoutCert) AddSignature(author string, signedTimeout *TimeoutWithSignature) {
-	// Todo: Make sure that both epoch and round are from current epoch and round
+func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) {
 	// Keep the highest QC certificate
-	hqcRound := signedTimeout.Timeout.Hqc.VoteInfo.RootRound
+	hqcRound := timeout.HighQc.VoteInfo.RootRound
 	// If received highest QC round was bigger than previously seen, replace timeout struct
-	if hqcRound > x.Timeout.Hqc.VoteInfo.RootRound {
-		x.Timeout = signedTimeout.Timeout
+	if hqcRound > x.Timeout.HighQc.VoteInfo.RootRound {
+		x.Timeout = timeout
 	}
-	x.Signatures[author] = &TimeoutVote{HqcRound: hqcRound, Signature: signedTimeout.Signature}
+	x.Signatures[author] = &TimeoutVote{HqcRound: hqcRound, Signature: signature}
 }
 
 // Verify timeout certificate
@@ -78,16 +49,16 @@ func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 	}
 	maxSignedRound := uint64(0)
 	// Extract attached the highest QC round number and compare it later to the round extracted from signatures
-	highQcRound := x.Timeout.Hqc.VoteInfo.RootRound
+	highQcRound := x.Timeout.HighQc.VoteInfo.RootRound
 	// 3. Check all signatures and remember the max QC round over all the signatures received
 	for author, timeoutSig := range x.Signatures {
 		// verify signature
-		timeout := NewTimeoutSign(x.Timeout.GetEpoch(), x.Timeout.GetRound(), timeoutSig.HqcRound)
+		timeout := BytesFromTimeoutVote(x.Timeout, author, timeoutSig)
 		v, f := rootTrust[author]
 		if !f {
 			return fmt.Errorf("failed to find public key for author %v", author)
 		}
-		err := v.VerifyHash(timeoutSig.Signature, timeout.Hash(gocrypto.SHA256))
+		err := v.VerifyBytes(timeoutSig.Signature, timeout)
 		if err != nil {
 			return errors.Wrap(err, "timeout certificate not valid: invalid signature")
 		}

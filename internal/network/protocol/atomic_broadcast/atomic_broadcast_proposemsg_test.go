@@ -291,25 +291,16 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	lastRoundQc.addSignatureToQc(t, "3", s3)
 	// round 9 was timeout
 	timeout := &Timeout{
-		Epoch: 0,
-		Round: 9,
-		Hqc:   lastRoundQc,
+		Epoch:  0,
+		Round:  9,
+		HighQc: lastRoundQc,
 	}
-	timeoutMsg1 := NewTimeoutSign(0, 9, lastRoundVoteInfo.RootRound)
-	tMsgSig1, err := s1.SignHash(timeoutMsg1.Hash(gocrypto.SHA256))
-	require.NoError(t, err)
-	timeoutMsg2 := NewTimeoutSign(0, 9, lastRoundVoteInfo.RootRound)
-	tMsgSig2, err := s2.SignHash(timeoutMsg2.Hash(gocrypto.SHA256))
-	require.NoError(t, err)
-	timeoutMsg3 := NewTimeoutSign(0, 9, lastRoundVoteInfo.RootRound)
-	tMsgSig3, err := s3.SignHash(timeoutMsg3.Hash(gocrypto.SHA256))
-	require.NoError(t, err)
 	lastRoundTc := &TimeoutCert{
 		Timeout: timeout,
 		Signatures: map[string]*TimeoutVote{
-			"1": {HqcRound: timeoutMsg1.hqcRound, Signature: tMsgSig1},
-			"2": {HqcRound: timeoutMsg2.hqcRound, Signature: tMsgSig2},
-			"3": {HqcRound: timeoutMsg3.hqcRound, Signature: tMsgSig3},
+			"1": {HqcRound: lastRoundVoteInfo.RootRound, Signature: calcTimeoutSig(t, s1, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RootRound, "1")},
+			"2": {HqcRound: lastRoundVoteInfo.RootRound, Signature: calcTimeoutSig(t, s2, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RootRound, "2")},
+			"3": {HqcRound: lastRoundVoteInfo.RootRound, Signature: calcTimeoutSig(t, s3, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RootRound, "3")},
 		},
 	}
 	proposeMsg := &ProposalMsg{

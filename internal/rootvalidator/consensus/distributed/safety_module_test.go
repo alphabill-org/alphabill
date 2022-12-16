@@ -143,18 +143,18 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
 	signatures := map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	qc := NewDummyQuorumCertificate(voteInfo, signatures)
-	timeout := &atomic_broadcast.Timeout{
-		Epoch: 0,
-		Round: 3,
-		Hqc:   qc,
+	tmoMsg := &atomic_broadcast.TimeoutMsg{
+		Timeout: &atomic_broadcast.Timeout{Epoch: 0,
+			Round:  3,
+			HighQc: qc,
+		},
+		Author: "test",
 	}
-	sig, err := s.SignTimeout(timeout, nil)
-	require.ErrorContains(t, err, "not safe to timeout")
-	require.Nil(t, sig)
-	timeout.Round = 4
-	sig, err = s.SignTimeout(timeout, nil)
-	require.NoError(t, err)
-	require.NotNil(t, sig)
+	require.ErrorContains(t, s.SignTimeout(tmoMsg, nil), "not safe to timeout")
+	require.Nil(t, tmoMsg.Signature)
+	tmoMsg.Timeout.Round = 4
+	require.NoError(t, s.SignTimeout(tmoMsg, nil))
+	require.NotNil(t, tmoMsg.Signature)
 }
 
 func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
@@ -294,7 +294,7 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 			args: args{round: 2, qcRound: 1,
 				tc: &atomic_broadcast.TimeoutCert{
 					Timeout: &atomic_broadcast.Timeout{Round: 2,
-						Hqc: &atomic_broadcast.QuorumCert{
+						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &atomic_broadcast.VoteInfo{RootRound: 1},
 						}}}},
 			want: true,
@@ -317,7 +317,7 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 			args: args{round: 2, qcRound: 2,
 				tc: &atomic_broadcast.TimeoutCert{
 					Timeout: &atomic_broadcast.Timeout{Round: 3,
-						Hqc: &atomic_broadcast.QuorumCert{
+						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &atomic_broadcast.VoteInfo{RootRound: 1},
 						}}}},
 			want: false,
@@ -353,7 +353,7 @@ func Test_isSaveToExtend(t *testing.T) {
 			args: args{blockRound: 2, qcRound: 1,
 				tc: &atomic_broadcast.TimeoutCert{
 					Timeout: &atomic_broadcast.Timeout{Round: 1,
-						Hqc: &atomic_broadcast.QuorumCert{
+						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &atomic_broadcast.VoteInfo{RootRound: 1},
 						}}}},
 			want: true,
@@ -363,7 +363,7 @@ func Test_isSaveToExtend(t *testing.T) {
 			args: args{blockRound: 2, qcRound: 1,
 				tc: &atomic_broadcast.TimeoutCert{
 					Timeout: &atomic_broadcast.Timeout{Round: 2,
-						Hqc: &atomic_broadcast.QuorumCert{
+						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &atomic_broadcast.VoteInfo{RootRound: 1},
 						}}}},
 			want: false,
@@ -373,7 +373,7 @@ func Test_isSaveToExtend(t *testing.T) {
 			args: args{blockRound: 2, qcRound: 1,
 				tc: &atomic_broadcast.TimeoutCert{
 					Timeout: &atomic_broadcast.Timeout{Round: 3,
-						Hqc: &atomic_broadcast.QuorumCert{
+						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &atomic_broadcast.VoteInfo{RootRound: 1},
 						}}}},
 			want: false,
@@ -383,7 +383,7 @@ func Test_isSaveToExtend(t *testing.T) {
 			args: args{blockRound: 3, qcRound: 1,
 				tc: &atomic_broadcast.TimeoutCert{
 					Timeout: &atomic_broadcast.Timeout{Round: 2,
-						Hqc: &atomic_broadcast.QuorumCert{
+						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &atomic_broadcast.VoteInfo{RootRound: 3},
 						}}}},
 			want: false,
@@ -393,7 +393,7 @@ func Test_isSaveToExtend(t *testing.T) {
 			args: args{blockRound: 3, qcRound: 3,
 				tc: &atomic_broadcast.TimeoutCert{
 					Timeout: &atomic_broadcast.Timeout{Round: 2,
-						Hqc: &atomic_broadcast.QuorumCert{
+						HighQc: &atomic_broadcast.QuorumCert{
 							VoteInfo: &atomic_broadcast.VoteInfo{RootRound: 3},
 						}}}},
 			want: true,

@@ -135,6 +135,32 @@ func TestNewFungibleToken(t *testing.T) {
 	}
 }
 
+func TestFungibleTokenDC(t *testing.T) {
+	tw, abClient := createTestWallet(t)
+	_, _, err := tw.mw.AddAccount()
+	require.NoError(t, err)
+	ctx := context.Background()
+	acc1 := uint64(1)
+	acc2 := uint64(2)
+	// acc 1, 1 token
+	typeID1 := randomBytes(t)
+	require.NoError(t, tw.db.Do().SetToken(acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB1", TypeID: typeID1, Amount: 100}))
+	// acc 2, 1 token
+	typeID2 := randomBytes(t)
+	require.NoError(t, tw.db.Do().SetToken(acc2, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB2", TypeID: typeID2, Amount: 100}))
+	// acc 1, 3 tokens
+	typeID3 := randomBytes(t)
+	require.NoError(t, tw.db.Do().SetToken(acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}))
+	require.NoError(t, tw.db.Do().SetToken(acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}))
+	require.NoError(t, tw.db.Do().SetToken(acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}))
+
+	require.ErrorContains(t, tw.CollectDust(ctx, 0, nil, nil), "invalid account number for dust collection")
+
+	abClient.ClearRecordedTransactions()
+	require.NoError(t, tw.CollectDust(ctx, AllAccounts, nil, nil))
+	abClient.GetRecordedTransactions()
+}
+
 func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
 	tokenID := test.RandomBytes(32)
 	accNr := uint64(1)

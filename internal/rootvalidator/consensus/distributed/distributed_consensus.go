@@ -431,13 +431,13 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 // onVoteMsg handle votes and timeout votes
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
-	err := vote.Verify(x.rootVerifier.GetVerifiers())
+	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
 	if err != nil {
 		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
 	}
-	// Todo: AB-320 Check state and recover if required
-
-	// Was the proposal received? If not, should we recover it? Or should it be included in the vote?
+	// SyncState
+	x.checkRootState(vote.HighQc)
+	// Was the proposal received? If not, should we recover it? or do we accept that this round will end up as timeout
 	round := vote.VoteInfo.RootRound
 	// Normal votes are only sent to the next leader,
 	// timeout votes are broadcast to everybody
@@ -464,10 +464,10 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	x.processNewRoundEvent()
 }
 
-func (x *ConsensusManager) checkRootState(voteInfo *atomic_broadcast.VoteInfo) {
+func (x *ConsensusManager) checkRootState(qc *atomic_broadcast.QuorumCert) {
 	execStateId := x.roundPipeline.GetExecStateId()
-	if !bytes.Equal(voteInfo.ExecStateId, execStateId) {
-		logger.Warning("QC round %v state is different, recover state", voteInfo.RootRound)
+	if !bytes.Equal(qc.VoteInfo.ExecStateId, execStateId) {
+		logger.Warning("QC round %v state is different, recover state", qc.VoteInfo.RootRound)
 		logger.Error("Recovery not yet implemented")
 		// todo: AB-320 try to recover
 		return
@@ -558,7 +558,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		return
 	}
 	// Check sync
-	x.checkRootState(proposal.Block.Qc.VoteInfo)
+	x.checkRootState(proposal.Block.Qc)
 	// Every proposal must carry a QC for previous round
 	// Process QC first, update round
 	x.processCertificateQC(proposal.Block.Qc)
@@ -577,6 +577,9 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		logger.Warning("Failed to sign vote, vote not sent: %v", err.Error())
 		return
 	}
+	// Add high Qc for state synchronization
+	voteMsg.HighQc = x.roundPipeline.HighQC
+
 	x.roundState.SetVoted(voteMsg)
 	// send vote to the next leader
 	receivers := make([]peer.ID, 1)

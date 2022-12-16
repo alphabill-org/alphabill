@@ -118,13 +118,15 @@ message VoteMsg {
   VoteInfo vote_info = 1;
   // Commit info
   LedgerCommitInfo ledger_commit_info = 2;
+  // Sync with highest QC
+  QuorumCert high_qc = 3;
   // Voter node identifier
-  string author = 3;
+  string author = 4;
   // Vote signature on hash of consensus info
-  bytes signature = 4;
+  bytes signature = 5;
   // When local timeout expires node may issue a timeout vote (also after voted for proposal).
   // Timeout quorum is aggregated into a TimeoutCert (TC).
-  optional TimeoutWithSignature timeout_signature = 5;
+  optional TimeoutWithSignature timeout_signature = 6;
 }
 
 message TimeoutMsg {

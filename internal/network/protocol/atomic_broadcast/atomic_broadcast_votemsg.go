@@ -44,7 +44,7 @@ func (x *VoteMsg) AddSignature(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *VoteMsg) Verify(rootTrust map[string]crypto.Verifier) error {
+func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	if x.VoteInfo == nil {
 		return fmt.Errorf("invalid vote message, vote info is nil")
 	}
@@ -58,6 +58,9 @@ func (x *VoteMsg) Verify(rootTrust map[string]crypto.Verifier) error {
 	}
 	if len(x.Author) == 0 {
 		return errors.New("invalid vote message, no author")
+	}
+	if err := x.HighQc.Verify(quorum, rootTrust); err != nil {
+		return fmt.Errorf("invalid vote message, %w", err)
 	}
 	// verify signature
 	v, f := rootTrust[x.Author]

@@ -38,6 +38,7 @@ func NewRoundPipeline(hash gocrypto.Hash, persistedState store.RootState, partit
 	}
 	// populate pending state with existing state
 	return &RoundPipeline{
+		HighQC:        nil,
 		hashAlgorithm: hash,
 		partitions:    partitionStore,
 		ir:            inputRecords,

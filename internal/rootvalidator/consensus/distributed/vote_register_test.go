@@ -51,6 +51,7 @@ func NewDummyVote(author string, round uint64, rootHash []byte) *atomic_broadcas
 	return &atomic_broadcast.VoteMsg{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: NewDummyLedgerCommitInfo(voteInfo),
+		HighQc:           nil,
 		Author:           author,
 		Signature:        []byte{0, 1, 2},
 		TimeoutSignature: nil,

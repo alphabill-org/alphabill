@@ -93,6 +93,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId [
 	voteMsg := &atomic_broadcast.VoteMsg{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: ledgerCommitInfo,
+		HighQc:           block.Qc,
 		Author:           author,
 		TimeoutSignature: nil,
 	}

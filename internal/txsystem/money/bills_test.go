@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"testing"
 
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	util2 "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
@@ -128,4 +130,13 @@ func TestBillVerifySwapTransferTx(t *testing.T) {
 	b = &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
 	err = b.verifyTx(tx)
 	require.NoError(t, err)
+}
+
+func TestBillVerify_NotMoneyTxType(t *testing.T) {
+	tx := testtransaction.NewGenericTransaction(t, txsystem.NewDefaultGenericTransaction)
+
+	// test invalid type
+	b := &Bill{Value: targetValue, TxHash: tx.Hash(crypto.SHA256)}
+	err := b.verifyTx(tx)
+	require.ErrorIs(t, err, ErrInvalidTxType)
 }

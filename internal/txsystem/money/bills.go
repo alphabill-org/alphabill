@@ -18,6 +18,7 @@ var (
 	ErrInvalidValue      = errors.New("invalid value")
 	ErrInvalidDCBillFlag = errors.New("invalid isDcBill flag")
 	ErrInvalidTxHash     = errors.New("bill txHash is not equal to actual transaction hash")
+	ErrInvalidTxType     = errors.New("invalid tx type")
 )
 
 type TxConverter interface {
@@ -52,7 +53,10 @@ func (x *Bill) Verify(txConverter TxConverter, verifiers map[string]abcrypto.Ver
 }
 
 func (x *Bill) verifyTx(gtx txsystem.GenericTransaction) error {
-	value, isDCTx := x.parseTx(gtx)
+	value, isDCTx, err := x.parseTx(gtx)
+	if err != nil {
+		return err
+	}
 	if x.Value != value {
 		return ErrInvalidValue
 	}
@@ -65,21 +69,21 @@ func (x *Bill) verifyTx(gtx txsystem.GenericTransaction) error {
 	return nil
 }
 
-func (x *Bill) parseTx(gtx txsystem.GenericTransaction) (uint64, bool) {
+func (x *Bill) parseTx(gtx txsystem.GenericTransaction) (uint64, bool, error) {
 	switch tx := gtx.(type) {
 	case Transfer:
-		return tx.TargetValue(), false
+		return tx.TargetValue(), false, nil
 	case TransferDC:
-		return tx.TargetValue(), true
+		return tx.TargetValue(), true, nil
 	case Split:
 		if bytes.Equal(x.Id, util.Uint256ToBytes(gtx.UnitID())) { // proof is for the "old" bill
-			return tx.RemainingValue(), false
+			return tx.RemainingValue(), false, nil
 		}
-		return tx.Amount(), false // proof is for the "new" bill
+		return tx.Amount(), false, nil // proof is for the "new" bill
 	case Swap:
-		return tx.TargetValue(), false
+		return tx.TargetValue(), false, nil
 	default:
-		return 0, false
+		return 0, false, ErrInvalidTxType
 	}
 }
 

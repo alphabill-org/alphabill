@@ -635,12 +635,6 @@ func (x *ConsensusManager) processNewRoundEvent() {
 			Payload:   x.irReqBuffer.GeneratePayload(),
 			Qc:        x.roundPipeline.HighQC,
 		}
-		hash, err := block.Hash(x.config.HashAlgorithm)
-		if err != nil {
-			logger.Warning("Failed to send proposal message, block id error: %v", err)
-			return
-		}
-		block.Id = hash
 		proposalMsg := &atomic_broadcast.ProposalMsg{
 			Block:       block,
 			LastRoundTc: x.roundState.LastRoundTC(),
@@ -653,7 +647,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		receivers := make([]peer.ID, len(allValidators))
 		receivers = append(receivers, allValidators...)
 		logger.Info("Broadcasting proposal msg")
-		err = x.net.Send(
+		err := x.net.Send(
 			network.OutputMessage{
 				Protocol: network.ProtocolRootProposal,
 				Message:  proposalMsg,

@@ -1,7 +1,6 @@
 package atomic_broadcast
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -33,8 +32,6 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	if err != nil {
 		return err
 	}
-	// Set block id
-	x.Block.Id = hash
 	// Sign block hash
 	signature, err := signer.SignHash(hash)
 	if err != nil {
@@ -52,10 +49,6 @@ func (x *ProposalMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 	hash, err := x.Block.Hash(gocrypto.SHA256)
 	if err != nil {
 		return fmt.Errorf("proposal msg, unexpected hash error %w", err)
-	}
-	// block id must match hash of block
-	if bytes.Equal(x.Block.Id, hash) == false {
-		return fmt.Errorf("proposal msg error, bock hash does not match block id")
 	}
 	// Find author public key
 	v, f := rootTrust[x.Block.Author]

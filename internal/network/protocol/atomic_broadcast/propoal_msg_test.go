@@ -35,7 +35,6 @@ func TestProposalMsg_IsValid(t *testing.T) {
 			name: "Block not valid",
 			fields: fields{
 				Block: &BlockData{
-					Id:        nil,
 					Author:    "",
 					Round:     0,
 					Epoch:     0,
@@ -44,7 +43,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Qc:        nil,
 				},
 			},
-			wantErrStr: "proposal msg not valid, block error: invalid block id",
+			wantErrStr: "proposal msg not valid, block error: invalid round number",
 		},
 	}
 	for _, tt := range tests {
@@ -157,7 +156,7 @@ func TestProposalMsg_Verify_UnknownSigner(t *testing.T) {
 	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "failed to find public key for root validator 12")
 }
 
-func TestProposalMsg_Verify_BlockHashDoesNotMatchId(t *testing.T) {
+func TestProposalMsg_Verify_ErrorInBlockHash(t *testing.T) {
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
@@ -185,7 +184,7 @@ func TestProposalMsg_Verify_BlockHashDoesNotMatchId(t *testing.T) {
 	require.NoError(t, proposeMsg.Sign(s1))
 	// change block after signing
 	proposeMsg.Block.Timestamp = 0x11111111
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg error, bock hash does not match block id")
+	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg signature verification failed")
 }
 
 func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {

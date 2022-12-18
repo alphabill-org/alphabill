@@ -67,7 +67,6 @@ func TestSafetyModule_MakeVote(t *testing.T) {
 	s := initSafetyModule(t)
 	dummyRootHash := []byte{1, 2, 3}
 	blockData := &atomic_broadcast.BlockData{
-		Id:        []byte{0, 1, 2},
 		Author:    "test",
 		Round:     4,
 		Epoch:     0,
@@ -105,7 +104,6 @@ func TestSafetyModule_SignProposal(t *testing.T) {
 	// create a dummy proposal message
 	proposal := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{
-			Id:        []byte{0, 1, 2},
 			Author:    "test",
 			Round:     4,
 			Epoch:     0,

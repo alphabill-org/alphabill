@@ -68,13 +68,11 @@ func TestLedgerCommitInfo_IsValid(t *testing.T) {
 
 func TestVoteInfo_Hash(t *testing.T) {
 	type fields struct {
-		BlockId       []byte
-		RootRound     uint64
-		Epoch         uint64
-		Timestamp     uint64
-		ParentBlockId []byte
-		ParentRound   uint64
-		ExecStateId   []byte
+		RootRound   uint64
+		Epoch       uint64
+		Timestamp   uint64
+		ParentRound uint64
+		ExecStateId []byte
 	}
 	type args struct {
 		hash crypto.Hash
@@ -89,21 +87,17 @@ func TestVoteInfo_Hash(t *testing.T) {
 			name: "compare hash",
 			args: args{hash: crypto.SHA256},
 			fields: fields{
-				BlockId:       []byte{0, 1, 2, 3},
-				RootRound:     23,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   []byte{0, 1, 2, 5},
+				RootRound:   23,
+				Epoch:       0,
+				Timestamp:   11,
+				ParentRound: 22,
+				ExecStateId: []byte{0, 1, 2, 5},
 			},
 			// hash of buffer with all fields in the order (integers are interpreted as big endian 8 byte values)
 			want: abhash.Sum256([]byte{
-				0, 1, 2, 3,
 				0, 0, 0, 0, 0, 0, 0, 23,
 				0, 0, 0, 0, 0, 0, 0, 0,
 				0, 0, 0, 0, 0, 0, 0, 11,
-				0, 1, 2, 4,
 				0, 0, 0, 0, 0, 0, 0, 22,
 				0, 1, 2, 5}),
 		},
@@ -111,13 +105,11 @@ func TestVoteInfo_Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &VoteInfo{
-				BlockId:       tt.fields.BlockId,
-				RootRound:     tt.fields.RootRound,
-				Epoch:         tt.fields.Epoch,
-				Timestamp:     tt.fields.Timestamp,
-				ParentBlockId: tt.fields.ParentBlockId,
-				ParentRound:   tt.fields.ParentRound,
-				ExecStateId:   tt.fields.ExecStateId,
+				RootRound:   tt.fields.RootRound,
+				Epoch:       tt.fields.Epoch,
+				Timestamp:   tt.fields.Timestamp,
+				ParentRound: tt.fields.ParentRound,
+				ExecStateId: tt.fields.ExecStateId,
 			}
 			if got := x.Hash(tt.args.hash); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Hash() = %v, want %v", got, tt.want)
@@ -128,13 +120,11 @@ func TestVoteInfo_Hash(t *testing.T) {
 
 func TestVoteInfo_IsValid(t *testing.T) {
 	type fields struct {
-		BlockId       []byte
-		RootRound     uint64
-		Epoch         uint64
-		Timestamp     uint64
-		ParentBlockId []byte
-		ParentRound   uint64
-		ExecStateId   []byte
+		RootRound   uint64
+		Epoch       uint64
+		Timestamp   uint64
+		ParentRound uint64
+		ExecStateId []byte
 	}
 	tests := []struct {
 		name    string
@@ -145,13 +135,11 @@ func TestVoteInfo_IsValid(t *testing.T) {
 		{
 			name: "valid",
 			fields: fields{
-				BlockId:       []byte{0, 1, 2, 3},
-				RootRound:     23,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   []byte{0, 1, 2, 5},
+				RootRound:   23,
+				Epoch:       0,
+				Timestamp:   11,
+				ParentRound: 22,
+				ExecStateId: []byte{0, 1, 2, 5},
 			},
 			wantErr: false,
 			errIs:   nil,
@@ -159,13 +147,11 @@ func TestVoteInfo_IsValid(t *testing.T) {
 		{
 			name: "Invalid round number",
 			fields: fields{
-				BlockId:       []byte{0, 1, 2, 3},
-				RootRound:     0,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   []byte{0, 1, 2, 5},
+				RootRound:   0,
+				Epoch:       0,
+				Timestamp:   11,
+				ParentRound: 22,
+				ExecStateId: []byte{0, 1, 2, 5},
 			},
 			wantErr: true,
 			errIs:   ErrInvalidRound,
@@ -173,65 +159,33 @@ func TestVoteInfo_IsValid(t *testing.T) {
 		{
 			name: "Parent round must be strictly smaller than current round",
 			fields: fields{
-				BlockId:       []byte{0, 1, 2, 3},
-				RootRound:     22,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   []byte{0, 1, 2, 5},
+				RootRound:   22,
+				Epoch:       0,
+				Timestamp:   11,
+				ParentRound: 22,
+				ExecStateId: []byte{0, 1, 2, 5},
 			},
 			errIs: ErrInvalidRound,
 		},
 		{
-			name: "Invalid block id nil",
-			fields: fields{
-				BlockId:       nil,
-				RootRound:     23,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   []byte{0, 1, 2, 5},
-			},
-			errIs: ErrInvalidBlockId,
-		},
-		{
-			name: "Invalid block id empty",
-			fields: fields{
-				BlockId:       []byte{},
-				RootRound:     23,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   []byte{0, 1, 2, 5},
-			},
-			errIs: ErrInvalidBlockId,
-		},
-		{
 			name: "excec state id is nil",
 			fields: fields{
-				BlockId:       []byte{0, 1, 2, 3},
-				RootRound:     23,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   nil,
+				RootRound:   23,
+				Epoch:       0,
+				Timestamp:   11,
+				ParentRound: 22,
+				ExecStateId: nil,
 			},
 			errIs: ErrInvalidStateHash,
 		},
 		{
 			name: "excec state id is empty",
 			fields: fields{
-				BlockId:       []byte{0, 1, 2, 3},
-				RootRound:     23,
-				Epoch:         0,
-				Timestamp:     11,
-				ParentBlockId: []byte{0, 1, 2, 4},
-				ParentRound:   22,
-				ExecStateId:   []byte{},
+				RootRound:   23,
+				Epoch:       0,
+				Timestamp:   11,
+				ParentRound: 22,
+				ExecStateId: []byte{},
 			},
 			errIs: ErrInvalidStateHash,
 		},
@@ -239,13 +193,11 @@ func TestVoteInfo_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &VoteInfo{
-				BlockId:       tt.fields.BlockId,
-				RootRound:     tt.fields.RootRound,
-				Epoch:         tt.fields.Epoch,
-				Timestamp:     tt.fields.Timestamp,
-				ParentBlockId: tt.fields.ParentBlockId,
-				ParentRound:   tt.fields.ParentRound,
-				ExecStateId:   tt.fields.ExecStateId,
+				RootRound:   tt.fields.RootRound,
+				Epoch:       tt.fields.Epoch,
+				Timestamp:   tt.fields.Timestamp,
+				ParentRound: tt.fields.ParentRound,
+				ExecStateId: tt.fields.ExecStateId,
 			}
 			err := x.IsValid()
 			require.ErrorIs(t, err, tt.errIs)

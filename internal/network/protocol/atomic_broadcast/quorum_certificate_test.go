@@ -18,8 +18,8 @@ func WithParentRound(round uint64) Option {
 }
 
 func NewDummyVoteInfo(round uint64, options ...Option) *VoteInfo {
-	voteInfo := &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: round, Epoch: 0,
-		Timestamp: 1670314583523, ParentBlockId: []byte{0, 1}, ParentRound: round - 1, ExecStateId: []byte{0, 1, 3}}
+	voteInfo := &VoteInfo{RootRound: round, Epoch: 0,
+		Timestamp: 1670314583523, ParentRound: round - 1, ExecStateId: []byte{0, 1, 3}}
 	for _, o := range options {
 		o(voteInfo)
 	}
@@ -32,7 +32,7 @@ func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *VoteInfo) *LedgerCommitInf
 }
 
 func TestNewQuorumCertificate(t *testing.T) {
-	voteInfo := &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}}
+	voteInfo := &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}}
 	commitInfo := &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}}
 	qc := NewQuorumCertificate(voteInfo, commitInfo, nil)
 	require.NotNil(t, qc)

@@ -19,13 +19,11 @@ func TestBlockDataHash(t *testing.T) {
 		Payload:   &Payload{},
 		Qc: &QuorumCert{
 			VoteInfo: &VoteInfo{
-				BlockId:       []byte{0, 1, 1},
-				RootRound:     2,
-				Epoch:         0,
-				Timestamp:     0x0010670314583523,
-				ParentBlockId: []byte{0, 1},
-				ParentRound:   1,
-				ExecStateId:   []byte{0, 1, 3}},
+				RootRound:   1,
+				Epoch:       0,
+				Timestamp:   0x0010670314583523,
+				ParentRound: 0,
+				ExecStateId: []byte{0, 1, 3}},
 			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
 			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
@@ -44,10 +42,6 @@ func TestBlockDataHash(t *testing.T) {
 	hash, err := block.Hash(crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, expected[:], hash)
-	// Block id is hash and not included in hashing
-	block.Id = hash
-	hash2, err := block.Hash(crypto.SHA256)
-	require.Equal(t, hash, hash2)
 }
 
 func TestBlockDataHash_HashPayloadNil(t *testing.T) {
@@ -59,13 +53,11 @@ func TestBlockDataHash_HashPayloadNil(t *testing.T) {
 		Payload:   nil,
 		Qc: &QuorumCert{
 			VoteInfo: &VoteInfo{
-				BlockId:       []byte{0, 1, 1},
-				RootRound:     2,
-				Epoch:         0,
-				Timestamp:     0x0010670314583523,
-				ParentBlockId: []byte{0, 1},
-				ParentRound:   1,
-				ExecStateId:   []byte{0, 1, 3}},
+				RootRound:   2,
+				Epoch:       0,
+				Timestamp:   0x0010670314583523,
+				ParentRound: 1,
+				ExecStateId: []byte{0, 1, 3}},
 			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
 			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
@@ -78,7 +70,7 @@ func TestBlockDataHash_HashPayloadNil(t *testing.T) {
 func TestBlockDataHash_QcIsNil(t *testing.T) {
 	block := &BlockData{
 		Author:    "test",
-		Round:     0,
+		Round:     1,
 		Epoch:     0,
 		Timestamp: 0x0102030405060708,
 		Payload:   &Payload{},
@@ -92,19 +84,17 @@ func TestBlockDataHash_QcIsNil(t *testing.T) {
 func TestBlockDataHash_QcNoSignatures(t *testing.T) {
 	block := &BlockData{
 		Author:    "test",
-		Round:     0,
+		Round:     2,
 		Epoch:     0,
 		Timestamp: 0x0102030405060708,
 		Payload:   &Payload{},
 		Qc: &QuorumCert{
 			VoteInfo: &VoteInfo{
-				BlockId:       []byte{0, 1, 1},
-				RootRound:     2,
-				Epoch:         0,
-				Timestamp:     0x0010670314583523,
-				ParentBlockId: []byte{0, 1},
-				ParentRound:   1,
-				ExecStateId:   []byte{0, 1, 3}},
+				RootRound:   1,
+				Epoch:       0,
+				Timestamp:   0x0010670314583523,
+				ParentRound: 0,
+				ExecStateId: []byte{0, 1, 3}},
 			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
 			Signatures:       nil,
 		},
@@ -135,7 +125,7 @@ func TestBlockData_IsValid(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name: "Invalid block id",
+			name: "Invalid block round",
 			fields: fields{
 				Id:        nil,
 				Author:    "test",
@@ -144,12 +134,12 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+					VoteInfo:         &VoteInfo{RootRound: 0, ExecStateId: []byte{0, 1, 3}},
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: ErrInvalidBlockId.Error(),
+			wantErrStr: "invalid round",
 		},
 		{
 			name: "Invalid round number",
@@ -161,7 +151,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 				},
 			},
@@ -178,7 +168,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   nil, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 				},
 			},
@@ -209,7 +199,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 				},
 			},
@@ -226,7 +216,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 3, ExecStateId: []byte{0, 1, 3}},
+					VoteInfo:         &VoteInfo{RootRound: 3, ExecStateId: []byte{0, 1, 3}},
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 					Signatures:       map[string][]byte{"1": {0, 1, 2}},
 				},
@@ -244,7 +234,7 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 					Signatures:       map[string][]byte{"1": {0, 1, 2}},
 				},
@@ -255,7 +245,6 @@ func TestBlockData_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &BlockData{
-				Id:        tt.fields.Id,
 				Author:    tt.fields.Author,
 				Round:     tt.fields.Round,
 				Epoch:     tt.fields.Epoch,
@@ -281,7 +270,6 @@ func TestBlockData_Verify(t *testing.T) {
 	rootTrust := map[string]abcrypto.Verifier{"1": v1, "2": v2, "3": v3}
 	info := NewDummyVoteInfo(1)
 	block := &BlockData{
-		Id:        []byte{0, 1, 2},
 		Author:    "test",
 		Round:     2,
 		Epoch:     0,

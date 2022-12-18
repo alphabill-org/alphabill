@@ -25,20 +25,16 @@ message Payload {
 
 // The ConsensusInfo is used both in VoteMsg reply and in QC which aggregates all VoteMsg replays
 message VoteInfo {
-  // id or hash of block
-  bytes block_id = 1;
   // Consensus protocol monotonically increasing round number
-  uint64 root_round = 2;
+  uint64 root_round = 1;
   // Epoch number corresponds to the set of validators that are active for this block. (not used)
-  uint64 epoch = 3;
+  uint64 epoch = 2;
   // timestamp
-  uint64 timestamp = 4;
-  // parent block/proposal id
-  bytes parent_block_id = 5;
+  uint64 timestamp = 3;
   // parent block round number
-  uint64 parent_round = 6;
+  uint64 parent_round = 4;
   // speculative execution state h(root hash || round number)
-  bytes exec_state_id = 7;
+  bytes exec_state_id = 5;
 }
 
 message LedgerCommitInfo {
@@ -58,22 +54,20 @@ message QuorumCert {
 }
 
 message BlockData {
-  // id hash of block, excluding the id
-  bytes id = 1;
   // NodeIdentifier of the proposer
-  string author = 2;
+  string author = 1;
   // Root round number
-  uint64 round = 3;
+  uint64 round = 2;
   // Epoch to establish valid configuration
-  uint64 epoch = 4;
+  uint64 epoch = 3;
   // timestamp
-  uint64 timestamp = 5;
+  uint64 timestamp = 4;
   // Payload that will trigger changes to the state
-  Payload payload = 6;
+  Payload payload = 5;
   // quorum certificate for ancestor
   // before payload can be applied check that local state matches state in qc
   // qc.vote_info.proposed.state_hash == h(UC[])
-  QuorumCert qc = 7;
+  QuorumCert qc = 6;
 }
 
 message Timeout {
@@ -86,7 +80,7 @@ message Timeout {
 }
 
 message TimeoutVote {
-  // round from timeout.hqc.consensus.round
+  // round from timeout.high_qc.voteInfo.round
   uint64 hqc_round = 1;
   // timeout signature is TimeoutMsg signature - round, epoch, hqc_round, author
   bytes signature = 2;

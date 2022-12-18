@@ -10,7 +10,6 @@ import (
 )
 
 var (
-	ErrInvalidBlockId      = errors.New("invalid block id")
 	ErrInvalidStateHash    = errors.New("invalid state hash")
 	ErrInvalidVoteInfoHash = errors.New("invalid vote info hash")
 )
@@ -44,22 +43,16 @@ func (x *VoteInfo) Hash(hash gocrypto.Hash) []byte {
 }
 
 func (x *VoteInfo) AddToHasher(hasher hash.Hash) {
-	hasher.Write(x.BlockId)
 	hasher.Write(util.Uint64ToBytes(x.RootRound))
 	hasher.Write(util.Uint64ToBytes(x.Epoch))
 	hasher.Write(util.Uint64ToBytes(x.Timestamp))
-	hasher.Write(x.ParentBlockId)
 	hasher.Write(util.Uint64ToBytes(x.ParentRound))
 	hasher.Write(x.ExecStateId)
 }
 
 func (x *VoteInfo) IsValid() error {
-	// Todo: epoch is validation rule not yet known
 	if x.RootRound < 1 || x.RootRound <= x.ParentRound {
 		return ErrInvalidRound
-	}
-	if len(x.BlockId) < 1 {
-		return ErrInvalidBlockId
 	}
 	if len(x.ExecStateId) < 1 {
 		return ErrInvalidStateHash

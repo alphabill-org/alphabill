@@ -51,9 +51,6 @@ func (x *Payload) IsEmpty() bool {
 }
 
 func (x *BlockData) IsValid() error {
-	if len(x.Id) < 1 {
-		return ErrInvalidBlockId
-	}
 	if x.Round < 1 {
 		return ErrInvalidRound
 	}
@@ -87,14 +84,8 @@ func (x *BlockData) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) 
 }
 
 func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
-	if x.Payload == nil {
-		return nil, ErrMissingPayload
-	}
-	if x.Qc == nil {
-		return nil, ErrMissingQuorumCertificate
-	}
-	if err := x.Qc.IsValid(); err != nil {
-		return nil, fmt.Errorf("proposed block qc not valid %w", err)
+	if err := x.IsValid(); err != nil {
+		return nil, err
 	}
 	hasher := algo.New()
 	// Block ID is defined as block hash, so hence it is not included

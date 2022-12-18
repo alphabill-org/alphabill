@@ -21,13 +21,11 @@ func (d *DummyQuorum) GetQuorumThreshold() uint32 {
 
 func NewDummyVoteInfo(round uint64, rootHash []byte) *atomic_broadcast.VoteInfo {
 	return &atomic_broadcast.VoteInfo{
-		BlockId:       []byte{2},
-		RootRound:     round,
-		Epoch:         0,
-		Timestamp:     1111,
-		ParentBlockId: []byte{1},
-		ParentRound:   round - 1,
-		ExecStateId:   rootHash,
+		RootRound:   round,
+		Epoch:       0,
+		Timestamp:   1111,
+		ParentRound: round - 1,
+		ExecStateId: rootHash,
 	}
 }
 
@@ -196,8 +194,6 @@ func TestVoteRegister_Qc(t *testing.T) {
 	require.Equal(t, qc.VoteInfo.RootRound, uint64(2))
 	require.Equal(t, qc.VoteInfo.ParentRound, uint64(1))
 	require.Equal(t, qc.VoteInfo.Timestamp, uint64(1111))
-	require.Equal(t, qc.VoteInfo.BlockId, []byte{2})
-	require.Equal(t, qc.VoteInfo.ParentBlockId, []byte{1})
 	require.Equal(t, qc.VoteInfo.ExecStateId, []byte{1, 2, 3})
 	require.Equal(t, qc.LedgerCommitInfo, vote.LedgerCommitInfo)
 	require.Contains(t, qc.Signatures, "node1")

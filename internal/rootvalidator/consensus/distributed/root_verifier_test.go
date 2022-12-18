@@ -230,14 +230,13 @@ func TestRootNodeVerifier_VerifyQuorumSignatures(t *testing.T) {
 func TestRootNodeVerifier_VerifySignature(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
 	blockData := &atomic_broadcast.BlockData{
-		Id:        []byte{0, 1, 2},
 		Author:    "0",
 		Round:     2,
 		Epoch:     0,
 		Timestamp: 11111,
 		Payload:   &atomic_broadcast.Payload{},
 		Qc: &atomic_broadcast.QuorumCert{
-			VoteInfo:         &atomic_broadcast.VoteInfo{BlockId: []byte{0, 1, 1}, RootRound: 1, ExecStateId: []byte{0, 1, 3}},
+			VoteInfo:         &atomic_broadcast.VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
 			LedgerCommitInfo: &atomic_broadcast.LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
 			Signatures:       map[string][]byte{"0": {1, 2, 3}},
 		},

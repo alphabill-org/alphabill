@@ -80,13 +80,11 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId [
 	s.increaseHigestVoteRound(votingRound)
 	// create vote info
 	voteInfo := &atomic_broadcast.VoteInfo{
-		BlockId:       block.Id,
-		RootRound:     block.Round,
-		Epoch:         block.Epoch,
-		Timestamp:     block.Timestamp,
-		ParentBlockId: block.Qc.VoteInfo.BlockId,
-		ParentRound:   block.Qc.VoteInfo.RootRound,
-		ExecStateId:   execStateId,
+		RootRound:   block.Round,
+		Epoch:       block.Epoch,
+		Timestamp:   block.Timestamp,
+		ParentRound: block.Qc.VoteInfo.RootRound,
+		ExecStateId: execStateId,
 	}
 	// Create ledger commit info, the signed part of vote
 	ledgerCommitInfo := s.constructLedgerCommitInfo(block, voteInfo.Hash(gocrypto.SHA256))

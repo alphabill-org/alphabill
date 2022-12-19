@@ -85,7 +85,7 @@ func TestWalletBackendCli(t *testing.T) {
 
 	// verify /proof
 	resBlockProof := &moneytx.Bills{}
-	httpRes, err = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkeyHex, initialBillHex), resBlockProof)
+	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkeyHex, initialBillHex), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)
@@ -184,7 +184,7 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 
 	// 6. download proof from wallet-backend
 	resGetProof := &moneytx.Bills{}
-	httpRes, err = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkey1Hex, initialBillIDHex), resGetProof)
+	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkey1Hex, initialBillIDHex), resGetProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	downloadedBillFile := path.Join(walletHomedir, "downloaded-bill.json")

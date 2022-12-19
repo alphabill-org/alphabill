@@ -181,6 +181,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 		consoleWriter.Println("Exported bill(s) to: " + outputFile)
+		return nil
 	}
 	// export bill using --bill-order-number if present
 	if billOrderNumber > 0 {
@@ -199,6 +200,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 		consoleWriter.Println("Exported bill(s) to: " + outputFile)
+		return nil
 	}
 	// export all bills if neither --bill-id or --bill-order-number are given
 	bills, err := w.GetBills(accountNumber - 1)

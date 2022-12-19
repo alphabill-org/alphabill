@@ -13,9 +13,10 @@ import (
 const BoltBillStoreFileName = "bills.db"
 
 var (
-	pubkeyIndexBucket = []byte("pubkeyIndexBucket") // pubkey => bucket[bill_id]=bill
-	keysBucket        = []byte("keysBucket")        // pubkey => hashed pubkey
-	metaBucket        = []byte("metaBucket")        // block_number_key => block_number_val; pubkey => pubkey_block_order_number
+	pubkeyIndexBucket  = []byte("pubkeyIndexBucket")  // pubkey => bucket[bill_id]=bill
+	keysBucket         = []byte("keysBucket")         // pubkey => hashed pubkey
+	metaBucket         = []byte("metaBucket")         // block_number_key => block_number_val; pubkey => pubkey_block_order_number
+	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => list of expired bills {pubkey, bill_id}
 
 	blockNumberKey = []byte("blockNumberKey")
 )
@@ -26,9 +27,15 @@ var (
 	ErrBillNotFound     = errors.New("bill does not exist")
 )
 
-type BoltBillStore struct {
-	db *bolt.DB
-}
+type (
+	BoltBillStore struct {
+		db *bolt.DB
+	}
+	expiredBill struct {
+		Pubkey []byte `json:"pubkey"`
+		UnitID []byte `json:"unitId"`
+	}
+)
 
 // NewBoltBillStore creates new on-disk persistent storage for bills and proofs using bolt db.
 // If the file does not exist then it will be created, however, parent directories must exist beforehand.
@@ -102,11 +109,7 @@ func (s *BoltBillStore) GetBills(pubkey []byte) ([]*Bill, error) {
 
 func (s *BoltBillStore) RemoveBill(pubkey []byte, unitID []byte) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		billsBucket := tx.Bucket(pubkeyIndexBucket).Bucket(pubkey)
-		if billsBucket == nil {
-			return nil
-		}
-		return billsBucket.Delete(unitID)
+		return s.removeBill(tx, pubkey, unitID)
 	})
 }
 
@@ -186,6 +189,35 @@ func (s *BoltBillStore) SetBills(pubkey []byte, bills ...*Bill) error {
 	})
 }
 
+func (s *BoltBillStore) SetBillExpirationTime(blockNumber uint64, pubkey []byte, unitID []byte) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		expiredBills, err := s.getExpiredBills(tx, blockNumber)
+		if err != nil {
+			return err
+		}
+		expiredBills = append(expiredBills, &expiredBill{Pubkey: pubkey, UnitID: unitID})
+		return s.setExpiredBills(tx, blockNumber, expiredBills)
+	})
+}
+
+func (s *BoltBillStore) DeleteExpiredBills(blockNumber uint64) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		expiredBills, err := s.getExpiredBills(tx, blockNumber)
+		if err != nil {
+			return err
+		}
+		// delete bills if not already deleted/swapped
+		for _, bill := range expiredBills {
+			err := s.removeBill(tx, bill.Pubkey, bill.UnitID)
+			if err != nil {
+				return err
+			}
+		}
+		// delete metadata
+		return tx.Bucket(expiredBillsBucket).Delete(util.Uint64ToBytes(blockNumber))
+	})
+}
+
 func (s *BoltBillStore) GetKeys() ([]*Pubkey, error) {
 	var keys []*Pubkey
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -253,6 +285,10 @@ func (s *BoltBillStore) createBuckets() error {
 		if err != nil {
 			return err
 		}
+		_, err = tx.CreateBucketIfNotExists(expiredBillsBucket)
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -273,4 +309,33 @@ func (s *BoltBillStore) getMaxBillOrderNumber(tx *bolt.Tx, pubKey []byte) uint64
 		return util.BytesToUint64(billOrderNumberBytes)
 	}
 	return 0
+}
+
+func (s *BoltBillStore) removeBill(tx *bolt.Tx, pubkey []byte, unitID []byte) error {
+	billsBucket := tx.Bucket(pubkeyIndexBucket).Bucket(pubkey)
+	if billsBucket == nil {
+		return nil
+	}
+	return billsBucket.Delete(unitID)
+}
+
+func (s *BoltBillStore) getExpiredBills(tx *bolt.Tx, blockNumber uint64) ([]*expiredBill, error) {
+	var expiredBills []*expiredBill
+	b := tx.Bucket(expiredBillsBucket).Get(util.Uint64ToBytes(blockNumber))
+	if b == nil {
+		return nil, nil
+	}
+	err := json.Unmarshal(b, &expiredBills)
+	if err != nil {
+		return expiredBills, err
+	}
+	return expiredBills, nil
+}
+
+func (s *BoltBillStore) setExpiredBills(tx *bolt.Tx, blockNumber uint64, bills []*expiredBill) error {
+	b, err := json.Marshal(bills)
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(expiredBillsBucket).Put(util.Uint64ToBytes(blockNumber), b)
 }

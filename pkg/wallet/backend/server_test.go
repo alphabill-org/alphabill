@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
@@ -20,10 +21,12 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
 	pubkeyHex = "0x000000000000000000000000000000000000000000000000000000000000000000"
+	billId    = "0x0000000000000000000000000000000000000000000000000000000000000001"
 )
 
 type (
@@ -91,11 +94,11 @@ func TestListBillsRequest_Ok(t *testing.T) {
 	}
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	mockService := newMockWalletService(t, withBills(pubkey, expectedBill))
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	res := &ListBillsResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pubkeyHex), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, res.Bills, 1)
 	expectedRes := toBillVMList([]*Bill{expectedBill})
@@ -103,33 +106,33 @@ func TestListBillsRequest_Ok(t *testing.T) {
 }
 
 func TestListBillsRequest_NilPubKey(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/list-bills", res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills", port), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "missing required pubkey query parameter", res.Message)
 }
 
 func TestListBillsRequest_InvalidPubKey(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
 	pk := "0x00"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pk), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
 }
 
 func TestListBillsRequest_PubKeyNotIndexed(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
 	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pk), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pk), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.ErrorContains(t, ErrPubKeyNotIndexed, res.Message)
 }
@@ -146,11 +149,11 @@ func TestListBillsRequest_SortedByInsertionOrder(t *testing.T) {
 			Value: 1,
 		},
 	))
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	res := &ListBillsResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pubkeyHex), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 2, res.Total)
 	require.Len(t, res.Bills, 2)
@@ -171,11 +174,11 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 			IsDCBill: true,
 		},
 	))
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	res := &ListBillsResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pubkeyHex), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, 2, res.Total)
 	require.Len(t, res.Bills, 2)
@@ -199,11 +202,12 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	}
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	mockService := newMockWalletService(t, withBills(pubkey, bills...))
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	// verify by default first 100 elements are returned
 	res := &ListBillsResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s", pubkeyHex), res)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
@@ -212,7 +216,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=100", pubkeyHex), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
@@ -221,7 +226,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify limit limits result size
 	res = &ListBillsResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=100&limit=50", pubkeyHex), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=100&limit=50", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 50)
@@ -230,14 +236,16 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=200", pubkeyHex), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=200", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 0)
 
 	// verify limit gets capped to 100
 	res = &ListBillsResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=0&limit=200", pubkeyHex), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=0&limit=200", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
@@ -246,7 +254,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/list-bills?pubkey=%s&offset=190&limit=100", pubkeyHex), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/list-bills?pubkey=%s&offset=190&limit=100", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 10)
@@ -256,46 +265,46 @@ func TestListBillsRequest_Paging(t *testing.T) {
 
 func TestBalanceRequest_Ok(t *testing.T) {
 	pubkey, _ := hexutil.Decode(pubkeyHex)
-	startServer(t, newMockWalletService(t, withBills(pubkey, &Bill{
+	port := startServer(t, newMockWalletService(t, withBills(pubkey, &Bill{
 		Id:    newUnitID(1),
 		Value: 1,
 	})))
 
 	res := &BalanceResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pubkeyHex), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, 1, res.Balance)
 }
 
 func TestBalanceRequest_NilPubKey(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/balance", res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance", port), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "missing required pubkey query parameter", res.Message)
 }
 
 func TestBalanceRequest_InvalidPubKey(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
 	pk := "0x00"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pk), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pk), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "pubkey hex string must be 68 characters long (with 0x prefix)", res.Message)
 }
 
 func TestBalanceRequest_PubKeyNotIndexed(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
 	pk := "0x000000000000000000000000000000000000000000000000000000000000000000"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pk), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pk), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.ErrorContains(t, ErrPubKeyNotIndexed, res.Message)
 }
@@ -313,17 +322,16 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 			IsDCBill: true,
 		}),
 	)
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	res := &BalanceResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/balance?pubkey=%s", pubkeyHex), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, 1, res.Balance)
 }
 
 func TestProofRequest_Ok(t *testing.T) {
-	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	b := &Bill{
 		Id:     newUnitID(1),
@@ -341,11 +349,11 @@ func TestProofRequest_Ok(t *testing.T) {
 		},
 	}
 	mockService := newMockWalletService(t, withBills(pubkey, b))
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	response := &moneytx.Bills{}
-	httpRes := testhttp.DoGetProto(t, fmt.Sprintf("http://localhost:7777/api/v1/proof/%s?bill_id=%s", pubkeyHex, billId), response)
-
+	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), response)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, response.Bills, 1)
 	res := response.Bills[0]
@@ -361,56 +369,59 @@ func TestProofRequest_Ok(t *testing.T) {
 }
 
 func TestProofRequest_MissingBillId(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "missing required bill_id query parameter", res.Message)
 }
 
 func TestProofRequest_InvalidBillIdLength(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	// verify bill id larger than 32 bytes returns error
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/proof/%s?bill_id=0x000000000000000000000000000000000000000000000000000000000000000001", pubkeyHex), res)
+	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &ErrorResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/proof/%s?bill_id=0x01", pubkeyHex), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=0x01", port, pubkeyHex), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &ErrorResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/proof/%s?bill_id=0000000000000000000000000000000000000000000000000000000000000001", pubkeyHex), res)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 }
 
 func TestProofRequest_PubKeyNotIndexed(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	res := &ErrorResponse{}
-	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/proof/%s?bill_id=%s", pubkeyHex, billId), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "pubkey not indexed", res.Message)
 }
 
 func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 	pubkey, _ := hexutil.Decode(pubkeyHex)
-	startServer(t, newMockWalletService(t, withBills(pubkey, &Bill{})))
+	port := startServer(t, newMockWalletService(t, withBills(pubkey, &Bill{})))
 
 	res := &ErrorResponse{}
 	billId := "0x0000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:7777/api/v1/proof/%s?bill_id=%s", pubkeyHex, billId), res)
-
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "bill does not exist", res.Message)
 }
@@ -426,9 +437,10 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
-	startServer(t, service)
+	port := startServer(t, service)
 
 	req := &moneytx.Bills{
 		Bills: []*moneytx.Bill{
@@ -446,7 +458,8 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	}
 	res := &EmptyResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s", port, pubkeyHex), req, res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 
 	bills, err := service.GetBills(pubkey)
@@ -459,7 +472,7 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.EqualValues(t, 1, txProof.BlockNumber)
-	require.Equal(t, tx, txProof.Tx)
+	require.True(t, proto.Equal(tx, txProof.Tx))
 	require.NotNil(t, proof, txProof.Proof)
 }
 
@@ -473,8 +486,9 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 
-	service := New(nil, NewInmemoryBillStore(), verifiers)
-	startServer(t, service)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
+	port := startServer(t, service)
 
 	pubkey := make([]byte, 33)
 	req := &moneytx.Bills{
@@ -493,7 +507,8 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s", port, pubkeyHex), req, res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errKeyNotIndexed.Error(), res.Message)
 }
@@ -510,9 +525,10 @@ func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	proof, verifiers := createProofForTx(t, tx)
 
 	pubkey := make([]byte, 33)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
-	startServer(t, service)
+	port := startServer(t, service)
 
 	req := &moneytx.Bills{
 		Bills: []*moneytx.Bill{
@@ -530,7 +546,8 @@ func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	}
 	res := &ErrorResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s", port, pubkeyHex), req, res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "p2pkh predicate verification failed: invalid bearer predicate", res.Message)
 }
@@ -546,9 +563,10 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	gtx, _ := txConverter.ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
-	service := New(nil, NewInmemoryBillStore(), verifiers)
+	store, _ := createTestBillStore(t)
+	service := New(nil, store, verifiers)
 	_ = service.AddKey(pubkey)
-	startServer(t, service)
+	port := startServer(t, service)
 
 	req := &moneytx.Bills{
 		Bills: []*moneytx.Bill{
@@ -567,7 +585,8 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	}
 	res := &EmptyResponse{}
 	pubkeyHex := hexutil.Encode(pubkey)
-	httpRes := testhttp.DoPostProto(t, "http://localhost:7777/api/v1/proof/"+pubkeyHex, req, res)
+	httpRes, err := testhttp.DoPostProto(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s", port, pubkeyHex), req, res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 
 	bills, err := service.GetBills(pubkey)
@@ -582,7 +601,7 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	txProof := b.TxProof
 	require.NotNil(t, txProof)
 	require.EqualValues(t, 1, txProof.BlockNumber)
-	require.Equal(t, tx, txProof.Tx)
+	require.True(t, proto.Equal(tx, txProof.Tx))
 	require.NotNil(t, proof, txProof.Proof)
 }
 
@@ -601,11 +620,12 @@ func createProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof
 
 func TestAddKeyRequest_Ok(t *testing.T) {
 	mockService := newMockWalletService(t)
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
-	req := &AddKeyRequest{Pubkey: "0x000000000000000000000000000000000000000000000000000000000000000000"}
+	req := &AddKeyRequest{Pubkey: pubkeyHex}
 	res := &EmptyResponse{}
-	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
+	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/admin/add-key", port), req, res)
+	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	keys, _ := mockService.getKeys()
@@ -619,58 +639,65 @@ func TestAddKeyRequest_KeyAlreadyExists(t *testing.T) {
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	mockService := newMockWalletService(t)
 	_ = mockService.AddKey(pubkeyBytes)
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	req := &AddKeyRequest{Pubkey: pubkey}
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
+	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/admin/add-key", port), req, res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, res.Message, "pubkey already exists")
 }
 
 func TestAddKeyRequest_InvalidKey(t *testing.T) {
 	mockService := newMockWalletService(t)
-	startServer(t, mockService)
+	port := startServer(t, mockService)
 
 	req := &AddKeyRequest{Pubkey: "0x00"}
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoPost(t, "http://localhost:7777/api/v1/admin/add-key", req, res)
+	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://localhost:%d/api/v1/admin/add-key", port), req, res)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, res.Message, "pubkey hex string must be 68 characters long (with 0x prefix)")
 }
 
 func TestBlockHeightRequest_Ok(t *testing.T) {
 	service := newMockWalletService(t)
-	startServer(t, service)
+	port := startServer(t, service)
 
 	blockNumber := uint64(100)
 	_ = service.store.SetBlockNumber(blockNumber)
 	res := &BlockHeightResponse{}
-	httpRes := testhttp.DoGet(t, "http://localhost:7777/api/v1/block-height", res)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/block-height", port), res)
+	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.EqualValues(t, blockNumber, res.BlockHeight)
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {
-	startServer(t, newMockWalletService(t))
+	port := startServer(t, newMockWalletService(t))
 
 	// verify request to to non-existent /api2 endpoint returns 404
-	httpRes, err := http.Get("http://localhost:7777/api2/v1/list-bills")
+	httpRes, err := http.Get(fmt.Sprintf("http://localhost:%d/api2/v1/list-bills", port))
 	require.NoError(t, err)
 	require.Equal(t, 404, httpRes.StatusCode)
 
 	// verify request to to non-existent version endpoint returns 404
-	httpRes, err = http.Get("http://localhost:7777/api/v5/list-bills")
+	httpRes, err = http.Get(fmt.Sprintf("http://localhost:%d/api/v5/list-bills", port))
 	require.NoError(t, err)
 	require.Equal(t, 404, httpRes.StatusCode)
 }
 
-func startServer(t *testing.T, service WalletBackendService) {
-	server := NewHttpServer(":7777", 100, service)
-	err := server.Start()
+func startServer(t *testing.T, service WalletBackendService) int {
+	port, err := net.GetFreePort()
+	require.NoError(t, err)
+
+	server := NewHttpServer(fmt.Sprintf(":%d", port), 100, service)
+	err = server.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = server.Shutdown(context.Background())
 	})
+	return port
 }

@@ -63,6 +63,8 @@ type (
 		ContainsBill(pubkey []byte, unitID []byte) (bool, error)
 		GetBill(pubkey []byte, unitID []byte) (*Bill, error)
 		SetBills(pubkey []byte, bills ...*Bill) error
+		SetBillExpirationTime(blockNumber uint64, pubkey []byte, unitID []byte) error
+		DeleteExpiredBills(blockNumber uint64) error
 		GetKeys() ([]*Pubkey, error)
 		GetKey(pubkey []byte) (*Pubkey, error)
 		AddKey(key *Pubkey) error

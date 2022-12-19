@@ -54,7 +54,7 @@ moneyRestPort=26866
 #start money partition nodes
 for i in 1 2 3
 do
-  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$moneyPort" --server-address ":$moneyGrpcPort" --rest-server-address "localhost:$moneyRestPort"  -g testab/rootchain/genesis/partition-genesis-0.json -p "$moneyNodeAddresses" > "testab/money$i/money$i.log" &
+  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$moneyPort" --server-address ":$moneyGrpcPort" --rest-server-address "localhost:$moneyRestPort" -g testab/rootchain/genesis/partition-genesis-0.json -p "$moneyNodeAddresses" > "testab/money$i/money$i.log" &
   ((moneyPort=moneyPort+1))
   ((moneyGrpcPort=moneyGrpcPort+1))
   ((moneyRestPort=moneyRestPort+1))
@@ -74,12 +74,14 @@ vdNodeAddresses="${vdNodeAddresses:1}"
 
 vdPort=27666
 vdGrpcPort=27766
+vdRestPort=27866
 #start vd partition nodes
 for i in 1 2 3
 do
-  build/alphabill vd --home testab/vd$i -f testab/vd$i/vd/blocks.db -k testab/vd$i/vd/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$vdPort" --server-address ":$vdGrpcPort" -g testab/rootchain/genesis/partition-genesis-1.json -p "$vdNodeAddresses" > "testab/vd$i/vd$i.log" &
+  build/alphabill vd --home testab/vd$i -f testab/vd$i/vd/blocks.db -k testab/vd$i/vd/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$vdPort" --server-address ":$vdGrpcPort" --rest-server-address "localhost:$vdRestPort" -g testab/rootchain/genesis/partition-genesis-1.json -p "$vdNodeAddresses" > "testab/vd$i/vd$i.log" &
   ((vdPort=vdPort+1))
   ((vdGrpcPort=vdGrpcPort+1))
+  ((vdRestPort=vdRestPort+1))
 done
 
 tokensPort=28666
@@ -95,11 +97,13 @@ done
 tokensNodeAddresses="${tokensNodeAddresses:1}"
 
 tokensPort=28666
-tokensGrpcPort=28866
+tokensGrpcPort=28766
+tokensRestPort=28866
 #start tokens partition nodes
 for i in 1 2 3
 do
-  build/alphabill tokens --home testab/tokens$i -f testab/tokens$i/tokens/blocks.db -k testab/tokens$i/tokens/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$tokensPort" --server-address ":$tokensGrpcPort" -g testab/rootchain/genesis/partition-genesis-2.json -p "$tokensNodeAddresses" > "testab/tokens$i/tokens$i.log" &
+  build/alphabill tokens --home testab/tokens$i -f testab/tokens$i/tokens/blocks.db -k testab/tokens$i/tokens/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$tokensPort" --server-address ":$tokensGrpcPort" --rest-server-address "localhost:$tokensRestPort" -g testab/rootchain/genesis/partition-genesis-2.json -p "$tokensNodeAddresses" > "testab/tokens$i/tokens$i.log" &
   ((tokensPort=tokensPort+1))
   ((tokensGrpcPort=tokensGrpcPort+1))
+  ((tokensRestPort=tokensRestPort+1))
 done

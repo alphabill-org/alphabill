@@ -13,6 +13,8 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
+const dustBillDeletionTimeout = 65536
+
 type BlockProcessor struct {
 	store BillStore
 }
@@ -41,6 +43,10 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 				return err
 			}
 		}
+	}
+	err = p.store.DeleteExpiredBills(b.BlockNumber)
+	if err != nil {
+		return err
 	}
 	return p.store.SetBlockNumber(b.BlockNumber)
 }
@@ -79,6 +85,10 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 				TxHash:   tx.Hash(crypto.SHA256),
 				IsDCBill: true,
 			})
+			if err != nil {
+				return err
+			}
+			err = p.store.SetBillExpirationTime(b.BlockNumber+dustBillDeletionTimeout, pubKey.Pubkey, txPb.UnitId)
 			if err != nil {
 				return err
 			}

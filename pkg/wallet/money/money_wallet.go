@@ -29,7 +29,7 @@ const (
 	dcTimeoutBlockCount     = 10
 	swapTimeoutBlockCount   = 60
 	txTimeoutBlockCount     = 100
-	dustBillDeletionTimeout = 300
+	dustBillDeletionTimeout = 65536
 )
 
 var (

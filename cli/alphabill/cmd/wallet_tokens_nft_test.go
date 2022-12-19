@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"os"
 	"reflect"
 	"testing"
 
@@ -74,42 +73,89 @@ func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 
 func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 	data := make([]byte, maxBinaryFile64Kb+1)
-	tmpfile, err := ioutil.TempFile("", "test")
+	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
-	// remember to clean up the file
-	defer os.Remove(tmpfile.Name())
 
-	type args struct {
-		cmdParams string
-	}
 	tests := []struct {
 		name       string
-		args       args
+		cmdParams  string
 		want       []byte
 		wantErrStr string
 	}{
 		{
 			name:       "both data and data-file specified",
-			args:       args{cmdParams: "token new non-fungible --type 12AB --data 1122aabb --data-file=/tmp/test/foo.bin"},
+			cmdParams:  "token new non-fungible --type 12AB --data 1122aabb --data-file=/tmp/test/foo.bin",
 			wantErrStr: "if any flags in the group [data data-file] are set none of the others can be; [data data-file] were all set",
 		},
 		{
 			name:       "data-file not found",
-			args:       args{cmdParams: "token new non-fungible --type 12AB --data-file=/tmp/test/foo.bin"},
+			cmdParams:  "token new non-fungible --type 12AB --data-file=/tmp/test/foo.bin",
 			wantErrStr: "data-file read error: stat /tmp/test/foo.bin: no such file or directory",
 		},
 		{
 			name:       "data-file too big",
-			args:       args{cmdParams: "token new non-fungible --type 12AB --data-file=" + tmpfile.Name()},
+			cmdParams:  "token new non-fungible --type 12AB --data-file=" + tmpfile.Name(),
 			wantErrStr: "data-file read error: file size over 64Kb limit",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			homedir := createNewTestWallet(t)
-			_, err := execCommand(homedir, tt.args.cmdParams)
+			_, err := execCommand(homedir, tt.cmdParams)
+			if len(tt.wantErrStr) != 0 {
+				require.ErrorContains(t, err, tt.wantErrStr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
+	data := make([]byte, maxBinaryFile64Kb+1)
+	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
+	require.NoError(t, err)
+	_, err = tmpfile.Write(data)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		cmdParams  string
+		want       []byte
+		wantErrStr string
+	}{
+		{
+			name:       "both data and data-file specified",
+			cmdParams:  "token update --token-identifier 12AB --data 1122aabb --data-file=/tmp/test/foo.bin",
+			wantErrStr: "if any flags in the group [data data-file] are set none of the others can be; [data data-file] were all set",
+		},
+		{
+			name:       "data-file not found",
+			cmdParams:  "token update --token-identifier 12AB --data-file=/tmp/test/foo.bin",
+			wantErrStr: "data-file read error: stat /tmp/test/foo.bin: no such file or directory",
+		},
+		{
+			name:       "data-file too big",
+			cmdParams:  "token update --token-identifier 12AB --data-file=" + tmpfile.Name(),
+			wantErrStr: "data-file read error: file size over 64Kb limit",
+		},
+		{
+			name:       "update nft: both data flags missing",
+			cmdParams:  "token update --token-identifier 12AB",
+			wantErrStr: "either of ['--data', '--data-file'] flags must be specified",
+		},
+		{
+			name:       "update nft: token id missing",
+			cmdParams:  "token update",
+			wantErrStr: "required flag(s) \"token-identifier\" not set",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			homedir := createNewTestWallet(t)
+			_, err := execCommand(homedir, tt.cmdParams)
 			if len(tt.wantErrStr) != 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {

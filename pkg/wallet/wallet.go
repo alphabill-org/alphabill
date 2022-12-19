@@ -3,6 +3,7 @@ package wallet
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -177,7 +178,14 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 			return nil
 		default:
 			if maxBlockNumber != 0 && lastBlockNumber == maxBlockNumber {
-				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
+				// wait for some time before retrying to fetch new block
+				timer := time.NewTimer(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					return nil
+				}
 			}
 			lastBlockNumber, maxBlockNumber, err = w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
 			if err != nil {
@@ -248,7 +256,8 @@ func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetrie
 				log.Debug("successfully sent transaction")
 				return nil
 			}
-			if res.Message == txBufferFullErrMsg {
+			// res.Message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
+			if strings.HasPrefix(res.Message, txBufferFullErrMsg) {
 				failedTries += 1
 				if failedTries >= maxRetries {
 					return ErrFailedToBroadcastTx

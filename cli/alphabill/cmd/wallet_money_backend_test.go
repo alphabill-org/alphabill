@@ -69,13 +69,14 @@ func TestWalletBackendCli(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// verify balance
 		res := &backend.BalanceResponse{}
-		httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
+		httpRes, _ := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
 		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify /list-bills
 	resListBills := &backend.ListBillsResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
+	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
@@ -85,7 +86,8 @@ func TestWalletBackendCli(t *testing.T) {
 
 	// verify /proof
 	resBlockProof := &block.Bills{}
-	httpRes = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkeyHex, initialBillHex), resBlockProof)
+	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkeyHex, initialBillHex), resBlockProof)
+	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)
 }
@@ -158,18 +160,21 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 	// 3. index key 1 in wallet-backend
 	req := &backend.AddKeyRequest{Pubkey: pubkey1Hex}
 	res := &backend.EmptyResponse{}
-	httpRes := testhttp.DoPost(t, fmt.Sprintf("http://%s/api/v1/admin/add-key", serverAddr), req, res)
+	httpRes, err := testhttp.DoPost(fmt.Sprintf("http://%s/api/v1/admin/add-key", serverAddr), req, res)
+	require.NoError(t, err)
 	require.Equal(t, 200, httpRes.StatusCode)
 
 	// 4. import bill to wallet-backend
 	reqImportBill, _ := block.ReadBillsFile(exportFilePath)
 	url := fmt.Sprintf("http://%s/api/v1/proof/%s", serverAddr, pubkey1Hex)
-	httpRes = testhttp.DoPostProto(t, url, reqImportBill, &backend.EmptyResponse{})
+	httpRes, err = testhttp.DoPostProto(url, reqImportBill, &backend.EmptyResponse{})
+	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 
 	// 5. verify list-bills shows imported bill
 	resListBills := &backend.ListBillsResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkey1Hex), resListBills)
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkey1Hex), resListBills)
+	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	for _, b := range resListBills.Bills {
@@ -180,7 +185,8 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 
 	// 6. download proof from wallet-backend
 	resGetProof := &block.Bills{}
-	httpRes = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkey1Hex, initialBillIDHex), resGetProof)
+	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkey1Hex, initialBillIDHex), resGetProof)
+	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	downloadedBillFile := path.Join(walletHomedir, "downloaded-bill.json")
 	err = block.WriteBillsFile(downloadedBillFile, resGetProof)

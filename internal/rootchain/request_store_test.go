@@ -68,6 +68,85 @@ func TestRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	require.Equal(t, req1.InputRecord, ir)
 }
 
+func TestRequestStore_noConsensus_ThreeNodes(t *testing.T) {
+	rs := newRequestStore()
+	// different block hash
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 0},
+		BlockHash:    []byte{1, 1, 1, 1},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 0},
+		BlockHash:    []byte{1, 1, 1, 2},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	_, possible := rs.isConsensusReceived(3)
+	require.True(t, possible)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "3", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 0},
+		BlockHash:    []byte{1, 1, 1, 3},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	_, possible = rs.isConsensusReceived(3)
+	require.False(t, possible)
+	// three different hashes
+	require.Equal(t, 3, len(rs.hashCounts))
+	rs.reset()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 0},
+		BlockHash:    []byte{1, 1, 1, 1},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 0},
+		BlockHash:    []byte{1, 1, 1, 2},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	_, possible = rs.isConsensusReceived(3)
+	require.True(t, possible)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "3", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 0},
+		BlockHash:    []byte{1, 1, 1, 1},
+		SummaryValue: []byte{2, 2, 2, 3},
+	}}))
+	_, possible = rs.isConsensusReceived(3)
+	// three different hashes
+	require.Equal(t, 3, len(rs.hashCounts))
+	require.False(t, possible)
+	rs.reset()
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 2},
+		BlockHash:    []byte{1, 1, 1, 1},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "2", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 1},
+		BlockHash:    []byte{1, 1, 1, 1},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	_, possible = rs.isConsensusReceived(3)
+	require.True(t, possible)
+	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "3", InputRecord: &certificates.InputRecord{
+		Hash:         []byte{0, 0, 0, 0},
+		PreviousHash: []byte{0, 0, 0, 0},
+		BlockHash:    []byte{1, 1, 1, 1},
+		SummaryValue: []byte{2, 2, 2, 2},
+	}}))
+	_, possible = rs.isConsensusReceived(3)
+	require.False(t, possible)
+	// three different hashes
+	require.Equal(t, 3, len(rs.hashCounts))
+}
+
 func TestRequestStore_isConsensusReceived_FiveNodes(t *testing.T) {
 	rs := newRequestStore()
 	require.NoError(t, rs.add(&certification.BlockCertificationRequest{NodeIdentifier: "1", InputRecord: IR1}))

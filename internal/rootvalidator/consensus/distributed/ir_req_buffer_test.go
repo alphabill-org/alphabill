@@ -1,78 +1,48 @@
 package distributed
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
 )
 
-func TestIrReqBuffer_Add(t *testing.T) {
-	type fields struct {
-		irChgReqBuffer map[protocol.SystemIdentifier]*IRChange
+/*
+	func createUC(round uint64, sysId, hash []byte) *certificates.UnicityCertificate {
+		return &certificates.UnicityCertificate{
+			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+				SystemIdentifier:      sysId,
+				SiblingHashes:         nil,
+				SystemDescriptionHash: nil,
+			},
+			UnicitySeal: &certificates.UnicitySeal{
+				RootChainRoundNumber: round,
+				PreviousHash:         make([]byte, gocrypto.SHA256.Size()),
+				Hash:                 hash,
+				RoundCreationTime:    util.MakeTimestamp(),
+			},
+		}
 	}
-	type args struct {
-		req      *atomic_broadcast.IRChangeReqMsg
-		luc      *certificates.UnicityCertificate
-		nofNodes int
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IrReqBuffer{
-				irChgReqBuffer: tt.fields.irChgReqBuffer,
-			}
-			if err := x.Add(tt.args.req, tt.args.luc, tt.args.nofNodes); (err != nil) != tt.wantErr {
-				t.Errorf("Add() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
 
-func TestIrReqBuffer_GeneratePayload(t *testing.T) {
-	type fields struct {
-		irChgReqBuffer map[protocol.SystemIdentifier]*IRChange
+	func createIRChangeRequest(sysId []byte, reason atomic_broadcast.IRChangeReqMsg_CERT_REASON, proof ...*certification.BlockCertificationRequest) *atomic_broadcast.IRChangeReqMsg {
+		return &atomic_broadcast.IRChangeReqMsg{
+			SystemIdentifier: sysId,
+			CertReason: reason,
+			Requests: proof,
+		}
 	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   *atomic_broadcast.Payload
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			x := &IrReqBuffer{
-				irChgReqBuffer: tt.fields.irChgReqBuffer,
-			}
-			if got := x.GeneratePayload(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GeneratePayload() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
-func TestNewIrReqBuffer(t *testing.T) {
-	tests := []struct {
-		name string
-		want *IrReqBuffer
-	}{
-		// TODO: Add test cases.
+	func TestIrReqBuffer_Add(t *testing.T) {
+		var sysId0 = []byte{0, 0, 0, 0}
+		var sysId1 = []byte{0, 0, 0, 1}
+		var lastHash = []byte{1, 1, 1, 1}
+		irBuffer := NewIrReqBuffer()
+		luc := createUC(3, sysId0, lastHash)
+		// add invalid system identifier
+		req := &certification.BlockCertificationRequest{}
+		req := createIRChangeRequest(sysId1, atomic_broadcast.IRChangeReqMsg_QUORUM, )
+		err := irBuffer.Add(, luc)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := NewIrReqBuffer(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewIrReqBuffer() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
+*/
 func Test_compareIR(t *testing.T) {
 	type args struct {
 		a *certificates.InputRecord
@@ -83,7 +53,86 @@ func Test_compareIR(t *testing.T) {
 		args args
 		want bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "equal",
+			args: args{
+				a: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+				b: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+			},
+			want: true,
+		},
+		{
+			name: "Previous hash not equal",
+			args: args{
+				a: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+				b: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+			},
+			want: false,
+		},
+		{
+			name: "Hash not equal",
+			args: args{
+				a: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+				b: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2, 3},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+			},
+			want: false,
+		},
+		{
+			name: "Block hash not equal",
+			args: args{
+				a: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+				b: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    nil,
+					SummaryValue: []byte{4, 4, 4}},
+			},
+			want: false,
+		},
+		{
+			name: "Summary value not equal",
+			args: args{
+				a: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{4, 4, 4}},
+				b: &certificates.InputRecord{
+					PreviousHash: []byte{1, 1, 1},
+					Hash:         []byte{2, 2, 2},
+					BlockHash:    []byte{3, 3, 3},
+					SummaryValue: []byte{}},
+			},
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

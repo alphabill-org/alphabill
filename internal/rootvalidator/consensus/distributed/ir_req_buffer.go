@@ -18,13 +18,13 @@ type (
 		Reason      atomic_broadcast.IRChangeReqMsg_CERT_REASON
 		Msg         *atomic_broadcast.IRChangeReqMsg
 	}
-	ProposalGenerator struct {
+	IrReqBuffer struct {
 		irChgReqBuffer map[protocol.SystemIdentifier]*IRChange
 	}
 )
 
-func NewProposalGenerator() *ProposalGenerator {
-	return &ProposalGenerator{
+func NewIrReqBuffer() *IrReqBuffer {
+	return &IrReqBuffer{
 		irChgReqBuffer: make(map[protocol.SystemIdentifier]*IRChange),
 	}
 }
@@ -45,28 +45,39 @@ func compareIR(a, b *certificates.InputRecord) bool {
 	return true
 }
 
-func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChangeReqMsg, luc *certificates.UnicityCertificate, nofNodes int) error {
+// Add validates incoming IR change request and buffers valid requests. If for any reason the IR request is found not
+// valid, reason is logged, error is returned and request is ignored.
+func (x *IrReqBuffer) Add(req *atomic_broadcast.IRChangeReqMsg, luc *certificates.UnicityCertificate, nofNodes int) error {
 	systemId := protocol.SystemIdentifier(req.SystemIdentifier)
+
+	// verify timeout, timeout is special no proof payload, current round number
+	if req.CertReason == atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT {
+		// todo: verify timeout - refactor and make method for IRChangeReqMsg to verify proof
+		x.irChgReqBuffer[systemId] = &IRChange{InputRecord: luc.InputRecord, Reason: req.CertReason, Msg: req}
+		return nil
+	}
 
 	irChangeReq, found := x.irChgReqBuffer[systemId]
 	// If there is a pending request, then compare and complain if not duplicate
 	requestStore := request_store.NewCertificationRequestStore()
+	// Verify proof
 	for _, r := range req.Requests {
+		// Verify system identifier matches requests
+		if !bytes.Equal(systemId.Bytes(), req.SystemIdentifier) {
+			return fmt.Errorf("IR change request system id %X, does not match proof system id %X", systemId.Bytes(), req.SystemIdentifier)
+		}
 		// check request against last state, filter out:
 		// 1. requests that extend invalid or old state
 		// 2. requests that are stale
 		if err := consensus.CheckBlockCertificationRequest(r, luc); err != nil {
-			logger.Warning("Invalid IR change request: %v", err)
-			continue
+			return fmt.Errorf("IR change request proof error: %w", err)
 		}
 		if err := requestStore.Add(r); err != nil {
-			logger.Warning("Invalid IR change request: %v", err)
-			continue
+			return fmt.Errorf("IR change request proof error: %w", err)
 		}
 	}
 	ir, _ := requestStore.IsConsensusReceived(systemId, nofNodes)
 	if ir == nil {
-		logger.Warning("Invalid IR change request no consensus reached")
 		return fmt.Errorf("invalid IR change request no consensus reached")
 	}
 	if found {
@@ -85,7 +96,8 @@ func (x *ProposalGenerator) ValidateAndBufferIRReq(req *atomic_broadcast.IRChang
 	return nil
 }
 
-func (x *ProposalGenerator) GeneratePayload() *atomic_broadcast.Payload {
+// GeneratePayload generates new proposal payload from buffered IR change requests.
+func (x *IrReqBuffer) GeneratePayload() *atomic_broadcast.Payload {
 	payload := &atomic_broadcast.Payload{
 		Requests: make([]*atomic_broadcast.IRChangeReqMsg, len(x.irChgReqBuffer)),
 	}

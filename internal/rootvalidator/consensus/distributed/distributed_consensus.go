@@ -79,7 +79,7 @@ type (
 		roundState    *RoundState
 		proposer      Leader
 		rootVerifier  *RootNodeVerifier
-		irReqBuffer   *ProposalGenerator
+		irReqBuffer   *IrReqBuffer
 		safety        *SafetyModule
 		roundPipeline *RoundPipeline
 		partitions    PartitionStore
@@ -184,7 +184,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		roundState:    roundState,
 		proposer:      l,
 		rootVerifier:  rootVerifier,
-		irReqBuffer:   NewProposalGenerator(),
+		irReqBuffer:   NewIrReqBuffer(),
 		safety:        safetyModule,
 		roundPipeline: ledger,
 		partitions:    partitionStore,
@@ -377,12 +377,12 @@ func (x *ConsensusManager) onLocalTimeout() {
 func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
 	// Am I the next leader or current leader and have not yet proposed? If not, ignore.
 	// todo: AB-549 what if this is received out of order?
+	// todo: AB-547 I am leader now, but have not yet proposed -> should still accept requests (throttling)
 	if x.proposer.IsValidLeader(x.peer.ID(), x.roundState.GetCurrentRound()+1) == false {
 		logger.Warning("Validator is not leader in next round %v, IR change req ignored",
 			x.roundState.GetCurrentRound()+1)
 		return
 	}
-	// todo: AB-547 I am leader now, but have not yet proposed -> should still accept requests (throttling)
 	// validate incoming request
 	sysId := p.SystemIdentifier(irChange.SystemIdentifier)
 	partitionInfo, err := x.partitions.GetPartitionInfo(sysId)
@@ -414,7 +414,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// Buffer and wait for opportunity to make the next proposal
-	if err := x.irReqBuffer.ValidateAndBufferIRReq(irChange, luc, len(partitionInfo.TrustBase)); err != nil {
+	if err := x.irReqBuffer.Add(irChange, luc, len(partitionInfo.TrustBase)); err != nil {
 		logger.Warning("IR change request from partition %X error: %w", sysId.Bytes(), err)
 		return
 	}
@@ -445,9 +445,9 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		logger.Warning("Round %v quorum achieved", vote.VoteInfo.RootRound)
 		// advance round
 		x.processCertificateQC(qc)
+		// This node is the new leader in this round/view, generate proposal
+		x.processNewRoundEvent()
 	}
-	// This node is the new leader in this round/view, generate proposal
-	x.processNewRoundEvent()
 }
 
 func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
@@ -477,7 +477,7 @@ func (x *ConsensusManager) checkRootState(qc *atomic_broadcast.QuorumCert) {
 	}
 }
 
-func (x *ConsensusManager) VerifyProposal(payload *atomic_broadcast.Payload) (map[p.SystemIdentifier]*certificates.InputRecord, error) {
+func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Payload) (map[p.SystemIdentifier]*certificates.InputRecord, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("payload is nil")
 	}
@@ -532,10 +532,10 @@ func (x *ConsensusManager) VerifyProposal(payload *atomic_broadcast.Payload) (ma
 				return nil, errors.Errorf("invalid payload: partition %X state is missing", systemId)
 			}
 			// verify timeout ok
-			lucAgeInRounds := x.roundState.GetCurrentRound() - cert.UnicitySeal.RootChainRoundNumber
-			if lucAgeInRounds*500 < uint64(partitionInfo.SystemDescription.T2Timeout) {
+			lucAgeInRounds := (x.roundState.GetCurrentRound() - cert.UnicitySeal.RootChainRoundNumber) * uint64(x.config.BlockRateMs)
+			if lucAgeInRounds < uint64(partitionInfo.SystemDescription.T2Timeout) {
 				return nil, errors.Errorf("invalid payload: partition %X, time from latest UC %v, timeout %v, invalid timeout request",
-					systemId, lucAgeInRounds*500, partitionInfo.SystemDescription.T2Timeout)
+					systemId, lucAgeInRounds, partitionInfo.SystemDescription.T2Timeout)
 			}
 			// copy last input record
 			inputRecord = cert.InputRecord
@@ -560,13 +560,14 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 			proposal.Block.Author, proposal.Block.Round)
 		return
 	}
-	// Check sync
-	x.checkRootState(proposal.Block.Qc)
-	// Every proposal must carry a QC for previous round
+	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
 	x.processCertificateQC(proposal.Block.Qc)
 	x.processTC(proposal.LastRoundTc)
-	changes, err := x.VerifyProposal(proposal.Block.Payload)
+	// Check in sync with other root nodes
+	x.checkRootState(proposal.Block.Qc)
+	// execute proposed payload
+	changes, err := x.VerifyProposalPayload(proposal.Block.Payload)
 	// execute proposal
 	execStateId, err := x.roundPipeline.Add(x.roundState.GetCurrentRound(), changes)
 	if err != nil {

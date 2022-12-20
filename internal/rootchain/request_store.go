@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	"bytes"
+	gocrypto "crypto"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -95,13 +96,15 @@ func (rs *requestStore) add(req *certification.BlockCertificationRequest) error 
 			return errors.New("duplicated request")
 		}
 	}
+	hasher := gocrypto.SHA256.New()
+	req.InputRecord.AddToHasher(hasher)
 	// remove to replace
 	// todo: seems useless at the moment since if f is true, then we do not get here as error is returned before?
 	// todo: spec says that the request can be replaced with newer, but what makes a request newer, round number?
 	if _, f := rs.requests[req.NodeIdentifier]; f {
 		rs.remove(req.NodeIdentifier)
 	}
-	hashString := string(req.InputRecord.Hash)
+	hashString := string(hasher.Sum(nil))
 	rs.requests[req.NodeIdentifier] = req
 	count := rs.hashCounts[hashString]
 	rs.hashCounts[hashString] = count + 1
@@ -135,7 +138,9 @@ func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputR
 		// consensus received
 		logger.Debug("isConsensusReceived: yes")
 		for _, req := range rs.requests {
-			if bytes.Equal(h, req.InputRecord.Hash) {
+			hasher := gocrypto.SHA256.New()
+			req.InputRecord.AddToHasher(hasher)
+			if bytes.Equal(h, hasher.Sum(nil)) {
 				logger.Debug("isConsensusReceived: returning IR (hash: %X, block hash: %X)", req.InputRecord.Hash, req.InputRecord.BlockHash)
 				return req.InputRecord, true
 			}

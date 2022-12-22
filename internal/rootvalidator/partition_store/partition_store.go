@@ -27,6 +27,13 @@ func NewEmptyPartitionStore() *PartitionStore {
 	return &PartitionStore{partitions: make(map[p.SystemIdentifier]*PartitionInfo)}
 }
 
+// GetQuorum calculates and returns minimum number of nodes required for a quorum
+func (x PartitionInfo) GetQuorum() uint64 {
+	// Partition quorum is currently set to 50%, meaning at least
+	// +1 to round up and avoid using floats
+	return uint64(len(x.TrustBase)/2) + 1
+}
+
 // NewPartitionStore creates a new partition store with given partitions.
 func NewPartitionStore(partitions []*genesis.PartitionRecord) (*PartitionStore, error) {
 	parts := make(map[p.SystemIdentifier]*PartitionInfo)

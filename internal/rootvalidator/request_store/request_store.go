@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 )
 
 type CertRequestStore struct {
@@ -44,9 +45,10 @@ func (c *CertRequestStore) GetRequests(id p.SystemIdentifier) []*certification.B
 }
 
 // IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
-func (c *CertRequestStore) IsConsensusReceived(id p.SystemIdentifier, nrOfNodes int) (*certificates.InputRecord, bool) {
+func (c *CertRequestStore) IsConsensusReceived(partitionInfo partition_store.PartitionInfo) (*certificates.InputRecord, bool) {
+	id := p.SystemIdentifier(partitionInfo.SystemDescription.SystemIdentifier)
 	rs := c.get(id)
-	return rs.isConsensusReceived(nrOfNodes)
+	return rs.isConsensusReceived(partitionInfo)
 }
 
 // get returns an existing store for system identifier or registers and returns a new one if none existed
@@ -113,7 +115,7 @@ func (rs *requestStore) reset() {
 	rs.hashCounts = make(map[string]uint)
 }
 
-func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputRecord, bool) {
+func (rs *requestStore) isConsensusReceived(partition partition_store.PartitionInfo) (*certificates.InputRecord, bool) {
 	var h []byte
 	var c uint = 0
 	for hash, count := range rs.hashCounts {
@@ -127,10 +129,9 @@ func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputR
 		logger.Debug("isConsensusReceived: no hashes received yet, consensus possible in the future")
 		return nil, true
 	}
-
-	needed := float64(nrOfNodes) / float64(2)
-	logger.Debug("isConsensusReceived: count: %v, needed count: %v, hash:%X", c, needed, h)
-	if float64(c) > needed {
+	quorum := partition.GetQuorum()
+	logger.Debug("isConsensusReceived: count: %v, needed count: %v, hash:%X", c, quorum, h)
+	if uint64(c) >= quorum {
 		// consensus received
 		logger.Debug("isConsensusReceived: yes")
 		for _, req := range rs.requests {
@@ -139,7 +140,7 @@ func (rs *requestStore) isConsensusReceived(nrOfNodes int) (*certificates.InputR
 				return req.InputRecord, true
 			}
 		}
-	} else if float64(uint(nrOfNodes)-uint(len(rs.requests))+c) <= needed {
+	} else if len(partition.TrustBase)-len(rs.requests)+int(c) < int(quorum) {
 		logger.Debug("isConsensusReceived: consensus not possible")
 		// consensus not possible
 		return nil, false

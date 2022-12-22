@@ -4,7 +4,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -16,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -32,7 +32,7 @@ type (
 
 	CertificationRequestStore interface {
 		Add(request *certification.BlockCertificationRequest) error
-		IsConsensusReceived(id proto.SystemIdentifier, nrOfNodes int) (*certificates.InputRecord, bool)
+		IsConsensusReceived(partition partition_store.PartitionInfo) (*certificates.InputRecord, bool)
 		GetRequests(id proto.SystemIdentifier) []*certification.BlockCertificationRequest
 		Reset()
 		Clear(id proto.SystemIdentifier)
@@ -237,7 +237,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 		return
 	}
 	// There has to be at least one node in the partition, otherwise we could not have verified the request
-	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(systemIdentifier, len(info.TrustBase))
+	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(info)
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
 		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", systemIdentifier.Bytes(), ir.Hash)

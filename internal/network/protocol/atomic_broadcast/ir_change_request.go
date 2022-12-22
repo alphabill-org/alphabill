@@ -3,18 +3,13 @@ package atomic_broadcast
 import (
 	"bytes"
 	crypto2 "crypto"
-	"errors"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"hash"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/util"
-)
-
-var (
-	ErrTimeoutRequestReasonNotEmpty = errors.New("invalid timeout certification request, proof not empty")
 )
 
 func getMaxHashCount(hashCnt map[string]uint64) uint64 {
@@ -81,8 +76,6 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		hashCnt[string(hasher.Sum(nil))] = count + 1
 	}
 	// match request type to proof
-	// define quorum as more than simple majority, more than 50% (+1 to avoid floats and rounding)
-	quorum := uint64(len(partitionInfo.TrustBase)+1) / 2
 	switch x.CertReason {
 	case IRChangeReqMsg_QUORUM:
 		// 1. require that all input records served as proof are the same
@@ -91,7 +84,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X IR request contains not matching IR records", x.SystemIdentifier)
 		}
 		// 2. more than 50% of the nodes must have voted for the same IR
-		if count := getMaxHashCount(hashCnt); count < quorum {
+		if count := getMaxHashCount(hashCnt); count < partitionInfo.GetQuorum() {
 			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X not enough requests to prove quorum", x.SystemIdentifier)
 		}
 		// 3. validate against last unicity certificate (NB! there was at least one request, otherwise we would not be here)
@@ -103,8 +96,8 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 	case IRChangeReqMsg_QUORUM_NOT_POSSIBLE:
 		// Verify that enough partition nodes have voted for different IR change
 		// a) find how many votes are missing (nof nodes - requests)
-		// b) if the missing votes would also vote for the most popular hash, it is still not enough to come to a quorum
-		if nofNodes-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(quorum) {
+		// b) if the missing votes would also vote for the most popular hash, it must be still not enough to come to a quorum
+		if nofNodes-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(partitionInfo.GetQuorum()) {
 			return nil, fmt.Errorf("invalid ir change request no quorum proof for %X, not enough requests to prove no quorum is possible", x.SystemIdentifier)
 		}
 		return luc.InputRecord, nil

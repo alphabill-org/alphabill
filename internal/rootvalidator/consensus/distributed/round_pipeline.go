@@ -4,6 +4,7 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"

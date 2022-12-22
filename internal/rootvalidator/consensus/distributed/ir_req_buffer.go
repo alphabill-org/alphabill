@@ -3,11 +3,11 @@ package distributed
 import (
 	"bytes"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (

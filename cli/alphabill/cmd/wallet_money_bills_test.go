@@ -78,16 +78,19 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	billFilePath := path.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
 	stdout, err := execBillsCommand(homedir, "export --bill-order-number 1 --output-path "+homedir)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 
 	// verify export with --bill-id flag
 	stdout, err = execBillsCommand(homedir, "export --bill-id 0000000000000000000000000000000000000000000000000000000000000001 --output-path "+homedir)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 
 	// verify export with no flags outputs all bills
 	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 }
 

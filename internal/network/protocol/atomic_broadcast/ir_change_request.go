@@ -2,7 +2,7 @@ package atomic_broadcast
 
 import (
 	"bytes"
-	crypto2 "crypto"
+	gocrypto "crypto"
 	"fmt"
 	"hash"
 	"time"
@@ -71,7 +71,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		// register node id
 		nodeIDs[req.NodeIdentifier] = struct{}{}
 		// get hash of IR and add to hash counter
-		hasher := crypto2.SHA256.New()
+		hasher := gocrypto.SHA256.New()
 		req.InputRecord.AddToHasher(hasher)
 		count := hashCnt[string(hasher.Sum(nil))]
 		hashCnt[string(hasher.Sum(nil))] = count + 1

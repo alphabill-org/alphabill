@@ -192,10 +192,10 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 		NodeIdentifier:   "1",
 		RootRoundNumber:  0,
 		InputRecord: &certificates.InputRecord{
-			PreviousHash: []byte{},
-			Hash:         []byte{},
-			BlockHash:    []byte{},
-			SummaryValue: []byte{},
+			PreviousHash: []byte{0, 0, 0},
+			Hash:         []byte{1, 1, 1},
+			BlockHash:    []byte{2, 2, 2},
+			SummaryValue: []byte{4, 4, 4},
 		},
 	}
 	require.NoError(t, reqS1.Sign(s1))
@@ -220,7 +220,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 					},
 					TrustBase: trustBase},
 				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
 				},
 				lucAge: 0,
 			},
@@ -241,7 +241,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 					},
 					TrustBase: trustBase},
 				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
 				},
 				lucAge: 0,
 			},
@@ -262,7 +262,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 					},
 					TrustBase: trustBase},
 				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
 				},
 				lucAge: time.Duration(2499) * time.Millisecond,
 			},
@@ -283,7 +283,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 					},
 					TrustBase: trustBase},
 				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
 				},
 				lucAge: time.Duration(2500) * time.Millisecond,
 			},

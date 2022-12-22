@@ -1,7 +1,6 @@
 package certification
 
 import (
-	"strings"
 	"testing"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -75,7 +74,7 @@ func TestBlockCertificationRequest_IsValid_InvalidSignature(t *testing.T) {
 	}
 	err := p1.IsValid(verifier)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "signature verify failed"))
+	require.ErrorContains(t, err, "signature verification failed")
 }
 
 func TestBlockCertificationRequest_ValidRequest(t *testing.T) {

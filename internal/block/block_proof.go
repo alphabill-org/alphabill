@@ -90,6 +90,11 @@ func NewSecondaryProof(b *GenericBlock, unitID []byte, secTxIdx int, hashAlgorit
 }
 
 // Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
+func (x *TxProof) Verify(unitID []byte, tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgo crypto.Hash) error {
+	return x.Proof.Verify(unitID, tx, verifiers, hashAlgo)
+}
+
+// Verify verifies the proof against given transaction, returns error if verification failed, or nil if verification succeeded.
 func (x *BlockProof) Verify(unitID []byte, tx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
 	if len(unitID) == 0 {
 		return ErrInvalidUnitID

@@ -7,6 +7,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
@@ -60,8 +61,8 @@ func (b *Bill) GetID() []byte {
 	return util.Uint256ToBytes(b.Id)
 }
 
-func (b *Bill) ToProto() *block.Bill {
-	return &block.Bill{
+func (b *Bill) ToProto() *moneytx.Bill {
+	return &moneytx.Bill{
 		Id:      b.GetID(),
 		Value:   b.Value,
 		TxHash:  b.TxHash,

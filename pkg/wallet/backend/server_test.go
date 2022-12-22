@@ -63,7 +63,7 @@ func (m *mockWalletService) GetBill(pubkey []byte, unitID []byte) (*Bill, error)
 	return m.store.GetBill(pubkey, unitID)
 }
 
-func (m *mockWalletService) SetBills(pubkey []byte, bills *block.Bills) error {
+func (m *mockWalletService) SetBills(pubkey []byte, bills *moneytx.Bills) error {
 	domainBills := newBillsFromProto(bills)
 	return m.store.SetBills(pubkey, domainBills...)
 }
@@ -351,7 +351,7 @@ func TestProofRequest_Ok(t *testing.T) {
 	mockService := newMockWalletService(t, withBills(pubkey, b))
 	port := startServer(t, mockService)
 
-	response := &block.Bills{}
+	response := &moneytx.Bills{}
 	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
@@ -442,8 +442,8 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	port := startServer(t, service)
 
-	req := &block.Bills{
-		Bills: []*block.Bill{
+	req := &moneytx.Bills{
+		Bills: []*moneytx.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
@@ -491,8 +491,8 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	port := startServer(t, service)
 
 	pubkey := make([]byte, 33)
-	req := &block.Bills{
-		Bills: []*block.Bill{
+	req := &moneytx.Bills{
+		Bills: []*moneytx.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
@@ -530,8 +530,8 @@ func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	port := startServer(t, service)
 
-	req := &block.Bills{
-		Bills: []*block.Bill{
+	req := &moneytx.Bills{
+		Bills: []*moneytx.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
@@ -568,8 +568,8 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	port := startServer(t, service)
 
-	req := &block.Bills{
-		Bills: []*block.Bill{
+	req := &moneytx.Bills{
+		Bills: []*moneytx.Bill{
 			{
 				Id:       tx.UnitId,
 				Value:    txValue,

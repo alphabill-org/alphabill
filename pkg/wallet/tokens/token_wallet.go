@@ -330,7 +330,6 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 }
 
 func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenTypes []TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
-	w.sync = true // force sync
 	if accountNumber == alwaysTrueTokensAccountNumber {
 		return errors.New("invalid account number for dust collection (#0)")
 	}

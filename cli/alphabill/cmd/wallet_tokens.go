@@ -595,6 +595,12 @@ func tokenCmdDC(config *walletConfig) *cobra.Command {
 }
 
 func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
+	// DC requires a forced sync
+	err := cmd.Flags().Set(cmdFlagSync, "true")
+	if err != nil {
+		return err
+	}
+
 	accountNumber, err := cmd.Flags().GetInt(keyCmdName)
 	if err != nil {
 		return err

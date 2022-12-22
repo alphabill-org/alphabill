@@ -6,7 +6,6 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -390,19 +389,6 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		logger.Warning("IR change error, failed to get total nods for partition %X, error: %v", sysId.Bytes(), err)
 		return
 	}
-	if err != nil {
-		return
-	}
-	if err := irChange.Verify(partitionInfo.TrustBase); err != nil {
-		logger.Warning("Invalid IR change request error: %v", err)
-		return
-	}
-	// Check partition change already in pipeline
-	if x.roundPipeline.IsChangeInPipeline(sysId) {
-		logger.Warning("Invalid IR change request partition %X: change in pipeline",
-			sysId.Bytes())
-		return
-	}
 	state, err := x.config.stateStore.Get()
 	if err != nil {
 		logger.Warning("IR change request ignored, failed to read current state: %w", err)
@@ -413,8 +399,21 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		logger.Warning("IR change request ignored, no last state for system id %X", sysId.Bytes())
 		return
 	}
+	// calculate LUC age using rounds and min block rate
+	lucAgeInRounds := time.Duration(x.roundState.GetCurrentRound()-luc.UnicitySeal.RootChainRoundNumber) * x.config.BlockRateMs
+	inputRecord, err := irChange.Verify(partitionInfo, luc, lucAgeInRounds)
+	if err != nil {
+		logger.Warning("Invalid IR change request error: %v", err)
+		return
+	}
+	// Check partition change already in pipeline
+	if x.roundPipeline.IsChangeInPipeline(sysId) {
+		logger.Warning("Invalid IR change request partition %X: change in pipeline",
+			sysId.Bytes())
+		return
+	}
 	// Buffer and wait for opportunity to make the next proposal
-	if err := x.irReqBuffer.Add(irChange, luc, len(partitionInfo.TrustBase)); err != nil {
+	if err := x.irReqBuffer.Add(IRChange{InputRecord: inputRecord, Reason: irChange.CertReason, Msg: irChange}, luc); err != nil {
 		logger.Warning("IR change request from partition %X error: %w", sysId.Bytes(), err)
 		return
 	}
@@ -485,61 +484,26 @@ func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Paylo
 	if err != nil {
 		return nil, err
 	}
-	// Certify input, everything needs to be verified again as if received from partition node, since we cannot
-	// trust the proposer is honest
-	requests := request_store.NewCertificationRequestStore()
+	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the proposer is honest
 	// Remember all partitions that have changes in the current proposal and apply changes
 	changes := make(map[p.SystemIdentifier]*certificates.InputRecord)
 	for _, irChReq := range payload.Requests {
 		systemId := p.SystemIdentifier(irChReq.SystemIdentifier)
 		// verify certification Request
+		luc, found := committedState.Certificates[systemId]
+		if !found {
+			return nil, errors.Errorf("invalid payload: partition %X state is missing", systemId)
+		}
 		// Find if the SystemIdentifier is known by partition store
 		partitionInfo, err := x.partitions.GetPartitionInfo(systemId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid payload: unknown partition %X", systemId.Bytes())
 		}
-		if err := irChReq.Verify(partitionInfo.TrustBase); err != nil {
+		lucAgeInRounds := time.Duration(x.roundState.GetCurrentRound()-luc.UnicitySeal.RootChainRoundNumber) * x.config.BlockRateMs
+		// verify request
+		inputRecord, err := irChReq.Verify(partitionInfo, luc, lucAgeInRounds)
+		if err != nil {
 			return nil, fmt.Errorf("invalid payload: partition %X certification request verifiaction failed %w", systemId.Bytes(), err)
-		}
-
-		for _, req := range irChReq.Requests {
-			if systemId != p.SystemIdentifier(req.SystemIdentifier) {
-				return nil, fmt.Errorf("invalid payload: ir change req. proof system id does not match %X", req.SystemIdentifier)
-			}
-			if err := requests.Add(req); err != nil {
-				return nil, fmt.Errorf("invalid payload: partition %X, equivocating requets in proof", systemId.Bytes())
-			}
-		}
-		inputRecord, consensusPossible := requests.IsConsensusReceived(systemId, len(partitionInfo.TrustBase))
-		// match request type to proof
-		switch irChReq.CertReason {
-		case atomic_broadcast.IRChangeReqMsg_QUORUM:
-			if inputRecord == nil {
-				return nil, errors.Errorf("invalid payload: partition %X is missing proof for quorum", irChReq.SystemIdentifier)
-			}
-			break
-
-		case atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE:
-			if inputRecord != nil && consensusPossible == false {
-				return nil, errors.Errorf("invalid payload: partition %X missing proof for no quorum", irChReq.SystemIdentifier)
-			}
-			break
-		case atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT:
-			// timout does not carry proof in form of certification requests
-			// validate timeout against round number (or timestamp in unicity seal)
-			cert, found := committedState.Certificates[systemId]
-			if !found {
-				return nil, errors.Errorf("invalid payload: partition %X state is missing", systemId)
-			}
-			// verify timeout ok
-			lucAgeInRounds := (x.roundState.GetCurrentRound() - cert.UnicitySeal.RootChainRoundNumber) * uint64(x.config.BlockRateMs)
-			if lucAgeInRounds < uint64(partitionInfo.SystemDescription.T2Timeout) {
-				return nil, errors.Errorf("invalid payload: partition %X, time from latest UC %v, timeout %v, invalid timeout request",
-					systemId, lucAgeInRounds, partitionInfo.SystemDescription.T2Timeout)
-			}
-			// copy last input record
-			inputRecord = cert.InputRecord
-			break
 		}
 		changes[systemId] = inputRecord
 	}

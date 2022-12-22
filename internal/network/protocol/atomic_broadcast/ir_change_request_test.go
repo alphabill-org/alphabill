@@ -174,7 +174,7 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 	}
 }
 
-func TestIRChangeReqMsg_Verify(t *testing.T) {
+func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 	type fields struct {
 		SystemIdentifier []byte
 		CertReason       IRChangeReqMsg_CERT_REASON
@@ -187,7 +187,7 @@ func TestIRChangeReqMsg_Verify(t *testing.T) {
 	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	trustBase := map[string]crypto.Verifier{"1": v1}
-	req := &certification.BlockCertificationRequest{
+	reqS1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 1},
 		NodeIdentifier:   "1",
 		RootRoundNumber:  0,
@@ -198,20 +198,7 @@ func TestIRChangeReqMsg_Verify(t *testing.T) {
 			SummaryValue: []byte{},
 		},
 	}
-	invalidReq := &certification.BlockCertificationRequest{
-		SystemIdentifier: []byte{0, 0, 0, 1},
-		NodeIdentifier:   "1",
-		RootRoundNumber:  0,
-		InputRecord: &certificates.InputRecord{
-			PreviousHash: []byte{},
-			Hash:         []byte{},
-			BlockHash:    []byte{},
-			SummaryValue: []byte{},
-		},
-		Signature: []byte{0, 19, 12},
-	}
-	require.NoError(t, req.Sign(s1))
-
+	require.NoError(t, reqS1.Sign(s1))
 	tests := []struct {
 		name       string
 		fields     fields
@@ -219,11 +206,32 @@ func TestIRChangeReqMsg_Verify(t *testing.T) {
 		wantErrStr string
 	}{
 		{
+			name: "Not valid system id",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 1},
+				CertReason:       IRChangeReqMsg_T2_TIMEOUT,
+				Requests:         nil,
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: trustBase},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+				},
+				lucAge: 0,
+			},
+			wantErrStr: "invalid ir change request, invalid system identifier",
+		},
+		{
 			name: "IR change request timeout is not valid",
 			fields: fields{
 				SystemIdentifier: []byte{0, 0, 0, 1},
 				CertReason:       IRChangeReqMsg_T2_TIMEOUT,
-				Requests:         []*certification.BlockCertificationRequest{req},
+				Requests:         []*certification.BlockCertificationRequest{reqS1},
 			},
 			args: args{
 				partitionInfo: partition_store.PartitionInfo{
@@ -240,11 +248,11 @@ func TestIRChangeReqMsg_Verify(t *testing.T) {
 			wantErrStr: "invalid ir change request timeout proof, proof contains requests",
 		},
 		{
-			name: "IR does not extend last certified state",
+			name: "Invalid, not yet timeout",
 			fields: fields{
 				SystemIdentifier: []byte{0, 0, 0, 1},
-				CertReason:       IRChangeReqMsg_QUORUM,
-				Requests:         []*certification.BlockCertificationRequest{req},
+				CertReason:       IRChangeReqMsg_T2_TIMEOUT,
+				Requests:         nil,
 			},
 			args: args{
 				partitionInfo: partition_store.PartitionInfo{
@@ -256,16 +264,16 @@ func TestIRChangeReqMsg_Verify(t *testing.T) {
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
 				},
-				lucAge: 0,
+				lucAge: time.Duration(2499) * time.Millisecond,
 			},
-			wantErrStr: "input records does not extend last certified",
+			wantErrStr: "invalid ir change request timeout proof, partition 00000001 time from latest UC 2.499s",
 		},
 		{
-			name: "IR change request verify OK",
+			name: "OK",
 			fields: fields{
 				SystemIdentifier: []byte{0, 0, 0, 1},
-				CertReason:       IRChangeReqMsg_QUORUM_NOT_POSSIBLE,
-				Requests:         []*certification.BlockCertificationRequest{invalidReq},
+				CertReason:       IRChangeReqMsg_T2_TIMEOUT,
+				Requests:         nil,
 			},
 			args: args{
 				partitionInfo: partition_store.PartitionInfo{
@@ -277,30 +285,8 @@ func TestIRChangeReqMsg_Verify(t *testing.T) {
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
 				},
-				lucAge: 0,
+				lucAge: time.Duration(2500) * time.Millisecond,
 			},
-			wantErrStr: "invalid ir change request, signature validation error",
-		},
-		{
-			name: "No proof quorum not possible",
-			fields: fields{
-				SystemIdentifier: []byte{0, 0, 0, 1},
-				CertReason:       IRChangeReqMsg_QUORUM_NOT_POSSIBLE,
-				Requests:         []*certification.BlockCertificationRequest{req},
-			},
-			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: []byte{0, 0, 0, 1},
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
-				luc: &certificates.UnicityCertificate{
-					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
-				},
-				lucAge: 0,
-			},
-			wantErrStr: "not enough requests to prove no quorum is possible",
 		},
 	}
 	for _, tt := range tests {
@@ -313,7 +299,288 @@ func TestIRChangeReqMsg_Verify(t *testing.T) {
 			ir, err := x.Verify(tt.args.partitionInfo, tt.args.luc, tt.args.lucAge)
 			if tt.wantErrStr == "" {
 				require.NoError(t, err)
-				require.NotNil(t, ir)
+				require.Equal(t, tt.args.luc.InputRecord, ir)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErrStr)
+			require.Nil(t, ir)
+		})
+	}
+}
+
+func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
+	type fields struct {
+		SystemIdentifier []byte
+		CertReason       IRChangeReqMsg_CERT_REASON
+		Requests         []*certification.BlockCertificationRequest
+	}
+	type args struct {
+		partitionInfo partition_store.PartitionInfo
+		luc           *certificates.UnicityCertificate
+	}
+	s1, v1 := testsig.CreateSignerAndVerifier(t)
+	s2, v2 := testsig.CreateSignerAndVerifier(t)
+
+	trustBase := map[string]crypto.Verifier{"1": v1, "2": v2}
+	reqS1 := &certification.BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 1},
+		NodeIdentifier:   "1",
+		RootRoundNumber:  0,
+		InputRecord: &certificates.InputRecord{
+			PreviousHash: []byte{0, 0, 0},
+			Hash:         []byte{1, 1, 1},
+			BlockHash:    []byte{2, 2, 2},
+			SummaryValue: []byte{4, 4, 4},
+		},
+	}
+	require.NoError(t, reqS1.Sign(s1))
+	reqS2 := &certification.BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 1},
+		NodeIdentifier:   "2",
+		RootRoundNumber:  0,
+		InputRecord: &certificates.InputRecord{
+			PreviousHash: []byte{0, 0, 0},
+			Hash:         []byte{1, 1, 1},
+			BlockHash:    []byte{2, 2, 2},
+			SummaryValue: []byte{4, 4, 4},
+		},
+	}
+	require.NoError(t, reqS2.Sign(s2))
+
+	invalidReq := &certification.BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 1},
+		NodeIdentifier:   "1",
+		RootRoundNumber:  0,
+		InputRecord: &certificates.InputRecord{
+			PreviousHash: []byte{0, 0, 0},
+			Hash:         []byte{1, 1, 1},
+			BlockHash:    []byte{2, 2, 2},
+			SummaryValue: []byte{4, 4, 4},
+		},
+		Signature: []byte{0, 19, 12},
+	}
+
+	tests := []struct {
+		name       string
+		fields     fields
+		args       args
+		wantErrStr string
+	}{
+		{
+			name: "IR change request, signature verification error",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				CertReason:       IRChangeReqMsg_QUORUM,
+				Requests:         []*certification.BlockCertificationRequest{invalidReq},
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: trustBase},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+				},
+			},
+			wantErrStr: "signature verification failed",
+		},
+		{
+			name: "Proof contains more request, than there are partition nodes",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				CertReason:       IRChangeReqMsg_QUORUM,
+				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: map[string]crypto.Verifier{"1": v1}},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+				},
+			},
+			wantErrStr: "invalid ir change request, proof contains more requests than registered partition nodes",
+		},
+		{
+			name: "Not enough requests for quorum",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				CertReason:       IRChangeReqMsg_QUORUM,
+				Requests:         []*certification.BlockCertificationRequest{reqS1},
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: trustBase},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
+				},
+			},
+			wantErrStr: "not enough requests to prove quorum",
+		},
+		{
+			name: "IR does not extend last certified state",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				CertReason:       IRChangeReqMsg_QUORUM,
+				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: trustBase},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 1}},
+				},
+			},
+			wantErrStr: "input records does not extend last certified",
+		},
+		{
+			name: "OK",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				CertReason:       IRChangeReqMsg_QUORUM,
+				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: trustBase},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			x := &IRChangeReqMsg{
+				SystemIdentifier: tt.fields.SystemIdentifier,
+				CertReason:       tt.fields.CertReason,
+				Requests:         tt.fields.Requests,
+			}
+			ir, err := x.Verify(tt.args.partitionInfo, tt.args.luc, 0)
+			if tt.wantErrStr == "" {
+				require.NoError(t, err)
+				require.Equal(t, tt.fields.Requests[0].InputRecord, ir)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErrStr)
+			require.Nil(t, ir)
+		})
+	}
+}
+
+func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
+	type fields struct {
+		SystemIdentifier []byte
+		CertReason       IRChangeReqMsg_CERT_REASON
+		Requests         []*certification.BlockCertificationRequest
+	}
+	type args struct {
+		partitionInfo partition_store.PartitionInfo
+		luc           *certificates.UnicityCertificate
+	}
+	s1, v1 := testsig.CreateSignerAndVerifier(t)
+	s2, v2 := testsig.CreateSignerAndVerifier(t)
+
+	trustBase := map[string]crypto.Verifier{"1": v1, "2": v2}
+	reqS1 := &certification.BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 1},
+		NodeIdentifier:   "1",
+		RootRoundNumber:  0,
+		InputRecord: &certificates.InputRecord{
+			PreviousHash: []byte{0, 0, 0},
+			Hash:         []byte{1, 1, 1},
+			BlockHash:    []byte{2, 2, 2},
+			SummaryValue: []byte{4, 4, 4},
+		},
+	}
+	require.NoError(t, reqS1.Sign(s1))
+	reqS2 := &certification.BlockCertificationRequest{
+		SystemIdentifier: []byte{0, 0, 0, 1},
+		NodeIdentifier:   "2",
+		RootRoundNumber:  0,
+		InputRecord: &certificates.InputRecord{
+			PreviousHash: []byte{0, 0, 0},
+			Hash:         []byte{5, 5, 5},
+			BlockHash:    []byte{2, 2, 2},
+			SummaryValue: []byte{4, 4, 4},
+		},
+	}
+	require.NoError(t, reqS2.Sign(s2))
+
+	tests := []struct {
+		name       string
+		fields     fields
+		args       args
+		wantErrStr string
+	}{
+		{
+			name: "No proof quorum not possible",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				CertReason:       IRChangeReqMsg_QUORUM_NOT_POSSIBLE,
+				Requests:         []*certification.BlockCertificationRequest{reqS1},
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: trustBase},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
+				},
+			},
+			wantErrStr: "not enough requests to prove no quorum is possible",
+		},
+		{
+			name: "OK",
+			fields: fields{
+				SystemIdentifier: []byte{0, 0, 0, 1},
+				CertReason:       IRChangeReqMsg_QUORUM_NOT_POSSIBLE,
+				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
+			},
+			args: args{
+				partitionInfo: partition_store.PartitionInfo{
+					SystemDescription: &genesis.SystemDescriptionRecord{
+						SystemIdentifier: []byte{0, 0, 0, 1},
+						T2Timeout:        2500,
+					},
+					TrustBase: trustBase},
+				luc: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 0}},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			x := &IRChangeReqMsg{
+				SystemIdentifier: tt.fields.SystemIdentifier,
+				CertReason:       tt.fields.CertReason,
+				Requests:         tt.fields.Requests,
+			}
+			ir, err := x.Verify(tt.args.partitionInfo, tt.args.luc, 0)
+			if tt.wantErrStr == "" {
+				require.NoError(t, err)
+				require.Equal(t, tt.args.luc.InputRecord, ir)
 				return
 			}
 			require.ErrorContains(t, err, tt.wantErrStr)

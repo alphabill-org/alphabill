@@ -24,7 +24,7 @@ func getMaxHashCount(hashCnt map[string]uint64) uint64 {
 
 func (x *IRChangeReqMsg) IsValid() error {
 	if len(x.SystemIdentifier) != 4 {
-		return ErrInvalidSystemId
+		return fmt.Errorf("invalid ir change request, invalid system identifier %v", x.SystemIdentifier)
 	}
 	// ignore other values for now, just make sure it is not negative
 	if x.CertReason < 0 || x.CertReason > IRChangeReqMsg_T2_TIMEOUT {
@@ -40,8 +40,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 	nofNodes := len(partitionInfo.TrustBase)
 	// quick sanity check, there cannot be more requests than known partition nodes
 	if len(x.Requests) > len(partitionInfo.TrustBase) {
-		return nil, fmt.Errorf("invalid ir change request, more requests %v than known for partition nodes %v",
-			x.Requests, nofNodes)
+		return nil, fmt.Errorf("invalid ir change request, proof contains more requests than registered partition nodes")
 	}
 	// verify IR change proof
 	// monitor hash counts
@@ -53,16 +52,18 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		if !f {
 			return nil, fmt.Errorf("invalid ir change request, unknown node %v for partition %X", req.NodeIdentifier, x.SystemIdentifier)
 		}
-		if err := v.VerifyBytes(req.Signature, req.Bytes()); err != nil {
-			return nil, fmt.Errorf("invalid ir change request, signature validation error system id %X, node %v, error %w",
+		if err := req.IsValid(v); err != nil {
+			return nil, fmt.Errorf("invalid ir change request, proof from system id %X node %v is not valid: %w",
 				req.SystemIdentifier, req.NodeIdentifier, err)
-		}
-		if len(req.NodeIdentifier) == 0 {
-			return nil, fmt.Errorf("invalid ir change request, no author")
 		}
 		if !bytes.Equal(x.SystemIdentifier, req.SystemIdentifier) {
 			return nil, fmt.Errorf("invalid ir change request proof, ir change requets and req proof system id does not match %X vs %X",
 				req.SystemIdentifier, req.SystemIdentifier)
+		}
+		// validate against last unicity certificate
+		if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
+			return nil, fmt.Errorf("invalid ir change request proof, partition %X validator %v input records does not extend last certified",
+				x.SystemIdentifier, req.NodeIdentifier)
 		}
 		if _, found := nodeIDs[req.NodeIdentifier]; found {
 			return nil, fmt.Errorf("invalid ir change request proof, proof contains duplicate request from node %v", req.NodeIdentifier)
@@ -87,12 +88,8 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		if count := getMaxHashCount(hashCnt); count < partitionInfo.GetQuorum() {
 			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X not enough requests to prove quorum", x.SystemIdentifier)
 		}
-		// 3. validate against last unicity certificate (NB! there was at least one request, otherwise we would not be here)
-		ir := x.Requests[0].InputRecord
-		if !bytes.Equal(ir.PreviousHash, luc.InputRecord.Hash) {
-			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X input records does not extend last certified", x.SystemIdentifier)
-		}
-		return ir, nil
+		// NB! there was at least one request, otherwise we would not be here
+		return x.Requests[0].InputRecord, nil
 	case IRChangeReqMsg_QUORUM_NOT_POSSIBLE:
 		// Verify that enough partition nodes have voted for different IR change
 		// a) find how many votes are missing (nof nodes - requests)
@@ -100,6 +97,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		if nofNodes-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(partitionInfo.GetQuorum()) {
 			return nil, fmt.Errorf("invalid ir change request no quorum proof for %X, not enough requests to prove no quorum is possible", x.SystemIdentifier)
 		}
+		// initiate repeat UC
 		return luc.InputRecord, nil
 	case IRChangeReqMsg_T2_TIMEOUT:
 		// timout does not carry proof in form of certification requests
@@ -109,9 +107,10 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		}
 		// validate timeout against LUC age
 		if lucAge < time.Duration(partitionInfo.SystemDescription.T2Timeout)*time.Millisecond {
-			return nil, fmt.Errorf("invalid ir change request timeout proof, partition %X, time from latest UC %v, timeout %v",
+			return nil, fmt.Errorf("invalid ir change request timeout proof, partition %X time from latest UC %v, timeout %v",
 				x.SystemIdentifier, lucAge, partitionInfo.SystemDescription.T2Timeout)
 		}
+		// initiate repeat UC
 		return luc.InputRecord, nil
 	}
 	return nil, fmt.Errorf("unknown certificatio reason %v", x.CertReason)

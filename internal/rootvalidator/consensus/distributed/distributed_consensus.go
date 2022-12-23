@@ -427,7 +427,10 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		logger.Warning("Atomic broadcast Vote verify failed: %v", err)
 	}
 	// SyncState
-	x.checkRootState(vote.HighQc)
+	if x.checkRecoveryNeeded(vote.HighQc) {
+		logger.Error("Recovery not yet implemented")
+		// todo: AB-320 try to recover
+	}
 	// Was the proposal received? If not, should we recover it? or do we accept that this round will end up as timeout
 	round := vote.VoteInfo.RootRound
 	// Normal votes are only sent to the next leader,
@@ -458,7 +461,11 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	// Author voted timeout, proceed
 	logger.Info("Received timout vote from %v, round %v",
 		vote.Author, vote.Timeout.Round)
-
+	// SyncState
+	if x.checkRecoveryNeeded(vote.Timeout.HighQc) {
+		logger.Error("Recovery not yet implemented")
+		// todo: AB-320 try to recover
+	}
 	tc := x.roundState.RegisterTimeoutVote(vote, x.rootVerifier)
 	if tc != nil {
 		logger.Info("Round %v timeout quorum achieved", vote.Timeout.Round)
@@ -466,14 +473,13 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	}
 }
 
-func (x *ConsensusManager) checkRootState(qc *atomic_broadcast.QuorumCert) {
+func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) bool {
 	execStateId := x.roundPipeline.GetExecStateId()
 	if !bytes.Equal(qc.VoteInfo.ExecStateId, execStateId) {
 		logger.Warning("QC round %v state is different, recover state", qc.VoteInfo.RootRound)
-		logger.Error("Recovery not yet implemented")
-		// todo: AB-320 try to recover
-		return
+		return true
 	}
+	return false
 }
 
 func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Payload) (map[p.SystemIdentifier]*certificates.InputRecord, error) {
@@ -529,7 +535,10 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	x.processCertificateQC(proposal.Block.Qc)
 	x.processTC(proposal.LastRoundTc)
 	// Check in sync with other root nodes
-	x.checkRootState(proposal.Block.Qc)
+	if x.checkRecoveryNeeded(proposal.Block.Qc) {
+		logger.Error("Recovery not yet implemented")
+		// todo: AB-320 try to recover
+	}
 	// execute proposed payload
 	changes, err := x.VerifyProposalPayload(proposal.Block.Payload)
 	// execute proposal

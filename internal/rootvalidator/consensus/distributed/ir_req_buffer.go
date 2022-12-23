@@ -45,10 +45,13 @@ func compareIR(a, b *certificates.InputRecord) bool {
 
 // Add validates incoming IR change request and buffers valid requests. If for any reason the IR request is found not
 // valid, reason is logged, error is returned and request is ignored.
-func (x *IrReqBuffer) Add(newIrChReq IRChange, luc *certificates.UnicityCertificate) error {
+func (x *IrReqBuffer) Add(newIrChReq IRChange) error {
 	systemId := protocol.SystemIdentifier(newIrChReq.Msg.SystemIdentifier)
 	irChangeReq, found := x.irChgReqBuffer[systemId]
 	if found {
+		if irChangeReq.Reason != newIrChReq.Reason {
+			return fmt.Errorf("error equivocating request for partition %X reason has changed", systemId.Bytes())
+		}
 		// compare IR's
 		if compareIR(irChangeReq.InputRecord, newIrChReq.InputRecord) == true {
 			// duplicate already stored
@@ -75,5 +78,7 @@ func (x *IrReqBuffer) GeneratePayload() *atomic_broadcast.Payload {
 		payload.Requests[i] = req.Msg
 		i++
 	}
+	// clear the buffer once payload is done
+	x.irChgReqBuffer = make(map[protocol.SystemIdentifier]IRChange)
 	return payload
 }

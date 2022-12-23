@@ -413,7 +413,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// Buffer and wait for opportunity to make the next proposal
-	if err := x.irReqBuffer.Add(IRChange{InputRecord: inputRecord, Reason: irChange.CertReason, Msg: irChange}, luc); err != nil {
+	if err := x.irReqBuffer.Add(IRChange{InputRecord: inputRecord, Reason: irChange.CertReason, Msg: irChange}); err != nil {
 		logger.Warning("IR change request from partition %X error: %w", sysId.Bytes(), err)
 		return
 	}

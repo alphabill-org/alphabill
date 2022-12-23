@@ -57,16 +57,18 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 				req.SystemIdentifier, req.NodeIdentifier, err)
 		}
 		if !bytes.Equal(x.SystemIdentifier, req.SystemIdentifier) {
-			return nil, fmt.Errorf("invalid ir change request proof, ir change requets and req proof system id does not match %X vs %X",
-				req.SystemIdentifier, req.SystemIdentifier)
+			return nil, fmt.Errorf("invalid ir change request proof, %X node %v proof system id %X does not match",
+				x.SystemIdentifier, req.NodeIdentifier, req.SystemIdentifier)
 		}
+		// todo: AB-505 add partition round number and epoch check, also skipping root round number checks for now as they are not part of the new spec.
 		// validate against last unicity certificate
 		if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
 			return nil, fmt.Errorf("invalid ir change request proof, partition %X validator %v input records does not extend last certified",
 				x.SystemIdentifier, req.NodeIdentifier)
 		}
 		if _, found := nodeIDs[req.NodeIdentifier]; found {
-			return nil, fmt.Errorf("invalid ir change request proof, proof contains duplicate request from node %v", req.NodeIdentifier)
+			return nil, fmt.Errorf("invalid ir change request proof, partition %X proof contains duplicate request from node %v",
+				x.SystemIdentifier, req.NodeIdentifier)
 		}
 		// register node id
 		nodeIDs[req.NodeIdentifier] = struct{}{}
@@ -80,9 +82,10 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 	switch x.CertReason {
 	case IRChangeReqMsg_QUORUM:
 		// 1. require that all input records served as proof are the same
-		// Reject requests carrying redundant info, there is no use for proofs that do not participate in quorum
+		// reject requests carrying redundant info, there is no use for proofs that do not participate in quorum
+		// perhaps this is a bit harsh, but let's not waste bandwidth
 		if len(hashCnt) != 1 {
-			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X IR request contains not matching IR records", x.SystemIdentifier)
+			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X contains proofs for no quorum", x.SystemIdentifier)
 		}
 		// 2. more than 50% of the nodes must have voted for the same IR
 		if count := getMaxHashCount(hashCnt); count < partitionInfo.GetQuorum() {
@@ -113,6 +116,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		// initiate repeat UC
 		return luc.InputRecord, nil
 	}
+	// should be unreachable, since validate method already makes sure that reason is known
 	return nil, fmt.Errorf("unknown certificatio reason %v", x.CertReason)
 }
 

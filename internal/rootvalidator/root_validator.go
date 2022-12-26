@@ -33,14 +33,6 @@ type (
 		Stop()
 	}
 
-	CertificationRequestStore interface {
-		Add(request *certification.BlockCertificationRequest) error
-		IsConsensusReceived(partition partition_store.PartitionInfo) (*certificates.InputRecord, bool)
-		GetRequests(id proto.SystemIdentifier) []*certification.BlockCertificationRequest
-		Reset()
-		Clear(id proto.SystemIdentifier)
-	}
-
 	PartitionNet interface {
 		Send(msg network.OutputMessage, receivers []peer.ID) error
 		ReceivedChannel() <-chan network.ReceivedMessage
@@ -68,7 +60,7 @@ type (
 		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
 		partitionStore   PartitionStoreRd
-		incomingRequests CertificationRequestStore
+		incomingRequests *CertRequestBuffer
 		net              PartitionNet
 		consensusManager ConsensusManager
 	}
@@ -255,7 +247,8 @@ func (v *Validator) sendResponse(nodeId string, uc *certificates.UnicityCertific
 		logger.Warning("Invalid node identifier: '%s'", nodeId)
 		return
 	}
-	logger.Info("Sending unicity certificate to '%s', IR Hash: %X, Block Hash: %X", nodeId, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
+	logger.Info("Sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
+		uc.UnicityTreeCertificate.SystemIdentifier, nodeId, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 	err = v.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolUnicityCertificates,
@@ -311,7 +304,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(info)
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
-		logger.Debug("Partition reached a consensus. SystemIdentifier: %X, InputHash: %X. ", systemIdentifier.Bytes(), ir.Hash)
+		logger.Info("Partition %X reached consensus, new InputHash: %X. ", systemIdentifier.Bytes(), ir.Hash)
 		requests := v.incomingRequests.GetRequests(systemIdentifier)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
@@ -319,7 +312,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 			IR:               ir,
 			Requests:         requests}
 	} else if !consensusPossible {
-		logger.Debug("Consensus not possible for partition %X.", systemIdentifier.Bytes())
+		logger.Info("Partition %X consensus not possible, repeat UC", systemIdentifier.Bytes())
 		// Get last unicity certificate for the partition
 		luc, err := v.getLatestUnicityCertificate(systemIdentifier)
 		if err != nil {

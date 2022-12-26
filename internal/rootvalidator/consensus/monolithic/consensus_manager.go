@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"golang.org/x/exp/maps"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -79,7 +80,7 @@ func WithHashAlgo(algo gocrypto.Hash) Option {
 }
 
 func trackExecutionTime(start time.Time, name string) {
-	logger.Debug(name, " took ", time.Since(start))
+	logger.Debug(fmt.Sprintf("%v took %v", name, time.Since(start)))
 }
 
 func loadInputRecords(state *store.RootState) map[p.SystemIdentifier]*certificates.InputRecord {
@@ -167,7 +168,7 @@ func (x *ConsensusManager) loop() {
 			timerId := nt.Name()
 			switch {
 			case timerId == t3TimerID:
-				logger.Debug("T3 timeout")
+				logger.Info("T3 timeout")
 				x.timers.Restart(timerId)
 				x.onT3Timeout()
 			}
@@ -176,7 +177,7 @@ func (x *ConsensusManager) loop() {
 }
 
 func (x *ConsensusManager) onT3Timeout() {
-	defer trackExecutionTime(time.Now(), fmt.Sprintf("t3 timeout handling"))
+	defer trackExecutionTime(time.Now(), "t3 timeout handling")
 	state, err := x.conf.stateStore.Get()
 	if err != nil {
 		logger.Warning("T3 timeout, failed to read last state from storage: %v", err.Error())
@@ -189,7 +190,7 @@ func (x *ConsensusManager) onT3Timeout() {
 	}
 	// if no new consensus or timeout then skip the round
 	if len(x.changes) == 0 {
-		logger.Debug("Round %v, no IR changes", newRound)
+		logger.Info("Round %v, no IR changes", newRound)
 		// persist new round
 		newState := store.RootState{
 			LatestRound:    newRound,
@@ -232,7 +233,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) 
 			if time.Duration(round-cert.UnicitySeal.RootChainRoundNumber)*x.conf.t3Timeout >
 				time.Duration(partInfo.SystemDescription.T2Timeout)*time.Millisecond {
 				// timeout
-				logger.Debug("Round %v, partition %X T2 timeout", round, id.Bytes())
+				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
 				x.changes[id] = cert.InputRecord
 			}
 		}
@@ -242,7 +243,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) 
 
 func (x *ConsensusManager) generateUnicityCertificates(round uint64, lastState *store.RootState) (*store.RootState, error) {
 	// log all changes for this round
-	logger.Debug("Round %v, changed input records are:", round)
+	logger.Info("Round %v, certify changes for partitions %X", round, maps.Keys(x.changes))
 	// apply changes
 	for id, ch := range x.changes {
 		// add sanity checks

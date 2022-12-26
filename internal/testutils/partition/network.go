@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -13,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -24,7 +24,7 @@ import (
 
 // AlphabillPartition for integration tests
 type AlphabillPartition struct {
-	RootChain    *rootchain.RootChain
+	RootChain    *rootvalidator.Validator
 	Nodes        []*partition.Node
 	ctxCancel    context.CancelFunc
 	ctx          context.Context
@@ -100,11 +100,11 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	}
 
 	// create root genesis
-	pr, err := rootchain.NewPartitionRecordFromNodes(nodeGenesisFiles)
+	pr, err := rootvalidator.NewPartitionRecordFromNodes(nodeGenesisFiles)
 	if err != nil {
 		return nil, err
 	}
-	rootGenesis, partitionGenesisFiles, err := rootchain.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
+	rootGenesis, partitionGenesisFiles, err := rootvalidator.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,12 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, err
 	}
-	root, err := rootchain.NewRootChain(rootPeer, rootGenesis, rootSigner, rootNet, rootchain.WithT3Timeout(900*time.Millisecond))
+
+	// Create distributed consensus manager
+	root, err := rootvalidator.NewRootValidatorNode(rootGenesis, rootPeer, rootNet, rootvalidator.MonolithicConsensus(rootPeer.ID().String(), rootSigner))
+	if err != nil {
+		return nil, err
+	}
 
 	partitionGenesis := partitionGenesisFiles[0]
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -123,11 +128,13 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	eh := &testevent.TestEventHandler{}
 	for i := 0; i < partitionNodes; i++ {
 		if err != nil {
+			ctxCancel()
 			return nil, err
 		}
 		peer := nodePeers[i]
 		pn, err := network.NewLibP2PValidatorNetwork(peer, network.DefaultValidatorNetOptions)
 		if err != nil {
+			ctxCancel()
 			return nil, err
 		}
 		n, err := partition.New(
@@ -141,6 +148,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			partition.WithEventHandler(eh.HandleEvent, 100),
 		)
 		if err != nil {
+			ctxCancel()
 			return nil, err
 		}
 		nodes[i] = n

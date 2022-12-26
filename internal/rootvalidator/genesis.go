@@ -229,7 +229,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		srdh, _ := sdrhs[sysId]
 		if err := uc.IsValid(trustBase, c.hashAlgorithm, sysId.Bytes(), srdh); err != nil {
 			// should never happen.
-			return nil, nil, fmt.Errorf("error invalid genese unicity certificate: %w", err)
+			return nil, nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
 		}
 		certs[sysId] = uc
 	}

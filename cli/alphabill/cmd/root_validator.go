@@ -8,19 +8,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
-	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
@@ -136,27 +130,10 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 			return err
 		}
 	}
-	// Initiate state store
-	err = initiateStateStore(config.StateStore, rootGenesis)
-	if err != nil {
-		return errors.Wrap(err, "failed to initiate state store")
-	}
-	// Initiate partition store
-	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	if err != nil {
-		return errors.Wrap(err, "failed to initiate partition store")
-	}
-	var consensusMgr rootvalidator.ConsensusManager
+	var consensusFn rootvalidator.ConsensusFn = nil
 	// use monolithic consensus algorithm
 	if len(rootGenesis.Root.RootValidators) == 1 {
-
-		consensusMgr, err = monolithic.NewMonolithicConsensusManager(prtHost,
-			partitionStore,
-			keys.SigningPrivateKey,
-			monolithic.WithStateStorage(config.StateStore))
-		if err != nil {
-			return errors.Wrapf(err, "failed to init consensus manager")
-		}
+		consensusFn = rootvalidator.MonolithicConsensus(prtHost.ID().String(), keys.SigningPrivateKey)
 	} else {
 		// Initiate Root validator network
 		rootHost, err := loadRootNetworkConfiguration(keys, rootGenesis.Root.RootValidators, config)
@@ -167,23 +144,14 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		if err != nil {
 			return errors.Wrapf(err, "failed initiate root validator validator network")
 		}
-		// Create distributed consensus manager
-		consensusMgr, err = distributed.NewDistributedAbConsensusManager(
-			rootHost,
-			rootGenesis.Root,
-			partitionStore,
-			keys.SigningPrivateKey,
-			rootNet,
-			distributed.WithStateStore(config.StateStore))
-		if err != nil {
-			return errors.Wrapf(err, "failed to init consensus manager")
-		}
+		// Create distributed consensus manager function
+		consensusFn = rootvalidator.DistributedConsensus(rootGenesis.Root, rootHost, rootNet, keys.SigningPrivateKey)
 	}
 	validator, err := rootvalidator.NewRootValidatorNode(
-		consensusMgr,
-		partitionStore,
+		rootGenesis,
 		prtHost,
 		partitionNet,
+		consensusFn,
 		rootvalidator.WithStateStore(config.StateStore),
 	)
 	if err != nil {
@@ -242,27 +210,6 @@ func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKe
 		PersistentPeers: persistentPeers,
 	}
 	return network.NewPeer(conf)
-}
-
-func initiateStateStore(stateStore distributed.StateStore, rg *genesis.RootGenesis) error {
-	state, err := stateStore.Get()
-	if err != nil {
-		return err
-	}
-	// Init from genesis file is done only once
-	if state.LatestRound > 0 {
-		return nil
-	}
-	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
-	for _, partition := range rg.Partitions {
-		identifier := partition.GetSystemIdentifierString()
-		certs[identifier] = partition.Certificate
-	}
-	// If not initiated, save genesis file to store
-	if err := stateStore.Save(store.RootState{LatestRound: rg.GetRoundNumber(), Certificates: certs, LatestRootHash: rg.GetRoundHash()}); err != nil {
-		return err
-	}
-	return nil
 }
 
 func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {

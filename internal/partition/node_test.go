@@ -37,15 +37,15 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
 	p := NewSingleNodePartition(t, s)
 	defer p.Close()
-	ucr := &certificates.UnicityCertificate{
+	/*	ucr := &certificates.UnicityCertificate{
 		UnicitySeal: &certificates.UnicitySeal{
 			RootChainRoundNumber: 0,
 			PreviousHash:         nil,
 			Hash:                 nil,
 			RoundCreationTime:    util.MakeTimestamp(),
 		},
-	}
-	p.partition.startNewRound(ucr)
+	}*/
+	//p.partition.startNewRound(ucr)
 	require.Equal(t, uint64(1), s.BeginBlockCountDelta)
 }
 

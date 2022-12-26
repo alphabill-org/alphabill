@@ -126,27 +126,25 @@ func (rs *requestStore) isConsensusReceived(partition partition_store.PartitionI
 	}
 	if h == nil {
 		// consensus possible in the future
-		logger.Debug("isConsensusReceived: no hashes received yet, consensus possible in the future")
+		logger.Debug("Consensus possible in the future, no hashes received yet")
 		return nil, true
 	}
 	quorum := partition.GetQuorum()
-	logger.Debug("isConsensusReceived: count: %v, needed count: %v, hash:%X", c, quorum, h)
 	if uint64(c) >= quorum {
 		// consensus received
-		logger.Debug("isConsensusReceived: yes")
 		for _, req := range rs.requests {
 			if bytes.Equal(h, req.InputRecord.Hash) {
-				logger.Debug("isConsensusReceived: returning IR (hash: %X, block hash: %X)", req.InputRecord.Hash, req.InputRecord.BlockHash)
+				logger.Debug("Consensus achieved, returning IR (hash: %X, block hash: %X)", req.InputRecord.Hash, req.InputRecord.BlockHash)
 				return req.InputRecord, true
 			}
 		}
 	} else if len(partition.TrustBase)-len(rs.requests)+int(c) < int(quorum) {
-		logger.Debug("isConsensusReceived: consensus not possible")
+		logger.Debug("Consensus not possible, hash count: %v, needed count: %v, missing: %v", c, quorum, len(partition.TrustBase)-len(rs.requests))
 		// consensus not possible
 		return nil, false
 	}
 	// consensus possible in the future
-	logger.Debug("isConsensusReceived: consensus possible in the future")
+	logger.Debug("Consensus possible in the future, hash count: %v, needed count: %v, hash:%X", c, quorum, h)
 	return nil, true
 }
 

@@ -84,24 +84,24 @@ type (
 // New creates a new instance of the partition node. All parameters expect the nodeOptions are required. Functions
 // implementing the NodeOption interface can be used to override default configuration values:
 //
-//   n, err := New(
-//  	peer,
-// 		signer,
-//		txSystem,
-//		genesis,
-// 		net,
-// 		WithContext(context.Background()),
-// 		WithTxValidator(myTxValidator)),
-// 		WithUnicityCertificateValidator(ucValidator),
-// 		WithBlockProposalValidator(blockProposalValidator),
-//		WithLeaderSelector(leaderSelector),
-// 		WithBlockStore(blockStore),
-// 		WithT1Timeout(250*time.Millisecond),
-//   )
+//	  n, err := New(
+//	 	peer,
+//			signer,
+//			txSystem,
+//			genesis,
+//			net,
+//			WithContext(context.Background()),
+//			WithTxValidator(myTxValidator)),
+//			WithUnicityCertificateValidator(ucValidator),
+//			WithBlockProposalValidator(blockProposalValidator),
+//			WithLeaderSelector(leaderSelector),
+//			WithBlockStore(blockStore),
+//			WithT1Timeout(250*time.Millisecond),
+//	  )
 //
 // The following restrictions apply to the inputs:
-// 		* the network peer and signer must use the same keys that were used to generate node genesis file;
-//		* the state of the transaction system must be equal to the state that was used to generate genesis file.
+//   - the network peer and signer must use the same keys that were used to generate node genesis file;
+//   - the state of the transaction system must be equal to the state that was used to generate genesis file.
 func New(
 	peer *network.Peer, // P2P peer for the node
 	signer crypto.Signer, // used to sign block proposals and block certification requests
@@ -211,6 +211,8 @@ func initState(n *Node) error {
 		}
 		n.transactionSystem.Commit() // commit everything from the genesis
 		uc = genesisBlock.UnicityCertificate
+		// select leader from genesis seal
+		n.startNewRound(uc)
 		logger.Info("State initialised from the genesis block")
 	}
 	n.luc = uc
@@ -490,9 +492,9 @@ func (n *Node) validateAndExecuteTx(tx txsystem.GenericTransaction, latestBlockN
 
 // handleBlockProposal processes a block proposals. Performs the following steps:
 //  1. Block proposal as a whole is validated:
-// 		 * It must have valid signature, correct transaction system ID, valid UC;
-//     	 * the UC must be not older than the latest known by current node;
-//    	 * Sender must be the leader for the round started by included UC.
+//     * It must have valid signature, correct transaction system ID, valid UC;
+//     * the UC must be not older than the latest known by current node;
+//     * Sender must be the leader for the round started by included UC.
 //  2. If included UC is newer than latest UC then the new UC is processed; this rolls back possible pending change in
 //     the transaction system. If new UC is ‘repeat UC’ then update is reasonably fast; if recovery is necessary then
 //     likely it takes some time and there is no reason to finish the processing of current proposal.
@@ -567,11 +569,11 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 }
 
 // handleUnicityCertificate processes the Unicity Certificate and finalizes a block. Performs the following steps:
-// 	1. Given UC is validated cryptographically.
+//  1. Given UC is validated cryptographically.
 //  2. Given UC must be newer than the last one seen.
-// 	3. Given UC is checked for equivocation, that is,
-//	   a) there can not be two UC-s with the same Root Chain block number but certifying different state root hashes;
-//	   b) there can not be two UC-s extending the same state, but certifying different states (forking).
+//  3. Given UC is checked for equivocation, that is,
+//     a) there can not be two UC-s with the same Root Chain block number but certifying different state root hashes;
+//     b) there can not be two UC-s extending the same state, but certifying different states (forking).
 //  4. On unexpected case where there is no pending block proposal, recovery is initiated, unless the state is already
 //     up-to-date with the given UC.
 //  5. Alternatively, if UC certifies the pending block proposal then block is finalized.

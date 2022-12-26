@@ -1,4 +1,4 @@
-package request_store
+package rootvalidator
 
 import (
 	"testing"
@@ -143,7 +143,7 @@ func TestRequestStore_isConsensusNotPossible_FiveNodes(t *testing.T) {
 
 // Test interface
 func Test_CertStore_add(t *testing.T) {
-	cs := NewCertificationRequestStore()
+	cs := NewCertificationRequestBuffer()
 	partitionInfo := partition_store.PartitionInfo{
 		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
@@ -157,7 +157,7 @@ func Test_CertStore_add(t *testing.T) {
 }
 
 func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
-	cs := NewCertificationRequestStore()
+	cs := NewCertificationRequestBuffer()
 	partitionInfo := partition_store.PartitionInfo{
 		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
@@ -177,7 +177,7 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 }
 
 func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
-	cs := NewCertificationRequestStore()
+	cs := NewCertificationRequestBuffer()
 	partInfo1 := partition_store.PartitionInfo{
 		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
@@ -214,7 +214,7 @@ func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 }
 
 func TestCertRequestStore_clearOne(t *testing.T) {
-	cs := NewCertificationRequestStore()
+	cs := NewCertificationRequestBuffer()
 	partInfo2 := partition_store.PartitionInfo{
 		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId2, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
@@ -232,7 +232,7 @@ func TestCertRequestStore_clearOne(t *testing.T) {
 }
 
 func TestCertRequestStore_EmptyStore(t *testing.T) {
-	cs := NewCertificationRequestStore()
+	cs := NewCertificationRequestBuffer()
 	partInfo1 := partition_store.PartitionInfo{
 		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},

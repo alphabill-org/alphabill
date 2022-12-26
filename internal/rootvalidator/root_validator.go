@@ -20,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/request_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -159,7 +158,7 @@ func NewRootValidatorNode(
 		conf:             config,
 		partitionHost:    prt,
 		partitionStore:   partitionStore,
-		incomingRequests: request_store.NewCertificationRequestStore(),
+		incomingRequests: NewCertificationRequestBuffer(),
 		net:              pNet,
 		consensusManager: consensusManager,
 	}

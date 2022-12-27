@@ -647,7 +647,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	u, err := executor.state.GetUnit(uID)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	require.Equal(t, rma.Predicate([]byte{0}), u.Bearer)
+	require.Equal(t, rma.Predicate(script.PredicateAlwaysFalse()), u.Bearer)
 	require.IsType(t, &fungibleTokenData{}, u.Data)
 	d := u.Data.(*fungibleTokenData)
 

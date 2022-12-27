@@ -256,7 +256,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     util.Uint256ToBytes(sUnitID1),
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   burnGenTxHash,
-		bearer:     []byte{0},
+		bearer:     script.PredicateAlwaysFalse(),
 		tokenValue: splitValue1,
 	})
 
@@ -283,7 +283,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		unitID:     util.Uint256ToBytes(sUnitID2),
 		typeUnitID: fungibleTokenTypeID,
 		backlink:   burnGenTx2.Hash(hashAlgorithm),
-		bearer:     []byte{0},
+		bearer:     script.PredicateAlwaysFalse(),
 		tokenValue: splitValue2,
 	})
 

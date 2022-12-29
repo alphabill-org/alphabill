@@ -40,8 +40,8 @@ type moneyGenesisConfig struct {
 	SystemIdentifier   []byte
 	Keys               *keysConfig
 	Output             string
-	InitialBillValue   uint64 `validate:"gte=0"` // InitialBillValue
-	DCMoneySupplyValue uint64 `validate:"gte=0"` // DCMoneySupplyValue
+	InitialBillValue   uint64 `validate:"gte=0"`
+	DCMoneySupplyValue uint64 `validate:"gte=0"`
 	T2Timeout          uint32 `validate:"gte=0"`
 	FeeCreditBillFiles []string
 }
@@ -69,7 +69,7 @@ func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
-	cmd.Flags().StringSliceVarP(&config.FeeCreditBillFiles, "fee-credit-files", "c", nil, "path to fee credit bill files (one for each partition, including money partion itself; defaults to single money partition only fee credit bill (id=2; owner=always-true-predicate)")
+	cmd.Flags().StringSliceVarP(&config.FeeCreditBillFiles, "fee-credit-files", "c", nil, "path to fee credit bill files (one for each partition, including money partion itself; defaults to single money partition only fee credit bill [id=2 owner=always-true-predicate])")
 	return cmd
 }
 

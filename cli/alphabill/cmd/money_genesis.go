@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -28,15 +29,27 @@ const (
 )
 
 var defaultABMoneySystemIdentifier = []byte{0, 0, 0, 0}
+var defaultFeeCreditBill = &money.FeeCreditBill{
+	SystemID: defaultABMoneySystemIdentifier,
+	ID:       uint256.NewInt(2),
+	Owner:    script.PredicateAlwaysTrue(),
+}
 
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
 	SystemIdentifier   []byte
 	Keys               *keysConfig
 	Output             string
-	InitialBillValue   uint64 `validate:"gte=0"`
-	DCMoneySupplyValue uint64 `validate:"gte=0"`
+	InitialBillValue   uint64 `validate:"gte=0"` // InitialBillValue
+	DCMoneySupplyValue uint64 `validate:"gte=0"` // DCMoneySupplyValue
 	T2Timeout          uint32 `validate:"gte=0"`
+	FeeCreditBillFiles []string
+}
+
+type feeCreditBill struct {
+	SystemID    string `json:"systemId"`
+	UnitID      string `json:"unitId"`
+	OwnerPubKey string `json:"ownerPubKey"`
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
@@ -56,6 +69,7 @@ func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
+	cmd.Flags().StringSliceVarP(&config.FeeCreditBillFiles, "fee-credit-files", "c", nil, "path to fee credit bill files (one for each partition, including money partion itself; defaults to single money partition only fee credit bill (id=2; owner=always-true-predicate)")
 	return cmd
 }
 
@@ -94,9 +108,14 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 
+	fcBills, err := config.getFeeCreditBills()
+	if err != nil {
+		return err
+	}
 	txSystem, err := money.NewMoneyTxSystem(
 		crypto.SHA256,
 		ib,
+		fcBills,
 		config.DCMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(config.SystemIdentifier),
 	)
@@ -128,13 +147,66 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 
 func (c *moneyGenesisConfig) getPartitionParams() (*anypb.Any, error) {
 	dst := new(anypb.Any)
+	fcBills, err := c.getGenesisFeeCreditBills()
+	if err != nil {
+		return nil, err
+	}
 	src := &genesis.MoneyPartitionParams{
 		InitialBillValue:   c.InitialBillValue,
 		DcMoneySupplyValue: c.DCMoneySupplyValue,
+		FeeCreditBills:     fcBills,
 	}
-	err := dst.MarshalFrom(src)
+	err = dst.MarshalFrom(src)
 	if err != nil {
 		return nil, err
 	}
 	return dst, nil
+}
+
+func (c *moneyGenesisConfig) getFeeCreditBills() ([]*money.FeeCreditBill, error) {
+	var fcBills []*money.FeeCreditBill
+	if len(c.FeeCreditBillFiles) == 0 {
+		fcBills = append(fcBills, defaultFeeCreditBill)
+	} else {
+		for _, feeBillPath := range c.FeeCreditBillFiles {
+			fc, err := util.ReadJsonFile(feeBillPath, &feeCreditBill{})
+			if err != nil {
+				return nil, err
+			}
+			fcb, err := fc.toMoneyFeeBill()
+			if err != nil {
+				return nil, err
+			}
+			fcBills = append(fcBills, fcb)
+		}
+	}
+	return fcBills, nil
+}
+
+func (c *moneyGenesisConfig) getGenesisFeeCreditBills() ([]*genesis.FeeCreditBill, error) {
+	fcBills, err := c.getFeeCreditBills()
+	if err != nil {
+		return nil, err
+	}
+	var genesisFCBills []*genesis.FeeCreditBill
+	for _, fcBill := range fcBills {
+		genesisFCBills = append(genesisFCBills, fcBill.ToGenesis())
+	}
+	return genesisFCBills, nil
+}
+
+func (f *feeCreditBill) toMoneyFeeBill() (*money.FeeCreditBill, error) {
+	systemID, err := hexutil.Decode(f.SystemID)
+	if err != nil {
+		return nil, err
+	}
+	unitID, err := hexutil.Decode(f.UnitID)
+	if err != nil {
+		return nil, err
+	}
+	ownerPubKey, err := hexutil.Decode(f.OwnerPubKey)
+	if err != nil {
+		return nil, err
+	}
+	return money.NewFeeCreditBill(systemID, unitID, ownerPubKey)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 const alphabillDir = "ab"
@@ -146,14 +147,23 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 
 	require.EqualValues(t, defaultInitialBillValue, params.InitialBillValue)
 	require.EqualValues(t, defaultDCMoneySupplyValue, params.DcMoneySupplyValue)
+	require.True(t, proto.Equal(defaultFeeCreditBill.ToGenesis(), params.FeeCreditBills[0]))
 }
 
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
+	fc := &feeCreditBill{
+		SystemID:    "0x00000000",
+		UnitID:      "0x0000000000000000000000000000000000000000000000000000000000000007",
+		OwnerPubKey: "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3",
+	}
+	feeBillFile, err := createFeeCreditBillFile(homeDir, fc)
+	require.NoError(t, err)
+
 	cmd := New()
-	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d", homeDir, 1, 2)
+	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d --fee-credit-files %s", homeDir, 1, 2, feeBillFile)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	err := cmd.addAndExecuteCommand(context.Background())
+	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
 	gf := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
@@ -167,4 +177,18 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 
 	require.EqualValues(t, 1, params.InitialBillValue)
 	require.EqualValues(t, 2, params.DcMoneySupplyValue)
+
+	moneyFCBill, _ := fc.toMoneyFeeBill()
+	genesisFCBill := moneyFCBill.ToGenesis()
+	actualFCBill := params.FeeCreditBills[0]
+	require.True(t, proto.Equal(genesisFCBill, actualFCBill))
+}
+
+func createFeeCreditBillFile(dir string, fc *feeCreditBill) (string, error) {
+	filePath := path.Join(dir, "fee-bill.json")
+	err := util.WriteJsonFile(filePath, fc)
+	if err != nil {
+		return "", err
+	}
+	return filePath, nil
 }

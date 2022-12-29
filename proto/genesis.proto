@@ -72,4 +72,11 @@ message PartitionNode {
 message MoneyPartitionParams {
   uint64 initial_bill_value = 1;
   uint64 dc_money_supply_value = 2;
+  repeated FeeCreditBill fee_credit_bills = 3;
+}
+
+message FeeCreditBill {
+  bytes system_identifier = 1;
+  bytes unit_id = 2;
+  bytes owner_predicate = 3;
 }

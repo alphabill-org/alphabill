@@ -307,6 +307,7 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,
+			[]*moneytx.FeeCreditBill{{ID: uint256.NewInt(2), Owner: script.PredicateAlwaysTrue(), SystemID: defaultABMoneySystemIdentifier}},
 			10000,
 			moneytx.SchemeOpts.TrustBase(tb),
 		)

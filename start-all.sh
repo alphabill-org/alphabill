@@ -7,11 +7,19 @@ moneyNodeAddresses=""
 vdNodeAddresses=""
 tokensNodeAddresses=""
 
+# generate fee bill for each partition
+moneyFeeBill='{"systemId": "0x00000000", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000002", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
+vdFeeBill='{"systemId": "0x00000001", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000003", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
+tokensFeeBill='{"systemId": "0x00000002", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000004", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
+echo $moneyFeeBill > testab/money-fee-bill.json
+echo $vdFeeBill > testab/vd-fee-bill.json
+echo $tokensFeeBill > testab/tokens-fee-bill.json
+
 # Generate money node genesis files.
 for i in 1 2 3
 do
   # "-g" flags also generates keys
-  build/alphabill money-genesis --home testab/money$i -g
+  build/alphabill money-genesis --home testab/money$i -g -c testab/money-fee-bill.json -c testab/vd-fee-bill.json -c testab/tokens-fee-bill.json
 done
 
 # Generate vd node genesis files.

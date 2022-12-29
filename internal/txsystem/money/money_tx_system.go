@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -28,8 +29,10 @@ var (
 	// Dust collector predicate
 	dustCollectorPredicate = script.PredicatePayToPublicKeyHash(script.HashAlgSha256, abHasher.Sum256([]byte("dust collector")), script.SigSchemeSecp256k1)
 
-	ErrInitialBillIsNil     = errors.New("initial bill may not be nil")
-	ErrInvalidInitialBillID = errors.New("initial bill ID may not be equal to the DC money supply ID")
+	ErrInitialBillIsNil        = errors.New("initial bill may not be nil")
+	ErrInvalidInitialBillID    = errors.New("initial bill ID may not be equal to the DC money supply ID")
+	ErrUndefinedFeeCreditBills = errors.New("undefined fee credit bills")
+	ErrInvalidFeeCreditBillID  = errors.New("fee credit bill may not be equal to the DC money supply ID and initial bill ID")
 )
 
 type (
@@ -72,6 +75,12 @@ type (
 		Owner rma.Predicate
 	}
 
+	FeeCreditBill struct {
+		ID       *uint256.Int
+		Owner    rma.Predicate
+		SystemID []byte
+	}
+
 	BillData struct {
 		V        uint64 // The monetary value of this bill
 		T        uint64 // The round number of the last transaction with the bill
@@ -87,15 +96,20 @@ type (
 		// bill is deleted and its value is transferred to the dust collector.
 		dustCollectorBills map[uint64][]*uint256.Int
 		trustBase          map[string]abcrypto.Verifier
+		// feeCreditBills contains one fee credit bill for each partition
+		feeCreditBills []*FeeCreditBill
 	}
 )
 
-func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...Option) (*moneyTxSystem, error) {
+func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, feeCreditBills []*FeeCreditBill, dcMoneyAmount uint64, customOpts ...Option) (*moneyTxSystem, error) {
 	if initialBill == nil {
 		return nil, ErrInitialBillIsNil
 	}
 	if dustCollectorMoneySupplyID.Eq(initialBill.ID) {
 		return nil, ErrInvalidInitialBillID
+	}
+	if len(feeCreditBills) == 0 {
+		return nil, ErrUndefinedFeeCreditBills
 	}
 	defaultTree, err := rma.New(&rma.Config{HashAlgorithm: hashAlgorithm})
 	if err != nil {
@@ -117,6 +131,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 		dustCollectorBills: make(map[uint64][]*uint256.Int),
 		currentBlockNumber: uint64(0),
 		trustBase:          options.trustBase,
+		feeCreditBills:     feeCreditBills,
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -126,6 +141,21 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 	}, nil))
 	if err != nil {
 		return nil, errors.Wrap(err, "could not set initial bill")
+	}
+
+	// add fee credit bills to state tree
+	for _, fc := range feeCreditBills {
+		if fc.ID.Eq(dustCollectorMoneySupplyID) || fc.ID.Eq(initialBill.ID) {
+			return nil, ErrInvalidFeeCreditBillID
+		}
+		err = txs.revertibleState.AtomicUpdate(rma.AddItem(fc.ID, fc.Owner, &BillData{
+			V:        0,
+			T:        0,
+			Backlink: nil,
+		}, nil))
+		if err != nil {
+			return nil, errors.Wrap(err, "could not set fee credit bill")
+		}
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{
@@ -138,6 +168,20 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 	}
 	txs.Commit()
 	return txs, nil
+}
+
+func NewFeeCreditBill(systemID, unitID, owner []byte) (*FeeCreditBill, error) {
+	if len(systemID) != 4 {
+		return nil, errors.New("invalid fee credit bill system identifier")
+	}
+	if len(unitID) != 32 {
+		return nil, errors.New("invalid fee credit bill unit id")
+	}
+	return &FeeCreditBill{
+		SystemID: systemID,
+		ID:       uint256.NewInt(0).SetBytes(unitID),
+		Owner:    owner,
+	}, nil
 }
 
 func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
@@ -382,4 +426,12 @@ func (b *BillData) AddToHasher(hasher hash.Hash) {
 
 func (b *BillData) Value() rma.SummaryValue {
 	return rma.Uint64SummaryValue(b.V)
+}
+
+func (f *FeeCreditBill) ToGenesis() *genesis.FeeCreditBill {
+	return &genesis.FeeCreditBill{
+		SystemIdentifier: f.SystemID,
+		UnitId:           util.Uint256ToBytes(f.ID),
+		OwnerPredicate:   f.Owner,
+	}
 }

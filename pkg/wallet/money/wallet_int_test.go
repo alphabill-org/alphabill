@@ -351,6 +351,7 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,
+			createFCBills(),
 			10000,
 			moneytx.SchemeOpts.TrustBase(tb),
 		)
@@ -408,4 +409,12 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		return nil, err
 	}
 	return tx, nil
+}
+
+func createFCBills() []*moneytx.FeeCreditBill {
+	return []*moneytx.FeeCreditBill{{
+		ID:       uint256.NewInt(2),
+		Owner:    script.PredicateAlwaysTrue(),
+		SystemID: alphabillMoneySystemId,
+	}}
 }

@@ -92,8 +92,8 @@ type (
 		// bill is deleted and its value is transferred to the dust collector.
 		dustCollectorBills map[uint64][]*uint256.Int
 		trustBase          map[string]abcrypto.Verifier
-		// sdrs system description records
-		sdrs []*genesis.SystemDescriptionRecord
+		// sdrs system description records indexed by string(system_identifier)
+		sdrs map[string]*genesis.SystemDescriptionRecord
 	}
 )
 
@@ -127,7 +127,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 		dustCollectorBills: make(map[uint64][]*uint256.Int),
 		currentBlockNumber: uint64(0),
 		trustBase:          options.trustBase,
-		sdrs:               sdrs,
+		sdrs:               make(map[string]*genesis.SystemDescriptionRecord),
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -156,6 +156,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 		if err != nil {
 			return nil, errors.Wrap(err, "could not set fee credit bill")
 		}
+		txs.sdrs[string(sdr.SystemIdentifier)] = sdr
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{

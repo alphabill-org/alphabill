@@ -34,7 +34,8 @@ func TestNewMoneyScheme(t *testing.T) {
 	initialBill := &InitialBill{ID: uint256.NewInt(2), Value: 100, Owner: nil}
 	dcMoneyAmount := uint64(222)
 
-	txSystem, err := NewMoneyTxSystem(crypto.SHA256, initialBill, createSDRs(3), dcMoneyAmount, SchemeOpts.RevertibleState(mockRevertibleState))
+	sdrs := createSDRs(3)
+	txSystem, err := NewMoneyTxSystem(crypto.SHA256, initialBill, sdrs, dcMoneyAmount, SchemeOpts.RevertibleState(mockRevertibleState))
 	require.NoError(t, err)
 	u, err := txSystem.revertibleState.GetUnit(initialBill.ID)
 	require.NoError(t, err)
@@ -48,6 +49,8 @@ func TestNewMoneyScheme(t *testing.T) {
 
 	require.Equal(t, rma.Uint64SummaryValue(dcMoneyAmount), d.Data.Value())
 	require.Equal(t, rma.Predicate(dustCollectorPredicate), d.Bearer)
+
+	require.Equal(t, sdrs[0], txSystem.sdrs[string(systemID)])
 }
 
 func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {

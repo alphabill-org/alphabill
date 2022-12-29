@@ -83,19 +83,10 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
 
-	var fcBills []*money.FeeCreditBill
-	for _, g := range params.FeeCreditBills {
-		b, err := money.NewFeeCreditBill(g.SystemIdentifier, g.UnitId, g.OwnerPredicate)
-		if err != nil {
-			return err
-		}
-		fcBills = append(fcBills, b)
-	}
-
 	txs, err := money.NewMoneyTxSystem(
 		crypto.SHA256,
 		ib,
-		fcBills,
+		params.SystemDescriptionRecords,
 		params.DcMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(pg.GetSystemDescriptionRecord().GetSystemIdentifier()),
 		money.SchemeOpts.TrustBase(trustBase),

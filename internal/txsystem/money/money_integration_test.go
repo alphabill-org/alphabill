@@ -41,7 +41,7 @@ func TestPartition_Ok(t *testing.T) {
 				Value: moneyInvariant,
 				Owner: script.PredicateAlwaysTrue(),
 			},
-			createFCBills(2),
+			createSDRs(2),
 			0,
 			SchemeOpts.TrustBase(tb),
 		)
@@ -93,7 +93,7 @@ func TestPartition_SwapOk(t *testing.T) {
 				Value: moneyInvariant,
 				Owner: script.PredicateAlwaysTrue(),
 			},
-			createFCBills(2),
+			createSDRs(2),
 			100,
 			SchemeOpts.RevertibleState(state),
 			SchemeOpts.SystemIdentifier(systemIdentifier),

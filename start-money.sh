@@ -6,14 +6,15 @@ mkdir testab/rootchain
 nodeAddresses=""
 
 # generate fee bill for money-genesis
-feeBill='{"systemId": "0x00000000", "unitId": "0x0000000000000000000000000000000000000000000000000000000000000002", "ownerPubKey": "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"}'
-echo $feeBill > testab/money-fee-bill.json
+# ownerPredicate is p2pkh predicate to 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3 pubkey
+sdr='{"system_identifier": "AAAAAA==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI=", "owner_predicate": "U3aoAU8BotBrEC1ca8rpzXA1SRQyjJzF03+5z7sgBgejSKZJe2+HaawB"}}'
+echo $sdr > testab/money-sdr.json
 
 # Generate node genesis files.
 for i in 1 2 3
 do
   # "-g" flags also generates keys
-  build/alphabill money-genesis --home testab/money$i -g -c testab/money-fee-bill.json
+  build/alphabill money-genesis --home testab/money$i -g -c testab/money-sdr.json
 done
 
 # generate rootchain and partition genesis files

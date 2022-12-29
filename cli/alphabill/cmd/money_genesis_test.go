@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -147,21 +149,25 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 
 	require.EqualValues(t, defaultInitialBillValue, params.InitialBillValue)
 	require.EqualValues(t, defaultDCMoneySupplyValue, params.DcMoneySupplyValue)
-	require.True(t, proto.Equal(defaultFeeCreditBill.ToGenesis(), params.FeeCreditBills[0]))
+	require.Len(t, params.SystemDescriptionRecords, 1)
+	require.True(t, proto.Equal(defaultMoneySDR, params.SystemDescriptionRecords[0]))
 }
 
 func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	fc := &feeCreditBill{
-		SystemID:    "0x00000000",
-		UnitID:      "0x0000000000000000000000000000000000000000000000000000000000000007",
-		OwnerPubKey: "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3",
+	sdr := &genesis.SystemDescriptionRecord{
+		SystemIdentifier: []byte{0, 0, 0, 0},
+		T2Timeout:        10000,
+		FeeCreditBill: &genesis.FeeCreditBill{
+			UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+			OwnerPredicate: script.PredicateAlwaysFalse(),
+		},
 	}
-	feeBillFile, err := createFeeCreditBillFile(homeDir, fc)
+	sdrFile, err := createSDRFile(homeDir, sdr)
 	require.NoError(t, err)
 
 	cmd := New()
-	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d --fee-credit-files %s", homeDir, 1, 2, feeBillFile)
+	args := fmt.Sprintf("money-genesis --home %s -g --initial-bill-value %d --dc-money-supply-value %d --system-description-record-files %s", homeDir, 1, 2, sdrFile)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -177,16 +183,12 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 
 	require.EqualValues(t, 1, params.InitialBillValue)
 	require.EqualValues(t, 2, params.DcMoneySupplyValue)
-
-	moneyFCBill, _ := fc.toMoneyFeeBill()
-	genesisFCBill := moneyFCBill.ToGenesis()
-	actualFCBill := params.FeeCreditBills[0]
-	require.True(t, proto.Equal(genesisFCBill, actualFCBill))
+	require.True(t, proto.Equal(sdr, params.SystemDescriptionRecords[0]))
 }
 
-func createFeeCreditBillFile(dir string, fc *feeCreditBill) (string, error) {
-	filePath := path.Join(dir, "fee-bill.json")
-	err := util.WriteJsonFile(filePath, fc)
+func createSDRFile(dir string, sdr *genesis.SystemDescriptionRecord) (string, error) {
+	filePath := path.Join(dir, "money-sdr.json")
+	err := util.WriteJsonFile(filePath, sdr)
 	if err != nil {
 		return "", err
 	}

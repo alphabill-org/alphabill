@@ -1,6 +1,7 @@
 package money
 
 import (
+	"bytes"
 	"crypto"
 	"hash"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -28,8 +30,11 @@ var (
 	// Dust collector predicate
 	dustCollectorPredicate = script.PredicatePayToPublicKeyHash(script.HashAlgSha256, abHasher.Sum256([]byte("dust collector")), script.SigSchemeSecp256k1)
 
-	ErrInitialBillIsNil     = errors.New("initial bill may not be nil")
-	ErrInvalidInitialBillID = errors.New("initial bill ID may not be equal to the DC money supply ID")
+	ErrInitialBillIsNil                  = errors.New("initial bill may not be nil")
+	ErrInvalidInitialBillID              = errors.New("initial bill ID may not be equal to the DC money supply ID")
+	ErrUndefinedSystemDescriptionRecords = errors.New("undefined system description records")
+	ErrNilFeeCreditBill                  = errors.New("fee credit bill is nil in system description record")
+	ErrInvalidFeeCreditBillID            = errors.New("fee credit bill may not be equal to the DC money supply ID and initial bill ID")
 )
 
 type (
@@ -87,15 +92,20 @@ type (
 		// bill is deleted and its value is transferred to the dust collector.
 		dustCollectorBills map[uint64][]*uint256.Int
 		trustBase          map[string]abcrypto.Verifier
+		// sdrs system description records indexed by string(system_identifier)
+		sdrs map[string]*genesis.SystemDescriptionRecord
 	}
 )
 
-func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMoneyAmount uint64, customOpts ...Option) (*moneyTxSystem, error) {
+func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs []*genesis.SystemDescriptionRecord, dcMoneyAmount uint64, customOpts ...Option) (*moneyTxSystem, error) {
 	if initialBill == nil {
 		return nil, ErrInitialBillIsNil
 	}
 	if dustCollectorMoneySupplyID.Eq(initialBill.ID) {
 		return nil, ErrInvalidInitialBillID
+	}
+	if len(sdrs) == 0 {
+		return nil, ErrUndefinedSystemDescriptionRecords
 	}
 	defaultTree, err := rma.New(&rma.Config{HashAlgorithm: hashAlgorithm})
 	if err != nil {
@@ -117,6 +127,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 		dustCollectorBills: make(map[uint64][]*uint256.Int),
 		currentBlockNumber: uint64(0),
 		trustBase:          options.trustBase,
+		sdrs:               make(map[string]*genesis.SystemDescriptionRecord),
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -126,6 +137,26 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, dcMon
 	}, nil))
 	if err != nil {
 		return nil, errors.Wrap(err, "could not set initial bill")
+	}
+
+	// add fee credit bills to state tree
+	for _, sdr := range sdrs {
+		fc := sdr.FeeCreditBill
+		if fc == nil {
+			return nil, ErrNilFeeCreditBill
+		}
+		if bytes.Equal(fc.UnitId, util.Uint256ToBytes(dustCollectorMoneySupplyID)) || bytes.Equal(fc.UnitId, util.Uint256ToBytes(initialBill.ID)) {
+			return nil, ErrInvalidFeeCreditBillID
+		}
+		err = txs.revertibleState.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(fc.UnitId), fc.OwnerPredicate, &BillData{
+			V:        0,
+			T:        0,
+			Backlink: nil,
+		}, nil))
+		if err != nil {
+			return nil, errors.Wrap(err, "could not set fee credit bill")
+		}
+		txs.sdrs[string(sdr.SystemIdentifier)] = sdr
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(dustCollectorMoneySupplyID, dustCollectorPredicate, &BillData{

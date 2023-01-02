@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -33,7 +34,8 @@ func TestNewMoneyScheme(t *testing.T) {
 	initialBill := &InitialBill{ID: uint256.NewInt(2), Value: 100, Owner: nil}
 	dcMoneyAmount := uint64(222)
 
-	txSystem, err := NewMoneyTxSystem(crypto.SHA256, initialBill, dcMoneyAmount, SchemeOpts.RevertibleState(mockRevertibleState))
+	sdrs := createSDRs(3)
+	txSystem, err := NewMoneyTxSystem(crypto.SHA256, initialBill, sdrs, dcMoneyAmount, SchemeOpts.RevertibleState(mockRevertibleState))
 	require.NoError(t, err)
 	u, err := txSystem.revertibleState.GetUnit(initialBill.ID)
 	require.NoError(t, err)
@@ -47,17 +49,37 @@ func TestNewMoneyScheme(t *testing.T) {
 
 	require.Equal(t, rma.Uint64SummaryValue(dcMoneyAmount), d.Data.Value())
 	require.Equal(t, rma.Predicate(dustCollectorPredicate), d.Bearer)
+
+	require.Equal(t, sdrs[0], txSystem.sdrs[string(systemID)])
 }
 
 func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {
-	_, err := NewMoneyTxSystem(crypto.SHA256, nil, 10)
+	_, err := NewMoneyTxSystem(crypto.SHA256, nil, createSDRs(2), 10)
 	require.ErrorIs(t, err, ErrInitialBillIsNil)
 }
 
 func TestNewMoneyScheme_InvalidInitialBillID(t *testing.T) {
 	ib := &InitialBill{ID: uint256.NewInt(0), Value: 100, Owner: nil}
-	_, err := NewMoneyTxSystem(crypto.SHA256, ib, 10)
+	_, err := NewMoneyTxSystem(crypto.SHA256, ib, createSDRs(2), 10)
 	require.ErrorIs(t, err, ErrInvalidInitialBillID)
+}
+
+func TestNewMoneyScheme_InvalidFeeCreditBill_Nil(t *testing.T) {
+	ib := &InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}
+	_, err := NewMoneyTxSystem(crypto.SHA256, ib, nil, 10)
+	require.ErrorIs(t, err, ErrUndefinedSystemDescriptionRecords)
+}
+
+func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsInitialBill(t *testing.T) {
+	ib := &InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}
+	_, err := NewMoneyTxSystem(crypto.SHA256, ib, createSDRs(1), 10)
+	require.ErrorIs(t, err, ErrInvalidFeeCreditBillID)
+}
+
+func TestNewMoneyScheme_InvalidFeeCreditBill_SameIDAsDCBill(t *testing.T) {
+	ib := &InitialBill{ID: uint256.NewInt(1), Value: 100, Owner: nil}
+	_, err := NewMoneyTxSystem(crypto.SHA256, ib, createSDRs(0), 10)
+	require.ErrorIs(t, err, ErrInvalidFeeCreditBillID)
 }
 
 func TestExecute_TransferOk(t *testing.T) {
@@ -502,10 +524,22 @@ func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem, abcrypto
 	mss, err := NewMoneyTxSystem(
 		crypto.SHA256,
 		initialBill,
+		createSDRs(2),
 		initialDustCollectorMoneyAmount,
 		SchemeOpts.RevertibleState(rmaTree),
 		SchemeOpts.TrustBase(trustBase),
 	)
 	require.NoError(t, err)
 	return rmaTree, mss, signer
+}
+
+func createSDRs(id uint64) []*genesis.SystemDescriptionRecord {
+	return []*genesis.SystemDescriptionRecord{{
+		SystemIdentifier: systemID,
+		T2Timeout:        2500,
+		FeeCreditBill: &genesis.FeeCreditBill{
+			UnitId:         util.Uint256ToBytes(uint256.NewInt(id)),
+			OwnerPredicate: script.PredicateAlwaysTrue(),
+		},
+	}}
 }

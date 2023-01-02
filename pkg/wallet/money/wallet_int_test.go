@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -25,6 +26,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
@@ -351,6 +353,7 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,
+			createSDRs(2),
 			10000,
 			moneytx.SchemeOpts.TrustBase(tb),
 		)
@@ -408,4 +411,15 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		return nil, err
 	}
 	return tx, nil
+}
+
+func createSDRs(id uint64) []*genesis.SystemDescriptionRecord {
+	return []*genesis.SystemDescriptionRecord{{
+		SystemIdentifier: alphabillMoneySystemId,
+		T2Timeout:        2500,
+		FeeCreditBill: &genesis.FeeCreditBill{
+			UnitId:         util.Uint256ToBytes(uint256.NewInt(id)),
+			OwnerPredicate: script.PredicateAlwaysTrue(),
+		},
+	}}
 }

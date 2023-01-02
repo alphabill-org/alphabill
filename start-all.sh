@@ -7,11 +7,19 @@ moneyNodeAddresses=""
 vdNodeAddresses=""
 tokensNodeAddresses=""
 
+# generate fee bill for each partition
+moneySdr='{"system_identifier": "AAAAAA==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI=", "owner_predicate": "U3aoAU8BotBrEC1ca8rpzXA1SRQyjJzF03+5z7sgBgejSKZJe2+HaawB"}}'
+vdSdr='{"system_identifier": "AAAAAQ==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM=", "owner_predicate": "U3aoAU8BotBrEC1ca8rpzXA1SRQyjJzF03+5z7sgBgejSKZJe2+HaawB"}}'
+tokensSdr='{"system_identifier": "AAAAAg==", "t2timeout": 2500, "fee_credit_bill": {"unit_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQ=", "owner_predicate": "U3aoAU8BotBrEC1ca8rpzXA1SRQyjJzF03+5z7sgBgejSKZJe2+HaawB"}}'
+echo $moneySdr > testab/money-sdr.json
+echo $vdSdr > testab/vd-sdr.json
+echo $tokensSdr > testab/tokens-sdr.json
+
 # Generate money node genesis files.
 for i in 1 2 3
 do
   # "-g" flags also generates keys
-  build/alphabill money-genesis --home testab/money$i -g
+  build/alphabill money-genesis --home testab/money$i -g -c testab/money-sdr.json -c testab/vd-sdr.json -c testab/tokens-sdr.json
 done
 
 # Generate vd node genesis files.

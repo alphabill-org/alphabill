@@ -86,6 +86,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	txs, err := money.NewMoneyTxSystem(
 		crypto.SHA256,
 		ib,
+		params.SystemDescriptionRecords,
 		params.DcMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(pg.GetSystemDescriptionRecord().GetSystemIdentifier()),
 		money.SchemeOpts.TrustBase(trustBase),

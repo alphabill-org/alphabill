@@ -28,15 +28,24 @@ const (
 )
 
 var defaultABMoneySystemIdentifier = []byte{0, 0, 0, 0}
+var defaultMoneySDR = &genesis.SystemDescriptionRecord{
+	SystemIdentifier: defaultABMoneySystemIdentifier,
+	T2Timeout:        defaultT2Timeout,
+	FeeCreditBill: &genesis.FeeCreditBill{
+		UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+		OwnerPredicate: script.PredicateAlwaysTrue(),
+	},
+}
 
 type moneyGenesisConfig struct {
 	Base               *baseConfiguration
 	SystemIdentifier   []byte
 	Keys               *keysConfig
 	Output             string
-	InitialBillValue   uint64 `validate:"gte=0"`
-	DCMoneySupplyValue uint64 `validate:"gte=0"`
-	T2Timeout          uint32 `validate:"gte=0"`
+	InitialBillValue   uint64   `validate:"gte=0"`
+	DCMoneySupplyValue uint64   `validate:"gte=0"`
+	T2Timeout          uint32   `validate:"gte=0"`
+	SDRFiles           []string // system description record files
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
@@ -56,6 +65,7 @@ func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
 	cmd.Flags().Uint32Var(&config.T2Timeout, "t2-timeout", defaultT2Timeout, "time interval for how long root chain waits before re-issuing unicity certificate, in milliseconds")
+	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partion itself; defaults to single money partition only SDR)")
 	return cmd
 }
 
@@ -94,9 +104,14 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 
+	sdrs, err := config.getSDRFiles()
+	if err != nil {
+		return err
+	}
 	txSystem, err := money.NewMoneyTxSystem(
 		crypto.SHA256,
 		ib,
+		sdrs,
 		config.DCMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(config.SystemIdentifier),
 	)
@@ -128,13 +143,34 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 
 func (c *moneyGenesisConfig) getPartitionParams() (*anypb.Any, error) {
 	dst := new(anypb.Any)
-	src := &genesis.MoneyPartitionParams{
-		InitialBillValue:   c.InitialBillValue,
-		DcMoneySupplyValue: c.DCMoneySupplyValue,
+	sdrFiles, err := c.getSDRFiles()
+	if err != nil {
+		return nil, err
 	}
-	err := dst.MarshalFrom(src)
+	src := &genesis.MoneyPartitionParams{
+		InitialBillValue:         c.InitialBillValue,
+		DcMoneySupplyValue:       c.DCMoneySupplyValue,
+		SystemDescriptionRecords: sdrFiles,
+	}
+	err = dst.MarshalFrom(src)
 	if err != nil {
 		return nil, err
 	}
 	return dst, nil
+}
+
+func (c *moneyGenesisConfig) getSDRFiles() ([]*genesis.SystemDescriptionRecord, error) {
+	var sdrs []*genesis.SystemDescriptionRecord
+	if len(c.SDRFiles) == 0 {
+		sdrs = append(sdrs, defaultMoneySDR)
+	} else {
+		for _, feeBillPath := range c.SDRFiles {
+			sdr, err := util.ReadJsonFile(feeBillPath, &genesis.SystemDescriptionRecord{})
+			if err != nil {
+				return nil, err
+			}
+			sdrs = append(sdrs, sdr)
+		}
+	}
+	return sdrs, nil
 }

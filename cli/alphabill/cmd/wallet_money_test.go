@@ -12,6 +12,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
@@ -307,6 +308,16 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 		system, err := moneytx.NewMoneyTxSystem(
 			crypto.SHA256,
 			initialBill,
+			[]*genesis.SystemDescriptionRecord{
+				{
+					SystemIdentifier: defaultABMoneySystemIdentifier,
+					T2Timeout:        defaultT2Timeout,
+					FeeCreditBill: &genesis.FeeCreditBill{
+						UnitId:         util.Uint256ToBytes(uint256.NewInt(2)),
+						OwnerPredicate: script.PredicateAlwaysTrue(),
+					},
+				},
+			},
 			10000,
 			moneytx.SchemeOpts.TrustBase(tb),
 		)

@@ -303,7 +303,7 @@ func TestTokensProcessBlock_syncToUnit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, types, 0)
 
-	require.NoError(t, w.syncToUnit(context.Background(), id, blockNr))
+	require.NoError(t, w.syncToUnit(context.Background(), &submittedTx{id: id, tx: tx}))
 
 	blockNrFromDB, err := w.db.Do().GetBlockNumber()
 	require.NoError(t, err)
@@ -334,7 +334,7 @@ func TestTokensProcessBlock_syncToUnit_timeout(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, types, 0)
 
-	require.ErrorContains(t, w.syncToUnit(context.Background(), id, blockNr), "did not confirm all transactions, timed out: 1")
+	require.ErrorContains(t, w.syncToUnit(context.Background(), &submittedTx{id: id, tx: createTx(id, blockNr)}), "did not confirm all transactions, timeout reached")
 }
 
 func verifyProof(t *testing.T, unitID []byte, proof *Proof, blockNo uint64, tx *txsystem.Transaction, txConverter block.TxConverter, verifiers map[string]abcrypto.Verifier) {

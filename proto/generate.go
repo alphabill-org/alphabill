@@ -14,7 +14,7 @@ package proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/block/. block_proof.proto
 
-//go:generate protoc -I=. --go_out=paths=source_relative:../internal/block/. bills.proto
+//go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/money/. bills.proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/network/protocol/certification/. certification.proto
 

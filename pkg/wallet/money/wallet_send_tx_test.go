@@ -214,24 +214,15 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
 
 	// send tx
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	var sendError error
-	go func() {
-		_, sendError = w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
-		wg.Done()
-	}()
+	_, sendError := w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
 
-	// verify txs are broadcasted multiple times
+	// verify send tx error
+	require.ErrorIs(t, sendError, wallet.ErrFailedToBroadcastTx)
+
+	// verify txs were broadcasted multiple times
 	require.Eventually(t, func() bool {
 		return len(mockClient.GetRecordedTransactions()) == maxTxFailedTries
 	}, test.WaitDuration, test.WaitTick)
-
-	// wait for send goroutine to finish
-	wg.Wait()
-
-	// and verify send tx error
-	require.ErrorIs(t, sendError, wallet.ErrFailedToBroadcastTx)
 }
 
 func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {

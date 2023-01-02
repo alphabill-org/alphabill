@@ -5,7 +5,6 @@ import (
 	"path"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -79,16 +78,19 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	billFilePath := path.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
 	stdout, err := execBillsCommand(homedir, "export --bill-order-number 1 --output-path "+homedir)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 
 	// verify export with --bill-id flag
 	stdout, err = execBillsCommand(homedir, "export --bill-id 0000000000000000000000000000000000000000000000000000000000000001 --output-path "+homedir)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 
 	// verify export with no flags outputs all bills
 	stdout, err = execBillsCommand(homedir, "export --output-path "+homedir)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 }
 
@@ -113,10 +115,10 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	require.ErrorContains(t, err, "required flag(s) \"bill-file\", \"trust-base-file\" not set")
 
 	// test invalid block proof cannot be imported
-	billsFile, _ := block.ReadBillsFile(billsFilePath)
+	billsFile, _ := moneytx.ReadBillsFile(billsFilePath)
 	billsFile.Bills[0].TxProof.Proof.BlockHeaderHash = make([]byte, 32)
 	invalidBillsFilePath := path.Join(homedir, "invalid-bills.json")
-	_ = block.WriteBillsFile(invalidBillsFilePath, billsFile)
+	_ = moneytx.WriteBillsFile(invalidBillsFilePath, billsFile)
 
 	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", invalidBillsFilePath, trustBaseFilePath))
 	require.ErrorContains(t, err, "proof verification failed")

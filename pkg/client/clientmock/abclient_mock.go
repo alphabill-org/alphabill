@@ -14,6 +14,7 @@ type MockAlphabillClient struct {
 	maxBlockNumber uint64
 	shutdown       bool
 	blocks         map[uint64]*block.Block
+	txListener     func(tx *txsystem.Transaction)
 }
 
 func NewMockAlphabillClient(maxBlockNumber uint64, blocks map[uint64]*block.Block) *MockAlphabillClient {
@@ -22,6 +23,9 @@ func NewMockAlphabillClient(maxBlockNumber uint64, blocks map[uint64]*block.Bloc
 
 func (c *MockAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	c.recordedTxs = append(c.recordedTxs, tx)
+	if c.txListener != nil {
+		c.txListener(tx)
+	}
 	if c.txResponse != nil {
 		if !c.txResponse.Ok {
 			return c.txResponse, errors.New(c.txResponse.Message)
@@ -90,4 +94,8 @@ func (c *MockAlphabillClient) GetRecordedTransactions() []*txsystem.Transaction 
 
 func (c *MockAlphabillClient) ClearRecordedTransactions() {
 	c.recordedTxs = make([]*txsystem.Transaction, 0)
+}
+
+func (c *MockAlphabillClient) SetTxListener(txListener func(tx *txsystem.Transaction)) {
+	c.txListener = txListener
 }

@@ -373,6 +373,7 @@ func (w *Wallet) AddAccount() (uint64, []byte, error) {
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritzing larger bills.
+// Waits for initial response from the node, returns error if any transaction was not accepted to the mempool.
 // Returns list of bills including transaction and proof data, if waitForConfirmation=true, otherwise nil.
 func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	if err := cmd.isValid(); err != nil {

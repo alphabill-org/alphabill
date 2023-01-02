@@ -7,6 +7,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
+// FeeCreditRecord state tree unit data of fee credit records.
+// Holds fee credit balance for individual users,
+// not to be confused with fee credit bills which contain aggregate fees for a given partition.
 type FeeCreditRecord struct {
 	balance int64  // current balance
 	hash    []byte // hash of the last “add fee credit” transaction that incremented the balance of this record

@@ -6,7 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/spf13/cobra"
 )
@@ -64,7 +64,7 @@ func distributedRootGenesisRunFunc(_ context.Context, config *distributedGenesis
 		return err
 	}
 	// Combine root genesis files to single distributed genesis file
-	rg, pg, err := rootchain.NewDistributedRootGenesis(rgs)
+	rg, pg, err := rootvalidator.NewDistributedRootGenesis(rgs)
 	if err != nil {
 		return err
 	}

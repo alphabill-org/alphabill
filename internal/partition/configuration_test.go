@@ -11,7 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -131,9 +131,9 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+	pr, err := rootvalidator.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 	require.NoError(t, err)
-	_, pg, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+	_, pg, err := rootvalidator.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 	return pg[0]
 }

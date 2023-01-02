@@ -4,8 +4,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"golang.org/x/exp/maps"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -13,10 +11,12 @@ import (
 	log "github.com/alphabill-org/alphabill/internal/logger"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -205,7 +205,7 @@ func (x *ConsensusManager) onT3Timeout() {
 	newState, err := x.generateUnicityCertificates(newRound, &state)
 	if err != nil {
 		logger.Warning("Round %d, T3 timeout failed: %v", state.LatestRound+1, err)
-		// restore input records form store
+		// restore input records form last state
 		x.ir = loadInputRecords(&state)
 		return
 	}

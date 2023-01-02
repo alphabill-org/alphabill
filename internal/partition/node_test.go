@@ -179,16 +179,13 @@ func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	systemIdentifier := p.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
-	// produce some root chain rounds
-	tp.rootState.CopyOldInputRecords(systemIdentifier)
-	_, err := tp.rootState.CreateUnicityCertificates(util.MakeTimestamp())
-	require.NoError(t, err)
-	tp.rootState.CopyOldInputRecords(systemIdentifier)
-	_, err = tp.rootState.CreateUnicityCertificates(util.MakeTimestamp())
+	luc, found := tp.rootState.Certificates[systemIdentifier]
+	require.True(t, found)
+	// Mock and skip some root rounds
+	uc, err := tp.CreateUnicityCertificate(luc.InputRecord, luc.UnicitySeal.RootChainRoundNumber+3, luc.UnicitySeal.PreviousHash)
 	require.NoError(t, err)
 
 	tp.eh.Reset()
-	uc, err := tp.rootState.GetLatestUnicityCertificate(systemIdentifier)
 	require.NoError(t, err)
 	tp.SubmitUnicityCertificate(uc)
 

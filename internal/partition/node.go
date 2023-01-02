@@ -211,8 +211,6 @@ func initState(n *Node) error {
 		}
 		n.transactionSystem.Commit() // commit everything from the genesis
 		uc = genesisBlock.UnicityCertificate
-		// select leader from genesis seal
-		n.startNewRound(uc)
 		logger.Info("State initialised from the genesis block")
 	}
 	n.luc = uc

@@ -27,14 +27,11 @@ var (
 	nonce           = []byte{5}
 	targetBearer    = []byte{6}
 	ownerCondition  = []byte{7}
-	recordID        = []byte{8}
 	billIdentifiers = [][]byte{util.Uint256ToBytes(uint256.NewInt(0)), util.Uint256ToBytes(uint256.NewInt(1))}
 	timeout         = uint64(100)
 	targetValue     = uint64(101)
 	remainingValue  = uint64(102)
 	amount          = uint64(103)
-	t1              = uint64(104)
-	t2              = uint64(105)
 )
 
 func TestWrapper_InterfaceAssertion(t *testing.T) {
@@ -188,30 +185,6 @@ func TestWrapper_Swap(t *testing.T) {
 	require.NotEmpty(t, swap.SigBytes())
 }
 
-func TestWrapper_TransferFC(t *testing.T) {
-	var (
-		pbTransferFC  = newPBTransferFC(1, 2, 3, systemIdentifier, test.RandomBytes(32), test.RandomBytes(32), test.RandomBytes(32))
-		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbTransferFC)
-	)
-	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
-	require.NoError(t, err)
-	fc, ok := genericTx.(TransferFC)
-	require.True(t, ok)
-
-	assert.Equal(t, pbTransaction.SystemId, fc.SystemID())
-	assert.Equal(t, pbTransaction.UnitId, util.Uint256ToBytes(fc.UnitID()))
-	assert.Equal(t, pbTransaction.Timeout, fc.Timeout())
-	assert.Equal(t, pbTransaction.OwnerProof, fc.OwnerProof())
-
-	assert.Equal(t, pbTransferFC.Amount, fc.Amount())
-	assert.Equal(t, pbTransferFC.EarliestAdditionTime, fc.EarliestAdditionTime())
-	assert.Equal(t, pbTransferFC.LatestAdditionTime, fc.LatestAdditionTime())
-	assert.Equal(t, pbTransferFC.TargetSystemIdentifier, fc.TargetSystemID())
-	assert.Equal(t, pbTransferFC.TargetRecordId, fc.TargetRecordID())
-	assert.Equal(t, pbTransferFC.Nonce, fc.Nonce())
-	assert.Equal(t, pbTransferFC.Backlink, fc.Backlink())
-}
-
 func TestWrapper_DifferentPartitionTx(t *testing.T) {
 	_, err := NewMoneyTx(systemIdentifier, createNonMoneyTx())
 	require.ErrorContains(t, err, "transaction has invalid system identifier")
@@ -315,23 +288,6 @@ func TestSwapTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
-func TestTransferFCTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
-	tx := createTransferFCTxOrder(t)
-	sigBytes := tx.SigBytes()
-	var b bytes.Buffer
-	b.Write(systemID)
-	b.Write(unitID)
-	b.Write(util.Uint64ToBytes(timeout))
-	b.Write(util.Uint64ToBytes(amount))
-	b.Write(systemID)
-	b.Write(recordID)
-	b.Write(util.Uint64ToBytes(t1))
-	b.Write(util.Uint64ToBytes(t2))
-	b.Write(nonce)
-	b.Write(backlink)
-	require.Equal(t, b.Bytes(), sigBytes)
-}
-
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
 func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDCOrder, pbTransaction *txsystem.Transaction, transfer TransferDC) {
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
@@ -398,18 +354,6 @@ func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*t
 	}
 }
 
-func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFCOrder {
-	return &TransferFCOrder{
-		Amount:                 amount,
-		TargetSystemIdentifier: sysID,
-		TargetRecordId:         recID,
-		EarliestAdditionTime:   t1,
-		LatestAdditionTime:     t2,
-		Nonce:                  nonce,
-		Backlink:               backlink,
-	}
-}
-
 func toUint256(b []byte) *uint256.Int {
 	return uint256.NewInt(0).SetBytes(b)
 }
@@ -471,16 +415,6 @@ func createSwapTxOrder(t *testing.T, dcTransfers []*txsystem.Transaction, dcTran
 			Proofs:          dcTransferProofs,
 			TargetValue:     targetValue,
 		}),
-	)
-}
-
-func createTransferFCTxOrder(t *testing.T) txsystem.GenericTransaction {
-	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
-		testtransaction.WithSystemID(systemID),
-		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
-		testtransaction.WithOwnerProof(ownerProof),
-		testtransaction.WithAttributes(newPBTransferFC(amount, t1, t2, systemIdentifier, recordID, nonce, backlink)),
 	)
 }
 

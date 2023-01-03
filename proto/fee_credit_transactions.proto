@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+//import "transaction.proto";
+//import "block_proof.proto";
+
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem;txsystem";
+
+message TransferFCOrder {
+  // amount to transfer
+  uint64 amount = 1;
+  // system_identifier of the target partition
+  bytes target_system_identifier = 2;
+  // unit id of the corresponding “add fee credit” transaction
+  bytes target_record_id = 3;
+  // earliest round when the corresponding “add fee credit” transaction can be executed in the target system
+  uint64 earliest_addition_time = 4;
+  // latest round when the corresponding “add fee credit” transaction can be executed in the target system
+  uint64 latest_addition_time = 5;
+  // the current state hash of the target credit record if the record exists, or to nil if the record does not exist yet
+  bytes nonce = 6;
+  // hash of this unit's previous transacton
+  bytes backlink = 7;
+}
+//
+//message AddFCOrder {
+//  // target fee credit record owner condition
+//  bytes fee_credit_owner_condition = 1;
+//  // bill transfer record of type "transfer fee credit"
+//  Transaction fee_credit_transfer = 2;
+//  // block proof of "transfer fee credit" transaction
+//  BlockProof fee_credit_transfer_proof = 3;
+//}

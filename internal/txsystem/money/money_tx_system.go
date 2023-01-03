@@ -71,17 +71,6 @@ type (
 		TargetValue() uint64
 	}
 
-	TransferFC interface {
-		txsystem.GenericTransaction
-		Amount() uint64
-		TargetSystemID() []byte
-		TargetRecordID() []byte
-		EarliestAdditionTime() uint64
-		LatestAdditionTime() uint64
-		Nonce() []byte
-		Backlink() []byte
-	}
-
 	InitialBill struct {
 		ID    *uint256.Int
 		Value uint64

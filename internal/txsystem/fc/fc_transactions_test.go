@@ -1,10 +1,12 @@
-package txsystem
+package fc
 
 import (
 	"bytes"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,7 @@ func TestWrapper_TransferFC(t *testing.T) {
 		pbTransferFC  = newPBTransferFC(1, 2, 3, systemID, test.RandomBytes(32), test.RandomBytes(32), test.RandomBytes(32))
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbTransferFC)
 	)
-	genericTx, err := NewFeeCreditGenericTx(systemID, pbTransaction)
+	genericTx, err := toGenericTx(pbTransaction)
 	require.NoError(t, err)
 	fc, ok := genericTx.(*TransferFCWrapper)
 	require.True(t, ok)
@@ -47,6 +49,28 @@ func TestWrapper_TransferFC(t *testing.T) {
 	require.Equal(t, pbTransferFC.TargetRecordId, fc.TransferFC.TargetRecordId)
 	require.Equal(t, pbTransferFC.Nonce, fc.TransferFC.Nonce)
 	require.Equal(t, pbTransferFC.Backlink, fc.TransferFC.Backlink)
+}
+
+func TestWrapper_AddFC(t *testing.T) {
+	var (
+		pbTransferFC  = createTransferFCTxOrder()
+		proof         = &block.BlockProof{BlockHeaderHash: test.RandomBytes(32)}
+		pbAddFC       = newPBAddFC(test.RandomBytes(32), pbTransferFC.ToProtoBuf(), proof)
+		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbAddFC)
+	)
+	genericTx, err := toGenericTx(pbTransaction)
+	require.NoError(t, err)
+	fc, ok := genericTx.(*AddFCWrapper)
+	require.True(t, ok)
+
+	require.Equal(t, pbTransaction.SystemId, fc.SystemID())
+	require.Equal(t, pbTransaction.UnitId, util.Uint256ToBytes(fc.UnitID()))
+	require.Equal(t, pbTransaction.Timeout, fc.Timeout())
+	require.Equal(t, pbTransaction.OwnerProof, fc.OwnerProof())
+
+	require.Equal(t, pbAddFC.FeeCreditOwnerCondition, fc.AddFC.FeeCreditOwnerCondition)
+	require.True(t, proto.Equal(pbTransferFC.ToProtoBuf(), fc.AddFC.FeeCreditTransfer))
+	require.True(t, proto.Equal(proof, fc.AddFC.FeeCreditTransferProof))
 }
 
 func TestTransferFCTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
@@ -78,8 +102,16 @@ func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte
 	}
 }
 
-func createTransferFCTxOrder() GenericTransaction {
-	tx := &Transaction{
+func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof) *AddFCOrder {
+	return &AddFCOrder{
+		FeeCreditOwnerCondition: owner,
+		FeeCreditTransfer:       tx,
+		FeeCreditTransferProof:  proof,
+	}
+}
+
+func createTransferFCTxOrder() txsystem.GenericTransaction {
+	tx := &txsystem.Transaction{
 		SystemId:              systemID,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                unitID,
@@ -87,12 +119,12 @@ func createTransferFCTxOrder() GenericTransaction {
 		OwnerProof:            ownerProof,
 	}
 	_ = tx.TransactionAttributes.MarshalFrom(newPBTransferFC(amount, t1, t2, systemID, recordID, nonce, backlink))
-	gtx, _ := newFeeCreditGenericTx(tx)
+	gtx, _ := toGenericTx(tx)
 	return gtx
 }
 
-func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *Transaction {
-	to := &Transaction{
+func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *txsystem.Transaction {
+	to := &txsystem.Transaction{
 		SystemId:              systemID,
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
@@ -106,16 +138,7 @@ func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Mes
 	return to
 }
 
-func newFeeCreditGenericTx(tx *Transaction) (GenericTransaction, error) {
-	return NewFeeCreditGenericTx(systemID, tx)
-}
-
-// NewFeeCreditGenericTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
-func NewFeeCreditGenericTx(systemID []byte, tx *Transaction) (GenericTransaction, error) {
-	if !bytes.Equal(systemID, tx.GetSystemId()) {
-		return nil, errors.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), systemID)
-	}
-
+func toGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	switch tx.TransactionAttributes.TypeUrl {
 	case typeURLTransferFCOrder:
 		pb := &TransferFCOrder{}
@@ -126,6 +149,16 @@ func NewFeeCreditGenericTx(systemID []byte, tx *Transaction) (GenericTransaction
 		return &TransferFCWrapper{
 			Wrapper:    Wrapper{Transaction: tx},
 			TransferFC: pb,
+		}, nil
+	case typeURLAddFCOrder:
+		pb := &AddFCOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		return &AddFCWrapper{
+			Wrapper: Wrapper{Transaction: tx},
+			AddFC:   pb,
 		}, nil
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)

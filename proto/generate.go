@@ -2,7 +2,7 @@ package proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/. transaction.proto
 
-//go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/. fee_credit_transactions.proto
+//go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/fc/. fc_transactions.proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/money/. money_tx.proto
 

@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-//import "transaction.proto";
-//import "block_proof.proto";
+import "transaction.proto";
+import "block_proof.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/internal/txsystem;txsystem";
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/fc;fc";
 
 message TransferFCOrder {
   // amount to transfer
@@ -21,12 +21,12 @@ message TransferFCOrder {
   // hash of this unit's previous transacton
   bytes backlink = 7;
 }
-//
-//message AddFCOrder {
-//  // target fee credit record owner condition
-//  bytes fee_credit_owner_condition = 1;
-//  // bill transfer record of type "transfer fee credit"
-//  Transaction fee_credit_transfer = 2;
-//  // block proof of "transfer fee credit" transaction
-//  BlockProof fee_credit_transfer_proof = 3;
-//}
+
+message AddFCOrder {
+  // target fee credit record owner condition
+  bytes fee_credit_owner_condition = 1;
+  // bill transfer record of type "transfer fee credit"
+  Transaction fee_credit_transfer = 2;
+  // block proof of "transfer fee credit" transaction
+  BlockProof fee_credit_transfer_proof = 3;
+}

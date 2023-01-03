@@ -20,31 +20,34 @@ type (
 		maxExponent  uint8
 	}
 
-	// RoundState tracks the current round/view number. The number is incremented when new quorum are
+	// Pacemaker tracks the current round/view number. The number is incremented when new quorum are
 	// received. A new round/view starts if there is a quorum certificate or timeout certificate for previous round.
 	// In addition, it also calculates the local timeout interval based on how many rounds have failed and keeps track
 	// of validator data related to the active round (votes received if next leader or votes sent if follower).
-	RoundState struct {
+	Pacemaker struct {
+		blockRate time.Duration
 		// Last commit.
-		highCommittedRound uint64
+		lastQcToCommitRound uint64
 		// Current round is max(highest QC, highest TC) + 1.
 		currentRound uint64
 		// The deadline for the next local timeout event. It is reset every time a new round start, or
 		// a previous deadline expires.
 		roundTimeout time.Time
+		// Time last proposal was received
+		lastProposalTime time.Time
 		// timeout calculator
 		timeoutCalculator TimeoutCalculator
 		// Collection of votes (when node is the next leader)
 		pendingVotes *VoteRegister
 		// Last round timeout certificate
 		lastRoundTC *atomic_broadcast.TimeoutCert
-		// Vote sent locally for the current round.
+		// Store for votes sent in the ongoing round.
 		voteSent    *atomic_broadcast.VoteMsg
 		timeoutVote *atomic_broadcast.TimeoutMsg
 	}
 )
 
-func (x *RoundState) LastRoundTC() *atomic_broadcast.TimeoutCert {
+func (x *Pacemaker) LastRoundTC() *atomic_broadcast.TimeoutCert {
 	return x.lastRoundTC
 }
 
@@ -61,53 +64,55 @@ func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) ti
 	return time.Duration(float64(x.baseMs) * mul)
 }
 
-// NewRoundState Needs to be constructed from last QC!
-func NewRoundState(lastRound uint64, localTimeout time.Duration) *RoundState {
-	return &RoundState{
-		highCommittedRound: lastRound,
-		currentRound:       lastRound + 1,
-		roundTimeout:       time.Now().Add(localTimeout),
-		timeoutCalculator:  ExponentialTimeInterval{baseMs: localTimeout, exponentBase: 1.2, maxExponent: 0},
-		pendingVotes:       NewVoteRegister(),
-		lastRoundTC:        nil,
-		voteSent:           nil,
-		timeoutVote:        nil,
+// NewPacemaker Needs to be constructed from last QC!
+func NewPacemaker(lastRound uint64, localTimeout time.Duration, bRate time.Duration) *Pacemaker {
+	return &Pacemaker{
+		blockRate:           bRate,
+		lastQcToCommitRound: lastRound,
+		currentRound:        lastRound + 1,
+		roundTimeout:        time.Now().Add(localTimeout),
+		lastProposalTime:    time.Now(),
+		timeoutCalculator:   ExponentialTimeInterval{baseMs: localTimeout, exponentBase: 1.2, maxExponent: 0},
+		pendingVotes:        NewVoteRegister(),
+		lastRoundTC:         nil,
+		voteSent:            nil,
+		timeoutVote:         nil,
 	}
 }
 
-func (x *RoundState) clear() {
+func (x *Pacemaker) clear() {
 	x.voteSent = nil
 	x.timeoutVote = nil
 }
 
-func (x *RoundState) GetCurrentRound() uint64 {
+func (x *Pacemaker) GetCurrentRound() uint64 {
 	return x.currentRound
 }
 
-func (x *RoundState) SetVoted(vote *atomic_broadcast.VoteMsg) {
+func (x *Pacemaker) SetVoted(vote *atomic_broadcast.VoteMsg) {
 	if vote.VoteInfo.RootRound == x.currentRound {
 		x.voteSent = vote
 	}
 }
 
-func (x *RoundState) SetTimeoutVote(vote *atomic_broadcast.TimeoutMsg) {
+func (x *Pacemaker) SetTimeoutVote(vote *atomic_broadcast.TimeoutMsg) {
 	if vote.Timeout.Round == x.currentRound {
 		x.timeoutVote = vote
 	}
 }
 
-func (x *RoundState) GetVoted() *atomic_broadcast.VoteMsg {
+func (x *Pacemaker) GetVoted() *atomic_broadcast.VoteMsg {
 	return x.voteSent
 }
-func (x *RoundState) GetTimeoutVote() *atomic_broadcast.TimeoutMsg {
+func (x *Pacemaker) GetTimeoutVote() *atomic_broadcast.TimeoutMsg {
 	return x.timeoutVote
 }
 
-func (x *RoundState) GetRoundTimeout() time.Duration {
+func (x *Pacemaker) GetRoundTimeout() time.Duration {
 	return x.roundTimeout.Sub(time.Now())
 }
 
-func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumInfo) *atomic_broadcast.QuorumCert {
+func (x *Pacemaker) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumInfo) *atomic_broadcast.QuorumCert {
 	// If the vote is not about the current round then ignore
 	if vote.VoteInfo.RootRound != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
@@ -122,7 +127,20 @@ func (x *RoundState) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumI
 	return qc
 }
 
-func (x *RoundState) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quorum QuorumInfo) *atomic_broadcast.TimeoutCert {
+func (x *Pacemaker) RegisterProposal() {
+	x.lastProposalTime = time.Now()
+}
+
+func (x *Pacemaker) CalcTimeTilNextProposal() time.Duration {
+	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
+	now := time.Now()
+	if now.Sub(x.lastProposalTime) >= time.Duration(x.currentRound%2)*x.blockRate {
+		return 0
+	}
+	return x.lastProposalTime.Add(x.blockRate).Sub(now)
+}
+
+func (x *Pacemaker) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quorum QuorumInfo) *atomic_broadcast.TimeoutCert {
 	tc, err := x.pendingVotes.InsertTimeoutVote(vote, quorum)
 	if err != nil {
 		logger.Warning("Round %v vote message from %v error:", x.currentRound, vote.Author, err)
@@ -131,34 +149,34 @@ func (x *RoundState) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quor
 	return tc
 }
 
-func (x *RoundState) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
+func (x *Pacemaker) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
 	if qc == nil {
 		return false
 	}
+	// Same QC can only advance the round number once
 	if qc.VoteInfo.RootRound < x.currentRound {
 		return false
 	}
-	// last vote is now obsolete
-	x.voteSent = nil
 	x.lastRoundTC = nil
-	x.highCommittedRound = qc.VoteInfo.RootRound
+	// only increment high committed round if QC commits a state
+	if qc.LedgerCommitInfo.CommitStateId != nil {
+		x.lastQcToCommitRound = qc.VoteInfo.RootRound
+	}
 	x.startNewRound(qc.VoteInfo.RootRound + 1)
 	return true
 }
 
-func (x *RoundState) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
+func (x *Pacemaker) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
 	// no timeout cert or is from old view/round - ignore
 	if tc == nil || tc.Timeout.Round < x.currentRound {
 		return
 	}
-	// last vote is now obsolete
-	x.voteSent = nil
 	x.lastRoundTC = tc
 	x.startNewRound(tc.Timeout.Round + 1)
 }
 
-func (x *RoundState) startNewRound(round uint64) {
+func (x *Pacemaker) startNewRound(round uint64) {
 	x.clear()
 	x.currentRound = round
-	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.highCommittedRound - 1))
+	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.lastQcToCommitRound - 1))
 }

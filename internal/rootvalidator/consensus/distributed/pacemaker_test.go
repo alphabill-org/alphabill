@@ -7,6 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testLocalTimeout = time.Duration(10000) * time.Millisecond
+const testBlockRate = time.Duration(1000) * time.Millisecond
+
 func TestExponentialTimeInterval_GetNextTimeout(t *testing.T) {
 	type fields struct {
 		baseMs       time.Duration
@@ -69,114 +72,125 @@ func TestExponentialTimeInterval_GetNextTimeout(t *testing.T) {
 
 func TestNewRoundState(t *testing.T) {
 	const lastCommittedRound = uint64(2)
-	const localTimeout = time.Duration(10000) * time.Millisecond
-	roundState := NewRoundState(lastCommittedRound, localTimeout)
-	require.Equal(t, time.Now().Add(localTimeout).Round(time.Millisecond), roundState.roundTimeout.Round(time.Millisecond))
-	require.Equal(t, lastCommittedRound, roundState.highCommittedRound)
-	require.Equal(t, lastCommittedRound+1, roundState.currentRound)
-	require.Nil(t, roundState.lastRoundTC)
-	require.NotNil(t, roundState.pendingVotes)
-	require.Nil(t, roundState.voteSent)
+	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	require.Equal(t, time.Now().Add(testLocalTimeout).Round(time.Millisecond), pacemaker.roundTimeout.Round(time.Millisecond))
+	require.Equal(t, lastCommittedRound, pacemaker.lastQcToCommitRound)
+	require.Equal(t, lastCommittedRound+1, pacemaker.currentRound)
+	require.Nil(t, pacemaker.lastRoundTC)
+	require.NotNil(t, pacemaker.pendingVotes)
+	require.Nil(t, pacemaker.voteSent)
 }
 
 func TestRoundState_AdvanceRoundQC(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	const localTimeout = time.Duration(10000) * time.Millisecond
-	roundState := NewRoundState(lastCommittedRound, localTimeout)
-	require.Nil(t, roundState.GetVoted())
+	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	require.Nil(t, pacemaker.GetVoted())
 	// create QC
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
 	signatures := map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	staleQc := NewDummyQuorumCertificate(voteInfo, signatures)
 	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
 	// record vote
-	roundState.SetVoted(vote)
-	require.NotNil(t, roundState.GetVoted())
+	pacemaker.SetVoted(vote)
+	require.NotNil(t, pacemaker.GetVoted())
 	// nil
-	require.False(t, roundState.AdvanceRoundQC(nil))
+	require.False(t, pacemaker.AdvanceRoundQC(nil))
 	// old QC
-	require.False(t, roundState.AdvanceRoundQC(staleQc))
-	require.NotNil(t, roundState.GetVoted())
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+1)
+	require.False(t, pacemaker.AdvanceRoundQC(staleQc))
+	require.NotNil(t, pacemaker.GetVoted())
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	voteInfo = NewDummyVoteInfo(8, []byte{1, 2, 3, 4})
 	qc := NewDummyQuorumCertificate(voteInfo, signatures)
-	require.True(t, roundState.AdvanceRoundQC(qc))
-	require.Equal(t, roundState.GetCurrentRound(), uint64(9))
+	require.True(t, pacemaker.AdvanceRoundQC(qc))
+	require.Equal(t, pacemaker.GetCurrentRound(), uint64(9))
 	// vote is reset when view is changed
-	require.Nil(t, roundState.GetVoted())
+	require.Nil(t, pacemaker.GetVoted())
 }
 
 func TestRoundState_AdvanceRoundTC(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	const localTimeout = time.Duration(10000) * time.Millisecond
-	roundState := NewRoundState(lastCommittedRound, localTimeout)
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+1)
+	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	// record a vote in current round
 	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
 	// record vote
-	roundState.SetVoted(vote)
-	roundState.AdvanceRoundTC(nil)
+	pacemaker.SetVoted(vote)
+	pacemaker.AdvanceRoundTC(nil)
 	// no change
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+1)
-	require.Equal(t, roundState.GetVoted(), vote)
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
+	require.Equal(t, pacemaker.GetVoted(), vote)
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
 	signatures := map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	staleQc := NewDummyQuorumCertificate(voteInfo, signatures)
 	staleTc := NewDummyTc(4, staleQc)
-	roundState.AdvanceRoundTC(staleTc)
-	require.NotNil(t, roundState.GetVoted())
+	pacemaker.AdvanceRoundTC(staleTc)
+	require.NotNil(t, pacemaker.GetVoted())
 	// still no change
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+1)
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	// create a valid qc for current
-	voteInfo = NewDummyVoteInfo(roundState.GetCurrentRound()-1, []byte{0, 1, 2, 3})
+	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound()-1, []byte{0, 1, 2, 3})
 	qc := NewDummyQuorumCertificate(voteInfo, signatures)
-	tc := NewDummyTc(roundState.GetCurrentRound(), qc)
-	roundState.AdvanceRoundTC(tc)
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+2)
-	require.Equal(t, tc, roundState.LastRoundTC())
+	tc := NewDummyTc(pacemaker.GetCurrentRound(), qc)
+	pacemaker.AdvanceRoundTC(tc)
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+2)
+	require.Equal(t, tc, pacemaker.LastRoundTC())
 	// and vote is reset
-	require.Nil(t, roundState.GetVoted())
+	require.Nil(t, pacemaker.GetVoted())
 	// Now advance with qc for round 7
-	voteInfo = NewDummyVoteInfo(roundState.GetCurrentRound(), []byte{0, 1, 2, 3})
+	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound(), []byte{0, 1, 2, 3})
 	qc = NewDummyQuorumCertificate(voteInfo, signatures)
-	require.True(t, roundState.AdvanceRoundQC(qc))
+	require.True(t, pacemaker.AdvanceRoundQC(qc))
 	// now also last round TC is reset
-	require.Nil(t, roundState.LastRoundTC())
+	require.Nil(t, pacemaker.LastRoundTC())
 }
 
 func TestRoundState_GetRoundTimeout(t *testing.T) {
 	const lastCommittedRound = uint64(6)
 	const localTimeout = time.Duration(10000) * time.Millisecond
-	roundState := NewRoundState(lastCommittedRound, localTimeout)
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+1)
+	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	// round to ms, a few ns have passed, but the timeout should be still round localTimeout
-	roundTimeout := roundState.GetRoundTimeout().Round(time.Millisecond)
+	roundTimeout := pacemaker.GetRoundTimeout().Round(time.Millisecond)
 	require.Equal(t, localTimeout, roundTimeout)
-	voteInfo := NewDummyVoteInfo(roundState.GetCurrentRound()-1, []byte{0, 1, 2, 3})
+	voteInfo := NewDummyVoteInfo(pacemaker.GetCurrentRound()-1, []byte{0, 1, 2, 3})
 	signatures := map[string][]byte{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	qc := NewDummyQuorumCertificate(voteInfo, signatures)
-	tc := NewDummyTc(roundState.GetCurrentRound(), qc)
-	roundState.AdvanceRoundTC(tc)
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+2)
-	roundTimeout = roundState.GetRoundTimeout().Round(time.Millisecond)
+	tc := NewDummyTc(pacemaker.GetCurrentRound(), qc)
+	pacemaker.AdvanceRoundTC(tc)
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+2)
+	roundTimeout = pacemaker.GetRoundTimeout().Round(time.Millisecond)
 	require.Equal(t, localTimeout, roundTimeout)
 }
 
 func TestRoundState_RegisterVote(t *testing.T) {
 	const lastCommittedRound = uint64(6)
-	const localTimeout = time.Duration(10000) * time.Millisecond
 	quorum := NewDummyQuorum(3)
-	roundState := NewRoundState(lastCommittedRound, localTimeout)
-	require.Equal(t, roundState.GetCurrentRound(), lastCommittedRound+1)
+	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	vote := NewDummyVote("node1", 7, []byte{2, 2, 2, 2})
-	qc := roundState.RegisterVote(vote, quorum)
+	qc := pacemaker.RegisterVote(vote, quorum)
 	require.Nil(t, qc)
 	vote = NewDummyVote("node2", 7, []byte{2, 2, 2, 2})
-	qc = roundState.RegisterVote(vote, quorum)
+	qc = pacemaker.RegisterVote(vote, quorum)
 	require.Nil(t, qc)
 	vote = NewDummyVote("node3", 7, []byte{2, 2, 2, 2})
-	qc = roundState.RegisterVote(vote, quorum)
+	qc = pacemaker.RegisterVote(vote, quorum)
 	require.NotNil(t, qc)
+}
+
+func TestRoundState_OddRoundCalcTimeTilFirstProposal(t *testing.T) {
+	const lastCommittedRound = uint64(0)
+	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	timeout := pacemaker.CalcTimeTilNextProposal()
+	// subtract some small amount of time to reduce race
+	require.Greater(t, timeout, testBlockRate-(time.Duration(5)*time.Millisecond))
+}
+
+func TestRoundState_EvenRoundCalcTimeTilFirstProposal(t *testing.T) {
+	const lastCommittedRound = uint64(1)
+	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
+	timeout := pacemaker.CalcTimeTilNextProposal()
+	require.Equal(t, timeout, time.Duration(0))
 }
 
 func Test_min(t *testing.T) {

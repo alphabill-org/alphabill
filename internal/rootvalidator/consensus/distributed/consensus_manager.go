@@ -167,8 +167,6 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	if err != nil {
 		return nil, err
 	}
-	pace := NewPacemaker(lastState.LatestRound, conf.LocalTimeoutMs, conf.BlockRateMs)
-	timers := timer.NewTimers()
 	ledger, err := NewRoundPipeline(conf.HashAlgorithm, lastState, partitionStore)
 	if err != nil {
 		return nil, err
@@ -179,9 +177,9 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		certResultCh:  make(chan certificates.UnicityCertificate, 1),
 		config:        conf,
 		peer:          host,
-		timers:        timers,
+		timers:        timer.NewTimers(),
 		net:           net,
-		pacemaker:     pace,
+		pacemaker:     NewPacemaker(lastState.LatestRound, conf.LocalTimeoutMs, conf.BlockRateMs),
 		proposer:      l,
 		rootVerifier:  rootVerifier,
 		irReqBuffer:   NewIrReqBuffer(),

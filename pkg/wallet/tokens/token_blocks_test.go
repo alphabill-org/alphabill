@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -28,8 +29,8 @@ func TestTokensProcessBlock_empty(t *testing.T) {
 	require.Equal(t, uint64(0), blockNr)
 	client.SetMaxBlockNumber(1)
 	client.SetBlock(&block.Block{
-		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
-		BlockNumber:      1})
+		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}})
 	require.NoError(t, w.Sync(context.Background()))
 	blockNr, err = w.db.Do().GetBlockNumber()
 	require.NoError(t, err)
@@ -52,9 +53,9 @@ func TestTokensProcessBlock_withTx_tokenTypes(t *testing.T) {
 	//build block
 	client.SetMaxBlockNumber(blockNr)
 	b := &block.Block{
-		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
-		BlockNumber:      blockNr,
-		Transactions:     []*txsystem.Transaction{tx1, tx2}}
+		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
+		Transactions:       []*txsystem.Transaction{tx1, tx2}}
 	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
 	client.SetBlock(certifiedBlock)
 
@@ -118,9 +119,9 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 	//build block
 	client.SetMaxBlockNumber(blockNr)
 	b := &block.Block{
-		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
-		BlockNumber:      blockNr,
-		Transactions:     []*txsystem.Transaction{tx1, tx2}}
+		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
+		Transactions:       []*txsystem.Transaction{tx1, tx2}}
 	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
 	client.SetBlock(certifiedBlock)
 
@@ -234,9 +235,9 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	//build block
 	client.SetMaxBlockNumber(blockNr)
 	b := &block.Block{
-		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
-		BlockNumber:      blockNr,
-		Transactions:     []*txsystem.Transaction{tx1, tx2, nftTx}}
+		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
+		Transactions:       []*txsystem.Transaction{tx1, tx2, nftTx}}
 	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
 	client.SetBlock(certifiedBlock)
 
@@ -296,9 +297,9 @@ func TestTokensProcessBlock_syncToUnit(t *testing.T) {
 	require.NoError(t, anypb.MarshalFrom(tx.TransactionAttributes, &tokens.CreateFungibleTokenTypeAttributes{Symbol: "AB"}, proto.MarshalOptions{}))
 	client.SetMaxBlockNumber(blockNr)
 	client.SetBlock(&block.Block{
-		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
-		BlockNumber:      blockNr,
-		Transactions:     []*txsystem.Transaction{tx}})
+		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
+		Transactions:       []*txsystem.Transaction{tx}})
 	types, err := w.db.Do().GetTokenTypes()
 	require.NoError(t, err)
 	require.Len(t, types, 0)
@@ -327,9 +328,9 @@ func TestTokensProcessBlock_syncToUnit_timeout(t *testing.T) {
 	require.NoError(t, err)
 	client.SetMaxBlockNumber(blockNr)
 	client.SetBlock(&block.Block{
-		SystemIdentifier: tokens.DefaultTokenTxSystemIdentifier,
-		BlockNumber:      blockNr,
-		Transactions:     []*txsystem.Transaction{}})
+		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
+		Transactions:       []*txsystem.Transaction{}})
 	types, err := w.db.Do().GetTokenTypes()
 	require.NoError(t, err)
 	require.Len(t, types, 0)

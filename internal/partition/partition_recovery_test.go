@@ -107,7 +107,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 
 	// create new block
 	newBlock := proto.Clone(currentBlock).(*block.Block)
-	newBlock.BlockNumber = currentBlock.BlockNumber + 1
+	newBlock.UnicityCertificate.InputRecord.RoundNumber = currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1
 	newBlock.PreviousBlockHash, _ = currentBlock.Hash(system, tp.partition.configuration.hashAlgorithm)
 	newBlock.Transactions = make([]*txsystem.Transaction, 1)
 	newBlock.Transactions[0] = moneytesttx.RandomBillTransfer(t)

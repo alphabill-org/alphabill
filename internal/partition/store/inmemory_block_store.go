@@ -22,7 +22,11 @@ func NewInMemoryBlockStore() *InMemoryBlockStore {
 func (bs *InMemoryBlockStore) Add(b *block.Block) error {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
-	bs.blocks[b.BlockNumber] = b
+	nr := b.UnicityCertificate.InputRecord.RoundNumber
+	if nr == 0 {
+		println()
+	}
+	bs.blocks[nr] = b
 	return nil
 }
 

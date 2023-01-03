@@ -132,7 +132,6 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	// first block
 	b := &block.GenericBlock{
 		SystemIdentifier:  c.systemIdentifier,
-		BlockNumber:       1,
 		PreviousBlockHash: nil,
 		Transactions:      nil,
 	}
@@ -151,6 +150,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 			PreviousHash: zeroHash, // extend zero hash
 			Hash:         hash,
 			BlockHash:    blockHash,
+			RoundNumber:  1,
 			SummaryValue: summaryValue,
 		},
 	}

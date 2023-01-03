@@ -24,13 +24,13 @@ func NewBlockProcessor(store BillStore) *BlockProcessor {
 }
 
 func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
-	wlog.Info("processing block: ", b.BlockNumber)
+	wlog.Info("processing block: ", b.UnicityCertificate.InputRecord.RoundNumber)
 	lastBlockNumber, err := p.store.GetBlockNumber()
 	if err != nil {
 		return err
 	}
-	if b.BlockNumber != lastBlockNumber+1 {
-		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber)
+	if b.UnicityCertificate.InputRecord.RoundNumber != lastBlockNumber+1 {
+		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 	keys, err := p.store.GetKeys()
 	if err != nil {
@@ -44,11 +44,11 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 			}
 		}
 	}
-	err = p.store.DeleteExpiredBills(b.BlockNumber)
+	err = p.store.DeleteExpiredBills(b.UnicityCertificate.InputRecord.RoundNumber)
 	if err != nil {
 		return err
 	}
-	return p.store.SetBlockNumber(b.BlockNumber)
+	return p.store.SetBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber)
 }
 
 func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, pubKey *Pubkey) error {
@@ -88,7 +88,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 			if err != nil {
 				return err
 			}
-			err = p.store.SetBillExpirationTime(b.BlockNumber+dustBillDeletionTimeout, pubKey.Pubkey, txPb.UnitId)
+			err = p.store.SetBillExpirationTime(b.UnicityCertificate.InputRecord.RoundNumber+dustBillDeletionTimeout, pubKey.Pubkey, txPb.UnitId)
 			if err != nil {
 				return err
 			}
@@ -170,7 +170,7 @@ func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, tx *tx
 		return err
 	}
 	proof := &TxProof{
-		BlockNumber: b.BlockNumber,
+		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       blockProof,
 	}

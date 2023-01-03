@@ -17,8 +17,9 @@ import (
 // GenericBlock same as Block but transactions are of type txsystem.GenericTransaction
 type GenericBlock struct {
 	SystemIdentifier   []byte
-	BlockNumber        uint64
+	ShardIdentifier    []byte
 	PreviousBlockHash  []byte
+	ProposerIdentifier []byte
 	Transactions       []txsystem.GenericTransaction
 	UnicityCertificate *certificates.UnicityCertificate
 }
@@ -43,18 +44,18 @@ func (x *GenericBlock) HashHeader(hashAlgorithm crypto.Hash) []byte {
 
 func (x *GenericBlock) AddHeaderToHasher(hasher hash.Hash) {
 	hasher.Write(x.SystemIdentifier)
-	// TODO add shard id to block header hash
-	//hasher.Write(b.ShardIdentifier)
-	hasher.Write(util.Uint64ToBytes(x.BlockNumber))
+	hasher.Write(x.ShardIdentifier)
 	hasher.Write(x.PreviousBlockHash)
+	hasher.Write(x.ProposerIdentifier)
 }
 
 // ToProtobuf converts GenericBlock to protobuf Block
 func (x *GenericBlock) ToProtobuf() *Block {
 	return &Block{
 		SystemIdentifier:   x.SystemIdentifier,
-		BlockNumber:        x.BlockNumber,
+		ShardIdentifier:    x.ShardIdentifier,
 		PreviousBlockHash:  x.PreviousBlockHash,
+		ProposerIdentifier: x.ProposerIdentifier,
 		Transactions:       genericTxsToProtobuf(x.Transactions),
 		UnicityCertificate: x.UnicityCertificate,
 	}

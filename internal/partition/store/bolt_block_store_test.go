@@ -29,7 +29,7 @@ func TestPersistentBlockStore_AddGetBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify block
-	b, err := bs.Get(tp.BlockNumber)
+	b, err := bs.Get(tp.UnicityCertificate.InputRecord.RoundNumber)
 	require.NoError(t, err)
 	verifyBlock(t, tp, b)
 }
@@ -108,10 +108,9 @@ func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
 func newDummyBlock(t *testing.T, blockNo uint64) *block.Block {
 	return &block.Block{
 		SystemIdentifier:   []byte{0},
-		BlockNumber:        blockNo,
 		PreviousBlockHash:  []byte{2},
 		Transactions:       []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
-		UnicityCertificate: &certificates.UnicityCertificate{},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
 	}
 }
 
@@ -128,7 +127,7 @@ func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
 
 func verifyBlock(t *testing.T, expected *block.Block, actual *block.Block) {
 	require.EqualValues(t, expected.SystemIdentifier, actual.SystemIdentifier)
-	require.EqualValues(t, expected.BlockNumber, actual.BlockNumber)
+	require.EqualValues(t, expected.UnicityCertificate.InputRecord.RoundNumber, actual.UnicityCertificate.InputRecord.RoundNumber)
 	require.EqualValues(t, expected.PreviousBlockHash, actual.PreviousBlockHash)
 	require.EqualValues(t, expected.Transactions, actual.Transactions)
 	require.EqualValues(t, expected.UnicityCertificate, actual.UnicityCertificate)

@@ -616,7 +616,7 @@ func (w *Wallet) createProof(unitID []byte, b *block.Block, tx *txsystem.Transac
 		return nil, err
 	}
 	return &Proof{
-		BlockNumber: b.BlockNumber,
+		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       proof,
 	}, nil

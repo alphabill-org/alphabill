@@ -25,7 +25,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		return ErrInvalidBlockSystemID
 	}
 	return w.db.WithTransaction(func(txc TokenTxContext) error {
-		blockNumber := b.BlockNumber
+		blockNumber := b.UnicityCertificate.InputRecord.RoundNumber
 		lastBlockNumber, err := txc.GetBlockNumber()
 		if err != nil {
 			return err
@@ -35,7 +35,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		}
 
 		if len(b.Transactions) != 0 {
-			log.Info("Processing non-empty block: ", b.BlockNumber)
+			log.Info("Processing non-empty block: ", b.UnicityCertificate.InputRecord.RoundNumber)
 
 			// lists tokens for all keys and with 'always true' predicate
 			accounts, err := w.mw.GetAccountKeys()
@@ -61,12 +61,12 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if lst != nil {
 			err := lst.ProcessBlock(b)
 			if err != nil {
-				log.Info(fmt.Sprintf("Failed to process a block #%v with blockListener", b.BlockNumber))
+				log.Info(fmt.Sprintf("Failed to process a block #%v with blockListener", b.UnicityCertificate.InputRecord.RoundNumber))
 				return err
 			}
 		}
 
-		return txc.SetBlockNumber(b.BlockNumber)
+		return txc.SetBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber)
 	})
 }
 
@@ -95,11 +95,11 @@ func (w *Wallet) syncToUnits(ctx context.Context, subs *submissionSet) error {
 
 	log.Info("Waiting the transactions to be finalized")
 	var bl BlockListener = func(b *block.Block) error {
-		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.BlockNumber))
+		log.Debug(fmt.Sprintf("Listener has got the block #%v", b.UnicityCertificate.InputRecord.RoundNumber))
 		for _, tx := range b.Transactions {
 			id := TokenID(tx.UnitId).String()
 			if sub, found := subs.submissions[id]; found {
-				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.BlockNumber))
+				log.Info(fmt.Sprintf("Tx with UnitID=%X is in the block #%v", sub.id, b.UnicityCertificate.InputRecord.RoundNumber))
 				sub.confirm()
 			}
 		}
@@ -107,8 +107,8 @@ func (w *Wallet) syncToUnits(ctx context.Context, subs *submissionSet) error {
 		if confirmed {
 			cancel()
 		}
-		if b.BlockNumber >= subs.maxTimeout {
-			log.Info(fmt.Sprintf("Sync timeout is reached, block (#%v)", b.BlockNumber))
+		if b.UnicityCertificate.InputRecord.RoundNumber >= subs.maxTimeout {
+			log.Info(fmt.Sprintf("Sync timeout is reached, block (#%v)", b.UnicityCertificate.InputRecord.RoundNumber))
 			for _, sub := range subs.submissions {
 				if !sub.confirmed {
 					log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))

@@ -224,7 +224,7 @@ func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<-
 		return 0, 0, err
 	}
 	for _, b := range res.Blocks {
-		lastBlockNumber = b.BlockNumber
+		lastBlockNumber = b.UnicityCertificate.InputRecord.RoundNumber
 		ch <- b
 	}
 	return lastBlockNumber, res.MaxBlockNumber, nil

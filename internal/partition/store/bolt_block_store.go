@@ -60,7 +60,7 @@ func (bs *BoltBlockStore) Add(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		blockNoInBytes := util.Uint64ToBytes(b.BlockNumber)
+		blockNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
 		err = tx.Bucket(blocksBucket).Put(blockNoInBytes, val)
 		if err != nil {
 			return err
@@ -140,8 +140,8 @@ func (bs *BoltBlockStore) GetPendingProposal() (*block.PendingBlockProposal, err
 
 func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 	latestBlockNo := bs.getLatestBlockNo(tx)
-	if latestBlockNo+1 != b.BlockNumber {
-		logger.Warning("Block verification failed: latest block #%v, current block #%v", latestBlockNo, b.BlockNumber)
+	if latestBlockNo+1 != b.UnicityCertificate.InputRecord.RoundNumber {
+		logger.Warning("Block verification failed: latest block #%v, current block #%v", latestBlockNo, b.UnicityCertificate.InputRecord.RoundNumber)
 		return errInvalidBlockNo
 	}
 	return nil

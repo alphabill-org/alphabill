@@ -183,7 +183,7 @@ func (c TxConverter) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransa
 
 func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter TxConverter) (*block.GenericBlock, *block.BlockProof, error) {
 	for _, n := range a.Nodes {
-		height := n.GetLatestBlock().GetBlockNumber()
+		height := n.GetLatestBlock().UnicityCertificate.InputRecord.RoundNumber
 		for i := uint64(0); i < height; i++ {
 			b, err := n.GetBlock(height - i)
 			if err != nil || b == nil {
@@ -297,7 +297,7 @@ func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition)
 func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.Transaction) bool) func() bool {
 	return func() bool {
 		for _, n := range network.Nodes {
-			height := n.GetLatestBlock().GetBlockNumber()
+			height := n.GetLatestBlock().UnicityCertificate.InputRecord.RoundNumber
 			for i := uint64(0); i <= height; i++ {
 				b, err := n.GetBlock(height - i)
 				if err != nil || b == nil {

@@ -7,10 +7,9 @@ option go_package = "github.com/alphabill-org/alphabill/internal/block;block";
 
 message Block {
   bytes system_identifier = 1;
-  uint64 block_number = 2;
+  bytes shard_identifier = 2;
   bytes previous_block_hash = 3;
-  repeated Transaction transactions = 4;
-  UnicityCertificate unicity_certificate = 5;
+  bytes proposer_identifier = 4;
+  repeated Transaction transactions = 5;
+  UnicityCertificate unicity_certificate = 6;
 }
-
-

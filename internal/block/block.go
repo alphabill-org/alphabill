@@ -5,7 +5,6 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type TxConverter interface {
@@ -29,10 +28,9 @@ func (x *Block) HashHeader(hashAlgorithm crypto.Hash) []byte {
 
 func (x *Block) AddHeaderToHasher(hasher hash.Hash) {
 	hasher.Write(x.SystemIdentifier)
-	// TODO add shard id to block header hash
-	//hasher.Write(b.ShardIdentifier)
-	hasher.Write(util.Uint64ToBytes(x.BlockNumber))
+	hasher.Write(x.ShardIdentifier)
 	hasher.Write(x.PreviousBlockHash)
+	hasher.Write(x.ProposerIdentifier)
 }
 
 func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
@@ -42,8 +40,9 @@ func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
 	}
 	return &GenericBlock{
 		SystemIdentifier:   x.SystemIdentifier,
-		BlockNumber:        x.BlockNumber,
+		ShardIdentifier:    x.ShardIdentifier,
 		PreviousBlockHash:  x.PreviousBlockHash,
+		ProposerIdentifier: x.ProposerIdentifier,
 		Transactions:       txs,
 		UnicityCertificate: x.UnicityCertificate,
 	}, nil

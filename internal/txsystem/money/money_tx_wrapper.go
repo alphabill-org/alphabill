@@ -18,12 +18,14 @@ const (
 	TypeTransferDCOrder = "TransferDCOrder"
 	TypeSplitOrder      = "SplitOrder"
 	TypeSwapOrder       = "SwapOrder"
+	TypeTransferFCOrder = "TransferFCOrder"
 
 	protobufTypeUrlPrefix  = "type.googleapis.com/rpc."
 	typeURLTransferOrder   = protobufTypeUrlPrefix + TypeTransferOrder
 	typeURLTransferDCOrder = protobufTypeUrlPrefix + TypeTransferDCOrder
 	typeURLSplitOrder      = protobufTypeUrlPrefix + TypeSplitOrder
 	typeURLSwapOrder       = protobufTypeUrlPrefix + TypeSwapOrder
+	typeURLTransferFCOrder = protobufTypeUrlPrefix + TypeTransferFCOrder
 )
 
 type (
@@ -53,6 +55,11 @@ type (
 		swap *SwapOrder
 		// The dust collector transfers, that also exist inside swap as generic Transaction
 		dcTransfers []*transferDCWrapper
+	}
+
+	transferFCWrapper struct {
+		wrapper
+		transferFC *TransferFCOrder
 	}
 )
 
@@ -116,6 +123,16 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 			swapWr.dcTransfers = append(swapWr.dcTransfers, dtw)
 		}
 		return swapWr, nil
+	case typeURLTransferFCOrder:
+		pb := &TransferFCOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		return &transferFCWrapper{
+			wrapper:    wrapper{transaction: tx},
+			transferFC: pb,
+		}, nil
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)
 	}
@@ -209,6 +226,23 @@ func (w *swapWrapper) AddToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(w.swap.TargetValue))
 }
 
+func (w *transferFCWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if w.wrapper.hashComputed(hashFunc) {
+		return w.wrapper.hashValue
+	}
+	hasher := hashFunc.New()
+	w.AddToHasher(hasher)
+
+	w.wrapper.hashValue = hasher.Sum(nil)
+	w.wrapper.hashFunc = hashFunc
+	return w.wrapper.hashValue
+}
+
+func (w *transferFCWrapper) AddToHasher(hasher hash.Hash) {
+	w.wrapper.addTransactionFieldsToHasher(hasher)
+	w.transferFC.addFieldsToHasher(hasher)
+}
+
 func (w *transferWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.wrapper.sigBytes(&b)
@@ -264,6 +298,29 @@ func (x *TransferDCOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Backlink)
 }
 
+func (w *transferFCWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.wrapper.sigBytes(&b)
+	b.Write(util.Uint64ToBytes(w.Amount()))
+	b.Write(w.TargetSystemID())
+	b.Write(w.TargetRecordID())
+	b.Write(util.Uint64ToBytes(w.EarliestAdditionTime()))
+	b.Write(util.Uint64ToBytes(w.LatestAdditionTime()))
+	b.Write(w.Nonce())
+	b.Write(w.Backlink())
+	return b.Bytes()
+}
+
+func (x *TransferFCOrder) addFieldsToHasher(hasher hash.Hash) {
+	hasher.Write(util.Uint64ToBytes(x.Amount))
+	hasher.Write(x.TargetSystemIdentifier)
+	hasher.Write(x.TargetRecordId)
+	hasher.Write(util.Uint64ToBytes(x.EarliestAdditionTime))
+	hasher.Write(util.Uint64ToBytes(x.LatestAdditionTime))
+	hasher.Write(x.Nonce)
+	hasher.Write(x.Backlink)
+}
+
 // State interfaces compatibility
 
 func (w *transferWrapper) NewBearer() []byte   { return w.transfer.NewBearer }
@@ -315,6 +372,17 @@ func (w *swapWrapper) BillIdentifiers() []*uint256.Int {
 	return billIds
 }
 func (w *swapWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+	return []*uint256.Int{w.UnitID()}
+}
+
+func (w *transferFCWrapper) Amount() uint64               { return w.transferFC.Amount }
+func (w *transferFCWrapper) TargetSystemID() []byte       { return w.transferFC.TargetSystemIdentifier }
+func (w *transferFCWrapper) TargetRecordID() []byte       { return w.transferFC.TargetRecordId }
+func (w *transferFCWrapper) EarliestAdditionTime() uint64 { return w.transferFC.EarliestAdditionTime }
+func (w *transferFCWrapper) LatestAdditionTime() uint64   { return w.transferFC.LatestAdditionTime }
+func (w *transferFCWrapper) Nonce() []byte                { return w.transferFC.Nonce }
+func (w *transferFCWrapper) Backlink() []byte             { return w.transferFC.Backlink }
+func (w *transferFCWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{w.UnitID()}
 }
 

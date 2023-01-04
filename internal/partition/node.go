@@ -431,17 +431,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 		logger.Warning("Unable to start new round, node is recovering")
 		return
 	}
-	b := n.blockStore.LatestBlock()
-	if b == nil {
-		println()
-	}
-	if b.UnicityCertificate == nil {
-		println()
-	}
-	if b.UnicityCertificate.InputRecord == nil {
-		println()
-	}
-	newBlockNr := b.UnicityCertificate.InputRecord.RoundNumber + 1
+	newBlockNr := n.blockStore.LatestBlock().UnicityCertificate.InputRecord.RoundNumber + 1
 	n.transactionSystem.BeginBlock(newBlockNr)
 	n.proposedTransactions = []txsystem.GenericTransaction{}
 	n.pendingBlockProposal = nil

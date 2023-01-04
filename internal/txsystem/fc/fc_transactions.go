@@ -13,10 +13,12 @@ import (
 const (
 	TypeTransferFCOrder = "TransferFCOrder"
 	TypeAddFCOrder      = "AddFCOrder"
+	TypeCloseFCOrder    = "CloseFCOrder"
 
 	protobufTypeUrlPrefix  = "type.googleapis.com/"
 	typeURLTransferFCOrder = protobufTypeUrlPrefix + TypeTransferFCOrder
 	typeURLAddFCOrder      = protobufTypeUrlPrefix + TypeAddFCOrder
+	typeURLCloseFCOrder    = protobufTypeUrlPrefix + TypeCloseFCOrder
 )
 
 type (
@@ -38,6 +40,11 @@ type (
 		// The fee credit transfer that also exist inside addFCOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
 		feeCreditTransfer *TransferFCWrapper
+	}
+
+	CloseFCWrapper struct {
+		Wrapper
+		CloseFC *CloseFCOrder
 	}
 )
 
@@ -133,6 +140,28 @@ func (w *AddFCWrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.AddFC.FeeCreditTransferProof.Bytes())
 }
 
+func (w *CloseFCWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if w.hashComputed(hashFunc) {
+		return w.hashValue
+	}
+	hasher := hashFunc.New()
+	w.AddToHasher(hasher)
+
+	w.hashValue = hasher.Sum(nil)
+	w.hashFunc = hashFunc
+	return w.hashValue
+}
+func (w *CloseFCWrapper) AddToHasher(hasher hash.Hash) {
+	w.Wrapper.addTransactionFieldsToHasher(hasher)
+	w.CloseFC.addFieldsToHasher(hasher)
+}
+func (w *CloseFCWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.transactionSigBytes(&b)
+	w.CloseFC.sigBytes(&b)
+	return b.Bytes()
+}
+
 // Protobuf transaction struct methods
 func (x *TransferFCOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(x.Amount))
@@ -151,4 +180,15 @@ func (x *TransferFCOrder) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.LatestAdditionTime))
 	b.Write(x.Nonce)
 	b.Write(x.Backlink)
+}
+
+func (x *CloseFCOrder) addFieldsToHasher(hasher hash.Hash) {
+	hasher.Write(util.Uint64ToBytes(x.Amount))
+	hasher.Write(x.TargetUnitId)
+	hasher.Write(x.Nonce)
+}
+func (x *CloseFCOrder) sigBytes(b *bytes.Buffer) {
+	b.Write(util.Uint64ToBytes(x.Amount))
+	b.Write(x.TargetUnitId)
+	b.Write(x.Nonce)
 }

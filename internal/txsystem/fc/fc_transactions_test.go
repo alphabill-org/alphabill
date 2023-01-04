@@ -8,6 +8,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -23,6 +24,7 @@ var (
 	recordID        = []byte{5}
 	owner           = []byte{6}
 	blockHeaderHash = []byte{7}
+	targetUnitId    = []byte{8}
 	timeout         = uint64(100)
 	amount          = uint64(101)
 	t1              = uint64(102)
@@ -75,6 +77,22 @@ func TestWrapper_AddFC(t *testing.T) {
 	require.True(t, proto.Equal(proof, fc.AddFC.FeeCreditTransferProof))
 }
 
+func TestWrapper_CloseFC(t *testing.T) {
+	closeFC := createCloseFCTxOrder()
+
+	require.Equal(t, systemID, closeFC.SystemID())
+	require.Equal(t, uint256.NewInt(0).SetBytes(unitID), closeFC.UnitID())
+	require.Equal(t, timeout, closeFC.Timeout())
+	require.Equal(t, ownerProof, closeFC.OwnerProof())
+
+	closeFCWrapper, ok := closeFC.(*CloseFCWrapper)
+	require.True(t, ok)
+	fc := closeFCWrapper.CloseFC
+	require.Equal(t, amount, fc.Amount)
+	require.Equal(t, targetUnitId, fc.TargetUnitId)
+	require.Equal(t, nonce, fc.Nonce)
+}
+
 func TestTransferFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	tx := createTransferFCTxOrder()
 	var b bytes.Buffer
@@ -107,6 +125,18 @@ func TestAddFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
+func TestCloseFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	tx := createCloseFCTxOrder()
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(amount))
+	b.Write(targetUnitId)
+	b.Write(nonce)
+	require.Equal(t, b.Bytes(), tx.SigBytes())
+}
+
 func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFCOrder {
 	return &TransferFCOrder{
 		Amount:                 amount,
@@ -124,6 +154,14 @@ func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof)
 		FeeCreditOwnerCondition: owner,
 		FeeCreditTransfer:       tx,
 		FeeCreditTransferProof:  proof,
+	}
+}
+
+func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFCOrder {
+	return &CloseFCOrder{
+		Amount:       amount,
+		TargetUnitId: targetUnitId,
+		Nonce:        nonce,
 	}
 }
 
@@ -152,6 +190,19 @@ func createAddFCTxOrder(t *testing.T, transferFC *txsystem.Transaction, proof *b
 	require.NoError(t, err)
 	gtx, err := toGenericTx(tx)
 	require.NoError(t, err)
+	return gtx
+}
+
+func createCloseFCTxOrder() txsystem.GenericTransaction {
+	tx := &txsystem.Transaction{
+		SystemId:              systemID,
+		TransactionAttributes: new(anypb.Any),
+		UnitId:                unitID,
+		Timeout:               timeout,
+		OwnerProof:            ownerProof,
+	}
+	_ = tx.TransactionAttributes.MarshalFrom(newPBCloseFC(amount, targetUnitId, nonce))
+	gtx, _ := toGenericTx(tx)
 	return gtx
 }
 
@@ -200,6 +251,16 @@ func toGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) 
 			Wrapper:           Wrapper{Transaction: tx},
 			AddFC:             pb,
 			feeCreditTransfer: fcWrapper,
+		}, nil
+	case typeURLCloseFCOrder:
+		pb := &CloseFCOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		return &CloseFCWrapper{
+			Wrapper: Wrapper{Transaction: tx},
+			CloseFC: pb,
 		}, nil
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)

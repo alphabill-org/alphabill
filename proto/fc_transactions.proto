@@ -30,3 +30,12 @@ message AddFCOrder {
   // block proof of "transfer fee credit" transaction
   BlockProof fee_credit_transfer_proof = 3;
 }
+
+message CloseFCOrder {
+  // current balance of the fee credit record
+  uint64 amount = 1;
+  // unit id of the fee credit record
+  bytes target_unit_id = 2;
+  // the current state hash of the target bill
+  bytes nonce = 3;
+}

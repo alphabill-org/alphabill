@@ -15,16 +15,18 @@ import (
 )
 
 var (
-	systemID   = []byte{0, 0, 0, 0}
-	unitID     = []byte{1}
-	ownerProof = []byte{2}
-	backlink   = []byte{3}
-	nonce      = []byte{4}
-	recordID   = []byte{5}
-	timeout    = uint64(100)
-	amount     = uint64(101)
-	t1         = uint64(102)
-	t2         = uint64(103)
+	systemID        = []byte{0, 0, 0, 0}
+	unitID          = []byte{1}
+	ownerProof      = []byte{2}
+	backlink        = []byte{3}
+	nonce           = []byte{4}
+	recordID        = []byte{5}
+	owner           = []byte{6}
+	blockHeaderHash = []byte{7}
+	timeout         = uint64(100)
+	amount          = uint64(101)
+	t1              = uint64(102)
+	t2              = uint64(103)
 )
 
 func TestWrapper_TransferFC(t *testing.T) {
@@ -73,9 +75,8 @@ func TestWrapper_AddFC(t *testing.T) {
 	require.True(t, proto.Equal(proof, fc.AddFC.FeeCreditTransferProof))
 }
 
-func TestTransferFCTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
+func TestTransferFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	tx := createTransferFCTxOrder()
-	sigBytes := tx.SigBytes()
 	var b bytes.Buffer
 	b.Write(systemID)
 	b.Write(unitID)
@@ -87,6 +88,22 @@ func TestTransferFCTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(t2))
 	b.Write(nonce)
 	b.Write(backlink)
+	require.Equal(t, b.Bytes(), tx.SigBytes())
+}
+
+func TestAddFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	transferFC := createTransferFCTxOrder()
+	transferFCProof := &block.BlockProof{BlockHeaderHash: blockHeaderHash}
+	tx := createAddFCTxOrder(t, transferFC.ToProtoBuf(), transferFCProof)
+	sigBytes := tx.SigBytes()
+
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(owner)
+	b.Write(transferFC.SigBytes())
+	b.Write(transferFCProof.Bytes())
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
@@ -123,6 +140,21 @@ func createTransferFCTxOrder() txsystem.GenericTransaction {
 	return gtx
 }
 
+func createAddFCTxOrder(t *testing.T, transferFC *txsystem.Transaction, proof *block.BlockProof) txsystem.GenericTransaction {
+	tx := &txsystem.Transaction{
+		SystemId:              systemID,
+		TransactionAttributes: new(anypb.Any),
+		UnitId:                unitID,
+		Timeout:               timeout,
+		OwnerProof:            ownerProof,
+	}
+	err := tx.TransactionAttributes.MarshalFrom(newPBAddFC(owner, transferFC, proof))
+	require.NoError(t, err)
+	gtx, err := toGenericTx(tx)
+	require.NoError(t, err)
+	return gtx
+}
+
 func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Message) *txsystem.Transaction {
 	to := &txsystem.Transaction{
 		SystemId:              systemID,
@@ -156,9 +188,18 @@ func toGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) 
 		if err != nil {
 			return nil, err
 		}
+		fcGen, err := toGenericTx(pb.FeeCreditTransfer)
+		if err != nil {
+			return nil, errors.Wrap(err, "transfer FC wrapping failed")
+		}
+		fcWrapper, ok := fcGen.(*TransferFCWrapper)
+		if !ok {
+			return nil, errors.Errorf("transfer FC wrapper is invalid type: %T", fcWrapper)
+		}
 		return &AddFCWrapper{
-			Wrapper: Wrapper{Transaction: tx},
-			AddFC:   pb,
+			Wrapper:           Wrapper{Transaction: tx},
+			AddFC:             pb,
+			feeCreditTransfer: fcWrapper,
 		}, nil
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)

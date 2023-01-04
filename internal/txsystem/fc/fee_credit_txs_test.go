@@ -139,6 +139,7 @@ func TestAddFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(timeout))
 	b.Write(owner)
 	b.Write(transferFC.SigBytes())
+	b.Write(transferFC.OwnerProof())
 	b.Write(transferFCProof.Bytes())
 	require.Equal(t, b.Bytes(), sigBytes)
 }
@@ -166,6 +167,7 @@ func TestReclaimFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
 	b.Write(closeFC.SigBytes())
+	b.Write(closeFC.OwnerProof())
 	b.Write(closeFCProof.Bytes())
 	b.Write(backlink)
 	require.Equal(t, b.Bytes(), sigBytes)

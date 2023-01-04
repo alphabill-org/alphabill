@@ -148,6 +148,7 @@ func (w *AddFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
 func (w *AddFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.AddFC.FeeCreditOwnerCondition)
 	b.Write(w.transferFC.SigBytes())
+	b.Write(w.transferFC.OwnerProof())
 	b.Write(w.AddFC.FeeCreditTransferProof.Bytes())
 }
 
@@ -201,6 +202,7 @@ func (w *ReclaimFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
 }
 func (w *ReclaimFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.closeFCTransfer.SigBytes())
+	b.Write(w.closeFCTransfer.OwnerProof())
 	b.Write(w.ReclaimFC.CloseFeeCreditProof.Bytes())
 	b.Write(w.ReclaimFC.Backlink)
 }

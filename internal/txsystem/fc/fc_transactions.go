@@ -14,11 +14,13 @@ const (
 	TypeTransferFCOrder = "TransferFCOrder"
 	TypeAddFCOrder      = "AddFCOrder"
 	TypeCloseFCOrder    = "CloseFCOrder"
+	TypeReclaimFCOrder  = "ReclaimFCOrder"
 
 	protobufTypeUrlPrefix  = "type.googleapis.com/"
 	typeURLTransferFCOrder = protobufTypeUrlPrefix + TypeTransferFCOrder
 	typeURLAddFCOrder      = protobufTypeUrlPrefix + TypeAddFCOrder
 	typeURLCloseFCOrder    = protobufTypeUrlPrefix + TypeCloseFCOrder
+	typeURLReclaimFCOrder  = protobufTypeUrlPrefix + TypeReclaimFCOrder
 )
 
 type (
@@ -45,6 +47,15 @@ type (
 	CloseFCWrapper struct {
 		Wrapper
 		CloseFC *CloseFCOrder
+	}
+
+	ReclaimFCWrapper struct {
+		Wrapper
+		ReclaimFC *ReclaimFCOrder
+
+		// The "close fee credit" transfer that also exist inside reclaimFCOrder as *txsystem.Transaction
+		// needed to correctly serialize bytes
+		closeFeeCreditTransfer *CloseFCWrapper
 	}
 )
 
@@ -160,6 +171,38 @@ func (w *CloseFCWrapper) SigBytes() []byte {
 	w.transactionSigBytes(&b)
 	w.CloseFC.sigBytes(&b)
 	return b.Bytes()
+}
+
+func (w *ReclaimFCWrapper) Hash(hashFunc crypto.Hash) []byte {
+	if w.hashComputed(hashFunc) {
+		return w.hashValue
+	}
+	hasher := hashFunc.New()
+	w.AddToHasher(hasher)
+
+	w.hashValue = hasher.Sum(nil)
+	w.hashFunc = hashFunc
+	return w.hashValue
+}
+func (w *ReclaimFCWrapper) AddToHasher(hasher hash.Hash) {
+	w.Wrapper.addTransactionFieldsToHasher(hasher)
+	w.addFieldsToHasher(hasher)
+}
+func (w *ReclaimFCWrapper) SigBytes() []byte {
+	var b bytes.Buffer
+	w.transactionSigBytes(&b)
+	w.sigBytes(&b)
+	return b.Bytes()
+}
+func (w *ReclaimFCWrapper) addFieldsToHasher(hasher hash.Hash) {
+	w.closeFeeCreditTransfer.AddToHasher(hasher)
+	w.ReclaimFC.CloseFeeCreditProof.AddToHasher(hasher)
+	hasher.Write(w.ReclaimFC.Backlink)
+}
+func (w *ReclaimFCWrapper) sigBytes(b *bytes.Buffer) {
+	b.Write(w.closeFeeCreditTransfer.SigBytes())
+	b.Write(w.ReclaimFC.CloseFeeCreditProof.Bytes())
+	b.Write(w.ReclaimFC.Backlink)
 }
 
 // Protobuf transaction struct methods

@@ -93,6 +93,24 @@ func TestWrapper_CloseFC(t *testing.T) {
 	require.Equal(t, nonce, fc.Nonce)
 }
 
+func TestWrapper_ReclaimFC(t *testing.T) {
+	closeFC := createCloseFCTxOrder()
+	closeFCProof := &block.BlockProof{BlockHeaderHash: blockHeaderHash}
+	reclaimFC := createReclaimFCTxOrder(t, closeFC.ToProtoBuf(), closeFCProof)
+
+	require.Equal(t, systemID, reclaimFC.SystemID())
+	require.Equal(t, uint256.NewInt(0).SetBytes(unitID), reclaimFC.UnitID())
+	require.Equal(t, timeout, reclaimFC.Timeout())
+	require.Equal(t, ownerProof, reclaimFC.OwnerProof())
+
+	reclaimFCWrapper, ok := reclaimFC.(*ReclaimFCWrapper)
+	require.True(t, ok)
+	fc := reclaimFCWrapper.ReclaimFC
+	require.True(t, proto.Equal(closeFC.ToProtoBuf(), fc.CloseFeeCreditTransfer))
+	require.True(t, proto.Equal(closeFCProof, fc.CloseFeeCreditProof))
+	require.Equal(t, backlink, fc.Backlink)
+}
+
 func TestTransferFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	tx := createTransferFCTxOrder()
 	var b bytes.Buffer
@@ -137,6 +155,22 @@ func TestCloseFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	require.Equal(t, b.Bytes(), tx.SigBytes())
 }
 
+func TestReclaimFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
+	closeFC := createCloseFCTxOrder()
+	closeFCProof := &block.BlockProof{BlockHeaderHash: blockHeaderHash}
+	tx := createReclaimFCTxOrder(t, closeFC.ToProtoBuf(), closeFCProof)
+	sigBytes := tx.SigBytes()
+
+	var b bytes.Buffer
+	b.Write(systemID)
+	b.Write(unitID)
+	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(closeFC.SigBytes())
+	b.Write(closeFCProof.Bytes())
+	b.Write(backlink)
+	require.Equal(t, b.Bytes(), sigBytes)
+}
+
 func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFCOrder {
 	return &TransferFCOrder{
 		Amount:                 amount,
@@ -162,6 +196,14 @@ func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFCOrde
 		Amount:       amount,
 		TargetUnitId: targetUnitId,
 		Nonce:        nonce,
+	}
+}
+
+func newPBReclaimFC(backlink []byte, tx *txsystem.Transaction, proof *block.BlockProof) *ReclaimFCOrder {
+	return &ReclaimFCOrder{
+		CloseFeeCreditTransfer: tx,
+		CloseFeeCreditProof:    proof,
+		Backlink:               backlink,
 	}
 }
 
@@ -203,6 +245,21 @@ func createCloseFCTxOrder() txsystem.GenericTransaction {
 	}
 	_ = tx.TransactionAttributes.MarshalFrom(newPBCloseFC(amount, targetUnitId, nonce))
 	gtx, _ := toGenericTx(tx)
+	return gtx
+}
+
+func createReclaimFCTxOrder(t *testing.T, closeFC *txsystem.Transaction, closeFCProof *block.BlockProof) txsystem.GenericTransaction {
+	tx := &txsystem.Transaction{
+		SystemId:              systemID,
+		TransactionAttributes: new(anypb.Any),
+		UnitId:                unitID,
+		Timeout:               timeout,
+		OwnerProof:            ownerProof,
+	}
+	err := tx.TransactionAttributes.MarshalFrom(newPBReclaimFC(backlink, closeFC, closeFCProof))
+	require.NoError(t, err)
+	gtx, err := toGenericTx(tx)
+	require.NoError(t, err)
 	return gtx
 }
 
@@ -261,6 +318,25 @@ func toGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) 
 		return &CloseFCWrapper{
 			Wrapper: Wrapper{Transaction: tx},
 			CloseFC: pb,
+		}, nil
+	case typeURLReclaimFCOrder:
+		pb := &ReclaimFCOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		fcGen, err := toGenericTx(pb.CloseFeeCreditTransfer)
+		if err != nil {
+			return nil, errors.Wrap(err, "transfer FC wrapping failed")
+		}
+		fcWrapper, ok := fcGen.(*CloseFCWrapper)
+		if !ok {
+			return nil, errors.Errorf("FC wrapper is invalid type: %T", fcWrapper)
+		}
+		return &ReclaimFCWrapper{
+			Wrapper:                Wrapper{Transaction: tx},
+			ReclaimFC:              pb,
+			closeFeeCreditTransfer: fcWrapper,
 		}, nil
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)

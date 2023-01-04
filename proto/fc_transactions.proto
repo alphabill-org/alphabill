@@ -39,3 +39,12 @@ message CloseFCOrder {
   // the current state hash of the target bill
   bytes nonce = 3;
 }
+
+message ReclaimFCOrder {
+  // bill transfer record of type "close fee credit"
+  Transaction close_fee_credit_transfer = 1;
+  // block proof of "close fee credit" transaction
+  BlockProof close_fee_credit_proof = 2;
+  // hash of this unit's previous transacton
+  bytes backlink = 3;
+}

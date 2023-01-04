@@ -11,16 +11,16 @@ import (
 )
 
 const (
-	TypeTransferFCOrder = "TransferFCOrder"
-	TypeAddFCOrder      = "AddFCOrder"
-	TypeCloseFCOrder    = "CloseFCOrder"
-	TypeReclaimFCOrder  = "ReclaimFCOrder"
+	TypeTransferFeeCreditOrder = "TransferFeeCreditOrder"
+	TypeAddFeeCreditOrder      = "AddFeeCreditOrder"
+	TypeCloseFeeCreditOrder    = "CloseFeeCreditOrder"
+	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditOrder"
 
-	protobufTypeUrlPrefix  = "type.googleapis.com/"
-	typeURLTransferFCOrder = protobufTypeUrlPrefix + TypeTransferFCOrder
-	typeURLAddFCOrder      = protobufTypeUrlPrefix + TypeAddFCOrder
-	typeURLCloseFCOrder    = protobufTypeUrlPrefix + TypeCloseFCOrder
-	typeURLReclaimFCOrder  = protobufTypeUrlPrefix + TypeReclaimFCOrder
+	protobufTypeUrlPrefix         = "type.googleapis.com/"
+	typeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
+	typeURLAddFeeCreditOrder      = protobufTypeUrlPrefix + TypeAddFeeCreditOrder
+	typeURLCloseFeeCreditOrder    = protobufTypeUrlPrefix + TypeCloseFeeCreditOrder
+	typeURLReclaimFeeCreditOrder  = protobufTypeUrlPrefix + TypeReclaimFeeCreditOrder
 )
 
 type (
@@ -30,32 +30,32 @@ type (
 		hashValue   []byte
 	}
 
-	TransferFCWrapper struct {
+	TransferFeeCreditWrapper struct {
 		Wrapper
-		TransferFC *TransferFCOrder
+		TransferFC *TransferFeeCreditOrder
 	}
 
-	AddFCWrapper struct {
+	AddFeeCreditWrapper struct {
 		Wrapper
-		AddFC *AddFCOrder
+		AddFC *AddFeeCreditOrder
 
-		// The fee credit transfer that also exist inside addFCOrder as *txsystem.Transaction
+		// The fee credit transfer that also exist inside addFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
-		feeCreditTransfer *TransferFCWrapper
+		transferFC *TransferFeeCreditWrapper
 	}
 
-	CloseFCWrapper struct {
+	CloseFeeCreditWrapper struct {
 		Wrapper
-		CloseFC *CloseFCOrder
+		CloseFC *CloseFeeCreditOrder
 	}
 
-	ReclaimFCWrapper struct {
+	ReclaimFeeCreditWrapper struct {
 		Wrapper
-		ReclaimFC *ReclaimFCOrder
+		ReclaimFC *ReclaimFeeCreditOrder
 
-		// The "close fee credit" transfer that also exist inside reclaimFCOrder as *txsystem.Transaction
+		// The "close fee credit" transfer that also exist inside reclaimFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
-		closeFeeCreditTransfer *CloseFCWrapper
+		closeFCTransfer *CloseFeeCreditWrapper
 	}
 )
 
@@ -97,7 +97,7 @@ func (w *Wrapper) hashComputed(hashFunc crypto.Hash) bool {
 }
 
 // GenericTransaction methods (transaction specific)
-func (w *TransferFCWrapper) Hash(hashFunc crypto.Hash) []byte {
+func (w *TransferFeeCreditWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.hashComputed(hashFunc) {
 		return w.hashValue
 	}
@@ -108,18 +108,18 @@ func (w *TransferFCWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.hashFunc = hashFunc
 	return w.hashValue
 }
-func (w *TransferFCWrapper) AddToHasher(hasher hash.Hash) {
+func (w *TransferFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.TransferFC.addFieldsToHasher(hasher)
 }
-func (w *TransferFCWrapper) SigBytes() []byte {
+func (w *TransferFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
 	w.TransferFC.sigBytes(&b)
 	return b.Bytes()
 }
 
-func (w *AddFCWrapper) Hash(hashFunc crypto.Hash) []byte {
+func (w *AddFeeCreditWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.hashComputed(hashFunc) {
 		return w.hashValue
 	}
@@ -130,28 +130,28 @@ func (w *AddFCWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.hashFunc = hashFunc
 	return w.hashValue
 }
-func (w *AddFCWrapper) AddToHasher(hasher hash.Hash) {
+func (w *AddFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.addFieldsToHasher(hasher)
 }
-func (w *AddFCWrapper) SigBytes() []byte {
+func (w *AddFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
 	w.sigBytes(&b)
 	return b.Bytes()
 }
-func (w *AddFCWrapper) addFieldsToHasher(hasher hash.Hash) {
+func (w *AddFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(w.AddFC.FeeCreditOwnerCondition)
-	w.feeCreditTransfer.AddToHasher(hasher)
+	w.transferFC.AddToHasher(hasher)
 	w.AddFC.FeeCreditTransferProof.AddToHasher(hasher)
 }
-func (w *AddFCWrapper) sigBytes(b *bytes.Buffer) {
+func (w *AddFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.AddFC.FeeCreditOwnerCondition)
-	b.Write(w.feeCreditTransfer.SigBytes())
+	b.Write(w.transferFC.SigBytes())
 	b.Write(w.AddFC.FeeCreditTransferProof.Bytes())
 }
 
-func (w *CloseFCWrapper) Hash(hashFunc crypto.Hash) []byte {
+func (w *CloseFeeCreditWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.hashComputed(hashFunc) {
 		return w.hashValue
 	}
@@ -162,18 +162,18 @@ func (w *CloseFCWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.hashFunc = hashFunc
 	return w.hashValue
 }
-func (w *CloseFCWrapper) AddToHasher(hasher hash.Hash) {
+func (w *CloseFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.CloseFC.addFieldsToHasher(hasher)
 }
-func (w *CloseFCWrapper) SigBytes() []byte {
+func (w *CloseFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
 	w.CloseFC.sigBytes(&b)
 	return b.Bytes()
 }
 
-func (w *ReclaimFCWrapper) Hash(hashFunc crypto.Hash) []byte {
+func (w *ReclaimFeeCreditWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.hashComputed(hashFunc) {
 		return w.hashValue
 	}
@@ -184,29 +184,29 @@ func (w *ReclaimFCWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.hashFunc = hashFunc
 	return w.hashValue
 }
-func (w *ReclaimFCWrapper) AddToHasher(hasher hash.Hash) {
+func (w *ReclaimFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.addFieldsToHasher(hasher)
 }
-func (w *ReclaimFCWrapper) SigBytes() []byte {
+func (w *ReclaimFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
 	w.sigBytes(&b)
 	return b.Bytes()
 }
-func (w *ReclaimFCWrapper) addFieldsToHasher(hasher hash.Hash) {
-	w.closeFeeCreditTransfer.AddToHasher(hasher)
+func (w *ReclaimFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
+	w.closeFCTransfer.AddToHasher(hasher)
 	w.ReclaimFC.CloseFeeCreditProof.AddToHasher(hasher)
 	hasher.Write(w.ReclaimFC.Backlink)
 }
-func (w *ReclaimFCWrapper) sigBytes(b *bytes.Buffer) {
-	b.Write(w.closeFeeCreditTransfer.SigBytes())
+func (w *ReclaimFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
+	b.Write(w.closeFCTransfer.SigBytes())
 	b.Write(w.ReclaimFC.CloseFeeCreditProof.Bytes())
 	b.Write(w.ReclaimFC.Backlink)
 }
 
 // Protobuf transaction struct methods
-func (x *TransferFCOrder) addFieldsToHasher(hasher hash.Hash) {
+func (x *TransferFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(x.Amount))
 	hasher.Write(x.TargetSystemIdentifier)
 	hasher.Write(x.TargetRecordId)
@@ -215,7 +215,7 @@ func (x *TransferFCOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
 	hasher.Write(x.Backlink)
 }
-func (x *TransferFCOrder) sigBytes(b *bytes.Buffer) {
+func (x *TransferFeeCreditOrder) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetSystemIdentifier)
 	b.Write(x.TargetRecordId)
@@ -225,12 +225,12 @@ func (x *TransferFCOrder) sigBytes(b *bytes.Buffer) {
 	b.Write(x.Backlink)
 }
 
-func (x *CloseFCOrder) addFieldsToHasher(hasher hash.Hash) {
+func (x *CloseFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(x.Amount))
 	hasher.Write(x.TargetUnitId)
 	hasher.Write(x.Nonce)
 }
-func (x *CloseFCOrder) sigBytes(b *bytes.Buffer) {
+func (x *CloseFeeCreditOrder) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetUnitId)
 	b.Write(x.Nonce)

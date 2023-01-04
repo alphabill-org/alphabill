@@ -31,14 +31,14 @@ var (
 	t2              = uint64(103)
 )
 
-func TestWrapper_TransferFC(t *testing.T) {
+func TestWrapper_TransferFeeCredit(t *testing.T) {
 	var (
 		pbTransferFC  = newPBTransferFC(1, 2, 3, systemID, test.RandomBytes(32), test.RandomBytes(32), test.RandomBytes(32))
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbTransferFC)
 	)
 	genericTx, err := toGenericTx(pbTransaction)
 	require.NoError(t, err)
-	fc, ok := genericTx.(*TransferFCWrapper)
+	fc, ok := genericTx.(*TransferFeeCreditWrapper)
 	require.True(t, ok)
 
 	require.Equal(t, pbTransaction.SystemId, fc.SystemID())
@@ -64,7 +64,7 @@ func TestWrapper_AddFC(t *testing.T) {
 	)
 	genericTx, err := toGenericTx(pbTransaction)
 	require.NoError(t, err)
-	fc, ok := genericTx.(*AddFCWrapper)
+	fc, ok := genericTx.(*AddFeeCreditWrapper)
 	require.True(t, ok)
 
 	require.Equal(t, pbTransaction.SystemId, fc.SystemID())
@@ -85,7 +85,7 @@ func TestWrapper_CloseFC(t *testing.T) {
 	require.Equal(t, timeout, closeFC.Timeout())
 	require.Equal(t, ownerProof, closeFC.OwnerProof())
 
-	closeFCWrapper, ok := closeFC.(*CloseFCWrapper)
+	closeFCWrapper, ok := closeFC.(*CloseFeeCreditWrapper)
 	require.True(t, ok)
 	fc := closeFCWrapper.CloseFC
 	require.Equal(t, amount, fc.Amount)
@@ -103,7 +103,7 @@ func TestWrapper_ReclaimFC(t *testing.T) {
 	require.Equal(t, timeout, reclaimFC.Timeout())
 	require.Equal(t, ownerProof, reclaimFC.OwnerProof())
 
-	reclaimFCWrapper, ok := reclaimFC.(*ReclaimFCWrapper)
+	reclaimFCWrapper, ok := reclaimFC.(*ReclaimFeeCreditWrapper)
 	require.True(t, ok)
 	fc := reclaimFCWrapper.ReclaimFC
 	require.True(t, proto.Equal(closeFC.ToProtoBuf(), fc.CloseFeeCreditTransfer))
@@ -171,8 +171,8 @@ func TestReclaimFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	require.Equal(t, b.Bytes(), sigBytes)
 }
 
-func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFCOrder {
-	return &TransferFCOrder{
+func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFeeCreditOrder {
+	return &TransferFeeCreditOrder{
 		Amount:                 amount,
 		TargetSystemIdentifier: sysID,
 		TargetRecordId:         recID,
@@ -183,24 +183,24 @@ func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte
 	}
 }
 
-func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof) *AddFCOrder {
-	return &AddFCOrder{
+func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof) *AddFeeCreditOrder {
+	return &AddFeeCreditOrder{
 		FeeCreditOwnerCondition: owner,
 		FeeCreditTransfer:       tx,
 		FeeCreditTransferProof:  proof,
 	}
 }
 
-func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFCOrder {
-	return &CloseFCOrder{
+func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFeeCreditOrder {
+	return &CloseFeeCreditOrder{
 		Amount:       amount,
 		TargetUnitId: targetUnitId,
 		Nonce:        nonce,
 	}
 }
 
-func newPBReclaimFC(backlink []byte, tx *txsystem.Transaction, proof *block.BlockProof) *ReclaimFCOrder {
-	return &ReclaimFCOrder{
+func newPBReclaimFC(backlink []byte, tx *txsystem.Transaction, proof *block.BlockProof) *ReclaimFeeCreditOrder {
+	return &ReclaimFeeCreditOrder{
 		CloseFeeCreditTransfer: tx,
 		CloseFeeCreditProof:    proof,
 		Backlink:               backlink,
@@ -280,63 +280,63 @@ func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Mes
 
 func toGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	switch tx.TransactionAttributes.TypeUrl {
-	case typeURLTransferFCOrder:
-		pb := &TransferFCOrder{}
+	case typeURLTransferFeeCreditOrder:
+		pb := &TransferFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
 		}
-		return &TransferFCWrapper{
+		return &TransferFeeCreditWrapper{
 			Wrapper:    Wrapper{Transaction: tx},
 			TransferFC: pb,
 		}, nil
-	case typeURLAddFCOrder:
-		pb := &AddFCOrder{}
+	case typeURLAddFeeCreditOrder:
+		pb := &AddFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
 		}
 		fcGen, err := toGenericTx(pb.FeeCreditTransfer)
 		if err != nil {
-			return nil, errors.Wrap(err, "transfer FC wrapping failed")
+			return nil, errors.Wrap(err, "add fee credit wrapping failed")
 		}
-		fcWrapper, ok := fcGen.(*TransferFCWrapper)
+		fcWrapper, ok := fcGen.(*TransferFeeCreditWrapper)
 		if !ok {
 			return nil, errors.Errorf("transfer FC wrapper is invalid type: %T", fcWrapper)
 		}
-		return &AddFCWrapper{
-			Wrapper:           Wrapper{Transaction: tx},
-			AddFC:             pb,
-			feeCreditTransfer: fcWrapper,
+		return &AddFeeCreditWrapper{
+			Wrapper:    Wrapper{Transaction: tx},
+			AddFC:      pb,
+			transferFC: fcWrapper,
 		}, nil
-	case typeURLCloseFCOrder:
-		pb := &CloseFCOrder{}
+	case typeURLCloseFeeCreditOrder:
+		pb := &CloseFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
 		}
-		return &CloseFCWrapper{
+		return &CloseFeeCreditWrapper{
 			Wrapper: Wrapper{Transaction: tx},
 			CloseFC: pb,
 		}, nil
-	case typeURLReclaimFCOrder:
-		pb := &ReclaimFCOrder{}
+	case typeURLReclaimFeeCreditOrder:
+		pb := &ReclaimFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
 			return nil, err
 		}
 		fcGen, err := toGenericTx(pb.CloseFeeCreditTransfer)
 		if err != nil {
-			return nil, errors.Wrap(err, "transfer FC wrapping failed")
+			return nil, errors.Wrap(err, "reclaim fee credit wrapping failed")
 		}
-		fcWrapper, ok := fcGen.(*CloseFCWrapper)
+		fcWrapper, ok := fcGen.(*CloseFeeCreditWrapper)
 		if !ok {
-			return nil, errors.Errorf("FC wrapper is invalid type: %T", fcWrapper)
+			return nil, errors.Errorf("close fee credit wrapper is invalid type: %T", fcWrapper)
 		}
-		return &ReclaimFCWrapper{
-			Wrapper:                Wrapper{Transaction: tx},
-			ReclaimFC:              pb,
-			closeFeeCreditTransfer: fcWrapper,
+		return &ReclaimFeeCreditWrapper{
+			Wrapper:         Wrapper{Transaction: tx},
+			ReclaimFC:       pb,
+			closeFCTransfer: fcWrapper,
 		}, nil
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)

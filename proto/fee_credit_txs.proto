@@ -5,7 +5,7 @@ import "block_proof.proto";
 
 option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/fc;fc";
 
-message TransferFCOrder {
+message TransferFeeCreditOrder {
   // amount to transfer
   uint64 amount = 1;
   // system_identifier of the target partition
@@ -22,7 +22,7 @@ message TransferFCOrder {
   bytes backlink = 7;
 }
 
-message AddFCOrder {
+message AddFeeCreditOrder {
   // target fee credit record owner condition
   bytes fee_credit_owner_condition = 1;
   // bill transfer record of type "transfer fee credit"
@@ -31,7 +31,7 @@ message AddFCOrder {
   BlockProof fee_credit_transfer_proof = 3;
 }
 
-message CloseFCOrder {
+message CloseFeeCreditOrder {
   // current balance of the fee credit record
   uint64 amount = 1;
   // unit id of the fee credit record
@@ -40,7 +40,7 @@ message CloseFCOrder {
   bytes nonce = 3;
 }
 
-message ReclaimFCOrder {
+message ReclaimFeeCreditOrder {
   // bill transfer record of type "close fee credit"
   Transaction close_fee_credit_transfer = 1;
   // block proof of "close fee credit" transaction

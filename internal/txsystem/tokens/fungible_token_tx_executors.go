@@ -147,23 +147,7 @@ func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 		return err
 	}
 	unitID := tx.UnitID()
-	h := tx.Hash(b.hashAlgorithm)
-	return b.state.AtomicUpdate(
-		rma.SetOwner(unitID, script.PredicateAlwaysFalse(), h),
-		rma.UpdateData(unitID,
-			func(data rma.UnitData) rma.UnitData {
-				d, ok := data.(*fungibleTokenData)
-				if !ok {
-					// No change in case of incorrect data type.
-					return data
-				}
-				return &fungibleTokenData{
-					tokenType: d.tokenType,
-					value:     d.value,
-					t:         currentBlockNr,
-					backlink:  h,
-				}
-			}, h))
+	return b.state.AtomicUpdate(rma.DeleteItem(unitID))
 }
 
 func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {

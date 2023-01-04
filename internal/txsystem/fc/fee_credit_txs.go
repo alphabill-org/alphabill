@@ -12,7 +12,7 @@ import (
 
 const (
 	TypeTransferFeeCreditOrder = "TransferFeeCreditOrder"
-	TypeAddFeeCreditOrder      = "AddFeeCreditOrder"
+	TypeAddFeeCreditOrder      = "AddFeeCreditOrder" // #nosec G101
 	TypeCloseFeeCreditOrder    = "CloseFeeCreditOrder"
 	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditOrder"
 

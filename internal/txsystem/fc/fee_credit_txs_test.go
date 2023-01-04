@@ -2,6 +2,7 @@ package fc
 
 import (
 	"bytes"
+	"crypto"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -31,7 +32,7 @@ var (
 	t2              = uint64(103)
 )
 
-func TestWrapper_TransferFeeCredit(t *testing.T) {
+func TestWrapper_TransferFC(t *testing.T) {
 	var (
 		pbTransferFC  = newPBTransferFC(1, 2, 3, systemID, test.RandomBytes(32), test.RandomBytes(32), test.RandomBytes(32))
 		pbTransaction = newPBTransactionOrder(test.RandomBytes(32), test.RandomBytes(32), 555, pbTransferFC)
@@ -171,6 +172,68 @@ func TestReclaimFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(closeFCProof.Bytes())
 	b.Write(backlink)
 	require.Equal(t, b.Bytes(), sigBytes)
+}
+
+func TestTransferFC_HashIsCalculatedCorrectly(t *testing.T) {
+	tx := createTransferFCTxOrder()
+	h := crypto.SHA256.New()
+	h.Write(systemID)
+	h.Write(unitID)
+	h.Write(ownerProof)
+	h.Write(util.Uint64ToBytes(timeout))
+	h.Write(util.Uint64ToBytes(amount))
+	h.Write(systemID)
+	h.Write(recordID)
+	h.Write(util.Uint64ToBytes(t1))
+	h.Write(util.Uint64ToBytes(t2))
+	h.Write(nonce)
+	h.Write(backlink)
+	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
+}
+
+func TestAddFC_HashIsCalculatedCorrectly(t *testing.T) {
+	transferFC := createTransferFCTxOrder()
+	transferFCProof := &block.BlockProof{BlockHeaderHash: blockHeaderHash}
+	tx := createAddFCTxOrder(t, transferFC.ToProtoBuf(), transferFCProof)
+
+	h := crypto.SHA256.New()
+	h.Write(systemID)
+	h.Write(unitID)
+	h.Write(ownerProof)
+	h.Write(util.Uint64ToBytes(timeout))
+	h.Write(owner)
+	transferFC.AddToHasher(h)
+	h.Write(transferFCProof.Bytes())
+	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
+}
+
+func TestCloseFC_HashIsCalculatedCorrectly(t *testing.T) {
+	tx := createCloseFCTxOrder()
+	h := crypto.SHA256.New()
+	h.Write(systemID)
+	h.Write(unitID)
+	h.Write(ownerProof)
+	h.Write(util.Uint64ToBytes(timeout))
+	h.Write(util.Uint64ToBytes(amount))
+	h.Write(targetUnitId)
+	h.Write(nonce)
+	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
+}
+
+func TestReclaimFC_HashIsCalculatedCorrectly(t *testing.T) {
+	closeFC := createCloseFCTxOrder()
+	closeFCProof := &block.BlockProof{BlockHeaderHash: blockHeaderHash}
+	tx := createReclaimFCTxOrder(t, closeFC.ToProtoBuf(), closeFCProof)
+
+	h := crypto.SHA256.New()
+	h.Write(systemID)
+	h.Write(unitID)
+	h.Write(ownerProof)
+	h.Write(util.Uint64ToBytes(timeout))
+	closeFC.AddToHasher(h)
+	h.Write(closeFCProof.Bytes())
+	h.Write(backlink)
+	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
 }
 
 func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFeeCreditOrder {

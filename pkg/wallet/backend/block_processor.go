@@ -30,7 +30,7 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 		return err
 	}
 	if b.UnicityCertificate.InputRecord.RoundNumber != lastBlockNumber+1 {
-		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
+		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 	keys, err := p.store.GetKeys()
 	if err != nil {

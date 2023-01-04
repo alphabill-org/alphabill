@@ -23,7 +23,7 @@ $ go run scripts/verifiable_data/vd_register_data.go --data-hash 0x67588d4d37bf6
 func main() {
 	// parse command line parameters
 	dataHashHex := flag.String("data-hash", "", "SHA256 hash (hex, prefixed with '0x') of the data to verify")
-	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block height)")
+	timeout := flag.Uint64("timeout", 1000, "transaction timeout (block number)")
 	uri := flag.String("alphabill-uri", "localhost:9543", "alphabill node uri where to send the transaction")
 	flag.Parse()
 

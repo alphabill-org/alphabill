@@ -88,16 +88,16 @@ func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
 	return b, nil
 }
 
-func (bs *BoltBlockStore) Height() (uint64, error) {
-	var height uint64
+func (bs *BoltBlockStore) BlockNumber() (uint64, error) {
+	var number uint64
 	err := bs.db.View(func(tx *bolt.Tx) error {
-		height = util.BytesToUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
+		number = util.BytesToUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
 		return nil
 	})
 	if err != nil {
 		return 0, err
 	}
-	return height, nil
+	return number, nil
 }
 
 func (bs *BoltBlockStore) LatestBlock() *block.Block {

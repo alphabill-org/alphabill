@@ -945,7 +945,7 @@ func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
 	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
 	if blockNumber != lastBlockNumber+1 {
-		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
+		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 	}
 	return nil
 }

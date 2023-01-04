@@ -32,7 +32,7 @@ func (bs *InMemoryBlockStore) Get(blockNumber uint64) (*block.Block, error) {
 	return bs.blocks[blockNumber], nil
 }
 
-func (bs *InMemoryBlockStore) Height() (uint64, error) {
+func (bs *InMemoryBlockStore) BlockNumber() (uint64, error) {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
 	return uint64(len(bs.blocks)), nil

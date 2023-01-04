@@ -740,9 +740,9 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 	// TODO: check recoveringNodeID is among known validators
 	// n.configuration.peer.Validators()
 
-	maxBlock, err := n.blockStore.Height()
+	maxBlock, err := n.blockStore.BlockNumber()
 	if err != nil {
-		return errors.Wrap(err, "unable to fetch block height from the block store")
+		return errors.Wrap(err, "unable to fetch block number from the block store")
 	}
 
 	resp := &replication.LedgerReplicationResponse{

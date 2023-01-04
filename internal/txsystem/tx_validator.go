@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrTransactionExpired      = errors.New("transaction timeout must be greater than current block height")
+	ErrTransactionExpired      = errors.New("transaction timeout must be greater than current block number")
 	ErrInvalidSystemIdentifier = errors.New("error invalid system identifier")
 	ErrInvalidDataType         = errors.New("invalid data type")
 	ErrInvalidBacklink         = errors.New("transaction backlink must be equal to bill backlink")

@@ -31,7 +31,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			return err
 		}
 		if blockNumber != lastBlockNumber+1 {
-			return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
+			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 		}
 
 		if len(b.Transactions) != 0 {

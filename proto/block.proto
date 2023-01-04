@@ -9,7 +9,8 @@ message Block {
   bytes system_identifier = 1;
   bytes shard_identifier = 2;
   bytes previous_block_hash = 3;
-  bytes proposer_identifier = 4;
+  // ID of a node that proposed this block
+  string node_identifier = 4;
   repeated Transaction transactions = 5;
   UnicityCertificate unicity_certificate = 6;
 }

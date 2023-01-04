@@ -30,7 +30,7 @@ func (x *Block) AddHeaderToHasher(hasher hash.Hash) {
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write(x.ShardIdentifier)
 	hasher.Write(x.PreviousBlockHash)
-	hasher.Write(x.ProposerIdentifier)
+	hasher.Write([]byte(x.NodeIdentifier))
 }
 
 func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
@@ -42,7 +42,7 @@ func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
 		SystemIdentifier:   x.SystemIdentifier,
 		ShardIdentifier:    x.ShardIdentifier,
 		PreviousBlockHash:  x.PreviousBlockHash,
-		ProposerIdentifier: x.ProposerIdentifier,
+		NodeIdentifier:     x.NodeIdentifier,
 		Transactions:       txs,
 		UnicityCertificate: x.UnicityCertificate,
 	}, nil

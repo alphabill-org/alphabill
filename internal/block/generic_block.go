@@ -19,7 +19,7 @@ type GenericBlock struct {
 	SystemIdentifier   []byte
 	ShardIdentifier    []byte
 	PreviousBlockHash  []byte
-	ProposerIdentifier []byte
+	NodeIdentifier     string
 	Transactions       []txsystem.GenericTransaction
 	UnicityCertificate *certificates.UnicityCertificate
 }
@@ -46,7 +46,7 @@ func (x *GenericBlock) AddHeaderToHasher(hasher hash.Hash) {
 	hasher.Write(x.SystemIdentifier)
 	hasher.Write(x.ShardIdentifier)
 	hasher.Write(x.PreviousBlockHash)
-	hasher.Write(x.ProposerIdentifier)
+	hasher.Write([]byte(x.NodeIdentifier))
 }
 
 // ToProtobuf converts GenericBlock to protobuf Block
@@ -55,7 +55,7 @@ func (x *GenericBlock) ToProtobuf() *Block {
 		SystemIdentifier:   x.SystemIdentifier,
 		ShardIdentifier:    x.ShardIdentifier,
 		PreviousBlockHash:  x.PreviousBlockHash,
-		ProposerIdentifier: x.ProposerIdentifier,
+		NodeIdentifier:     x.NodeIdentifier,
 		Transactions:       genericTxsToProtobuf(x.Transactions),
 		UnicityCertificate: x.UnicityCertificate,
 	}

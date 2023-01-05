@@ -73,7 +73,7 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	if err != nil {
 		return nil, err
 	}
-	blockProof, err := NewBlockProof(txPb, proof, b.BlockNumber)
+	blockProof, err := NewBlockProof(txPb, proof, b.UnicityCertificate.InputRecord.RoundNumber)
 	if err != nil {
 		return nil, err
 	}

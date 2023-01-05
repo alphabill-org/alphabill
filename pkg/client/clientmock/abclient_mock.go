@@ -85,7 +85,7 @@ func (c *MockAlphabillClient) SetMaxBlockNumber(blockNumber uint64) {
 }
 
 func (c *MockAlphabillClient) SetBlock(b *block.Block) {
-	c.blocks[b.BlockNumber] = b
+	c.blocks[b.UnicityCertificate.InputRecord.RoundNumber] = b
 }
 
 func (c *MockAlphabillClient) GetRecordedTransactions() []*txsystem.Transaction {

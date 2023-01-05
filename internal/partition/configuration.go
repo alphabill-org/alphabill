@@ -207,7 +207,6 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 func (c *configuration) genesisBlock() *block.Block {
 	return &block.Block{
 		SystemIdentifier:   c.genesis.SystemDescriptionRecord.SystemIdentifier,
-		BlockNumber:        1,
 		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: c.genesis.GetCertificate(),
 	}

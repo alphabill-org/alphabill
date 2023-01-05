@@ -159,27 +159,27 @@ func (p VDBlockProcessor) ProcessBlock(b *block.Block) error {
 
 func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcessor {
 	return func(b *block.Block) error {
-		log.Debug("Fetched block #", b.GetBlockNumber(), ", tx count: ", len(b.GetTransactions()))
-		if b.GetBlockNumber() > timeout {
+		log.Debug("Fetched block #", b.UnicityCertificate.InputRecord.RoundNumber, ", tx count: ", len(b.GetTransactions()))
+		if b.UnicityCertificate.InputRecord.RoundNumber > timeout {
 			log.Info("Block timeout reached")
 			v.shutdown()
 			return nil
 		}
 		for _, tx := range b.GetTransactions() {
-			log.Debug("Processing block #", b.GetBlockNumber())
+			log.Debug("Processing block #", b.UnicityCertificate.InputRecord.RoundNumber)
 			if hash != nil {
 				// if hash is provided, print only the corresponding block
 				if bytes.Equal(hash, tx.GetUnitId()) {
-					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(hash)))
+					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.UnicityCertificate.InputRecord.RoundNumber, hex.EncodeToString(hash)))
 					if v.blockCallback != nil {
 						log.Info("Invoking block callback")
-						v.blockCallback(&VDBlock{blockNumber: b.BlockNumber})
+						v.blockCallback(&VDBlock{blockNumber: b.UnicityCertificate.InputRecord.RoundNumber})
 					}
 					v.shutdown()
 					break
 				}
 			} else {
-				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(tx.GetUnitId())))
+				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.UnicityCertificate.InputRecord.RoundNumber, hex.EncodeToString(tx.GetUnitId())))
 			}
 		}
 		return nil

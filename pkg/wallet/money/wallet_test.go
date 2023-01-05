@@ -165,7 +165,6 @@ func TestBlockProcessing(t *testing.T) {
 	blocks := []*block.Block{
 		{
 			SystemIdentifier:  alphabillMoneySystemId,
-			BlockNumber:       1,
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
 				// random dust transfer can be processed
@@ -201,7 +200,7 @@ func TestBlockProcessing(t *testing.T) {
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 			},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 		},
 	}
 
@@ -237,10 +236,9 @@ func TestBlockProcessing_InvalidSystemID(t *testing.T) {
 
 	b := &block.Block{
 		SystemIdentifier:   []byte{0, 0, 0, 1},
-		BlockNumber:        1,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
-		UnicityCertificate: &certificates.UnicityCertificate{},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 	}
 
 	err := w.ProcessBlock(b)
@@ -253,7 +251,6 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 
 	testBlock := &block.Block{
 		SystemIdentifier:  alphabillMoneySystemId,
-		BlockNumber:       1,
 		PreviousBlockHash: hash.Sum256([]byte{}),
 		Transactions: []*txsystem.Transaction{
 			// receive transfer of 100 bills
@@ -289,6 +286,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 			},
 		},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 	}
 	certifiedBlock, verifiers := testblock.CertifyBlock(t, testBlock, txConverter)
 	err := w.ProcessBlock(certifiedBlock)

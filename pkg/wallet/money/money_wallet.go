@@ -130,7 +130,7 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	log.Info("processing block: ", b.BlockNumber)
+	log.Info("processing block: ", b.UnicityCertificate.InputRecord.RoundNumber)
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -140,7 +140,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		err = validateBlockNumber(b.BlockNumber, lastBlockNumber)
+		err = validateBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 		if err != nil {
 			return err
 		}
@@ -157,7 +157,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 }
 
 func (w *Wallet) endBlock(dbTx TxContext, b *block.Block) error {
-	blockNumber := b.BlockNumber
+	blockNumber := b.UnicityCertificate.InputRecord.RoundNumber
 	err := dbTx.SetBlockNumber(blockNumber)
 	if err != nil {
 		return err
@@ -491,7 +491,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				IsDcBill:            true,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
-				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
+				DcExpirationTimeout: b.UnicityCertificate.InputRecord.RoundNumber + dustBillDeletionTimeout,
 			}, acc.accountIndex)
 			if err != nil {
 				return err
@@ -945,7 +945,7 @@ func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
 	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
 	if blockNumber != lastBlockNumber+1 {
-		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
+		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 	}
 	return nil
 }

@@ -92,7 +92,7 @@ func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction) error {
 	if err != nil {
 		return err
 	}
-	blockProof, err := NewBlockProof(txPb, proof, bl.BlockNumber)
+	blockProof, err := NewBlockProof(txPb, proof, bl.UnicityCertificate.InputRecord.RoundNumber)
 	if err != nil {
 		return err
 	}

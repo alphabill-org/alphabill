@@ -48,7 +48,7 @@ func New[K Key[K], V Value[V]]() *Tree[K, V] {
 // the aforementioned copy-on-write logic, but should converge to the original
 // performance characteristics of the original tree.
 func (t *Tree[K, V]) Clone() *Tree[K, V] {
-	return &Tree[K, V]{root: t.root}
+	return &Tree[K, V]{root: t.root, traverser: t.traverser}
 }
 
 // IsClean returns true if t does not contain uncommitted changes, false otherwise.

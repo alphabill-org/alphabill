@@ -10,6 +10,7 @@ func TestTree_Clone(t *testing.T) {
 	tree := initTreeAndAddValues(t)
 	tree2 := tree.Clone()
 	require.Equal(t, tree.root, tree2.root)
+	require.Equal(t, tree.traverser, tree2.traverser)
 	require.NoError(t, tree2.Update(2, newIntValue(10)))
 	require.NoError(t, tree2.Delete(5))
 	require.NoError(t, tree.Commit())

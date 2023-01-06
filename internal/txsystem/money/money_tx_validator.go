@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
@@ -26,6 +27,14 @@ var (
 	ErrSwapInvalidNonce              = errors.New("dust transfer orders do not contain proper nonce")
 	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
 	ErrInvalidProofType              = errors.New("invalid proof type")
+
+	// transfer fee credit errors
+	ErrTxNil           = errors.New("tx is nil")
+	ErrBillNil         = errors.New("bill is nil")
+	ErrInvalidFCValue  = errors.New("the amount to transfer plus transaction fee cannot exceed the value of the bill")
+	ErrInvalidBacklink = errors.New("the transaction backlink is not equal to unit backlink")
+	ErrRecordIDExists  = errors.New("transfer fee credit cannot contain fee credit reference")
+	ErrFeeProofExists  = errors.New("transfer fee credit cannot contain fee authorization proof")
 )
 
 func validateTransfer(data rma.UnitData, tx Transfer) error {
@@ -137,6 +146,28 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 		prevDcTx = dcTx
 	}
 	// done in validateGenericTransaction function
+	return nil
+}
+
+func validateTransferFC(tx *fc.TransferFeeCreditWrapper, bd *BillData) error {
+	if tx == nil {
+		return ErrTxNil
+	}
+	if bd == nil {
+		return ErrBillNil
+	}
+	if tx.TransferFC.Amount+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+		return ErrInvalidFCValue
+	}
+	if !bytes.Equal(tx.TransferFC.Backlink, bd.Backlink) {
+		return ErrInvalidBacklink
+	}
+	if tx.Transaction.ClientMetadata.FeeCreditRecordId != nil {
+		return ErrRecordIDExists
+	}
+	if tx.Transaction.FeeProof != nil {
+		return ErrFeeProofExists
+	}
 	return nil
 }
 

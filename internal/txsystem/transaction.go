@@ -27,7 +27,7 @@ func (x *ClientMetadata) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(util.Uint64ToBytes(x.Timeout))
 	b.Write(util.Uint64ToBytes(x.MaxFee))
-	b.Write(util.Uint64ToBytes(x.FeeCreditRecordId))
+	b.Write(x.FeeCreditRecordId)
 	return b.Bytes()
 }
 

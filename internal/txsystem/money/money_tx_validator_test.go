@@ -10,8 +10,11 @@ import (
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestTransfer(t *testing.T) {
@@ -212,6 +215,68 @@ func TestSwap(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorContains(t, err, tt.err)
+			}
+		})
+	}
+}
+
+func TestTransferFC(t *testing.T) {
+	tests := []struct {
+		name    string
+		bd      *BillData
+		tx      *fc.TransferFeeCreditWrapper
+		wantErr error
+	}{
+		{
+			name:    "Ok",
+			bd:      newBillData(101, []byte{6}),
+			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, nil, nil),
+			wantErr: nil,
+		},
+		{
+			name:    "BillData is nil",
+			bd:      nil,
+			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 100, nil, nil),
+			wantErr: ErrBillNil,
+		},
+		{
+			name:    "Tx is nil",
+			bd:      newBillData(100, []byte{6}),
+			tx:      nil,
+			wantErr: ErrTxNil,
+		},
+		{
+			name:    "Invalid amount",
+			bd:      newBillData(100, []byte{6}),
+			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, nil, nil),
+			wantErr: ErrInvalidFCValue,
+		},
+		{
+			name:    "Invalid backlink",
+			bd:      newBillData(101, []byte{6}),
+			tx:      newTransferFC([]byte{1}, []byte{5}, 100, 1, nil, nil),
+			wantErr: ErrInvalidBacklink,
+		},
+		{
+			name:    "RecordID exists",
+			bd:      newBillData(101, []byte{6}),
+			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, []byte{1}, nil),
+			wantErr: ErrRecordIDExists,
+		},
+		{
+			name:    "Fee proof exists",
+			bd:      newBillData(101, []byte{6}),
+			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, nil, []byte{1}),
+			wantErr: ErrFeeProofExists,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTransferFC(tt.tx, tt.bd)
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.wantErr)
 			}
 		})
 	}
@@ -472,4 +537,27 @@ func calculateSwapID(ids ...*uint256.Int) []byte {
 
 func newBillData(v uint64, backlink []byte) *BillData {
 	return &BillData{V: v, Backlink: backlink}
+}
+
+func newTransferFC(unitID []byte, backlink []byte, amount uint64, maxFee uint64, fcRecordID []byte, feeProof []byte) *fc.TransferFeeCreditWrapper {
+	to := &txsystem.Transaction{
+		SystemId:              systemID,
+		UnitId:                unitID,
+		TransactionAttributes: new(anypb.Any),
+		Timeout:               2,
+		OwnerProof:            []byte{3},
+		FeeProof:              feeProof,
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           2,
+			MaxFee:            maxFee,
+			FeeCreditRecordId: fcRecordID,
+		},
+	}
+	attr := &fc.TransferFeeCreditOrder{
+		Amount:   amount,
+		Backlink: backlink,
+	}
+	_ = anypb.MarshalFrom(to.TransactionAttributes, attr, proto.MarshalOptions{})
+	tx, _ := NewMoneyTx(systemIdentifier, to)
+	return tx.(*fc.TransferFeeCreditWrapper)
 }

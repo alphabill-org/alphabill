@@ -26,7 +26,11 @@ type GenericBlock struct {
 
 // Hash returns the hash of the block.
 // Hash is computed from hash of block header fields || hash of raw block payload || tree hash of transactions
+// AB-505: hash of an empty block is a zero-hash
 func (x *GenericBlock) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
+	if len(x.Transactions) == 0 {
+		return make([]byte, hashAlgorithm.Size()), nil
+	}
 	headerHash := x.HashHeader(hashAlgorithm)
 	txsHash := x.hashTransactions(hashAlgorithm)
 	treeHash, err := x.treeHash(hashAlgorithm)

@@ -680,7 +680,8 @@ func (n *Node) revertState() {
 func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *certificates.UnicityCertificate) (*block.Block, []byte, error) {
 	latestBlock := n.blockStore.LatestBlock()
 	b := &block.GenericBlock{
-		SystemIdentifier:   n.configuration.GetSystemIdentifier(),
+		SystemIdentifier: n.configuration.GetSystemIdentifier(),
+		// latest non-empty block
 		PreviousBlockHash:  latestBlock.UnicityCertificate.InputRecord.BlockHash,
 		Transactions:       transactions,
 		UnicityCertificate: uc,

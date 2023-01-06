@@ -41,7 +41,7 @@ func delete[K Key[K], V Value[V]](node *Node[K, V], key K) (*Node[K, V], error) 
 	} else {
 		// keys are equal
 		if node.left == nil && node.right == nil {
-			// node is the child
+			// node is a leaf
 			return nil, nil
 		}
 

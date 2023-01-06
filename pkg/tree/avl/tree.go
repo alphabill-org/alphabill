@@ -1,0 +1,82 @@
+package avl
+
+type (
+	// Tree represents an AVL tree.
+	//
+	// This implementation is not safe for concurrent use by multiple goroutines. If multiple
+	// goroutines access a tree concurrently, and at least one of them modifies the tree, it
+	// must be synchronized externally.
+	//
+	// Clone method may be used to make a copy of the tree (lazily). The original tree and the
+	// cloned tree can be used by different goroutines.
+	//
+	// Tree is indexed according to the function Key.Compare result. Node value V can be any
+	// struct that implements Value interface.
+	Tree[K Key[K], V Value[V]] struct {
+		root      *Node[K, V]
+		traverser Traverser[K, V]
+	}
+
+	// Traverser is an interface to traverse Tree.
+	Traverser[K Key[K], V Value[V]] interface {
+		Traverse(n *Node[K, V]) error
+	}
+
+	// PostOrderCommitTraverser is a Traverser that visits all non-clean nodes and
+	// sets the clean value to true.
+	PostOrderCommitTraverser[K Key[K], V Value[V]] struct{}
+)
+
+// New returns an empty AVL tree.
+// - K is the type of the node's key (e.g. IntKey)
+// - V is the type of the node's data (e.g. any kind of value that implements Value interface)
+func New[K Key[K], V Value[V]]() *Tree[K, V] {
+	return &Tree[K, V]{
+		traverser: &PostOrderCommitTraverser[K, V]{},
+	}
+}
+
+// Clone clones the AVL tree, lazily.
+//
+// This method should NOT be called concurrently!
+//
+// The original tree and the cloned tree can be used by different goroutines.
+// Writes to both old tree and cloned tree use copy-on-write logic, creating
+// new nodes whenever one of nodes would have been modified. Read operations
+// should have no performance degradation. Write operations will initially
+// experience minor slow-downs caused by additional allocs and copies due to
+// the aforementioned copy-on-write logic, but should converge to the original
+// performance characteristics of the original tree.
+func (t *Tree[K, V]) Clone() *Tree[K, V] {
+	return &Tree[K, V]{root: t.root, traverser: t.traverser}
+}
+
+// IsClean returns true if t does not contain uncommitted changes, false otherwise.
+func (t *Tree[K, V]) IsClean() bool {
+	if t.root == nil {
+		return true
+	}
+	return t.root.clean
+}
+
+// Commit saves the changes made to the tree.
+func (t *Tree[K, V]) Commit() error {
+	if t.IsClean() {
+		return nil
+	}
+	return t.traverser.Traverse(t.root)
+}
+
+func (t *Tree[K, V]) Root() *Node[K, V] {
+	return t.root
+}
+
+func (p *PostOrderCommitTraverser[K, V]) Traverse(n *Node[K, V]) error {
+	if n == nil || n.clean {
+		return nil
+	}
+	p.Traverse(n.left)
+	p.Traverse(n.right)
+	n.clean = true
+	return nil
+}

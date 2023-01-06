@@ -2,9 +2,11 @@ package atomic_broadcast
 
 import (
 	"bytes"
-	"crypto"
-	"github.com/alphabill-org/alphabill/internal/util"
+	gocrypto "crypto"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/util"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -31,7 +33,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 			Round: 10,
 			HighQc: &QuorumCert{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, voteInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 1}},
 			},
 		},
@@ -42,34 +44,34 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, voteInfo),
+			LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	timeoutCert.Add("1", t1, []byte{0, 1, 2})
 	require.Equal(t, []string{"1"}, timeoutCert.GetAuthors())
-	require.Equal(t, timeoutCert.Timeout.HighQc.VoteInfo.RootRound, voteInfo.RootRound)
+	require.Equal(t, timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber, voteInfo.RoundNumber)
 	// Add a new timeout vote, but with lower round
 	t2 := &Timeout{
 		Epoch: 0,
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         NewDummyVoteInfo(7),
-			LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, NewDummyVoteInfo(7)),
+			LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(7)),
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
 	timeoutCert.Add("2", t2, []byte{1, 2, 2})
 	require.Contains(t, timeoutCert.GetAuthors(), "1")
 	require.Contains(t, timeoutCert.GetAuthors(), "2")
-	require.Equal(t, uint64(8), timeoutCert.Timeout.HighQc.VoteInfo.RootRound)
+	require.Equal(t, uint64(8), timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber)
 	// Add a third vote, but with higher QC round so QC in the certificate gets updated
 	t3 := &Timeout{
 		Epoch: 0,
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         NewDummyVoteInfo(9),
-			LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, NewDummyVoteInfo(9)),
+			LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(9)),
 			Signatures:       map[string][]byte{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -77,7 +79,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 	require.Contains(t, timeoutCert.GetAuthors(), "1")
 	require.Contains(t, timeoutCert.GetAuthors(), "2")
 	require.Contains(t, timeoutCert.GetAuthors(), "3")
-	require.Equal(t, uint64(9), timeoutCert.Timeout.HighQc.VoteInfo.RootRound)
+	require.Equal(t, uint64(9), timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber)
 }
 
 func TestTimeoutCert_Verify(t *testing.T) {
@@ -96,7 +98,7 @@ func TestTimeoutCert_Verify(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]abcrypto.Verifier{"1": v1, "2": v2, "3": v3}
 	voteInfo := NewDummyVoteInfo(timeoutRound - 1)
-	commitInfo := NewDummyCommitInfo(crypto.SHA256, voteInfo)
+	commitInfo := &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)}
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
 	sig2, err := s2.SignBytes(commitInfo.Bytes())
@@ -247,10 +249,10 @@ func TestTimeout_Verify(t *testing.T) {
 		Epoch: 0,
 		Round: 3,
 		HighQc: &QuorumCert{
-			VoteInfo: &VoteInfo{
-				RootRound:   7,
-				Epoch:       0,
-				ParentRound: 6,
+			VoteInfo: &certificates.RootRoundInfo{
+				RoundNumber:       7,
+				Epoch:             0,
+				ParentRoundNumber: 6,
 			},
 		},
 	}

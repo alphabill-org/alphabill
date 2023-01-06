@@ -2,9 +2,9 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAmG3Jgp7QjFXb8J99ZV6eBdhpTJe4dWZr2N8Xre4BkasK7",
-        "signing_public_key": "A7OSI7x3184C3KtDp37lzZS43DrnSlkazMqQPLSRsETA",
-        "encryption_public_key": "AzJKkmSAfOodfxLB0QXU+my1pUl2dtxNbOiKs7vinSZ6"
+        "node_identifier": "16Uiu2HAm5qUJFdkpfmxnAt1ZSbhqnvHvt26B3XUDP431EmGio4Fu",
+        "signing_public_key": "AhgK/glbMhWVfZFqeeZy673JEjmpftV3U68+6sQN7N0F",
+        "encryption_public_key": "ApqtmaCMdqfkk5IQ0DyuRfRkeKh4kHrBjzjel1QdEqVs"
       }
     ],
     "consensus": {
@@ -13,7 +13,7 @@
       "consensus_timeout_ms": 10000,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAmG3Jgp7QjFXb8J99ZV6eBdhpTJe4dWZr2N8Xre4BkasK7": "Pt96rEp+VO7GSq0k46sF67sci7hXO1EmE32xihyyKHNzUswLn1J9/A8RlL80gAp15XM7506vR4xeCVl8y1iCYwE="
+        "16Uiu2HAm5qUJFdkpfmxnAt1ZSbhqnvHvt26B3XUDP431EmGio4Fu": "Fu7HeCpmJwd8gzmv8BYn52MUKOFMe7Yjl5kttrMW9/ooI+9SgML+yuAAnFnqLibTieS7Ox3E+9uHtanCH/GmogE="
       }
     }
   },
@@ -85,12 +85,17 @@
           "system_description_hash": "7ZSAu8ahWCpF6gGd0zsIa7hd0uGE1nb7l4dnFzCvCGI="
         },
         "unicity_seal": {
-          "root_chain_round_number": 1,
-          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA=",
-          "round_creation_time": 1668208271000,
+          "root_round_info": {
+            "round_number": 1,
+            "timestamp": 1668208271000,
+            "current_root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+          },
+          "commit_info": {
+            "root_round_info_hash": "SSfIV7nGkm0E7nj0vx4E1g+e69nF4fr13bWWJTWoVz0=",
+            "root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+          },
           "signatures": {
-            "16Uiu2HAmG3Jgp7QjFXb8J99ZV6eBdhpTJe4dWZr2N8Xre4BkasK7": "rtFWNlO4zQu/5767Wl10CPJnmjM6o8l0wqwgVVlCXTZJW7LvWVv7D79xxhkghIV6pfjrngOHmvOPY1P5j2lQkwA="
+            "16Uiu2HAm5qUJFdkpfmxnAt1ZSbhqnvHvt26B3XUDP431EmGio4Fu": "LctkwlpqsBFQVCy7j9+UOsHYJg0ciZl7myUFjH0H1ccj16jr45ud9inKmBVCnOw7OJNMklw2d+gR2S+pLK3SmgA="
           }
         }
       },

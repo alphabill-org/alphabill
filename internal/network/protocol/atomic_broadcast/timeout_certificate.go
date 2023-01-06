@@ -11,8 +11,8 @@ import (
 func (x *Timeout) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) error {
 	// Make sure that the quorum certificate received with the vote does not have higher round than the round
 	// voted timeout
-	if x.HighQc.VoteInfo.RootRound > x.Round {
-		return fmt.Errorf("invalid timeout, qc round %v is bigger than timeout round %v", x.HighQc.VoteInfo.RootRound, x.Round)
+	if x.HighQc.VoteInfo.RoundNumber > x.Round {
+		return fmt.Errorf("invalid timeout, qc round %v is bigger than timeout round %v", x.HighQc.VoteInfo.RoundNumber, x.Round)
 	}
 	// Verify attached quorum certificate
 	return x.HighQc.Verify(quorum, rootTrust)
@@ -28,9 +28,9 @@ func (x *TimeoutCert) GetAuthors() []string {
 
 func (x *TimeoutCert) Add(author string, timeout *Timeout, signature []byte) {
 	// Keep the highest QC certificate
-	hqcRound := timeout.HighQc.VoteInfo.RootRound
+	hqcRound := timeout.HighQc.VoteInfo.RoundNumber
 	// If received highest QC round was bigger than previously seen, replace timeout struct
-	if hqcRound > x.Timeout.HighQc.VoteInfo.RootRound {
+	if hqcRound > x.Timeout.HighQc.VoteInfo.RoundNumber {
 		x.Timeout = timeout
 	}
 	x.Signatures[author] = &TimeoutVote{HqcRound: hqcRound, Signature: signature}
@@ -49,7 +49,7 @@ func (x *TimeoutCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 	}
 	maxSignedRound := uint64(0)
 	// Extract attached the highest QC round number and compare it later to the round extracted from signatures
-	highQcRound := x.Timeout.HighQc.VoteInfo.RootRound
+	highQcRound := x.Timeout.HighQc.VoteInfo.RoundNumber
 	// 3. Check all signatures and remember the max QC round over all the signatures received
 	for author, timeoutSig := range x.Signatures {
 		// verify signature

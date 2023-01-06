@@ -523,19 +523,19 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 
 	uc := prop.UnicityCertificate
 	// UC must be newer than the last one seen
-	if uc.UnicitySeal.RootChainRoundNumber < n.luc.UnicitySeal.RootChainRoundNumber {
+	if uc.UnicitySeal.RootRoundInfo.RoundNumber < n.luc.UnicitySeal.RootRoundInfo.RoundNumber {
 		logger.Warning("Received UC is older than LUC. UC round Number:  %v, LUC round number: %v",
-			uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
+			uc.UnicitySeal.RootRoundInfo.RoundNumber, n.luc.UnicitySeal.RootRoundInfo.RoundNumber)
 		return errors.Errorf("received UC is older than LUC. uc round %v, luc round %v",
-			uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
+			uc.UnicitySeal.RootRoundInfo.RoundNumber, n.luc.UnicitySeal.RootRoundInfo.RoundNumber)
 	}
 	expectedLeader := n.leaderSelector.LeaderFromUnicitySeal(uc.UnicitySeal)
 	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
 		return errors.Errorf("invalid node identifier. leader from UC: %v, request leader: %v", expectedLeader, prop.NodeIdentifier)
 	}
 
-	logger.Debug("Proposal's UC root nr: %v vs LUC root nr: %v", uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
-	if uc.UnicitySeal.RootChainRoundNumber > n.luc.UnicitySeal.RootChainRoundNumber {
+	logger.Debug("Proposal's UC root nr: %v vs LUC root nr: %v", uc.UnicitySeal.RootRoundInfo.RoundNumber, n.luc.UnicitySeal.RootRoundInfo.RoundNumber)
+	if uc.UnicitySeal.RootRoundInfo.RoundNumber > n.luc.UnicitySeal.RootRoundInfo.RoundNumber {
 		err := n.handleUnicityCertificate(uc)
 		if err != nil && err != ErrStateReverted {
 			return err
@@ -595,24 +595,24 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		logger.Debug("Pending proposal: \nstate hash:\t%X, \nprev hash: \t%X, \nroot round: %v, tx count: %v", pr.StateHash, pr.PrevHash, pr.RoundNumber, len(pr.Transactions))
 	}
 	// UC must be newer than the last one seen
-	if uc.UnicitySeal.RootChainRoundNumber < n.luc.UnicitySeal.RootChainRoundNumber {
+	if uc.UnicitySeal.RootRoundInfo.RoundNumber < n.luc.UnicitySeal.RootRoundInfo.RoundNumber {
 		logger.Warning("Received UC is older than LUC. UC round Number:  %v, LUC round number: %v",
-			uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
+			uc.UnicitySeal.RootRoundInfo.RoundNumber, n.luc.UnicitySeal.RootRoundInfo.RoundNumber)
 		return errors.Errorf("received UC is older than LUC. uc round %v, luc round %v",
-			uc.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
+			uc.UnicitySeal.RootRoundInfo.RoundNumber, n.luc.UnicitySeal.RootRoundInfo.RoundNumber)
 	}
 
 	// there can not be two UC-s with the same Root Chain block number but certifying different state root hashes.
-	if uc.UnicitySeal.RootChainRoundNumber == n.luc.UnicitySeal.RootChainRoundNumber &&
+	if uc.UnicitySeal.RootRoundInfo.RoundNumber == n.luc.UnicitySeal.RootRoundInfo.RoundNumber &&
 		!bytes.Equal(uc.InputRecord.Hash, n.luc.InputRecord.Hash) {
 		logger.Warning("Got two UC-s with the same Base Chain block number but certifying different state root "+
 			"hashes. RootChainNumber: %v, UC IR hash: %X, LUC IR hash: %X",
-			uc.UnicitySeal.RootChainRoundNumber,
+			uc.UnicitySeal.RootRoundInfo.RoundNumber,
 			uc.InputRecord.Hash,
 			n.luc.InputRecord.Hash,
 		)
 		return errors.Errorf("equivocating certificates: round number %v, received IR hash %X, latest IR hash %X",
-			uc.UnicitySeal.RootChainRoundNumber, uc.InputRecord.Hash, n.luc.InputRecord.Hash)
+			uc.UnicitySeal.RootRoundInfo.RoundNumber, uc.InputRecord.Hash, n.luc.InputRecord.Hash)
 	}
 
 	// there can not be two UC-s extending the same state, but certifying different states (forking).
@@ -825,18 +825,19 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	// check if recovery is complete
 	latestBlock := n.GetLatestBlock()
 	logger.Debug("Checking if recovery is complete, latest block: #%v", latestBlock.BlockNumber)
-	if latestBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber >= n.luc.UnicitySeal.RootChainRoundNumber {
+	if latestBlock.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber >= n.luc.UnicitySeal.RootRoundInfo.RoundNumber {
 		n.luc = latestBlock.UnicityCertificate
 		n.stopRecovery(n.luc)
 	} else {
-		logger.Debug("Not fully recovered yet, latest block's UC root round %v vs LUC's root round %v", latestBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
+		logger.Debug("Not fully recovered yet, latest block's UC root round %v vs LUC's root round %v",
+			latestBlock.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber, n.luc.UnicitySeal.RootRoundInfo.RoundNumber)
 		go n.sendLedgerReplicationRequest(latestBlock.BlockNumber + 1)
 	}
 	return nil
 }
 
 func (n *Node) stopRecovery(uc *certificates.UnicityCertificate) {
-	logger.Info("Node is recovered until the given UC, block '%X', root round: %v ", uc.InputRecord.BlockHash, uc.UnicitySeal.RootChainRoundNumber)
+	logger.Info("Node is recovered until the given UC, block '%X', root round: %v ", uc.InputRecord.BlockHash, uc.UnicitySeal.RootRoundInfo.RoundNumber)
 	n.status = idle
 	n.sendEvent(event.RecoveryFinished, uc)
 }
@@ -928,7 +929,7 @@ func (n *Node) sendCertificationRequest() error {
 	summary := state.Summary()
 
 	pendingProposal := &block.PendingBlockProposal{
-		RoundNumber:  n.luc.UnicitySeal.RootChainRoundNumber,
+		RoundNumber:  n.luc.UnicitySeal.RootRoundInfo.RoundNumber,
 		PrevHash:     prevStateHash,
 		StateHash:    stateHash,
 		Transactions: n.proposedTransactions,

@@ -82,22 +82,22 @@ func (x *RoundPipeline) Update(qc *atomic_broadcast.QuorumCert) *store.RootState
 	}
 	var commitState *store.RootState = nil
 	// If the QC commits a state
-	if len(qc.LedgerCommitInfo.CommitStateId) != 0 {
-		state, found := x.statePipeline[qc.VoteInfo.ParentRound]
+	if qc.LedgerCommitInfo != nil {
+		state, found := x.statePipeline[qc.VoteInfo.ParentRoundNumber]
 		if found {
 			// Commit pending state if it has the same state hash
-			if bytes.Equal(state.State.LatestRootHash, qc.LedgerCommitInfo.CommitStateId) {
+			if bytes.Equal(state.State.LatestRootHash, qc.LedgerCommitInfo.RootHash) {
 				//todo: AB-548 create new UnicitySeal structure and complete certificates
 				// return state for sending result to partition manager
 				commitState = state.State
 				x.removeCompleted(state.Changed)
 				// remove completed round from pipeline
-				delete(x.statePipeline, qc.VoteInfo.ParentRound)
+				delete(x.statePipeline, qc.VoteInfo.ParentRoundNumber)
 			}
 		}
 	}
 	// Add qc to pending state
-	state, found := x.statePipeline[qc.VoteInfo.RootRound]
+	state, found := x.statePipeline[qc.VoteInfo.RoundNumber]
 	if found {
 		state.Qc = qc
 	}

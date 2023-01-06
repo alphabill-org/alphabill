@@ -4,8 +4,6 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/util"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -18,6 +16,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -37,12 +36,18 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 	s := &testtxsystem.CounterTxSystem{}
 	p := NewSingleNodePartition(t, s)
 	defer p.Close()
+	roundInfo := &certificates.RootRoundInfo{
+		RoundNumber:     1,
+		Timestamp:       util.MakeTimestamp(),
+		CurrentRootHash: zeroHash,
+	}
 	ucr := &certificates.UnicityCertificate{
 		UnicitySeal: &certificates.UnicitySeal{
-			RootChainRoundNumber: 0,
-			PreviousHash:         nil,
-			Hash:                 nil,
-			RoundCreationTime:    util.MakeTimestamp(),
+			RootRoundInfo: roundInfo,
+			CommitInfo: &certificates.CommitInfo{
+				RootRoundInfoHash: roundInfo.Hash(gocrypto.SHA256),
+				RootHash:          zeroHash,
+			},
 		},
 	}
 	p.partition.startNewRound(ucr)
@@ -182,7 +187,7 @@ func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	luc, found := tp.rootState.Certificates[systemIdentifier]
 	require.True(t, found)
 	// Mock and skip some root rounds
-	uc, err := tp.CreateUnicityCertificate(luc.InputRecord, luc.UnicitySeal.RootChainRoundNumber+3, luc.UnicitySeal.PreviousHash)
+	uc, err := tp.CreateUnicityCertificate(luc.InputRecord, luc.UnicitySeal.RootRoundInfo.RoundNumber+3)
 	require.NoError(t, err)
 
 	tp.eh.Reset()
@@ -225,7 +230,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 
 	seal1 := block.UnicityCertificate.UnicitySeal
 	seal2 := block2.UnicityCertificate.UnicitySeal
-	require.Equal(t, seal1.RootChainRoundNumber+1, seal2.RootChainRoundNumber)
+	require.Equal(t, seal1.RootRoundInfo.RoundNumber+1, seal2.RootRoundInfo.RoundNumber)
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t *testing.T) {
@@ -239,7 +244,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
 	ir.Hash = test.RandomBytes(32)
 
-	equivocatingUC, err := tp.CreateUnicityCertificate(ir, block.UnicityCertificate.UnicitySeal.RootChainRoundNumber, block.UnicityCertificate.UnicitySeal.PreviousHash)
+	equivocatingUC, err := tp.CreateUnicityCertificate(ir, block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber)
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
@@ -261,8 +266,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 
 	equivocatingUC, err := tp.CreateUnicityCertificate(
 		ir,
-		block2.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		block2.UnicityCertificate.UnicitySeal.PreviousHash,
+		block2.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 
@@ -291,8 +295,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
-		latestFinalizedBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		latestFinalizedBlock.UnicityCertificate.UnicitySeal.PreviousHash,
+		latestFinalizedBlock.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 
@@ -312,8 +315,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
-		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		block.UnicityCertificate.UnicitySeal.PreviousHash,
+		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 
@@ -345,8 +347,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
-		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		block.UnicityCertificate.UnicitySeal.PreviousHash,
+		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 
@@ -416,8 +417,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	block := tp.GetLatestBlock()
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
-		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		block.UnicityCertificate.UnicitySeal.PreviousHash,
+		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 	tp.partition.leaderSelector = &TestLeaderSelector{
@@ -442,8 +442,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 	block := tp.GetLatestBlock()
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
-		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber,
-		block.UnicityCertificate.UnicitySeal.PreviousHash,
+		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber,
 	)
 	require.NoError(t, err)
 	bp := &blockproposal.BlockProposal{
@@ -465,8 +464,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	block := tp.GetLatestBlock()
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
-		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber,
-		block.UnicityCertificate.UnicitySeal.PreviousHash,
+		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber,
 	)
 	require.NoError(t, err)
 	bp := &blockproposal.BlockProposal{
@@ -489,8 +487,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	block := tp.GetLatestBlock()
 	uc, err := tp.CreateUnicityCertificate(
 		block.UnicityCertificate.InputRecord,
-		block.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		block.UnicityCertificate.UnicitySeal.PreviousHash,
+		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 	bp := &blockproposal.BlockProposal{

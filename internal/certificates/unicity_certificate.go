@@ -31,7 +31,7 @@ func (x *UnicityCertificate) IsValid(verifiers map[string]crypto.Verifier, algor
 	if err != nil {
 		return err
 	}
-	rootHash := x.UnicitySeal.Hash
+	rootHash := x.UnicitySeal.CommitInfo.RootHash
 	if !bytes.Equal(treeRoot, rootHash) {
 		return errors.Errorf("unicity seal hash %X does not match with the root hash of the unicity tree %X", rootHash, treeRoot)
 	}

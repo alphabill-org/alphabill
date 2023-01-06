@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	round = 1
+	round             = 1
 	roundCreationTime = 100000
 )
 
@@ -26,10 +26,15 @@ var mockUc = &certificates.UnicityCertificate{
 		SystemDescriptionHash: nil,
 	},
 	UnicitySeal: &certificates.UnicitySeal{
-		RootChainRoundNumber: 1,
-		PreviousHash:         make([]byte, gocrypto.SHA256.Size()),
-		Hash:                 make([]byte, gocrypto.SHA256.Size()),
-		RoundCreationTime:    roundCreationTime,
+		RootRoundInfo: &certificates.RootRoundInfo{
+			RoundNumber:     1,
+			Timestamp:       roundCreationTime,
+			CurrentRootHash: make([]byte, gocrypto.SHA256.Size()),
+		},
+		CommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: make([]byte, gocrypto.SHA256.Size()),
+			RootHash:          make([]byte, gocrypto.SHA256.Size()),
+		},
 	},
 }
 

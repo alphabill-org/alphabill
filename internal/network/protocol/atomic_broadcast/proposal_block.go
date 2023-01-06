@@ -67,8 +67,8 @@ func (x *BlockData) IsValid() error {
 	if err := x.Qc.IsValid(); err != nil {
 		return err
 	}
-	if x.Round <= x.Qc.VoteInfo.RootRound {
-		return fmt.Errorf("invalid block round: round %v is not bigger than last qc round %v", x.Round, x.Qc.VoteInfo.RootRound)
+	if x.Round <= x.Qc.VoteInfo.RoundNumber {
+		return fmt.Errorf("invalid block round: round %v is not bigger than last qc round %v", x.Round, x.Qc.VoteInfo.RoundNumber)
 	}
 	return nil
 }

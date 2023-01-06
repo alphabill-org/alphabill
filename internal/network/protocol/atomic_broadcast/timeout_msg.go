@@ -23,7 +23,7 @@ func (x *Timeout) IsValid() error {
 	if err := x.HighQc.IsValid(); err != nil {
 		return fmt.Errorf("timeout info invalid high qc, %w", err)
 	}
-	if x.Round <= x.HighQc.VoteInfo.RootRound {
+	if x.Round <= x.HighQc.VoteInfo.RoundNumber {
 		return fmt.Errorf("timeout info round is smaller or equal to highest qc seen")
 	}
 	return nil
@@ -38,7 +38,7 @@ func (x *TimeoutMsg) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(util.Uint64ToBytes(x.Timeout.Round))
 	b.Write(util.Uint64ToBytes(x.Timeout.Epoch))
-	b.Write(util.Uint64ToBytes(x.Timeout.HighQc.VoteInfo.RootRound))
+	b.Write(util.Uint64ToBytes(x.Timeout.HighQc.VoteInfo.RoundNumber))
 	b.Write([]byte(x.Author))
 	return b.Bytes()
 }

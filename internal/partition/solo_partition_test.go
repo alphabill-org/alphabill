@@ -168,7 +168,7 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 	})
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64, previousRoundRootHash []byte) (*certificates.UnicityCertificate, error) {
+func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64) (*certificates.UnicityCertificate, error) {
 	id := sn.nodeConf.GetSystemIdentifier()
 	sdrHash := sn.nodeConf.genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
 	data := []*unicitytree.Data{{
@@ -182,7 +182,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 		return nil, err
 	}
 	rootHash := ut.GetRootHash()
-	unicitySeal, err := sn.createUnicitySeal(roundNumber, previousRoundRootHash, rootHash)
+	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
 	if err != nil {
 		return nil, err
 	}
@@ -204,12 +204,19 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 	}, nil
 }
 
-func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRoundRootHash, rootHash []byte) (*certificates.UnicitySeal, error) {
+func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []byte) (*certificates.UnicitySeal, error) {
+	roundInfo := &certificates.RootRoundInfo{
+		RoundNumber:       roundNumber,
+		Timestamp:         util.MakeTimestamp(),
+		ParentRoundNumber: roundNumber - 1,
+		CurrentRootHash:   rootHash,
+	}
 	u := &certificates.UnicitySeal{
-		RootChainRoundNumber: roundNumber,
-		PreviousHash:         previousRoundRootHash,
-		Hash:                 rootHash,
-		RoundCreationTime:    util.MakeTimestamp(),
+		RootRoundInfo: roundInfo,
+		CommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: roundInfo.Hash(gocrypto.SHA256),
+			RootHash:          rootHash,
+		},
 	}
 	return u, u.Sign("test", sn.rootSigner)
 }
@@ -229,13 +236,13 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 	if err := consensus.CheckBlockCertificationRequest(req, luc); err != nil {
 		return err
 	}
-	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.LatestRound+1, sn.rootState.LatestRootHash)
+	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.LatestRound+1)
 	if err != nil {
 		return err
 	}
 	// update state
-	sn.rootState.LatestRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.rootState.LatestRootHash = uc.UnicitySeal.Hash
+	sn.rootState.LatestRound = uc.UnicitySeal.RootRoundInfo.RoundNumber
+	sn.rootState.LatestRootHash = uc.UnicitySeal.CommitInfo.RootHash
 	sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)] = uc
 	sn.eh.Reset()
 	sn.mockNet.Receive(network.ReceivedMessage{
@@ -328,7 +335,7 @@ func createPeer(t *testing.T) *network.Peer {
 func NextBlockReceived(tp *SingleNodePartition, prevBlock *block.Block) func() bool {
 	return func() bool {
 		b := tp.GetLatestBlock()
-		return b.UnicityCertificate.UnicitySeal.RootChainRoundNumber == prevBlock.UnicityCertificate.UnicitySeal.GetRootChainRoundNumber()+1
+		return b.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber == prevBlock.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1
 	}
 }
 

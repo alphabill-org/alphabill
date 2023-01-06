@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -16,8 +17,8 @@ type (
 	}
 
 	ConsensusWithSignatures struct {
-		voteInfo   *atomic_broadcast.VoteInfo
-		commitInfo *atomic_broadcast.LedgerCommitInfo
+		voteInfo   *certificates.RootRoundInfo
+		commitInfo *certificates.CommitInfo
 		signatures map[string][]byte
 	}
 
@@ -77,7 +78,7 @@ func (v *VoteRegister) InsertVote(vote *atomic_broadcast.VoteMsg, quorumInfo Quo
 	quorum.signatures[vote.Author] = vote.Signature
 	// Check QC
 	if uint32(len(quorum.signatures)) >= quorumInfo.GetQuorumThreshold() {
-		qc := atomic_broadcast.NewQuorumCertificate(quorum.voteInfo, quorum.commitInfo, quorum.signatures)
+		qc := atomic_broadcast.NewQuorumCertificateFromVote(quorum.voteInfo, quorum.commitInfo, quorum.signatures)
 		return qc, nil
 	}
 	// Vote registered, no QC could be formed

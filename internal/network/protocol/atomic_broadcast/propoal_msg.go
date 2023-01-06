@@ -28,6 +28,9 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	if signer == nil {
 		return ErrSignerIsNil
 	}
+	if err := x.Block.IsValid(); err != nil {
+		return err
+	}
 	hash, err := x.Block.Hash(gocrypto.SHA256)
 	if err != nil {
 		return err
@@ -38,10 +41,6 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 		return err
 	}
 	x.Signature = signature
-	// Since sign sets block id, check validity after signing
-	if err := x.IsValid(); err != nil {
-		return err
-	}
 	return nil
 }
 

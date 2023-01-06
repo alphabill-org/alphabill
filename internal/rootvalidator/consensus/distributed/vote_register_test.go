@@ -1,9 +1,10 @@
 package distributed
 
 import (
-	"crypto"
+	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/stretchr/testify/require"
 )
@@ -19,28 +20,20 @@ func (d *DummyQuorum) GetQuorumThreshold() uint32 {
 	return d.quorum
 }
 
-func NewDummyVoteInfo(round uint64, rootHash []byte) *atomic_broadcast.VoteInfo {
-	return &atomic_broadcast.VoteInfo{
-		RootRound:   round,
-		Epoch:       0,
-		Timestamp:   1111,
-		ParentRound: round - 1,
-		ExecStateId: rootHash,
+func NewDummyVoteInfo(round uint64, rootHash []byte) *certificates.RootRoundInfo {
+	return &certificates.RootRoundInfo{
+		RoundNumber:       round,
+		Epoch:             0,
+		Timestamp:         1111,
+		ParentRoundNumber: round - 1,
+		CurrentRootHash:   rootHash,
 	}
 }
 
-func NewDummyQuorumCertificate(voteInfo *atomic_broadcast.VoteInfo, signatures map[string][]byte) *atomic_broadcast.QuorumCert {
-	return &atomic_broadcast.QuorumCert{
-		VoteInfo:         voteInfo,
-		LedgerCommitInfo: NewDummyLedgerCommitInfo(voteInfo),
-		Signatures:       signatures,
-	}
-}
-
-func NewDummyLedgerCommitInfo(voteInfo *atomic_broadcast.VoteInfo) *atomic_broadcast.LedgerCommitInfo {
-	return &atomic_broadcast.LedgerCommitInfo{
-		VoteInfoHash:  voteInfo.Hash(crypto.SHA256),
-		CommitStateId: nil,
+func NewDummyLedgerCommitInfo(voteInfo *certificates.RootRoundInfo) *certificates.CommitInfo {
+	return &certificates.CommitInfo{
+		RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256),
+		RootHash:          nil,
 	}
 }
 
@@ -191,10 +184,10 @@ func TestVoteRegister_Qc(t *testing.T) {
 	qc, err = register.InsertVote(vote, quorumInfo)
 	require.NoError(t, err)
 	require.NotNil(t, qc)
-	require.Equal(t, qc.VoteInfo.RootRound, uint64(2))
-	require.Equal(t, qc.VoteInfo.ParentRound, uint64(1))
+	require.Equal(t, qc.VoteInfo.RoundNumber, uint64(2))
+	require.Equal(t, qc.VoteInfo.ParentRoundNumber, uint64(1))
 	require.Equal(t, qc.VoteInfo.Timestamp, uint64(1111))
-	require.Equal(t, qc.VoteInfo.ExecStateId, []byte{1, 2, 3})
+	require.Equal(t, qc.VoteInfo.CurrentRootHash, []byte{1, 2, 3})
 	require.Equal(t, qc.LedgerCommitInfo, vote.LedgerCommitInfo)
 	require.Contains(t, qc.Signatures, "node1")
 	require.Contains(t, qc.Signatures, "node2")
@@ -209,31 +202,34 @@ func TestVoteRegister_Tc(t *testing.T) {
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},
 	}
-	QcRound1 := NewDummyQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), qcSignatures)
-	QcRound2 := NewDummyQuorumCertificate(NewDummyVoteInfo(2, []byte{0, 1, 2}), qcSignatures)
-	QcRound3 := NewDummyQuorumCertificate(NewDummyVoteInfo(3, []byte{0, 1, 3}), qcSignatures)
+	qcRound1 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+	qcRound1.Signatures = qcSignatures
+	qcRound2 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(2, []byte{0, 1, 2}), nil)
+	qcRound2.Signatures = qcSignatures
+	qcRound3 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(3, []byte{0, 1, 3}), nil)
+	qcRound3.Signatures = qcSignatures
 
 	register := NewVoteRegister()
 	quorumInfo := NewDummyQuorum(3)
 	// create dummy timeout vote
 
-	timeoutVoteMsg := NewDummyTimeoutVote(QcRound1, 4, "node1")
+	timeoutVoteMsg := NewDummyTimeoutVote(qcRound1, 4, "node1")
 	tc, err := register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, tc)
-	timeoutVote2Msg := NewDummyTimeoutVote(QcRound2, 4, "node2")
+	timeoutVote2Msg := NewDummyTimeoutVote(qcRound2, 4, "node2")
 	tc, err = register.InsertTimeoutVote(timeoutVote2Msg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, tc)
-	timeoutVote3Msg := NewDummyTimeoutVote(QcRound3, 4, "node3")
+	timeoutVote3Msg := NewDummyTimeoutVote(qcRound3, 4, "node3")
 	tc, err = register.InsertTimeoutVote(timeoutVote3Msg, quorumInfo)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.Equal(t, uint32(len(tc.Signatures)), quorumInfo.GetQuorumThreshold())
 	require.Equal(t, tc.Timeout.Round, uint64(4))
 	require.Equal(t, tc.Timeout.Epoch, uint64(0))
-	// TC must include the most recent QC seen by any node (in this case from QcRound3 - round 3)
-	require.Equal(t, tc.Timeout.HighQc.VoteInfo.RootRound, uint64(3))
+	// TC must include the most recent QC seen by any node (in this case from qcRound3 - round 3)
+	require.Equal(t, tc.Timeout.HighQc.VoteInfo.RoundNumber, uint64(3))
 }
 
 func TestVoteRegister_ErrDuplicateVote(t *testing.T) {
@@ -264,14 +260,15 @@ func TestVoteRegister_Reset(t *testing.T) {
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},
 	}
-	QcRound1 := NewDummyQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), qcSignatures)
+	qcRound1 := atomic_broadcast.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+	qcRound1.Signatures = qcSignatures
 	qc, err := register.InsertVote(NewDummyVote("node1", 2, []byte{1, 2, 3}), quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, qc)
 	qc, err = register.InsertVote(NewDummyVote("node2", 2, []byte{1, 2, 3}), quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, qc)
-	timeoutVoteMsg := NewDummyTimeoutVote(QcRound1, 4, "test")
+	timeoutVoteMsg := NewDummyTimeoutVote(qcRound1, 4, "test")
 	tc, err := register.InsertTimeoutVote(timeoutVoteMsg, quorumInfo)
 	require.NoError(t, err)
 	require.Nil(t, tc)

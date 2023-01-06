@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
@@ -11,8 +12,8 @@ import (
 
 func TestVoteMsg_AddSignature(t *testing.T) {
 	type fields struct {
-		VoteInfo         *VoteInfo
-		LedgerCommitInfo *LedgerCommitInfo
+		VoteInfo         *certificates.RootRoundInfo
+		LedgerCommitInfo *certificates.CommitInfo
 		HighQc           *QuorumCert
 		Author           string
 	}
@@ -31,7 +32,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Sign ok",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 				HighQc:           &QuorumCert{},
 				Author:           "test",
 			},
@@ -42,18 +43,18 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Vote info hash is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
 				HighQc:           &QuorumCert{},
 				Author:           "test",
 			},
 			args:       args{signer: s1},
-			wantErrStr: "invalid vote info hash",
+			wantErrStr: "commit info root round info hash is invalid",
 		},
 		{
 			name: "Signer is nil",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
 				HighQc:           &QuorumCert{},
 				Author:           "test",
 			},
@@ -81,8 +82,8 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 
 func TestVoteMsg_Verify(t *testing.T) {
 	type fields struct {
-		VoteInfo         *VoteInfo
-		LedgerCommitInfo *LedgerCommitInfo
+		VoteInfo         *certificates.RootRoundInfo
+		LedgerCommitInfo *certificates.CommitInfo
 		HighQc           *QuorumCert
 		Author           string
 		Signature        []byte
@@ -121,7 +122,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 			name: "Vote info error",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
 				HighQc:           &QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
@@ -132,20 +133,20 @@ func TestVoteMsg_Verify(t *testing.T) {
 		{
 			name: "Vote info invalid",
 			fields: fields{
-				VoteInfo:         &VoteInfo{RootRound: 8, ParentRound: 9},
-				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
+				VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 8, ParentRoundNumber: 9},
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
 				HighQc:           &QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
 			},
 			args:       args{quorum: quorum, rootTrust: nil},
-			wantErrStr: "invalid vote message, invalid round number",
+			wantErrStr: "invalid vote message, root round info round number is not valid",
 		},
 		{
 			name: "Vote info hash error",
 			fields: fields{
 				VoteInfo:         voteMsgInfo,
-				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 3}, CommitStateId: nil},
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 3}, RootHash: nil},
 				HighQc:           &QuorumCert{},
 				Author:           "test",
 				Signature:        nil,
@@ -231,10 +232,12 @@ func TestVoteMsg_VerifyOk(t *testing.T) {
 	}
 	voteMsgInfo := NewDummyVoteInfo(votedRound)
 	voteMsg := &VoteMsg{
-		VoteInfo:         voteMsgInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteMsgInfo),
-		HighQc:           highQc,
-		Author:           "1",
+		VoteInfo: voteMsgInfo,
+		LedgerCommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: voteMsgInfo.Hash(gocrypto.SHA256),
+		},
+		HighQc: highQc,
+		Author: "1",
 	}
 	require.NoError(t, voteMsg.Sign(s1))
 	require.NoError(t, voteMsg.Verify(quorum, rootTrust))

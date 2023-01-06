@@ -2,14 +2,15 @@ package monolithic
 
 import (
 	"crypto"
+	"testing"
+	"time"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 var sysId0 = []byte{0, 0, 0, 0}
@@ -43,15 +44,15 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		p.SystemIdentifier(sysId0): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
-			UnicitySeal:            &certificates.UnicitySeal{RootChainRoundNumber: 3}}, // no timeout (5 - 3) * 900 = 1800 ms
+			UnicitySeal:            &certificates.UnicitySeal{RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 3}}}, // no timeout (5 - 3) * 900 = 1800 ms
 		p.SystemIdentifier(sysId1): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
-			UnicitySeal:            &certificates.UnicitySeal{RootChainRoundNumber: 2}}, // timeout (5 - 2) * 900 = 2700 ms
+			UnicitySeal:            &certificates.UnicitySeal{RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 2}}}, // timeout (5 - 2) * 900 = 2700 ms
 		p.SystemIdentifier(sysId2): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
-			UnicitySeal:            &certificates.UnicitySeal{RootChainRoundNumber: 4}}, // no timeout
+			UnicitySeal:            &certificates.UnicitySeal{RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 4}}}, // no timeout
 	}}
 	require.NoError(t, manager.checkT2Timeout(5, &lastState))
 	// if round is 900ms then timeout of 2500 is reached in 3 * 900ms rounds, which is 2700ms

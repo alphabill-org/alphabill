@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -185,7 +186,7 @@ func TestRootNodeVerifier_ValidateQuorum(t *testing.T) {
 
 func TestRootNodeVerifier_VerifyBytes(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
-	commitInfo := &atomic_broadcast.LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{2, 3, 4}}
+	commitInfo := &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}, RootHash: []byte{2, 3, 4}}
 	bytes := commitInfo.Bytes()
 	signer, _ := signers["0"]
 	sig, err := signer.SignBytes(bytes)
@@ -229,6 +230,9 @@ func TestRootNodeVerifier_VerifyQuorumSignatures(t *testing.T) {
 
 func TestRootNodeVerifier_VerifySignature(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
+	// create certificate for previous round
+	roundInfo := &certificates.RootRoundInfo{RoundNumber: 1, Timestamp: 11111, CurrentRootHash: []byte{0, 1, 3}}
+
 	blockData := &atomic_broadcast.BlockData{
 		Author:    "0",
 		Round:     2,
@@ -236,8 +240,8 @@ func TestRootNodeVerifier_VerifySignature(t *testing.T) {
 		Timestamp: 11111,
 		Payload:   &atomic_broadcast.Payload{},
 		Qc: &atomic_broadcast.QuorumCert{
-			VoteInfo:         &atomic_broadcast.VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
-			LedgerCommitInfo: &atomic_broadcast.LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+			VoteInfo:         roundInfo,
+			LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: roundInfo.Hash(gocrypto.SHA256)},
 			Signatures:       map[string][]byte{"0": {1, 2, 3}},
 		},
 	}

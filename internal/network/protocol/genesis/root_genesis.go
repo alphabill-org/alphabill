@@ -121,11 +121,11 @@ func (x *RootGenesis) Verify() error {
 }
 
 func (x *RootGenesis) GetRoundNumber() uint64 {
-	return x.Partitions[0].Certificate.UnicitySeal.RootChainRoundNumber
+	return x.Partitions[0].Certificate.UnicitySeal.RootRoundInfo.RoundNumber
 }
 
 func (x *RootGenesis) GetRoundHash() []byte {
-	return x.Partitions[0].Certificate.UnicitySeal.Hash
+	return x.Partitions[0].Certificate.UnicitySeal.CommitInfo.RootHash
 }
 
 func (x *RootGenesis) GetPartitionRecords() []*PartitionRecord {

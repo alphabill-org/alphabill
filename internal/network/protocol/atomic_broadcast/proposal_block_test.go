@@ -3,8 +3,10 @@ package atomic_broadcast
 import (
 	"crypto"
 	"crypto/sha256"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/stretchr/testify/require"
@@ -18,13 +20,13 @@ func TestBlockDataHash(t *testing.T) {
 		Timestamp: 0x0102030405060708,
 		Payload:   &Payload{},
 		Qc: &QuorumCert{
-			VoteInfo: &VoteInfo{
-				RootRound:   1,
-				Epoch:       0,
-				Timestamp:   0x0010670314583523,
-				ParentRound: 0,
-				ExecStateId: []byte{0, 1, 3}},
-			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
+			VoteInfo: &certificates.RootRoundInfo{
+				RoundNumber:       1,
+				Epoch:             0,
+				Timestamp:         0x0010670314583523,
+				ParentRoundNumber: 0,
+				CurrentRootHash:   []byte{0, 1, 3}},
+			LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}, RootHash: []byte{1, 2, 3}},
 			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
 	}
@@ -52,13 +54,13 @@ func TestBlockDataHash_HashPayloadNil(t *testing.T) {
 		Timestamp: 0x0102030405060708,
 		Payload:   nil,
 		Qc: &QuorumCert{
-			VoteInfo: &VoteInfo{
-				RootRound:   2,
-				Epoch:       0,
-				Timestamp:   0x0010670314583523,
-				ParentRound: 1,
-				ExecStateId: []byte{0, 1, 3}},
-			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
+			VoteInfo: &certificates.RootRoundInfo{
+				RoundNumber:       2,
+				Epoch:             0,
+				Timestamp:         0x0010670314583523,
+				ParentRoundNumber: 1,
+				CurrentRootHash:   []byte{0, 1, 3}},
+			LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}, RootHash: []byte{1, 2, 3}},
 			Signatures:       map[string][]byte{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
 	}
@@ -89,13 +91,13 @@ func TestBlockDataHash_QcNoSignatures(t *testing.T) {
 		Timestamp: 0x0102030405060708,
 		Payload:   &Payload{},
 		Qc: &QuorumCert{
-			VoteInfo: &VoteInfo{
-				RootRound:   1,
-				Epoch:       0,
-				Timestamp:   0x0010670314583523,
-				ParentRound: 0,
-				ExecStateId: []byte{0, 1, 3}},
-			LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}, CommitStateId: []byte{1, 2, 3}},
+			VoteInfo: &certificates.RootRoundInfo{
+				RoundNumber:       1,
+				Epoch:             0,
+				Timestamp:         0x0010670314583523,
+				ParentRoundNumber: 0,
+				CurrentRootHash:   []byte{0, 1, 3}},
+			LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}, RootHash: []byte{1, 2, 3}},
 			Signatures:       nil,
 		},
 	}
@@ -134,12 +136,12 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{RootRound: 0, ExecStateId: []byte{0, 1, 3}},
-					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 0, CurrentRootHash: []byte{0, 1, 3}},
+					LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 2, 1}},
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: "invalid round",
+			wantErrStr: "root round info round number is not valid",
 		},
 		{
 			name: "Invalid round number",
@@ -151,8 +153,8 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
-					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
+					LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 2, 1}},
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
@@ -168,8 +170,8 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   nil, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
-					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
+					LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 2, 1}},
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
@@ -190,7 +192,7 @@ func TestBlockData_IsValid(t *testing.T) {
 			wantErrStr: ErrMissingQuorumCertificate.Error(),
 		},
 		{
-			name: "Invalid Qc is missing signatures",
+			name: "Invalid timestamp missing",
 			fields: fields{
 				Id:        []byte{0, 1, 2},
 				Author:    "test",
@@ -199,12 +201,29 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
-					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
+					LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 2, 1}},
 				},
 			},
 			args:       args{quorum: 1, rootTrust: nil},
-			wantErrStr: "qc is missing signatures",
+			wantErrStr: "round creation time not set",
+		},
+		{
+			name: "Invalid timestamp missing",
+			fields: fields{
+				Id:        []byte{0, 1, 2},
+				Author:    "test",
+				Round:     2,
+				Epoch:     0,
+				Timestamp: 0x0102030405060708,
+				Payload:   &Payload{}, // empty payload
+				Qc: &QuorumCert{
+					VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}},
+					LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 2, 1}},
+				},
+			},
+			args:       args{quorum: 1, rootTrust: nil},
+			wantErrStr: "round creation time not set",
 		},
 		{
 			name: "Invalid block round, Qc round is higher",
@@ -216,8 +235,8 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{RootRound: 3, ExecStateId: []byte{0, 1, 3}},
-					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 3, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
+					LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 2, 1}},
 					Signatures:       map[string][]byte{"1": {0, 1, 2}},
 				},
 			},
@@ -234,8 +253,8 @@ func TestBlockData_IsValid(t *testing.T) {
 				Timestamp: 0x0102030405060708,
 				Payload:   &Payload{}, // empty payload
 				Qc: &QuorumCert{
-					VoteInfo:         &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}},
-					LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: []byte{0, 2, 1}},
+					VoteInfo:         &certificates.RootRoundInfo{RoundNumber: 1, Timestamp: 1111, CurrentRootHash: []byte{0, 1, 3}},
+					LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 2, 1}},
 					Signatures:       map[string][]byte{"1": {0, 1, 2}},
 				},
 			},
@@ -275,11 +294,7 @@ func TestBlockData_Verify(t *testing.T) {
 		Epoch:     0,
 		Timestamp: 0x0102030405060708,
 		Payload:   &Payload{}, // empty payload
-		Qc: &QuorumCert{
-			VoteInfo:         info,
-			LedgerCommitInfo: NewDummyCommitInfo(crypto.SHA256, info),
-			Signatures:       map[string][]byte{},
-		},
+		Qc:        NewQuorumCertificate(info, nil),
 	}
 	require.ErrorContains(t, block.Verify(3, rootTrust), "qc is missing signatures")
 	block.Qc.addSignatureToQc(t, "1", s1)

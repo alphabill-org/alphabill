@@ -1,9 +1,10 @@
 package atomic_broadcast
 
 import (
+	gocrypto "crypto"
 	"testing"
 
-	gocrypto "crypto"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
@@ -15,12 +16,12 @@ func TestTimeoutMsg_Bytes(t *testing.T) {
 			Round: 10,
 			Epoch: 0,
 			HighQc: &QuorumCert{
-				VoteInfo: &VoteInfo{
-					RootRound:   9,
-					Epoch:       0,
-					Timestamp:   0x0010670314583523,
-					ParentRound: 8,
-					ExecStateId: []byte{0, 1, 3}},
+				VoteInfo: &certificates.RootRoundInfo{
+					RoundNumber:       9,
+					Epoch:             0,
+					Timestamp:         0x0010670314583523,
+					ParentRoundNumber: 8,
+					CurrentRootHash:   []byte{0, 1, 3}},
 			},
 		},
 		Author:    "test",
@@ -41,12 +42,12 @@ func TestBytesFromTimeoutVote(t *testing.T) {
 			Round: 10,
 			Epoch: 0,
 			HighQc: &QuorumCert{
-				VoteInfo: &VoteInfo{
-					RootRound:   9,
-					Epoch:       0,
-					Timestamp:   0x0010670314583523,
-					ParentRound: 8,
-					ExecStateId: []byte{0, 1, 3}},
+				VoteInfo: &certificates.RootRoundInfo{
+					RoundNumber:       9,
+					Epoch:             0,
+					Timestamp:         0x0010670314583523,
+					ParentRoundNumber: 8,
+					CurrentRootHash:   []byte{0, 1, 3}},
 			},
 		},
 		Author:    "test",

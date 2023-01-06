@@ -4,6 +4,7 @@ import (
 	"bytes"
 	gocrypto "crypto"
 	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -210,11 +211,19 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 	// if all requests match then consensus is present
 	sealFn := func(rootHash []byte) (*certificates.UnicitySeal, error) {
+		roundMeta := &certificates.RootRoundInfo{
+			RoundNumber:       1,
+			Epoch:             0,
+			Timestamp:         GenesisTime,
+			ParentRoundNumber: 0,
+			CurrentRootHash:   rootHash,
+		}
 		uSeal := &certificates.UnicitySeal{
-			RootChainRoundNumber: 1,
-			PreviousHash:         make([]byte, c.hashAlgorithm.Size()),
-			Hash:                 rootHash,
-			RoundCreationTime:    GenesisTime,
+			RootRoundInfo: roundMeta,
+			CommitInfo: &certificates.CommitInfo{
+				RootRoundInfoHash: roundMeta.Hash(gocrypto.SHA256),
+				RootHash:          rootHash,
+			},
 		}
 		return uSeal, uSeal.Sign(c.peerID, c.signer)
 	}

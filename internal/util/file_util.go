@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
-	"io/ioutil"
 	"os"
 )
 
@@ -29,7 +28,7 @@ func GetFileSize(filepath string) (int64, error) {
 
 func ReadJsonFile[T any](path string, res *T) (*T, error) {
 	// #nosec G304
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -45,5 +44,5 @@ func WriteJsonFile[T any](path string, obj *T) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, b, 0600) // -rw-------
+	return os.WriteFile(path, b, 0600) // -rw-------
 }

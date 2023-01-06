@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
@@ -74,7 +75,7 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 			Payload:   &Payload{},
 			Qc: &QuorumCert{
 				VoteInfo:         prevRoundInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, prevRoundInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: prevRoundInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
@@ -95,7 +96,7 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 			Payload:   &Payload{},
 			Qc: &QuorumCert{
 				VoteInfo:         qcInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, qcInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: qcInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
@@ -117,7 +118,7 @@ func TestProposalMsg_Sign_Ok(t *testing.T) {
 			Payload:   &Payload{},
 			Qc: &QuorumCert{
 				VoteInfo:         qcInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, qcInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: qcInfo.Hash(gocrypto.SHA256)},
 				Signatures:       map[string][]byte{"1": {1, 2, 3}},
 			},
 		},
@@ -132,12 +133,7 @@ func TestProposalMsg_Verify_UnknownSigner(t *testing.T) {
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
-	lastRoundVoteInfo := NewDummyVoteInfo(9)
-	lastRoundQc := &QuorumCert{
-		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
-		Signatures:       map[string][]byte{},
-	}
+	lastRoundQc := NewQuorumCertificate(NewDummyVoteInfo(9), nil)
 	lastRoundQc.addSignatureToQc(t, "1", s1)
 	lastRoundQc.addSignatureToQc(t, "2", s2)
 	lastRoundQc.addSignatureToQc(t, "3", s3)
@@ -195,7 +191,7 @@ func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {
 	lastRoundVoteInfo := NewDummyVoteInfo(9)
 	lastRoundQc := &QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
+		LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	lastRoundQc.addSignatureToQc(t, "1", s1)
@@ -223,7 +219,7 @@ func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
 	lastRoundVoteInfo := NewDummyVoteInfo(9)
 	lastRoundQc := &QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
+		LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	lastRoundQc.addSignatureToQc(t, "1", s1)
@@ -253,7 +249,7 @@ func TestProposalMsg_Verify_OK(t *testing.T) {
 	lastRoundVoteInfo := NewDummyVoteInfo(9)
 	lastRoundQc := &QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
+		LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	lastRoundQc.addSignatureToQc(t, "1", s1)
@@ -282,7 +278,7 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	lastRoundVoteInfo := NewDummyVoteInfo(8)
 	lastRoundQc := &QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, lastRoundVoteInfo),
+		LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
 		Signatures:       map[string][]byte{},
 	}
 	lastRoundQc.addSignatureToQc(t, "1", s1)
@@ -297,9 +293,9 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	lastRoundTc := &TimeoutCert{
 		Timeout: timeout,
 		Signatures: map[string]*TimeoutVote{
-			"1": {HqcRound: lastRoundVoteInfo.RootRound, Signature: calcTimeoutSig(t, s1, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RootRound, "1")},
-			"2": {HqcRound: lastRoundVoteInfo.RootRound, Signature: calcTimeoutSig(t, s2, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RootRound, "2")},
-			"3": {HqcRound: lastRoundVoteInfo.RootRound, Signature: calcTimeoutSig(t, s3, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RootRound, "3")},
+			"1": {HqcRound: lastRoundVoteInfo.RoundNumber, Signature: calcTimeoutSig(t, s1, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RoundNumber, "1")},
+			"2": {HqcRound: lastRoundVoteInfo.RoundNumber, Signature: calcTimeoutSig(t, s2, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RoundNumber, "2")},
+			"3": {HqcRound: lastRoundVoteInfo.RoundNumber, Signature: calcTimeoutSig(t, s3, timeout.Round, timeout.Epoch, lastRoundVoteInfo.RoundNumber, "3")},
 		},
 	}
 	proposeMsg := &ProposalMsg{

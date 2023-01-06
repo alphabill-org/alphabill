@@ -402,7 +402,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// calculate LUC age using rounds and min block rate
-	lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootChainRoundNumber) * x.config.BlockRateMs
+	lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.config.BlockRateMs
 	inputRecord, err := irChange.Verify(partitionInfo, luc, lucAgeInRounds)
 	if err != nil {
 		logger.Warning("Invalid IR change request error: %v", err)
@@ -435,7 +435,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		return
 	}
 	// Was the proposal received? If not, should we recover it? or do we accept that this round will end up as timeout
-	round := vote.VoteInfo.RootRound
+	round := vote.VoteInfo.RoundNumber
 	// Normal votes are only sent to the next leader,
 	// timeout votes are broadcast to everybody
 	nextRound := round + 1
@@ -449,7 +449,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// Store vote, check for QC
 	qc := x.pacemaker.RegisterVote(vote, x.rootVerifier)
 	if qc != nil {
-		logger.Info("Round %v quorum achieved", vote.VoteInfo.RootRound)
+		logger.Info("Round %v quorum achieved", vote.VoteInfo.RoundNumber)
 		// advance round (only done once)
 		// NB! it must be able to
 		x.processCertificateQC(qc)
@@ -482,8 +482,8 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 
 func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) bool {
 	execStateId := x.roundPipeline.GetExecStateId()
-	if !bytes.Equal(qc.VoteInfo.ExecStateId, execStateId) {
-		logger.Warning("QC round %v state is different, recover state", qc.VoteInfo.RootRound)
+	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, execStateId) {
+		logger.Warning("QC round %v state is different, recover state", qc.VoteInfo.RoundNumber)
 		return true
 	}
 	return false
@@ -512,7 +512,7 @@ func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Paylo
 		if err != nil {
 			return nil, fmt.Errorf("invalid payload: unknown partition %X", systemId.Bytes())
 		}
-		lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootChainRoundNumber) * x.config.BlockRateMs
+		lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.config.BlockRateMs
 		// verify request
 		inputRecord, err := irChReq.Verify(partitionInfo, luc, lucAgeInRounds)
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
@@ -13,9 +14,9 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 	if signer == nil {
 		return ErrSignerIsNil
 	}
-	// make sure ledger commit info is populated
-	if err := x.LedgerCommitInfo.IsValid(); err != nil {
-		return err
+	// sanity check, make sure commit info round info hash is set
+	if len(x.LedgerCommitInfo.RootRoundInfoHash) < 1 {
+		return certificates.ErrInvalidRootInfoHash
 	}
 	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
 	if err != nil {
@@ -34,7 +35,7 @@ func (x *VoteMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier) er
 	}
 	// Verify hash of vote info
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
-	if !bytes.Equal(hash, x.LedgerCommitInfo.VoteInfoHash) {
+	if !bytes.Equal(hash, x.LedgerCommitInfo.RootRoundInfoHash) {
 		return errors.New("invalid vote message, vote info hash verification failed")
 	}
 	if len(x.Author) == 0 {

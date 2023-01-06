@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
@@ -31,7 +32,7 @@ func isSafeToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert
 	if !isConsecutive(blockRound, tc.Timeout.Round) {
 		return false
 	}
-	if qcRound < tc.Timeout.HighQc.VoteInfo.RootRound {
+	if qcRound < tc.Timeout.HighQc.VoteInfo.RoundNumber {
 		return false
 	}
 	//return isConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound
@@ -60,9 +61,9 @@ func (s *SafetyModule) isSafeToVote(blockRound, qcRound uint64, tc *atomic_broad
 	return isConsecutive(blockRound, qcRound)
 }
 
-func (s *SafetyModule) constructLedgerCommitInfo(block *atomic_broadcast.BlockData, voteInfoHash []byte) *atomic_broadcast.LedgerCommitInfo {
+func (s *SafetyModule) constructCommitInfo(block *atomic_broadcast.BlockData, voteInfoHash []byte) *certificates.CommitInfo {
 	commitCandidateId := s.isCommitCandidate(block)
-	return &atomic_broadcast.LedgerCommitInfo{CommitStateId: commitCandidateId, VoteInfoHash: voteInfoHash}
+	return &certificates.CommitInfo{RootRoundInfoHash: voteInfoHash, RootHash: commitCandidateId}
 }
 
 func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId []byte, author string, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
@@ -71,7 +72,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId [
 	if block.Qc == nil {
 		return nil, atomic_broadcast.ErrMissingQuorumCertificate
 	}
-	qcRound := block.Qc.VoteInfo.RootRound
+	qcRound := block.Qc.VoteInfo.RoundNumber
 	votingRound := block.Round
 	if s.isSafeToVote(votingRound, qcRound, lastRoundTC) == false {
 		return nil, errors.New("Not safe to vote")
@@ -79,15 +80,15 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId [
 	s.updateHighestQcRound(qcRound)
 	s.increaseHigestVoteRound(votingRound)
 	// create vote info
-	voteInfo := &atomic_broadcast.VoteInfo{
-		RootRound:   block.Round,
-		Epoch:       block.Epoch,
-		Timestamp:   block.Timestamp,
-		ParentRound: block.Qc.VoteInfo.RootRound,
-		ExecStateId: execStateId,
+	voteInfo := &certificates.RootRoundInfo{
+		RoundNumber:       block.Round,
+		Epoch:             block.Epoch,
+		Timestamp:         block.Timestamp,
+		ParentRoundNumber: block.Qc.VoteInfo.RoundNumber,
+		CurrentRootHash:   execStateId,
 	}
 	// Create ledger commit info, the signed part of vote
-	ledgerCommitInfo := s.constructLedgerCommitInfo(block, voteInfo.Hash(gocrypto.SHA256))
+	ledgerCommitInfo := s.constructCommitInfo(block, voteInfo.Hash(gocrypto.SHA256))
 	voteMsg := &atomic_broadcast.VoteMsg{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: ledgerCommitInfo,
@@ -102,7 +103,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId [
 }
 
 func (s SafetyModule) SignTimeout(vote *atomic_broadcast.TimeoutMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
-	qcRound := vote.Timeout.HighQc.VoteInfo.RootRound
+	qcRound := vote.Timeout.HighQc.VoteInfo.RoundNumber
 	round := vote.Timeout.Round
 	if !s.isSafeToTimeout(round, qcRound, lastRoundTC) {
 		return errors.New("not safe to timeout")
@@ -142,8 +143,8 @@ func (s *SafetyModule) isCommitCandidate(block *atomic_broadcast.BlockData) []by
 	if block.Qc == nil {
 		return nil
 	}
-	if isConsecutive(block.Round, block.Qc.VoteInfo.RootRound) {
-		return block.Qc.VoteInfo.ExecStateId
+	if isConsecutive(block.Round, block.Qc.VoteInfo.RoundNumber) {
+		return block.Qc.VoteInfo.CurrentRootHash
 	}
 	return nil
 }

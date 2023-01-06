@@ -90,7 +90,7 @@ func (x *Pacemaker) GetCurrentRound() uint64 {
 }
 
 func (x *Pacemaker) SetVoted(vote *atomic_broadcast.VoteMsg) {
-	if vote.VoteInfo.RootRound == x.currentRound {
+	if vote.VoteInfo.RoundNumber == x.currentRound {
 		x.voteSent = vote
 	}
 }
@@ -114,9 +114,9 @@ func (x *Pacemaker) GetRoundTimeout() time.Duration {
 
 func (x *Pacemaker) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumInfo) *atomic_broadcast.QuorumCert {
 	// If the vote is not about the current round then ignore
-	if vote.VoteInfo.RootRound != x.currentRound {
+	if vote.VoteInfo.RoundNumber != x.currentRound {
 		logger.Warning("Round %v received vote for unexpected round %v: vote ignored",
-			x.currentRound, vote.VoteInfo.RootRound)
+			x.currentRound, vote.VoteInfo.RoundNumber)
 		return nil
 	}
 	qc, err := x.pendingVotes.InsertVote(vote, quorum)
@@ -154,15 +154,15 @@ func (x *Pacemaker) AdvanceRoundQC(qc *atomic_broadcast.QuorumCert) bool {
 		return false
 	}
 	// Same QC can only advance the round number once
-	if qc.VoteInfo.RootRound < x.currentRound {
+	if qc.VoteInfo.RoundNumber < x.currentRound {
 		return false
 	}
 	x.lastRoundTC = nil
 	// only increment high committed round if QC commits a state
-	if qc.LedgerCommitInfo.CommitStateId != nil {
-		x.lastQcToCommitRound = qc.VoteInfo.RootRound
+	if qc.LedgerCommitInfo.RootHash != nil {
+		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
 	}
-	x.startNewRound(qc.VoteInfo.RootRound + 1)
+	x.startNewRound(qc.VoteInfo.RoundNumber + 1)
 	return true
 }
 

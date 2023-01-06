@@ -23,32 +23,11 @@ message Payload {
   repeated IRChangeReqMsg requests = 1;
 }
 
-// The ConsensusInfo is used both in VoteMsg reply and in QC which aggregates all VoteMsg replays
-message VoteInfo {
-  // Consensus protocol monotonically increasing round number
-  uint64 root_round = 1;
-  // Epoch number corresponds to the set of validators that are active for this block. (not used)
-  uint64 epoch = 2;
-  // timestamp
-  uint64 timestamp = 3;
-  // parent block round number
-  uint64 parent_round = 4;
-  // speculative execution state h(root hash || round number)
-  bytes exec_state_id = 5;
-}
-
-message LedgerCommitInfo {
-  // hash of VoteInfo
-  bytes vote_info_hash = 1;
-  // State to be committed
-  bytes commit_state_id = 2;
-}
-
 message QuorumCert {
   // Consensus data
-  VoteInfo vote_info = 1;
+  RootRoundInfo vote_info = 1;
   // Commit info
-  LedgerCommitInfo ledger_commit_info = 2;
+  CommitInfo ledger_commit_info = 2;
   // Node identifier to signature map (NB! aggregated signature schema in spec)
   map<string, bytes> signatures = 3;
 }
@@ -105,9 +84,9 @@ message ProposalMsg {
 // Message for both timeout and proposal vote
 message VoteMsg {
   // Proposed block hash and resulting state hash
-  VoteInfo vote_info = 1;
+  RootRoundInfo vote_info = 1;
   // Commit info
-  LedgerCommitInfo ledger_commit_info = 2;
+  CommitInfo ledger_commit_info = 2;
   // Sync with highest QC
   QuorumCert high_qc = 3;
   // Voter node identifier

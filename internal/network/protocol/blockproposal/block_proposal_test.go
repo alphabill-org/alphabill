@@ -133,11 +133,16 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
 	seal := &certificates.UnicitySeal{
-		RootChainRoundNumber: 1,
-		PreviousHash:         test.RandomBytes(32),
-		Hash:                 test.RandomBytes(32),
-		RoundCreationTime:    dummyTimeStamp,
-		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
+		RootRoundInfo: &certificates.RootRoundInfo{
+			RoundNumber:     1,
+			Timestamp:       dummyTimeStamp,
+			CurrentRootHash: test.RandomBytes(32),
+		},
+		CommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: test.RandomBytes(32),
+			RootHash:          test.RandomBytes(32),
+		},
+		Signatures: map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,
@@ -169,11 +174,16 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sdrHash := test.RandomBytes(32)
 	seal := &certificates.UnicitySeal{
-		RootChainRoundNumber: 1,
-		PreviousHash:         test.RandomBytes(32),
-		Hash:                 test.RandomBytes(32),
-		RoundCreationTime:    dummyTimeStamp,
-		Signatures:           map[string][]byte{"1": test.RandomBytes(32)},
+		RootRoundInfo: &certificates.RootRoundInfo{
+			RoundNumber:     1,
+			Timestamp:       dummyTimeStamp,
+			CurrentRootHash: test.RandomBytes(32),
+		},
+		CommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: test.RandomBytes(32),
+			RootHash:          test.RandomBytes(32),
+		},
+		Signatures: map[string][]byte{"1": test.RandomBytes(32)},
 	}
 	bp := &BlockProposal{
 		SystemIdentifier: systemIdentifier,

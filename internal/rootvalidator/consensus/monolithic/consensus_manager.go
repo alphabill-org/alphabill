@@ -230,7 +230,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) 
 			if err != nil {
 				return err
 			}
-			if time.Duration(round-cert.UnicitySeal.RootChainRoundNumber)*x.conf.t3Timeout >
+			if time.Duration(round-cert.UnicitySeal.RootRoundInfo.RoundNumber)*x.conf.t3Timeout >
 				time.Duration(partInfo.SystemDescription.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
@@ -273,11 +273,19 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64, lastState *
 		return nil, err
 	}
 	rootHash := ut.GetRootHash()
+	roundMeta := &certificates.RootRoundInfo{
+		RoundNumber:       round,
+		Epoch:             0,
+		Timestamp:         util.MakeTimestamp(),
+		ParentRoundNumber: round - 1,
+		CurrentRootHash:   rootHash,
+	}
 	uSeal := &certificates.UnicitySeal{
-		RootChainRoundNumber: round,
-		PreviousHash:         lastState.LatestRootHash,
-		Hash:                 rootHash,
-		RoundCreationTime:    util.MakeTimestamp(),
+		RootRoundInfo: roundMeta,
+		CommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: roundMeta.Hash(gocrypto.SHA256),
+			RootHash:          rootHash,
+		},
 	}
 	if err := uSeal.Sign(x.selfId, x.signer); err != nil {
 		return nil, err

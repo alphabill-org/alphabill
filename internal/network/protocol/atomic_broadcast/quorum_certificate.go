@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 )
 
@@ -16,11 +17,19 @@ var (
 	ErrQcIsMissingSignatures = errors.New("qc is missing signatures")
 )
 
-func NewQuorumCertificate(voteInfo *VoteInfo, commitInfo *LedgerCommitInfo, signatures map[string][]byte) *QuorumCert {
+func NewQuorumCertificateFromVote(voteInfo *certificates.RootRoundInfo, commitInfo *certificates.CommitInfo, signatures map[string][]byte) *QuorumCert {
 	return &QuorumCert{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: commitInfo,
 		Signatures:       signatures,
+	}
+}
+
+func NewQuorumCertificate(voteInfo *certificates.RootRoundInfo, commitHash []byte) *QuorumCert {
+	return &QuorumCert{
+		VoteInfo:         voteInfo,
+		LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256), RootHash: commitHash},
+		Signatures:       map[string][]byte{},
 	}
 }
 
@@ -36,8 +45,9 @@ func (x *QuorumCert) IsValid() error {
 	if x.LedgerCommitInfo == nil {
 		return ErrLedgerCommitInfoIsNil
 	}
-	if err := x.LedgerCommitInfo.IsValid(); err != nil {
-		return err
+	// For root validator commit state id can be empty
+	if len(x.LedgerCommitInfo.RootRoundInfoHash) < 1 {
+		return certificates.ErrInvalidRootInfoHash
 	}
 	if len(x.Signatures) < 1 {
 		return ErrQcIsMissingSignatures
@@ -51,7 +61,7 @@ func (x *QuorumCert) Verify(quorum uint32, rootTrust map[string]crypto.Verifier)
 	}
 	// check vote info hash
 	hash := x.VoteInfo.Hash(gocrypto.SHA256)
-	if !bytes.Equal(hash, x.LedgerCommitInfo.VoteInfoHash) {
+	if !bytes.Equal(hash, x.LedgerCommitInfo.RootRoundInfoHash) {
 		return fmt.Errorf("quorum certificate not valid: vote info hash verification failed")
 	}
 	// Check quorum, if not fail without checking signatures itself

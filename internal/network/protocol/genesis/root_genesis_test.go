@@ -146,9 +146,14 @@ func TestRootGenesis(t *testing.T) {
 				Nodes: []*PartitionNode{node},
 				Certificate: &certificates.UnicityCertificate{
 					UnicitySeal: &certificates.UnicitySeal{
-						RootChainRoundNumber: 1,
-						Hash:                 hash,
-						RoundCreationTime:    10000,
+						RootRoundInfo: &certificates.RootRoundInfo{
+							RoundNumber:     1,
+							Timestamp:       10000,
+							CurrentRootHash: hash,
+						},
+						CommitInfo: &certificates.CommitInfo{
+							RootHash: hash,
+						},
 					},
 				},
 				SystemDescriptionRecord: systemDescription,

@@ -16,11 +16,10 @@ import (
 
 func TestUnicityCertificate_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	roundInfo := NewDummyRootRoundInfo(1, WithTimestamp(util.MakeTimestamp()))
 	seal := &UnicitySeal{
-		RootChainRoundNumber: 1,
-		PreviousHash:         zeroHash,
-		Hash:                 zeroHash,
-		RoundCreationTime:    util.MakeTimestamp(),
+		RootRoundInfo: roundInfo,
+		CommitInfo:    &CommitInfo{RootRoundInfoHash: roundInfo.Hash(gocrypto.SHA256), RootHash: zeroHash},
 	}
 	err := seal.Sign("test", signer)
 	require.NoError(t, err)

@@ -2,9 +2,9 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAmMTciRE8P86CjTqmA3Q8eJHsW1CB6vzgmpvNScd7qLVPs",
-        "signing_public_key": "A3DG8PHf+KmXy7usvm4fgGCoPhknUWGM1ch1SVuoaBZX",
-        "encryption_public_key": "A4LPVHGauldG8INNaNr8adGeFSaCRtvmXaXcIG+3v1JW"
+        "node_identifier": "16Uiu2HAmBtT7P1Z1nSwyxf7fph2eN5o1DPQeRgteRpxpyEhZy1hh",
+        "signing_public_key": "AhHVPOviRYOvw3xqVk+XMSyZnD+7dAfNH7Vl6+YudgH4",
+        "encryption_public_key": "AvSXHxWV7fAuQzLEMyGLjNBb7U7EymZIdi5+aSG7IZM4"
       }
     ],
     "consensus": {
@@ -13,7 +13,7 @@
       "consensus_timeout_ms": 10000,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAmMTciRE8P86CjTqmA3Q8eJHsW1CB6vzgmpvNScd7qLVPs": "0LFlBtWuwNYrpTqfwWeMf2HRW7y3fL/SAM6AKoVHyVkZooeh5oVpOqSJXwdds+fL4pY3+I5QA4gTVa/ssdKsIgE="
+        "16Uiu2HAmBtT7P1Z1nSwyxf7fph2eN5o1DPQeRgteRpxpyEhZy1hh": "ROB/ARV0dygI0dMHlfTPxakfISHFG5lmJGh5FCoUIUUo0/eRbMa7ucnR/67AP4rV6JmUSZIM3ez5K2oX6HBMbQE="
       }
     }
   },
@@ -85,12 +85,17 @@
           "system_description_hash": "7ZSAu8ahWCpF6gGd0zsIa7hd0uGE1nb7l4dnFzCvCGI="
         },
         "unicity_seal": {
-          "root_chain_round_number": 1,
-          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA=",
-          "round_creation_time": 1668208271000,
+          "root_round_info": {
+            "round_number": 1,
+            "timestamp": 1668208271000,
+            "current_root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+          },
+          "commit_info": {
+            "root_round_info_hash": "SSfIV7nGkm0E7nj0vx4E1g+e69nF4fr13bWWJTWoVz0=",
+            "root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+          },
           "signatures": {
-            "16Uiu2HAmMTciRE8P86CjTqmA3Q8eJHsW1CB6vzgmpvNScd7qLVPs": "1CVe4LWKmVw+DZg756vbTaxKR/K6aIq+Bmic+c1cKXIycv0COAWNONgh5NsinkdDA9LKF804c0h7wDam0rCZ2wE="
+            "16Uiu2HAmBtT7P1Z1nSwyxf7fph2eN5o1DPQeRgteRpxpyEhZy1hh": "kwS4VX28hrjZPeKY8Sy4bypfeVu2MJ5D03lfBOGIeGU5NnLToqBD0lPdMOyQHNzhEzQfdgkG6XnOWianVglBnAA="
           }
         }
       },

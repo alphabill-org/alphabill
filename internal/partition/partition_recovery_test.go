@@ -35,8 +35,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
-		bl.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		bl.UnicityCertificate.UnicitySeal.PreviousHash,
+		bl.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 
@@ -121,8 +120,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 
 	newUC, err := tp.CreateUnicityCertificate(
 		ir,
-		currentBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		currentBlock.UnicityCertificate.UnicitySeal.Hash,
+		currentBlock.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
 	newBlock.UnicityCertificate = newUC

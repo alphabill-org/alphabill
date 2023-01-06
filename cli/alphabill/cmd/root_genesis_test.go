@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -31,12 +30,12 @@ func TestGenerateGenesisFiles(t *testing.T) {
 	err := rootGenesisRunFunc(context.Background(), conf)
 	require.NoError(t, err)
 
-	expectedRGFile, _ := ioutil.ReadFile("testdata/expected/root-genesis.json")
-	actualRGFile, _ := ioutil.ReadFile(path.Join(outputDir, "root-genesis.json"))
+	expectedRGFile, _ := os.ReadFile("testdata/expected/root-genesis.json")
+	actualRGFile, _ := os.ReadFile(path.Join(outputDir, "root-genesis.json"))
 	require.EqualValues(t, expectedRGFile, actualRGFile)
 
-	expectedPGFile1, _ := ioutil.ReadFile("testdata/expected/partition-genesis-1.json")
-	actualPGFile1, _ := ioutil.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
+	expectedPGFile1, _ := os.ReadFile("testdata/expected/partition-genesis-1.json")
+	actualPGFile1, _ := os.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
 }
 

@@ -4,44 +4,45 @@ import (
 	gocrypto "crypto"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
 
-type Option func(*VoteInfo)
+type Option func(*certificates.RootRoundInfo)
 
 func WithParentRound(round uint64) Option {
-	return func(info *VoteInfo) {
-		info.ParentRound = round
+	return func(info *certificates.RootRoundInfo) {
+		info.ParentRoundNumber = round
 	}
 }
 
-func NewDummyVoteInfo(round uint64, options ...Option) *VoteInfo {
-	voteInfo := &VoteInfo{RootRound: round, Epoch: 0,
-		Timestamp: 1670314583523, ParentRound: round - 1, ExecStateId: []byte{0, 1, 3}}
+func NewDummyVoteInfo(round uint64, options ...Option) *certificates.RootRoundInfo {
+	voteInfo := &certificates.RootRoundInfo{RoundNumber: round, Epoch: 0,
+		Timestamp: 1670314583523, ParentRoundNumber: round - 1, CurrentRootHash: []byte{0, 1, 3}}
 	for _, o := range options {
 		o(voteInfo)
 	}
 	return voteInfo
 }
 
-func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *VoteInfo) *LedgerCommitInfo {
+func NewDummyCommitInfo(algo gocrypto.Hash, voteInfo *certificates.RootRoundInfo) *certificates.CommitInfo {
 	hash := voteInfo.Hash(algo)
-	return &LedgerCommitInfo{VoteInfoHash: hash, CommitStateId: nil}
+	return &certificates.CommitInfo{RootRoundInfoHash: hash, RootHash: nil}
 }
 
 func TestNewQuorumCertificate(t *testing.T) {
-	voteInfo := &VoteInfo{RootRound: 1, ExecStateId: []byte{0, 1, 3}}
-	commitInfo := &LedgerCommitInfo{VoteInfoHash: []byte{0, 1, 2}}
-	qc := NewQuorumCertificate(voteInfo, commitInfo, nil)
+	voteInfo := &certificates.RootRoundInfo{RoundNumber: 1, CurrentRootHash: []byte{0, 1, 3}}
+	commitInfo := &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}}
+	qc := NewQuorumCertificateFromVote(voteInfo, commitInfo, nil)
 	require.NotNil(t, qc)
 }
 
 func TestQuorumCert_IsValid(t *testing.T) {
 	type fields struct {
-		VoteInfo         *VoteInfo
-		LedgerCommitInfo *LedgerCommitInfo
+		VoteInfo         *certificates.RootRoundInfo
+		LedgerCommitInfo *certificates.CommitInfo
 		Signatures       map[string][]byte
 	}
 	voteInfo := NewDummyVoteInfo(10)
@@ -54,7 +55,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 			name: "QC not  valid - no vote info",
 			fields: fields{
 				VoteInfo:         nil,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures:       nil,
 			},
 			wantErrStr: ErrVoteInfoIsNil.Error(),
@@ -67,7 +68,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 				LedgerCommitInfo: nil,
 				Signatures:       nil,
 			},
-			wantErrStr: "invalid round number",
+			wantErrStr: "root round info round number is not valid",
 		},
 		{
 			name: "QC not  valid - ledger info is nil",
@@ -82,16 +83,16 @@ func TestQuorumCert_IsValid(t *testing.T) {
 			name: "QC not  valid - ledger info is nil",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &LedgerCommitInfo{VoteInfoHash: nil, CommitStateId: nil},
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: nil, RootHash: nil},
 				Signatures:       nil,
 			},
-			wantErrStr: ErrInvalidVoteInfoHash.Error(),
+			wantErrStr: certificates.ErrInvalidRootInfoHash.Error(),
 		},
 		{
 			name: "QC not  valid - missing signatures",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures:       nil,
 			},
 			wantErrStr: ErrQcIsMissingSignatures.Error(),
@@ -101,7 +102,7 @@ func TestQuorumCert_IsValid(t *testing.T) {
 			name: "QC valid - would not pass verify",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, voteInfo),
+				LedgerCommitInfo: &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)},
 				Signatures: map[string][]byte{
 					"test1": {0, 1, 2},
 					"test2": {1, 2, 3},
@@ -132,7 +133,7 @@ func TestQuorumCert_Verify(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
 	voteInfo := NewDummyVoteInfo(10)
-	commitInfo := NewDummyCommitInfo(gocrypto.SHA256, voteInfo)
+	commitInfo := &certificates.CommitInfo{RootRoundInfoHash: voteInfo.Hash(gocrypto.SHA256)}
 	sig1, err := s1.SignBytes(commitInfo.Bytes())
 	require.NoError(t, err)
 	sig2, err := s2.SignBytes(commitInfo.Bytes())
@@ -141,8 +142,8 @@ func TestQuorumCert_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	type fields struct {
-		VoteInfo         *VoteInfo
-		LedgerCommitInfo *LedgerCommitInfo
+		VoteInfo         *certificates.RootRoundInfo
+		LedgerCommitInfo *certificates.CommitInfo
 		Signatures       map[string][]byte
 	}
 	type args struct {

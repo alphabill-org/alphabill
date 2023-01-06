@@ -2,9 +2,9 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAky458dPBihhbHEPnzEkTnDG4uUno6q1KWvG2ujVm3rs74",
-        "signing_public_key": "A0b704atOEXs7ILID9iBAug749qlhITLPsxmyzRaF1ca",
-        "encryption_public_key": "AjXmJfgphhYleXStooIUBzjlpx1dYGE8mnunTMFJKU+v"
+        "node_identifier": "16Uiu2HAmCXQAEh8rtjQp5PvvtDerAQjS2keb2qA6AJx2PUyuGqKP",
+        "signing_public_key": "A2tuiKhi+jOHaDej1Slx8OKY5Xt59yQv+cb8tC2yGPE3",
+        "encryption_public_key": "Av4ORmJGtsyZ78jprpCsaHq+eNY4RpvBlwHwDDGeOkhC"
       }
     ],
     "consensus": {
@@ -13,7 +13,7 @@
       "consensus_timeout_ms": 10000,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAky458dPBihhbHEPnzEkTnDG4uUno6q1KWvG2ujVm3rs74": "Uvesx3qW6tykbsNjSa5u8FA7qCO4fXLNRWf0Z/XFg/pVeUf77BdXZuyHGNQ++8XAbvqMUgpzr6bAn8iUWVJCQAA="
+        "16Uiu2HAmCXQAEh8rtjQp5PvvtDerAQjS2keb2qA6AJx2PUyuGqKP": "E67BEVC98/os4juOv+xS41tShmE08fz2Ns01Q7PKAkgjhaRM0sY582ixUIXqrZ+p/4hvH0v8sOa14WEl4NHNaQA="
       }
     }
   },
@@ -85,12 +85,17 @@
           "system_description_hash": "7ZSAu8ahWCpF6gGd0zsIa7hd0uGE1nb7l4dnFzCvCGI="
         },
         "unicity_seal": {
-          "root_chain_round_number": 1,
-          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA=",
-          "round_creation_time": 1668208271000,
+          "root_round_info": {
+            "round_number": 1,
+            "timestamp": 1668208271000,
+            "current_root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+          },
+          "commit_info": {
+            "root_round_info_hash": "SSfIV7nGkm0E7nj0vx4E1g+e69nF4fr13bWWJTWoVz0=",
+            "root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+          },
           "signatures": {
-            "16Uiu2HAky458dPBihhbHEPnzEkTnDG4uUno6q1KWvG2ujVm3rs74": "kKgeS7c0PB6gG1gGRolvDsJsu7wSYujTRr/e/Rev2aw33vzEnEb9Z0osnNMm4/h8nz+4MId2gVL/O4dJaJkSYwA="
+            "16Uiu2HAmCXQAEh8rtjQp5PvvtDerAQjS2keb2qA6AJx2PUyuGqKP": "nzbqenQkawTfyYO6LqCUJUlAqn4mg9apOAZqPdnacf1IHj8N0oKz4VCycu2qoIb3hfFCWYpiSfbxqDSjBj2fmgA="
           }
         }
       },

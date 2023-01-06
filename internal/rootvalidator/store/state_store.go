@@ -7,7 +7,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const (
@@ -43,15 +42,6 @@ func (r *RootState) Update(newState RootState) {
 	for id, uc := range newState.Certificates {
 		r.Certificates[id] = uc
 	}
-}
-
-func (r RootState) GetStateHash(hash gocrypto.Hash) []byte {
-	hasher := hash.New()
-	hasher.Write(util.Uint64ToBytes(r.LatestRound))
-	for _, uc := range r.Certificates {
-		uc.AddToHasher(hasher)
-	}
-	return hasher.Sum(nil)
 }
 
 func (r *RootState) IsValid() error {

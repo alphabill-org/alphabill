@@ -165,7 +165,7 @@ func TestNewStateFromPartitionRecords_Ok(t *testing.T) {
 	require.NoError(t, p2UC.IsValid(verifiers, s.hashAlgorithm, partition2ID, p2Hash))
 	// verify State after the round
 	require.Equal(t, uint64(1), state.LatestRound)
-	require.Equal(t, p1UC.UnicitySeal.Hash, state.LatestRootHash)
+	require.Equal(t, p1UC.UnicitySeal.CommitInfo.RootHash, state.LatestRootHash)
 	// make sure input stores get cleared
 	require.Empty(t, s.inputRecords)
 	require.Equal(t, 0, len(s.incomingRequests.GetRequests(p.SystemIdentifier(partition1ID))))
@@ -185,7 +185,7 @@ func TestHandleInputRequestEvent_OlderUnicityCertificate(t *testing.T) {
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
 	require.ErrorContains(t, err, "old request")
 	require.NotNil(t, receivedUc)
-	require.Greater(t, receivedUc.UnicitySeal.RootChainRoundNumber, req.RootRoundNumber)
+	require.Greater(t, receivedUc.UnicitySeal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
 
 }
 
@@ -243,7 +243,7 @@ func TestHandleInputRequestEvent_PartitionHasNewerUC(t *testing.T) {
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
 	require.NotNil(t, receivedUc)
 	require.ErrorContains(t, err, "partition has never unicity certificate")
-	require.Less(t, receivedUc.UnicitySeal.RootChainRoundNumber, req.RootRoundNumber)
+	require.Less(t, receivedUc.UnicitySeal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
 }
 
 func TestHandleInputRequestEvent_UnknownNodeID(t *testing.T) {

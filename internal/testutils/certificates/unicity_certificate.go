@@ -53,10 +53,18 @@ func CreateUnicityCertificate(
 }
 
 func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *certificates.UnicitySeal {
+	roundMeta := &certificates.RootRoundInfo{
+		RoundNumber:       roundNumber,
+		Epoch:             0,
+		Timestamp:         util.MakeTimestamp(),
+		ParentRoundNumber: roundNumber - 1,
+		CurrentRootHash:   rootHash,
+	}
 	return &certificates.UnicitySeal{
-		RootChainRoundNumber: roundNumber,
-		PreviousHash:         previousRoundRootHash,
-		Hash:                 rootHash,
-		RoundCreationTime:    util.MakeTimestamp(),
+		RootRoundInfo: roundMeta,
+		CommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: roundMeta.Hash(gocrypto.SHA256),
+			RootHash:          rootHash,
+		},
 	}
 }

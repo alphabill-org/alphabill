@@ -160,15 +160,15 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 		return nil, err
 	}
 	seal := latestUnicityCertificate.UnicitySeal
-	if req.RootRoundNumber < seal.RootChainRoundNumber {
+	if req.RootRoundNumber < seal.RootRoundInfo.RoundNumber {
 		// Older UC, return current.
-		return latestUnicityCertificate, errors.Errorf("old request: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
-	} else if req.RootRoundNumber > seal.RootChainRoundNumber {
+		return latestUnicityCertificate, errors.Errorf("old request: root round number %v, partition node round number %v", seal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
+	} else if req.RootRoundNumber > seal.RootRoundInfo.RoundNumber {
 		// should not happen, partition has newer UC
-		return latestUnicityCertificate, errors.Errorf("partition has never unicity certificate: root round number %v, partition node round number %v", seal.RootChainRoundNumber, req.RootRoundNumber)
+		return latestUnicityCertificate, errors.Errorf("partition has never unicity certificate: root round number %v, partition node round number %v", seal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
 	} else if !bytes.Equal(req.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
 		// Extending of unknown State.
-		return latestUnicityCertificate, errors.Errorf("request extends unknown state: expected hash: %v, got: %v", seal.Hash, req.InputRecord.PreviousHash)
+		return latestUnicityCertificate, errors.Errorf("request extends unknown state: expected hash: %v, got: %v", seal.CommitInfo.RootHash, req.InputRecord.PreviousHash)
 	}
 	if err := s.incomingRequests.Add(req); err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func (s *State) CreateUnicityCertificates(timeMs uint64) (*store.RootState, erro
 		return nil, err
 	}
 	newRound := lastState.LatestRound + 1
-	unicitySeal, err := s.createUnicitySeal(newRound, rootHash, lastState.LatestRootHash, timeMs)
+	unicitySeal, err := s.createUnicitySeal(newRound, rootHash, timeMs)
 	if err != nil {
 		return nil, err
 	}
@@ -300,12 +300,20 @@ func (s *State) toUnicityTreeData(records map[p.SystemIdentifier]*certificates.I
 	return data
 }
 
-func (s *State) createUnicitySeal(newRound uint64, newRootHash []byte, prevRoot []byte, timeMs uint64) (*certificates.UnicitySeal, error) {
+func (s *State) createUnicitySeal(newRound uint64, newRootHash []byte, timeMs uint64) (*certificates.UnicitySeal, error) {
+	roundMeta := &certificates.RootRoundInfo{
+		RoundNumber:       newRound,
+		Epoch:             0,
+		Timestamp:         timeMs,
+		ParentRoundNumber: newRound - 1,
+		CurrentRootHash:   newRootHash,
+	}
 	u := &certificates.UnicitySeal{
-		RootChainRoundNumber: newRound,
-		PreviousHash:         prevRoot,
-		Hash:                 newRootHash,
-		RoundCreationTime:    timeMs,
+		RootRoundInfo: roundMeta,
+		CommitInfo: &certificates.CommitInfo{
+			RootRoundInfoHash: roundMeta.Hash(gocrypto.SHA256),
+			RootHash:          newRootHash,
+		},
 	}
 	return u, u.Sign(s.selfId, s.signer)
 }

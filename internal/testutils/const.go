@@ -4,5 +4,5 @@ import "time"
 
 const (
 	WaitDuration = 4 * time.Second
-	WaitTick     = 100 * time.Millisecond
+	WaitTick     = 10 * time.Millisecond
 )

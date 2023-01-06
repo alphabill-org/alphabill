@@ -16,7 +16,7 @@ import (
 
 const (
 	prefetchBlockCount          = 100
-	sleepTimeAtMaxBlockHeightMs = 500
+	sleepTimeAtMaxBlockHeightMs = 50
 	blockDownloadMaxBatchSize   = 100
 	maxTxFailedTries            = 3
 	txBufferFullErrMsg          = "tx buffer is full"

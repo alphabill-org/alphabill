@@ -81,6 +81,8 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		return nil, err
 	}
 
+	timeoutMultiplier := .1
+
 	for i := 0; i < partitionNodes; i++ {
 		transactionSystem := txSystemProvider(trustBase)
 		nodeGenesis, err := partition.NewNodeGenesis(
@@ -89,7 +91,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			partition.WithSigningKey(signers[i]),
 			partition.WithEncryptionPubKey(nodePeers[i].Configuration().KeyPair.PublicKey),
 			partition.WithSystemIdentifier(systemIdentifier),
-			partition.WithT2Timeout(2500),
+			partition.WithT2Timeout(uint32(2500*timeoutMultiplier)),
 		)
 		if err != nil {
 			return nil, err
@@ -110,11 +112,11 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	}
 
 	// start root chain
-	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond)
+	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, time.Duration(300)*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
-	root, err := rootchain.NewRootChain(rootPeer, rootGenesis, rootSigner, rootNet, rootchain.WithT3Timeout(900*time.Millisecond))
+	root, err := rootchain.NewRootChain(rootPeer, rootGenesis, rootSigner, rootNet, rootchain.WithT3Timeout(time.Duration(900*timeoutMultiplier)*time.Millisecond))
 
 	partitionGenesis := partitionGenesisFiles[0]
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -139,6 +141,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			partition.WithContext(ctx),
 			partition.WithRootAddressAndIdentifier(rootPeer.MultiAddresses()[0], rootPeer.ID()),
 			partition.WithEventHandler(eh.HandleEvent, 100),
+			partition.WithT1Timeout(time.Duration(float64(partition.DefaultT1Timeout)*timeoutMultiplier)),
 		)
 		if err != nil {
 			return nil, err

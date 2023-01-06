@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -61,7 +62,13 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 	if !bytes.Equal(systemID, tx.GetSystemId()) {
 		return nil, errors.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), systemID)
 	}
-
+	feeTx, err := fc.NewFeeCreditTx(tx)
+	if err != nil {
+		return nil, err
+	}
+	if feeTx != nil {
+		return feeTx, nil
+	}
 	switch tx.TransactionAttributes.TypeUrl {
 	case typeURLTransferOrder:
 		pb := &TransferOrder{}

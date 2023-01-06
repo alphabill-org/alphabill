@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -17,10 +18,10 @@ const (
 	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditOrder"
 
 	protobufTypeUrlPrefix         = "type.googleapis.com/"
-	typeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
-	typeURLAddFeeCreditOrder      = protobufTypeUrlPrefix + TypeAddFeeCreditOrder
-	typeURLCloseFeeCreditOrder    = protobufTypeUrlPrefix + TypeCloseFeeCreditOrder
-	typeURLReclaimFeeCreditOrder  = protobufTypeUrlPrefix + TypeReclaimFeeCreditOrder
+	TypeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
+	TypeURLAddFeeCreditOrder      = protobufTypeUrlPrefix + TypeAddFeeCreditOrder
+	TypeURLCloseFeeCreditOrder    = protobufTypeUrlPrefix + TypeCloseFeeCreditOrder
+	TypeURLReclaimFeeCreditOrder  = protobufTypeUrlPrefix + TypeReclaimFeeCreditOrder
 )
 
 type (
@@ -58,6 +59,74 @@ type (
 		closeFCTransfer *CloseFeeCreditWrapper
 	}
 )
+
+func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	if tx == nil {
+		return nil, errors.New("cannot create fee credit tx wrapper: tx is nil")
+	}
+	switch tx.TransactionAttributes.TypeUrl {
+	case TypeURLTransferFeeCreditOrder:
+		pb := &TransferFeeCreditOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		return &TransferFeeCreditWrapper{
+			Wrapper:    Wrapper{Transaction: tx},
+			TransferFC: pb,
+		}, nil
+	case TypeURLAddFeeCreditOrder:
+		pb := &AddFeeCreditOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		fcGen, err := NewFeeCreditTx(pb.FeeCreditTransfer)
+		if err != nil {
+			return nil, errors.Wrap(err, "add fee credit wrapping failed")
+		}
+		fcWrapper, ok := fcGen.(*TransferFeeCreditWrapper)
+		if !ok {
+			return nil, errors.Errorf("transfer FC wrapper is invalid type: %T", fcWrapper)
+		}
+		return &AddFeeCreditWrapper{
+			Wrapper:    Wrapper{Transaction: tx},
+			AddFC:      pb,
+			transferFC: fcWrapper,
+		}, nil
+	case TypeURLCloseFeeCreditOrder:
+		pb := &CloseFeeCreditOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		return &CloseFeeCreditWrapper{
+			Wrapper: Wrapper{Transaction: tx},
+			CloseFC: pb,
+		}, nil
+	case TypeURLReclaimFeeCreditOrder:
+		pb := &ReclaimFeeCreditOrder{}
+		err := tx.TransactionAttributes.UnmarshalTo(pb)
+		if err != nil {
+			return nil, err
+		}
+		fcGen, err := NewFeeCreditTx(pb.CloseFeeCreditTransfer)
+		if err != nil {
+			return nil, errors.Wrap(err, "reclaim fee credit wrapping failed")
+		}
+		fcWrapper, ok := fcGen.(*CloseFeeCreditWrapper)
+		if !ok {
+			return nil, errors.Errorf("close fee credit wrapper is invalid type: %T", fcWrapper)
+		}
+		return &ReclaimFeeCreditWrapper{
+			Wrapper:         Wrapper{Transaction: tx},
+			ReclaimFC:       pb,
+			closeFCTransfer: fcWrapper,
+		}, nil
+	default:
+		return nil, nil
+	}
+}
 
 // GenericTransaction methods
 func (w *Wrapper) SystemID() []byte {

@@ -210,21 +210,22 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
-	genericBlock, _ := block.ToGenericBlock(txSystem)
-	blockHash, _ := genericBlock.Hash(gocrypto.SHA256)
-	block2 := tp.GetLatestBlock()
-	require.Equal(t, block.UnicityCertificate.InputRecord.RoundNumber+1, block2.UnicityCertificate.InputRecord.RoundNumber)
-	require.Equal(t, block.SystemIdentifier, block2.SystemIdentifier)
-	require.Equal(t, blockHash, block2.PreviousBlockHash)
+	//genericBlock, _ := block.ToGenericBlock(txSystem)
+	//blockHash, _ := genericBlock.Hash(gocrypto.SHA256)
+	//block2 := tp.GetLatestBlock()
+	uc2 := tp.store.LatestUC()
+	require.Equal(t, block.UnicityCertificate.InputRecord.RoundNumber+1, uc2.InputRecord.RoundNumber)
+	require.Equal(t, block.SystemIdentifier, uc2.UnicityTreeCertificate.SystemIdentifier)
+	//require.Equal(t, blockHash, block2.PreviousBlockHash)
 	uc1 := block.UnicityCertificate
-	uc2 := block2.UnicityCertificate
 	require.Equal(t, uc1.InputRecord.Hash, uc2.InputRecord.Hash)
 	require.Equal(t, uc1.InputRecord.PreviousHash, uc2.InputRecord.PreviousHash)
 	require.Equal(t, uc1.InputRecord.SummaryValue, uc2.InputRecord.SummaryValue)
-	require.NotEqual(t, uc1.InputRecord.BlockHash, uc2.InputRecord.BlockHash)
+	// with no transactions, block hashes do not change
+	require.Equal(t, uc1.InputRecord.BlockHash, uc2.InputRecord.BlockHash)
 
 	seal1 := block.UnicityCertificate.UnicitySeal
-	seal2 := block2.UnicityCertificate.UnicitySeal
+	seal2 := uc2.UnicitySeal
 	require.Equal(t, seal1.RootChainRoundNumber+1, seal2.RootChainRoundNumber)
 }
 

@@ -314,8 +314,9 @@ func createPeer(t *testing.T) *network.Peer {
 
 func NextBlockReceived(tp *SingleNodePartition, prevBlock *block.Block) func() bool {
 	return func() bool {
-		b := tp.GetLatestBlock()
-		return b.UnicityCertificate.UnicitySeal.RootChainRoundNumber == prevBlock.UnicityCertificate.UnicitySeal.GetRootChainRoundNumber()+1
+		// b := tp.GetLatestBlock()
+		// since empty blocks are not persisted, latest block may be certified, but only its UC is saved
+		return tp.store.LatestUC().InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
 	}
 }
 

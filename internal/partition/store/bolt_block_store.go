@@ -5,7 +5,9 @@ import (
 	"log"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/partition/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
 	bolt "go.etcd.io/bbolt"
 )
@@ -16,10 +18,13 @@ var (
 	blocksBucket        = []byte("blocksBucket")
 	metaBucket          = []byte("metaBucket")
 	blockProposalBucket = []byte("blockProposalBucket")
+	latestUCBucket      = []byte("latestUCBucket")
 )
 var (
-	latestBlockNoKey       = []byte("latestBlockNo")
+	latestBlockNoKey       = []byte("latestBlockNo") // latest persisted non-empty block number
+	latestRoundNoKey       = []byte("latestRoundNo") // latest certified round number (can be equal or greater than the latest block number)
 	blockProposalBucketKey = []byte("blockProposal")
+	latestUCBucketKey      = []byte("latestUC")
 )
 
 var errInvalidBlockNo = errors.New("invalid block number")
@@ -52,8 +57,58 @@ func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 
 func (bs *BoltBlockStore) Add(b *block.Block) error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
-		err := bs.verifyBlock(tx, b)
+		if err := bs.verifyBlock(tx, b); err != nil {
+			return err
+		}
+		roundNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
+		if err := tx.Bucket(metaBucket).Put(latestRoundNoKey, roundNoInBytes); err != nil {
+			return err
+		}
+		uc, err := json.Marshal(b.UnicityCertificate)
 		if err != nil {
+			return err
+		}
+		if err := tx.Bucket(latestUCBucket).Put(latestUCBucketKey, uc); err != nil {
+			return err
+		}
+
+		if len(b.Transactions) == 0 {
+			return nil
+		}
+		val, err := json.Marshal(b)
+		if err != nil {
+			return err
+		}
+		blockNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
+		err = tx.Bucket(blocksBucket).Put(blockNoInBytes, val)
+		if err != nil {
+			return err
+		}
+		err = tx.Bucket(metaBucket).Put(latestBlockNoKey, blockNoInBytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (bs *BoltBlockStore) AddGenesis(b *block.Block) error {
+	return bs.db.Update(func(tx *bolt.Tx) error {
+		if err := bs.verifyBlock(tx, b); err != nil {
+			return err
+		}
+		if b.UnicityCertificate.InputRecord.RoundNumber > genesis.GenesisRoundNumber {
+			return errors.Errorf("genesis block number must be %v", genesis.GenesisRoundNumber)
+		}
+		roundNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
+		if err := tx.Bucket(metaBucket).Put(latestRoundNoKey, roundNoInBytes); err != nil {
+			return err
+		}
+		uc, err := json.Marshal(b.UnicityCertificate)
+		if err != nil {
+			return err
+		}
+		if err := tx.Bucket(latestUCBucket).Put(latestUCBucketKey, uc); err != nil {
 			return err
 		}
 		val, err := json.Marshal(b)
@@ -86,6 +141,32 @@ func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+func (bs *BoltBlockStore) LatestRoundNumber() uint64 {
+	var number uint64
+	err := bs.db.View(func(tx *bolt.Tx) error {
+		number = util.BytesToUint64(tx.Bucket(metaBucket).Get(latestRoundNoKey))
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return number
+}
+func (bs *BoltBlockStore) LatestUC() *certificates.UnicityCertificate {
+	var uc *certificates.UnicityCertificate
+	err := bs.db.View(func(tx *bolt.Tx) error {
+		ucBytes := tx.Bucket(latestUCBucket).Get(latestUCBucketKey)
+		if ucBytes != nil {
+			return json.Unmarshal(ucBytes, &uc)
+		}
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return uc
 }
 
 func (bs *BoltBlockStore) BlockNumber() (uint64, error) {
@@ -139,12 +220,16 @@ func (bs *BoltBlockStore) GetPendingProposal() (*block.PendingBlockProposal, err
 }
 
 func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
-	latestBlockNo := bs.getLatestBlockNo(tx)
-	if latestBlockNo+1 != b.UnicityCertificate.InputRecord.RoundNumber {
-		logger.Warning("Block verification failed: latest block #%v, current block #%v", latestBlockNo, b.UnicityCertificate.InputRecord.RoundNumber)
+	latestRoundNo := bs.getLatestRoundNo(tx)
+	if latestRoundNo+1 != b.UnicityCertificate.InputRecord.RoundNumber {
+		logger.Warning("Block verification failed: latest certified block #%v, current block's round #%v", latestRoundNo, b.UnicityCertificate.InputRecord.RoundNumber)
 		return errInvalidBlockNo
 	}
 	return nil
+}
+
+func (bs *BoltBlockStore) getLatestRoundNo(tx *bolt.Tx) uint64 {
+	return util.BytesToUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
 }
 
 func (bs *BoltBlockStore) getLatestBlockNo(tx *bolt.Tx) uint64 {

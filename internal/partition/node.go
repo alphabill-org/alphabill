@@ -206,7 +206,7 @@ func initState(n *Node) error {
 
 		n.restoreBlockProposal(prevBlock)
 	} else {
-		if err := n.blockStore.Add(genesisBlock); err != nil {
+		if err := n.blockStore.AddGenesis(genesisBlock); err != nil {
 			return err
 		}
 		n.transactionSystem.Commit() // commit everything from the genesis
@@ -431,7 +431,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 		logger.Warning("Unable to start new round, node is recovering")
 		return
 	}
-	newBlockNr := n.blockStore.LatestBlock().UnicityCertificate.InputRecord.RoundNumber + 1
+	newBlockNr := n.blockStore.LatestRoundNumber() + 1
 	n.transactionSystem.BeginBlock(newBlockNr)
 	n.proposedTransactions = []txsystem.GenericTransaction{}
 	n.pendingBlockProposal = nil
@@ -443,7 +443,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 }
 
 func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
-	if err := n.txValidator.Validate(tx, n.blockStore.LatestBlock().UnicityCertificate.InputRecord.RoundNumber); err != nil {
+	if err := n.txValidator.Validate(tx, n.blockStore.LatestRoundNumber()); err != nil {
 		logger.Warning("Received invalid transaction: %v", err)
 		return true
 	}

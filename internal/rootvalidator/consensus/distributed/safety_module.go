@@ -62,8 +62,8 @@ func (s *SafetyModule) isSafeToVote(blockRound, qcRound uint64, tc *atomic_broad
 }
 
 func (s *SafetyModule) constructCommitInfo(block *atomic_broadcast.BlockData, voteInfoHash []byte) *certificates.CommitInfo {
-	commitCandidateId := s.isCommitCandidate(block)
-	return &certificates.CommitInfo{RootRoundInfoHash: voteInfoHash, RootHash: commitCandidateId}
+	commitHash := s.isCommitCandidate(block)
+	return &certificates.CommitInfo{RootRoundInfoHash: voteInfoHash, RootHash: commitHash}
 }
 
 func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId []byte, author string, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {

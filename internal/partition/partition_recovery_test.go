@@ -3,17 +3,16 @@ package partition
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/partition/event"
-	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
+	"github.com/alphabill-org/alphabill/internal/partition/event"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -97,6 +96,57 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, idle, tp.partition.status)
+}
+
+func TestNode_RespondToReplicationRequest(t *testing.T) {
+	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
+	defer tp.Close()
+	genesisBlockNumber := tp.GetLatestBlock().BlockNumber
+
+	tp.partition.startNewRound(tp.partition.luc)
+
+	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
+	for i := 0; i < 4; i++ {
+		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+		require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+		require.Eventually(t, func() bool {
+			count := 0
+			for _, e := range tp.eh.GetEvents() {
+				if e.EventType == event.TransactionProcessed {
+					count++
+				}
+			}
+			return count == 3
+		}, test.WaitDuration, test.WaitTick)
+		require.NoError(t, tp.CreateBlock(t))
+		block := tp.GetLatestBlock()
+		require.Equal(t, 3, len(block.Transactions))
+	}
+	latestBlockNumber := tp.GetLatestBlock().BlockNumber
+	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
+
+	//send replication request
+	peer := "16Uiu2HAm826WzV3ZDwtEA93VJVxMPSvyrVUK7ArifTmhr3CwLzMj"
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     "from-test",
+		Protocol: network.ProtocolLedgerReplicationReq,
+		Message: &replication.LedgerReplicationRequest{
+			NodeIdentifier:   peer,
+			BeginBlockNumber: genesisBlockNumber + 1,
+			SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		},
+	})
+
+	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
+
+	//make sure response is sent
+	resp := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationResp)
+	require.Equal(t, 1, len(resp))
+	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
+	require.Equal(t, replication.LedgerReplicationResponse_OK, resp[0].Message.(*replication.LedgerReplicationResponse).Status)
+	require.Equal(t, peer, resp[0].ID.String())
+	require.Equal(t, 2, len(resp[0].Message.(*replication.LedgerReplicationResponse).Blocks))
 }
 
 func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *block.Block) *block.Block {

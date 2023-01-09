@@ -81,26 +81,43 @@ func (x *RoundPipeline) Update(qc *atomic_broadcast.QuorumCert) *store.RootState
 		return nil
 	}
 	var commitState *store.RootState = nil
-	// If the QC commits a state
-	if qc.LedgerCommitInfo != nil {
-		state, found := x.statePipeline[qc.VoteInfo.ParentRoundNumber]
-		if found {
-			// Commit pending state if it has the same state hash
-			if bytes.Equal(state.State.LatestRootHash, qc.LedgerCommitInfo.RootHash) {
-				//todo: AB-548 create new UnicitySeal structure and complete certificates
-				// return state for sending result to partition manager
-				commitState = state.State
-				x.removeCompleted(state.Changed)
-				// remove completed round from pipeline
-				delete(x.statePipeline, qc.VoteInfo.ParentRoundNumber)
-			}
-		}
-	}
 	// Add qc to pending state
 	state, found := x.statePipeline[qc.VoteInfo.RoundNumber]
 	if found {
 		state.Qc = qc
 	}
+	// If the QC commits a state
+	if qc.LedgerCommitInfo != nil {
+		for round, state := range x.statePipeline {
+			// Commit pending state if it has the same state hash
+			if bytes.Equal(state.State.LatestRootHash, qc.LedgerCommitInfo.RootHash) {
+				// create UnicitySeal for pending certificates
+				roundMeta := &certificates.RootRoundInfo{
+					RoundNumber:       round,
+					Epoch:             0,
+					Timestamp:         util.MakeTimestamp(),
+					ParentRoundNumber: state.Qc.VoteInfo.ParentRoundNumber,
+					CurrentRootHash:   qc.VoteInfo.CurrentRootHash,
+				}
+				uSeal := &certificates.UnicitySeal{
+					RootRoundInfo: roundMeta,
+					CommitInfo: &certificates.CommitInfo{
+						RootRoundInfoHash: roundMeta.Hash(gocrypto.SHA256),
+						RootHash:          state.State.LatestRootHash,
+					},
+				}
+				commitState = state.State
+				// append Seal to all certificates
+				for _, cert := range commitState.Certificates {
+					cert.UnicitySeal = uSeal
+				}
+				x.removeCompleted(state.Changed)
+				// remove completed round from pipeline
+				delete(x.statePipeline, round)
+			}
+		}
+	}
+	// remember highest QC seen so far
 	x.HighQC = qc
 	return commitState
 }

@@ -21,7 +21,7 @@ import (
 
 var (
 	systemID             = []byte{0, 0, 0, 0}
-	unitID               = []byte{1}
+	unitID               = newUnitID(1)
 	ownerProof           = []byte{2}
 	newBearer            = []byte{3}
 	backlink             = []byte{4}
@@ -29,6 +29,8 @@ var (
 	targetBearer         = []byte{6}
 	ownerCondition       = []byte{7}
 	recordID             = []byte{8}
+	feeProof             = []byte{9}
+	fcRecordID           = []byte{10}
 	billIdentifiers      = [][]byte{util.Uint256ToBytes(uint256.NewInt(0)), util.Uint256ToBytes(uint256.NewInt(1))}
 	timeout              = uint64(100)
 	targetValue          = uint64(101)
@@ -36,7 +38,13 @@ var (
 	amount               = uint64(103)
 	earliestAdditionTime = uint64(104)
 	latestAdditionTime   = uint64(105)
+	fee                  = uint64(1)
+	maxFee               = uint64(2)
 )
+
+func newUnitID(n uint64) []byte {
+	return util.Uint256ToBytes(uint256.NewInt(n))
+}
 
 func TestWrapper_InterfaceAssertion(t *testing.T) {
 	var (

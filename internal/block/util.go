@@ -18,7 +18,7 @@ type unitTxs struct {
 
 func (u *unitTxs) hash(hashAlgorithm crypto.Hash) ([]byte, error) {
 	primhash := hashTx(u.primTx, hashAlgorithm)
-	sechash, err := mt.SecondaryHash(u.secTxs, hashAlgorithm)
+	sechash, err := mt.SecondaryHash(convertTxs(u.secTxs), hashAlgorithm)
 	if err != nil {
 		return nil, err
 	}
@@ -34,4 +34,13 @@ func hashTx(tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) []byte {
 		h = make([]byte, hashAlgorithm.Size())
 	}
 	return h
+}
+
+func convertTxs(txs []txsystem.GenericTransaction) []mt.Data {
+	// cast []txsystem.GenericTransaction to []mt.Data
+	res := make([]mt.Data, len(txs))
+	for i, tx := range txs {
+		res[i] = tx
+	}
+	return res
 }

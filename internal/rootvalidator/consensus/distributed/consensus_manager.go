@@ -167,7 +167,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	if err != nil {
 		return nil, err
 	}
-	ledger, err := NewRoundPipeline(conf.HashAlgorithm, lastState, partitionStore)
+	pipeline := NewRoundPipeline(conf.HashAlgorithm, lastState, partitionStore)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		rootVerifier:  rootVerifier,
 		irReqBuffer:   NewIrReqBuffer(),
 		safety:        safetyModule,
-		roundPipeline: ledger,
+		roundPipeline: pipeline,
 		partitions:    partitionStore,
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
@@ -349,7 +349,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 	if voteMsg == nil {
 		// create timeout vote
 		voteMsg = atomic_broadcast.NewTimeoutMsg(atomic_broadcast.NewTimeout(
-			x.pacemaker.GetCurrentRound(), 0, x.roundPipeline.HighQC), string(x.peer.ID()))
+			x.pacemaker.GetCurrentRound(), 0, x.roundPipeline.GetHighQc()), string(x.peer.ID()))
 		// sign
 		if err := x.safety.SignTimeout(voteMsg, x.pacemaker.LastRoundTC()); err != nil {
 			logger.Warning("Local timeout error %v", err)
@@ -565,7 +565,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		return
 	}
 	// Add high Qc for state synchronization
-	voteMsg.HighQc = x.roundPipeline.HighQC
+	voteMsg.HighQc = x.roundPipeline.GetHighQc()
 
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
@@ -631,7 +631,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
 			Payload:   x.irReqBuffer.GeneratePayload(),
-			Qc:        x.roundPipeline.HighQC,
+			Qc:        x.roundPipeline.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}

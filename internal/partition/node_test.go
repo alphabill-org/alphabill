@@ -283,11 +283,12 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 	block = tp.GetLatestBlock()
+	latestUC := tp.partition.luc
 
-	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)
 	ir.Hash = test.RandomBytes(32)
 
-	equivocatingUC, err := tp.CreateUnicityCertificate(ir, block.UnicityCertificate.UnicitySeal.RootChainRoundNumber, block.UnicityCertificate.UnicitySeal.PreviousHash)
+	equivocatingUC, err := tp.CreateUnicityCertificate(ir, latestUC.UnicitySeal.RootChainRoundNumber, latestUC.UnicitySeal.PreviousHash)
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
@@ -303,14 +304,14 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
-	block2 := tp.GetLatestBlock()
-	ir := proto.Clone(block2.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	latestUC := tp.partition.luc
+	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)
 	ir.Hash = test.RandomBytes(32)
 
 	equivocatingUC, err := tp.CreateUnicityCertificate(
 		ir,
-		block2.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		block2.UnicityCertificate.UnicitySeal.PreviousHash,
+		latestUC.UnicitySeal.RootChainRoundNumber+1,
+		latestUC.UnicitySeal.PreviousHash,
 	)
 	require.NoError(t, err)
 

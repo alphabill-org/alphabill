@@ -955,7 +955,9 @@ func (n *Node) sendCertificationRequest() error {
 			Hash:         stateHash,
 			BlockHash:    blockHash,
 			SummaryValue: summary,
-			RoundNumber:  latestBlock.UnicityCertificate.InputRecord.RoundNumber + 1,
+			// latestBlock is the latest non-empty block,
+			// latest UC might have certified an empty block and has the latest round number
+			RoundNumber: n.blockStore.LatestUC().InputRecord.RoundNumber + 1,
 		},
 	}
 	err = req.Sign(n.configuration.signer)

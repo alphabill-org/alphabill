@@ -151,6 +151,53 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.False(t, ContainsTransaction(block3, transfer))
 }
 
+// create non-empty block #1 -> empty block #2 -> empty block #3 -> non-empty block #4
+func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
+	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
+	genesis := tp.GetLatestBlock()
+	tp.partition.startNewRound(tp.partition.luc)
+	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
+	require.NoError(t, tp.CreateBlock(t))
+	block1 := tp.GetLatestBlock()
+	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.RoundNumber, block1.UnicityCertificate.InputRecord.RoundNumber)
+	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.BlockHash, block1.UnicityCertificate.InputRecord.BlockHash)
+
+	// next block (empty)
+	require.NoError(t, tp.CreateBlock(t))
+	block2 := tp.GetLatestBlock() // this returns same block1 since empty block is not persisted
+	require.Equal(t, block1, block2)
+	// latest UC certifies empty block
+	uc2 := tp.partition.luc
+	require.Less(t, block2.UnicityCertificate.InputRecord.RoundNumber, uc2.InputRecord.RoundNumber)
+	// hash of the latest certified empty block is zero-hash
+	require.Equal(t, uc2.InputRecord.BlockHash, zeroHash)
+	// state hash must stay the same as in last non-empty block
+	require.Equal(t, block2.UnicityCertificate.InputRecord.Hash, uc2.InputRecord.Hash)
+
+	// next block (empty)
+	require.NoError(t, tp.CreateBlock(t))
+	require.Equal(t, block1, tp.GetLatestBlock())
+	uc3 := tp.partition.luc
+	require.Less(t, uc2.InputRecord.RoundNumber, uc3.InputRecord.RoundNumber)
+	require.Equal(t, uc3.InputRecord.BlockHash, zeroHash)
+	require.Equal(t, block1.UnicityCertificate.InputRecord.Hash, uc3.InputRecord.Hash)
+
+	// next block (non-empty)
+	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
+	require.NoError(t, tp.CreateBlock(t))
+	block4 := tp.GetLatestBlock()
+	require.NotEqual(t, block1, block4)
+	require.NotEqual(t, block4.UnicityCertificate.InputRecord.BlockHash, zeroHash)
+	require.Equal(t, block1.UnicityCertificate.InputRecord.BlockHash, block4.PreviousBlockHash)
+	uc4 := tp.partition.luc
+	require.Equal(t, block4.UnicityCertificate, uc4)
+	require.Equal(t, block1.UnicityCertificate.InputRecord.Hash, uc4.InputRecord.PreviousHash)
+	require.Less(t, uc3.InputRecord.RoundNumber, uc4.InputRecord.RoundNumber)
+}
+
 func TestNode_HandleNilUnicityCertificate(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()

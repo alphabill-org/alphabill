@@ -6,11 +6,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,22 +17,22 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
 	tx1 := &txsystem.Transaction{
-		UnitId:                newUnitID(1),
+		UnitId:                test.NewUnitID(1),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateBillTransferTx(pubKeyHash),
 	}
 	tx2 := &txsystem.Transaction{
-		UnitId:                newUnitID(2),
+		UnitId:                test.NewUnitID(2),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateDustTransferTx(pubKeyHash),
 	}
 	tx3 := &txsystem.Transaction{
-		UnitId:                newUnitID(3),
+		UnitId:                test.NewUnitID(3),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateBillSplitTx(pubKeyHash, 1, 1),
 	}
 	tx4 := &txsystem.Transaction{
-		UnitId:                newUnitID(4),
+		UnitId:                test.NewUnitID(4),
 		SystemId:              alphabillMoneySystemId,
 		TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(pubKeyHash),
 	}
@@ -62,10 +61,6 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	// verify tx2 is dcBill
 	bill, _ := store.GetBill(pubKeyBytes, tx2.UnitId)
 	require.True(t, bill.IsDCBill)
-}
-
-func newUnitID(unitID uint64) []byte {
-	return util.Uint256ToBytes(uint256.NewInt(unitID))
 }
 
 func verifyProof(t *testing.T, b *Bill) {

@@ -21,7 +21,7 @@ import (
 
 var (
 	systemID             = []byte{0, 0, 0, 0}
-	unitID               = newUnitID(1)
+	unitID               = test.NewUnitID(1)
 	ownerProof           = []byte{2}
 	newBearer            = []byte{3}
 	backlink             = []byte{4}
@@ -41,10 +41,6 @@ var (
 	fee                  = uint64(1)
 	maxFee               = uint64(2)
 )
-
-func newUnitID(n uint64) []byte {
-	return util.Uint256ToBytes(uint256.NewInt(n))
-}
 
 func TestWrapper_InterfaceAssertion(t *testing.T) {
 	var (

@@ -335,7 +335,7 @@ func TestReclaimFC(t *testing.T) {
 			name: "Invalid target unit",
 			bd:   newBillData(amount, backlink),
 			tx: testfc.NewReclaimFC(t, signer, nil,
-				testtransaction.WithUnitId(newUnitID(2)),
+				testtransaction.WithUnitId(test.NewUnitID(2)),
 			),
 			wantErr: ErrReclFCInvalidTargetUnit,
 		},

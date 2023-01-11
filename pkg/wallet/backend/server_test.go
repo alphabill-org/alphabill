@@ -11,6 +11,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
@@ -89,7 +90,7 @@ func (m *mockWalletService) GetMaxBlockNumber() (uint64, error) {
 
 func TestListBillsRequest_Ok(t *testing.T) {
 	expectedBill := &Bill{
-		Id:    newUnitID(1),
+		Id:    test.NewUnitID(1),
 		Value: 1,
 	}
 	pubkey, _ := hexutil.Decode(pubkeyHex)
@@ -141,11 +142,11 @@ func TestListBillsRequest_SortedByInsertionOrder(t *testing.T) {
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	mockService := newMockWalletService(t, withBills(pubkey,
 		&Bill{
-			Id:    newUnitID(2),
+			Id:    test.NewUnitID(2),
 			Value: 2,
 		},
 		&Bill{
-			Id:    newUnitID(1),
+			Id:    test.NewUnitID(1),
 			Value: 1,
 		},
 	))
@@ -165,11 +166,11 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	mockService := newMockWalletService(t, withBills(pubkey,
 		&Bill{
-			Id:    newUnitID(1),
+			Id:    test.NewUnitID(1),
 			Value: 1,
 		},
 		&Bill{
-			Id:       newUnitID(2),
+			Id:       test.NewUnitID(2),
 			Value:    2,
 			IsDCBill: true,
 		},
@@ -195,7 +196,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	var bills []*Bill
 	for i := uint64(0); i < 200; i++ {
 		bills = append(bills, &Bill{
-			Id:          newUnitID(i),
+			Id:          test.NewUnitID(i),
 			Value:       i,
 			OrderNumber: i,
 		})
@@ -266,7 +267,7 @@ func TestListBillsRequest_Paging(t *testing.T) {
 func TestBalanceRequest_Ok(t *testing.T) {
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	port := startServer(t, newMockWalletService(t, withBills(pubkey, &Bill{
-		Id:    newUnitID(1),
+		Id:    test.NewUnitID(1),
 		Value: 1,
 	})))
 
@@ -313,11 +314,11 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	mockService := newMockWalletService(t, withBills(pubkey,
 		&Bill{
-			Id:    newUnitID(1),
+			Id:    test.NewUnitID(1),
 			Value: 1,
 		},
 		&Bill{
-			Id:       newUnitID(2),
+			Id:       test.NewUnitID(2),
 			Value:    2,
 			IsDCBill: true,
 		}),
@@ -334,7 +335,7 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 func TestProofRequest_Ok(t *testing.T) {
 	pubkey, _ := hexutil.Decode(pubkeyHex)
 	b := &Bill{
-		Id:     newUnitID(1),
+		Id:     test.NewUnitID(1),
 		Value:  1,
 		TxHash: []byte{0},
 		TxProof: &TxProof{

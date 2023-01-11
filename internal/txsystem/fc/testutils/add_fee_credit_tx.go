@@ -5,17 +5,16 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	unitID               = newUnitID(1)
+	unitID               = test.NewUnitID(1)
 	moneySystemID        = []byte{0, 0, 0, 0}
 	systemID             = []byte{0, 0, 0, 0}
 	nonce                = []byte{3}
@@ -81,8 +80,4 @@ func WithTransferFCTx(ttx *txsystem.Transaction) AddFCOption {
 		tx.FeeCreditTransfer = ttx
 		return nil
 	}
-}
-
-func newUnitID(n uint64) []byte {
-	return util.Uint256ToBytes(uint256.NewInt(n))
 }

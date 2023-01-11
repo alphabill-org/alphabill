@@ -16,8 +16,9 @@ import (
 )
 
 var (
+	moneySystemID   = []byte{0, 0, 0, 0}
 	systemID        = []byte{0, 0, 0, 0}
-	unitID          = []byte{1}
+	unitID          = newUnitID(1)
 	ownerProof      = []byte{2}
 	backlink        = []byte{3}
 	nonce           = []byte{4}
@@ -340,4 +341,8 @@ func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Mes
 		panic(err)
 	}
 	return to
+}
+
+func newUnitID(n uint64) []byte {
+	return util.Uint256ToBytes(uint256.NewInt(n))
 }

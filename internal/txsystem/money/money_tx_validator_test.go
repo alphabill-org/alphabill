@@ -12,6 +12,7 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -230,44 +231,48 @@ func TestTransferFC(t *testing.T) {
 	}{
 		{
 			name:    "Ok",
-			bd:      newBillData(101, []byte{6}),
-			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, nil, nil),
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, nil),
 			wantErr: nil,
 		},
 		{
 			name:    "BillData is nil",
 			bd:      nil,
-			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 100, nil, nil),
+			tx:      testfc.NewTransferFC(t, nil),
 			wantErr: ErrBillNil,
 		},
 		{
 			name:    "Tx is nil",
-			bd:      newBillData(100, []byte{6}),
+			bd:      newBillData(101, backlink),
 			tx:      nil,
 			wantErr: ErrTxNil,
 		},
 		{
 			name:    "Invalid amount",
-			bd:      newBillData(100, []byte{6}),
-			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, nil, nil),
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(101))),
 			wantErr: ErrInvalidFCValue,
 		},
 		{
 			name:    "Invalid backlink",
-			bd:      newBillData(101, []byte{6}),
-			tx:      newTransferFC([]byte{1}, []byte{5}, 100, 1, nil, nil),
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithBacklink([]byte("not backlink")))),
 			wantErr: ErrInvalidBacklink,
 		},
 		{
-			name:    "RecordID exists",
-			bd:      newBillData(101, []byte{6}),
-			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, []byte{1}, nil),
+			name: "RecordID exists",
+			bd:   newBillData(101, backlink),
+			tx: testfc.NewTransferFC(t, nil,
+				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{FeeCreditRecordId: fcRecordID}),
+			),
 			wantErr: ErrRecordIDExists,
 		},
 		{
-			name:    "Fee proof exists",
-			bd:      newBillData(101, []byte{6}),
-			tx:      newTransferFC([]byte{1}, []byte{6}, 100, 1, nil, []byte{1}),
+			name: "Fee proof exists",
+			bd:   newBillData(101, backlink),
+			tx: testfc.NewTransferFC(t, nil,
+				testtransaction.WithFeeProof(feeProof),
+			),
 			wantErr: ErrFeeProofExists,
 		},
 	}
@@ -358,7 +363,7 @@ func TestReclaimFC(t *testing.T) {
 			name: "Invalid proof type",
 			bd:   newBillData(amount, backlink),
 			tx: newReclaimFC(t, signer, newReclFCAttr(t, signer,
-				withProof(&block.BlockProof{ProofType: block.ProofType_NOTRANS}),
+				withReclFCProof(&block.BlockProof{ProofType: block.ProofType_NOTRANS}),
 			)),
 			wantErr: ErrInvalidProofType,
 		},
@@ -366,7 +371,7 @@ func TestReclaimFC(t *testing.T) {
 			name: "Invalid proof",
 			bd:   newBillData(amount, backlink),
 			tx: newReclaimFC(t, signer, newReclFCAttr(t, signer,
-				withProof(newInvalidProof(t, signer)),
+				withReclFCProof(newInvalidProof(t, signer)),
 			)),
 			wantErrMsg: "reclaimFC: invalid proof",
 		},
@@ -644,30 +649,6 @@ func newBillData(v uint64, backlink []byte) *BillData {
 	return &BillData{V: v, Backlink: backlink}
 }
 
-func newTransferFC(unitID []byte, backlink []byte, amount uint64, maxFee uint64, fcRecordID []byte, feeProof []byte) *fc.TransferFeeCreditWrapper {
-	to := &txsystem.Transaction{
-		SystemId:              systemID,
-		UnitId:                unitID,
-		TransactionAttributes: new(anypb.Any),
-		Timeout:               2,
-		OwnerProof:            []byte{3},
-		FeeProof:              feeProof,
-		ClientMetadata: &txsystem.ClientMetadata{
-			Timeout:           2,
-			MaxFee:            maxFee,
-			FeeCreditRecordId: fcRecordID,
-		},
-	}
-	attr := &fc.TransferFeeCreditOrder{
-		Amount:   amount,
-		Nonce:    nonce,
-		Backlink: backlink,
-	}
-	_ = anypb.MarshalFrom(to.TransactionAttributes, attr, proto.MarshalOptions{})
-	tx, _ := NewMoneyTx(systemIdentifier, to)
-	return tx.(*fc.TransferFeeCreditWrapper)
-}
-
 func newReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *fc.ReclaimFeeCreditOrder, opts ...testtransaction.Option) *fc.ReclaimFeeCreditWrapper {
 	if reclaimFCAttr == nil {
 		reclaimFCAttr = newReclFCAttr(t, signer)
@@ -716,7 +697,7 @@ func withBacklink(backlink []byte) reclFCOption {
 	}
 }
 
-func withProof(proof *block.BlockProof) reclFCOption {
+func withReclFCProof(proof *block.BlockProof) reclFCOption {
 	return func(tx *fc.ReclaimFeeCreditOrder) reclFCOption {
 		tx.CloseFeeCreditProof = proof
 		return nil

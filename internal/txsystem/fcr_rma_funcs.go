@@ -25,9 +25,9 @@ func IncrCredit(id *uint256.Int, value int64, timeout uint64, stateHash []byte) 
 			return data
 		}
 		return &FeeCreditRecord{
-			balance: fcr.balance + value,
-			hash:    stateHash,
-			timeout: util.Max(fcr.timeout, timeout),
+			Balance: fcr.Balance + value,
+			Hash:    stateHash,
+			Timeout: util.Max(fcr.Timeout, timeout),
 		}
 	}
 	return rma.UpdateData(id, updateDataFunc, stateHash)
@@ -43,9 +43,9 @@ func DecrCredit(id *uint256.Int, value int64, stateHash []byte) rma.Action {
 		}
 		// note that hash and timeout remain unchanged in this operation
 		return &FeeCreditRecord{
-			balance: fcr.balance - value,
-			hash:    fcr.hash,
-			timeout: fcr.timeout,
+			Balance: fcr.Balance - value,
+			Hash:    fcr.Hash,
+			Timeout: fcr.Timeout,
 		}
 	}
 	return rma.UpdateData(id, updateDataFunc, stateHash)

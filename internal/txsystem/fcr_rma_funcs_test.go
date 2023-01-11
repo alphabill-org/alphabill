@@ -18,9 +18,9 @@ var (
 
 func TestAddCredit_OK(t *testing.T) {
 	fcr := &FeeCreditRecord{
-		balance: 1,
-		hash:    test.RandomBytes(32),
-		timeout: 2,
+		Balance: 1,
+		Hash:    test.RandomBytes(32),
+		Timeout: 2,
 	}
 	tr, _ := rma.New(&rma.Config{HashAlgorithm: crypto.SHA256})
 
@@ -38,9 +38,9 @@ func TestAddCredit_OK(t *testing.T) {
 
 func TestDelCredit_OK(t *testing.T) {
 	fcr := &FeeCreditRecord{
-		balance: 1,
-		hash:    test.RandomBytes(32),
-		timeout: 2,
+		Balance: 1,
+		Hash:    test.RandomBytes(32),
+		Timeout: 2,
 	}
 	tr, _ := rma.New(&rma.Config{HashAlgorithm: crypto.SHA256})
 
@@ -59,9 +59,9 @@ func TestDelCredit_OK(t *testing.T) {
 func TestIncrCredit_OK(t *testing.T) {
 	h := test.RandomBytes(32)
 	fcr := &FeeCreditRecord{
-		balance: 1,
-		hash:    test.RandomBytes(32),
-		timeout: 2,
+		Balance: 1,
+		Hash:    test.RandomBytes(32),
+		Timeout: 2,
 	}
 	tr, _ := rma.New(&rma.Config{HashAlgorithm: crypto.SHA256})
 
@@ -77,9 +77,9 @@ func TestIncrCredit_OK(t *testing.T) {
 	unit, err := tr.GetUnit(id)
 	require.NoError(t, err)
 	unitFCR := unit.Data.(*FeeCreditRecord)
-	require.EqualValues(t, 100, unitFCR.balance)
-	require.EqualValues(t, 200, unitFCR.timeout)
-	require.Equal(t, h, unitFCR.hash)
+	require.EqualValues(t, 100, unitFCR.Balance)
+	require.EqualValues(t, 200, unitFCR.Timeout)
+	require.Equal(t, h, unitFCR.Hash)
 	require.Equal(t, h, unit.StateHash)
 	require.Equal(t, owner, unit.Bearer)
 }
@@ -87,9 +87,9 @@ func TestIncrCredit_OK(t *testing.T) {
 func TestDecrCredit_OK(t *testing.T) {
 	h := test.RandomBytes(32)
 	fcr := &FeeCreditRecord{
-		balance: 1,
-		hash:    test.RandomBytes(32),
-		timeout: 2,
+		Balance: 1,
+		Hash:    test.RandomBytes(32),
+		Timeout: 2,
 	}
 	tr, _ := rma.New(&rma.Config{HashAlgorithm: crypto.SHA256})
 
@@ -105,9 +105,9 @@ func TestDecrCredit_OK(t *testing.T) {
 	unit, err := tr.GetUnit(id)
 	require.NoError(t, err)
 	unitFCR := unit.Data.(*FeeCreditRecord)
-	require.EqualValues(t, -100, unitFCR.balance) // fcr and go negative
+	require.EqualValues(t, -100, unitFCR.Balance) // fcr and go negative
 
 	// and timeout and hash are not changed
-	require.Equal(t, fcr.timeout, unitFCR.timeout)
-	require.Equal(t, fcr.hash, unitFCR.hash)
+	require.Equal(t, fcr.Timeout, unitFCR.Timeout)
+	require.Equal(t, fcr.Hash, unitFCR.Hash)
 }

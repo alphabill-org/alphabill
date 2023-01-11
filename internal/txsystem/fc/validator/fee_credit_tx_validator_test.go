@@ -2,6 +2,7 @@ package validator
 
 import (
 	"crypto"
+	"hash"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -216,8 +217,104 @@ func TestAddFC(t *testing.T) {
 	}
 }
 
+func TestCloseFC(t *testing.T) {
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+	validator := NewDefaultFeeCreditTxValidator(moneySystemID, systemID, crypto.SHA256, verifiers)
+
+	tests := []struct {
+		name       string
+		unit       *rma.Unit
+		tx         *fc.CloseFeeCreditWrapper
+		wantErr    error
+		wantErrMsg string
+	}{
+		{
+			name:    "Ok",
+			unit:    &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			tx:      testfc.NewCloseFC(t, nil),
+			wantErr: nil,
+		},
+		{
+			name: "RecordID exists",
+			unit: &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			tx: testfc.NewCloseFC(t, nil,
+				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{FeeCreditRecordId: recordID}),
+			),
+			wantErr: ErrRecordIDExists,
+		},
+		{
+			name: "Fee proof exists",
+			unit: &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			tx: testfc.NewCloseFC(t, nil,
+				testtransaction.WithFeeProof(feeProof),
+			),
+			wantErr: ErrFeeProofExists,
+		},
+		{
+			name:    "Invalid unit nil",
+			unit:    nil,
+			tx:      testfc.NewCloseFC(t, nil),
+			wantErr: ErrCloseFCUnitIsNil,
+		},
+		{
+			name:    "Invalid unit type",
+			unit:    &rma.Unit{Data: &testData{}},
+			tx:      testfc.NewCloseFC(t, nil),
+			wantErr: ErrCloseFCInvalidUnitType,
+		},
+		{
+			name:    "Invalid balance",
+			unit:    &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: -1}},
+			tx:      testfc.NewCloseFC(t, nil),
+			wantErr: ErrCloseFCInvalidBalance,
+		},
+		{
+			name:    "Invalid amount",
+			unit:    &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			tx:      testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51))),
+			wantErr: ErrCloseFCInvalidAmount,
+		},
+		{
+			name: "Invalid fee",
+			unit: &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			tx: testfc.NewCloseFC(t, nil,
+				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{MaxFee: 51}),
+			),
+			wantErr: ErrCloseFCInvalidFee,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validator.ValidateCloseFC(&CloseFCValidationContext{
+				Tx:   tt.tx,
+				Unit: tt.unit,
+			})
+			if tt.wantErr == nil && tt.wantErrMsg == "" {
+				require.NoError(t, err)
+			}
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+			if tt.wantErrMsg != "" {
+				require.ErrorContains(t, err, tt.wantErrMsg)
+			}
+		})
+	}
+}
+
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *block.BlockProof {
 	addFC := testfc.NewAddFC(t, signer, nil)
 	addFC.AddFC.FeeCreditTransferProof.TransactionsHash = []byte("invalid hash")
 	return addFC.AddFC.FeeCreditTransferProof
+}
+
+type testData struct {
+}
+
+func (t *testData) AddToHasher(_ hash.Hash) {
+}
+
+func (t *testData) Value() rma.SummaryValue {
+	return rma.Uint64SummaryValue(0)
 }

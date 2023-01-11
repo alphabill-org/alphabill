@@ -24,20 +24,40 @@ type GenericBlock struct {
 	UnicityCertificate *certificates.UnicityCertificate
 }
 
+type genericBlockHashingContext struct {
+	headerHash []byte
+	txsHash    []byte
+	treeHash   []byte
+}
+
 // Hash returns the hash of the block.
 // Hash is computed from hash of block header fields || hash of raw block payload || tree hash of transactions
 // AB-505: hash of an empty block is a zero-hash
 func (x *GenericBlock) Hash(hashAlgorithm crypto.Hash) ([]byte, error) {
-	if len(x.Transactions) == 0 {
+	return makeBlockHash(hashAlgorithm, len(x.Transactions) != 0, func() (*genericBlockHashingContext, error) {
+		treeHash, err := x.treeHash(hashAlgorithm)
+		if err != nil {
+			return nil, err
+		}
+		return &genericBlockHashingContext{
+			headerHash: x.HashHeader(hashAlgorithm),
+			txsHash:    x.hashTransactions(hashAlgorithm),
+			treeHash:   treeHash,
+		}, nil
+	})
+}
+
+// doHash returns the hash of the block. Empty block hash is a zero-hash (AB-505).
+// If not empty, hash is computed from hash of block header fields || hash of raw block payload || tree hash of transactions
+func makeBlockHash(hashAlgorithm crypto.Hash, hasTx bool, lazyCtx func() (*genericBlockHashingContext, error)) ([]byte, error) {
+	if !hasTx {
 		return make([]byte, hashAlgorithm.Size()), nil
 	}
-	headerHash := x.HashHeader(hashAlgorithm)
-	txsHash := x.hashTransactions(hashAlgorithm)
-	treeHash, err := x.treeHash(hashAlgorithm)
+	ctx, err := lazyCtx()
 	if err != nil {
 		return nil, err
 	}
-	return abhash.Sum(hashAlgorithm, headerHash, txsHash, treeHash), nil
+	return abhash.Sum(hashAlgorithm, ctx.headerHash, ctx.txsHash, ctx.treeHash), nil
 }
 
 func (x *GenericBlock) HashHeader(hashAlgorithm crypto.Hash) []byte {

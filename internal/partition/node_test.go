@@ -324,11 +324,14 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	txs := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, txs)
 	defer tp.Close()
-	initialBlock := tp.GetLatestBlock()
+	genesisUC := tp.partition.luc
+	tp.partition.startNewRound(genesisUC)
+	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	require.NoError(t, tp.CreateBlock(t))
-	require.Eventually(t, NextBlockReceived(tp, initialBlock), test.WaitDuration, test.WaitTick)
 
-	latestFinalizedBlock := tp.GetLatestBlock()
+	latestUC := tp.partition.luc
+	require.NotEqual(t, genesisUC, latestUC)
 	tp.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
 	tp.partition.startNewRound(tp.partition.luc)
 	// create block proposal
@@ -336,12 +339,12 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.Equal(t, uint64(0), txs.RevertCount)
 
 	// create UC which certifies 'latestFinalizedBlock', not the current block proposal
-	ir := proto.Clone(latestFinalizedBlock.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)
 
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
-		latestFinalizedBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
-		latestFinalizedBlock.UnicityCertificate.UnicitySeal.PreviousHash,
+		latestUC.UnicitySeal.RootChainRoundNumber+1,
+		latestUC.UnicitySeal.PreviousHash,
 	)
 	require.NoError(t, err)
 

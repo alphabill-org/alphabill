@@ -154,6 +154,7 @@ func (bs *BoltBlockStore) LatestRoundNumber() uint64 {
 	}
 	return number
 }
+
 func (bs *BoltBlockStore) LatestUC() *certificates.UnicityCertificate {
 	var uc *certificates.UnicityCertificate
 	err := bs.db.View(func(tx *bolt.Tx) error {
@@ -229,7 +230,7 @@ func (bs *BoltBlockStore) verifyBlock(tx *bolt.Tx, b *block.Block) error {
 }
 
 func (bs *BoltBlockStore) getLatestRoundNo(tx *bolt.Tx) uint64 {
-	return util.BytesToUint64(tx.Bucket(metaBucket).Get(latestBlockNoKey))
+	return util.BytesToUint64(tx.Bucket(metaBucket).Get(latestRoundNoKey))
 }
 
 func (bs *BoltBlockStore) getLatestBlockNo(tx *bolt.Tx) uint64 {
@@ -263,6 +264,13 @@ func (bs *BoltBlockStore) initMetaData() error {
 		val := tx.Bucket(metaBucket).Get(latestBlockNoKey)
 		if val == nil {
 			err := tx.Bucket(metaBucket).Put(latestBlockNoKey, util.Uint64ToBytes(0))
+			if err != nil {
+				return err
+			}
+		}
+		val = tx.Bucket(metaBucket).Get(latestRoundNoKey)
+		if val == nil {
+			err := tx.Bucket(metaBucket).Put(latestRoundNoKey, util.Uint64ToBytes(0))
 			if err != nil {
 				return err
 			}

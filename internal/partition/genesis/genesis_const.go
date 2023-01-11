@@ -1,6 +1,6 @@
 package genesis
 
 const (
-	GenesisRoundNumber     = 1
-	GenesisRootRoundNumber = 1
+	GenesisRoundNumber     = uint64(1)
+	GenesisRootRoundNumber = uint64(1)
 )

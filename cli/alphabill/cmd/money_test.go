@@ -76,7 +76,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 		},
 		// Validator configuration from flags
 		{
-			args: "money -a=/ip4/127.0.0.1/tcp/21111 -p 1=/ip4/127.0.0.1/tcp/21111,2=/ip4/127.0.0.1/tcp/21112 -g genesis.json -k keys.json -r /ip4/127.0.0.1/tcp/26611",
+			args: "money -a=/ip4/127.0.0.1/tcp/21111 -p 1=/ip4/127.0.0.1/tcp/21111,2=/ip4/127.0.0.1/tcp/21112 -g genesis.json -k keys.json -r /ip4/127.0.0.1/tcp/26611 --ledger-replication-max-blocks=10 --ledger-replication-max-transactions=99",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
 				peers := make(map[string]string)
@@ -84,11 +84,13 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				peers["2"] = "/ip4/127.0.0.1/tcp/21112"
 
 				sc.Node = &startNodeConfiguration{
-					Address:          "/ip4/127.0.0.1/tcp/21111",
-					Peers:            peers,
-					Genesis:          "genesis.json",
-					KeyFile:          "keys.json",
-					RootChainAddress: "/ip4/127.0.0.1/tcp/26611",
+					Address:                    "/ip4/127.0.0.1/tcp/21111",
+					Peers:                      peers,
+					Genesis:                    "genesis.json",
+					KeyFile:                    "keys.json",
+					RootChainAddress:           "/ip4/127.0.0.1/tcp/26611",
+					LedgerReplicationMaxBlocks: 10,
+					LedgerReplicationMaxTx:     99,
 				}
 				return sc
 			}(),
@@ -175,6 +177,18 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 				}
 				return sc
 			}(),
+		}, {
+			args: "money",
+			envVars: []envVar{
+				{"AB_LEDGER_REPLICATION_MAX_BLOCKS", "8"},
+				{"AB_LEDGER_REPLICATION_MAX_TRANSACTIONS", "16"},
+			},
+			expectedConfig: func() *moneyNodeConfiguration {
+				sc := defaultMoneyNodeConfiguration()
+				sc.Node.LedgerReplicationMaxBlocks = 8
+				sc.Node.LedgerReplicationMaxTx = 16
+				return sc
+			}(),
 		},
 	}
 	for _, tt := range tests {
@@ -252,8 +266,10 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			},
 		},
 		Node: &startNodeConfiguration{
-			Address:          "/ip4/127.0.0.1/tcp/26652",
-			RootChainAddress: "/ip4/127.0.0.1/tcp/26662",
+			Address:                    "/ip4/127.0.0.1/tcp/26652",
+			RootChainAddress:           "/ip4/127.0.0.1/tcp/26662",
+			LedgerReplicationMaxBlocks: 1000,
+			LedgerReplicationMaxTx:     10000,
 		},
 		RPCServer: &grpcServerConfiguration{
 			Address:               defaultServerAddr,

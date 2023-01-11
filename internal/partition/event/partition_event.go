@@ -10,6 +10,7 @@ const (
 	RecoveryStarted
 	RecoveryFinished
 	StateReverted
+	ReplicationResponseSent
 )
 
 type (

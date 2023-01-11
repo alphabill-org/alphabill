@@ -766,13 +766,19 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 	}
 
 	go func() {
+		var countTx uint32 = 0
+		endBlock := util.Min(maxBlock, startBlock+n.configuration.replicationConfig.maxBlocks)
 		if resp.Status == replication.LedgerReplicationResponse_OK {
 			var blocks []*block.Block
-			for i := startBlock; i <= maxBlock; i++ {
+			for i := startBlock; i <= endBlock; i++ {
 				b, _ := n.blockStore.Get(i)
 				blocks = append(blocks, b)
+				countTx += uint32(len(b.Transactions))
+				if countTx >= n.configuration.replicationConfig.maxTx {
+					break
+				}
 			}
-			resp.Blocks = blocks // TODO batch
+			resp.Blocks = blocks
 		}
 		err := n.network.Send(network.OutputMessage{
 			Protocol: network.ProtocolLedgerReplicationResp,
@@ -781,6 +787,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 		if err != nil {
 			logger.Error("Problem sending ledger replication response, %s: %s", resp, err)
 		}
+		n.sendEvent(event.ReplicationResponseSent, resp)
 	}()
 
 	return nil

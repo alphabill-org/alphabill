@@ -250,6 +250,10 @@ func (bs *BoltBlockStore) createBuckets() error {
 		if err != nil {
 			return err
 		}
+		_, err = tx.CreateBucketIfNotExists(latestUCBucket)
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 }

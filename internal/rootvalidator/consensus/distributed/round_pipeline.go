@@ -137,8 +137,12 @@ func (x *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 			return nil, fmt.Errorf("add state failed: partition %X has pending changes in pipeline", sysId.Bytes())
 		}
 	}
+	if len(changes) == 0 {
+		logger.Debug("Round %v executing proposal, no changes to input records", round)
+	} else {
+		logger.Debug("Round %v executing proposal, changed input records are:", round)
+	}
 	// apply changes
-	logger.Debug("Round %v, changed input records are:", round)
 	for id, ch := range changes {
 		util.WriteDebugJsonLog(logger, fmt.Sprintf("partition %X IR:", id), ch)
 		x.ir[id] = ch

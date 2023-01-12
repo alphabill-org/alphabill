@@ -325,18 +325,18 @@ func (x *ConsensusManager) onLocalTimeout() {
 
 	// Has the validator voted in this round, if true send the same vote
 	// maybe less than quorum of nodes where operational the last time
-	voteMsg := x.pacemaker.GetTimeoutVote()
-	if voteMsg == nil {
+	timeoutVoteMsg := x.pacemaker.GetTimeoutVote()
+	if timeoutVoteMsg == nil {
 		// create timeout vote
-		voteMsg = atomic_broadcast.NewTimeoutMsg(atomic_broadcast.NewTimeout(
+		timeoutVoteMsg = atomic_broadcast.NewTimeoutMsg(atomic_broadcast.NewTimeout(
 			x.pacemaker.GetCurrentRound(), 0, x.roundPipeline.GetHighQc()), x.peer.ID().String())
 		// sign
-		if err := x.safety.SignTimeout(voteMsg, x.pacemaker.LastRoundTC()); err != nil {
+		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
 			logger.Warning("Local timeout error %v", err)
 			return
 		}
 		// Record vote
-		x.pacemaker.SetTimeoutVote(voteMsg)
+		x.pacemaker.SetTimeoutVote(timeoutVoteMsg)
 	}
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
 	// broadcast timeout vote
@@ -348,8 +348,8 @@ func (x *ConsensusManager) onLocalTimeout() {
 	logger.Info("Broadcasting timeout vote")
 	err := x.net.Send(
 		network.OutputMessage{
-			Protocol: network.ProtocolRootVote,
-			Message:  voteMsg,
+			Protocol: network.ProtocolRootTimeout,
+			Message:  timeoutVoteMsg,
 		}, receivers)
 	if err != nil {
 		logger.Warning("Failed to send vote message: %v", err)
@@ -435,9 +435,15 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		// advance round (only done once)
 		// NB! it must be able to
 		x.processCertificateQC(qc)
-		// NB! time returned might be 0 in which case there will be small delay added
-		// this can be optimized later
-		x.timers.Start(blockRateId, x.pacemaker.CalcTimeTilNextProposal())
+		// since the root chain must not run faster than block-rate, calculate
+		// time from last proposal and see if we need to wait
+		slowDownTime := x.pacemaker.CalcTimeTilNextProposal()
+		if slowDownTime > 0 {
+			logger.Info("Round %v wait %v before proposal", x.pacemaker.GetCurrentRound(), slowDownTime)
+			x.timers.Start(blockRateId, slowDownTime)
+		}
+		// trigger new round immediately
+		x.processNewRoundEvent()
 	}
 }
 
@@ -550,13 +556,13 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
-	receivers := make([]peer.ID, 0, 1)
-	receivers = append(receivers, x.proposer.GetLeaderForRound(x.pacemaker.GetCurrentRound()+1))
+	nextLeader := x.proposer.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+	logger.Info("Sending vote to next leader %v", nextLeader.String())
 	err = x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
 			Message:  voteMsg,
-		}, receivers)
+		}, []peer.ID{nextLeader})
 	if err != nil {
 		logger.Warning("Failed to send vote message: %v", err)
 	}
@@ -594,18 +600,20 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 	}
 	x.roundPipeline.Reset(lastState)
 	x.pacemaker.AdvanceRoundTC(tc)
-	// progress is made, restart timeout (move to pacemaker)
-	x.timers.Restart(localTimeoutId)
+	// as this is TC case, there is no need to throttle, we are already behind
+	// start new round and issue a proposal if leader
+	x.processNewRoundEvent()
 }
 
 func (x *ConsensusManager) processNewRoundEvent() {
+	// to counteract throttling (find a better solution)
+	x.timers.Restart(localTimeoutId)
+
 	round := x.pacemaker.GetCurrentRound()
 	if !x.proposer.IsValidLeader(x.peer.ID(), round) {
 		logger.Warning("Current node is not the leader in round %v, skip proposal", round)
 		return
 	}
-	// to counteract throttling (find a better solution)
-	x.timers.Restart(localTimeoutId)
 	// create proposal message, generate payload of IR change requests
 	proposalMsg := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{

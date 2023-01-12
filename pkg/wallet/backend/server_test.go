@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -607,10 +608,10 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 
 func createProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof, map[string]abcrypto.Verifier) {
 	b := &block.Block{
-		SystemIdentifier:  alphabillMoneySystemId,
-		BlockNumber:       1,
-		PreviousBlockHash: hash.Sum256([]byte{}),
-		Transactions:      []*txsystem.Transaction{tx},
+		SystemIdentifier:   alphabillMoneySystemId,
+		PreviousBlockHash:  hash.Sum256([]byte{}),
+		Transactions:       []*txsystem.Transaction{tx},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 	}
 	b, verifiers := testblock.CertifyBlock(t, b, txConverter)
 	genericBlock, _ := b.ToGenericBlock(txConverter)

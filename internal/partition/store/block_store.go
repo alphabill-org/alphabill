@@ -13,7 +13,7 @@ type BlockStore interface {
 	// Get returns the block with given number, or nil if not found.
 	Get(blockNumber uint64) (*block.Block, error)
 	// Height returns the number of committed blocks in the blockchain.
-	Height() (uint64, error)
+	BlockNumber() (uint64, error)
 	// LatestBlock returns the latest committed block.
 	LatestBlock() *block.Block
 	// AddPendingProposal stores the pending block proposal.

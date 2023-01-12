@@ -17,7 +17,7 @@ import (
 )
 
 func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.Signer, unitID []byte) *block.BlockProof {
-	b := &block.GenericBlock{}
+	b := &block.GenericBlock{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}}
 	if tx != nil {
 		b.Transactions = []txsystem.GenericTransaction{tx}
 	}
@@ -28,7 +28,7 @@ func CreateProof(t *testing.T, tx txsystem.GenericTransaction, signer abcrypto.S
 }
 
 func CreatePrimaryProofs(t *testing.T, txs []txsystem.GenericTransaction, signer abcrypto.Signer) (proofs []*block.BlockProof) {
-	b := &block.GenericBlock{}
+	b := &block.GenericBlock{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}}
 	b.Transactions = txs
 	b.UnicityCertificate = CreateUC(t, b, signer)
 	for _, tx := range txs {
@@ -45,6 +45,7 @@ func CreateUC(t *testing.T, b *block.GenericBlock, signer abcrypto.Signer) *cert
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
 		BlockHash:    blockHash,
+		RoundNumber:  b.UnicityCertificate.InputRecord.RoundNumber,
 		SummaryValue: make([]byte, 32),
 	}
 	uc := testcertificates.CreateUnicityCertificate(

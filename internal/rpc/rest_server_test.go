@@ -118,6 +118,22 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 	}
 }
 
+func TestRestServer_TransactionOptions(t *testing.T) {
+	node := &MockNode{}
+	peer := peer.CreatePeer(t)
+	s, err := NewRESTServer(node, "", MaxBodySize, peer)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/transactions", nil)
+	recorder := httptest.NewRecorder()
+	s.Handler.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "POST,OPTIONS", recorder.Header().Get("Access-Control-Allow-Methods"))
+	require.Equal(t, "*", recorder.Header().Get("Access-Control-Allow-Origin"))
+	require.Empty(t, recorder.Body)
+}
+
 func TestNewRESTServer_NotFound(t *testing.T) {
 	peer := peer.CreatePeer(t)
 	s, err := NewRESTServer(&MockNode{}, "", MaxBodySize, peer)

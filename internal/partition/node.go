@@ -763,7 +763,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 	} else if lr.EndBlockNumber > startBlock {
 		maxBlock = lr.EndBlockNumber
 	}
-	endBlock := util.Min(maxBlock, startBlock+n.configuration.replicationConfig.maxBlocks)
+	endBlock := util.Min(maxBlock, startBlock+n.configuration.replicationConfig.maxBlocks-1)
 	logger.Debug("Preparing replication response from block #%v up to #%v", startBlock, endBlock)
 
 	go func() {

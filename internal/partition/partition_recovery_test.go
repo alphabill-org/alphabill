@@ -126,7 +126,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	latestBlockNumber := tp.GetLatestBlock().BlockNumber
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 
-	//send replication request
+	//send replication request, it will hit tx replication limit
 	peer := "16Uiu2HAm826WzV3ZDwtEA93VJVxMPSvyrVUK7ArifTmhr3CwLzMj"
 	tp.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
@@ -147,6 +147,27 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	require.Equal(t, replication.LedgerReplicationResponse_OK, resp[0].Message.(*replication.LedgerReplicationResponse).Status)
 	require.Equal(t, peer, resp[0].ID.String())
 	require.Equal(t, 2, len(resp[0].Message.(*replication.LedgerReplicationResponse).Blocks))
+
+	tp.eh.Reset()
+	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
+	tp.partition.configuration.replicationConfig.maxBlocks = 1
+	//send replication request, it will hit block replication limit
+	tp.mockNet.Receive(network.ReceivedMessage{
+		From:     "from-test",
+		Protocol: network.ProtocolLedgerReplicationReq,
+		Message: &replication.LedgerReplicationRequest{
+			NodeIdentifier:   peer,
+			BeginBlockNumber: genesisBlockNumber + 1,
+			SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
+		},
+	})
+	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
+	resp = tp.mockNet.SentMessages(network.ProtocolLedgerReplicationResp)
+	require.Equal(t, 1, len(resp))
+	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
+	require.Equal(t, replication.LedgerReplicationResponse_OK, resp[0].Message.(*replication.LedgerReplicationResponse).Status)
+	require.Equal(t, peer, resp[0].ID.String())
+	require.Equal(t, 1, len(resp[0].Message.(*replication.LedgerReplicationResponse).Blocks))
 }
 
 func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *block.Block) *block.Block {

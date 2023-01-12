@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -19,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -44,7 +43,7 @@ type (
 		// GetLeaderForRound returns valid leader (node id) for round/view number
 		GetLeaderForRound(round uint64) peer.ID
 		// GetRootNodes returns all nodes
-		GetRootNodes() []peer.ID
+		GetRootNodes() []*network.PeerInfo
 	}
 
 	PartitionStore interface {
@@ -62,10 +61,7 @@ type (
 		ConsensusThreshold uint32
 		RootTrustBase      map[string]crypto.Verifier
 		HashAlgorithm      gocrypto.Hash
-		stateStore         StateStore
 	}
-
-	Option func(c *AbConsensusConfig)
 
 	ConsensusManager struct {
 		ctx           context.Context
@@ -83,16 +79,11 @@ type (
 		safety        *SafetyModule
 		roundPipeline *RoundPipeline
 		partitions    PartitionStore
+		stateStore    StateStore
 	}
 )
 
-func WithStateStore(store StateStore) Option {
-	return func(c *AbConsensusConfig) {
-		c.stateStore = store
-	}
-}
-
-func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensusConfig {
+func loadConf(genesisRoot *genesis.GenesisRootRecord) *AbConsensusConfig {
 	rootTrustBase, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
 	if err != nil {
 		return nil
@@ -118,48 +109,34 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord, opts []Option) *AbConsensu
 		ConsensusThreshold: quorumThreshold,
 		RootTrustBase:      rootTrustBase,
 		HashAlgorithm:      hashAlgo,
-		stateStore:         store.NewInMemStateStore(hashAlgo),
-	}
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		opt(conf)
 	}
 	return conf
 }
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord,
-	partitionStore PartitionStore, signer crypto.Signer, net RootNet, opts ...Option) (*ConsensusManager, error) {
+	partitionStore PartitionStore, stateStore StateStore, signer crypto.Signer, net RootNet) (*ConsensusManager, error) {
 	// Sanity checks
 	if genesisRoot == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
 	}
 	// load configuration
-	conf := loadConf(genesisRoot, opts)
+	conf := loadConf(genesisRoot)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
 	selfId := host.ID().String()
 	log.SetContext(log.KeyNodeID, selfId)
 	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", host.ID(), host.MultiAddresses())
-	// Get node id's from cluster configuration and sort by alphabet
-	// All root validator nodes, node id to public key map
-	rootNodeIds := make([]peer.ID, 0, len(conf.RootTrustBase))
-	for id := range conf.RootTrustBase {
-		rootNodeIds = append(rootNodeIds, peer.ID(id))
-	}
 	safetyModule, err := NewSafetyModule(signer)
 	if err != nil {
 		return nil, err
 	}
-
-	lastState, err := conf.stateStore.Get()
+	lastState, err := stateStore.Get()
 	if err != nil {
 		return nil, err
 	}
-	l, err := leader.NewRotatingLeader(rootNodeIds, 1)
+	l, err := leader.NewRotatingLeader(host, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -186,8 +163,11 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		safety:        safetyModule,
 		roundPipeline: pipeline,
 		partitions:    partitionStore,
+		stateStore:    stateStore,
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
+	// start
+	consensusManager.start()
 	return consensusManager, nil
 }
 
@@ -199,13 +179,13 @@ func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCert
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) Start() {
+func (x *ConsensusManager) start() {
 	// Start timers and network processing
 	x.timers.Start(localTimeoutId, x.config.LocalTimeoutMs)
 	// Am I the next leader?
 	currentRound := x.pacemaker.GetCurrentRound()
 	if x.proposer.GetLeaderForRound(currentRound) == x.peer.ID() {
-		x.timers.Start(blockRateId, x.pacemaker.CalcTimeTilNextProposal())
+		x.timers.Start(blockRateId, x.config.BlockRateMs)
 	}
 	go x.loop()
 }
@@ -298,7 +278,7 @@ func (x *ConsensusManager) loop() {
 			}
 			logger.Debug("IR change request from partition")
 			// must be forwarded to the next round leader
-			receivers := make([]peer.ID, 1)
+			receivers := make([]peer.ID, 0, 1)
 			receivers = append(receivers, x.proposer.GetLeaderForRound(x.pacemaker.GetCurrentRound()+1))
 			// assume positive case as this will be most common
 			reason := atomic_broadcast.IRChangeReqMsg_QUORUM
@@ -312,7 +292,7 @@ func (x *ConsensusManager) loop() {
 
 			err := x.net.Send(
 				network.OutputMessage{
-					Protocol: network.ProtocolRootVote,
+					Protocol: network.ProtocolRootIrChangeReq,
 					Message:  irReq,
 				}, receivers)
 			if err != nil {
@@ -349,7 +329,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 	if voteMsg == nil {
 		// create timeout vote
 		voteMsg = atomic_broadcast.NewTimeoutMsg(atomic_broadcast.NewTimeout(
-			x.pacemaker.GetCurrentRound(), 0, x.roundPipeline.GetHighQc()), string(x.peer.ID()))
+			x.pacemaker.GetCurrentRound(), 0, x.roundPipeline.GetHighQc()), x.peer.ID().String())
 		// sign
 		if err := x.safety.SignTimeout(voteMsg, x.pacemaker.LastRoundTC()); err != nil {
 			logger.Warning("Local timeout error %v", err)
@@ -360,9 +340,11 @@ func (x *ConsensusManager) onLocalTimeout() {
 	}
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
 	// broadcast timeout vote
-	allValidators := x.proposer.GetRootNodes()
-	receivers := make([]peer.ID, len(allValidators))
-	receivers = append(receivers, allValidators...)
+	receivers := make([]peer.ID, len(x.proposer.GetRootNodes()))
+	for i, peer := range x.proposer.GetRootNodes() {
+		id, _ := peer.GetID()
+		receivers[i] = id
+	}
 	logger.Info("Broadcasting timeout vote")
 	err := x.net.Send(
 		network.OutputMessage{
@@ -391,7 +373,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		logger.Warning("IR change error, failed to get total nods for partition %X, error: %v", sysId.Bytes(), err)
 		return
 	}
-	state, err := x.config.stateStore.Get()
+	state, err := x.stateStore.Get()
 	if err != nil {
 		logger.Warning("IR change request ignored, failed to read current state: %w", err)
 		return
@@ -481,8 +463,7 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 }
 
 func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) bool {
-	execStateId := x.roundPipeline.GetExecStateId()
-	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, execStateId) {
+	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, x.roundPipeline.GetHighQc().VoteInfo.CurrentRootHash) {
 		logger.Warning("QC round %v state is different, recover state", qc.VoteInfo.RoundNumber)
 		return true
 	}
@@ -493,7 +474,7 @@ func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Paylo
 	if payload == nil {
 		return nil, fmt.Errorf("payload is nil")
 	}
-	committedState, err := x.config.stateStore.Get()
+	committedState, err := x.stateStore.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -532,8 +513,8 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
 	logger.Info("Received proposal message from %v", proposal.Block.Author)
 	// Is from valid proposer
-	if x.proposer.IsValidLeader(peer.ID(proposal.Block.Author), proposal.Block.Round) == false {
-		logger.Warning("Proposal author %V is not a valid proposer for round %v, ignoring proposal",
+	if x.proposer.GetLeaderForRound(proposal.Block.Round).String() != proposal.Block.Author {
+		logger.Warning("Proposal author %v is not a valid proposer for round %v, ignoring proposal",
 			proposal.Block.Author, proposal.Block.Round)
 		return
 	}
@@ -559,7 +540,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		return
 	}
 	// make vote
-	voteMsg, err := x.safety.MakeVote(proposal.Block, execStateId, string(x.peer.ID()), x.pacemaker.LastRoundTC())
+	voteMsg, err := x.safety.MakeVote(proposal.Block, execStateId, x.peer.ID().String(), x.pacemaker.LastRoundTC())
 	if err != nil {
 		logger.Warning("Failed to sign vote, vote not sent: %v", err.Error())
 		return
@@ -569,7 +550,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
-	receivers := make([]peer.ID, 1)
+	receivers := make([]peer.ID, 0, 1)
 	receivers = append(receivers, x.proposer.GetLeaderForRound(x.pacemaker.GetCurrentRound()+1))
 	err = x.net.Send(
 		network.OutputMessage{
@@ -587,7 +568,7 @@ func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert)
 	}
 	committedState := x.roundPipeline.Update(qc)
 	if committedState != nil {
-		if err := x.config.stateStore.Save(*committedState); err != nil {
+		if err := x.stateStore.Save(*committedState); err != nil {
 			logger.Warning("Failed persist new root chain state: %w", err)
 		}
 		for _, cert := range committedState.Certificates {
@@ -604,9 +585,11 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 		return
 	}
 	// restore state pipeline to last persisted state
-	lastState, err := x.config.stateStore.Get()
+	lastState, err := x.stateStore.Get()
 	if err != nil {
-		// todo: keep last persisted state at hand all the time?
+		logger.Error("Unable to restore last persisted state, %w", err)
+		// todo: this will probably never happen, but find a way to improve this
+		// keep a local copy of last persisted state at hand all the time?
 		return
 	}
 	x.roundPipeline.Reset(lastState)
@@ -626,7 +609,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	// create proposal message, generate payload of IR change requests
 	proposalMsg := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{
-			Author:    string(x.peer.ID()),
+			Author:    x.peer.ID().String(),
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
@@ -640,9 +623,11 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		logger.Warning("Failed to send proposal message, message signing failed: %v", err)
 	}
 	// broadcast proposal message (also to self)
-	allValidators := x.proposer.GetRootNodes()
-	receivers := make([]peer.ID, len(allValidators))
-	receivers = append(receivers, allValidators...)
+	receivers := make([]peer.ID, len(x.proposer.GetRootNodes()))
+	for i, peer := range x.proposer.GetRootNodes() {
+		id, _ := peer.GetID()
+		receivers[i] = id
+	}
 	logger.Info("Broadcasting proposal msg")
 	err := x.net.Send(
 		network.OutputMessage{

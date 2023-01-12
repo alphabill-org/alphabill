@@ -2,31 +2,33 @@ package leader
 
 import (
 	"errors"
-	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+const UnknownLeader = ""
+
+var ErrPeerIsNil = errors.New("peer is nil")
+
 type RotatingLeader struct {
-	rootNodeIds []peer.ID
-	nofRounds   uint32
+	self      *network.Peer
+	nofRounds uint32
 }
 
 // NewRotatingLeader returns round-robin leader selection algorithm based on node identifiers.
 // It is assumed that the order of node identifiers is the same (e.g. alphabetical) for all validators
-func NewRotatingLeader(rootNodes []peer.ID, contRounds uint32) (*RotatingLeader, error) {
-	if len(rootNodes) < 1 {
+func NewRotatingLeader(self *network.Peer, contRounds uint32) (*RotatingLeader, error) {
+	if self == nil {
+		return nil, ErrPeerIsNil
+	}
+	if len(self.Configuration().PersistentPeers) < 1 {
 		return nil, errors.New("empty root validator node id list")
 	}
-	if contRounds < 1 || contRounds > uint32(len(rootNodes)) {
+	if contRounds < 1 || contRounds > uint32(len(self.Configuration().PersistentPeers)) {
 		return nil, errors.New("invalid nof rounds")
 	}
-	// For a simple round-robin we need a deterministic order that is the same in
-	// every root validator - so simply sort by alphabet
-	sort.Slice(rootNodes, func(i, j int) bool {
-		return rootNodes[i] < rootNodes[j]
-	})
-	return &RotatingLeader{rootNodeIds: rootNodes, nofRounds: contRounds}, nil
+	return &RotatingLeader{self: self, nofRounds: contRounds}, nil
 }
 
 func (r *RotatingLeader) IsValidLeader(author peer.ID, round uint64) bool {
@@ -37,9 +39,14 @@ func (r *RotatingLeader) IsValidLeader(author peer.ID, round uint64) bool {
 }
 
 func (r *RotatingLeader) GetLeaderForRound(round uint64) peer.ID {
-	return r.rootNodeIds[uint32(round/uint64(r.nofRounds))%uint32(len(r.rootNodeIds))]
+	index := uint32(round/uint64(r.nofRounds)) % uint32(len(r.self.Configuration().PersistentPeers))
+	leader, err := r.self.Configuration().PersistentPeers[index].GetID()
+	if err != nil {
+		return UnknownLeader
+	}
+	return leader
 }
 
-func (r *RotatingLeader) GetRootNodes() []peer.ID {
-	return r.rootNodeIds
+func (r *RotatingLeader) GetRootNodes() []*network.PeerInfo {
+	return r.self.Configuration().PersistentPeers
 }

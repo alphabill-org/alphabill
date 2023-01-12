@@ -25,13 +25,24 @@ func TestRoundPipeline_Add(t *testing.T) {
 		LatestRound:    1,
 		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),
 		Certificates: map[protocol.SystemIdentifier]*certificates.UnicityCertificate{
-			protocol.SystemIdentifier(sysId1): {InputRecord: inputRecord1},
+			protocol.SystemIdentifier(sysId1): {
+				InputRecord: inputRecord1,
+				UnicitySeal: &certificates.UnicitySeal{
+					RootRoundInfo: &certificates.RootRoundInfo{
+						RoundNumber: 1,
+					},
+					CommitInfo: &certificates.CommitInfo{
+						RootHash: make([]byte, gocrypto.SHA256.Size()),
+					},
+				},
+			},
 		},
 	}
 	roundPipe := NewRoundPipeline(gocrypto.SHA256, state, partitions)
 	require.NotNil(t, roundPipe)
 	require.Equal(t, state.LatestRootHash, roundPipe.GetExecStateId())
-	require.Nil(t, roundPipe.GetHighQc())
+	require.NotNil(t, roundPipe.GetHighQc())
+	hQC := roundPipe.GetHighQc()
 	require.Empty(t, roundPipe.inProgress)
 	require.False(t, roundPipe.IsChangeInPipeline(protocol.SystemIdentifier(sysId1)))
 	changed := map[protocol.SystemIdentifier]*certificates.InputRecord{
@@ -53,7 +64,7 @@ func TestRoundPipeline_Add(t *testing.T) {
 	require.True(t, roundPipe.IsChangeInPipeline(protocol.SystemIdentifier(sysId1)))
 	// call update with nil (qc nil, is no-op)
 	require.Nil(t, roundPipe.Update(nil))
-	require.Nil(t, roundPipe.GetHighQc())
+	require.Equal(t, hQC, roundPipe.GetHighQc())
 	stateId := roundPipe.GetExecStateId()
 	// simulate QC for round 2
 	voteInfo := &certificates.RootRoundInfo{
@@ -102,12 +113,22 @@ func TestRoundPipeline_Reset(t *testing.T) {
 		LatestRound:    1,
 		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),
 		Certificates: map[protocol.SystemIdentifier]*certificates.UnicityCertificate{
-			protocol.SystemIdentifier(sysId1): {InputRecord: inputRecord1},
+			protocol.SystemIdentifier(sysId1): {
+				InputRecord: inputRecord1,
+				UnicitySeal: &certificates.UnicitySeal{
+					RootRoundInfo: &certificates.RootRoundInfo{
+						RoundNumber: 1,
+					},
+					CommitInfo: &certificates.CommitInfo{
+						RootHash: make([]byte, gocrypto.SHA256.Size()),
+					},
+				},
+			},
 		},
 	}
 	roundPipe := NewRoundPipeline(gocrypto.SHA256, state, partitions)
 	require.NotNil(t, roundPipe)
-	require.Nil(t, roundPipe.GetHighQc())
+	require.NotNil(t, roundPipe.GetHighQc())
 	require.Empty(t, roundPipe.inProgress)
 	require.False(t, roundPipe.IsChangeInPipeline(protocol.SystemIdentifier(sysId1)))
 	changed := map[protocol.SystemIdentifier]*certificates.InputRecord{

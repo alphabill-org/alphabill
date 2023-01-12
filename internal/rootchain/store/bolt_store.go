@@ -192,7 +192,7 @@ func (s *BoltStore) WriteState(newState RootState) error {
 		if val != nil {
 			latestRoundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
 		}
-		if latestRoundNr+1 != newState.LatestRound {
+		if latestRoundNr >= newState.LatestRound {
 			return errors.Errorf("Inconsistent round number, current=%v, new=%v", latestRoundNr, newState.LatestRound)
 		}
 		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(newState.LatestRound)); err != nil {

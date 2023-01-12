@@ -37,9 +37,8 @@ type (
 	}
 
 	consensusConfig struct {
-		hashAlgo   gocrypto.Hash
-		t3Timeout  time.Duration
-		stateStore StateStore
+		hashAlgo  gocrypto.Hash
+		t3Timeout time.Duration
 	}
 
 	ConsensusManager struct {
@@ -51,6 +50,7 @@ type (
 		conf         *consensusConfig
 		selfId       string // node identifier
 		partitions   PartitionStore
+		stateStore   StateStore
 		ir           map[p.SystemIdentifier]*certificates.InputRecord
 		changes      map[p.SystemIdentifier]*certificates.InputRecord
 		signer       crypto.Signer // private key of the root chain
@@ -64,12 +64,6 @@ type (
 func WithT3Timeout(timeout time.Duration) Option {
 	return func(c *consensusConfig) {
 		c.t3Timeout = timeout
-	}
-}
-
-func WithStateStorage(store StateStore) Option {
-	return func(c *consensusConfig) {
-		c.stateStore = store
 	}
 }
 
@@ -92,7 +86,7 @@ func loadInputRecords(state *store.RootState) map[p.SystemIdentifier]*certificat
 }
 
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
-func NewMonolithicConsensusManager(selfId string, partitionStore PartitionStore,
+func NewMonolithicConsensusManager(selfId string, partitionStore PartitionStore, stateStore StateStore,
 	signer crypto.Signer, opts ...Option) (*ConsensusManager, error) {
 	log.SetContext(log.KeyNodeID, selfId)
 	verifier, err := signer.Verifier()
@@ -102,7 +96,7 @@ func NewMonolithicConsensusManager(selfId string, partitionStore PartitionStore,
 	config := loadConf(opts)
 	timers := timer.NewTimers()
 	// verify that we can read the persisted state from store
-	state, err := config.stateStore.Get()
+	state, err := stateStore.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -113,12 +107,14 @@ func NewMonolithicConsensusManager(selfId string, partitionStore PartitionStore,
 		conf:         config,
 		selfId:       selfId,
 		partitions:   partitionStore,
+		stateStore:   stateStore,
 		ir:           loadInputRecords(&state),
 		changes:      make(map[p.SystemIdentifier]*certificates.InputRecord),
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfId: verifier},
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
+	consensusManager.start()
 	return consensusManager, nil
 }
 
@@ -130,7 +126,7 @@ func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCert
 	return x.certResultCh
 }
 
-func (x *ConsensusManager) Start() {
+func (x *ConsensusManager) start() {
 	// Start T3 timer
 	x.timers.Start(t3TimerID, x.conf.t3Timeout)
 	go x.loop()
@@ -178,7 +174,7 @@ func (x *ConsensusManager) loop() {
 
 func (x *ConsensusManager) onT3Timeout() {
 	defer trackExecutionTime(time.Now(), "t3 timeout handling")
-	state, err := x.conf.stateStore.Get()
+	state, err := x.stateStore.Get()
 	if err != nil {
 		logger.Warning("T3 timeout, failed to read last state from storage: %v", err.Error())
 		return
@@ -196,7 +192,7 @@ func (x *ConsensusManager) onT3Timeout() {
 			LatestRound:    newRound,
 			LatestRootHash: state.LatestRootHash,
 		}
-		if err := x.conf.stateStore.Save(newState); err != nil {
+		if err := x.stateStore.Save(newState); err != nil {
 			logger.Warning("Round %d failed to persist new root state, %v", newState.LatestRound, err)
 			return
 		}
@@ -210,7 +206,7 @@ func (x *ConsensusManager) onT3Timeout() {
 		return
 	}
 	// persist new state
-	if err := x.conf.stateStore.Save(*newState); err != nil {
+	if err := x.stateStore.Save(*newState); err != nil {
 		logger.Warning("Round %d failed to persist new root state, %v", newState.LatestRound, err)
 		return
 	}
@@ -323,9 +319,8 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64, lastState *
 
 func loadConf(opts []Option) *consensusConfig {
 	conf := &consensusConfig{
-		hashAlgo:   defaultHash,
-		t3Timeout:  defaultT3Timeout,
-		stateStore: store.NewInMemStateStore(gocrypto.SHA256),
+		hashAlgo:  defaultHash,
+		t3Timeout: defaultT3Timeout,
 	}
 	for _, opt := range opts {
 		if opt == nil {

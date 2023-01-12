@@ -178,5 +178,6 @@ func (x *Pacemaker) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
 func (x *Pacemaker) startNewRound(round uint64) {
 	x.clear()
 	x.currentRound = round
+	x.pendingVotes.Reset()
 	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.lastQcToCommitRound - 1))
 }

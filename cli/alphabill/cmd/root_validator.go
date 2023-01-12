@@ -145,7 +145,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 			return errors.Wrapf(err, "failed initiate root validator validator network")
 		}
 		// Create distributed consensus manager function
-		consensusFn = rootvalidator.DistributedConsensus(rootGenesis.Root, rootHost, rootNet, keys.SigningPrivateKey)
+		consensusFn = rootvalidator.DistributedConsensus(rootHost, rootGenesis.Root, rootNet, keys.SigningPrivateKey)
 	}
 	validator, err := rootvalidator.NewRootValidatorNode(
 		rootGenesis,
@@ -199,7 +199,7 @@ func loadRootNetworkConfiguration(keys *Keys, rootValidators []*genesis.PublicKe
 			PublicKey: validator.EncryptionPublicKey,
 		}
 	}
-	// Sort validators by address
+	// Sort validators by public encryption key
 	sort.Slice(persistentPeers, func(i, j int) bool {
 		return string(persistentPeers[i].PublicKey) < string(persistentPeers[j].PublicKey)
 	})

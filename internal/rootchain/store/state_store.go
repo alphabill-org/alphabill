@@ -2,7 +2,6 @@ package store
 
 import (
 	gocrypto "crypto"
-
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -119,7 +118,7 @@ func (p *PersistentRootState) Get() (RootState, error) {
 // This will become obsolete in distributed root chain solution, then it just has to be bigger and caps are possible
 func checkRoundNumber(current, newState RootState) error {
 	// Round number must be increasing
-	if current.LatestRound+1 != newState.LatestRound {
+	if current.LatestRound >= newState.LatestRound {
 		return errors.New(ErrIllegalNewRound)
 	}
 	return nil

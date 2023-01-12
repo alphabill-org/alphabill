@@ -177,7 +177,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(tp, block), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitUnicityCertificate(block.UnicityCertificate)
-	ContainsError(t, tp, "received UC is older than LUC. uc round 1, luc round 2")
+	ContainsError(t, tp, "received UC is older than LUC. uc round 2, luc round 3")
 }
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
@@ -408,7 +408,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
 
-	ContainsError(t, tp, "received UC is older than LUC. uc round 1, luc round 2")
+	ContainsError(t, tp, "received UC is older than LUC. uc round 2, luc round 3")
 }
 
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {

@@ -30,7 +30,8 @@ func TestInMemState_GetAndSave(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, s.LatestRound, uint64(1))
 	// Only thing checked at this point is round number increase
-	require.Error(t, stateStore.Save(RootState{LatestRound: 3, Certificates: nil, LatestRootHash: nil}))
+	require.NoError(t, stateStore.Save(RootState{LatestRound: 3, Certificates: nil, LatestRootHash: nil}))
+	require.Error(t, stateStore.Save(RootState{LatestRound: 1, Certificates: nil, LatestRootHash: nil}))
 }
 
 func TestPersistentRootState_GetAndSave(t *testing.T) {
@@ -45,5 +46,6 @@ func TestPersistentRootState_GetAndSave(t *testing.T) {
 	eqCerts := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{sysId: mockUc}
 	require.Equal(t, s.Certificates, eqCerts)
 	// Illegal round number
-	require.Error(t, stateStore.Save(RootState{LatestRound: 3, Certificates: nil, LatestRootHash: nil}))
+	require.NoError(t, stateStore.Save(RootState{LatestRound: 3, Certificates: nil, LatestRootHash: nil}))
+	require.Error(t, stateStore.Save(RootState{LatestRound: 1, Certificates: nil, LatestRootHash: nil}))
 }

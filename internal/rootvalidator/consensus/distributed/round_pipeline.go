@@ -33,8 +33,18 @@ type (
 
 func NewRoundPipeline(hash gocrypto.Hash, persistedState store.RootState, partitionStore PartitionStore) *RoundPipeline {
 	//init IR map
+	var hQC *atomic_broadcast.QuorumCert = nil
 	inputRecords := make(map[protocol.SystemIdentifier]*certificates.InputRecord)
 	for id, cert := range persistedState.Certificates {
+		// initiate the highest quorum certificate from persisted state
+		if hQC == nil && bytes.Equal(cert.UnicitySeal.CommitInfo.RootHash, persistedState.LatestRootHash) {
+			hQC = &atomic_broadcast.QuorumCert{
+				VoteInfo:         cert.UnicitySeal.RootRoundInfo,
+				LedgerCommitInfo: cert.UnicitySeal.CommitInfo,
+				Signatures:       cert.UnicitySeal.Signatures,
+			}
+		}
+		//remember highest quorum certificate
 		inputRecords[id] = cert.InputRecord
 	}
 	// initiate from last persisted/committed state
@@ -45,7 +55,7 @@ func NewRoundPipeline(hash gocrypto.Hash, persistedState store.RootState, partit
 		execStateId:   persistedState.LatestRootHash,
 		inProgress:    make(map[protocol.SystemIdentifier]struct{}),
 		statePipeline: make(map[uint64]*StateEntry),
-		highQC:        nil,
+		highQC:        hQC,
 	}
 }
 

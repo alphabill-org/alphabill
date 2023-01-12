@@ -5,8 +5,10 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"time"
+
+	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -100,11 +102,11 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	}
 
 	// create root genesis
-	pr, err := rootvalidator.NewPartitionRecordFromNodes(nodeGenesisFiles)
+	pr, err := rootgenesis.NewPartitionRecordFromNodes(nodeGenesisFiles)
 	if err != nil {
 		return nil, err
 	}
-	rootGenesis, partitionGenesisFiles, err := rootvalidator.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
+	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
 	if err != nil {
 		return nil, err
 	}

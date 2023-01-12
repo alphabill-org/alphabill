@@ -4,6 +4,7 @@ import (
 	"context"
 	gocrypto "crypto"
 	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
@@ -29,7 +30,6 @@ type (
 	ConsensusManager interface {
 		RequestCertification() chan<- consensus.IRChangeRequest
 		CertificationResult() <-chan certificates.UnicityCertificate
-		Start()
 		Stop()
 	}
 
@@ -76,20 +76,20 @@ func MonolithicConsensus(selfId string, signer crypto.Signer) ConsensusFn {
 	return func(partitionStore PartitionStoreRd, stateStore StateStore) (ConsensusManager, error) {
 		return monolithic.NewMonolithicConsensusManager(selfId,
 			partitionStore,
-			signer,
-			monolithic.WithStateStorage(stateStore))
+			stateStore,
+			signer)
 	}
 }
 
-func DistributedConsensus(rootGenesis *genesis.GenesisRootRecord, rootHost *network.Peer, rootNet *network.LibP2PNetwork, signer crypto.Signer) ConsensusFn {
+func DistributedConsensus(rootHost *network.Peer, rootGenesis *genesis.GenesisRootRecord, rootNet *network.LibP2PNetwork, signer crypto.Signer) ConsensusFn {
 	return func(partitionStore PartitionStoreRd, stateStore StateStore) (ConsensusManager, error) {
 		return distributed.NewDistributedAbConsensusManager(
 			rootHost,
 			rootGenesis,
 			partitionStore,
+			stateStore,
 			signer,
-			rootNet,
-			distributed.WithStateStore(stateStore))
+			rootNet)
 	}
 }
 
@@ -155,8 +155,6 @@ func NewRootValidatorNode(
 		consensusManager: consensusManager,
 	}
 	node.ctx, node.ctxCancel = context.WithCancel(context.Background())
-	// Start consensus manager
-	node.consensusManager.Start()
 	// Start receiving messages from partition nodes
 	go node.loop()
 	return node, nil
@@ -323,7 +321,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 		requests := v.incomingRequests.GetRequests(systemIdentifier)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
-			Reason:           consensus.Quorum,
+			Reason:           consensus.QuorumNotPossible,
 			IR:               luc.InputRecord,
 			Requests:         requests}
 	}

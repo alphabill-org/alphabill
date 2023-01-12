@@ -26,12 +26,12 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	require.NoError(t, err)
 	manager := &ConsensusManager{
 		conf: &consensusConfig{
-			hashAlgo:   crypto.SHA256,
-			t3Timeout:  900 * time.Millisecond,
-			stateStore: store.NewInMemStateStore(crypto.SHA256),
+			hashAlgo:  crypto.SHA256,
+			t3Timeout: 900 * time.Millisecond,
 		},
 		selfId:     "test",
 		partitions: partitions,
+		stateStore: store.NewInMemStateStore(crypto.SHA256),
 		ir: map[p.SystemIdentifier]*certificates.InputRecord{
 			p.SystemIdentifier(sysId0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
 			p.SystemIdentifier(sysId1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},

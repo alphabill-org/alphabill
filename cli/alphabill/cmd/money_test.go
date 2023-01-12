@@ -12,7 +12,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -319,9 +319,9 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 		rootPubKeyBytes, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pr, err := rootvalidator.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootvalidator.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])

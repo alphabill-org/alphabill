@@ -1,4 +1,4 @@
-package rootvalidator
+package genesis
 
 import (
 	"bytes"
@@ -17,8 +17,10 @@ const (
 	ErrEncryptionPubKeyIsNil          = "encryption public key is nil"
 	ErrQuorumThresholdOnlyDistributed = "quorum threshold must only be less than total nodes in root chain"
 
-	GenesisTime = 1668208271000 // 11.11.2022 @ 11:11:11
+	Timestamp = 1668208271000 // 11.11.2022 @ 11:11:11
 )
+
+var ErrSignerIsNil = errors.New("signer is nil")
 
 type (
 	RootNodeInfo struct {
@@ -212,10 +214,10 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// if all requests match then consensus is present
 	sealFn := func(rootHash []byte) (*certificates.UnicitySeal, error) {
 		roundMeta := &certificates.RootRoundInfo{
-			RoundNumber:       1,
+			RoundNumber:       2,
 			Epoch:             0,
-			Timestamp:         GenesisTime,
-			ParentRoundNumber: 0,
+			Timestamp:         Timestamp,
+			ParentRoundNumber: 1,
 			CurrentRootHash:   rootHash,
 		}
 		uSeal := &certificates.UnicitySeal{

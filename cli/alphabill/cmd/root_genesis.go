@@ -9,7 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
@@ -116,7 +116,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	pr, err := rootvalidator.NewPartitionRecordFromNodes(pn)
+	pr, err := rootgenesis.NewPartitionRecordFromNodes(pn)
 	if err != nil {
 		return err
 	}
@@ -129,15 +129,15 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 		return err
 	}
 
-	rg, pg, err := rootvalidator.NewRootGenesis(
+	rg, pg, err := rootgenesis.NewRootGenesis(
 		peerID.String(),
 		keys.SigningPrivateKey,
 		encPubKeyBytes,
 		pr,
-		rootvalidator.WithTotalNodes(config.TotalNodes),
-		rootvalidator.WithQuorumThreshold(config.getQuorumThreshold()),
-		rootvalidator.WithBlockRate(config.BlockRateMs),
-		rootvalidator.WithConsensusTimeout(config.getConsensusTimeout()))
+		rootgenesis.WithTotalNodes(config.TotalNodes),
+		rootgenesis.WithQuorumThreshold(config.getQuorumThreshold()),
+		rootgenesis.WithBlockRate(config.BlockRateMs),
+		rootgenesis.WithConsensusTimeout(config.getConsensusTimeout()))
 
 	if err != nil {
 		return err

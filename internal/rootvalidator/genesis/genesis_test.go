@@ -1,4 +1,4 @@
-package rootvalidator
+package genesis
 
 import (
 	gocrypto "crypto"
@@ -11,6 +11,21 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
+
+func getPublicKeyAndVerifier(signer crypto.Signer) ([]byte, crypto.Verifier, error) {
+	if signer == nil {
+		return nil, nil, ErrSignerIsNil
+	}
+	verifier, err := signer.Verifier()
+	if err != nil {
+		return nil, nil, err
+	}
+	pubKey, err := verifier.MarshalPublicKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	return pubKey, verifier, nil
+}
 
 func TestNewGenesis_Ok(t *testing.T) {
 	id := []byte{0, 0, 0, 1}
@@ -47,7 +62,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	req := createInputRequest(t, id, "2", partitionSigner2)
 	req.InputRecord.Hash = []byte{1, 1, 1, 1}
 	require.NoError(t, req.Sign(partitionSigner2))
-	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner2)
+	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
 	pr := &genesis.PartitionNode{
 		NodeIdentifier:            "2",
@@ -123,7 +138,7 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 
 func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionRecord {
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
-	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner)
+	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{
@@ -142,7 +157,7 @@ func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, parti
 
 func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
-	pubKey, _, err := GetPublicKeyAndVerifier(partitionSigner)
+	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	return &genesis.PartitionNode{

@@ -19,8 +19,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/partition/store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	rstore "github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -82,9 +82,9 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := rootvalidator.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
+	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
 	require.NoError(t, err)
-	rootGenesis, partitionGenesis, err := rootvalidator.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 	if err != nil {
 		t.Error(err)
 	}

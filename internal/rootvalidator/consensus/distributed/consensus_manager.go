@@ -64,22 +64,22 @@ type (
 	}
 
 	ConsensusManager struct {
-		ctx           context.Context
-		ctxCancel     context.CancelFunc
-		certReqCh     chan consensus.IRChangeRequest
-		certResultCh  chan certificates.UnicityCertificate
-		config        *AbConsensusConfig
-		peer          *network.Peer
-		timers        *timer.Timers
-		net           RootNet
-		pacemaker     *Pacemaker
-		proposer      Leader
-		rootVerifier  *RootNodeVerifier
-		irReqBuffer   *IrReqBuffer
-		safety        *SafetyModule
-		roundPipeline *RoundPipeline
-		partitions    PartitionStore
-		stateStore    StateStore
+		ctx            context.Context
+		ctxCancel      context.CancelFunc
+		certReqCh      chan consensus.IRChangeRequest
+		certResultCh   chan certificates.UnicityCertificate
+		config         *AbConsensusConfig
+		peer           *network.Peer
+		timers         *timer.Timers
+		net            RootNet
+		pacemaker      *Pacemaker
+		leaderSelector Leader
+		rootVerifier   *RootNodeVerifier
+		irReqBuffer    *IrReqBuffer
+		safety         *SafetyModule
+		roundPipeline  *RoundPipeline
+		partitions     PartitionStore
+		stateStore     StateStore
 	}
 )
 
@@ -150,20 +150,20 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	}
 
 	consensusManager := &ConsensusManager{
-		certReqCh:     make(chan consensus.IRChangeRequest, 1),
-		certResultCh:  make(chan certificates.UnicityCertificate, 1),
-		config:        conf,
-		peer:          host,
-		timers:        timer.NewTimers(),
-		net:           net,
-		pacemaker:     NewPacemaker(lastState.LatestRound, conf.LocalTimeoutMs, conf.BlockRateMs),
-		proposer:      l,
-		rootVerifier:  rootVerifier,
-		irReqBuffer:   NewIrReqBuffer(),
-		safety:        safetyModule,
-		roundPipeline: pipeline,
-		partitions:    partitionStore,
-		stateStore:    stateStore,
+		certReqCh:      make(chan consensus.IRChangeRequest, 1),
+		certResultCh:   make(chan certificates.UnicityCertificate, 1),
+		config:         conf,
+		peer:           host,
+		timers:         timer.NewTimers(),
+		net:            net,
+		pacemaker:      NewPacemaker(lastState.LatestRound, conf.LocalTimeoutMs, conf.BlockRateMs),
+		leaderSelector: l,
+		rootVerifier:   rootVerifier,
+		irReqBuffer:    NewIrReqBuffer(),
+		safety:         safetyModule,
+		roundPipeline:  pipeline,
+		partitions:     partitionStore,
+		stateStore:     stateStore,
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
 	// start
@@ -184,7 +184,7 @@ func (x *ConsensusManager) start() {
 	x.timers.Start(localTimeoutId, x.config.LocalTimeoutMs)
 	// Am I the next leader?
 	currentRound := x.pacemaker.GetCurrentRound()
-	if x.proposer.GetLeaderForRound(currentRound) == x.peer.ID() {
+	if x.leaderSelector.GetLeaderForRound(currentRound) == x.peer.ID() {
 		x.timers.Start(blockRateId, x.config.BlockRateMs)
 	}
 	go x.loop()
@@ -279,7 +279,7 @@ func (x *ConsensusManager) loop() {
 			logger.Debug("IR change request from partition")
 			// must be forwarded to the next round leader
 			receivers := make([]peer.ID, 0, 1)
-			receivers = append(receivers, x.proposer.GetLeaderForRound(x.pacemaker.GetCurrentRound()+1))
+			receivers = append(receivers, x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+1))
 			// assume positive case as this will be most common
 			reason := atomic_broadcast.IRChangeReqMsg_QUORUM
 			if req.Reason == consensus.QuorumNotPossible {
@@ -340,8 +340,8 @@ func (x *ConsensusManager) onLocalTimeout() {
 	}
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
 	// broadcast timeout vote
-	receivers := make([]peer.ID, len(x.proposer.GetRootNodes()))
-	for i, peer := range x.proposer.GetRootNodes() {
+	receivers := make([]peer.ID, len(x.leaderSelector.GetRootNodes()))
+	for i, peer := range x.leaderSelector.GetRootNodes() {
 		id, _ := peer.GetID()
 		receivers[i] = id
 	}
@@ -361,7 +361,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 	// Am I the next leader or current leader and have not yet proposed? If not, ignore.
 	// todo: AB-549 what if this is received out of order?
 	// todo: AB-547 I am leader now, but have not yet proposed -> should still accept requests (throttling)
-	if x.proposer.IsValidLeader(x.peer.ID(), x.pacemaker.GetCurrentRound()+1) == false {
+	if x.leaderSelector.IsValidLeader(x.peer.ID(), x.pacemaker.GetCurrentRound()+1) == false {
 		logger.Warning("Validator is not leader in next round %v, IR change req ignored",
 			x.pacemaker.GetCurrentRound()+1)
 		return
@@ -422,7 +422,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// timeout votes are broadcast to everybody
 	nextRound := round + 1
 	// verify that the validator is correct leader in next round
-	if x.proposer.IsValidLeader(x.peer.ID(), nextRound) == false {
+	if x.leaderSelector.IsValidLeader(x.peer.ID(), nextRound) == false {
 		// this might also be a stale vote, since when we have quorum the round is advanced and the node becomes
 		// the new leader in the current view/round
 		logger.Warning("Received vote, validator is not leader in next round %v, vote ignored", nextRound)
@@ -484,7 +484,7 @@ func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Paylo
 	if err != nil {
 		return nil, err
 	}
-	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the proposer is honest
+	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
 	// Remember all partitions that have changes in the current proposal and apply changes
 	changes := make(map[p.SystemIdentifier]*certificates.InputRecord)
 	for _, irChReq := range payload.Requests {
@@ -518,9 +518,9 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	}
 	util.WriteDebugJsonLog(logger, fmt.Sprintf("Received Proposal from %s", proposal.Block.Author), proposal)
 	logger.Info("Received proposal message from %v", proposal.Block.Author)
-	// Is from valid proposer
-	if x.proposer.GetLeaderForRound(proposal.Block.Round).String() != proposal.Block.Author {
-		logger.Warning("Proposal author %v is not a valid proposer for round %v, ignoring proposal",
+	// Is from valid leader
+	if x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String() != proposal.Block.Author {
+		logger.Warning("Proposal author %v is not a valid leader for round %v, ignoring proposal",
 			proposal.Block.Author, proposal.Block.Round)
 		return
 	}
@@ -556,7 +556,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
-	nextLeader := x.proposer.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 	logger.Info("Sending vote to next leader %v", nextLeader.String())
 	err = x.net.Send(
 		network.OutputMessage{
@@ -610,7 +610,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	x.timers.Restart(localTimeoutId)
 
 	round := x.pacemaker.GetCurrentRound()
-	if !x.proposer.IsValidLeader(x.peer.ID(), round) {
+	if !x.leaderSelector.IsValidLeader(x.peer.ID(), round) {
 		logger.Warning("Current node is not the leader in round %v, skip proposal", round)
 		return
 	}
@@ -631,8 +631,8 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		logger.Warning("Failed to send proposal message, message signing failed: %v", err)
 	}
 	// broadcast proposal message (also to self)
-	receivers := make([]peer.ID, len(x.proposer.GetRootNodes()))
-	for i, peer := range x.proposer.GetRootNodes() {
+	receivers := make([]peer.ID, len(x.leaderSelector.GetRootNodes()))
+	for i, peer := range x.leaderSelector.GetRootNodes() {
 		id, _ := peer.GetID()
 		receivers[i] = id
 	}

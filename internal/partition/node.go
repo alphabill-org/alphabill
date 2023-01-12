@@ -757,17 +757,17 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 	}
 
 	startBlock := lr.BeginBlockNumber
-	logger.Debug("Preparing replication response from block #%v up to #%v", startBlock, maxBlock)
 	if maxBlock < startBlock {
 		resp.Status = replication.LedgerReplicationResponse_BLOCKS_NOT_FOUND
 		resp.Message = fmt.Sprintf("Unknown block to form recovery response: %v, latest block: %v", startBlock, maxBlock)
 	} else if lr.EndBlockNumber > startBlock {
 		maxBlock = lr.EndBlockNumber
 	}
+	endBlock := util.Min(maxBlock, startBlock+n.configuration.replicationConfig.maxBlocks)
+	logger.Debug("Preparing replication response from block #%v up to #%v", startBlock, endBlock)
 
 	go func() {
 		var countTx uint32 = 0
-		endBlock := util.Min(maxBlock, startBlock+n.configuration.replicationConfig.maxBlocks)
 		if resp.Status == replication.LedgerReplicationResponse_OK {
 			var blocks []*block.Block
 			for i := startBlock; i <= endBlock; i++ {

@@ -229,6 +229,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		partition.WithContext(ctx),
 		partition.WithRootAddressAndIdentifier(newMultiAddr, rootID),
 		partition.WithBlockStore(blockStore),
+		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
 	)
 	if err != nil {
 		return nil, nil, err

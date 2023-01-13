@@ -56,49 +56,20 @@ func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
 }
 
 func (bs *BoltBlockStore) Add(b *block.Block) error {
-	return bs.db.Update(func(tx *bolt.Tx) error {
-		if err := bs.verifyBlock(tx, b); err != nil {
-			return err
-		}
-		roundNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
-		if err := tx.Bucket(metaBucket).Put(latestRoundNoKey, roundNoInBytes); err != nil {
-			return err
-		}
-		uc, err := json.Marshal(b.UnicityCertificate)
-		if err != nil {
-			return err
-		}
-		if err := tx.Bucket(latestUCBucket).Put(latestUCBucketKey, uc); err != nil {
-			return err
-		}
-
-		if len(b.Transactions) == 0 {
-			return nil
-		}
-		val, err := json.Marshal(b)
-		if err != nil {
-			return err
-		}
-		blockNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
-		err = tx.Bucket(blocksBucket).Put(blockNoInBytes, val)
-		if err != nil {
-			return err
-		}
-		err = tx.Bucket(metaBucket).Put(latestBlockNoKey, blockNoInBytes)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	return bs.add(b, false)
 }
 
 func (bs *BoltBlockStore) AddGenesis(b *block.Block) error {
+	if b.UnicityCertificate.InputRecord.RoundNumber > genesis.GenesisRoundNumber {
+		return errors.Errorf("genesis block number must be %v", genesis.GenesisRoundNumber)
+	}
+	return bs.add(b, true)
+}
+
+func (bs *BoltBlockStore) add(b *block.Block, allowEmpty bool) error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
 		if err := bs.verifyBlock(tx, b); err != nil {
 			return err
-		}
-		if b.UnicityCertificate.InputRecord.RoundNumber > genesis.GenesisRoundNumber {
-			return errors.Errorf("genesis block number must be %v", genesis.GenesisRoundNumber)
 		}
 		roundNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
 		if err := tx.Bucket(metaBucket).Put(latestRoundNoKey, roundNoInBytes); err != nil {
@@ -111,6 +82,11 @@ func (bs *BoltBlockStore) AddGenesis(b *block.Block) error {
 		if err := tx.Bucket(latestUCBucket).Put(latestUCBucketKey, uc); err != nil {
 			return err
 		}
+
+		if !allowEmpty && len(b.Transactions) == 0 {
+			return nil
+		}
+
 		val, err := json.Marshal(b)
 		if err != nil {
 			return err

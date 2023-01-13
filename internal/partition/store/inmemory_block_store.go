@@ -24,26 +24,24 @@ func NewInMemoryBlockStore() *InMemoryBlockStore {
 }
 
 func (bs *InMemoryBlockStore) Add(b *block.Block) error {
-	bs.mu.Lock()
-	defer bs.mu.Unlock()
-	latestRoundNumber := b.UnicityCertificate.InputRecord.RoundNumber
-	bs.latestUC = b.UnicityCertificate
-	if len(b.Transactions) == 0 {
-		return nil
-	}
-	bs.latestBlockNumber = latestRoundNumber
-	bs.blocks[latestRoundNumber] = b
-	return nil
+	return bs.add(b, false)
 }
 
 func (bs *InMemoryBlockStore) AddGenesis(b *block.Block) error {
-	bs.mu.Lock()
-	defer bs.mu.Unlock()
 	if b.UnicityCertificate.InputRecord.RoundNumber != genesis.GenesisRoundNumber {
 		return errors.Errorf("genesis block round number should be %d", genesis.GenesisRoundNumber)
 	}
-	bs.latestUC = b.UnicityCertificate
+	return bs.add(b, true)
+}
+
+func (bs *InMemoryBlockStore) add(b *block.Block, allowEmpty bool) error {
+	bs.mu.Lock()
+	defer bs.mu.Unlock()
 	latestRoundNumber := b.UnicityCertificate.InputRecord.RoundNumber
+	bs.latestUC = b.UnicityCertificate
+	if !allowEmpty && len(b.Transactions) == 0 {
+		return nil
+	}
 	bs.latestBlockNumber = latestRoundNumber
 	bs.blocks[latestRoundNumber] = b
 	return nil

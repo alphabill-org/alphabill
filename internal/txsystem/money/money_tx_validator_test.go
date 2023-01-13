@@ -9,7 +9,10 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -212,6 +215,176 @@ func TestSwap(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorContains(t, err, tt.err)
+			}
+		})
+	}
+}
+
+func TestTransferFC(t *testing.T) {
+	tests := []struct {
+		name    string
+		bd      *BillData
+		tx      *fc.TransferFeeCreditWrapper
+		wantErr error
+	}{
+		{
+			name:    "Ok",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, nil),
+			wantErr: nil,
+		},
+		{
+			name:    "BillData is nil",
+			bd:      nil,
+			tx:      testfc.NewTransferFC(t, nil),
+			wantErr: ErrBillNil,
+		},
+		{
+			name:    "Tx is nil",
+			bd:      newBillData(101, backlink),
+			tx:      nil,
+			wantErr: ErrTxNil,
+		},
+		{
+			name:    "Invalid amount",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithAmount(101))),
+			wantErr: ErrInvalidFCValue,
+		},
+		{
+			name:    "Invalid backlink",
+			bd:      newBillData(101, backlink),
+			tx:      testfc.NewTransferFC(t, testfc.NewTransferFCAttr(testfc.WithBacklink([]byte("not backlink")))),
+			wantErr: ErrInvalidBacklink,
+		},
+		{
+			name: "RecordID exists",
+			bd:   newBillData(101, backlink),
+			tx: testfc.NewTransferFC(t, nil,
+				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{FeeCreditRecordId: fcRecordID}),
+			),
+			wantErr: ErrRecordIDExists,
+		},
+		{
+			name: "Fee proof exists",
+			bd:   newBillData(101, backlink),
+			tx: testfc.NewTransferFC(t, nil,
+				testtransaction.WithFeeProof(feeProof),
+			),
+			wantErr: ErrFeeProofExists,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTransferFC(tt.tx, tt.bd)
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestReclaimFC(t *testing.T) {
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	verifiers := map[string]abcrypto.Verifier{"test": verifier}
+
+	tests := []struct {
+		name       string
+		bd         *BillData
+		tx         *fc.ReclaimFeeCreditWrapper
+		wantErr    error
+		wantErrMsg string
+	}{
+		{
+			name:    "Ok",
+			bd:      newBillData(amount, backlink),
+			tx:      testfc.NewReclaimFC(t, signer, nil),
+			wantErr: nil,
+		},
+		{
+			name:    "BillData is nil",
+			bd:      nil,
+			tx:      testfc.NewReclaimFC(t, signer, nil),
+			wantErr: ErrBillNil,
+		},
+		{
+			name:    "Tx is nil",
+			bd:      newBillData(amount, backlink),
+			tx:      nil,
+			wantErr: ErrTxNil,
+		},
+		{
+			name: "Fee credit record exists",
+			bd:   newBillData(amount, backlink),
+			tx: testfc.NewReclaimFC(t, signer, nil,
+				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{FeeCreditRecordId: recordID}),
+			),
+			wantErr: ErrRecordIDExists,
+		},
+		{
+			name: "Fee proof exists",
+			bd:   newBillData(amount, backlink),
+			tx: testfc.NewReclaimFC(t, signer, nil,
+				testtransaction.WithFeeProof(feeProof),
+			),
+			wantErr: ErrFeeProofExists,
+		},
+		{
+			name: "Invalid target unit",
+			bd:   newBillData(amount, backlink),
+			tx: testfc.NewReclaimFC(t, signer, nil,
+				testtransaction.WithUnitId(test.NewUnitID(2)),
+			),
+			wantErr: ErrReclFCInvalidTargetUnit,
+		},
+		{
+			name:    "Invalid tx fee",
+			bd:      newBillData(1, backlink),
+			tx:      testfc.NewReclaimFC(t, signer, nil),
+			wantErr: ErrReclFCInvalidTxFee,
+		},
+		{
+			name:    "Invalid nonce",
+			bd:      newBillData(amount, []byte("nonce not equal to bill backlink")),
+			tx:      testfc.NewReclaimFC(t, signer, nil),
+			wantErr: ErrReclFCInvalidNonce,
+		},
+		{
+			name:    "Invalid backlink",
+			bd:      newBillData(amount, backlink),
+			tx:      testfc.NewReclaimFC(t, signer, testfc.NewReclFCAttr(t, signer, testfc.WithReclFCBacklink([]byte("backlink not equal")))),
+			wantErr: ErrInvalidBacklink,
+		},
+		{
+			name: "Invalid proof type",
+			bd:   newBillData(amount, backlink),
+			tx: testfc.NewReclaimFC(t, signer, testfc.NewReclFCAttr(t, signer,
+				testfc.WithReclFCProof(&block.BlockProof{ProofType: block.ProofType_NOTRANS}),
+			)),
+			wantErr: ErrInvalidProofType,
+		},
+		{
+			name: "Invalid proof",
+			bd:   newBillData(amount, backlink),
+			tx: testfc.NewReclaimFC(t, signer, testfc.NewReclFCAttr(t, signer,
+				testfc.WithReclFCProof(newInvalidProof(t, signer)),
+			)),
+			wantErrMsg: "reclaimFC: invalid proof",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateReclaimFC(tt.tx, tt.bd, verifiers, crypto.SHA256)
+			if tt.wantErr == nil && tt.wantErrMsg == "" {
+				require.NoError(t, err)
+			}
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			}
+			if tt.wantErrMsg != "" {
+				require.ErrorContains(t, err, tt.wantErrMsg)
 			}
 		})
 	}
@@ -472,4 +645,10 @@ func calculateSwapID(ids ...*uint256.Int) []byte {
 
 func newBillData(v uint64, backlink []byte) *BillData {
 	return &BillData{V: v, Backlink: backlink}
+}
+
+func newInvalidProof(t *testing.T, signer abcrypto.Signer) *block.BlockProof {
+	attr := testfc.NewDefaultReclFCAttr(t, signer)
+	attr.CloseFeeCreditProof.TransactionsHash = []byte("invalid hash")
+	return attr.CloseFeeCreditProof
 }

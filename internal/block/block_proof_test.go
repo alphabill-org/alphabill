@@ -9,6 +9,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/omt"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -189,7 +190,7 @@ func TestProofsForSecondaryTargetUnits(t *testing.T) {
 }
 
 func createPrimaryTx(unitID uint64) *OnlyPrimaryTx {
-	transaction := newTransaction(newUnitID(unitID), make([]byte, 32), 555)
+	transaction := newTransaction(test.NewUnitID(unitID), make([]byte, 32), 555)
 	tx, _ := txsystem.NewDefaultGenericTransaction(transaction)
 	return &OnlyPrimaryTx{tx}
 }
@@ -200,7 +201,7 @@ func createSecondaryTx(unitID uint64) *OnlySecondaryTx {
 }
 
 func createMultiTargetTx(unitID uint64, secUnitID uint64) *MultiUnitTargetTxType {
-	transaction := newTransaction(newUnitID(unitID), make([]byte, 32), 555)
+	transaction := newTransaction(test.NewUnitID(unitID), make([]byte, 32), 555)
 	tx, _ := txsystem.NewDefaultGenericTransaction(transaction)
 	return &MultiUnitTargetTxType{tx, uint256.NewInt(secUnitID)}
 }
@@ -232,11 +233,6 @@ func verifyHashChain(t *testing.T, b *GenericBlock, tx txsystem.GenericTransacti
 	root := omt.EvalMerklePath(chain, unitIDBytes[:], hashAlgorithm)
 	require.Equal(t, "690822883B5310DF3B8DA4232252A76E20E07F2F4FB184CEF85D35DC4AF4DF70", fmt.Sprintf("%X", root),
 		"hash chain verification failed for tx=%X", unitIDBytes[:])
-}
-
-func newUnitID(num uint64) []byte {
-	bytes32 := uint256.NewInt(num).Bytes32()
-	return bytes32[:]
 }
 
 func newTransaction(id, ownerProof []byte, timeout uint64) *txsystem.Transaction {

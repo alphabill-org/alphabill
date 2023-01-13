@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )
@@ -26,6 +27,22 @@ var (
 	ErrSwapInvalidNonce              = errors.New("dust transfer orders do not contain proper nonce")
 	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
 	ErrInvalidProofType              = errors.New("invalid proof type")
+
+	// fee tx generic errors
+	ErrTxNil          = errors.New("tx is nil")
+	ErrBillNil        = errors.New("bill is nil")
+	ErrRecordIDExists = errors.New("fee tx cannot contain fee credit reference")
+	ErrFeeProofExists = errors.New("fee tx cannot contain fee authorization proof")
+
+	// transfer fee credit errors
+	ErrInvalidFCValue  = errors.New("the amount to transfer plus transaction fee cannot exceed the value of the bill")
+	ErrInvalidBacklink = errors.New("the transaction backlink is not equal to unit backlink")
+
+	// reclaim fee credit errors
+	ErrReclFCInvalidCloseFCType = errors.New("reclaimFC: invalid nested closeFC tx type")
+	ErrReclFCInvalidTargetUnit  = errors.New("reclaimFC: invalid target unit")
+	ErrReclFCInvalidTxFee       = errors.New("reclaimFC: the transaction fees cannot exceed the transferred value")
+	ErrReclFCInvalidNonce       = errors.New("reclaimFC: invalid nonce")
 )
 
 func validateTransfer(data rma.UnitData, tx Transfer) error {
@@ -137,6 +154,73 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 		prevDcTx = dcTx
 	}
 	// done in validateGenericTransaction function
+	return nil
+}
+
+func validateTransferFC(tx *fc.TransferFeeCreditWrapper, bd *BillData) error {
+	if tx == nil {
+		return ErrTxNil
+	}
+	if bd == nil {
+		return ErrBillNil
+	}
+	if tx.TransferFC.Amount+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+		return ErrInvalidFCValue
+	}
+	if !bytes.Equal(tx.TransferFC.Backlink, bd.Backlink) {
+		return ErrInvalidBacklink
+	}
+	if tx.Transaction.ClientMetadata.FeeCreditRecordId != nil {
+		return ErrRecordIDExists
+	}
+	if tx.Transaction.FeeProof != nil {
+		return ErrFeeProofExists
+	}
+	return nil
+}
+
+func validateReclaimFC(tx *fc.ReclaimFeeCreditWrapper, bd *BillData, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+	if tx == nil {
+		return ErrTxNil
+	}
+	if bd == nil {
+		return ErrBillNil
+	}
+	if tx.Transaction.ClientMetadata.FeeCreditRecordId != nil {
+		return ErrRecordIDExists
+	}
+	if tx.Transaction.FeeProof != nil {
+		return ErrFeeProofExists
+	}
+	closeFC, err := fc.NewFeeCreditTx(tx.ReclaimFC.CloseFeeCreditTransfer)
+	if err != nil {
+		return err
+	}
+	closeFCWrapper, ok := closeFC.(*fc.CloseFeeCreditWrapper)
+	if !ok {
+		return ErrReclFCInvalidCloseFCType
+	}
+	if !bytes.Equal(tx.Transaction.UnitId, closeFCWrapper.CloseFC.TargetUnitId) {
+		return ErrReclFCInvalidTargetUnit
+	}
+	if closeFCWrapper.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+		return ErrReclFCInvalidTxFee
+	}
+	if !bytes.Equal(bd.Backlink, closeFCWrapper.CloseFC.Nonce) {
+		return ErrReclFCInvalidNonce
+	}
+	if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
+		return ErrInvalidBacklink
+	}
+	// verify proof
+	proof := tx.ReclaimFC.CloseFeeCreditProof
+	if proof.ProofType != block.ProofType_PRIM {
+		return ErrInvalidProofType
+	}
+	err = proof.Verify(tx.ReclaimFC.CloseFeeCreditTransfer.UnitId, closeFC, verifiers, hashAlgorithm)
+	if err != nil {
+		return errors.Wrap(err, "reclaimFC: invalid proof")
+	}
 	return nil
 }
 

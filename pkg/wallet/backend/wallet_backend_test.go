@@ -26,9 +26,9 @@ import (
 func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	// create wallet backend with mock abclient
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
-	billId1 := newUnitID(1)
+	billId1 := test.NewUnitID(1)
 	pubKey1, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
-	billId2 := newUnitID(2)
+	billId2 := test.NewUnitID(2)
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 
 	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{

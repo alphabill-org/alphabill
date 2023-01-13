@@ -9,6 +9,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -19,19 +20,26 @@ import (
 )
 
 var (
-	systemID        = []byte{0, 0, 0, 0}
-	unitID          = []byte{1}
-	ownerProof      = []byte{2}
-	newBearer       = []byte{3}
-	backlink        = []byte{4}
-	nonce           = []byte{5}
-	targetBearer    = []byte{6}
-	ownerCondition  = []byte{7}
-	billIdentifiers = [][]byte{util.Uint256ToBytes(uint256.NewInt(0)), util.Uint256ToBytes(uint256.NewInt(1))}
-	timeout         = uint64(100)
-	targetValue     = uint64(101)
-	remainingValue  = uint64(102)
-	amount          = uint64(103)
+	systemID             = []byte{0, 0, 0, 0}
+	unitID               = test.NewUnitID(1)
+	ownerProof           = []byte{2}
+	newBearer            = []byte{3}
+	backlink             = []byte{4}
+	nonce                = []byte{5}
+	targetBearer         = []byte{6}
+	ownerCondition       = []byte{7}
+	recordID             = []byte{8}
+	feeProof             = []byte{9}
+	fcRecordID           = []byte{10}
+	billIdentifiers      = [][]byte{util.Uint256ToBytes(uint256.NewInt(0)), util.Uint256ToBytes(uint256.NewInt(1))}
+	timeout              = uint64(100)
+	targetValue          = uint64(101)
+	remainingValue       = uint64(102)
+	amount               = uint64(103)
+	earliestAdditionTime = uint64(104)
+	latestAdditionTime   = uint64(105)
+	fee                  = uint64(1)
+	maxFee               = uint64(2)
 )
 
 func TestWrapper_InterfaceAssertion(t *testing.T) {
@@ -183,6 +191,80 @@ func TestWrapper_Swap(t *testing.T) {
 	assert.Equal(t, pbSwap.TargetValue, swap.TargetValue())
 
 	require.NotEmpty(t, swap.SigBytes())
+}
+
+func TestWrapper_TransferFC(t *testing.T) {
+	transferFCOrder := &fc.TransferFeeCreditOrder{
+		Amount:                 amount,
+		TargetSystemIdentifier: systemID,
+		TargetRecordId:         recordID,
+		EarliestAdditionTime:   earliestAdditionTime,
+		LatestAdditionTime:     latestAdditionTime,
+		Nonce:                  nonce,
+		Backlink:               backlink,
+	}
+	transferFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, transferFCOrder)
+	genericTransferFC, err := NewMoneyTx(systemID, transferFCTx)
+	require.NoError(t, err)
+	require.NotNil(t, genericTransferFC)
+
+	transferFCWrapper, ok := genericTransferFC.(*fc.TransferFeeCreditWrapper)
+	require.True(t, ok)
+
+	assert.Equal(t, toUint256(transferFCTx.UnitId), transferFCWrapper.UnitID())
+	assert.Equal(t, transferFCTx.SystemId, transferFCWrapper.SystemID())
+	assert.Equal(t, transferFCTx.OwnerProof, transferFCWrapper.OwnerProof())
+	assert.Equal(t, transferFCTx.Timeout, transferFCWrapper.Timeout())
+
+	assert.Equal(t, transferFCOrder.Amount, transferFCWrapper.TransferFC.Amount)
+	assert.Equal(t, transferFCOrder.TargetSystemIdentifier, transferFCWrapper.TransferFC.TargetSystemIdentifier)
+	assert.Equal(t, transferFCOrder.TargetRecordId, transferFCWrapper.TransferFC.TargetRecordId)
+	assert.Equal(t, transferFCOrder.EarliestAdditionTime, transferFCWrapper.TransferFC.EarliestAdditionTime)
+	assert.Equal(t, transferFCOrder.LatestAdditionTime, transferFCWrapper.TransferFC.LatestAdditionTime)
+	assert.Equal(t, transferFCOrder.Nonce, transferFCWrapper.TransferFC.Nonce)
+	assert.Equal(t, transferFCOrder.Backlink, transferFCWrapper.TransferFC.Backlink)
+}
+
+func TestWrapper_AddFC(t *testing.T) {
+	transferFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, &fc.TransferFeeCreditOrder{})
+	addFCOrder := &fc.AddFeeCreditOrder{FeeCreditOwnerCondition: ownerCondition, FeeCreditTransfer: transferFCTx}
+	addFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, addFCOrder)
+	genericAddFC, err := NewMoneyTx(systemID, addFCTx)
+	require.NoError(t, err)
+	require.NotNil(t, genericAddFC)
+
+	addFCWrapper, ok := genericAddFC.(*fc.AddFeeCreditWrapper)
+	require.True(t, ok)
+	require.NotNil(t, addFCWrapper)
+	require.Equal(t, ownerCondition, addFCWrapper.AddFC.FeeCreditOwnerCondition)
+}
+
+func TestWrapper_CloseFC(t *testing.T) {
+	closeFCOrder := &fc.CloseFeeCreditOrder{Amount: amount}
+	closeFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, closeFCOrder)
+	genericCloseFC, err := NewMoneyTx(systemID, closeFCTx)
+	require.NoError(t, err)
+	require.NotNil(t, genericCloseFC)
+
+	closeFCWrapper, ok := genericCloseFC.(*fc.CloseFeeCreditWrapper)
+	require.True(t, ok)
+	require.NotNil(t, closeFCWrapper)
+	require.Equal(t, amount, closeFCWrapper.CloseFC.Amount)
+}
+
+func TestWrapper_ReclaimFC(t *testing.T) {
+	closeFCOrder := &fc.CloseFeeCreditOrder{}
+	closeFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, closeFCOrder)
+	reclaimFCOrder := &fc.ReclaimFeeCreditOrder{Backlink: backlink, CloseFeeCreditTransfer: closeFCTx}
+	reclaimFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, reclaimFCOrder)
+	genericReclaimFC, err := NewMoneyTx(systemID, reclaimFCTx)
+	require.NoError(t, err)
+	require.NotNil(t, genericReclaimFC)
+
+	reclaimFCWrapper, ok := genericReclaimFC.(*fc.ReclaimFeeCreditWrapper)
+	require.True(t, ok)
+	require.NotNil(t, reclaimFCWrapper)
+	require.Equal(t, backlink, reclaimFCWrapper.ReclaimFC.Backlink)
 }
 
 func TestWrapper_DifferentPartitionTx(t *testing.T) {

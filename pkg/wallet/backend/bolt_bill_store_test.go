@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
@@ -111,7 +112,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 
 func TestBillStore_GetSetProofs(t *testing.T) {
 	bs, _ := createTestBillStore(t)
-	billID := newUnitID(1)
+	billID := test.NewUnitID(1)
 	pubkey := []byte{0}
 
 	// verify GetBill ErrPubKeyNotIndexed

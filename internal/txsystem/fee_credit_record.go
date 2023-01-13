@@ -11,15 +11,15 @@ import (
 // Holds fee credit balance for individual users,
 // not to be confused with fee credit bills which contain aggregate fees for a given partition.
 type FeeCreditRecord struct {
-	balance int64  // current balance
-	hash    []byte // hash of the last “add fee credit” transaction that incremented the balance of this record
-	timeout uint64 // the earliest round number when this record may be “garbage collected” if the balance goes to zero
+	Balance int64  // current balance
+	Hash    []byte // hash of the last “add fee credit” transaction that incremented the balance of this record
+	Timeout uint64 // the earliest round number when this record may be “garbage collected” if the balance goes to zero
 }
 
 func (b *FeeCreditRecord) AddToHasher(hasher hash.Hash) {
-	hasher.Write(util.Uint64ToBytes(uint64(b.balance)))
-	hasher.Write(b.hash)
-	hasher.Write(util.Uint64ToBytes(b.timeout))
+	hasher.Write(util.Uint64ToBytes(uint64(b.Balance)))
+	hasher.Write(b.Hash)
+	hasher.Write(util.Uint64ToBytes(b.Timeout))
 }
 
 func (b *FeeCreditRecord) Value() rma.SummaryValue {

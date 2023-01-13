@@ -19,7 +19,7 @@ func TestTransaction_BytesIsCalculatedCorrectly(t *testing.T) {
 		ClientMetadata: &ClientMetadata{
 			Timeout:           2,
 			MaxFee:            3,
-			FeeCreditRecordId: 4,
+			FeeCreditRecordId: []byte{4},
 		},
 		ServerMetadata: &ServerMetadata{
 			Fee: 5,
@@ -34,7 +34,7 @@ func TestTransaction_BytesIsCalculatedCorrectly(t *testing.T) {
 	cm := tx.ClientMetadata
 	b.Write(util.Uint64ToBytes(cm.Timeout))
 	b.Write(util.Uint64ToBytes(cm.MaxFee))
-	b.Write(util.Uint64ToBytes(cm.FeeCreditRecordId))
+	b.Write(cm.FeeCreditRecordId)
 	sm := tx.ServerMetadata
 	b.Write(util.Uint64ToBytes(sm.Fee))
 	expectedBytes := b.Bytes()

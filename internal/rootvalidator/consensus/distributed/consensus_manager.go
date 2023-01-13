@@ -273,7 +273,7 @@ func (x *ConsensusManager) loop() {
 			}
 			logger.Debug("Round %v, IR change request from partition", x.pacemaker.GetCurrentRound())
 			// must be forwarded to the next round leader
-			leader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+			nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
 			// assume positive case as this will be most common
 			reason := atomic_broadcast.IRChangeReqMsg_QUORUM
 			if req.Reason == consensus.QuorumNotPossible {
@@ -283,12 +283,12 @@ func (x *ConsensusManager) loop() {
 				SystemIdentifier: req.SystemIdentifier.Bytes(),
 				CertReason:       reason,
 				Requests:         req.Requests}
-			logger.Info("Forwarding IR change request to next leader", leader.String())
+			logger.Info("Forwarding IR change request to next leader", nextLeader.String())
 			err := x.net.Send(
 				network.OutputMessage{
 					Protocol: network.ProtocolRootIrChangeReq,
 					Message:  irReq,
-				}, []peer.ID{leader})
+				}, []peer.ID{nextLeader})
 			if err != nil {
 				logger.Warning("Failed to forward IR Change request: %v", err)
 			}
@@ -300,7 +300,6 @@ func (x *ConsensusManager) loop() {
 			timerId := nt.Name()
 			switch {
 			case timerId == localTimeoutId:
-				logger.Warning("handle local timeout")
 				x.onLocalTimeout()
 			case timerId == blockRateId:
 				// throttling, make a proposal
@@ -335,8 +334,8 @@ func (x *ConsensusManager) onLocalTimeout() {
 	// in the case root chain has not made any progress (less than quorum nodes online), broadcast the same vote again
 	// broadcast timeout vote
 	receivers := make([]peer.ID, len(x.leaderSelector.GetRootNodes()))
-	for i, peer := range x.leaderSelector.GetRootNodes() {
-		id, _ := peer.GetID()
+	for i, validator := range x.leaderSelector.GetRootNodes() {
+		id, _ := validator.GetID()
 		receivers[i] = id
 	}
 	logger.Info("Broadcasting timeout vote")
@@ -628,8 +627,8 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	}
 	// broadcast proposal message (also to self)
 	receivers := make([]peer.ID, len(x.leaderSelector.GetRootNodes()))
-	for i, peer := range x.leaderSelector.GetRootNodes() {
-		id, _ := peer.GetID()
+	for i, validator := range x.leaderSelector.GetRootNodes() {
+		id, _ := validator.GetID()
 		receivers[i] = id
 	}
 	logger.Info("Broadcasting proposal msg")

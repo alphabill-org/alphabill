@@ -122,6 +122,48 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 }
 
+func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirtstRound(t *testing.T) {
+	var lastProposalMsg *atomic_broadcast.ProposalMsg = nil
+	var lastVoteMsg *atomic_broadcast.VoteMsg = nil
+	var lastTimeoutMsg *atomic_broadcast.TimeoutMsg = nil
+
+	mockNet := testnetwork.NewMockNetwork()
+	cm, rootNode, _, _ := initConsensusManager(t, mockNet)
+	defer cm.Stop()
+	// Await proposal
+	lastProposalMsg = MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	// Quick hack to trigger timeout
+	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
+	cm.onLocalTimeout()
+	// await timeout vote
+	lastTimeoutMsg = MockAwaitMessage[*atomic_broadcast.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
+	require.Equal(t, lastTimeoutMsg.Timeout.Round, uint64(3))
+	// simulate TC not achieved and make sure the same timeout message is sent again
+	// Quick hack to trigger next timeout
+	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
+	cm.onLocalTimeout()
+	lastTimeoutMsg = MockAwaitMessage[*atomic_broadcast.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
+	require.Equal(t, lastTimeoutMsg.Timeout.Round, uint64(3))
+	// route timeout message back
+	// route the timeout message back to trigger timeout certificate and new round
+	MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootTimeout, lastTimeoutMsg)
+	// This triggers TC and next round, wait for proposal
+	lastProposalMsg = MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
+	require.Equal(t, uint64(4), lastProposalMsg.Block.Round)
+	require.NotNil(t, lastProposalMsg.LastRoundTc)
+	require.Equal(t, uint64(3), lastProposalMsg.LastRoundTc.Timeout.Round)
+	// route the proposal back
+	MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootProposal, lastProposalMsg)
+	// wait for the vote message
+	lastVoteMsg = MockAwaitMessage[*atomic_broadcast.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	require.Equal(t, uint64(4), lastVoteMsg.VoteInfo.RoundNumber)
+	// round 3 is skipped, as it timeouts
+	require.Equal(t, uint64(2), lastVoteMsg.VoteInfo.ParentRoundNumber)
+	require.Equal(t, lastVoteMsg.VoteInfo.Epoch, uint64(0))
+	require.Nil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+}
+
 func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	var lastProposalMsg *atomic_broadcast.ProposalMsg = nil
 	var lastVoteMsg *atomic_broadcast.VoteMsg = nil

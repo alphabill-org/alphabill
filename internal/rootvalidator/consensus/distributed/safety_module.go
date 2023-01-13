@@ -128,10 +128,14 @@ func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
 
 func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
 	var tcRound uint64 = 0
+	var highestVotedRound uint64 = 0
 	if tc != nil {
 		tcRound = tc.Timeout.Round
 	}
-	if qcRound < s.highestQcRound || round <= max(s.highestVotedRound-1, qcRound) {
+	if s.highestVotedRound > 0 {
+		highestVotedRound = s.highestVotedRound - 1
+	}
+	if qcRound < s.highestQcRound || round <= max(highestVotedRound, qcRound) {
 		// respect highest qc round and don’t timeout in a past round
 		return false
 	}

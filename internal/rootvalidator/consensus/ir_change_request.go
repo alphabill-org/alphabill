@@ -33,16 +33,12 @@ func CheckBlockCertificationRequest(req *certification.BlockCertificationRequest
 	if luc == nil {
 		return errors.New("unicity certificate is nil")
 	}
-	seal := luc.UnicitySeal
-	if req.RootRoundNumber < seal.RootRoundInfo.RoundNumber {
+	if req.InputRecord.RoundNumber != luc.InputRecord.RoundNumber+1 {
 		// Older UC, return current.
-		return fmt.Errorf("old request: root round number %v, partition node round number %v", seal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
-	} else if req.RootRoundNumber > seal.RootRoundInfo.RoundNumber {
-		// should not happen, partition has newer UC
-		return fmt.Errorf("partition has never unicity certificate: root round number %v, partition node round number %v", seal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
+		return fmt.Errorf("invalid partition round number %v, last certified round number %v", req.InputRecord.RoundNumber, luc.InputRecord.RoundNumber)
 	} else if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
 		// Extending of unknown State.
-		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", seal.CommitInfo.RootHash, req.InputRecord.PreviousHash)
+		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.UnicitySeal.CommitInfo.RootHash, req.InputRecord.PreviousHash)
 	}
 	return nil
 }

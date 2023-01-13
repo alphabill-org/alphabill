@@ -9,10 +9,11 @@
     "input_record": {
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      "block_hash": "msBwL/isEaTnJ90o7nZI6QrFR32tOdtjpqToCJzXn+4=",
-      "summary_value": "AAAAAAAAAAA="
+      "block_hash": "xqjuNvL8qOMC88Okh5rSN6pcKqwQ3l0Qz8JraiLqLeY=",
+      "summary_value": "AAAAAAAAAAA=",
+      "round_number": 1
     },
-    "signature": "eG91SWtOvIvqSJYuOV0Jv4hcbO2YEHBz3rC5k2mppaRsg6VRZnw4pd+TOazKaGxejeE5DtiBzFSJkuIZ0iQiJwA="
+    "signature": "BXmUKNhDxvuCdkx7GgMqu4N6t8meDZnn1VlNTqYp3f5X/nv08XKaneNBXhmOpdgJymaKSbF5hk2t7Jzr0Vyz8wA="
   },
   "t2timeout": 2500
 }

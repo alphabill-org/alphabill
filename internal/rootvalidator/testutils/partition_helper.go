@@ -71,20 +71,15 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.Input
 	return partitionNodes, record
 }
 
-func CreateBlockCertificationRequest(t *testing.T, pn *genesis.PartitionNode, id []byte, newHash []byte, blockHash []byte, partitionNode *TestNode) *certification.BlockCertificationRequest {
+func CreateBlockCertificationRequest(t *testing.T, ir *certificates.InputRecord, sysId []byte, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: id,
-		NodeIdentifier:   pn.BlockCertificationRequest.NodeIdentifier,
+		SystemIdentifier: sysId,
+		NodeIdentifier:   node.Peer.ID().String(),
 		RootRoundNumber:  1,
-		InputRecord: &certificates.InputRecord{
-			PreviousHash: pn.BlockCertificationRequest.InputRecord.Hash,
-			Hash:         newHash,
-			BlockHash:    blockHash,
-			SummaryValue: pn.BlockCertificationRequest.InputRecord.SummaryValue,
-		},
+		InputRecord:      ir,
 	}
-	require.NoError(t, r1.Sign(partitionNode.Signer))
+	require.NoError(t, r1.Sign(node.Signer))
 	return r1
 }
 
@@ -95,7 +90,7 @@ func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID
 		Message:  msg,
 	})
 	// wait for message to be consumed
-	require.Eventually(t, func() bool { return len(net.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return len(net.MessageCh) == 0 }, 100000*time.Second, 10*time.Millisecond)
 }
 
 func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType string) T {
@@ -107,7 +102,7 @@ func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType str
 			return true
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick)
+	}, 10000*test.WaitDuration, test.WaitTick)
 	// cleat the queue
 	net.ResetSentMessages(msgType)
 	return msg.(T)

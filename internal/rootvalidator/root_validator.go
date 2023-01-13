@@ -188,8 +188,7 @@ func (v *Validator) loop() {
 					logger.Warning("Type %T not supported", msg.Message)
 					return
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from %s", req.NodeIdentifier), req)
-				logger.Debug("Handling Block Certification Request from %s, IR hash %X, Block Hash %X", req.NodeIdentifier, req.InputRecord.Hash, req.InputRecord.BlockHash)
+				util.WriteDebugJsonLog(logger, fmt.Sprintf("Certification Request from %s", msg.From), req)
 				v.onBlockCertificationRequest(req)
 				break
 			case network.ProtocolHandshake:
@@ -198,7 +197,7 @@ func (v *Validator) loop() {
 					logger.Warning("Type %T not supported", msg.Message)
 					return
 				}
-				util.WriteDebugJsonLog(logger, "Received handshake", req)
+				logger.Debug("Handshake: system id %v, node %v", req.SystemIdentifier, req.NodeIdentifier)
 				break
 			default:
 				logger.Warning("Protocol %s not supported.", msg.Protocol)
@@ -290,7 +289,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 	}
 	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
 	if err != nil {
-		logger.Warning("Block certification request from %X node %v invalid, %w", err)
+		logger.Warning("Block certification request from %X node %v invalid, %w", req.SystemIdentifier, req.NodeIdentifier, err)
 		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
 		return
 	}

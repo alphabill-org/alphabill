@@ -13,6 +13,7 @@ var ir = &InputRecord{
 	Hash:         []byte{0, 0, 2},
 	BlockHash:    []byte{0, 0, 3},
 	SummaryValue: []byte{0, 0, 4},
+	RoundNumber:  1,
 }
 
 func TestInputRecord_IsValid(t *testing.T) {
@@ -89,7 +90,7 @@ func TestInputRecord_IsNil(t *testing.T) {
 }
 
 func TestInputRecord_AddToHasher(t *testing.T) {
-	expectedHash, _ := hex.DecodeString("F93BD6EB012EF4E1E1D9E760A4851CFE5E98EA470A26CE49BA1C0419DC2ADCF7")
+	expectedHash, _ := hex.DecodeString("751b96425db404a17632072106655fa93019bc4eb11e13a71d157b77129d104b")
 	hasher := sha256.New()
 	ir.AddToHasher(hasher)
 	hash := hasher.Sum(nil)

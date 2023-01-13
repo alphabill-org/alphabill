@@ -107,14 +107,19 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	require.Len(t, partitionNodes, 3)
 	// mock requests from partition node
 	requests := make([]*certification.BlockCertificationRequest, 2)
-	newHash := test.RandomBytes(32)
-	blockHash := test.RandomBytes(32)
-	requests[0] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[0], partitionID, newHash, blockHash, partitionNodes[0])
-	requests[1] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[1], partitionID, newHash, blockHash, partitionNodes[1])
+	newIR := &certificates.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  1,
+	}
+	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
+	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	req := consensus.IRChangeRequest{
 		SystemIdentifier: p.SystemIdentifier(partitionID),
 		Reason:           consensus.Quorum,
-		IR:               requests[0].InputRecord,
+		IR:               newIR,
 		Requests:         requests}
 	// submit IR change request from partition with quorum
 	cm.RequestCertification() <- req

@@ -143,7 +143,7 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 		0, 0, 0, 1, // 4 byte system identifier
 		'1',                    // node identifier - string is encoded without '/0'
 		0, 0, 0, 0, 0, 0, 0, 9, // round number
-		0, 1, 2, 3, 4, 5, 6, 7, // prev. hash, hash, block hash, summary value
+		0, 1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 3, // prev. hash, hash, block hash, summary value, round number
 		// Is serialized without signature
 	})
 
@@ -168,6 +168,7 @@ func TestIRChangeReqMsg_AddToHasher(t *testing.T) {
 							Hash:         []byte{2, 3},
 							BlockHash:    []byte{4, 5},
 							SummaryValue: []byte{6, 7},
+							RoundNumber:  3,
 						},
 						Signature: []byte{0, 1},
 					},

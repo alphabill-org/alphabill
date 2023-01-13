@@ -2,9 +2,9 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAkzEkgpWSAt26d2KkpugxcmZzpWk4oH5qKneULm5E84SeF",
-        "signing_public_key": "Ax2slvuoyQ8MyoR4ukM/b5Au+yoV+lPa7YtagTEMog4S",
-        "encryption_public_key": "Akd+XkxGrWccFlN0xEyM2TAZ9JDMRGMTX08AtlTXDEf8"
+        "node_identifier": "16Uiu2HAmJVKzG98szSRcYBRdszU8sEmTRncqgPBfk3tvDySzveFy",
+        "signing_public_key": "AlDPf+mvX23NgxHxnQfzEqSSSOj2m8NblBsr4knXu5Ad",
+        "encryption_public_key": "A1ashIF3tBWs87wXogETVmWrUdDx03xj1g9iVLkWbxgQ"
       }
     ],
     "consensus": {
@@ -13,7 +13,7 @@
       "consensus_timeout_ms": 10000,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAkzEkgpWSAt26d2KkpugxcmZzpWk4oH5qKneULm5E84SeF": "ZZHHL5V9Bdw+lKJ0KliRd99++ZXwJ0ZVr5cbkNCYWjELNsq/HHp2/OnjYe0G1A3x9SMgnqp4C006T6otJdEjdQA="
+        "16Uiu2HAmJVKzG98szSRcYBRdszU8sEmTRncqgPBfk3tvDySzveFy": "XUt7HgscP+oOXu/pMoUq9/OKdLeR57DS4sMi2p+O1skgsVoEgFjA5IZbU5bs1LJPpKJTfEDYB/eX78hDv55oKwA="
       }
     }
   },
@@ -31,10 +31,11 @@
             "input_record": {
               "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
               "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "block_hash": "msBwL/isEaTnJ90o7nZI6QrFR32tOdtjpqToCJzXn+4=",
-              "summary_value": "AAAAAAAAAAA="
+              "block_hash": "xqjuNvL8qOMC88Okh5rSN6pcKqwQ3l0Qz8JraiLqLeY=",
+              "summary_value": "AAAAAAAAAAA=",
+              "round_number": 1
             },
-            "signature": "eG91SWtOvIvqSJYuOV0Jv4hcbO2YEHBz3rC5k2mppaRsg6VRZnw4pd+TOazKaGxejeE5DtiBzFSJkuIZ0iQiJwA="
+            "signature": "BXmUKNhDxvuCdkx7GgMqu4N6t8meDZnn1VlNTqYp3f5X/nv08XKaneNBXhmOpdgJymaKSbF5hk2t7Jzr0Vyz8wA="
           },
           "t2timeout": 2500
         }
@@ -43,8 +44,9 @@
         "input_record": {
           "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
           "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "block_hash": "msBwL/isEaTnJ90o7nZI6QrFR32tOdtjpqToCJzXn+4=",
-          "summary_value": "AAAAAAAAAAA="
+          "block_hash": "xqjuNvL8qOMC88Okh5rSN6pcKqwQ3l0Qz8JraiLqLeY=",
+          "summary_value": "AAAAAAAAAAA=",
+          "round_number": 1
         },
         "unicity_tree_certificate": {
           "system_identifier": "AAAAAQ==",
@@ -86,16 +88,17 @@
         },
         "unicity_seal": {
           "root_round_info": {
-            "round_number": 1,
+            "round_number": 2,
             "timestamp": 1668208271000,
-            "current_root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+            "parent_round_number": 1,
+            "current_root_hash": "pwtGrBdUdpsp8GywHbZXLOPPr7wGa4PUKsoLly1UAto="
           },
           "commit_info": {
-            "root_round_info_hash": "SSfIV7nGkm0E7nj0vx4E1g+e69nF4fr13bWWJTWoVz0=",
-            "root_hash": "ylh0TX7V3ERXv3kUXUwpF8CGjj60wsRuxZxrk4XWyKA="
+            "root_round_info_hash": "gk9QgzOUOxPwvTjh2mVR/mFkltfzzmKlGhwaYxtoiiQ=",
+            "root_hash": "pwtGrBdUdpsp8GywHbZXLOPPr7wGa4PUKsoLly1UAto="
           },
           "signatures": {
-            "16Uiu2HAkzEkgpWSAt26d2KkpugxcmZzpWk4oH5qKneULm5E84SeF": "qEUMer+9kX8KMAmXhGesgQDDBJX56OTwsK6EUb/1EeVNFnJTbmh5BfebhhPH+U/ZF4Jf6tsnSi9iEDVM/TKu0QE="
+            "16Uiu2HAmJVKzG98szSRcYBRdszU8sEmTRncqgPBfk3tvDySzveFy": "Dr8s2ZQnjd+CVbHXy6svyL8lRqiDP8Vwq4ONTFqGqTFGuL2l7piA8GQSOQ5+a5RHZTb439KxziRZeooJpNp9tgE="
           }
         }
       },

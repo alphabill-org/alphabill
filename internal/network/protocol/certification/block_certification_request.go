@@ -59,5 +59,6 @@ func (x *BlockCertificationRequest) Bytes() []byte {
 	b.Write(x.InputRecord.Hash)
 	b.Write(x.InputRecord.BlockHash)
 	b.Write(x.InputRecord.SummaryValue)
+	b.Write(util.Uint64ToBytes(x.InputRecord.RoundNumber))
 	return b.Bytes()
 }

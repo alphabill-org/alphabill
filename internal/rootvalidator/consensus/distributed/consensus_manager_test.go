@@ -72,10 +72,15 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 	cm, _, partitionNodes, rg := initConsensusManager(t, mockNet)
 	defer cm.Stop()
 	requests := make([]*certification.BlockCertificationRequest, 2)
-	newHash := test.RandomBytes(32)
-	blockHash := test.RandomBytes(32)
-	requests[0] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[0], partitionID, newHash, blockHash, partitionNodes[0])
-	requests[1] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[1], partitionID, newHash, blockHash, partitionNodes[1])
+	newIR := &certificates.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  1,
+	}
+	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
+	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	req := consensus.IRChangeRequest{
 		SystemIdentifier: p.SystemIdentifier(partitionID),
 		Reason:           consensus.Quorum,
@@ -147,10 +152,15 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	defer cm.Stop()
 	// generate mock requests from partitions
 	requests := make([]*certification.BlockCertificationRequest, 2)
-	newHash := test.RandomBytes(32)
-	blockHash := test.RandomBytes(32)
-	requests[0] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[0], partitionID, newHash, blockHash, partitionNodes[0])
-	requests[1] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[1], partitionID, newHash, blockHash, partitionNodes[1])
+	newIR := &certificates.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  1,
+	}
+	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
+	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	irChReq := &atomic_broadcast.IRChangeReqMsg{
 		SystemIdentifier: partitionID,
 		CertReason:       atomic_broadcast.IRChangeReqMsg_QUORUM,
@@ -216,10 +226,15 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	defer cm.Stop()
 	// generate mock requests from partitions
 	requests := make([]*certification.BlockCertificationRequest, 2)
-	newHash := test.RandomBytes(32)
-	blockHash := test.RandomBytes(32)
-	requests[0] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[0], partitionID, newHash, blockHash, partitionNodes[0])
-	requests[1] = testutils.CreateBlockCertificationRequest(t, rg.Partitions[0].Nodes[1], partitionID, newHash, blockHash, partitionNodes[1])
+	newIR := &certificates.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  1,
+	}
+	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
+	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
 	irChReq := &atomic_broadcast.IRChangeReqMsg{
 		SystemIdentifier: partitionID,
 		CertReason:       atomic_broadcast.IRChangeReqMsg_QUORUM,

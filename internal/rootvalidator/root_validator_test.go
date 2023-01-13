@@ -70,6 +70,42 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Validator, *testutils.T
 	return validator, node, partitionNodes, rootGenesis
 }
 
+func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	node := testutils.NewTestNode(t)
+	verifier := node.Verifier
+	rootPubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	id := node.Peer.ID()
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	require.NoError(t, err)
+	mockNet := testnetwork.NewMockNetwork()
+
+	validator, err := NewRootValidatorNode(rootGenesis, node.Peer, mockNet, MonolithicConsensus(node.Peer.ID().String(), node.Signer))
+	require.NoError(t, err)
+	require.NotNil(t, validator)
+	defer validator.Close()
+}
+
+func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
+	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	node := testutils.NewTestNode(t)
+	verifier := node.Verifier
+	rootPubKeyBytes, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	id := node.Peer.ID()
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	require.NoError(t, err)
+	partitionNetMock := testnetwork.NewMockNetwork()
+	rootHost := testutils.NewTestNode(t)
+	rootNetMock := testnetwork.NewMockNetwork()
+	validator, err := NewRootValidatorNode(rootGenesis, node.Peer, partitionNetMock,
+		DistributedConsensus(rootHost.Peer, rootGenesis.GetRoot(), rootNetMock, rootHost.Signer))
+	require.NoError(t, err)
+	require.NotNil(t, validator)
+	defer validator.Close()
+}
+
 func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork()
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
@@ -272,12 +308,10 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
 	// create certification request
-	newHash := test.RandomBytes(32)
-	blockHash := test.RandomBytes(32)
 	newIR := &certificates.InputRecord{
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
-		Hash:         newHash,
-		BlockHash:    blockHash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
@@ -297,4 +331,28 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		require.Equal(t, partitionID, cert.UnicityTreeCertificate.SystemIdentifier)
 		require.Equal(t, newIR, cert.InputRecord)
 	}
+}
+
+func TestRootValidator_ResultUnknown(t *testing.T) {
+	mockNet := testnetwork.NewMockNetwork()
+	rootValidator, _, _, rg := initRootValidator(t, mockNet)
+	defer rootValidator.Close()
+	newIR := &certificates.InputRecord{
+		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		RoundNumber:  2,
+	}
+	uc := &certificates.UnicityCertificate{
+		InputRecord: newIR,
+		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+			SystemIdentifier: unknownID,
+		},
+		UnicitySeal: &certificates.UnicitySeal{},
+	}
+	// simulate response from consensus manager
+	rootValidator.onCertificationResult(uc)
+	// no responses will be sent
+	require.Empty(t, mockNet.SentMessages(network.ProtocolUnicityCertificates))
 }

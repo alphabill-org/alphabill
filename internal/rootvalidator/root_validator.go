@@ -81,7 +81,7 @@ func MonolithicConsensus(selfId string, signer crypto.Signer) ConsensusFn {
 	}
 }
 
-func DistributedConsensus(rootHost *network.Peer, rootGenesis *genesis.GenesisRootRecord, rootNet *network.LibP2PNetwork, signer crypto.Signer) ConsensusFn {
+func DistributedConsensus(rootHost *network.Peer, rootGenesis *genesis.GenesisRootRecord, net distributed.RootNet, signer crypto.Signer) ConsensusFn {
 	return func(partitionStore PartitionStoreRd, stateStore StateStore) (ConsensusManager, error) {
 		return distributed.NewDistributedAbConsensusManager(
 			rootHost,
@@ -89,7 +89,7 @@ func DistributedConsensus(rootHost *network.Peer, rootGenesis *genesis.GenesisRo
 			partitionStore,
 			stateStore,
 			signer,
-			rootNet)
+			net)
 	}
 }
 
@@ -330,6 +330,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 func (v *Validator) onCertificationResult(certificate *certificates.UnicityCertificate) {
 	sysId := proto.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
 	// remember to clear the incoming buffer to accept new requests
+	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer v.incomingRequests.Clear(sysId)
 
 	info, err := v.partitionStore.GetPartitionInfo(sysId)

@@ -117,15 +117,15 @@ func initiateStateStore(stateStore distributed.StateStore, rg *genesis.RootGenes
 // NewRootValidatorNode creates a new instance of the root validator node
 func NewRootValidatorNode(
 	genesis *genesis.RootGenesis,
-	prt *network.Peer,
+	host *network.Peer,
 	pNet PartitionNet,
 	consensus ConsensusFn,
 	opts ...Option,
 ) (*Validator, error) {
-	if prt == nil {
+	if host == nil {
 		return nil, errors.New("partition listener is nil")
 	}
-	log.SetContext(log.KeyNodeID, prt.ID().String())
+	log.SetContext(log.KeyNodeID, host.ID().String())
 	if pNet == nil {
 		return nil, errors.New("network is nil")
 	}
@@ -145,10 +145,10 @@ func NewRootValidatorNode(
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct consensus manager, %w", err)
 	}
-	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", prt.ID(), prt.MultiAddresses())
+	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", host.ID(), host.MultiAddresses())
 	node := &Validator{
 		conf:             config,
-		partitionHost:    prt,
+		partitionHost:    host,
 		partitionStore:   partitionStore,
 		incomingRequests: NewCertificationRequestBuffer(),
 		net:              pNet,
@@ -264,44 +264,45 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 	sysId := proto.SystemIdentifier(req.SystemIdentifier)
 	info, err := v.partitionStore.GetPartitionInfo(sysId)
 	if err != nil {
-		logger.Warning("Block certification request from %X node %v rejected, %w",
+		logger.Warning("Block certification request from %X node %v rejected: %v",
 			req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
 	// find node verifier
 	ver, found := info.TrustBase[req.NodeIdentifier]
 	if !found {
-		logger.Warning("Block certification request from %X node %v rejected, unknown node",
+		logger.Warning("Block certification request from %X node %v rejected: unknown node",
 			req.SystemIdentifier, req.NodeIdentifier)
+		return
 	}
 	err = req.IsValid(ver)
 	if err != nil {
-		logger.Warning("Block certification request from %X node %v rejected, signature verification failed",
+		logger.Warning("Block certification request from %X node %v rejected: signature verification failed",
 			req.SystemIdentifier, req.NodeIdentifier)
 		return
 	}
 	systemIdentifier := proto.SystemIdentifier(req.SystemIdentifier)
 	latestUnicityCertificate, err := v.getLatestUnicityCertificate(systemIdentifier)
 	if err != nil {
-		logger.Warning("Block certification request from %X node %v rejected, failed to read last certified state %w",
+		logger.Warning("Block certification request from %X node %v rejected, failed to read last certified state %v",
 			req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
 	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
 	if err != nil {
-		logger.Warning("Block certification request from %X node %v invalid, %w", req.SystemIdentifier, req.NodeIdentifier, err)
+		logger.Warning("Block certification request from %X node %v invalid, %v", req.SystemIdentifier, req.NodeIdentifier, err)
 		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
 		return
 	}
 	if err := v.incomingRequests.Add(req); err != nil {
-		logger.Warning("Block certification request from %X node %v could not be stored, %w", err.Error())
+		logger.Warning("Block certification request from %X node %v could not be stored, %v", err.Error())
 		return
 	}
 	// There has to be at least one node in the partition, otherwise we could not have verified the request
 	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(info)
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
-		logger.Info("Partition %X reached consensus, new InputHash: %X. ", systemIdentifier.Bytes(), ir.Hash)
+		logger.Info("Partition %X reached consensus, new InputHash: %X", systemIdentifier.Bytes(), ir.Hash)
 		requests := v.incomingRequests.GetRequests(systemIdentifier)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,

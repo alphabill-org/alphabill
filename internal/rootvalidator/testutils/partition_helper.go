@@ -90,7 +90,7 @@ func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID
 		Message:  msg,
 	})
 	// wait for message to be consumed
-	require.Eventually(t, func() bool { return len(net.MessageCh) == 0 }, 100000*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return len(net.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
 }
 
 func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType string) T {
@@ -102,8 +102,25 @@ func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType str
 			return true
 		}
 		return false
-	}, 10000*test.WaitDuration, test.WaitTick)
+	}, test.WaitDuration, test.WaitTick)
 	// cleat the queue
 	net.ResetSentMessages(msgType)
 	return msg.(T)
+}
+
+func MockNetAwaitMultiple[T any](t *testing.T, net *testnetwork.MockNet, msgType string, nof int) []T {
+	result := make([]T, nof)
+	require.Eventually(t, func() bool {
+		messages := net.SentMessages(msgType)
+		if len(messages) >= nof {
+			for i, msg := range messages {
+				result[i] = msg.Message.(T)
+			}
+			return true
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+	// cleat the queue
+	net.ResetSentMessages(msgType)
+	return result
 }

@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -27,12 +27,12 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	}
 	err := distributedRootGenesisRunFunc(context.Background(), conf)
 	require.NoError(t, err)
-	expectedRGFile, _ := ioutil.ReadFile("testdata/expected/distributed-root-genesis.json")
-	actualRGFile, _ := ioutil.ReadFile(path.Join(outputDir, "root-genesis.json"))
+	expectedRGFile, _ := os.ReadFile("testdata/expected/distributed-root-genesis.json")
+	actualRGFile, _ := os.ReadFile(path.Join(outputDir, "root-genesis.json"))
 	require.EqualValues(t, expectedRGFile, actualRGFile)
 
-	expectedPGFile1, _ := ioutil.ReadFile("testdata/expected/distributed-partition-genesis-1.json")
-	actualPGFile1, _ := ioutil.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
+	expectedPGFile1, _ := os.ReadFile("testdata/expected/distributed-partition-genesis-1.json")
+	actualPGFile1, _ := os.ReadFile(path.Join(outputDir, "partition-genesis-1.json"))
 	require.EqualValues(t, expectedPGFile1, actualPGFile1)
 }
 

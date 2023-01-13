@@ -18,7 +18,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/holiman/uint256 v1.2.1
 	github.com/libp2p/go-libp2p v0.22.0
-	github.com/libp2p/go-libp2p-core v0.20.1
 	github.com/multiformats/go-multiaddr v0.7.0
 	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1

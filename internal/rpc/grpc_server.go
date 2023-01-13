@@ -77,7 +77,11 @@ func (r *grpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlock
 	if err != nil {
 		return &alphabill.GetMaxBlockNoResponse{ErrorMessage: err.Error()}, err
 	}
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: bl.UnicityCertificate.InputRecord.RoundNumber}, nil
+	latestRn, err := r.node.GetLatestRoundNumber()
+	if err != nil {
+		return &alphabill.GetMaxBlockNoResponse{ErrorMessage: err.Error()}, err
+	}
+	return &alphabill.GetMaxBlockNoResponse{BlockNo: bl.UnicityCertificate.InputRecord.RoundNumber, MaxRoundNumber: latestRn}, nil
 }
 
 func (r *grpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
@@ -86,6 +90,10 @@ func (r *grpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksReques
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}
 	latestBlock, err := r.node.GetLatestBlock()
+	if err != nil {
+		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
+	}
+	latestRn, err := r.node.GetLatestRoundNumber()
 	if err != nil {
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}
@@ -101,9 +109,12 @@ func (r *grpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksReques
 		if err != nil {
 			return nil, err
 		}
+		if b == nil {
+			continue
+		}
 		res = append(res, b)
 	}
-	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.UnicityCertificate.InputRecord.RoundNumber}, nil
+	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.UnicityCertificate.InputRecord.RoundNumber, MaxRoundNumber: latestRn}, nil
 }
 
 func verifyRequest(req *alphabill.GetBlocksRequest) error {

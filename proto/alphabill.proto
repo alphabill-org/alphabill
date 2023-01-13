@@ -22,6 +22,7 @@ message GetBlocksResponse {
   string error_message = 1;
   uint64 max_block_number = 2;
   repeated Block blocks = 3;
+  uint64 max_round_number = 4;
 }
 
 message GetBlockRequest {
@@ -38,4 +39,5 @@ message GetMaxBlockNoRequest {}
 message GetMaxBlockNoResponse {
   string error_message = 1;
   uint64 block_no = 2;
+  uint64 max_round_number = 3;
 }

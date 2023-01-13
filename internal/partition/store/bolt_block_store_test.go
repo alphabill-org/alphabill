@@ -27,21 +27,25 @@ func TestPersistentBlockStore_AddGenesisBlock(t *testing.T) {
 
 	tp := newEmptyBlock(genesis.GenesisRoundNumber)
 
-	require.Nil(t, bs.LatestUC())
+	uc, err := bs.LatestUC()
+	require.NoError(t, err)
+	require.Nil(t, uc)
 
 	// add block
-	err := bs.AddGenesis(tp)
-	require.NoError(t, err)
+	require.NoError(t, bs.AddGenesis(tp))
 
 	// verify block
 	b, err := bs.Get(tp.UnicityCertificate.InputRecord.RoundNumber)
 	require.NoError(t, err)
 	verifyBlock(t, tp, b)
 
-	genesisUC := bs.LatestUC()
+	genesisUC, err := bs.LatestUC()
+	require.NoError(t, err)
 	require.NotNil(t, genesisUC)
 	require.Equal(t, tp.UnicityCertificate.InputRecord.RoundNumber, genesisUC.InputRecord.RoundNumber)
-	require.Equal(t, genesis.GenesisRoundNumber, bs.LatestRoundNumber())
+	rn, err := bs.LatestRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, genesis.GenesisRoundNumber, rn)
 	bn, err := bs.BlockNumber()
 	require.NoError(t, err)
 	require.Equal(t, genesis.GenesisRoundNumber, bn)
@@ -51,24 +55,34 @@ func TestPersistentBlockStore_AddGet_EmptyBlock(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 	require.NoError(t, bs.AddGenesis(newEmptyBlock(genesis.GenesisRoundNumber)))
 
-	require.Equal(t, genesis.GenesisRoundNumber, bs.LatestRoundNumber())
-	genesisBlock := bs.LatestBlock()
+	rn, err := bs.LatestRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, genesis.GenesisRoundNumber, rn)
+	genesisBlock, err := bs.LatestBlock()
+	require.NoError(t, err)
 	require.Equal(t, genesis.GenesisRoundNumber, genesisBlock.UnicityCertificate.InputRecord.RoundNumber)
-	require.Equal(t, genesisBlock.UnicityCertificate, bs.LatestUC())
+	uc, err := bs.LatestUC()
+	require.NoError(t, err)
+	require.Equal(t, genesisBlock.UnicityCertificate, uc)
 
 	// add empty block
 	newBlock := newEmptyBlock(genesis.GenesisRoundNumber + 1)
 	require.NoError(t, bs.Add(newBlock))
 
 	// verify block is not persisted, but round number and UC are updated
-	require.Equal(t, genesisBlock, bs.LatestBlock())
+	latestPersistedBlock, err := bs.LatestBlock()
+	require.Equal(t, genesisBlock, latestPersistedBlock)
 	b, err := bs.Get(newBlock.UnicityCertificate.InputRecord.RoundNumber)
 	require.NoError(t, err)
 	require.Nil(t, b)
 
-	require.Equal(t, newBlock.UnicityCertificate, bs.LatestUC())
-	require.Equal(t, newBlock.UnicityCertificate.InputRecord.RoundNumber, bs.LatestRoundNumber())
-	require.NotEqual(t, newBlock.UnicityCertificate.InputRecord.RoundNumber, bs.LatestBlock().UnicityCertificate.InputRecord.RoundNumber)
+	uc, err = bs.LatestUC()
+	require.NoError(t, err)
+	require.Equal(t, newBlock.UnicityCertificate, uc)
+	rn, err = bs.LatestRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, newBlock.UnicityCertificate.InputRecord.RoundNumber, rn)
+	require.NotEqual(t, newBlock.UnicityCertificate.InputRecord.RoundNumber, latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber)
 
 }
 
@@ -103,7 +117,8 @@ func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 	require.EqualValues(t, 3, number)
 
 	// verify latest block is the last block added
-	b := bs.LatestBlock()
+	b, err := bs.LatestBlock()
+	require.NoError(t, err)
 	verifyBlock(t, tb3, b)
 }
 
@@ -116,7 +131,7 @@ func TestPersistentBlockStore_EmptyStore(t *testing.T) {
 	require.EqualValues(t, 0, number)
 
 	// verify latest block returns nil
-	b := bs.LatestBlock()
+	b, err := bs.LatestBlock()
 	require.NoError(t, err)
 	require.Nil(t, b)
 }

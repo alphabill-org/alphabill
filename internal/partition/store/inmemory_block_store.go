@@ -53,10 +53,10 @@ func (bs *InMemoryBlockStore) Get(blockNumber uint64) (*block.Block, error) {
 	return bs.blocks[blockNumber], nil
 }
 
-func (bs *InMemoryBlockStore) LatestRoundNumber() uint64 {
+func (bs *InMemoryBlockStore) LatestRoundNumber() (uint64, error) {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
-	return bs.latestUC.InputRecord.RoundNumber
+	return bs.latestUC.InputRecord.RoundNumber, nil
 }
 
 func (bs *InMemoryBlockStore) BlockNumber() (uint64, error) {
@@ -65,16 +65,16 @@ func (bs *InMemoryBlockStore) BlockNumber() (uint64, error) {
 	return bs.latestBlockNumber, nil
 }
 
-func (bs *InMemoryBlockStore) LatestBlock() *block.Block {
+func (bs *InMemoryBlockStore) LatestBlock() (*block.Block, error) {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
-	return bs.blocks[bs.latestBlockNumber]
+	return bs.blocks[bs.latestBlockNumber], nil
 }
 
-func (bs *InMemoryBlockStore) LatestUC() *certificates.UnicityCertificate {
+func (bs *InMemoryBlockStore) LatestUC() (*certificates.UnicityCertificate, error) {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
-	return bs.latestUC
+	return bs.latestUC, nil
 }
 
 func (bs *InMemoryBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {

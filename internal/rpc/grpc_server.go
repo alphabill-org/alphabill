@@ -25,7 +25,8 @@ type (
 	partitionNode interface {
 		SubmitTx(tx *txsystem.Transaction) error
 		GetBlock(blockNr uint64) (*block.Block, error)
-		GetLatestBlock() *block.Block
+		GetLatestBlock() (*block.Block, error)
+		GetLatestRoundNumber() (uint64, error)
 		SystemIdentifier() []byte
 	}
 )
@@ -72,13 +73,19 @@ func (r *grpcServer) GetBlock(_ context.Context, req *alphabill.GetBlockRequest)
 }
 
 func (r *grpcServer) GetMaxBlockNo(_ context.Context, req *alphabill.GetMaxBlockNoRequest) (*alphabill.GetMaxBlockNoResponse, error) {
-	maxBlockNumber := r.node.GetLatestBlock().UnicityCertificate.InputRecord.RoundNumber
-	return &alphabill.GetMaxBlockNoResponse{BlockNo: maxBlockNumber}, nil
+	bl, err := r.node.GetLatestBlock()
+	if err != nil {
+		return &alphabill.GetMaxBlockNoResponse{ErrorMessage: err.Error()}, err
+	}
+	return &alphabill.GetMaxBlockNoResponse{BlockNo: bl.UnicityCertificate.InputRecord.RoundNumber}, nil
 }
 
 func (r *grpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksRequest) (*alphabill.GetBlocksResponse, error) {
-	latestBlock := r.node.GetLatestBlock()
 	err := verifyRequest(req)
+	if err != nil {
+		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
+	}
+	latestBlock, err := r.node.GetLatestBlock()
 	if err != nil {
 		return &alphabill.GetBlocksResponse{ErrorMessage: err.Error()}, err
 	}

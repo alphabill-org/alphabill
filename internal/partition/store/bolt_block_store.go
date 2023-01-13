@@ -2,7 +2,6 @@ package store
 
 import (
 	"encoding/json"
-	"log"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -119,19 +118,19 @@ func (bs *BoltBlockStore) Get(blockNumber uint64) (*block.Block, error) {
 	return b, nil
 }
 
-func (bs *BoltBlockStore) LatestRoundNumber() uint64 {
+func (bs *BoltBlockStore) LatestRoundNumber() (uint64, error) {
 	var number uint64
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		number = util.BytesToUint64(tx.Bucket(metaBucket).Get(latestRoundNoKey))
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
-	return number
+	return number, nil
 }
 
-func (bs *BoltBlockStore) LatestUC() *certificates.UnicityCertificate {
+func (bs *BoltBlockStore) LatestUC() (*certificates.UnicityCertificate, error) {
 	var uc *certificates.UnicityCertificate
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		ucBytes := tx.Bucket(latestUCBucket).Get(latestUCBucketKey)
@@ -141,9 +140,9 @@ func (bs *BoltBlockStore) LatestUC() *certificates.UnicityCertificate {
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return uc
+	return uc, nil
 }
 
 func (bs *BoltBlockStore) BlockNumber() (uint64, error) {
@@ -158,7 +157,7 @@ func (bs *BoltBlockStore) BlockNumber() (uint64, error) {
 	return number, nil
 }
 
-func (bs *BoltBlockStore) LatestBlock() *block.Block {
+func (bs *BoltBlockStore) LatestBlock() (*block.Block, error) {
 	var res *block.Block
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		latestBlockNumber := tx.Bucket(metaBucket).Get(latestBlockNoKey)
@@ -169,9 +168,9 @@ func (bs *BoltBlockStore) LatestBlock() *block.Block {
 		return json.Unmarshal(blockJson, &res)
 	})
 	if err != nil {
-		log.Panicf("error fetching latest block %v", err)
+		return nil, err
 	}
-	return res
+	return res, nil
 }
 
 func (bs *BoltBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {

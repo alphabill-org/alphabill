@@ -30,7 +30,8 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		if blockNumber != lastBlockNumber+1 {
+		// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+		if lastBlockNumber >= blockNumber {
 			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 		}
 

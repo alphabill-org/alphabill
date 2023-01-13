@@ -29,7 +29,8 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 	if err != nil {
 		return err
 	}
-	if b.UnicityCertificate.InputRecord.RoundNumber != lastBlockNumber+1 {
+	// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+	if lastBlockNumber >= b.UnicityCertificate.InputRecord.RoundNumber {
 		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 	keys, err := p.store.GetKeys()

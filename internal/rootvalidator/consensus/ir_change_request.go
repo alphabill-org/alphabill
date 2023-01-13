@@ -38,7 +38,7 @@ func CheckBlockCertificationRequest(req *certification.BlockCertificationRequest
 		return fmt.Errorf("invalid partition round number %v, last certified round number %v", req.InputRecord.RoundNumber, luc.InputRecord.RoundNumber)
 	} else if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
 		// Extending of unknown State.
-		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.UnicitySeal.CommitInfo.RootHash, req.InputRecord.PreviousHash)
+		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.InputRecord.Hash, req.InputRecord.PreviousHash)
 	}
 	return nil
 }

@@ -111,7 +111,7 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	require.Contains(t, stdout.lines[0], "Successfully imported bill(s).")
 
 	// test import required flags
-	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import"))
+	_, err = execBillsCommand(homedir, "import")
 	require.ErrorContains(t, err, "required flag(s) \"bill-file\", \"trust-base-file\" not set")
 
 	// test invalid block proof cannot be imported
@@ -120,7 +120,7 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	invalidBillsFilePath := path.Join(homedir, "invalid-bills.json")
 	_ = moneytx.WriteBillsFile(invalidBillsFilePath, billsFile)
 
-	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", invalidBillsFilePath, trustBaseFilePath))
+	_, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", invalidBillsFilePath, trustBaseFilePath))
 	require.ErrorContains(t, err, "proof verification failed")
 
 	// test that proof from "send --output-path" can be imported
@@ -146,7 +146,7 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	require.Contains(t, stdout.lines[0], fmt.Sprintf("Added key #3 %s", pubKeyAcc3))
 
 	// verify that the same bill cannot be imported to account number 3
-	stdout, err = execBillsCommand(homedir, fmt.Sprintf("import --key 3 --bill-file=%s --trust-base-file=%s", outputFile, trustBaseFilePath))
+	_, err = execBillsCommand(homedir, fmt.Sprintf("import --key 3 --bill-file=%s --trust-base-file=%s", outputFile, trustBaseFilePath))
 	require.ErrorContains(t, err, "invalid bearer predicate")
 }
 

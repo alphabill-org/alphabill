@@ -103,8 +103,8 @@ func newWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *co
 			consoleWriter.Println("Error: must specify a subcommand")
 		},
 	}
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
+	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.AddCommand(startCmd(ctx, config))
 	return walletCmd
 }

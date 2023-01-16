@@ -11,7 +11,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
+	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
@@ -99,29 +99,18 @@ func (w *WalletBackend) Start(ctx context.Context) error {
 func (w *WalletBackend) StartProcess(ctx context.Context) {
 	wlog.Info("starting wallet-backend synchronization")
 	defer wlog.Info("wallet-backend synchronization ended")
-	retryCount := 0
+
 	for {
+		if err := w.Start(ctx); err != nil {
+			wlog.Error("error synchronizing wallet-backend: ", err)
+		}
+		// delay before retrying
 		select {
 		case <-ctx.Done(): // canceled from context
 			return
 		case <-w.cancelSyncCh: // canceled from shutdown method
 			return
-		default:
-			if retryCount > 0 {
-				wlog.Info("sleeping 10s before retrying alphabill connection")
-				timer := time.NewTimer(10 * time.Second)
-				select {
-				case <-timer.C:
-				case <-ctx.Done():
-					timer.Stop()
-					return
-				}
-			}
-			err := w.Start(ctx)
-			if err != nil {
-				wlog.Error("error synchronizing wallet-backend: ", err)
-			}
-			retryCount++
+		case <-time.After(10 * time.Second):
 		}
 	}
 }

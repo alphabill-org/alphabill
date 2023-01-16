@@ -43,6 +43,7 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	}
 
 	store, err := createTestBillStore(t)
+	require.NoError(t, err)
 	_ = store.AddKey(NewPubkey(pubKeyBytes))
 	bp := NewBlockProcessor(store)
 

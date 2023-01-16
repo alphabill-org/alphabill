@@ -3,10 +3,12 @@ package distributed
 import (
 	"bytes"
 	gocrypto "crypto"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
@@ -28,6 +30,18 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+}
+
+func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
+	select {
+	case result, ok := <-ch:
+		if !ok {
+			return nil, fmt.Errorf("failed to read from channel")
+		}
+		return &result, nil
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("timeout")
+	}
 }
 
 func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
@@ -271,11 +285,15 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootVote, lastVoteMsg)
+	// after two successful rounds the IR change will be committed and UC is returned
+	result, err := readResult(cm.CertificationResult(), time.Second)
+	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
+	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
+	result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh)
 
-	// this will trigger next proposal since QC is achieved
+	// roor will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
-
-	// after two successful rounds the IR change will be committed and UC is returned
-	require.Eventually(t, func() bool { return len(cm.CertificationResult()) == 1 }, 1*time.Second, 10*time.Millisecond)
+	require.NoError(t, err)
+	//	require.Eventually(t, func() bool { return len(cm.CertificationResult()) == 1 }, 1*time.Second, 10*time.Millisecond)
 }

@@ -23,7 +23,6 @@ const (
 	defaultT3Timeout = 900 * time.Millisecond
 	t3TimerID        = "t3timer"
 	defaultHash      = gocrypto.SHA256
-	channelBuffer    = 100
 )
 
 type (
@@ -101,8 +100,8 @@ func NewMonolithicConsensusManager(selfId string, partitionStore PartitionStore,
 		return nil, err
 	}
 	consensusManager := &ConsensusManager{
-		certReqCh:    make(chan consensus.IRChangeRequest, channelBuffer),
-		certResultCh: make(chan certificates.UnicityCertificate, channelBuffer),
+		certReqCh:    make(chan consensus.IRChangeRequest),
+		certResultCh: make(chan certificates.UnicityCertificate),
 		timers:       timers,
 		conf:         config,
 		selfId:       selfId,

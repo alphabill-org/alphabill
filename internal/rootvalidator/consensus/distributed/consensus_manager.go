@@ -150,8 +150,8 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	}
 
 	consensusManager := &ConsensusManager{
-		certReqCh:      make(chan consensus.IRChangeRequest, 1),
-		certResultCh:   make(chan certificates.UnicityCertificate, 1),
+		certReqCh:      make(chan consensus.IRChangeRequest),
+		certResultCh:   make(chan certificates.UnicityCertificate),
 		config:         conf,
 		peer:           host,
 		timers:         timer.NewTimers(),

@@ -2,6 +2,7 @@ package monolithic
 
 import (
 	gocrypto "crypto"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,6 +29,18 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+}
+
+func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
+	select {
+	case result, ok := <-ch:
+		if !ok {
+			return nil, fmt.Errorf("failed to read from channel")
+		}
+		return &result, nil
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("timeout")
+	}
 }
 
 func initConsensusManager(t *testing.T) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
@@ -124,8 +137,8 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	// submit IR change request from partition with quorum
 	cm.RequestCertification() <- req
 	// require, that certificates are received for partition ID
-	require.Eventually(t, func() bool { return len(cm.CertificationResult()) == 1 }, 1*time.Second, 10*time.Millisecond)
-	result := <-cm.CertificationResult()
+	result, err := readResult(cm.CertificationResult(), 1000*time.Millisecond)
+	require.NoError(t, err)
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
 	require.Equal(t, uint64(3), result.UnicitySeal.RootRoundInfo.RoundNumber)
 	require.Equal(t, uint64(2), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)
@@ -143,8 +156,8 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 3 * 900)
-	require.Eventually(t, func() bool { return len(cm.CertificationResult()) == 1 }, 3*time.Second, 10*time.Millisecond)
-	result := <-cm.CertificationResult()
+	result, err := readResult(cm.CertificationResult(), 3000*time.Millisecond)
+	require.NoError(t, err)
 	require.Equal(t, partitionInputRecord, result.InputRecord)
 	require.Equal(t, uint64(5), result.UnicitySeal.RootRoundInfo.RoundNumber)
 	require.Equal(t, uint64(4), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)

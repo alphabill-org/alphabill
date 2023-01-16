@@ -213,7 +213,7 @@ func initState(n *Node) error {
 		uc = genesisBlock.UnicityCertificate
 		logger.Info("State initialised from the genesis block")
 	}
-	n.luc = uc
+	n.updateLUC(uc)
 	return nil
 }
 
@@ -437,7 +437,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	n.pendingBlockProposal = nil
 	n.leaderSelector.UpdateLeader(uc.UnicitySeal)
 	n.startHandleOrForwardTransactions()
-	n.luc = uc
+	n.updateLUC(uc)
 	n.timers.Restart(t1TimerName)
 	n.sendEvent(event.NewRoundStarted, newBlockNr)
 }
@@ -638,8 +638,8 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
 			logger.Warning("UC IR hash not equal to state's hash: '%X' vs '%X'", uc.InputRecord.Hash, state.Root())
 			return n.startRecovery(uc)
-		} else if !bytes.Equal(uc.InputRecord.BlockHash, n.luc.InputRecord.BlockHash) {
-			logger.Warning("UC IR block hash not equal to LUC's block hash: '%X' vs '%X'", uc.InputRecord.BlockHash, n.luc.InputRecord.BlockHash)
+		} else if bl := n.GetLatestBlock(); !bytes.Equal(uc.InputRecord.BlockHash, bl.UnicityCertificate.InputRecord.BlockHash) {
+			logger.Warning("UC IR block hash not equal to latest block's (#%v) hash: '%X' vs '%X'", bl.BlockNumber, uc.InputRecord.BlockHash, bl.UnicityCertificate.InputRecord.BlockHash)
 			return n.startRecovery(uc)
 		} else {
 			logger.Debug("No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
@@ -833,7 +833,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	latestBlock := n.GetLatestBlock()
 	logger.Debug("Checking if recovery is complete, latest block: #%v", latestBlock.BlockNumber)
 	if latestBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber >= n.luc.UnicitySeal.RootChainRoundNumber {
-		n.luc = latestBlock.UnicityCertificate
+		n.updateLUC(latestBlock.UnicityCertificate)
 		n.stopRecovery(n.luc)
 	} else {
 		logger.Debug("Not fully recovered yet, latest block's UC root round %v vs LUC's root round %v", latestBlock.UnicityCertificate.UnicitySeal.RootChainRoundNumber, n.luc.UnicitySeal.RootChainRoundNumber)
@@ -850,7 +850,11 @@ func (n *Node) stopRecovery(uc *certificates.UnicityCertificate) {
 
 func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
 	if n.status == recovering {
-		// already recovering
+		// already recovering, but if uc is newer than luc, let's update luc
+		if uc.UnicitySeal.RootChainRoundNumber > n.luc.UnicitySeal.RootChainRoundNumber {
+			logger.Warning("Recovery in progress, but received a newer UC, updating LUC")
+			n.updateLUC(uc)
+		}
 		return nil
 	}
 	n.revertState()
@@ -865,6 +869,15 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) error {
 	go n.sendLedgerReplicationRequest(fromBlockNr)
 
 	return ErrNodeDoesNotHaveLatestBlock
+}
+
+func (n *Node) updateLUC(uc *certificates.UnicityCertificate) {
+	if n.luc != nil && uc.UnicitySeal.RootChainRoundNumber <= n.luc.UnicitySeal.RootChainRoundNumber {
+		return
+	}
+	n.luc = uc
+	logger.Info("Updated LUC, root round: %v", n.luc.UnicitySeal.RootChainRoundNumber)
+	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 }
 
 func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {

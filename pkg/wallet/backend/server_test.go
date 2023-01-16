@@ -187,8 +187,8 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.EqualValues(t, bill.Value, 1)
 	require.False(t, bill.IsDCBill)
 	bill = res.Bills[1]
-	require.EqualValues(t, res.Bills[1].Value, 2)
-	require.True(t, res.Bills[1].IsDCBill)
+	require.EqualValues(t, bill.Value, 2)
+	require.True(t, bill.IsDCBill)
 }
 
 func TestListBillsRequest_Paging(t *testing.T) {

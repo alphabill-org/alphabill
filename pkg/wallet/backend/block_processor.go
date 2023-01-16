@@ -56,9 +56,8 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 	if err != nil {
 		return err
 	}
-	stx := gtx.(txsystem.GenericTransaction)
 
-	switch tx := stx.(type) {
+	switch tx := gtx.(type) {
 	case moneytx.Transfer:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.NewBearer()) {
 			wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))

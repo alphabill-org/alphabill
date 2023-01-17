@@ -480,12 +480,11 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 
 func (n *Node) process(tx txsystem.GenericTransaction) error {
 	defer trackExecutionTime(time.Now(), "Processing transaction")
-	block, err := n.blockStore.LatestBlock()
+	bl, err := n.blockStore.LatestBlock()
 	if err != nil {
-		logger.Warning("Unable to get latest block: %v", err)
-		return err
+		return fmt.Errorf("unable to get latest block from block store: %w", err)
 	}
-	if err := n.validateAndExecuteTx(tx, block.UnicityCertificate.InputRecord.RoundNumber); err != nil {
+	if err := n.validateAndExecuteTx(tx, bl.UnicityCertificate.InputRecord.RoundNumber); err != nil {
 		n.sendEvent(event.TransactionFailed, tx)
 		return err
 	}
@@ -585,8 +584,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 		}
 		err = n.process(genTx)
 		if err != nil {
-			logger.Warning("transaction processing failed %v", err)
-			return err
+			return fmt.Errorf("transaction processing failed %v", err)
 		}
 	}
 	return n.sendCertificationRequest()
@@ -687,8 +685,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
 		n.revertState()
-		n.startNewRound(uc)
-		return ErrStateReverted
+		return errors.Wrap(n.startNewRound(uc), ErrStateReverted.Error())
 	} else {
 		// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 		return n.startRecovery(uc)

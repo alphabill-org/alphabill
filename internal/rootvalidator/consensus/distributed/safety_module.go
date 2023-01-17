@@ -66,7 +66,7 @@ func (s *SafetyModule) constructCommitInfo(block *atomic_broadcast.BlockData, vo
 	return &certificates.CommitInfo{RootRoundInfoHash: voteInfoHash, RootHash: commitHash}
 }
 
-func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId []byte, author string, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
+func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID []byte, author string, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
 	// The overall validity of the block must be checked prior to calling this method
 	// However since we are de-referencing QC make sure it is not nil
 	if block.Qc == nil {
@@ -85,7 +85,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateId [
 		Epoch:             block.Epoch,
 		Timestamp:         block.Timestamp,
 		ParentRoundNumber: block.Qc.VoteInfo.RoundNumber,
-		CurrentRootHash:   execStateId,
+		CurrentRootHash:   execStateID,
 	}
 	// Create ledger commit info, the signed part of vote
 	ledgerCommitInfo := s.constructCommitInfo(block, voteInfo.Hash(gocrypto.SHA256))

@@ -15,8 +15,8 @@ import (
 var IR1 = &certificates.InputRecord{Hash: []byte{1}}
 var IR2 = &certificates.InputRecord{Hash: []byte{2}}
 var IR3 = &certificates.InputRecord{Hash: []byte{3}}
-var SysId1 = []byte{0, 0, 0, 1}
-var SysId2 = []byte{0, 0, 0, 2}
+var SysID1 = []byte{0, 0, 0, 1}
+var SysID2 = []byte{0, 0, 0, 2}
 
 var req1 = &certification.BlockCertificationRequest{
 	InputRecord: IR1,
@@ -145,13 +145,13 @@ func TestRequestStore_isConsensusNotPossible_FiveNodes(t *testing.T) {
 func Test_CertStore_add(t *testing.T) {
 	cs := NewCertificationRequestBuffer()
 	partitionInfo := partition_store.PartitionInfo{
-		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
+		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysID1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
 	}
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
-	require.ErrorContains(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}), "duplicated request")
-	require.ErrorContains(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR2}), "equivocating request with different hash")
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR2}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.ErrorContains(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}), "duplicated request")
+	require.ErrorContains(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR2}), "equivocating request with different hash")
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR2}))
 	_, possible := cs.IsConsensusReceived(partitionInfo)
 	require.False(t, possible)
 }
@@ -159,18 +159,18 @@ func Test_CertStore_add(t *testing.T) {
 func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 	cs := NewCertificationRequestBuffer()
 	partitionInfo := partition_store.PartitionInfo{
-		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
+		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysID1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
 	}
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR2}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR2}))
 	_, possible := cs.IsConsensusReceived(partitionInfo)
 	require.False(t, possible)
-	cs.Clear(p.SystemIdentifier(SysId1))
+	cs.Clear(p.SystemIdentifier(SysID1))
 	// test all requests cleared
-	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId1)))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR1}))
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysID1)))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}))
 	ir, possible := cs.IsConsensusReceived(partitionInfo)
 	require.True(t, possible)
 	require.Equal(t, req1.InputRecord, ir)
@@ -179,32 +179,32 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 	cs := NewCertificationRequestBuffer()
 	partInfo1 := partition_store.PartitionInfo{
-		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
+		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysID1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
 	}
 	partInfo2 := partition_store.PartitionInfo{
-		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId2, T2Timeout: 2500},
+		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysID2, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
 	}
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "1", InputRecord: IR2}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID2, NodeIdentifier: "1", InputRecord: IR2}))
 	_, possible := cs.IsConsensusReceived(partInfo1)
 	require.True(t, possible)
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR1}))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "2", InputRecord: IR2}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID2, NodeIdentifier: "2", InputRecord: IR2}))
 	ir, possible := cs.IsConsensusReceived(partInfo1)
 	require.True(t, possible)
 	require.Equal(t, IR1, ir)
-	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId1))), 2)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysID1))), 2)
 	ir2, possible2 := cs.IsConsensusReceived(partInfo2)
 	require.True(t, possible2)
 	require.Equal(t, IR2, ir2)
-	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId2))), 2)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysID2))), 2)
 	// Reset resets both stores
 	cs.Reset()
 	// test all requests cleared
-	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId1)))
-	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId2)))
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysID1)))
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysID2)))
 	ir3, possible3 := cs.IsConsensusReceived(partInfo1)
 	require.True(t, possible3)
 	require.Nil(t, ir3)
@@ -216,36 +216,36 @@ func TestCertRequestStore_isConsensusReceived_MultipleSystemId(t *testing.T) {
 func TestCertRequestStore_clearOne(t *testing.T) {
 	cs := NewCertificationRequestBuffer()
 	partInfo2 := partition_store.PartitionInfo{
-		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId2, T2Timeout: 2500},
+		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysID2, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
 	}
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "1", InputRecord: IR1}))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "1", InputRecord: IR2}))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId1, NodeIdentifier: "2", InputRecord: IR1}))
-	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysId2, NodeIdentifier: "2", InputRecord: IR2}))
-	cs.Clear(p.SystemIdentifier(SysId1))
-	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysId1)))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "1", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID2, NodeIdentifier: "1", InputRecord: IR2}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID1, NodeIdentifier: "2", InputRecord: IR1}))
+	require.NoError(t, cs.Add(&certification.BlockCertificationRequest{SystemIdentifier: SysID2, NodeIdentifier: "2", InputRecord: IR2}))
+	cs.Clear(p.SystemIdentifier(SysID1))
+	require.Empty(t, cs.GetRequests(p.SystemIdentifier(SysID1)))
 	ir2, possible2 := cs.IsConsensusReceived(partInfo2)
 	require.True(t, possible2)
 	require.Equal(t, IR2, ir2)
-	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId2))), 2)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysID2))), 2)
 }
 
 func TestCertRequestStore_EmptyStore(t *testing.T) {
 	cs := NewCertificationRequestBuffer()
 	partInfo1 := partition_store.PartitionInfo{
-		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId1, T2Timeout: 2500},
+		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysID1, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
 	}
 	partInfo2 := partition_store.PartitionInfo{
-		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysId2, T2Timeout: 2500},
+		SystemDescription: &genesis.SystemDescriptionRecord{SystemIdentifier: SysID2, T2Timeout: 2500},
 		TrustBase:         map[string]crypto.Verifier{"1": nil, "2": nil},
 	}
-	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId1))), 0)
-	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysId2))), 0)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysID1))), 0)
+	require.Equal(t, len(cs.GetRequests(p.SystemIdentifier(SysID2))), 0)
 	// Reset resets both stores
 	require.NotPanics(t, func() { cs.Reset() })
-	require.NotPanics(t, func() { cs.Clear(p.SystemIdentifier(SysId1)) })
+	require.NotPanics(t, func() { cs.Clear(p.SystemIdentifier(SysID1)) })
 	require.NotPanics(t, func() { cs.Clear(p.SystemIdentifier([]byte{1, 1, 1, 1, 1, 1})) })
 	ir3, possible3 := cs.IsConsensusReceived(partInfo1)
 	require.True(t, possible3)

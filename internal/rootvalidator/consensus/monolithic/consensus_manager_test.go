@@ -82,7 +82,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 			hashAlgo:  gocrypto.SHA256,
 			t3Timeout: 900 * time.Millisecond,
 		},
-		selfId:     "test",
+		selfID:     "test",
 		partitions: partitions,
 		stateStore: store.NewInMemStateStore(gocrypto.SHA256),
 		ir: map[p.SystemIdentifier]*certificates.InputRecord{

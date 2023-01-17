@@ -72,9 +72,9 @@ func WithStateStore(store StateStore) Option {
 	}
 }
 
-func MonolithicConsensus(selfId string, signer crypto.Signer) ConsensusFn {
+func MonolithicConsensus(selfID string, signer crypto.Signer) ConsensusFn {
 	return func(partitionStore PartitionStoreRd, stateStore StateStore) (ConsensusManager, error) {
-		return monolithic.NewMonolithicConsensusManager(selfId,
+		return monolithic.NewMonolithicConsensusManager(selfID,
 			partitionStore,
 			stateStore,
 			signer)
@@ -238,14 +238,14 @@ func (v *Validator) getLatestUnicityCertificate(id protocol.SystemIdentifier) (*
 	return luc, nil
 }
 
-func (v *Validator) sendResponse(nodeId string, uc *certificates.UnicityCertificate) {
-	peerID, err := peer.Decode(nodeId)
+func (v *Validator) sendResponse(nodeID string, uc *certificates.UnicityCertificate) {
+	peerID, err := peer.Decode(nodeID)
 	if err != nil {
-		logger.Warning("Invalid node identifier: '%s'", nodeId)
+		logger.Warning("Invalid node identifier: '%s'", nodeID)
 		return
 	}
 	logger.Info("Sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
-		uc.UnicityTreeCertificate.SystemIdentifier, nodeId, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
+		uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 	err = v.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolUnicityCertificates,
@@ -261,8 +261,8 @@ func (v *Validator) sendResponse(nodeId string, uc *certificates.UnicityCertific
 // OnBlockCertificationRequest handle certification requests from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
-	sysId := proto.SystemIdentifier(req.SystemIdentifier)
-	info, err := v.partitionStore.GetPartitionInfo(sysId)
+	sysID := proto.SystemIdentifier(req.SystemIdentifier)
+	info, err := v.partitionStore.GetPartitionInfo(sysID)
 	if err != nil {
 		logger.Warning("Block certification request from %X node %v rejected: %v",
 			req.SystemIdentifier, req.NodeIdentifier, err)
@@ -328,12 +328,12 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 }
 
 func (v *Validator) onCertificationResult(certificate *certificates.UnicityCertificate) {
-	sysId := proto.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
+	sysID := proto.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
 	// remember to clear the incoming buffer to accept new requests
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
-	defer v.incomingRequests.Clear(sysId)
+	defer v.incomingRequests.Clear(sysID)
 
-	info, err := v.partitionStore.GetPartitionInfo(sysId)
+	info, err := v.partitionStore.GetPartitionInfo(sysID)
 	if err != nil {
 		logger.Info("Unable to send response to partition nodes: %v", err)
 		return

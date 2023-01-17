@@ -107,10 +107,10 @@ func (r *RootNodeVerifier) checkNumberOfSignatures(signatures map[string][]byte)
 	return nil
 }
 
-func (r *RootNodeVerifier) GetVerifier(nodeId peer.ID) (crypto.Verifier, error) {
-	ver, exists := r.nodeToPubkeyMap[string(nodeId)]
+func (r *RootNodeVerifier) GetVerifier(nodeID peer.ID) (crypto.Verifier, error) {
+	ver, exists := r.nodeToPubkeyMap[string(nodeID)]
 	if exists == false {
-		return nil, fmt.Errorf("no public key exist for node id %v", nodeId.String())
+		return nil, fmt.Errorf("no public key exist for node id %v", nodeID.String())
 	}
 	return ver, nil
 }

@@ -71,10 +71,10 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.Input
 	return partitionNodes, record
 }
 
-func CreateBlockCertificationRequest(t *testing.T, ir *certificates.InputRecord, sysId []byte, node *TestNode) *certification.BlockCertificationRequest {
+func CreateBlockCertificationRequest(t *testing.T, ir *certificates.InputRecord, sysID []byte, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId,
+		SystemIdentifier: sysID,
 		NodeIdentifier:   node.Peer.ID().String(),
 		RootRoundNumber:  1,
 		InputRecord:      ir,

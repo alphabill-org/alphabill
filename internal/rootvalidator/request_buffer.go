@@ -143,13 +143,13 @@ func (rs *requestBuffer) isConsensusReceived(partition partition_store.Partition
 	return nil, true
 }
 
-func (rs *requestBuffer) remove(nodeId string) {
-	oldReq, f := rs.requests[nodeId]
+func (rs *requestBuffer) remove(nodeID string) {
+	oldReq, f := rs.requests[nodeID]
 	if !f {
 		return
 	}
 	hashString := string(oldReq.InputRecord.Hash)
 	rs.hashCounts[hashString] = rs.hashCounts[hashString] - 1
 	logger.Debug("Removing old IR hash: %X, block hash: %X, new hash count: %v", oldReq.InputRecord.Hash, oldReq.InputRecord.BlockHash, rs.hashCounts[hashString])
-	delete(rs.requests, nodeId)
+	delete(rs.requests, nodeID)
 }

@@ -47,7 +47,7 @@ type (
 		certResultCh chan certificates.UnicityCertificate
 		timers       *timer.Timers
 		conf         *consensusConfig
-		selfId       string // node identifier
+		selfID       string // node identifier
 		partitions   PartitionStore
 		stateStore   StateStore
 		ir           map[p.SystemIdentifier]*certificates.InputRecord
@@ -85,9 +85,9 @@ func loadInputRecords(state *store.RootState) map[p.SystemIdentifier]*certificat
 }
 
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
-func NewMonolithicConsensusManager(selfId string, partitionStore PartitionStore, stateStore StateStore,
+func NewMonolithicConsensusManager(selfStr string, partitionStore PartitionStore, stateStore StateStore,
 	signer crypto.Signer, opts ...Option) (*ConsensusManager, error) {
-	log.SetContext(log.KeyNodeID, selfId)
+	log.SetContext(log.KeyNodeID, selfStr)
 	verifier, err := signer.Verifier()
 	if err != nil {
 		return nil, err
@@ -104,13 +104,13 @@ func NewMonolithicConsensusManager(selfId string, partitionStore PartitionStore,
 		certResultCh: make(chan certificates.UnicityCertificate),
 		timers:       timers,
 		conf:         config,
-		selfId:       selfId,
+		selfID:       selfStr,
 		partitions:   partitionStore,
 		stateStore:   stateStore,
 		ir:           loadInputRecords(&state),
 		changes:      make(map[p.SystemIdentifier]*certificates.InputRecord),
 		signer:       signer,
-		trustBase:    map[string]crypto.Verifier{selfId: verifier},
+		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
 	consensusManager.start()
@@ -160,11 +160,11 @@ func (x *ConsensusManager) loop() {
 			if nt == nil {
 				continue
 			}
-			timerId := nt.Name()
+			timerID := nt.Name()
 			switch {
-			case timerId == t3TimerID:
+			case timerID == t3TimerID:
 				logger.Info("T3 timeout")
-				x.timers.Restart(timerId)
+				x.timers.Restart(timerID)
 				x.onT3Timeout()
 			}
 		}
@@ -282,13 +282,13 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64, lastState *
 			RootHash:          rootHash,
 		},
 	}
-	if err := uSeal.Sign(x.selfId, x.signer); err != nil {
+	if err := uSeal.Sign(x.selfID, x.signer); err != nil {
 		return nil, err
 	}
 	// extract certificates for all changed IR's
-	for sysId, ir := range x.changes {
+	for sysID, ir := range x.changes {
 		// get certificate for change
-		utCert, err := ut.GetCertificate(sysId.Bytes())
+		utCert, err := ut.GetCertificate(sysID.Bytes())
 		if err != nil {
 			return nil, err
 		}
@@ -306,8 +306,8 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64, lastState *
 			// should never happen.
 			return nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
 		}
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", sysId.Bytes()), uc)
-		certs[sysId] = uc
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", sysID.Bytes()), uc)
+		certs[sysID] = uc
 	}
 	// Persist all changes
 	newState := store.RootState{LatestRound: round, Certificates: certs, LatestRootHash: rootHash}

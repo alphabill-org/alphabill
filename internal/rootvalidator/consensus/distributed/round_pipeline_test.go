@@ -14,13 +14,9 @@ import (
 )
 
 func TestRoundPipeline_Add(t *testing.T) {
-	partitions := partition_store.NewEmptyPartitionStore()
-	partitions.AddPartition(&genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-			SystemIdentifier: sysID1,
-			T2Timeout:        2500,
-		},
-	})
+	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}}})
+	require.NoError(t, err)
 	state := store.RootState{
 		LatestRound:    1,
 		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),
@@ -102,13 +98,9 @@ func TestRoundPipeline_Add(t *testing.T) {
 }
 
 func TestRoundPipeline_Reset(t *testing.T) {
-	partitions := partition_store.NewEmptyPartitionStore()
-	partitions.AddPartition(&genesis.PartitionRecord{
-		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-			SystemIdentifier: sysID1,
-			T2Timeout:        2500,
-		},
-	})
+	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}}})
+	require.NoError(t, err)
 	state := store.RootState{
 		LatestRound:    1,
 		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),

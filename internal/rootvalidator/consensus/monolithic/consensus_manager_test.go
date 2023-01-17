@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sysId0 = []byte{0, 0, 0, 0}
-var sysId1 = []byte{0, 0, 0, 1}
-var sysId2 = []byte{0, 0, 0, 2}
+var sysID0 = []byte{0, 0, 0, 0}
+var sysID1 = []byte{0, 0, 0, 1}
+var sysID2 = []byte{0, 0, 0, 2}
 var partitionID = []byte{0, 0xFF, 0, 1}
 var partitionInputRecord = &certificates.InputRecord{
 	PreviousHash: make([]byte, 32),
@@ -71,10 +71,10 @@ func initConsensusManager(t *testing.T) (*ConsensusManager, *testutils.TestNode,
 }
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
-	partitions, err := partition_store.NewPartitionStore([]*genesis.PartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysId0, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysId1, T2Timeout: 2500}},
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysId2, T2Timeout: 2500}},
+	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
+		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
 	manager := &ConsensusManager{
@@ -86,23 +86,23 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		partitions: partitions,
 		stateStore: store.NewInMemStateStore(gocrypto.SHA256),
 		ir: map[p.SystemIdentifier]*certificates.InputRecord{
-			p.SystemIdentifier(sysId0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			p.SystemIdentifier(sysId1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			p.SystemIdentifier(sysId2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			p.SystemIdentifier(sysID0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			p.SystemIdentifier(sysID1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			p.SystemIdentifier(sysID2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
 		},
 		changes: map[p.SystemIdentifier]*certificates.InputRecord{},
 	}
 	// store mock state
 	lastState := store.RootState{LatestRound: 4, LatestRootHash: []byte{0, 1}, Certificates: map[p.SystemIdentifier]*certificates.UnicityCertificate{
-		p.SystemIdentifier(sysId0): {
+		p.SystemIdentifier(sysID0): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
 			UnicitySeal:            &certificates.UnicitySeal{RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 3}}}, // no timeout (5 - 3) * 900 = 1800 ms
-		p.SystemIdentifier(sysId1): {
+		p.SystemIdentifier(sysID1): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 2}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
 			UnicitySeal:            &certificates.UnicitySeal{RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 2}}}, // timeout (5 - 2) * 900 = 2700 ms
-		p.SystemIdentifier(sysId2): {
+		p.SystemIdentifier(sysID2): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
 			UnicitySeal:            &certificates.UnicitySeal{RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 4}}}, // no timeout
@@ -110,7 +110,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	require.NoError(t, manager.checkT2Timeout(5, &lastState))
 	// if round is 900ms then timeout of 2500 is reached in 3 * 900ms rounds, which is 2700ms
 	require.Equal(t, 1, len(manager.changes))
-	require.Contains(t, manager.changes, p.SystemIdentifier(sysId1))
+	require.Contains(t, manager.changes, p.SystemIdentifier(sysID1))
 }
 
 func TestConsensusManager_NormalOperation(t *testing.T) {

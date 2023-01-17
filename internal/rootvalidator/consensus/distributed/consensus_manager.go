@@ -47,7 +47,7 @@ type (
 	}
 
 	PartitionStore interface {
-		GetPartitionInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
 	StateStore interface {
@@ -362,7 +362,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 	logger.Info("Round %v IR change request received", x.pacemaker.GetCurrentRound())
 	// validate incoming request
 	sysID := p.SystemIdentifier(irChange.SystemIdentifier)
-	partitionInfo, err := x.partitions.GetPartitionInfo(sysID)
+	partitionInfo, err := x.partitions.Info(sysID)
 	if err != nil {
 		logger.Warning("IR change error, failed to get total nods for partition %X, error: %v", sysID.Bytes(), err)
 		return
@@ -491,7 +491,7 @@ func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Paylo
 			return nil, errors.Errorf("invalid payload: partition %X state is missing", systemID)
 		}
 		// Find if the SystemIdentifier is known by partition store
-		partitionInfo, err := x.partitions.GetPartitionInfo(systemID)
+		partitionInfo, err := x.partitions.Info(systemID)
 		if err != nil {
 			return nil, fmt.Errorf("invalid payload: unknown partition %X", systemID.Bytes())
 		}
@@ -612,7 +612,7 @@ func (x *ConsensusManager) generateTimeoutRequests() ([]*atomic_broadcast.IRChan
 		if x.roundPipeline.IsChangeInPipeline(id) || x.irReqBuffer.IsChangeInBuffer(id) {
 			continue
 		}
-		partInfo, err := x.partitions.GetPartitionInfo(id)
+		partInfo, err := x.partitions.Info(id)
 		if err != nil {
 			return nil, err
 		}

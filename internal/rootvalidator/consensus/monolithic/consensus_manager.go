@@ -27,7 +27,7 @@ const (
 
 type (
 	PartitionStore interface {
-		GetPartitionInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
 	StateStore interface {
@@ -221,7 +221,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) 
 	for id, cert := range state.Certificates {
 		// if new input was this partition id was not received for this round
 		if _, found := x.changes[id]; !found {
-			partInfo, err := x.partitions.GetPartitionInfo(id)
+			partInfo, err := x.partitions.Info(id)
 			if err != nil {
 				return err
 			}
@@ -248,7 +248,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64, lastState *
 	}
 	utData := make([]*unicitytree.Data, 0, len(x.ir))
 	for id, ir := range x.ir {
-		partInfo, err := x.partitions.GetPartitionInfo(id)
+		partInfo, err := x.partitions.Info(id)
 		if err != nil {
 			return nil, err
 		}

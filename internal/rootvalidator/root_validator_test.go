@@ -45,7 +45,7 @@ func (m *MockConsensusManager) Stop() {
 }
 
 func MockConsensus() ConsensusFn {
-	return func(partitionStore PartitionStoreRd, stateStore StateStore) (ConsensusManager, error) {
+	return func(partitionStore PartitionStore, stateStore StateStore) (ConsensusManager, error) {
 		cm := &MockConsensusManager{
 			certReqCh:    make(chan consensus.IRChangeRequest, 1),
 			certResultCh: make(chan certificates.UnicityCertificate, 1),

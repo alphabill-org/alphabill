@@ -18,7 +18,7 @@ func TestPartitionStore(t *testing.T) {
 	require.NoError(t, err)
 
 	type args struct {
-		partitions []*genesis.PartitionRecord
+		partitions []*genesis.GenesisPartitionRecord
 	}
 	type want struct {
 		size                     int
@@ -42,7 +42,7 @@ func TestPartitionStore(t *testing.T) {
 		},
 		{
 			name: "create using an empty array",
-			args: args{partitions: []*genesis.PartitionRecord{}},
+			args: args{partitions: []*genesis.GenesisPartitionRecord{}},
 			want: want{
 				size:               0,
 				nodeCounts:         nil,
@@ -51,20 +51,20 @@ func TestPartitionStore(t *testing.T) {
 		},
 		{
 			name: "create partition store",
-			args: args{partitions: []*genesis.PartitionRecord{
+			args: args{partitions: []*genesis.GenesisPartitionRecord{
 				{
 					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
 						SystemIdentifier: id1,
 						T2Timeout:        2500,
 					},
-					Validators: nil,
+					Nodes: nil,
 				},
 				{
 					SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
 						SystemIdentifier: id2,
 						T2Timeout:        2500,
 					},
-					Validators: []*genesis.PartitionNode{
+					Nodes: []*genesis.PartitionNode{
 						{NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
 						{NodeIdentifier: "test2", SigningPublicKey: pubKeyBytes},
 					},
@@ -80,11 +80,11 @@ func TestPartitionStore(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store, err := NewPartitionStore(tt.args.partitions)
+			store, err := NewPartitionStoreFromGenesis(tt.args.partitions)
 			require.NoError(t, err)
-			require.Equal(t, tt.want.size, store.Size())
+			require.Equal(t, tt.want.size, len(store.partitions))
 			for i, id := range tt.want.containsPartitions {
-				info, err := store.getInfo(id)
+				info, err := store.Info(id)
 				require.NoError(t, err)
 				if tt.want.nodeCounts != nil {
 					require.Equal(t, tt.want.nodeCounts[i], len(info.TrustBase))
@@ -93,7 +93,7 @@ func TestPartitionStore(t *testing.T) {
 				}
 			}
 			for _, id := range tt.want.doesNotContainPartitions {
-				_, err := store.getInfo(id)
+				_, err := store.Info(id)
 				require.Error(t, err)
 			}
 		})
@@ -101,17 +101,17 @@ func TestPartitionStore(t *testing.T) {
 }
 
 // todo: should probably only give read only access
-func TestPartitionStoreRwAccess(t *testing.T) {
+func TestPartitionStore_Info(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	partitions := []*genesis.PartitionRecord{
+	partitions := []*genesis.GenesisPartitionRecord{
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
 				SystemIdentifier: id1,
 				T2Timeout:        2600,
 			},
-			Validators: []*genesis.PartitionNode{
+			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
 				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes},
 				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes},
@@ -122,22 +122,24 @@ func TestPartitionStoreRwAccess(t *testing.T) {
 				SystemIdentifier: id2,
 				T2Timeout:        2500,
 			},
-			Validators: []*genesis.PartitionNode{
+			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "test1", SigningPublicKey: pubKeyBytes},
 				{NodeIdentifier: "test2", SigningPublicKey: pubKeyBytes},
 			},
 		},
 	}
-	store, err := NewPartitionStore(partitions)
+	store, err := NewPartitionStoreFromGenesis(partitions)
 	require.NoError(t, err)
-	info, err := store.getInfo(p.SystemIdentifier(id1))
+	info, err := store.Info(p.SystemIdentifier(id1))
 	require.NoError(t, err)
 	require.Equal(t, id1, info.SystemDescription.SystemIdentifier)
 	require.Equal(t, uint32(2600), info.SystemDescription.T2Timeout)
 	require.Equal(t, 3, len(info.TrustBase))
+	require.Equal(t, uint64(2), info.GetQuorum())
 	// try to change the values
 	info.SystemDescription.T2Timeout = 100
 	// source must not change
-	info2, err := store.getInfo(p.SystemIdentifier(id1))
+	info2, err := store.Info(p.SystemIdentifier(id1))
 	require.Equal(t, uint32(100), info2.SystemDescription.T2Timeout)
+	require.Equal(t, uint64(2), info2.GetQuorum())
 }

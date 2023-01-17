@@ -43,8 +43,8 @@ type (
 		Get() (store.RootState, error)
 	}
 
-	PartitionStoreRd interface {
-		GetPartitionInfo(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+	PartitionStore interface {
+		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
 	RootNodeConf struct {
@@ -52,14 +52,14 @@ type (
 	}
 	Option func(c *RootNodeConf)
 
-	ConsensusFn func(partition PartitionStoreRd, state StateStore) (ConsensusManager, error)
+	ConsensusFn func(partition PartitionStore, state StateStore) (ConsensusManager, error)
 
 	Validator struct {
 		ctx              context.Context
 		ctxCancel        context.CancelFunc
 		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
-		partitionStore   PartitionStoreRd
+		partitionStore   PartitionStore
 		incomingRequests *CertRequestBuffer
 		net              PartitionNet
 		consensusManager ConsensusManager
@@ -73,7 +73,7 @@ func WithStateStore(store StateStore) Option {
 }
 
 func MonolithicConsensus(selfID string, signer crypto.Signer) ConsensusFn {
-	return func(partitionStore PartitionStoreRd, stateStore StateStore) (ConsensusManager, error) {
+	return func(partitionStore PartitionStore, stateStore StateStore) (ConsensusManager, error) {
 		return monolithic.NewMonolithicConsensusManager(selfID,
 			partitionStore,
 			stateStore,
@@ -82,7 +82,7 @@ func MonolithicConsensus(selfID string, signer crypto.Signer) ConsensusFn {
 }
 
 func DistributedConsensus(rootHost *network.Peer, rootGenesis *genesis.GenesisRootRecord, net distributed.RootNet, signer crypto.Signer) ConsensusFn {
-	return func(partitionStore PartitionStoreRd, stateStore StateStore) (ConsensusManager, error) {
+	return func(partitionStore PartitionStore, stateStore StateStore) (ConsensusManager, error) {
 		return distributed.NewDistributedAbConsensusManager(
 			rootHost,
 			rootGenesis,
@@ -262,7 +262,7 @@ func (v *Validator) sendResponse(nodeID string, uc *certificates.UnicityCertific
 // Partition nodes can only extend the stored/certified state
 func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
-	info, err := v.partitionStore.GetPartitionInfo(sysID)
+	info, err := v.partitionStore.Info(sysID)
 	if err != nil {
 		logger.Warning("Block certification request from %X node %v rejected: %v",
 			req.SystemIdentifier, req.NodeIdentifier, err)
@@ -333,7 +333,7 @@ func (v *Validator) onCertificationResult(certificate *certificates.UnicityCerti
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
 	defer v.incomingRequests.Clear(sysID)
 
-	info, err := v.partitionStore.GetPartitionInfo(sysID)
+	info, err := v.partitionStore.Info(sysID)
 	if err != nil {
 		logger.Info("Unable to send response to partition nodes: %v", err)
 		return

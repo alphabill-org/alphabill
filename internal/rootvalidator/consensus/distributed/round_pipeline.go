@@ -151,7 +151,7 @@ func (x *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 	}
 	utData := make([]*unicitytree.Data, 0, len(x.ir))
 	for id, ir := range x.ir {
-		partInfo, err := x.partitions.GetPartitionInfo(id)
+		partInfo, err := x.partitions.Info(id)
 		if err != nil {
 			return nil, err
 		}

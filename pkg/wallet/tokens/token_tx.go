@@ -172,13 +172,14 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		} else {
-			tokenInfo, err = txc.GetTokenType(ctx.TypeID())
+			ti, err := txc.GetTokenType(ctx.TypeID())
 			if err != nil {
 				return err
 			}
-			if tokenInfo == nil {
+			if ti == nil {
 				return errors.Errorf("split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
+			tokenInfo = ti
 		}
 
 		if checkOwner(accNr, key, ctx.NewBearer()) {

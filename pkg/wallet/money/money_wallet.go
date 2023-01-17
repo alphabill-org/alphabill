@@ -13,11 +13,11 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
+
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -36,8 +36,6 @@ var (
 	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
 	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	ErrInvalidAmount        = errors.New("invalid amount")
-	ErrInvalidAccountIndex  = errors.New("invalid account index")
 	ErrInvalidPassword      = errors.New("invalid password")
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
 	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
@@ -458,12 +456,12 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 }
 
 func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, acc *account) error {
-	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
+	gtx, err := money.NewMoneyTx(alphabillMoneySystemId, txPb)
 	if err != nil {
 		return err
 	}
-	stx := gtx.(txsystem.GenericTransaction)
-	switch tx := stx.(type) {
+
+	switch tx := gtx.(type) {
 	case money.Transfer:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
@@ -846,12 +844,7 @@ func (s *SendCmd) isValid() error {
 	if len(s.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
 	}
-	if s.Amount < 0 {
-		return ErrInvalidAmount
-	}
-	if s.AccountIndex < 0 {
-		return ErrInvalidAccountIndex
-	}
+
 	return nil
 }
 

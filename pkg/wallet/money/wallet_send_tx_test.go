@@ -74,6 +74,8 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	// create block with expected transaction
 	k, _ := w.db.Do().GetAccountKey(0)
 	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
 	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})

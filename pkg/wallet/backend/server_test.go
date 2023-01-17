@@ -694,7 +694,7 @@ func startServer(t *testing.T, service WalletBackendService) int {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
 
-	server := NewHttpServer(fmt.Sprintf(":%d", port), 100, service)
+	server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
 	err = server.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {

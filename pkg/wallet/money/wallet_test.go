@@ -427,6 +427,7 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.Equal(t, testMnemonic, mnemonic)
 
 	mk, err := w.db.Do().GetMasterKey()
+	require.NoError(t, err)
 	require.Equal(t, testMasterKeyBase58, mk)
 
 	ac, err := w.db.Do().GetAccountKey(0)

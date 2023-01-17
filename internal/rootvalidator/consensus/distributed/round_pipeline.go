@@ -113,6 +113,7 @@ func (x *RoundPipeline) Update(qc *atomic_broadcast.QuorumCert) *store.RootState
 		uSeal := &certificates.UnicitySeal{
 			RootRoundInfo: qc.VoteInfo,
 			CommitInfo:    qc.LedgerCommitInfo,
+			Signatures:    qc.Signatures,
 		}
 		commitState := state.State
 		// append Seal to all certificates

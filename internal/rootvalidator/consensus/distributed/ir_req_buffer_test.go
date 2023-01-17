@@ -1,16 +1,18 @@
 package distributed
 
 import (
+	"testing"
+
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/stretchr/testify/require"
-	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 )
 
-var sysId1 = []byte{0, 0, 0, 1}
-var sysId2 = []byte{0, 0, 0, 2}
+var sysID1 = []byte{0, 0, 0, 1}
+var sysID2 = []byte{0, 0, 0, 2}
 var inputRecord1 = &certificates.InputRecord{
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{2, 2, 2},
@@ -108,21 +110,24 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	reqBuffer := NewIrReqBuffer()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysID1,
 		NodeIdentifier:   "1",
 		RootRoundNumber:  9,
 		InputRecord:      inputRecord1,
 	}
 	IrChReqMsg := &atomic_broadcast.IRChangeReqMsg{
-		SystemIdentifier: sysId1,
+		SystemIdentifier: sysID1,
 		CertReason:       atomic_broadcast.IRChangeReqMsg_QUORUM,
 		Requests:         []*certification.BlockCertificationRequest{req1},
 	}
 	// no requests, generate payload
 	payload := reqBuffer.GeneratePayload()
 	require.Empty(t, payload.Requests)
+	require.False(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
 	// add request
 	require.NoError(t, reqBuffer.Add(IRChange{InputRecord: inputRecord1, Reason: IrChReqMsg.CertReason, Msg: IrChReqMsg}))
+	// sysID1 change is in buffer
+	require.True(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
 	// try to add the same again, considered duplicate no error
 	require.NoError(t, reqBuffer.Add(IRChange{InputRecord: inputRecord1, Reason: IrChReqMsg.CertReason, Msg: IrChReqMsg}))
 	// change reason and try to add, must be rejected as equivocating, we already have a valid request
@@ -137,6 +142,7 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	// generate payload again, but now it is empty
 	payloadNowEmpty := reqBuffer.GeneratePayload()
 	require.Empty(t, payloadNowEmpty.Requests)
+	require.False(t, reqBuffer.IsChangeInBuffer(p.SystemIdentifier(sysID1)))
 	// finally verify that we got the original message back
 	require.Equal(t, IrChReqMsg, payload.Requests[0])
 }

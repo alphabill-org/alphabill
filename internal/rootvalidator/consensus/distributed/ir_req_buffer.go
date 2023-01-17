@@ -46,11 +46,11 @@ func compareIR(a, b *certificates.InputRecord) bool {
 // Add validates incoming IR change request and buffers valid requests. If for any reason the IR request is found not
 // valid, reason is logged, error is returned and request is ignored.
 func (x *IrReqBuffer) Add(newIrChReq IRChange) error {
-	systemId := protocol.SystemIdentifier(newIrChReq.Msg.SystemIdentifier)
-	irChangeReq, found := x.irChgReqBuffer[systemId]
+	systemID := protocol.SystemIdentifier(newIrChReq.Msg.SystemIdentifier)
+	irChangeReq, found := x.irChgReqBuffer[systemID]
 	if found {
 		if irChangeReq.Reason != newIrChReq.Reason {
-			return fmt.Errorf("error equivocating request for partition %X reason has changed", systemId.Bytes())
+			return fmt.Errorf("error equivocating request for partition %X reason has changed", systemID.Bytes())
 		}
 		// compare IR's
 		if compareIR(irChangeReq.InputRecord, newIrChReq.InputRecord) == true {
@@ -59,13 +59,20 @@ func (x *IrReqBuffer) Add(newIrChReq IRChange) error {
 			return nil
 		}
 		// At this point it is not possible to cast blame, so just log and ignore
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Original request for partition %X req:", systemId.Bytes()), irChangeReq)
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("Equivocating request for partition %X req:", systemId.Bytes()), newIrChReq.Msg)
-		return fmt.Errorf("error equivocating request for partition %X", systemId.Bytes())
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("Original request for partition %X req:", systemID.Bytes()), irChangeReq)
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("Equivocating request for partition %X req:", systemID.Bytes()), newIrChReq.Msg)
+		return fmt.Errorf("error equivocating request for partition %X", systemID.Bytes())
 	}
 	// Insert first valid request received and compare the others received against it
-	x.irChgReqBuffer[systemId] = newIrChReq
+	x.irChgReqBuffer[systemID] = newIrChReq
 	return nil
+}
+
+// IsChangeInBuffer returns true if there is a request for IR change from the partition
+// in the buffer
+func (x *IrReqBuffer) IsChangeInBuffer(id protocol.SystemIdentifier) bool {
+	_, found := x.irChgReqBuffer[id]
+	return found
 }
 
 // GeneratePayload generates new proposal payload from buffered IR change requests.

@@ -7,15 +7,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator"
-	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -76,6 +75,10 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, err
 	}
+	rootPeer.Configuration().PersistentPeers = []*network.PeerInfo{{
+		Address:   fmt.Sprintf("%v", rootPeer.MultiAddresses()),
+		PublicKey: pubKeyBytes,
+	}}
 
 	trustBase := make(map[string]crypto.Verifier)
 	trustBase[peerID.String()], err = rootSigner.Verifier()
@@ -112,13 +115,16 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	}
 
 	// start root chain
-	rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, 300*time.Millisecond)
+	partitionHost, err := network.NewPeer(&network.PeerConfiguration{
+		Address: "/ip4/127.0.0.1/tcp/0",
+	})
+	rootNet, err := network.NewLibP2PRootChainNetwork(partitionHost, 100, 300*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
-
+	rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, 300*time.Millisecond)
 	// Create distributed consensus manager
-	root, err := rootvalidator.NewRootValidatorNode(rootGenesis, rootPeer, rootNet, rootvalidator.MonolithicConsensus(rootPeer.ID().String(), rootSigner))
+	root, err := rootvalidator.NewRootValidatorNode(rootGenesis, partitionHost, rootNet, rootvalidator.DistributedConsensus(rootPeer, rootGenesis.GetRoot(), rootConsensusNet, rootSigner))
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +152,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			partitionGenesis,
 			pn,
 			partition.WithContext(ctx),
-			partition.WithRootAddressAndIdentifier(rootPeer.MultiAddresses()[0], rootPeer.ID()),
+			partition.WithRootAddressAndIdentifier(partitionHost.MultiAddresses()[0], partitionHost.ID()),
 			partition.WithEventHandler(eh.HandleEvent, 100),
 		)
 		if err != nil {

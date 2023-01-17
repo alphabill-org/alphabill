@@ -73,8 +73,10 @@ func TestExponentialTimeInterval_GetNextTimeout(t *testing.T) {
 
 func TestNewRoundState(t *testing.T) {
 	const lastCommittedRound = uint64(2)
+	testStartTime := time.Now()
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	require.Equal(t, time.Now().Add(testLocalTimeout).Round(time.Millisecond), pacemaker.roundTimeout.Round(time.Millisecond))
+	// bad test, but there is a need to have some hysteresis, because clock is ticking
+	require.True(t, testStartTime.Add(testLocalTimeout).Sub(pacemaker.roundTimeout.Round(time.Millisecond)) < 5*time.Millisecond)
 	require.Equal(t, lastCommittedRound, pacemaker.lastQcToCommitRound)
 	require.Equal(t, lastCommittedRound+1, pacemaker.currentRound)
 	require.Nil(t, pacemaker.lastRoundTC)

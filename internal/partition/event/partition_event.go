@@ -11,6 +11,7 @@ const (
 	RecoveryFinished
 	StateReverted
 	ReplicationResponseSent
+	LatestUnicityCertificateUpdated
 )
 
 type (

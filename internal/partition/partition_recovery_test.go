@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
+func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
@@ -49,6 +49,61 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery(t *testing.T) {
 	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
 	require.Equal(t, 1, len(reqs))
 	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+
+	// send newer UC and check LUC is updated and node still recovering
+	tp.eh.Reset()
+	newerUC, err := tp.CreateUnicityCertificate(
+		ir,
+		repeatUC.UnicitySeal.RootChainRoundNumber+1,
+		repeatUC.UnicitySeal.PreviousHash,
+	)
+	require.NoError(t, err)
+	tp.SubmitUnicityCertificate(newerUC)
+	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
+	require.Equal(t, recovering, tp.partition.status)
+}
+
+func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *testing.T) {
+	system := &testtxsystem.CounterTxSystem{}
+	tp := NewSingleNodePartition(t, system)
+	defer tp.Close()
+	bl := tp.GetLatestBlock()
+
+	tp.partition.startNewRound(tp.partition.luc)
+
+	// send UC with different block hash
+	ir := proto.Clone(bl.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	ir.BlockHash = test.RandomBytes(32)
+
+	repeatUC, err := tp.CreateUnicityCertificate(
+		ir,
+		bl.UnicityCertificate.UnicitySeal.RootChainRoundNumber+1,
+		bl.UnicityCertificate.UnicitySeal.PreviousHash,
+	)
+	require.NoError(t, err)
+
+	tp.SubmitUnicityCertificate(repeatUC)
+
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, uint64(1), system.RevertCount)
+	require.Equal(t, recovering, tp.partition.status)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	// make sure replication request is sent
+	reqs := tp.mockNet.SentMessages(network.ProtocolLedgerReplicationReq)
+	require.Equal(t, 1, len(reqs))
+	require.IsType(t, reqs[0].Message, &replication.LedgerReplicationRequest{})
+
+	// send newer UC and check LUC is updated and node still recovering
+	tp.eh.Reset()
+	newerUC, err := tp.CreateUnicityCertificate(
+		ir,
+		repeatUC.UnicitySeal.RootChainRoundNumber+1,
+		repeatUC.UnicitySeal.PreviousHash,
+	)
+	require.NoError(t, err)
+	tp.SubmitUnicityCertificate(newerUC)
+	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
+	require.Equal(t, recovering, tp.partition.status)
 }
 
 func TestNode_RecoverBlocks(t *testing.T) {

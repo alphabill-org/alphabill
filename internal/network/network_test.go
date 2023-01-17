@@ -57,7 +57,7 @@ func TestNewRootNodeLibP2PNetwork_Ok(t *testing.T) {
 
 func TestNewRootNodeLibP2PNetwork_SendToSelf(t *testing.T) {
 	self := createPeer(t)
-	net, err := NewLibP2RootValidatorNetwork(self, 1000, time.Second)
+	net, err := NewLibP2RootConsensusNetwork(self, 1000, time.Second)
 	require.NoError(t, err)
 	defer net.Close()
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)

@@ -140,7 +140,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		if err != nil {
 			return errors.Wrapf(err, "failed to create root validator host")
 		}
-		rootNet, err := network.NewLibP2RootValidatorNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
+		rootNet, err := network.NewLibP2RootConsensusNetwork(rootHost, config.MaxRequests, defaultNetworkTimeout)
 		if err != nil {
 			return errors.Wrapf(err, "failed initiate root validator validator network")
 		}

@@ -160,7 +160,7 @@ func NewLibP2PRootChainNetwork(self *Peer, capacity uint, sendCertificateTimeout
 	return n, nil
 }
 
-func NewLibP2RootValidatorNetwork(self *Peer, capacity uint, sendTimeout time.Duration) (*LibP2PNetwork, error) {
+func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Duration) (*LibP2PNetwork, error) {
 	n, err := NewLibP2PNetwork(self, capacity)
 	if err != nil {
 		return nil, err

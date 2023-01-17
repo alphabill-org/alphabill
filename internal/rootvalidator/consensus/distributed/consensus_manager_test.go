@@ -227,8 +227,9 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// await the next proposal as well, the proposal must contain TC
 	lastProposalMsg = testutils.MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.NotNil(t, lastProposalMsg.LastRoundTc)
-	// but it is empty since we did not send new changes
-	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
+	// Now since the round got timeout, then there will be a timeout proposal in the next block for partition since T2 has expired
+	require.False(t, lastProposalMsg.Block.Payload.IsEmpty())
+	require.Equal(t, atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT, lastProposalMsg.Block.Payload.Requests[0].CertReason)
 }
 
 func TestIRChangeRequestFromRootValidator(t *testing.T) {
@@ -295,5 +296,4 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	lastProposalMsg = testutils.MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
 	require.NoError(t, err)
-	//	require.Eventually(t, func() bool { return len(cm.CertificationResult()) == 1 }, 1*time.Second, 10*time.Millisecond)
 }

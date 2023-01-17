@@ -24,7 +24,7 @@ type (
 		hashAlgorithm gocrypto.Hash                                           // hash algorithm
 		partitions    PartitionStore                                          // partition store
 		ir            map[protocol.SystemIdentifier]*certificates.InputRecord // currently valid input records
-		execStateId   []byte
+		execStateID   []byte
 		inProgress    map[protocol.SystemIdentifier]struct{}
 		statePipeline map[uint64]*StateEntry
 		highQC        *atomic_broadcast.QuorumCert // highest QC seen
@@ -52,7 +52,7 @@ func NewRoundPipeline(hash gocrypto.Hash, persistedState store.RootState, partit
 		hashAlgorithm: hash,
 		partitions:    partitionStore,
 		ir:            inputRecords,
-		execStateId:   persistedState.LatestRootHash,
+		execStateID:   persistedState.LatestRootHash,
 		inProgress:    make(map[protocol.SystemIdentifier]struct{}),
 		statePipeline: make(map[uint64]*StateEntry),
 		highQC:        hQC,
@@ -67,7 +67,7 @@ func (x *RoundPipeline) Reset(persistedState store.RootState) {
 	for id, cert := range persistedState.Certificates {
 		x.ir[id] = cert.InputRecord
 	}
-	x.execStateId = persistedState.LatestRootHash
+	x.execStateID = persistedState.LatestRootHash
 	return
 }
 
@@ -77,7 +77,7 @@ func (x *RoundPipeline) IsChangeInPipeline(sysId protocol.SystemIdentifier) bool
 }
 
 func (x *RoundPipeline) GetExecStateId() []byte {
-	return x.execStateId
+	return x.execStateID
 }
 
 func (x *RoundPipeline) removeCompleted(round uint64, changes map[protocol.SystemIdentifier]*certificates.InputRecord) {
@@ -133,9 +133,9 @@ func (x *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 		return nil, fmt.Errorf("add state failed: state for round %v already in pipeline", round)
 	}
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
-	for sysId := range changes {
-		if _, f := x.inProgress[sysId]; f {
-			return nil, fmt.Errorf("add state failed: partition %X has pending changes in pipeline", sysId.Bytes())
+	for sysID := range changes {
+		if _, f := x.inProgress[sysID]; f {
+			return nil, fmt.Errorf("add state failed: partition %X has pending changes in pipeline", sysID.Bytes())
 		}
 	}
 	if len(changes) == 0 {
@@ -170,8 +170,8 @@ func (x *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 	}
 	rootHash := ut.GetRootHash()
 	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
-	for sysId, ir := range changes {
-		utCert, err := ut.GetCertificate(sysId.Bytes())
+	for sysID, ir := range changes {
+		utCert, err := ut.GetCertificate(sysID.Bytes())
 		if err != nil {
 			// this should never happen. if it does then exit with panic because we cannot generate
 			// unicity tree certificates.
@@ -185,9 +185,9 @@ func (x *RoundPipeline) Add(round uint64, changes map[protocol.SystemIdentifier]
 				SystemDescriptionHash: utCert.SystemDescriptionHash,
 			},
 		}
-		certs[sysId] = certificate
+		certs[sysID] = certificate
 	}
-	x.execStateId = rootHash
+	x.execStateID = rootHash
 	x.statePipeline[round] = &StateEntry{State: &store.RootState{
 		LatestRound:    round,
 		LatestRootHash: rootHash,

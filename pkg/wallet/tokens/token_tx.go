@@ -248,6 +248,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 			burnedValue += burnTx.Value()
 		}
 		joinedToken.Amount += burnedValue
+		joinedToken.Backlink = txHash
 		err = w.addTokenWithProof(accNr, joinedToken, b, tx, txc)
 		if err != nil {
 			return err

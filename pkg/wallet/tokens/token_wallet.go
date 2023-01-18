@@ -62,6 +62,12 @@ func Load(mw *money.Wallet, sync bool) (*Wallet, error) {
 	return w, nil
 }
 
+func (w *Wallet) SystemID() []byte {
+	// TODO: return the default "AlphaBill Token System ID" for now
+	// but in the future this should come from config (w.mw.SystemID()?)
+	return tokens.DefaultTokenTxSystemIdentifier
+}
+
 func (w *Wallet) GetAccountManager() wallet.AccountManager {
 	return w.mw
 }

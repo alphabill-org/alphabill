@@ -189,6 +189,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", dialAddr, typeID1, w1key.PubKey))
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='3'", "amount='2'", "amount='6'")
 }
+
 func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	partition, unitState := startTokensPartition(t)
 
@@ -228,6 +229,16 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	execTokensCmd(t, homedirW1, fmt.Sprintf("collect-dust --sync true -u %s", dialAddr))
 
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='2000'")
+
+	// send joined token (AB-647)
+	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2key, err := w2.GetAccountManager().GetAccountKey(0)
+	require.NoError(t, err)
+	w2.Shutdown()
+
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 500 --address 0x%X -k 1", dialAddr, typeID1, w2key.PubKey))
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='1500'")
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -u %s", dialAddr)), "amount='500'")
 }
 
 func TestWalletCreateFungibleTokenCmd_TypeFlag(t *testing.T) {

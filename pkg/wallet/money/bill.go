@@ -48,7 +48,7 @@ func NewBlockProof(tx *txsystem.Transaction, proof *block.BlockProof, blockNumbe
 	}, nil
 }
 
-func (b *BlockProof) Verify(unitID []byte, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash) error {
+func (b *BlockProof) Verify(unitID []byte, verifiers map[string]abcrypto.Verifier, hashAlgorithm crypto.Hash, txConverter *TxConverter) error {
 	gtx, err := txConverter.ConvertTx(b.Tx)
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
 }
 
-func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction) error {
+func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction, txConverter *TxConverter) error {
 	genericBlock, err := bl.ToGenericBlock(txConverter)
 	if err != nil {
 		return err

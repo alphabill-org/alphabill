@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/pkg/errors"
 )
 
 type (
@@ -62,13 +61,13 @@ func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 func (v *VDClient) RegisterFileHash(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return errors.Wrapf(err, "failed to open the file %s", filePath)
+		return fmt.Errorf("failed to open the file %q: %w", filePath, err)
 	}
 	defer func() { _ = file.Close() }()
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
-		return errors.Wrapf(err, "failed to read the file %s", filePath)
+		return fmt.Errorf("failed to read the file %q: %w", filePath, err)
 	}
 
 	hash := hasher.Sum(nil)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -33,7 +34,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 
 	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{
 		1: {
-			BlockNumber: 1,
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 			Transactions: []*txsystem.Transaction{{
 				UnitId:                billId1,
 				SystemId:              alphabillMoneySystemId,
@@ -41,7 +42,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 			}},
 		},
 		2: {
-			BlockNumber: 2,
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
 			Transactions: []*txsystem.Transaction{{
 				UnitId:                billId2,
 				SystemId:              alphabillMoneySystemId,

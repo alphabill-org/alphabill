@@ -121,7 +121,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 
 	// when group 1 swap is received
 	res1 := createBlockWithSwapTxFromDcBills(dcNonce1, k, b11, b12)
-	res1.Block.BlockNumber = 1
+	res1.Block.UnicityCertificate = &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}
 	err := w.ProcessBlock(res1.Block)
 	require.NoError(t, err)
 
@@ -134,7 +134,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 
 	// when the swap tx with dc bills is received
 	res2 := createBlockWithSwapTxFromDcBills(dcNonce2, k, b21, b22, b23)
-	res2.Block.BlockNumber = 2
+	res2.Block.UnicityCertificate = &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}}
 	err = w.ProcessBlock(res2.Block)
 	require.NoError(t, err)
 
@@ -199,7 +199,6 @@ func createBlockWithSwapTx(dcNonce []byte, k *wallet.AccountKey, dcTxs []*txsyst
 	return &alphabill.GetBlockResponse{
 		Block: &block.Block{
 			SystemIdentifier:  alphabillMoneySystemId,
-			BlockNumber:       1,
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
 				{
@@ -210,7 +209,7 @@ func createBlockWithSwapTx(dcNonce []byte, k *wallet.AccountKey, dcTxs []*txsyst
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 			},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 		},
 	}
 }

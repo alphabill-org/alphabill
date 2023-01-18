@@ -197,7 +197,7 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default timeout is 10
 			latestBlockNumber:        11,
 			expectedSystemIdentifier: []byte{0, 0, 0, 0},
-			errStr:                   "transaction timeout must be greater than latest block height: transaction timeout 10, latest blockNumber: 11",
+			errStr:                   "transaction timeout must be greater than latest block number: transaction timeout 10, latest blockNumber: 11",
 		},
 	}
 	for _, tt := range tests {

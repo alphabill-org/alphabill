@@ -61,7 +61,6 @@ func TestSync(t *testing.T) {
 	blocks := []*block.Block{
 		{
 			SystemIdentifier:  alphabillMoneySystemId,
-			BlockNumber:       1,
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
 				// random dust transfer can be processed
@@ -97,12 +96,12 @@ func TestSync(t *testing.T) {
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 			},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 		},
 	}
 	serviceServer.SetMaxBlockNumber(1)
 	for _, b := range blocks {
-		serviceServer.SetBlock(b.BlockNumber, b)
+		serviceServer.SetBlock(b.UnicityCertificate.InputRecord.RoundNumber, b)
 	}
 	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
@@ -154,10 +153,9 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
 		b := &block.Block{
 			SystemIdentifier:   alphabillMoneySystemId,
-			BlockNumber:        blockNo,
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
 		}
 		serviceServer.SetBlock(blockNo, b)
 	}
@@ -232,10 +230,9 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &block.Block{
 			SystemIdentifier:   alphabillMoneySystemId,
-			BlockNumber:        blockNo,
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
 		}
 		serverService.SetBlock(blockNo, b)
 	}

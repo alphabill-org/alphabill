@@ -18,9 +18,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/holiman/uint256 v1.2.1
 	github.com/libp2p/go-libp2p v0.22.0
-	github.com/libp2p/go-libp2p-core v0.20.1
 	github.com/multiformats/go-multiaddr v0.7.0
-	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.28.0
 	github.com/spf13/cobra v1.6.1
@@ -119,6 +117,7 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.13.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect

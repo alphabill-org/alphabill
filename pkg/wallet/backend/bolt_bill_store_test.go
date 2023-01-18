@@ -142,6 +142,7 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	// verify GetBill ErrBillNotFound
 	b, err = bs.GetBill(pubkey, billID)
 	require.ErrorIs(t, err, ErrBillNotFound)
+	require.Nil(t, b)
 
 	// verify SetBills ok
 	err = bs.SetBills(pubkey, expectedBill)
@@ -229,6 +230,7 @@ func TestBillStore_DeletingBillForKey1DoesNotAffectKey2(t *testing.T) {
 	// and key1 bill should be removed
 	actualBill, err = bs.GetBill(pk1, bill.Id)
 	require.ErrorIs(t, err, ErrBillNotFound)
+	require.Nil(t, actualBill)
 
 	containsBill, err = bs.ContainsBill(pk1, bill.Id)
 	require.NoError(t, err)

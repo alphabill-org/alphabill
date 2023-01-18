@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/spf13/cobra"
 )
 
 type distributedGenesisConfig struct {
@@ -34,26 +33,6 @@ func (c *distributedGenesisConfig) getOutputDir() string {
 		panic(err)
 	}
 	return outputDir
-}
-
-// newRootGenesisCmd creates a new cobra command for the root-genesis component.
-func newDistributedRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &distributedGenesisConfig{Base: baseConfig}
-	var cmd = &cobra.Command{
-		Use:   "distributed-root-genesis",
-		Short: "Combines root chain genesis files",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return distributedRootGenesisRunFunc(ctx, config)
-		},
-	}
-	cmd.Flags().StringSliceVarP(&config.RootGenesisFiles, rootGenesisFileName, "r", []string{}, "path to root node genesis files")
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
-
-	err := cmd.MarkFlagRequired(rootGenesisFileName)
-	if err != nil {
-		panic(err)
-	}
-	return cmd
 }
 
 func distributedRootGenesisRunFunc(_ context.Context, config *distributedGenesisConfig) error {

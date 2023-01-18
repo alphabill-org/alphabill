@@ -87,23 +87,6 @@ func (c *rootGenesisConfig) getOutputDir() string {
 	return outputDir
 }
 
-func (c *rootGenesisConfig) getConsensusTimeout() uint32 {
-	// Only used when distributed genesis is created
-	if c.TotalNodes > 1 {
-		return c.ConsensusTimeoutMs
-	} else {
-		return 0
-	}
-}
-
-func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
-	// Only used when distributed genesis is created
-	if c.TotalNodes == 1 {
-		return 0
-	}
-	return c.QuorumThreshold
-}
-
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	// ensure output dir is present before keys generation
 	_ = config.getOutputDir()
@@ -130,7 +113,6 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	}
 
 	rg, pg, err := rootchain.NewRootGenesis(peerID.String(), keys.SigningPrivateKey, encPubKeyBytes, pr)
-
 	if err != nil {
 		return err
 	}

@@ -33,7 +33,6 @@ type (
 	// Shutdown needs to be called to release resources used by wallet.
 	Wallet struct {
 		BlockProcessor  BlockProcessor
-		config          Config
 		AlphabillClient client.ABClient
 		syncFlag        *syncFlagWrapper
 	}
@@ -91,7 +90,7 @@ func (w *Wallet) Sync(ctx context.Context, lastBlockNumber uint64) error {
 }
 
 // SyncToMaxBlockNumber synchronises wallet from the last known block number with the given alphabill node.
-// The function blocks until maximum block height, calculated at the start of the process, is reached.
+// The function blocks until maximum block number, calculated at the start of the process, is reached.
 // Returns error if wallet is already synchronizing or any error occured during syncrohronization, otherwise returns nil.
 func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context, lastBlockNumber uint64) error {
 	return w.syncLedger(ctx, lastBlockNumber, false)
@@ -224,7 +223,7 @@ func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<-
 		return 0, 0, err
 	}
 	for _, b := range res.Blocks {
-		lastBlockNumber = b.BlockNumber
+		lastBlockNumber = b.UnicityCertificate.InputRecord.RoundNumber
 		ch <- b
 	}
 	return lastBlockNumber, res.MaxBlockNumber, nil

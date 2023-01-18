@@ -9,14 +9,16 @@ message UnicityCertificate {
 }
 
 message InputRecord {
-  // previously certified root hash
+  // previously certified state hash
   bytes previous_hash = 1;
-  //  hash to be certified
+  // state hash to be certified
   bytes hash = 2;
   // hash of the block
   bytes block_hash = 3;
   // summary value to certified
   bytes summary_value = 4;
+  // transaction system's round number
+  uint64 round_number = 5;
 }
 
 message UnicityTreeCertificate {

@@ -76,7 +76,6 @@ func TestTimeout(t *testing.T) {
 	server.SetBlockFunc(0, func() *block.Block {
 		time.Sleep(100 * time.Millisecond)
 		return &block.Block{
-			BlockNumber:        0,
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{},

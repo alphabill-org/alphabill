@@ -29,7 +29,7 @@ func TestPersistentBlockStore_AddGetBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify block
-	b, err := bs.Get(tp.BlockNumber)
+	b, err := bs.Get(tp.UnicityCertificate.InputRecord.RoundNumber)
 	require.NoError(t, err)
 	verifyBlock(t, tp, b)
 }
@@ -45,10 +45,10 @@ func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 	_ = bs.Add(tb2)
 	_ = bs.Add(tb3)
 
-	// verify height returns the latest block number
-	height, err := bs.Height()
+	// verify the latest block number is returned
+	number, err := bs.BlockNumber()
 	require.NoError(t, err)
-	require.EqualValues(t, 3, height)
+	require.EqualValues(t, 3, number)
 
 	// verify latest block is the last block added
 	b := bs.LatestBlock()
@@ -58,10 +58,10 @@ func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 func TestPersistentBlockStore_EmptyStore(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 
-	// verify height returns 0
-	height, err := bs.Height()
+	// verify returns 0
+	number, err := bs.BlockNumber()
 	require.NoError(t, err)
-	require.EqualValues(t, 0, height)
+	require.EqualValues(t, 0, number)
 
 	// verify latest block returns nil
 	b := bs.LatestBlock()
@@ -108,10 +108,9 @@ func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
 func newDummyBlock(t *testing.T, blockNo uint64) *block.Block {
 	return &block.Block{
 		SystemIdentifier:   []byte{0},
-		BlockNumber:        blockNo,
 		PreviousBlockHash:  []byte{2},
 		Transactions:       []*txsystem.Transaction{moneytesttx.RandomBillTransfer(t)},
-		UnicityCertificate: &certificates.UnicityCertificate{},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
 	}
 }
 
@@ -128,7 +127,7 @@ func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
 
 func verifyBlock(t *testing.T, expected *block.Block, actual *block.Block) {
 	require.EqualValues(t, expected.SystemIdentifier, actual.SystemIdentifier)
-	require.EqualValues(t, expected.BlockNumber, actual.BlockNumber)
+	require.EqualValues(t, expected.UnicityCertificate.InputRecord.RoundNumber, actual.UnicityCertificate.InputRecord.RoundNumber)
 	require.EqualValues(t, expected.PreviousBlockHash, actual.PreviousBlockHash)
 	require.EqualValues(t, expected.Transactions, actual.Transactions)
 	require.EqualValues(t, expected.UnicityCertificate, actual.UnicityCertificate)

@@ -22,6 +22,7 @@ func TestWalletCreateFungibleTokenTypeCmd_SymbolFlag(t *testing.T) {
 	require.ErrorContains(t, err, "required flag(s) \"symbol\" not set")
 	// symbol parameter not set
 	_, err = execCommand(homedir, "flag needs an argument: --symbol")
+	require.ErrorContains(t, err, "unknown flag: --symbol")
 	// there currently are no restrictions on symbol length on CLI side
 }
 
@@ -155,7 +156,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	symbol1 := "AB"
 	execTokensCmdWithError(t, homedirW1, "new-type fungible", "required flag(s) \"symbol\" not set")
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X --decimals 0", symbol1, dialAddr, typeID1))
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types fungible")), "symbol=AB (type,fungible)")
+	verifyStdout(t, execTokensCmd(t, homedirW1, "list-types fungible"), "symbol=AB (type,fungible)")
 	ensureUnit(t, unitState, uint256.NewInt(0).SetBytes(typeID1))
 	// mint tokens
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
@@ -202,7 +203,7 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 	typeID1 := randomID(t)
 	symbol1 := "AB"
 	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible --sync true --symbol %s -u %s --type %X --decimals 0", symbol1, dialAddr, typeID1))
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types fungible")), "symbol=AB (type,fungible)")
+	verifyStdout(t, execTokensCmd(t, homedirW1, "list-types fungible"), "symbol=AB (type,fungible)")
 	ensureUnit(t, unitState, uint256.NewInt(0).SetBytes(typeID1))
 	// mint tokens
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
@@ -279,15 +280,15 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_DataFileFlagIntegration
 	// verify error
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 3", dialAddr, nonExistingTypeId), fmt.Sprintf("error token type %X not found", nonExistingTypeId))
 	// new token creation fails
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 0", dialAddr, typeID), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 00.000", dialAddr, typeID), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 00.0.00", dialAddr, typeID), fmt.Sprintf("more than one comma"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount .00", dialAddr, typeID), fmt.Sprintf("missing integer part"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount a.00", dialAddr, typeID), fmt.Sprintf("invalid amount string"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 0.0a", dialAddr, typeID), fmt.Sprintf("invalid amount string"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 1.1111", dialAddr, typeID), fmt.Sprintf("invalid precision"))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 0", dialAddr, typeID), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 00.000", dialAddr, typeID), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 00.0.00", dialAddr, typeID), "more than one comma")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount .00", dialAddr, typeID), "missing integer part")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount a.00", dialAddr, typeID), "invalid amount string")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 0.0a", dialAddr, typeID), "invalid amount string")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 1.1111", dialAddr, typeID), "invalid precision")
 	// out of range because decimals = 3 the value is equal to 18446744073709551615000
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 18446744073709551615", dialAddr, typeID), fmt.Sprintf("out of range"))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 18446744073709551615", dialAddr, typeID), "out of range")
 	// creation succeeds
 	execTokensCmd(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 3", dialAddr, typeID))
 	execTokensCmd(t, homedir, fmt.Sprintf("new fungible --sync true -u %s --type %X --amount 1.1", dialAddr, typeID))
@@ -300,10 +301,10 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_DataFileFlagIntegration
 
 	// test send fails
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 2 --address 0x%X -k 1", dialAddr, nonExistingTypeId, w2key.PubKey), fmt.Sprintf("error token type %X not found", nonExistingTypeId))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 0 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 000.000 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("0 is not valid amount"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 00.0.00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("more than one comma"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount .00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("missing integer part"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount a.00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("invalid amount string"))
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 1.1111 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), fmt.Sprintf("invalid precision"))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 0 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 000.000 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), "0 is not valid amount")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 00.0.00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), "more than one comma")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount .00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), "missing integer part")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount a.00 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), "invalid amount string")
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 1.1111 --address 0x%X -k 1", dialAddr, typeID, w2key.PubKey), "invalid precision")
 }

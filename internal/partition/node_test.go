@@ -213,7 +213,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	genericBlock, _ := block.ToGenericBlock(txSystem)
 	blockHash, _ := genericBlock.Hash(gocrypto.SHA256)
 	block2 := tp.GetLatestBlock()
-	require.Equal(t, block.BlockNumber+1, block2.BlockNumber)
+	require.Equal(t, block.UnicityCertificate.InputRecord.RoundNumber+1, block2.UnicityCertificate.InputRecord.RoundNumber)
 	require.Equal(t, block.SystemIdentifier, block2.SystemIdentifier)
 	require.Equal(t, blockHash, block2.PreviousBlockHash)
 	uc1 := block.UnicityCertificate

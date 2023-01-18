@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -297,10 +296,10 @@ func (w *wdbtx) VerifyPassword() (bool, error) {
 	if encrypted {
 		_, err = w.GetAccountKey(0)
 		if err != nil {
-			if errors.Is(err, abcrypto.ErrEmptyPassphrase) {
+			if errors.Is(err, crypto.ErrEmptyPassphrase) {
 				return false, nil
 			}
-			if strings.Contains(err.Error(), abcrypto.ErrMsgDecryptingValue) {
+			if strings.Contains(err.Error(), crypto.ErrMsgDecryptingValue) {
 				return false, nil
 			}
 			return false, err

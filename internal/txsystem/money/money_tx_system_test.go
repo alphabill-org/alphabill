@@ -150,7 +150,7 @@ func TestExecute_TransferDCOk(t *testing.T) {
 	splitWrapper := splitOk.(*billSplitWrapper)
 	billID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
 	_, splitBillData := getBill(t, rmaTree, billID)
-	transferDCOk, err := NewMoneyTx(systemIdentifier, createDCTransfer(billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32)))
+	transferDCOk, err := NewMoneyTx(systemIdentifier, createDCTransfer(billID, splitBillData.V, splitBillData.Backlink, test.RandomBytes(32), script.PredicateAlwaysTrue()))
 	require.NoError(t, err)
 
 	err = txSystem.Execute(transferDCOk)
@@ -439,7 +439,7 @@ func createDCTransferAndSwapTxs(
 		_, billData := getBill(t, rmaTree, id)
 		// NB! dc transfer nonce must be equal to swap tx unit id
 		targetValue += billData.V
-		dcTransfers[i] = createDCTransfer(id, billData.V, billData.Backlink, newBillID)
+		dcTransfers[i] = createDCTransfer(id, billData.V, billData.Backlink, newBillID, script.PredicateAlwaysTrue())
 		tx, err := NewMoneyTx(systemIdentifier, dcTransfers[i])
 		require.NoError(t, err)
 		proofs[i] = testblock.CreateProof(t, tx, signer, util.Uint256ToBytes(id))
@@ -454,7 +454,7 @@ func createDCTransferAndSwapTxs(
 	}
 
 	bt := &SwapOrder{
-		OwnerCondition:  script.PredicateArgumentEmpty(),
+		OwnerCondition:  script.PredicateAlwaysTrue(),
 		BillIdentifiers: idsByteArray,
 		DcTransfers:     dcTransfers,
 		Proofs:          proofs,
@@ -465,11 +465,11 @@ func createDCTransferAndSwapTxs(
 	return dcTransfers, tx
 }
 
-func createDCTransfer(fromID *uint256.Int, targetValue uint64, backlink []byte, nonce []byte) *txsystem.Transaction {
+func createDCTransfer(fromID *uint256.Int, targetValue uint64, backlink []byte, nonce []byte, targetBearer []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
 	bt := &TransferDCOrder{
 		Nonce:        nonce,
-		TargetBearer: script.PredicateArgumentEmpty(),
+		TargetBearer: targetBearer,
 		TargetValue:  targetValue,
 		Backlink:     backlink,
 	}

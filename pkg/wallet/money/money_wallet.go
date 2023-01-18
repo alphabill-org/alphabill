@@ -942,9 +942,9 @@ func groupDcBills(bills []*Bill) map[uint256.Int]*dcBillGroup {
 }
 
 func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
-	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
-	if blockNumber != lastBlockNumber+1 {
+	// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+	if lastBlockNumber >= blockNumber {
 		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 	}
 	return nil

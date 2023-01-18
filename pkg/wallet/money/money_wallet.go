@@ -127,9 +127,15 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 	return db.Do().IsEncrypted()
 }
 
+func (w *Wallet) SystemID() []byte {
+	// TODO: return the default "AlphaBill Money System ID" for now
+	// but this should come from config (base wallet? AB client?)
+	return []byte{0, 0, 0, 0}
+}
+
 func (w *Wallet) ProcessBlock(b *block.Block) error {
 	log.Info("processing block: ", b.UnicityCertificate.InputRecord.RoundNumber)
-	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
+	if !bytes.Equal(w.SystemID(), b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
 
@@ -272,7 +278,7 @@ func (w *Wallet) AddBill(accountIndex uint64, bill *Bill) error {
 	if err != nil {
 		return err
 	}
-	gtx, err := txConverter.ConvertTx(tx)
+	gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
 	if err != nil {
 		return err
 	}
@@ -413,7 +419,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
+	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +462,7 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 }
 
 func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, acc *account) error {
-	gtx, err := money.NewMoneyTx(alphabillMoneySystemId, txPb)
+	gtx, err := money.NewMoneyTx(w.SystemID(), txPb)
 	if err != nil {
 		return err
 	}
@@ -567,7 +573,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 }
 
 func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txPb *txsystem.Transaction, bill *Bill, accountIndex uint64) error {
-	err := bill.addProof(b, txPb)
+	err := bill.addProof(b, txPb, NewTxConverter(w.SystemID()))
 	if err != nil {
 		return err
 	}
@@ -703,7 +709,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			for _, b := range bills {
 				dcValueSum += b.Value
 				billIds = append(billIds, b.GetID())
-				tx, err := createDustTx(k, b, dcNonce, dcTimeout)
+				tx, err := createDustTx(k, w.SystemID(), b, dcNonce, dcTimeout)
 				if err != nil {
 					return err
 				}
@@ -757,7 +763,7 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*Bill, dcNonce []byte, bill
 	if err != nil {
 		return err
 	}
-	swap, err := createSwapTx(k, dcBills, dcNonce, billIds, timeout)
+	swap, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
 	}
@@ -818,6 +824,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				return nil, nil
 			}
 		}
+		txc := NewTxConverter(w.SystemID())
 		for _, tx := range b.Transactions {
 			if txsLog.contains(tx) {
 				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
@@ -825,7 +832,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				if err != nil {
 					return nil, err
 				}
-				err = txsLog.recordTx(tx, b)
+				err = txsLog.recordTx(tx, b, txc)
 				if err != nil {
 					return nil, err
 				}

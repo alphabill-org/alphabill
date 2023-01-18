@@ -808,6 +808,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 	log.Info("waiting for confirmation(s)...")
 	blockNumber := maxBlockNumber
 	txsLog := newTxLog(pendingTxs)
+	txc := NewTxConverter(w.SystemID())
 	for blockNumber <= timeout {
 		b, err := w.AlphabillClient.GetBlock(blockNumber)
 		if err != nil {
@@ -824,7 +825,6 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				return nil, nil
 			}
 		}
-		txc := NewTxConverter(w.SystemID())
 		for _, tx := range b.Transactions {
 			if txsLog.contains(tx) {
 				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))

@@ -29,7 +29,7 @@ func TestTokensProcessBlock_empty(t *testing.T) {
 	require.Equal(t, uint64(0), blockNr)
 	client.SetMaxBlockNumber(1)
 	client.SetBlock(&block.Block{
-		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		SystemIdentifier:   w.SystemID(),
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}})
 	require.NoError(t, w.Sync(context.Background()))
 	blockNr, err = w.db.Do().GetBlockNumber()
@@ -44,16 +44,16 @@ func TestTokensProcessBlock_withTx_tokenTypes(t *testing.T) {
 	blockNr := uint64(1)
 	//fungible
 	id1 := []byte{0x01}
-	tx1 := createTx(id1, blockNr)
+	tx1 := createTx(w.SystemID(), id1, blockNr)
 	require.NoError(t, anypb.MarshalFrom(tx1.TransactionAttributes, &tokens.CreateFungibleTokenTypeAttributes{Symbol: "AB"}, proto.MarshalOptions{}))
 	//nft
 	id2 := []byte{0x02}
-	tx2 := createTx(id2, blockNr)
+	tx2 := createTx(w.SystemID(), id2, blockNr)
 	require.NoError(t, anypb.MarshalFrom(tx2.TransactionAttributes, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "ABNFT"}, proto.MarshalOptions{}))
 	//build block
 	client.SetMaxBlockNumber(blockNr)
 	b := &block.Block{
-		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		SystemIdentifier:   w.SystemID(),
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
 		Transactions:       []*txsystem.Transaction{tx1, tx2}}
 	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
@@ -96,7 +96,7 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 		Symbol: "AB",
 	}))
 	id1 := []byte{0x11}
-	tx1 := createTx(id1, blockNr)
+	tx1 := createTx(w.SystemID(), id1, blockNr)
 	key, err := w.getAccountKey(1)
 	require.NoError(t, err)
 	require.NoError(t, anypb.MarshalFrom(tx1.TransactionAttributes, &tokens.MintFungibleTokenAttributes{
@@ -111,7 +111,7 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 		Symbol: "ABNFT",
 	}))
 	id2 := []byte{0x21}
-	tx2 := createTx(id2, blockNr)
+	tx2 := createTx(w.SystemID(), id2, blockNr)
 	require.NoError(t, anypb.MarshalFrom(tx2.TransactionAttributes, &tokens.MintNonFungibleTokenAttributes{
 		NftType: typeId2[:],
 		Bearer:  script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256),
@@ -119,7 +119,7 @@ func TestTokensProcessBlock_withTx_mintTokens(t *testing.T) {
 	//build block
 	client.SetMaxBlockNumber(blockNr)
 	b := &block.Block{
-		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		SystemIdentifier:   w.SystemID(),
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
 		Transactions:       []*txsystem.Transaction{tx1, tx2}}
 	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
@@ -207,7 +207,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	blockNr := uint64(1)
 
 	// fungible transfer
-	tx1 := createTx(id1, blockNr)
+	tx1 := createTx(w.SystemID(), id1, blockNr)
 	require.NoError(t, err)
 	require.NoError(t, anypb.MarshalFrom(tx1.TransactionAttributes, &tokens.TransferFungibleTokenAttributes{
 		NewBearer: bearerPredicateFromPubKey(pubKey2),
@@ -216,7 +216,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	}, proto.MarshalOptions{}))
 
 	// fungible split
-	tx2 := createTx(id2, blockNr)
+	tx2 := createTx(w.SystemID(), id2, blockNr)
 	require.NoError(t, err)
 	require.NoError(t, anypb.MarshalFrom(tx2.TransactionAttributes, &tokens.SplitFungibleTokenAttributes{
 		NewBearer:      bearerPredicateFromPubKey(pubKey2),
@@ -226,7 +226,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	}, proto.MarshalOptions{}))
 
 	// transfer nft
-	nftTx := createTx(nft1, blockNr)
+	nftTx := createTx(w.SystemID(), nft1, blockNr)
 	require.NoError(t, anypb.MarshalFrom(nftTx.TransactionAttributes, &tokens.TransferNonFungibleTokenAttributes{
 		NewBearer: bearerPredicateFromPubKey(pubKey2),
 		NftType:   typeID2,
@@ -235,7 +235,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	//build block
 	client.SetMaxBlockNumber(blockNr)
 	b := &block.Block{
-		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		SystemIdentifier:   w.SystemID(),
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
 		Transactions:       []*txsystem.Transaction{tx1, tx2, nftTx}}
 	certifiedBlock, verifiers := testblock.CertifyBlock(t, b, w.txs)
@@ -293,11 +293,11 @@ func TestTokensProcessBlock_syncToUnit(t *testing.T) {
 	blockNr := uint64(1)
 	id, err := RandomID()
 	require.NoError(t, err)
-	tx := createTx(id, blockNr)
+	tx := createTx(w.SystemID(), id, blockNr)
 	require.NoError(t, anypb.MarshalFrom(tx.TransactionAttributes, &tokens.CreateFungibleTokenTypeAttributes{Symbol: "AB"}, proto.MarshalOptions{}))
 	client.SetMaxBlockNumber(blockNr)
 	client.SetBlock(&block.Block{
-		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		SystemIdentifier:   w.SystemID(),
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
 		Transactions:       []*txsystem.Transaction{tx}})
 	types, err := w.db.Do().GetTokenTypes()
@@ -328,14 +328,14 @@ func TestTokensProcessBlock_syncToUnit_timeout(t *testing.T) {
 	require.NoError(t, err)
 	client.SetMaxBlockNumber(blockNr)
 	client.SetBlock(&block.Block{
-		SystemIdentifier:   tokens.DefaultTokenTxSystemIdentifier,
+		SystemIdentifier:   w.SystemID(),
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNr}},
 		Transactions:       []*txsystem.Transaction{}})
 	types, err := w.db.Do().GetTokenTypes()
 	require.NoError(t, err)
 	require.Len(t, types, 0)
 
-	require.ErrorContains(t, w.syncToUnit(context.Background(), &submittedTx{id: id, tx: createTx(id, blockNr)}), "did not confirm all transactions, timeout reached")
+	require.ErrorContains(t, w.syncToUnit(context.Background(), &submittedTx{id: id, tx: createTx(w.SystemID(), id, blockNr)}), "did not confirm all transactions, timeout reached")
 }
 
 func verifyProof(t *testing.T, unitID []byte, proof *Proof, blockNo uint64, tx *txsystem.Transaction, txConverter block.TxConverter, verifiers map[string]abcrypto.Verifier) {

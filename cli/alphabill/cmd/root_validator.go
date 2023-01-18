@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	gocrypto "crypto"
 	"path"
 	"sort"
 	"time"
@@ -59,7 +58,7 @@ type validatorConfig struct {
 func newRootValidatorCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	config := &validatorConfig{
 		Base:       baseConfig,
-		StateStore: store.NewInMemStateStore(gocrypto.SHA256),
+		StateStore: store.NewInMemStateStore(),
 	}
 	var cmd = &cobra.Command{
 		Use:   "root-validator",
@@ -125,7 +124,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		if err != nil {
 			return err
 		}
-		config.StateStore, err = store.NewPersistentStateStore(storage)
+		config.StateStore, err = store.New(store.WithDBStore(storage))
 		if err != nil {
 			return err
 		}

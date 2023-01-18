@@ -2,9 +2,7 @@ package store
 
 import (
 	gocrypto "crypto"
-	"fmt"
 	"os"
-	"path"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -13,15 +11,15 @@ import (
 )
 
 const (
-	round             = 1
-	roundCreationTime = 100000
+	round             uint64 = 1
+	roundCreationTime        = 100000
 )
 
-var sysId = p.SystemIdentifier([]byte{0, 0, 0, 0})
+var sysID = p.SystemIdentifier([]byte{0, 0, 0, 0})
 var previousHash = make([]byte, gocrypto.SHA256.Size())
 var mockUc = &certificates.UnicityCertificate{
 	UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
-		SystemIdentifier:      []byte(sysId),
+		SystemIdentifier:      []byte(sysID),
 		SiblingHashes:         nil,
 		SystemDescriptionHash: nil,
 	},
@@ -38,84 +36,66 @@ var mockUc = &certificates.UnicityCertificate{
 	},
 }
 
-func TestPersistentRootStore(t *testing.T) {
-	tests := []struct {
-		desc  string
-		store *BoltStore
-	}{
-		{
-			desc:  "bolt",
-			store: createBoltRootStore(t),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run("db|"+tt.desc, func(t *testing.T) {
-			testNew(t, tt.store)
-			testNextRound(t, tt.store)
-			testBadNextRound(t, tt.store)
-		})
-	}
+func TestBoltDB_InvalidPath(t *testing.T) {
+	// provide a file that is not a DB file
+	store, err := NewBoltStore("testdata/invalid-root-key.json")
+	require.Error(t, err)
+	require.Nil(t, store)
 }
 
-func testNew(t *testing.T, rs *BoltStore) {
-	require.NotNil(t, rs)
-	cnt, err := rs.CountUC()
-	require.Equal(t, cnt, 1)
+func TestPersistentStore_NewAndUninitiated(t *testing.T) {
+	f, err := os.CreateTemp("", "bolt-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+	boltDB, err := NewBoltStore(f.Name())
 	require.NoError(t, err)
-	round, err := rs.ReadLatestRoundNumber()
+	require.NotNil(t, boltDB)
+	state, err := boltDB.Read()
 	require.NoError(t, err)
-	require.Equal(t, round, uint64(1))
+	require.Empty(t, len(state.Certificates))
+	require.Equal(t, uint64(0), state.LatestRound)
+	require.Nil(t, state.LatestRootHash)
+	// make writing nil fails
+	require.Error(t, boltDB.Write(nil))
 }
 
-func testNextRound(t *testing.T, rs *BoltStore) {
+func TestNextSave_ok(t *testing.T) {
+	f, err := os.CreateTemp("", "bolt-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+	boltDB, err := NewBoltStore(f.Name())
+	require.NoError(t, err)
+	require.NotNil(t, boltDB)
+	ucs := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: mockUc}
+	// initiate state, i.e. boltDB something
+	require.NoError(t, boltDB.Write(&RootState{LatestRound: round, Certificates: ucs, LatestRootHash: previousHash}))
+	state, err := boltDB.Read()
+	require.NoError(t, err)
+	// check that initial state was saved as intended
+	require.Equal(t, round, state.LatestRound)
+	require.Equal(t, state.LatestRootHash, previousHash)
+	require.Len(t, state.Certificates, 1)
+	// update
 	uc := &certificates.UnicityCertificate{
 		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
-			SystemIdentifier: sysId.Bytes(),
+			SystemIdentifier: sysID.Bytes(),
 		},
 	}
-
-	round, err := rs.ReadLatestRoundNumber()
+	newHash := []byte{1}
+	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: uc}
+	err = boltDB.Write(&RootState{LatestRound: round + 1, Certificates: certs, LatestRootHash: newHash})
 	require.NoError(t, err)
-	hash := []byte{1}
-	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{"1": uc}
-	err = rs.WriteState(RootState{LatestRound: round + 1, Certificates: certs, LatestRootHash: []byte{1}})
+	state, err = boltDB.Read()
 	require.NoError(t, err)
-	uc1, err := rs.GetUC(sysId)
-	require.NoError(t, err)
-	require.Equal(t, uc, uc1)
-	r, err := rs.ReadLatestRoundNumber()
-	require.Equal(t, round+1, r)
-	require.NoError(t, err)
-	h, err := rs.ReadLatestRoundRootHash()
-	require.NoError(t, err)
-	require.Equal(t, hash, h)
-}
-
-func testBadNextRound(t *testing.T, rs *BoltStore) {
-	uc := &certificates.UnicityCertificate{
-		UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
-			SystemIdentifier: sysId.Bytes(),
-		},
-	}
-	round, err := rs.ReadLatestRoundNumber()
-	require.NoError(t, err)
-	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{"1": uc}
-	err = rs.WriteState(RootState{LatestRound: round, Certificates: certs, LatestRootHash: []byte{1}})
-	require.ErrorContains(t, err, "Inconsistent round number, current=2, new=2")
-}
-
-func createBoltRootStore(t *testing.T) *BoltStore {
-	dbFile := path.Join(os.TempDir(), BoltRootChainStoreFileName)
-	t.Cleanup(func() {
-		err := os.Remove(dbFile)
-		if err != nil {
-			fmt.Printf("error deleting %s: %v\n", dbFile, err)
-		}
-	})
-	store, err := NewBoltStore(dbFile)
-	require.NoError(t, err)
-	ucs := map[p.SystemIdentifier]*certificates.UnicityCertificate{"1": mockUc}
-	require.NoError(t, store.WriteState(RootState{LatestRound: round, Certificates: ucs, LatestRootHash: previousHash}))
-	return store
+	require.Equal(t, round+1, state.LatestRound)
+	require.Equal(t, state.LatestRootHash, newHash)
+	require.Len(t, state.Certificates, 1)
+	require.Contains(t, state.Certificates, sysID)
+	ucStored, found := state.Certificates[sysID]
+	require.True(t, found)
+	require.Equal(t, uc, ucStored)
 }

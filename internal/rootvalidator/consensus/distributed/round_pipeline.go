@@ -31,7 +31,7 @@ type (
 	}
 )
 
-func NewRoundPipeline(hash gocrypto.Hash, persistedState store.RootState, partitionStore PartitionStore) *RoundPipeline {
+func NewRoundPipeline(hash gocrypto.Hash, persistedState *store.RootState, partitionStore PartitionStore) *RoundPipeline {
 	//init IR map
 	var hQC *atomic_broadcast.QuorumCert = nil
 	inputRecords := make(map[protocol.SystemIdentifier]*certificates.InputRecord)
@@ -59,7 +59,7 @@ func NewRoundPipeline(hash gocrypto.Hash, persistedState store.RootState, partit
 	}
 }
 
-func (x *RoundPipeline) Reset(persistedState store.RootState) {
+func (x *RoundPipeline) Reset(persistedState *store.RootState) {
 	// clear map, the states will never be committed anyway
 	x.statePipeline = make(map[uint64]*StateEntry)
 	x.inProgress = make(map[protocol.SystemIdentifier]struct{})

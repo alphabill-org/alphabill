@@ -54,13 +54,13 @@ func initConsensusManager(t *testing.T) (*ConsensusManager, *testutils.TestNode,
 	require.NoError(t, err)
 	partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	// initiate state store
-	stateStore := store.NewInMemStateStore(gocrypto.SHA256)
+	stateStore := store.NewInMemStateStore()
 	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
 		identifier := partition.GetSystemIdentifierString()
 		certs[identifier] = partition.Certificate
 	}
-	require.NoError(t, stateStore.Save(store.RootState{
+	require.NoError(t, stateStore.Save(&store.RootState{
 		LatestRound:    rootGenesis.GetRoundNumber(),
 		Certificates:   certs,
 		LatestRootHash: rootGenesis.GetRoundHash(),
@@ -84,7 +84,6 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		},
 		selfID:     "test",
 		partitions: partitions,
-		stateStore: store.NewInMemStateStore(gocrypto.SHA256),
 		ir: map[p.SystemIdentifier]*certificates.InputRecord{
 			p.SystemIdentifier(sysID0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
 			p.SystemIdentifier(sysID1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},

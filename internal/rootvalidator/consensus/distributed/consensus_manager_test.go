@@ -55,13 +55,13 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	require.NoError(t, err)
 	partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	// initiate state store
-	stateStore := store.NewInMemStateStore(gocrypto.SHA256)
+	stateStore := store.NewInMemStateStore()
 	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
 		identifier := partition.GetSystemIdentifierString()
 		certs[identifier] = partition.Certificate
 	}
-	require.NoError(t, stateStore.Save(store.RootState{
+	require.NoError(t, stateStore.Save(&store.RootState{
 		LatestRound:    rootGenesis.GetRoundNumber(),
 		Certificates:   certs,
 		LatestRootHash: rootGenesis.GetRoundHash(),

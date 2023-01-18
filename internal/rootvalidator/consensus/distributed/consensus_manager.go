@@ -51,8 +51,8 @@ type (
 	}
 
 	StateStore interface {
-		Save(state store.RootState) error
-		Get() (store.RootState, error)
+		Save(state *store.RootState) error
+		Get() (*store.RootState, error)
 	}
 
 	AbConsensusConfig struct {
@@ -569,7 +569,7 @@ func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert)
 	}
 	committedState := x.roundPipeline.Update(qc)
 	if committedState != nil {
-		if err := x.stateStore.Save(*committedState); err != nil {
+		if err := x.stateStore.Save(committedState); err != nil {
 			logger.Warning("Failed persist new root chain state: %w", err)
 		}
 		for _, cert := range committedState.Certificates {

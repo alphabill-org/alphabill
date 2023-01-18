@@ -1,7 +1,7 @@
 package store
 
 import (
-	gocrypto "crypto"
+	"fmt"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -10,32 +10,49 @@ import (
 )
 
 const (
-	ErrStateIsNil                  = "err state is nil"
-	ErrInvalidRound                = "err invalid round number"
-	ErrInvalidRootHash             = "invalid root hash"
-	ErrInvalidCertificates         = "missing unicity certificates"
-	ErrIllegalNewRound             = "illegal new round number in new state"
-	ErrPersistentStoreBackendIsNil = "persistent store backend is nil"
+	ErrIllegalNewRound = "illegal new round number in new state"
 )
 
-type RootState struct {
-	LatestRound    uint64
-	LatestRootHash []byte
-	Certificates   map[protocol.SystemIdentifier]*certificates.UnicityCertificate
+type (
+	RootState struct {
+		LatestRound    uint64
+		LatestRootHash []byte
+		Certificates   map[protocol.SystemIdentifier]*certificates.UnicityCertificate
+	}
+
+	PersistentStore interface {
+		Read() (*RootState, error)
+		Write(newState *RootState) error
+	}
+
+	Conf struct {
+		db PersistentStore
+	}
+
+	StateStore struct {
+		state *RootState
+		conf  *Conf
+		mu    sync.Mutex
+	}
+
+	Option func(c *Conf)
+)
+
+func WithDBStore(store PersistentStore) Option {
+	return func(c *Conf) {
+		c.db = store
+	}
 }
 
-type InMemState struct {
-	state RootState
-	mu    sync.Mutex
+func NewRootState() *RootState {
+	return &RootState{
+		LatestRound:    0,
+		LatestRootHash: nil,
+		Certificates:   map[protocol.SystemIdentifier]*certificates.UnicityCertificate{},
+	}
 }
 
-type PersistentRootState struct {
-	cachedState  RootState
-	storeBackend *BoltStore
-	mu           sync.Mutex
-}
-
-func (r *RootState) Update(newState RootState) {
+func (r *RootState) Update(newState *RootState) {
 	r.LatestRound = newState.LatestRound
 	r.LatestRootHash = newState.LatestRootHash
 	// Update changed UC's
@@ -44,99 +61,75 @@ func (r *RootState) Update(newState RootState) {
 	}
 }
 
-func (r *RootState) IsValid() error {
-	if r == nil {
-		return errors.New(ErrStateIsNil)
+func loadConf(opts []Option) *Conf {
+	conf := &Conf{
+		db: nil,
 	}
-	if r.LatestRound < 1 {
-		return errors.New(ErrInvalidRound)
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(conf)
 	}
-	if len(r.LatestRootHash) < gocrypto.SHA256.Size() {
-		return errors.New(ErrInvalidRootHash)
+	return conf
+}
+
+func New(opts ...Option) (*StateStore, error) {
+	config := loadConf(opts)
+	if config.db == nil {
+		return &StateStore{
+			conf:  config,
+			state: NewRootState(),
+		}, nil
 	}
-	if len(r.Certificates) == 0 {
-		return errors.New(ErrInvalidCertificates)
+	lastState, err := config.db.Read()
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	return &StateStore{
+		state: lastState,
+		conf:  config,
+	}, nil
 }
 
 // NewInMemStateStore stores state in volatile memory only, everything is lost on exit
-func NewInMemStateStore(hashAlgorithm gocrypto.Hash) *InMemState {
-	return &InMemState{
-		state: RootState{
-			LatestRound:    0,
-			LatestRootHash: make([]byte, hashAlgorithm.Size()),
-			Certificates:   make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate),
-		},
+func NewInMemStateStore() *StateStore {
+	return &StateStore{
+		conf:  &Conf{db: nil},
+		state: NewRootState(),
 	}
 }
 
-func (s *InMemState) Save(newState RootState) error {
+func (s *StateStore) Save(newState *RootState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if newState == nil {
+		return fmt.Errorf("state is nil")
+	}
+	// round number sanity check
 	if err := checkRoundNumber(s.state, newState); err != nil {
 		return err
 	}
+	// update local cache
 	s.state.Update(newState)
+	// persist state
+	if s.conf.db != nil {
+		if err := s.conf.db.Write(newState); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (s *InMemState) Get() (RootState, error) {
+func (s *StateStore) Get() (*RootState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.state, nil
 }
 
-// NewPersistentStateStore persists state using the persistent storage provider interface
-// Currently uses RootSate as cache (probably should be refactored)
-func NewPersistentStateStore(store *BoltStore) (*PersistentRootState, error) {
-	if store == nil {
-		return nil, errors.New(ErrPersistentStoreBackendIsNil)
-	}
-	// Read last state from persistent store
-	latestRound, err := store.ReadLatestRoundNumber()
-	if err != nil {
-		return nil, err
-	}
-	latestRootHash, err := store.ReadLatestRoundRootHash()
-	if err != nil {
-		return nil, err
-	}
-	certs, err := store.ReadAllUC()
-	if err != nil {
-		return nil, err
-	}
-	return &PersistentRootState{
-		cachedState:  RootState{LatestRound: latestRound, Certificates: certs, LatestRootHash: latestRootHash},
-		storeBackend: store,
-	}, nil
-}
-
-func (p *PersistentRootState) Save(newState RootState) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	// round number sanity check
-	if err := checkRoundNumber(p.cachedState, newState); err != nil {
-		return err
-	}
-	// persist state
-	if err := p.storeBackend.WriteState(newState); err != nil {
-		return err
-	}
-	// update local cache
-	p.cachedState.Update(newState)
-	return nil
-}
-
-func (p *PersistentRootState) Get() (RootState, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.cachedState, nil
-}
-
 // checkRoundNumber makes sure that the round number monotonically increases
 // This will become obsolete in distributed root chain solution, then it just has to be bigger and caps are possible
-func checkRoundNumber(current, newState RootState) error {
+func checkRoundNumber(current, newState *RootState) error {
 	// Round number must be increasing
 	if current.LatestRound >= newState.LatestRound {
 		return errors.New(ErrIllegalNewRound)

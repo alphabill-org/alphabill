@@ -17,7 +17,7 @@ func TestRoundPipeline_Add(t *testing.T) {
 	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}}})
 	require.NoError(t, err)
-	state := store.RootState{
+	state := &store.RootState{
 		LatestRound:    1,
 		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),
 		Certificates: map[protocol.SystemIdentifier]*certificates.UnicityCertificate{
@@ -101,7 +101,7 @@ func TestRoundPipeline_Reset(t *testing.T) {
 	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}}})
 	require.NoError(t, err)
-	state := store.RootState{
+	state := &store.RootState{
 		LatestRound:    1,
 		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),
 		Certificates: map[protocol.SystemIdentifier]*certificates.UnicityCertificate{

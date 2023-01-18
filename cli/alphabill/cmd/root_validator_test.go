@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	gocrypto "crypto"
 	"path"
 	"sync"
 	"testing"
@@ -49,7 +48,7 @@ func validMonolithicRootValidatorConfig() *validatorConfig {
 		GenesisFile:  "testdata/expected/root-genesis.json",
 		RootListener: "/ip4/0.0.0.0/tcp/0",
 		MaxRequests:  1000,
-		StateStore:   store.NewInMemStateStore(gocrypto.SHA256),
+		StateStore:   store.NewInMemStateStore(),
 	}
 	return conf
 }

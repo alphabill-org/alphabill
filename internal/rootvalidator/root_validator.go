@@ -2,7 +2,6 @@ package rootvalidator
 
 import (
 	"context"
-	gocrypto "crypto"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -39,8 +38,8 @@ type (
 	}
 
 	StateStore interface {
-		Save(state store.RootState) error
-		Get() (store.RootState, error)
+		Save(state *store.RootState) error
+		Get() (*store.RootState, error)
 	}
 
 	PartitionStore interface {
@@ -108,7 +107,7 @@ func initiateStateStore(stateStore distributed.StateStore, rg *genesis.RootGenes
 		certs[identifier] = partition.Certificate
 	}
 	// If not initiated, save genesis file to store
-	if err := stateStore.Save(store.RootState{LatestRound: rg.GetRoundNumber(), Certificates: certs, LatestRootHash: rg.GetRoundHash()}); err != nil {
+	if err := stateStore.Save(&store.RootState{LatestRound: rg.GetRoundNumber(), Certificates: certs, LatestRootHash: rg.GetRoundHash()}); err != nil {
 		return err
 	}
 	return nil
@@ -215,7 +214,7 @@ func (v *Validator) loop() {
 
 func loadConf(opts []Option) *RootNodeConf {
 	conf := &RootNodeConf{
-		stateStore: store.NewInMemStateStore(gocrypto.SHA256),
+		stateStore: store.NewInMemStateStore(),
 	}
 	for _, opt := range opts {
 		if opt == nil {

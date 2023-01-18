@@ -31,8 +31,8 @@ type (
 	}
 
 	StateStore interface {
-		Save(state store.RootState) error
-		Get() (store.RootState, error)
+		Save(*store.RootState) error
+		Get() (*store.RootState, error)
 	}
 
 	consensusConfig struct {
@@ -107,7 +107,7 @@ func NewMonolithicConsensusManager(selfStr string, partitionStore PartitionStore
 		selfID:       selfStr,
 		partitions:   partitionStore,
 		stateStore:   stateStore,
-		ir:           loadInputRecords(&state),
+		ir:           loadInputRecords(state),
 		changes:      make(map[p.SystemIdentifier]*certificates.InputRecord),
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
@@ -173,23 +173,23 @@ func (x *ConsensusManager) loop() {
 
 func (x *ConsensusManager) onT3Timeout() {
 	defer trackExecutionTime(time.Now(), "t3 timeout handling")
-	state, err := x.stateStore.Get()
+	lastState, err := x.stateStore.Get()
 	if err != nil {
 		logger.Warning("T3 timeout, failed to read last state from storage: %v", err.Error())
 		return
 	}
-	newRound := state.LatestRound + 1
+	newRound := lastState.LatestRound + 1
 	// evaluate timeouts and add repeat UC requests if timeout
-	if err := x.checkT2Timeout(newRound, &state); err != nil {
+	if err := x.checkT2Timeout(newRound, lastState); err != nil {
 		return
 	}
 	// if no new consensus or timeout then skip the round
 	if len(x.changes) == 0 {
 		logger.Info("Round %v, no IR changes", newRound)
 		// persist new round
-		newState := store.RootState{
+		newState := &store.RootState{
 			LatestRound:    newRound,
-			LatestRootHash: state.LatestRootHash,
+			LatestRootHash: lastState.LatestRootHash,
 		}
 		if err := x.stateStore.Save(newState); err != nil {
 			logger.Warning("Round %d failed to persist new root state, %v", newState.LatestRound, err)
@@ -197,15 +197,15 @@ func (x *ConsensusManager) onT3Timeout() {
 		}
 		return
 	}
-	newState, err := x.generateUnicityCertificates(newRound, &state)
+	newState, err := x.generateUnicityCertificates(newRound)
 	if err != nil {
-		logger.Warning("Round %d, T3 timeout failed: %v", state.LatestRound+1, err)
+		logger.Warning("Round %d, T3 timeout failed: %v", newRound, err)
 		// restore input records form last state
-		x.ir = loadInputRecords(&state)
+		x.ir = loadInputRecords(lastState)
 		return
 	}
 	// persist new state
-	if err := x.stateStore.Save(*newState); err != nil {
+	if err := x.stateStore.Save(newState); err != nil {
 		logger.Warning("Round %d failed to persist new root state, %v", newState.LatestRound, err)
 		return
 	}
@@ -236,7 +236,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) 
 	return nil
 }
 
-func (x *ConsensusManager) generateUnicityCertificates(round uint64, lastState *store.RootState) (*store.RootState, error) {
+func (x *ConsensusManager) generateUnicityCertificates(round uint64) (*store.RootState, error) {
 	// log all changes for this round
 	logger.Info("Round %v, certify changes for partitions %X", round, maps.Keys(x.changes))
 	// apply changes

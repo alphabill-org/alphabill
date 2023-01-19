@@ -96,8 +96,8 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context, lastBlockNumber uint6
 	return w.syncLedger(ctx, lastBlockNumber, false)
 }
 
-// GetMaxBlockNumber queries the node for latest block number
-func (w *Wallet) GetMaxBlockNumber() (uint64, error) {
+// GetMaxBlockNumber queries the node for latest block and round number
+func (w *Wallet) GetMaxBlockNumber() (uint64, uint64, error) {
 	return w.AlphabillClient.GetMaxBlockNumber()
 }
 
@@ -195,7 +195,7 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 }
 
 func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
-	maxBlockNumber, err := w.GetMaxBlockNumber()
+	maxBlockNumber, _, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}

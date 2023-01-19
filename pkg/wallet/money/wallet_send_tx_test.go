@@ -50,9 +50,16 @@ func TestWalletSendFunction(t *testing.T) {
 	require.ErrorIs(t, err, ErrSwapInProgress)
 	setDcMetadata(t, w, nonce, nil)
 
-	// test ok response
+	// test ok response, ensure tx timeout is correct
+	mockClient.SetMaxBlockNumber(0)
+	mockClient.SetMaxRoundNumber(100)
+	mockClient.SetTxListener(func(tx *txsystem.Transaction) {
+		_, rn, _ := mockClient.GetMaxBlockNumber()
+		require.Equal(t, rn+txTimeoutBlockCount, tx.Timeout)
+	})
 	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.NoError(t, err)
+	mockClient.SetTxListener(nil)
 
 	// test another account
 	_, _, _ = w.AddAccount()

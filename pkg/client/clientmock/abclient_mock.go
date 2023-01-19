@@ -12,6 +12,7 @@ type MockAlphabillClient struct {
 	recordedTxs    []*txsystem.Transaction
 	txResponse     *txsystem.TransactionResponse
 	maxBlockNumber uint64
+	maxRoundNumber uint64
 	shutdown       bool
 	blocks         map[uint64]*block.Block
 	txListener     func(tx *txsystem.Transaction)
@@ -63,8 +64,8 @@ func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphab
 	}, nil
 }
 
-func (c *MockAlphabillClient) GetMaxBlockNumber() (uint64, error) {
-	return c.maxBlockNumber, nil
+func (c *MockAlphabillClient) GetMaxBlockNumber() (uint64, uint64, error) {
+	return c.maxBlockNumber, c.maxRoundNumber, nil
 }
 
 func (c *MockAlphabillClient) Shutdown() error {
@@ -82,6 +83,10 @@ func (c *MockAlphabillClient) SetTxResponse(txResponse *txsystem.TransactionResp
 
 func (c *MockAlphabillClient) SetMaxBlockNumber(blockNumber uint64) {
 	c.maxBlockNumber = blockNumber
+}
+
+func (c *MockAlphabillClient) SetMaxRoundNumber(roundNumber uint64) {
+	c.maxRoundNumber = roundNumber
 }
 
 func (c *MockAlphabillClient) SetBlock(b *block.Block) {

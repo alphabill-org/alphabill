@@ -22,7 +22,7 @@ type ABClient interface {
 	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	GetBlock(blockNumber uint64) (*block.Block, error)
 	GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	GetMaxBlockNumber() (uint64, error)
+	GetMaxBlockNumber() (uint64, uint64, error) // latest persisted block number, latest round number
 	Shutdown() error
 	IsShutdown() bool
 }
@@ -120,11 +120,11 @@ func (c *AlphabillClient) GetBlocks(blockNumber uint64, blockCount uint64) (res 
 	return res, nil
 }
 
-func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
+func (c *AlphabillClient) GetMaxBlockNumber() (uint64, uint64, error) {
 	defer trackExecutionTime(time.Now(), "fetching max block number")
 	err := c.connect()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -136,12 +136,12 @@ func (c *AlphabillClient) GetMaxBlockNumber() (uint64, error) {
 	}
 	res, err := c.client.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{}, grpc.WaitForReady(c.config.WaitForReady))
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if res.ErrorMessage != "" {
-		return 0, errors.New(res.ErrorMessage)
+		return 0, 0, errors.New(res.ErrorMessage)
 	}
-	return res.BlockNo, nil
+	return res.BlockNo, res.MaxRoundNumber, nil
 }
 
 func (c *AlphabillClient) Shutdown() error {

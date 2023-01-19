@@ -29,8 +29,8 @@ func (c *DummyAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alpha
 	return &alphabill.GetBlocksResponse{MaxBlockNumber: 10, Blocks: []*block.Block{{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}}}}, nil
 }
 
-func (c *DummyAlphabillClient) GetMaxBlockNumber() (uint64, error) {
-	return 10, nil
+func (c *DummyAlphabillClient) GetMaxBlockNumber() (uint64, uint64, error) {
+	return 10, 10, nil
 }
 
 func (c *DummyAlphabillClient) Shutdown() error {

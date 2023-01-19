@@ -242,7 +242,7 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 }
 
 func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetries int) error {
-	for failedTries := 0; failedTries <= maxRetries; failedTries++ {
+	for failedTries := 0; failedTries < maxRetries; failedTries++ {
 		// node side error is included in both res.Message and err.Error(),
 		// we use res.Message here to check if tx passed
 		res, err := w.AlphabillClient.SendTransaction(tx)

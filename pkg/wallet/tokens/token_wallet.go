@@ -384,6 +384,9 @@ func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenTyp
 		tokensByTypes[tokenType.String()] = make([]*TokenUnit, 0)
 	}
 	for _, tok := range allTokens {
+		if !tok.IsFungible() {
+			continue
+		}
 		tokenTypeStr := tok.TypeID.String()
 		tokenz, found := tokensByTypes[tokenTypeStr]
 		if !found {

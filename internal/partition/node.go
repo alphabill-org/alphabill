@@ -785,7 +785,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 			Message:  resp,
 		}, []peer.ID{recoveringNodeID})
 		if err != nil {
-			logger.Error("Problem sending ledger replication response, %s: %s", resp, err)
+			logger.Error("Problem sending ledger replication response, %s: %s", resp.Pretty(), err)
 		}
 		n.sendEvent(event.ReplicationResponseSent, resp)
 	}()
@@ -794,11 +794,11 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 }
 
 func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplicationResponse) error {
-	util.WriteDebugJsonLog(logger, "Ledger replication response received", lr)
+	logger.Debug("Ledger replication response received: %s, ", lr.Pretty())
 	logger.Debug("Recovery: latest node's block: #%v", n.GetLatestBlock().BlockNumber)
 
 	if n.status != recovering {
-		logger.Warning("Unexpected Ledger Replication response, node is not recovering", lr)
+		logger.Warning("Unexpected Ledger Replication response, node is not recovering", lr.Pretty())
 		return nil
 	}
 
@@ -809,7 +809,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 			time.Sleep(500 * time.Millisecond) // TODO
 			n.sendLedgerReplicationRequest(recoverFrom)
 		}()
-		return errors.Errorf("got erroneous Ledger Replication response, status=%v, message='%s'", lr.Status, lr.Message)
+		return errors.Errorf("got erroneous Ledger Replication response, status=%s, message='%s'", lr.Status.String(), lr.Message)
 	}
 	for _, b := range lr.Blocks {
 		logger.Debug("Recovering block #%v", b.BlockNumber)

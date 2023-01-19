@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	genericIndexerHomeDir = "generic-indexer"
+	moneyBackendHomeDir = "money-backend"
 )
 
 type genericIndexerConfig struct {
@@ -35,7 +35,7 @@ func (c *genericIndexerConfig) GetDbFile() (string, error) {
 	if c.DbFile != "" {
 		return c.DbFile, nil
 	}
-	indexerHomeDir := filepath.Join(c.Base.HomeDir, genericIndexerHomeDir)
+	indexerHomeDir := filepath.Join(c.Base.HomeDir, moneyBackendHomeDir)
 	err := os.MkdirAll(indexerHomeDir, 0700) // -rwx------
 	if err != nil {
 		return "", err
@@ -78,7 +78,7 @@ func startGenericIndexerCmd(ctx context.Context, config *genericIndexerConfig) *
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill node url")
 	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "server address")
-	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/generic-indexer/"+indexer.BoltBillStoreFileName+")")
+	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/"+moneyBackendHomeDir+"/"+indexer.BoltBillStoreFileName+")")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
 	return cmd
 }

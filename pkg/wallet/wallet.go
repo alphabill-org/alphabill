@@ -242,9 +242,8 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 }
 
 func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetries int) error {
-	failedTries := 0
-	for {
-		// node side error is incuded in both res.Message and err.Error(),
+	for failedTries := 0; failedTries <= maxRetries; failedTries++ {
+		// node side error is included in both res.Message and err.Error(),
 		// we use res.Message here to check if tx passed
 		res, err := w.AlphabillClient.SendTransaction(tx)
 		if res == nil && err == nil {
@@ -252,22 +251,15 @@ func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetrie
 		}
 		if res != nil {
 			if res.Ok {
-				log.Debug("successfully sent transaction")
 				return nil
 			}
 			// res.Message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
 			if strings.HasPrefix(res.Message, txBufferFullErrMsg) {
-				failedTries += 1
-				if failedTries >= maxRetries {
-					return ErrFailedToBroadcastTx
-				}
 				log.Debug("tx buffer full, waiting 1s to retry...")
-				timer := time.NewTimer(time.Second)
 				select {
-				case <-timer.C:
+				case <-time.After(time.Second):
 					continue
 				case <-ctx.Done():
-					timer.Stop()
 					return ErrTxRetryCanceled
 				}
 			}
@@ -277,4 +269,5 @@ func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetrie
 			return err
 		}
 	}
+	return ErrFailedToBroadcastTx
 }

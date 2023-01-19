@@ -15,20 +15,21 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
+	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/pubkey_indexer"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
 
 const (
-	walletBackendDir   = "wallet-backend"
+	homeDir            = "pubkey-indexer"
 	serverAddrCmdName  = "server-addr"
 	dbFileCmdName      = "db"
 	pubkeysCmdName     = "pubkeys"
 	listBillsPageLimit = "list-bills-page-limit"
 )
 
-type walletBackendConfig struct {
+type pubkeyIndexerConfig struct {
 	Base               *baseConfiguration
 	AlphabillUrl       string
 	ServerAddr         string
@@ -40,7 +41,7 @@ type walletBackendConfig struct {
 	TrustBaseFile      string
 }
 
-func (c *walletBackendConfig) GetPubKeys() ([][]byte, error) {
+func (c *pubkeyIndexerConfig) GetPubKeys() ([][]byte, error) {
 	pubkeys := make([][]byte, len(c.Pubkeys))
 	for i, pubKey := range c.Pubkeys {
 		pubKeyBytes, err := hexutil.Decode(pubKey)
@@ -55,19 +56,19 @@ func (c *walletBackendConfig) GetPubKeys() ([][]byte, error) {
 	return pubkeys, nil
 }
 
-func (c *walletBackendConfig) GetDbFile() (string, error) {
+func (c *pubkeyIndexerConfig) GetDbFile() (string, error) {
 	if c.DbFile != "" {
 		return c.DbFile, nil
 	}
-	walletBackendHomeDir := path.Join(c.Base.HomeDir, walletBackendDir)
+	walletBackendHomeDir := path.Join(c.Base.HomeDir, homeDir)
 	err := os.MkdirAll(walletBackendHomeDir, 0700) // -rwx------
 	if err != nil {
 		return "", err
 	}
-	return path.Join(walletBackendHomeDir, backend.BoltBillStoreFileName), nil
+	return path.Join(walletBackendHomeDir, indexer.BoltBillStoreFileName), nil
 }
 
-func (c *walletBackendConfig) GetTrustBase() (map[string]crypto.Verifier, error) {
+func (c *pubkeyIndexerConfig) GetTrustBase() (map[string]crypto.Verifier, error) {
 	trustBase, err := util.ReadJsonFile(c.TrustBaseFile, &TrustBase{})
 	if err != nil {
 		return nil, err
@@ -83,13 +84,13 @@ func (c *walletBackendConfig) GetTrustBase() (map[string]crypto.Verifier, error)
 	return verifiers, nil
 }
 
-// newWalletBackendCmd creates a new cobra command for the wallet-backend component.
-func newWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &walletBackendConfig{Base: baseConfig}
+// newPubkeyIndexerCmd creates a new cobra command for the pubkey-indexer component.
+func newPubkeyIndexerCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+	config := &pubkeyIndexerConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
-		Use:   "wallet-backend",
-		Short: "starts wallet backend service",
-		Long:  "starts wallet backend service, indexes bills by given public keys, starts http server",
+		Use:   "pubkey-indexer",
+		Short: "starts pubkey indexer service",
+		Long:  "starts pubkey indexer service, indexes bills by given public keys, starts http server",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// initialize config so that baseConfig.HomeDir gets configured
 			err := initializeConfig(cmd, baseConfig)
@@ -103,13 +104,13 @@ func newWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *co
 			consoleWriter.Println("Error: must specify a subcommand")
 		},
 	}
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
+	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.AddCommand(startCmd(ctx, config))
 	return walletCmd
 }
 
-func startCmd(ctx context.Context, config *walletBackendConfig) *cobra.Command {
+func startCmd(ctx context.Context, config *pubkeyIndexerConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -117,8 +118,8 @@ func startCmd(ctx context.Context, config *walletBackendConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
-	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "wallet backend server address")
-	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/wallet-backend/"+backend.BoltBillStoreFileName+")")
+	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "server address")
+	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/pubkey-indexer/"+indexer.BoltBillStoreFileName+")")
 	cmd.Flags().StringSliceVarP(&config.Pubkeys, pubkeysCmdName, "p", nil, "pubkeys to index (more keys can be added to running service through web api)")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
 	cmd.Flags().StringVarP(&config.TrustBaseFile, trustBaseFileCmdName, "t", "", "path to trust base file")
@@ -126,7 +127,7 @@ func startCmd(ctx context.Context, config *walletBackendConfig) *cobra.Command {
 	return cmd
 }
 
-func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendConfig) error {
+func execStartCmd(ctx context.Context, _ *cobra.Command, config *pubkeyIndexerConfig) error {
 	abclient := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})
 	pubkeys, err := config.GetPubKeys()
 	if err != nil {
@@ -140,21 +141,22 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 	if err != nil {
 		return err
 	}
-	store, err := backend.NewBoltBillStore(dbFile)
+	store, err := indexer.NewBoltBillStore(dbFile)
 	if err != nil {
 		return err
 	}
 	for _, pubkey := range pubkeys {
-		k := backend.NewPubkey(pubkey)
+		k := indexer.NewPubkey(pubkey)
 		err = store.AddKey(k)
 		if err != nil {
 			return err
 		}
 	}
-	bp := backend.NewBlockProcessor(store)
+	txConverter := backend.NewTxConverter(defaultABMoneySystemIdentifier)
+	bp := indexer.NewBlockProcessor(store, txConverter)
 	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 
-	service := backend.New(w, store, verifiers)
+	service := indexer.New(w, store, txConverter, verifiers)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -162,7 +164,7 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 		wg.Done()
 	}()
 
-	server := backend.NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, service)
+	server := indexer.NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, service)
 	err = server.Start()
 	if err != nil {
 		service.Shutdown()

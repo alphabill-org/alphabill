@@ -61,33 +61,33 @@
         "root_hash": "pwtGrBdUdpsp8GywHbZXLOPPr7wGa4PUKsoLly1UAto="
       },
       "signatures": {
-        "16Uiu2HAm2CmXXCB2PZCrdQY4QCySsjwadcHbKFX6zpw2rV7iigPd": "qFOsNCKWuvxBzti6JVVWlEwYvLNoLksCZEoKjdf/O9A/jk8sudlEfZdLZNmTC5yvfFYlk7+t8IW3EioESK1pAwE=",
-        "16Uiu2HAmJVKzG98szSRcYBRdszU8sEmTRncqgPBfk3tvDySzveFy": "Dr8s2ZQnjd+CVbHXy6svyL8lRqiDP8Vwq4ONTFqGqTFGuL2l7piA8GQSOQ5+a5RHZTb439KxziRZeooJpNp9tgE=",
-        "16Uiu2HAmMePd9FwwSGMs4Jpa6kTCcnNM69CEXrDpKEqLJ1ohaCR7": "CEgTMSVTQWk3ue4jFmBYXnXbQxn52W6RNcMDls2U6AI6SvztIPHOx48XZCKF+KUMqNP95z9exbyEMXSXowih7wE=",
-        "16Uiu2HAmQQ1NuTq3LTkTSwpGS2HnZLPMHuoydynoy4414gkGpmzU": "YyvKdGZhr4oJcnBpYS0SMasmTOIzB+YTwLI5o2tBATNB/Ir64wh8H8yArM9T9zGxg5w/SLB2ma9W2+rT9r8U7AA="
+        "16Uiu2HAm2m5VwobG5bH9Bphkdbs1tvuCmbFnD7pAYBcSbi8xGBWz": "d6fX3oxk+BaA2qzi8ZSNY4oe6HpEOeC9yx05FLlgxmEgr+ZDLf5MzgTNTEC+mfCasaiTqO4ZXu+ZJsOXN3Y4WAA=",
+        "16Uiu2HAm5GKZVxZEyRmMMRwxZGoEew1iD7sgAEoBaphpnPdLcrdq": "Di6yPjlT/ESP4AO2zEDJSwzLzrtzZ4yNiLoTjT+a0rQkLqtox5Txc/LXpPfACUm6iqDOlsbkLF/5cqZSWCELIQE=",
+        "16Uiu2HAm7VK42TR8bL2tFS6EyZSVvHaGqF2NzgGZoR3N44TfqKfP": "G7KEsHg0w2sedHNAF2ct880GEbOo9xN54MLE7B39P88w07moAj8DSmpxCjrYcWf+gbNAuE77vxGicNwW+fvdCAA=",
+        "16Uiu2HAmPctgdq7vvupH4rB8HQbs4uEJVKKut3ibsmdTd5HZTvpV": "Mv9IFbWCIfQVk7gSxBPtNRsK9tDLN+TDgQ5u/0Q7ZKcZAnuqi+olUBWsqDjYO0J7tblSJRmA0GbdCQYPGXbw0QE="
       }
     }
   },
   "root_validators": [
     {
-      "node_identifier": "16Uiu2HAmJVKzG98szSRcYBRdszU8sEmTRncqgPBfk3tvDySzveFy",
-      "signing_public_key": "AlDPf+mvX23NgxHxnQfzEqSSSOj2m8NblBsr4knXu5Ad",
-      "encryption_public_key": "A1ashIF3tBWs87wXogETVmWrUdDx03xj1g9iVLkWbxgQ"
+      "node_identifier": "16Uiu2HAm5GKZVxZEyRmMMRwxZGoEew1iD7sgAEoBaphpnPdLcrdq",
+      "signing_public_key": "AqXVQUkov9ZBaNs/kVobeU+0+sUHjGaCZYsuKK3ixU+Z",
+      "encryption_public_key": "ApIvjedlUZmHXFKs5ZjO45mQ/7tP5xKMuKGu+c6Fcmdk"
     },
     {
-      "node_identifier": "16Uiu2HAmMePd9FwwSGMs4Jpa6kTCcnNM69CEXrDpKEqLJ1ohaCR7",
-      "signing_public_key": "Ao0z9kW0rPCml/jmL9dAfUj8LGA15AsLxKH+aWrFG76m",
-      "encryption_public_key": "A4WR6rFqDiucHYAZ0pFvNB18aQtiNXPQ0F81J4mXFXvq"
+      "node_identifier": "16Uiu2HAmPctgdq7vvupH4rB8HQbs4uEJVKKut3ibsmdTd5HZTvpV",
+      "signing_public_key": "AiCDWPvwCMBqJefKKesRGDFy7Os0nzJUi2GjwuGpiIIX",
+      "encryption_public_key": "A6Lm/MyZrU1LpistB7tRy4yLFTy+ctgvG3g0zGU0I/xG"
     },
     {
-      "node_identifier": "16Uiu2HAmQQ1NuTq3LTkTSwpGS2HnZLPMHuoydynoy4414gkGpmzU",
-      "signing_public_key": "A51/5zTdLrlXYDC1ZOEGb3R8nf0vwhnmxPzGKGw0o4qP",
-      "encryption_public_key": "A651sXQNTcA2UcQlmKMkF5YCogl6/BhErjlh8FN8i0+d"
+      "node_identifier": "16Uiu2HAm7VK42TR8bL2tFS6EyZSVvHaGqF2NzgGZoR3N44TfqKfP",
+      "signing_public_key": "AgVYh0snKrJsvXCl+O1Nt1Dy/I70sizznZVLrDc9gMKK",
+      "encryption_public_key": "ArM653I8tHJ2m8KXiFyat1Jf8jmVrI0MD9DZxjguIcqa"
     },
     {
-      "node_identifier": "16Uiu2HAm2CmXXCB2PZCrdQY4QCySsjwadcHbKFX6zpw2rV7iigPd",
-      "signing_public_key": "Ah4FsVIrNdsSGgxAFwUrKoZZCGz/H3Vg28/hsfqCwGPK",
-      "encryption_public_key": "AmSzh68bqccTyPsmaMsXJPZQSwidfaJEHglJuhbkzdHU"
+      "node_identifier": "16Uiu2HAm2m5VwobG5bH9Bphkdbs1tvuCmbFnD7pAYBcSbi8xGBWz",
+      "signing_public_key": "AlNgfxigT90JjZeA+cY3WHhKLEGqxoc6KKhlFBLRhKvN",
+      "encryption_public_key": "Amz6cBcnVtAiSYQC7flemD0tYEaN2DMrE6bHizwRlLSb"
     }
   ],
   "keys": [

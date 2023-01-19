@@ -3,19 +3,18 @@ package genesis
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 )
 
 const (
-	ErrEncryptionPubKeyIsNil          = "encryption public key is nil"
-	ErrQuorumThresholdOnlyDistributed = "quorum threshold must only be less than total nodes in root chain"
+	ErrEncryptionPubKeyIsNil = "encryption public key is nil"
 
 	Timestamp = 1668208271000 // 11.11.2022 @ 11:11:11
 )
@@ -39,23 +38,20 @@ type (
 		hashAlgorithm         gocrypto.Hash
 	}
 
-	GenesisOption func(c *rootGenesisConf)
+	Option func(c *rootGenesisConf)
 
 	UnicitySealFunc func(rootHash []byte) (*certificates.UnicitySeal, error)
 )
 
-func (c *rootGenesisConf) QuorumThreshold() *uint32 {
+func (c *rootGenesisConf) QuorumThreshold() uint32 {
 	if c.quorumThreshold == 0 {
-		return nil
+		return genesis.GetMinQuorumThreshold(c.totalValidators)
 	}
-	return &c.quorumThreshold
+	return c.quorumThreshold
 }
 
-func (c *rootGenesisConf) ConsensusTimeoutMs() *uint32 {
-	if c.totalValidators == 1 {
-		return nil
-	}
-	return &c.consensusTimeoutMs
+func (c *rootGenesisConf) ConsensusTimeoutMs() uint32 {
+	return c.consensusTimeoutMs
 }
 
 func (c *rootGenesisConf) isValid() error {
@@ -68,41 +64,42 @@ func (c *rootGenesisConf) isValid() error {
 	if len(c.encryptionPubKeyBytes) == 0 {
 		return errors.New(ErrEncryptionPubKeyIsNil)
 	}
-	if c.totalValidators > 1 && c.totalValidators < genesis.MinDistributedRootValidators {
-		return errors.New(genesis.ErrInvalidNumberOfRootValidators)
+	if c.totalValidators < 1 {
+		return genesis.ErrInvalidNumberOfRootValidators
 	}
 	if c.totalValidators < c.quorumThreshold {
-		return errors.New(ErrQuorumThresholdOnlyDistributed)
+		return fmt.Errorf("invalid quorum threshold %v, is higher than total root nodes %v",
+			c.quorumThreshold, c.totalValidators)
 	}
 	return nil
 }
 
-func WithTotalNodes(rootValidators uint32) GenesisOption {
+func WithTotalNodes(rootValidators uint32) Option {
 	return func(c *rootGenesisConf) {
 		c.totalValidators = rootValidators
 	}
 }
 
-func WithBlockRate(rate uint32) GenesisOption {
+func WithBlockRate(rate uint32) Option {
 	return func(c *rootGenesisConf) {
 		c.blockRateMs = rate
 	}
 }
 
-func WithConsensusTimeout(timeoutMs uint32) GenesisOption {
+func WithConsensusTimeout(timeoutMs uint32) Option {
 	return func(c *rootGenesisConf) {
 		c.consensusTimeoutMs = timeoutMs
 	}
 }
 
-func WithQuorumThreshold(threshold uint32) GenesisOption {
+func WithQuorumThreshold(threshold uint32) Option {
 	return func(c *rootGenesisConf) {
 		c.quorumThreshold = threshold
 	}
 }
 
 // WithHashAlgorithm set custom hash algorithm (unused for now, remove?)
-func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) GenesisOption {
+func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) Option {
 	return func(c *rootGenesisConf) {
 		c.hashAlgorithm = hashAlgorithm
 	}
@@ -163,15 +160,15 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 }
 
 func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*genesis.PartitionRecord,
-	opts ...GenesisOption) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
+	opts ...Option) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 
 	c := &rootGenesisConf{
 		peerID:                id,
 		signer:                s,
 		encryptionPubKeyBytes: encPubKey,
 		totalValidators:       1,
-		blockRateMs:           900,
-		consensusTimeoutMs:    0,
+		blockRateMs:           genesis.MinBlockRateMs,
+		consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
 		quorumThreshold:       0,
 		hashAlgorithm:         gocrypto.SHA256,
 	}
@@ -198,8 +195,8 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	sdrhs := make(map[p.SystemIdentifier][]byte, len(partitions))
 	for i, partition := range partitions {
 		// Check that partition is valid: required fields sent and no duplicate node, all requests with same system id
-		if err := partition.IsValid(); err != nil {
-			return nil, nil, errors.Errorf("invalid partition record: %v", err)
+		if err = partition.IsValid(); err != nil {
+			return nil, nil, fmt.Errorf("invalid partition record: %w", err)
 		}
 		sdrh := partition.SystemDescriptionRecord.Hash(c.hashAlgorithm)
 		sdrhs[p.SystemIdentifier(partition.SystemDescriptionRecord.SystemIdentifier)] = sdrh
@@ -341,9 +338,6 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 }
 
 func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
-	if len(rootGenesis) < genesis.MinDistributedRootValidators {
-		return nil, nil, errors.Errorf("distributed root chain genesis requires at least %v root validator genesis files", genesis.MinDistributedRootValidators)
-	}
 	// Take the first and start appending to it from the rest
 	rg, rest := rootGenesis[0], rootGenesis[1:]
 	consensusBytes := rg.Root.Consensus.Bytes()
@@ -402,7 +396,7 @@ func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.Roo
 	// verify result
 	err := rg.Verify()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "root genesis combine failed")
+		return nil, nil, fmt.Errorf("root genesis combine failed: %w", err)
 	}
 	return rg, partitionGenesis, nil
 }

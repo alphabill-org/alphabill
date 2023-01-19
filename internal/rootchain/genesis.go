@@ -3,6 +3,7 @@ package rootchain
 import (
 	"bytes"
 	gocrypto "crypto"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -11,9 +12,6 @@ import (
 )
 
 const (
-	ErrEncryptionPubKeyIsNil          = "encryption public key is nil"
-	ErrQuorumThresholdOnlyDistributed = "quorum threshold must only be less than total nodes in root chain"
-
 	GenesisTime = 1668208271000 // 11.11.2022 @ 11:11:11
 )
 
@@ -37,18 +35,15 @@ type (
 	GenesisOption func(c *rootGenesisConf)
 )
 
-func (c *rootGenesisConf) QuorumThreshold() *uint32 {
+func (c *rootGenesisConf) QuorumThreshold() uint32 {
 	if c.quorumThreshold == 0 {
-		return nil
+		return genesis.GetMinQuorumThreshold(c.totalValidators)
 	}
-	return &c.quorumThreshold
+	return c.quorumThreshold
 }
 
-func (c *rootGenesisConf) ConsensusTimeoutMs() *uint32 {
-	if c.totalValidators == 1 {
-		return nil
-	}
-	return &c.consensusTimeoutMs
+func (c *rootGenesisConf) ConsensusTimeoutMs() uint32 {
+	return c.consensusTimeoutMs
 }
 
 func (c *rootGenesisConf) isValid() error {
@@ -59,13 +54,14 @@ func (c *rootGenesisConf) isValid() error {
 		return ErrSignerIsNil
 	}
 	if len(c.encryptionPubKeyBytes) == 0 {
-		return errors.New(ErrEncryptionPubKeyIsNil)
+		return fmt.Errorf("encryption public key is nil")
 	}
-	if c.totalValidators > 1 && c.totalValidators < genesis.MinDistributedRootValidators {
-		return errors.New(genesis.ErrInvalidNumberOfRootValidators)
+	if c.totalValidators < 1 {
+		return fmt.Errorf("total root validators set to 0")
 	}
 	if c.totalValidators < c.quorumThreshold {
-		return errors.New(ErrQuorumThresholdOnlyDistributed)
+		return fmt.Errorf("quorum threshold set higher %v than total root nodes %v",
+			c.quorumThreshold, c.totalValidators)
 	}
 	return nil
 }
@@ -130,8 +126,8 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		signer:                s,
 		encryptionPubKeyBytes: encPubKey,
 		totalValidators:       1,
-		blockRateMs:           900,
-		consensusTimeoutMs:    0,
+		blockRateMs:           genesis.MinBlockRateMs,
+		consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
 		quorumThreshold:       0,
 		hashAlgorithm:         gocrypto.SHA256,
 	}
@@ -259,9 +255,6 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 }
 
 func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
-	if len(rootGenesis) < genesis.MinDistributedRootValidators {
-		return nil, nil, errors.Errorf("distributed root chain genesis requires at least %v root validator genesis files", genesis.MinDistributedRootValidators)
-	}
 	// Take the first and start appending to it from the rest
 	rg, rest := rootGenesis[0], rootGenesis[1:]
 	consensusBytes := rg.Root.Consensus.Bytes()

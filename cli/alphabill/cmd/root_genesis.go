@@ -59,8 +59,8 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	// Consensus params
 	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
-	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", 900, "Unicity Certificate rate")
-	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", 10000, "time to vote for timeout in round (only distributed root chain)")
+	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.MinBlockRateMs, "Unicity Certificate rate")
+	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
 	cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
 	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")
 
@@ -87,19 +87,10 @@ func (c *rootGenesisConfig) getOutputDir() string {
 	return outputDir
 }
 
-func (c *rootGenesisConfig) getConsensusTimeout() uint32 {
-	// Only used when distributed genesis is created
-	if c.TotalNodes > 1 {
-		return c.ConsensusTimeoutMs
-	} else {
-		return 0
-	}
-}
-
 func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
-	// Only used when distributed genesis is created
-	if c.TotalNodes == 1 {
-		return 0
+	// If not set by user, calculate minimal threshold
+	if c.QuorumThreshold == 0 {
+		return genesis.GetMinQuorumThreshold(c.TotalNodes)
 	}
 	return c.QuorumThreshold
 }
@@ -137,7 +128,7 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 		rootgenesis.WithTotalNodes(config.TotalNodes),
 		rootgenesis.WithQuorumThreshold(config.getQuorumThreshold()),
 		rootgenesis.WithBlockRate(config.BlockRateMs),
-		rootgenesis.WithConsensusTimeout(config.getConsensusTimeout()))
+		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs))
 
 	if err != nil {
 		return err

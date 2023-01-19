@@ -3,16 +3,17 @@ package genesis
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
-const (
-	ErrRootGenesisIsNil       = "root genesis is nil"
-	ErrRootGenesisRecordIsNil = "root genesis record is nil"
-	ErrVerifierIsNil          = "verifier is nil"
-	ErrPartitionsNotFound     = "partitions not found"
+var (
+	ErrRootGenesisIsNil       = errors.New("root genesis is nil")
+	ErrRootGenesisRecordIsNil = errors.New("root genesis record is nil")
+	ErrVerifierIsNil          = errors.New("verifier is nil")
+	ErrPartitionsNotFound     = errors.New("root genesis has no partitions records")
 )
 
 type SystemDescriptionRecordGetter interface {
@@ -24,7 +25,7 @@ func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](reco
 	for _, rec := range records {
 		id := rec.GetSystemDescriptionRecord().GetSystemIdentifier()
 		if _, f := ids[string(id)]; f {
-			return errors.Errorf("duplicated system identifier: %X", id)
+			return fmt.Errorf("duplicated system identifier: %X", id)
 		}
 		ids[string(id)] = id
 	}
@@ -34,40 +35,40 @@ func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](reco
 // IsValid verifies that the genesis file is signed by the generator and that the public key is included
 func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 	if x == nil {
-		return errors.New(ErrRootGenesisIsNil)
+		return ErrRootGenesisIsNil
 	}
 	if verifier == nil {
-		return errors.New(ErrVerifierIsNil)
+		return ErrVerifierIsNil
 	}
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid verifier, unable to extract public key: %w", err)
 	}
 	if x.Root == nil {
-		return errors.New(ErrRootGenesisRecordIsNil)
+		return ErrRootGenesisRecordIsNil
 	}
 	// check the root genesis record is valid
 	err = x.Root.IsValid()
 	if err != nil {
-		return errors.Wrap(err, "root genesis record verification failed")
+		return fmt.Errorf("root genesis record verification failed: %w", err)
 	}
 	// verify that the signing public key is present in root validator info
 	pubKeyInfo := x.Root.FindPubKeyById(rootId)
 	if pubKeyInfo == nil {
-		return errors.Errorf("missing public key info for node id %v", rootId)
+		return fmt.Errorf("missing public key info for node id %v", rootId)
 	}
 	// Compare keys
 	if !bytes.Equal(pubKeyBytes, pubKeyInfo.SigningPublicKey) {
-		return errors.Errorf("invalid trust base. expected %X, got %X", pubKeyBytes, pubKeyInfo.SigningPublicKey)
+		return fmt.Errorf("invalid trust base. expected %X, got %X", pubKeyBytes, pubKeyInfo.SigningPublicKey)
 	}
 	// Verify that UC Seal has been correctly signed
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
 	if len(x.Partitions) == 0 {
-		return errors.New(ErrPartitionsNotFound)
+		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err := CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
-		return err
+	if err = CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
+		return fmt.Errorf("root genesis duplicate partition record error: %w", err)
 	}
 	verifiers := map[string]crypto.Verifier{rootId: verifier}
 	for _, p := range x.Partitions {
@@ -82,38 +83,38 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 // validators
 func (x *RootGenesis) Verify() error {
 	if x == nil {
-		return errors.New(ErrRootGenesisIsNil)
+		return ErrRootGenesisIsNil
 	}
 	if x.Root == nil {
-		return errors.New(ErrRootGenesisRecordIsNil)
+		return ErrRootGenesisRecordIsNil
 	}
 	// Verify that the root genesis record is valid and signed by all validators
 	err := x.Root.Verify()
 	if err != nil {
-		return errors.Wrap(err, "invalid root genesis record")
+		return fmt.Errorf("root genesis record error: %w", err)
 	}
 	// Check that the number of signatures on partition UC Seal matches the number of root validators
 	if len(x.Partitions) == 0 {
-		return errors.New(ErrPartitionsNotFound)
+		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err := CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
-		return errors.Wrap(err, "invalid root genesis record")
+	if err = CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
+		return fmt.Errorf("root genesis duplicate partition error: %w", err)
 	}
 	// Check all signatures on Partition UC Seals
 	verifiers, err := NewValidatorTrustBase(x.Root.RootValidators)
 	if err != nil {
-		return errors.Wrap(err, "invalid root genesis validators")
+		return fmt.Errorf("root genesis validators, trust base error: %w", err)
 	}
 	// Use hash algorithm from consensus structure
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
-	for _, p := range x.Partitions {
+	for i, p := range x.Partitions {
 		if err = p.IsValid(verifiers, alg); err != nil {
-			return err
+			return fmt.Errorf("root genesis partition record %v error: %w", i, err)
 		}
 		// make sure all root validators have signed the UC Seal
 		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
-			return errors.Errorf("Partition %X UC Seal is not signed by all root validators",
+			return fmt.Errorf("partition %X UC Seal is not signed by all root validators",
 				p.SystemDescriptionRecord.SystemIdentifier)
 		}
 	}

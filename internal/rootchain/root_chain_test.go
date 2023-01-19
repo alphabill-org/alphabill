@@ -35,8 +35,8 @@ type node struct {
 var consensus = &genesis.ConsensusParams{
 	TotalRootValidators: 1,
 	BlockRateMs:         900,
-	ConsensusTimeoutMs:  nil,
-	QuorumThreshold:     nil,
+	ConsensusTimeoutMs:  10000,
+	QuorumThreshold:     1,
 	HashAlgorithm:       uint32(gocrypto.SHA256),
 }
 

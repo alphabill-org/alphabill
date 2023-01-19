@@ -2,18 +2,19 @@
   "root": {
     "root_validators": [
       {
-        "node_identifier": "16Uiu2HAm2CmXXCB2PZCrdQY4QCySsjwadcHbKFX6zpw2rV7iigPd",
-        "signing_public_key": "Ah4FsVIrNdsSGgxAFwUrKoZZCGz/H3Vg28/hsfqCwGPK",
-        "encryption_public_key": "AmSzh68bqccTyPsmaMsXJPZQSwidfaJEHglJuhbkzdHU"
+        "node_identifier": "16Uiu2HAm2m5VwobG5bH9Bphkdbs1tvuCmbFnD7pAYBcSbi8xGBWz",
+        "signing_public_key": "AlNgfxigT90JjZeA+cY3WHhKLEGqxoc6KKhlFBLRhKvN",
+        "encryption_public_key": "Amz6cBcnVtAiSYQC7flemD0tYEaN2DMrE6bHizwRlLSb"
       }
     ],
     "consensus": {
       "total_root_validators": 4,
       "block_rate_ms": 900,
       "consensus_timeout_ms": 10000,
+      "quorum_threshold": 3,
       "hash_algorithm": 5,
       "signatures": {
-        "16Uiu2HAm2CmXXCB2PZCrdQY4QCySsjwadcHbKFX6zpw2rV7iigPd": "GadTOHYFB/cnY5GV65zAxHaOPE7xEUlF7TARkdAQcwAj4xbP25lpjyK9ryjHYk8QoG0O6wausDiz3j2yv89hQAA="
+        "16Uiu2HAm2m5VwobG5bH9Bphkdbs1tvuCmbFnD7pAYBcSbi8xGBWz": "uNrUjD30xft/XqeR8/NFrljGGIG0CC6K4DgYYVz3aNIK7ob42OKMARpXhvLrVhmfe+lhUEEN4G+3CQHtmZURewA="
       }
     }
   },
@@ -98,7 +99,7 @@
             "root_hash": "pwtGrBdUdpsp8GywHbZXLOPPr7wGa4PUKsoLly1UAto="
           },
           "signatures": {
-            "16Uiu2HAm2CmXXCB2PZCrdQY4QCySsjwadcHbKFX6zpw2rV7iigPd": "qFOsNCKWuvxBzti6JVVWlEwYvLNoLksCZEoKjdf/O9A/jk8sudlEfZdLZNmTC5yvfFYlk7+t8IW3EioESK1pAwE="
+            "16Uiu2HAm2m5VwobG5bH9Bphkdbs1tvuCmbFnD7pAYBcSbi8xGBWz": "d6fX3oxk+BaA2qzi8ZSNY4oe6HpEOeC9yx05FLlgxmEgr+ZDLf5MzgTNTEC+mfCasaiTqO4ZXu+ZJsOXN3Y4WAA="
           }
         }
       },

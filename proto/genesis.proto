@@ -21,9 +21,9 @@ message ConsensusParams {
   // Block rate (round time t3 in monolithic root chain)
   uint32 block_rate_ms = 2;
   // Time to abandon proposal and vote for timeout (only used in distributed implementation)
-  optional uint32 consensus_timeout_ms = 3;
+  uint32 consensus_timeout_ms = 3;
   // Optionally define a different, higher quorum threshold (only used for distributed implementation)
-  optional uint32 quorum_threshold = 4;
+  uint32 quorum_threshold = 4;
   // Hash algorithm for UnicityTree calculation
   uint32 hash_algorithm = 5;
   // Signed hash of all fields excluding signatures

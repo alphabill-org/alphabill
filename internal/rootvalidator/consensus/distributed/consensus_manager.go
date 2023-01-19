@@ -88,27 +88,12 @@ func loadConf(genesisRoot *genesis.GenesisRootRecord) *AbConsensusConfig {
 	if err != nil {
 		return nil
 	}
-	nodesMap := make(map[peer.ID][]byte)
-	for _, n := range genesisRoot.RootValidators {
-		nodesMap[peer.ID(n.NodeIdentifier)] = n.SigningPublicKey
-	}
-	localTimeout := defaultLocalTimeout
-	quorumThreshold := genesis.GetMinQuorumThreshold(uint32(len(nodesMap)))
-	// Is consensus timeout specified?
-	if genesisRoot.Consensus.ConsensusTimeoutMs != nil {
-		localTimeout = time.Duration(*genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond
-	}
-	// Is consensus threshold specified
-	if genesisRoot.Consensus.QuorumThreshold != nil {
-		quorumThreshold = *genesisRoot.Consensus.QuorumThreshold
-	}
-	hashAlgo := gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm)
 	conf := &AbConsensusConfig{
 		BlockRateMs:        time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
-		LocalTimeoutMs:     localTimeout,
-		ConsensusThreshold: quorumThreshold,
+		LocalTimeoutMs:     time.Duration(genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond,
+		ConsensusThreshold: genesisRoot.Consensus.QuorumThreshold,
 		RootTrustBase:      rootTrustBase,
-		HashAlgorithm:      hashAlgo,
+		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
 	}
 	return conf
 }

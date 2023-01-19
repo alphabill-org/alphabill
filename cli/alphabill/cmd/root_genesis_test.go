@@ -23,9 +23,11 @@ func TestGenerateGenesisFiles(t *testing.T) {
 		Keys: &keysConfig{
 			KeyFilePath: "testdata/root-key.json",
 		},
-		OutputDir:   outputDir,
-		TotalNodes:  1,
-		BlockRateMs: 900,
+		OutputDir:          outputDir,
+		TotalNodes:         1,
+		BlockRateMs:        900,
+		ConsensusTimeoutMs: 10000,
+		QuorumThreshold:    1,
 	}
 	err := rootGenesisRunFunc(context.Background(), conf)
 	require.NoError(t, err)

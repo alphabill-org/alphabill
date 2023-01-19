@@ -144,7 +144,7 @@ func TestNewLeaderSelector_IsValidLeader(t *testing.T) {
 		randomRound := mrand.Intn(1000)
 		id, err := persistentPeers[randomRound%nofPeers].GetID()
 		require.NoError(t, err)
-		require.True(t, ls.IsValidLeader(id, uint64(randomRound)))
+		require.Equal(t, ls.GetLeaderForRound(uint64(randomRound)), id)
 		test++
 	}
 }

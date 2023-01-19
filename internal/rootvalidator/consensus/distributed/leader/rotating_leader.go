@@ -31,13 +31,6 @@ func NewRotatingLeader(self *network.Peer, contRounds uint32) (*RotatingLeader, 
 	return &RotatingLeader{self: self, nofRounds: contRounds}, nil
 }
 
-func (r *RotatingLeader) IsValidLeader(author peer.ID, round uint64) bool {
-	if r.GetLeaderForRound(round) != author {
-		return false
-	}
-	return true
-}
-
 func (r *RotatingLeader) GetLeaderForRound(round uint64) peer.ID {
 	index := uint32(round/uint64(r.nofRounds)) % uint32(len(r.self.Configuration().PersistentPeers))
 	leader, err := r.self.Configuration().PersistentPeers[index].GetID()

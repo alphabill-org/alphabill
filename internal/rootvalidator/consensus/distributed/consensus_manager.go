@@ -26,9 +26,8 @@ import (
 
 const (
 	// local timeout
-	blockRateID         = "block-rate"
-	localTimeoutID      = "local-timeout"
-	defaultLocalTimeout = 10000 * time.Millisecond
+	blockRateID    = "block-rate"
+	localTimeoutID = "local-timeout"
 )
 
 type (
@@ -38,8 +37,6 @@ type (
 	}
 	// Leader provides interface to different leader selection algorithms
 	Leader interface {
-		// IsValidLeader returns valid leader for round/view number
-		IsValidLeader(author peer.ID, round uint64) bool
 		// GetLeaderForRound returns valid leader (node id) for round/view number
 		GetLeaderForRound(round uint64) peer.ID
 		// GetRootNodes returns all nodes
@@ -339,7 +336,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 	// Am I the next leader or current leader and have not yet proposed? If not, ignore.
 	// todo: AB-549 what if this is received out of order?
 	// todo: AB-547 I am leader now, but have not yet proposed -> should still accept requests (throttling)
-	if x.leaderSelector.IsValidLeader(x.peer.ID(), x.pacemaker.GetCurrentRound()+1) == false {
+	if x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+1) != x.peer.ID() {
 		logger.Warning("Validator is not leader in next round %v, IR change req ignored",
 			x.pacemaker.GetCurrentRound()+1)
 		return
@@ -402,7 +399,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// timeout votes are broadcast to everybody
 	nextRound := round + 1
 	// verify that the validator is correct leader in next round
-	if x.leaderSelector.IsValidLeader(x.peer.ID(), nextRound) == false {
+	if x.leaderSelector.GetLeaderForRound(nextRound) != x.peer.ID() {
 		// this might also be a stale vote, since when we have quorum the round is advanced and the node becomes
 		// the new leader in the current view/round
 		logger.Warning("Received vote, validator is not leader in next round %v, vote ignored", nextRound)
@@ -619,8 +616,8 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	// to counteract throttling (find a better solution)
 	x.timers.Restart(localTimeoutID)
 	round := x.pacemaker.GetCurrentRound()
-	if !x.leaderSelector.IsValidLeader(x.peer.ID(), round) {
-		logger.Warning("Current node is not the leader in round %v, skip proposal", round)
+	if x.leaderSelector.GetLeaderForRound(round) != x.peer.ID() {
+		logger.Warning("Round %v current node is not the leader, await proposal", round)
 		return
 	}
 	logger.Info("Round %v node %v is leader in round", x.pacemaker.GetCurrentRound(), x.peer.ID().String())

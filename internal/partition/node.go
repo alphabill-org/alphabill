@@ -798,7 +798,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	logger.Debug("Recovery: latest node's block: #%v", n.GetLatestBlock().BlockNumber)
 
 	if n.status != recovering {
-		logger.Warning("Unexpected Ledger Replication response, node is not recovering", lr.Pretty())
+		logger.Warning("Unexpected Ledger Replication response, node is not recovering: %s", lr.Pretty())
 		return nil
 	}
 

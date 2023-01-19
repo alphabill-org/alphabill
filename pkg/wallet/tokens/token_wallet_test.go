@@ -148,6 +148,7 @@ func TestFungibleTokenDC(t *testing.T) {
 	typeID1 := randomBytes(t)
 	typeID2 := randomBytes(t)
 	typeID3 := randomBytes(t)
+	nftTypeID := randomBytes(t)
 	accTokens := []struct {
 		acc   uint64
 		token *TokenUnit
@@ -160,6 +161,9 @@ func TestFungibleTokenDC(t *testing.T) {
 		{acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}},
 		{acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}},
 		{acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}},
+		// ensure NFTs are untouched
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: NonFungibleToken, Symbol: "NFT", TypeID: nftTypeID}},
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: NonFungibleToken, Symbol: "NFT", TypeID: nftTypeID}},
 	}
 	for _, tok := range accTokens {
 		require.NoError(t, tw.db.Do().SetToken(tok.acc, tok.token))
@@ -185,6 +189,7 @@ func TestFungibleTokenDC(t *testing.T) {
 			acc := findAcc(tx.UnitId)
 			tok, err := tw.db.Do().GetToken(acc, tx.UnitId)
 			require.NoError(t, err)
+			require.Equal(t, FungibleToken, tok.Kind)
 			tok.Burned = true
 			tok.Proof = &Proof{BlockNumber: 1, Tx: tx, Proof: nil}
 			require.NoError(t, tw.db.Do().SetToken(acc, tok))
@@ -193,6 +198,7 @@ func TestFungibleTokenDC(t *testing.T) {
 			acc := findAcc(tx.UnitId)
 			tok, err := tw.db.Do().GetToken(acc, tx.UnitId)
 			require.NoError(t, err)
+			require.Equal(t, FungibleToken, tok.Kind)
 			joinedUnitBacklink = tok.Backlink
 			attrs := &tokens.JoinFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))

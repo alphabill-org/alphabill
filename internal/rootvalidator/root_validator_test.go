@@ -55,6 +55,7 @@ func MockConsensus() ConsensusFn {
 }
 
 func initRootValidator(t *testing.T, net PartitionNet) (*Validator, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
+	t.Helper()
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	node := testutils.NewTestNode(t)
 	verifier := node.Verifier

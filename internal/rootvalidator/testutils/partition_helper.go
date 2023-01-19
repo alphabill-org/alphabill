@@ -32,6 +32,7 @@ func NewTestNode(t *testing.T) *TestNode {
 }
 
 func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID []byte, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
+	t.Helper()
 	record = &genesis.PartitionRecord{
 		SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
 			SystemIdentifier: systemID,
@@ -84,6 +85,7 @@ func CreateBlockCertificationRequest(t *testing.T, ir *certificates.InputRecord,
 }
 
 func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID, msgType string, msg proto.Message) {
+	t.Helper()
 	net.Receive(network.ReceivedMessage{
 		From:     id,
 		Protocol: msgType,
@@ -94,6 +96,7 @@ func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID
 }
 
 func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType string) T {
+	t.Helper()
 	var msg proto.Message
 	require.Eventually(t, func() bool {
 		messages := net.SentMessages(msgType)
@@ -109,6 +112,7 @@ func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType str
 }
 
 func MockNetAwaitMultiple[T any](t *testing.T, net *testnetwork.MockNet, msgType string, nof int) []T {
+	t.Helper()
 	result := make([]T, nof)
 	require.Eventually(t, func() bool {
 		messages := net.SentMessages(msgType)

@@ -156,6 +156,7 @@ func createPartition(t *testing.T, systemIdentifier []byte, nodeID string, parti
 }
 
 func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *genesis.PartitionNode {
+	t.Helper()
 	req := createInputRequest(t, systemIdentifier, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
@@ -170,6 +171,7 @@ func createPartitionNode(t *testing.T, systemIdentifier []byte, nodeID string, p
 }
 
 func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, partitionSigner crypto.Signer) *certification.BlockCertificationRequest {
+	t.Helper()
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeID,

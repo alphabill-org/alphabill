@@ -39,6 +39,7 @@ func generateSignersAndVerifiers(nofValidators uint64) (map[string]crypto.Signer
 }
 
 func createSignatures(t *testing.T, hash []byte, signers map[string]crypto.Signer) map[string][]byte {
+	t.Helper()
 	signatures := make(map[string][]byte)
 	for id, signer := range signers {
 		sig, err := signer.SignHash(hash)

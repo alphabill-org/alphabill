@@ -11,6 +11,7 @@ import (
 )
 
 func initSafetyModule(t *testing.T) *SafetyModule {
+	t.Helper()
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.Nil(t, err)
 	safety, err := NewSafetyModule(signer)

@@ -3,8 +3,7 @@ package replication
 import "fmt"
 
 func (r *LedgerReplicationResponse) Pretty() string {
-	var result string
-	result += "status: " + r.Status.String()
+	result := "status: " + r.Status.String()
 	if r.Message != "" {
 		result += ", message: " + r.Message
 	} else {

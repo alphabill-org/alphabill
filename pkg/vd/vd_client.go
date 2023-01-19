@@ -58,6 +58,12 @@ func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 	}, nil
 }
 
+func (v *VDClient) SystemID() []byte {
+	// TODO: return the default "AlphaBill VD System ID" for now
+	// but this should come from config (base wallet? AB client?)
+	return []byte{0, 0, 0, 1}
+}
+
 func (v *VDClient) RegisterFileHash(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -123,7 +129,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 
 	log.Info("Current block #: ", currentBlockNumber)
 	timeout := currentBlockNumber + v.timeoutDelta
-	tx, err := createRegisterDataTx(hash, timeout)
+	tx, err := createRegisterDataTx(v.SystemID(), hash, timeout)
 	if err != nil {
 		return err
 	}
@@ -210,10 +216,10 @@ func validateHash(hash []byte) error {
 	return nil
 }
 
-func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
+func createRegisterDataTx(systemId, hash []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
 		UnitId:   hash,
-		SystemId: []byte{0, 0, 0, 1},
+		SystemId: systemId,
 		Timeout:  timeout,
 	}
 	return tx, nil

@@ -200,6 +200,7 @@ func (x *ConsensusManager) loop() {
 				req, correctType := msg.Message.(*atomic_broadcast.IRChangeReqMsg)
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
+					continue
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), req)
 				x.onIRChange(req)
@@ -207,6 +208,7 @@ func (x *ConsensusManager) loop() {
 				req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
+					continue
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), req)
 				x.onProposalMsg(req)
@@ -214,6 +216,7 @@ func (x *ConsensusManager) loop() {
 				req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
+					continue
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), req)
 				x.onVoteMsg(req)
@@ -221,6 +224,7 @@ func (x *ConsensusManager) loop() {
 				req, correctType := msg.Message.(*atomic_broadcast.TimeoutMsg)
 				if !correctType {
 					logger.Warning("Type %T not supported", msg.Message)
+					continue
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
 				x.onTimeoutMsg(req)
@@ -230,6 +234,7 @@ func (x *ConsensusManager) loop() {
 						req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
 						if !correctType {
 							logger.Warning("Type %T not supported", msg.Message)
+							continue
 						}
 						util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery request from %v", msg.From), req)
 						// Send state, with proof (signed by other validators)
@@ -237,6 +242,7 @@ func (x *ConsensusManager) loop() {
 						req, correctType := msg.Message.(*atomic_broadcast.StateReplyMsg)
 						if !correctType {
 							logger.Warning("Type %T not supported", msg.Message)
+							continue
 						}
 						util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), req)
 						// Verify and store

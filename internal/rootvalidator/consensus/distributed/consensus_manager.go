@@ -402,6 +402,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 
 // onVoteMsg handle votes and timeout votes
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
+	// todo: what if vote is received out of order, first vote then proposal?
 	// verify signature on vote
 	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
 	if err != nil {
@@ -428,24 +429,26 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	}
 	// Store vote, check for QC
 	qc := x.pacemaker.RegisterVote(vote, x.rootVerifier)
-	if qc != nil {
-		logger.Info("Round %v quorum achieved", vote.VoteInfo.RoundNumber)
-		// advance round (only done once)
-		// NB! it must be able to
-		x.processCertificateQC(qc)
-		// since the root chain must not run faster than block-rate, calculate
-		// time from last proposal and see if we need to wait
-		slowDownTime := x.pacemaker.CalcTimeTilNextProposal()
-		if slowDownTime > 0 {
-			logger.Info("Round %v node %v wait %v before proposing",
-				x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
-			x.waitPropose = true
-			x.timers.Start(blockRateID, slowDownTime)
-			return
-		}
-		// trigger new round immediately
-		x.processNewRoundEvent()
+	if qc == nil {
+		logger.Debug("Round %v processed vote for round %v, no quorum yet",
+			x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
+		return
 	}
+	logger.Info("Round %v quorum achieved", vote.VoteInfo.RoundNumber)
+	// advance view/round on QC
+	x.processCertificateQC(qc)
+	// since the root chain must not run faster than block-rate, calculate
+	// time from last proposal and see if we need to wait
+	slowDownTime := x.pacemaker.CalcTimeTilNextProposal()
+	if slowDownTime > 0 {
+		logger.Info("Round %v node %v wait %v before proposing",
+			x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
+		x.waitPropose = true
+		x.timers.Start(blockRateID, slowDownTime)
+		return
+	}
+	// trigger new round immediately
+	x.processNewRoundEvent()
 }
 
 func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
@@ -463,9 +466,21 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 		// todo: AB-320 try to recover
 	}
 	tc := x.pacemaker.RegisterTimeoutVote(vote, x.rootVerifier)
-	if tc != nil {
-		logger.Info("Round %v timeout quorum achieved", vote.Timeout.Round)
-		x.processTC(tc)
+	if tc == nil {
+		logger.Debug("Round %v processed timeout vote for round %v, no quorum yet",
+			x.pacemaker.GetCurrentRound(), vote.Timeout.Round)
+		return
+	}
+	logger.Info("Round %v timeout quorum achieved", vote.Timeout.Round)
+	// process timeout certificate to advance to next the view/round
+	x.processTC(tc)
+	// if this node is the leader in this round then issue a proposal
+	l := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound())
+	if l == x.peer.ID() {
+		x.processNewRoundEvent()
+	} else {
+		logger.Debug("Round %v, node %v leader is %v, waiting for proposal",
+			x.pacemaker.GetCurrentRound(), x.peer.ID().String(), l.String())
 	}
 }
 
@@ -600,9 +615,6 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 	}
 	x.roundPipeline.Reset(lastState)
 	x.pacemaker.AdvanceRoundTC(tc)
-	// as this is TC case, there is no need to throttle, we are already behind
-	// start new round and issue a proposal if leader
-	x.processNewRoundEvent()
 }
 
 func (x *ConsensusManager) generateTimeoutRequests() ([]*atomic_broadcast.IRChangeReqMsg, error) {
@@ -635,7 +647,8 @@ func (x *ConsensusManager) generateTimeoutRequests() ([]*atomic_broadcast.IRChan
 }
 
 func (x *ConsensusManager) processNewRoundEvent() {
-	logger.Info("Round %v start", x.pacemaker.GetCurrentRound())
+	logger.Info("Round %v start node %v, leader %v", x.pacemaker.GetCurrentRound(),
+		x.peer.ID().String(), x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()).String())
 	// to counteract throttling (find a better solution)
 	x.waitPropose = false
 	x.timers.Restart(localTimeoutID)

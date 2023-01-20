@@ -192,7 +192,7 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 		},
 		{
 			protocolID: ProtocolRootTimeout,
-			typeFn:     func() proto.Message { return &atomic_broadcast.TimeoutVote{} },
+			typeFn:     func() proto.Message { return &atomic_broadcast.TimeoutMsg{} },
 		},
 		{
 			protocolID: ProtocolRootStateReq,

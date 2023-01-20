@@ -40,9 +40,9 @@ type (
 		Wrapper
 		AddFC *AddFeeCreditOrder
 
-		// The fee credit transfer that also exist inside addFeeCreditOrder as *txsystem.Transaction
+		// TransferFC the "fee credit transfer" that also exist inside AddFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
-		transferFC *TransferFeeCreditWrapper
+		TransferFC *TransferFeeCreditWrapper
 	}
 
 	CloseFeeCreditWrapper struct {
@@ -54,9 +54,9 @@ type (
 		Wrapper
 		ReclaimFC *ReclaimFeeCreditOrder
 
-		// The "close fee credit" transfer that also exist inside reclaimFeeCreditOrder as *txsystem.Transaction
+		// CloseFCTransfer the "close fee credit" transfer that also exist inside ReclaimFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
-		closeFCTransfer *CloseFeeCreditWrapper
+		CloseFCTransfer *CloseFeeCreditWrapper
 	}
 )
 
@@ -92,7 +92,7 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 		return &AddFeeCreditWrapper{
 			Wrapper:    Wrapper{Transaction: tx},
 			AddFC:      pb,
-			transferFC: fcWrapper,
+			TransferFC: fcWrapper,
 		}, nil
 	case TypeURLCloseFeeCreditOrder:
 		pb := &CloseFeeCreditOrder{}
@@ -121,7 +121,7 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 		return &ReclaimFeeCreditWrapper{
 			Wrapper:         Wrapper{Transaction: tx},
 			ReclaimFC:       pb,
-			closeFCTransfer: fcWrapper,
+			CloseFCTransfer: fcWrapper,
 		}, nil
 	default:
 		return nil, nil
@@ -211,13 +211,13 @@ func (w *AddFeeCreditWrapper) SigBytes() []byte {
 }
 func (w *AddFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(w.AddFC.FeeCreditOwnerCondition)
-	w.transferFC.AddToHasher(hasher)
+	w.TransferFC.AddToHasher(hasher)
 	w.AddFC.FeeCreditTransferProof.AddToHasher(hasher)
 }
 func (w *AddFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.AddFC.FeeCreditOwnerCondition)
-	b.Write(w.transferFC.SigBytes())
-	b.Write(w.transferFC.OwnerProof())
+	b.Write(w.TransferFC.SigBytes())
+	b.Write(w.TransferFC.OwnerProof())
 	b.Write(w.AddFC.FeeCreditTransferProof.Bytes())
 }
 
@@ -265,13 +265,13 @@ func (w *ReclaimFeeCreditWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 func (w *ReclaimFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
-	w.closeFCTransfer.AddToHasher(hasher)
+	w.CloseFCTransfer.AddToHasher(hasher)
 	w.ReclaimFC.CloseFeeCreditProof.AddToHasher(hasher)
 	hasher.Write(w.ReclaimFC.Backlink)
 }
 func (w *ReclaimFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
-	b.Write(w.closeFCTransfer.SigBytes())
-	b.Write(w.closeFCTransfer.OwnerProof())
+	b.Write(w.CloseFCTransfer.SigBytes())
+	b.Write(w.CloseFCTransfer.OwnerProof())
 	b.Write(w.ReclaimFC.CloseFeeCreditProof.Bytes())
 	b.Write(w.ReclaimFC.Backlink)
 }

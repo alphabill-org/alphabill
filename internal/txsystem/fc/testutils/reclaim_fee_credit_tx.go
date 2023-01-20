@@ -7,6 +7,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -55,9 +56,16 @@ func WithReclFCBacklink(backlink []byte) ReclFCOption {
 	}
 }
 
-func WithReclFCProof(proof *block.BlockProof) ReclFCOption {
+func WithReclFCCloseFCProof(proof *block.BlockProof) ReclFCOption {
 	return func(tx *fc.ReclaimFeeCreditOrder) ReclFCOption {
 		tx.CloseFeeCreditProof = proof
+		return nil
+	}
+}
+
+func WithReclFCCloseFCTx(closeFCTx *txsystem.Transaction) ReclFCOption {
+	return func(tx *fc.ReclaimFeeCreditOrder) ReclFCOption {
+		tx.CloseFeeCreditTransfer = closeFCTx
 		return nil
 	}
 }

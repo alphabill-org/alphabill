@@ -13,7 +13,9 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -307,6 +309,58 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 
 	_, dustBill = getBill(t, rmaTree, dustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dustBill.V)
+}
+
+// Test scenario:
+// 1) begin block
+// 2) process transfer FC (amount=50, fee=1)
+// 3) end block (moneyFCB=50+1=51)
+// commit
+// 1) begin block
+// 2) process reclaim FC (amount=50, fee=1, closeFC(amount=50, fee=2))
+// 3) end block (moneyFCB=51-(50-2)+1=4)
+func TestEndBlock_FeesConsolidation(t *testing.T) {
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
+
+	// process transferFC with amount 50 and fees 1
+	txSystem.BeginBlock(0)
+	transferFC := testfc.NewTransferFC(t, nil, testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}))
+	err := txSystem.Execute(transferFC)
+	require.NoError(t, err)
+	_, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	txSystem.Commit()
+
+	// verify that money fee credit bill is 50+1=51
+	moneyFCUnitID := uint256.NewInt(2)
+	moneyFCUnit, err := rmaTree.GetUnit(moneyFCUnitID)
+	require.NoError(t, err)
+	require.EqualValues(t, 51, moneyFCUnit.Data.Value())
+
+	// process reclaimFC with amount 50 and fees 1 (with closeFC amount=50 and fee=2)
+	txSystem.BeginBlock(0)
+	reclaimFC := testfc.NewReclaimFC(t, signer,
+		testfc.NewReclFCAttr(t, signer,
+			testfc.WithReclFCCloseFCTx(
+				testfc.NewCloseFC(t, nil, testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 2})).Transaction,
+			),
+		),
+		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
+	)
+	err = txSystem.Execute(reclaimFC)
+	require.NoError(t, err)
+	_, err = txSystem.EndBlock()
+	require.NoError(t, err)
+	txSystem.Commit()
+
+	// verify that money fee credit bill is 51-48+1=4 (moneyFCB-reclaimedCredits+reclaimFCFee)
+	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID)
+	require.NoError(t, err)
+	require.EqualValues(t, 4, moneyFCUnit.Data.Value())
+
+	// verfy that fee credit tx recorder is empty
+	require.Len(t, txSystem.feeCreditTxRecorder.transferFeeCredits, 0)
+	require.Len(t, txSystem.feeCreditTxRecorder.reclaimFeeCredits, 0)
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {

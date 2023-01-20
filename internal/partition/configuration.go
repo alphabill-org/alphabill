@@ -50,7 +50,6 @@ type (
 		rootTrustBase               map[string]crypto.Verifier
 		rootChainAddress            multiaddr.Multiaddr
 		rootChainID                 peer.ID
-		network                     Net
 		eventHandler                event.Handler
 		eventChCapacity             int
 	}

@@ -1,7 +1,6 @@
 package distributed
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"fmt"
 	"testing"
@@ -101,14 +100,10 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 		IR:               requests[0].InputRecord,
 		Requests:         requests}
 	cm.RequestCertification() <- req
-	// verify the IR change request is forwarded to the next leader (self as there is only one)
+	// since there is only one root node, it is the next leader, the request will be buffered
 	require.Eventually(t, func() bool {
-		messages := mockNet.SentMessages(network.ProtocolRootIrChangeReq)
-		if len(messages) > 0 {
-			m := messages[0]
-			irCh := m.Message.(*atomic_broadcast.IRChangeReqMsg)
-			return bytes.Equal(irCh.SystemIdentifier, partitionID) && irCh.CertReason == atomic_broadcast.IRChangeReqMsg_QUORUM &&
-				len(irCh.Requests) == 2
+		if cm.irReqBuffer.IsChangeInBuffer(p.SystemIdentifier(partitionID)) == true {
+			return true
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)

@@ -23,8 +23,8 @@ func TestNewNetwork_Ok(t *testing.T) {
 		err = network.Close()
 		require.NoError(t, err)
 	}()
-	require.NotNil(t, network.RootChain)
-	require.Equal(t, 3, len(network.Nodes))
+	require.Len(t, network.RootNodes, rootValidatorNodes)
+	require.Len(t, network.Nodes, 3)
 
 	tx := testtransaction.NewTransaction(t, testtransaction.WithSystemID(systemIdentifier))
 	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)

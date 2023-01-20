@@ -19,19 +19,20 @@ import (
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 )
 
 // AlphabillPartition for integration tests
 type AlphabillPartition struct {
-	RootChain    *rootvalidator.Validator
+	RootNodes    []*rootvalidator.Node
 	Nodes        []*partition.Node
 	ctxCancel    context.CancelFunc
 	ctx          context.Context
 	TrustBase    map[string]crypto.Verifier
 	EventHandler *testevent.TestEventHandler
 }
+
+const rootValidatorNodes = 1
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
 // transaction system and a root chain.
@@ -44,48 +45,32 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, err
 	}
-
-	// create signing keys
+	// create partition signing keys
 	signers, err := createSigners(partitionNodes)
 	if err != nil {
 		return nil, err
 	}
 	var transactionSystems []txsystem.TransactionSystem
+	// create root nodes and signers keys
+	rootPeers, err := createNetworkPeers(rootValidatorNodes)
+	if err != nil {
+		return nil, err
+	}
+	rootSigners, err := createSigners(rootValidatorNodes)
+	if err != nil {
+		return nil, err
+	}
+
+	// set-up trust base
+	trustBase := make(map[string]crypto.Verifier)
+	for i := 0; i < rootValidatorNodes; i++ {
+		trustBase[rootPeers[i].ID().String()], err = rootSigners[i].Verifier()
+		if err != nil {
+			return nil, err
+		}
+	}
 	// create partition genesis file
 	var nodeGenesisFiles = make([]*genesis.PartitionNode, partitionNodes)
-
-	// create root keys
-	rootSigner, err := crypto.NewInMemorySecp256K1Signer()
-	if err != nil {
-		return nil, err
-	}
-
-	rootPeer, err := network.NewPeer(&network.PeerConfiguration{
-		Address: "/ip4/127.0.0.1/tcp/0",
-	})
-	encPubKey, err := rootPeer.PublicKey()
-	if err != nil {
-		return nil, err
-	}
-	peerID, err := peer.IDFromPublicKey(encPubKey)
-	if err != nil {
-		return nil, err
-	}
-	pubKeyBytes, err := encPubKey.Raw()
-	if err != nil {
-		return nil, err
-	}
-	rootPeer.Configuration().PersistentPeers = []*network.PeerInfo{{
-		Address:   fmt.Sprintf("%v", rootPeer.MultiAddresses()),
-		PublicKey: pubKeyBytes,
-	}}
-
-	trustBase := make(map[string]crypto.Verifier)
-	trustBase[peerID.String()], err = rootSigner.Verifier()
-	if err != nil {
-		return nil, err
-	}
-
 	for i := 0; i < partitionNodes; i++ {
 		transactionSystem := txSystemProvider(trustBase)
 		nodeGenesis, err := partition.NewNodeGenesis(
@@ -109,24 +94,54 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, err
 	}
-	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(peerID.String(), rootSigner, pubKeyBytes, pr)
+	// create root validator genesis files
+	rootGenesisFiles := make([]*genesis.RootGenesis, rootValidatorNodes)
+	for i := 0; i < rootValidatorNodes; i++ {
+		encPubKey, err := rootPeers[i].PublicKey()
+		if err != nil {
+			return nil, err
+		}
+		pubKeyBytes, err := encPubKey.Raw()
+		if err != nil {
+			return nil, err
+		}
+		rg, _, err := rootgenesis.NewRootGenesis(
+			rootPeers[i].ID().String(),
+			rootSigners[i],
+			pubKeyBytes,
+			pr,
+			rootgenesis.WithTotalNodes(rootValidatorNodes),
+			rootgenesis.WithBlockRate(genesis.MinBlockRateMs),
+			rootgenesis.WithConsensusTimeout(genesis.DefaultConsensusTimeout))
+		if err != nil {
+			return nil, err
+		}
+		rootGenesisFiles[i] = rg
+	}
+	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewDistributedRootGenesis(rootGenesisFiles)
 	if err != nil {
 		return nil, err
 	}
 
-	// start root chain
-	partitionHost, err := network.NewPeer(&network.PeerConfiguration{
-		Address: "/ip4/127.0.0.1/tcp/0",
-	})
-	rootNet, err := network.NewLibP2PRootChainNetwork(partitionHost, 100, 300*time.Millisecond)
-	if err != nil {
-		return nil, err
-	}
-	rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, 300*time.Millisecond)
-	// Create distributed consensus manager
-	root, err := rootvalidator.NewRootValidatorNode(rootGenesis, partitionHost, rootNet, rootvalidator.DistributedConsensus(rootPeer, rootGenesis.GetRoot(), rootConsensusNet, rootSigner))
-	if err != nil {
-		return nil, err
+	// start root chain nodes
+	rootNodes := make([]*rootvalidator.Node, rootValidatorNodes)
+	rootPartitionHots := make([]*network.Peer, rootValidatorNodes)
+	for i := 0; i < rootValidatorNodes; i++ {
+		partitionHost, err := network.NewPeer(&network.PeerConfiguration{
+			Address: "/ip4/127.0.0.1/tcp/0",
+		})
+		rootPartitionHots[i] = partitionHost
+		rootNet, err := network.NewLibP2PRootChainNetwork(partitionHost, 100, 300*time.Millisecond)
+		if err != nil {
+			return nil, err
+		}
+		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond)
+		// Create distributed consensus manager
+		rn, err := rootvalidator.NewRootValidatorNode(rootGenesis, partitionHost, rootNet, rootvalidator.DistributedConsensus(rootPeers[i], rootGenesis.GetRoot(), rootConsensusNet, rootSigners[i]))
+		if err != nil {
+			return nil, err
+		}
+		rootNodes[i] = rn
 	}
 
 	partitionGenesis := partitionGenesisFiles[0]
@@ -152,7 +167,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			partitionGenesis,
 			pn,
 			partition.WithContext(ctx),
-			partition.WithRootAddressAndIdentifier(partitionHost.MultiAddresses()[0], partitionHost.ID()),
+			partition.WithRootAddressAndIdentifier(rootPartitionHots[0].MultiAddresses()[0], rootPartitionHots[0].ID()),
 			partition.WithEventHandler(eh.HandleEvent, 100),
 		)
 		if err != nil {
@@ -167,7 +182,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		return nil, err
 	}
 	return &AlphabillPartition{
-		RootChain:    root,
+		RootNodes:    rootNodes,
 		Nodes:        nodes,
 		ctx:          ctx,
 		ctxCancel:    ctxCancel,
@@ -225,7 +240,9 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 
 func (a *AlphabillPartition) Close() error {
 	a.ctxCancel()
-	a.RootChain.Close()
+	for _, node := range a.RootNodes {
+		node.Close()
+	}
 	for _, node := range a.Nodes {
 		node.Close()
 	}

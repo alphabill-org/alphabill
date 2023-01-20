@@ -146,7 +146,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		// Create distributed consensus manager function
 		consensusFn = rootvalidator.DistributedConsensus(rootHost, rootGenesis.Root, rootNet, keys.SigningPrivateKey)
 	}
-	validator, err := rootvalidator.NewRootValidatorNode(
+	node, err := rootvalidator.NewRootValidatorNode(
 		rootGenesis,
 		prtHost,
 		partitionNet,
@@ -160,7 +160,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	return starter.StartAndWait(ctx, "root validator", func(ctx context.Context) {
 		async.MakeWorker("root validator shutdown hook", func(ctx context.Context) future.Value {
 			<-ctx.Done()
-			validator.Close()
+			node.Close()
 			return nil
 		}).Start(ctx)
 	})

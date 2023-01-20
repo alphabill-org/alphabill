@@ -53,7 +53,7 @@ type (
 
 	ConsensusFn func(partition PartitionStore, state StateStore) (ConsensusManager, error)
 
-	Validator struct {
+	Node struct {
 		ctx              context.Context
 		ctxCancel        context.CancelFunc
 		conf             *RootNodeConf
@@ -120,7 +120,7 @@ func NewRootValidatorNode(
 	pNet PartitionNet,
 	consensus ConsensusFn,
 	opts ...Option,
-) (*Validator, error) {
+) (*Node, error) {
 	if host == nil {
 		return nil, errors.New("partition listener is nil")
 	}
@@ -145,7 +145,7 @@ func NewRootValidatorNode(
 		return nil, fmt.Errorf("failed to construct consensus manager, %w", err)
 	}
 	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", host.ID(), host.MultiAddresses())
-	node := &Validator{
+	node := &Node{
 		conf:             config,
 		partitionHost:    host,
 		partitionStore:   partitionStore,
@@ -159,13 +159,13 @@ func NewRootValidatorNode(
 	return node, nil
 }
 
-func (v *Validator) Close() {
+func (v *Node) Close() {
 	v.consensusManager.Stop()
 	v.ctxCancel()
 }
 
 // loop handles messages from different goroutines.
-func (v *Validator) loop() {
+func (v *Node) loop() {
 	for {
 		select {
 		case <-v.ctx.Done():
@@ -225,7 +225,7 @@ func loadConf(opts []Option) *RootNodeConf {
 	return conf
 }
 
-func (v *Validator) getLatestUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {
+func (v *Node) getLatestUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {
 	state, err := v.conf.stateStore.Get()
 	if err != nil {
 		return nil, err
@@ -237,7 +237,7 @@ func (v *Validator) getLatestUnicityCertificate(id protocol.SystemIdentifier) (*
 	return luc, nil
 }
 
-func (v *Validator) sendResponse(nodeID string, uc *certificates.UnicityCertificate) {
+func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) {
 	peerID, err := peer.Decode(nodeID)
 	if err != nil {
 		logger.Warning("Invalid node identifier: '%s'", nodeID)
@@ -259,7 +259,7 @@ func (v *Validator) sendResponse(nodeID string, uc *certificates.UnicityCertific
 
 // OnBlockCertificationRequest handle certification requests from partition nodes.
 // Partition nodes can only extend the stored/certified state
-func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
+func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
 	info, err := v.partitionStore.Info(sysID)
 	if err != nil {
@@ -326,7 +326,7 @@ func (v *Validator) onBlockCertificationRequest(req *certification.BlockCertific
 	}
 }
 
-func (v *Validator) onCertificationResult(certificate *certificates.UnicityCertificate) {
+func (v *Node) onCertificationResult(certificate *certificates.UnicityCertificate) {
 	sysID := proto.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
 	// remember to clear the incoming buffer to accept new requests
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine

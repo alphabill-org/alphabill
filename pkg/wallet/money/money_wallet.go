@@ -614,11 +614,11 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 			return err
 		}
 		if dcMeta != nil && dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
-			maxBlockNumber, _, err := w.GetMaxBlockNumber() // TODO
+			_, maxRoundNumber, err := w.GetMaxBlockNumber()
 			if err != nil {
 				return err
 			}
-			timeout := maxBlockNumber + swapTimeoutBlockCount
+			timeout := maxRoundNumber + swapTimeoutBlockCount
 			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, dcMeta.BillIds, timeout, accountIndex)
 			if err != nil {
 				return err
@@ -656,7 +656,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		if err != nil {
 			return err
 		}
-		maxBlockNo, _, err := w.GetMaxBlockNumber() // TODO
+		_, maxRoundNumber, err := w.GetMaxBlockNumber()
 		if err != nil {
 			return err
 		}
@@ -673,7 +673,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		if len(dcBillGroups) > 0 {
 			for _, v := range dcBillGroups {
 				if blockHeight >= v.dcTimeout {
-					swapTimeout := maxBlockNo + swapTimeoutBlockCount
+					swapTimeout := maxRoundNumber + swapTimeoutBlockCount
 					billIds, err := getBillIds(dbTx, accountIndex, v)
 					if err != nil {
 						return err
@@ -703,7 +703,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			}
 
 			dcNonce := calculateDcNonce(bills)
-			dcTimeout := maxBlockNo + dcTimeoutBlockCount
+			dcTimeout := maxRoundNumber + dcTimeoutBlockCount
 			var dcValueSum uint64
 			var billIds [][]byte
 			for _, b := range bills {

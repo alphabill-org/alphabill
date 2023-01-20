@@ -59,7 +59,7 @@ func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobr
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 	// Consensus params
 	cmd.Flags().Uint32Var(&config.TotalNodes, "total-nodes", 1, "total number of root nodes")
-	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.MinBlockRateMs, "Unicity Certificate rate")
+	cmd.Flags().Uint32Var(&config.BlockRateMs, "block-rate", genesis.DefaultBlockRateMs, "Unicity Certificate rate")
 	cmd.Flags().Uint32Var(&config.ConsensusTimeoutMs, "consensus-timeout", genesis.DefaultConsensusTimeout, "time to vote for timeout in round (only distributed root chain)")
 	cmd.Flags().Uint32Var(&config.QuorumThreshold, "quorum-threshold", 0, "define higher quorum threshold instead of calculated default")
 	cmd.Flags().StringVar(&config.HashAlgorithm, "hash-algorithm", "SHA-256", "Hash algorithm to be used")

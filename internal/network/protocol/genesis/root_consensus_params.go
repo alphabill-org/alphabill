@@ -27,7 +27,8 @@ const (
 	// Total number of root validators is defined by N=3f+1
 	// If at least one faulty/compromised validator is to be tolerated then min nodes is 3*1+1=4
 	MinDistributedRootValidators = 4
-	MinBlockRateMs               = 900
+	MinBlockRateMs               = 500
+	DefaultBlockRateMs           = 900
 	MinConsensusTimeout          = 2000
 	DefaultConsensusTimeout      = 10000
 )

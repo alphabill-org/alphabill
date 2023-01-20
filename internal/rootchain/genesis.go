@@ -126,7 +126,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		signer:                s,
 		encryptionPubKeyBytes: encPubKey,
 		totalValidators:       1,
-		blockRateMs:           genesis.MinBlockRateMs,
+		blockRateMs:           genesis.DefaultBlockRateMs,
 		consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
 		quorumThreshold:       0,
 		hashAlgorithm:         gocrypto.SHA256,

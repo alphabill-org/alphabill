@@ -153,22 +153,19 @@ func EvalMerklePath(merklePath []*Data, value []byte, hashAlgorithm crypto.Hash)
 		return make([]byte, hashAlgorithm.Size())
 	}
 	hasher := hashAlgorithm.New()
-	var h []byte
-	for i, item := range merklePath {
-		if i == 0 {
-			h = computeLeafTreeHash(item, hasher)
+	h := computeLeafTreeHash(merklePath[0], hasher)
+	hasher.Reset()
+	for _, item := range merklePath[1:] {
+		hasher.Write([]byte{0})
+		hasher.Write(item.Val)
+		if bytes.Compare(value, item.Val) <= 0 {
+			hasher.Write(h)
+			hasher.Write(item.Hash)
 		} else {
-			hasher.Write([]byte{0})
-			hasher.Write(item.Val)
-			if bytes.Compare(value, item.Val) <= 0 {
-				hasher.Write(h)
-				hasher.Write(item.Hash)
-			} else {
-				hasher.Write(item.Hash)
-				hasher.Write(h)
-			}
-			h = hasher.Sum(nil)
+			hasher.Write(item.Hash)
+			hasher.Write(h)
 		}
+		h = hasher.Sum(nil)
 		hasher.Reset()
 	}
 	return h

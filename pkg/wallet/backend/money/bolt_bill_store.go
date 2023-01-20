@@ -13,7 +13,7 @@ const BoltBillStoreFileName = "bills.db"
 var (
 	unitsBucket        = []byte("unitsBucket")        // unitID => unit_bytes
 	predicatesBucket   = []byte("predicatesBucket")   // predicate => bucket[unitID]nil
-	metaBucket         = []byte("metaBucket")         // block_number_key => block_number_val; owner_condition => owner_condition_order_number
+	metaBucket         = []byte("metaBucket")         // block_number_key => block_number_val
 	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => list of expired bill ids
 )
 

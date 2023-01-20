@@ -21,7 +21,7 @@ const (
 	moneyBackendHomeDir = "money-backend"
 )
 
-type genericIndexerConfig struct {
+type moneyBackendConfig struct {
 	Base               *baseConfiguration
 	AlphabillUrl       string
 	ServerAddr         string
@@ -31,7 +31,7 @@ type genericIndexerConfig struct {
 	ListBillsPageLimit int
 }
 
-func (c *genericIndexerConfig) GetDbFile() (string, error) {
+func (c *moneyBackendConfig) GetDbFile() (string, error) {
 	if c.DbFile != "" {
 		return c.DbFile, nil
 	}
@@ -45,7 +45,7 @@ func (c *genericIndexerConfig) GetDbFile() (string, error) {
 
 // newMoneyBackendCmd creates a new cobra command for the money-backend component.
 func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &genericIndexerConfig{Base: baseConfig}
+	config := &moneyBackendConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "money-backend",
 		Short: "starts money backend service",
@@ -65,15 +65,15 @@ func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	}
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
-	walletCmd.AddCommand(startGenericIndexerCmd(ctx, config))
+	walletCmd.AddCommand(startMoneyBackendCmd(ctx, config))
 	return walletCmd
 }
 
-func startGenericIndexerCmd(ctx context.Context, config *genericIndexerConfig) *cobra.Command {
+func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execGenericIndexerStartCmd(ctx, cmd, config)
+			return execMoneyBackendStartCmd(ctx, cmd, config)
 		},
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill node url")
@@ -83,7 +83,7 @@ func startGenericIndexerCmd(ctx context.Context, config *genericIndexerConfig) *
 	return cmd
 }
 
-func execGenericIndexerStartCmd(ctx context.Context, _ *cobra.Command, config *genericIndexerConfig) error {
+func execMoneyBackendStartCmd(ctx context.Context, _ *cobra.Command, config *moneyBackendConfig) error {
 	abclient := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})
 	dbFile, err := config.GetDbFile()
 	if err != nil {

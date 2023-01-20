@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenericIndexerCLI(t *testing.T) {
+func TestMoneyBackendCLI(t *testing.T) {
 	// create ab network
 	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{

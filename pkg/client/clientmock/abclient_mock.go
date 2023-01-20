@@ -83,9 +83,15 @@ func (c *MockAlphabillClient) SetTxResponse(txResponse *txsystem.TransactionResp
 
 func (c *MockAlphabillClient) SetMaxBlockNumber(blockNumber uint64) {
 	c.maxBlockNumber = blockNumber
+	if c.maxBlockNumber > c.maxRoundNumber {
+		c.SetMaxRoundNumber(c.maxBlockNumber)
+	}
 }
 
 func (c *MockAlphabillClient) SetMaxRoundNumber(roundNumber uint64) {
+	if c.maxBlockNumber > roundNumber {
+		panic("round number cannot be behind the block number")
+	}
 	c.maxRoundNumber = roundNumber
 }
 

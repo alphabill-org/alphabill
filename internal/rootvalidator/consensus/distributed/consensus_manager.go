@@ -78,6 +78,7 @@ type (
 		partitions     PartitionStore
 		stateStore     StateStore
 		waitPropose    bool
+		voteBuffer     []*atomic_broadcast.VoteMsg
 	}
 )
 
@@ -108,8 +109,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
-	selfID := host.ID().String()
-	log.SetContext(log.KeyNodeID, selfID)
+	log.SetContext(log.KeyNodeID, host.ID().String())
 	logger.Debug("Starting consensus manager")
 	safetyModule, err := NewSafetyModule(signer)
 	if err != nil {
@@ -148,6 +148,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		partitions:     partitionStore,
 		stateStore:     stateStore,
 		waitPropose:    false,
+		voteBuffer:     []*atomic_broadcast.VoteMsg{},
 	}
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
 	// start
@@ -166,9 +167,10 @@ func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCert
 func (x *ConsensusManager) start() {
 	// Start timers and network processing
 	x.timers.Start(localTimeoutID, x.config.LocalTimeoutMs)
-	// Am I the next leader?
+	// Am I the leader?
 	currentRound := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(currentRound) == x.peer.ID() {
+		// on start wait a bit before making a proposal
 		x.waitPropose = true
 		x.timers.Start(blockRateID, x.config.BlockRateMs)
 	}
@@ -402,20 +404,23 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 
 // onVoteMsg handle votes and timeout votes
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
-	// todo: what if vote is received out of order, first vote then proposal?
 	// verify signature on vote
 	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
 	if err != nil {
 		logger.Warning("Vote verify failed: %v", err)
 	}
-	// SyncState
-	if x.checkRecoveryNeeded(vote.HighQc) {
-		logger.Error("Recovery not yet implemented")
-		// todo: AB-320 try to recover
+	logger.Info("Round %v node %v received vote for round %v from %v",
+		x.pacemaker.GetCurrentRound(), x.peer.ID().String(), vote.VoteInfo.RoundNumber, vote.Author)
+	// if a vote is received for the next round and this node is going to be the leader in
+	// the round after this, then buffer vote, it was just received before the proposal
+	if vote.VoteInfo.RoundNumber == x.pacemaker.GetCurrentRound()+1 &&
+		x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+2) == x.peer.ID() {
+		// vote received before proposal, buffer
+		logger.Info("Round %v received vote for round %v before proposal, buffering vote",
+			x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
+		x.voteBuffer = append(x.voteBuffer, vote)
 		return
 	}
-	logger.Info("Round %v vote from %v", x.pacemaker.GetCurrentRound(), vote.Author)
-	// Was the proposal received? If not, should we recover it? or do we accept that this round will end up as timeout
 	round := vote.VoteInfo.RoundNumber
 	// Normal votes are only sent to the next leader,
 	// timeout votes are broadcast to everybody
@@ -425,6 +430,12 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		// this might also be a stale vote, since when we have quorum the round is advanced and the node becomes
 		// the new leader in the current view/round
 		logger.Warning("Received vote, validator is not leader in next round %v, vote ignored", nextRound)
+		return
+	}
+	// SyncState, compare last handled QC
+	if x.checkRecoveryNeeded(vote.HighQc, x.roundPipeline.GetHighQc().VoteInfo.CurrentRootHash) {
+		logger.Error("Vote handling, recovery not yet implemented")
+		// todo: AB-320 try to recover
 		return
 	}
 	// Store vote, check for QC
@@ -458,11 +469,11 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 		logger.Warning("Timeout vote verify failed: %v", err)
 	}
 	// Author voted timeout, proceed
-	logger.Info("Round %v timout vote from %v",
-		vote.Timeout.Round, vote.Author)
-	// SyncState
-	if x.checkRecoveryNeeded(vote.Timeout.HighQc) {
-		logger.Error("Recovery not yet implemented")
+	logger.Info("Round %v node %v received timout vote for round %v from %v",
+		x.pacemaker.GetCurrentRound(), x.peer.ID().String(), vote.Timeout.Round, vote.Author)
+	// SyncState, compare last handled QC
+	if x.checkRecoveryNeeded(vote.Timeout.HighQc, x.roundPipeline.GetHighQc().VoteInfo.CurrentRootHash) {
+		logger.Error("Timeout vote, recovery not yet implemented")
 		// todo: AB-320 try to recover
 	}
 	tc := x.pacemaker.RegisterTimeoutVote(vote, x.rootVerifier)
@@ -484,9 +495,10 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	}
 }
 
-func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) bool {
-	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, x.roundPipeline.GetHighQc().VoteInfo.CurrentRootHash) {
-		logger.Warning("QC round %v state is different, recover state", qc.VoteInfo.RoundNumber)
+func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert, stateHash []byte) bool {
+	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, stateHash) {
+		logger.Warning("Round %v state is different expected %X, local %X, recover state",
+			qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, stateHash)
 		return true
 	}
 	return false
@@ -532,7 +544,8 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	if err != nil {
 		logger.Warning("Invalid Proposal message, verify failed: %v", err)
 	}
-	logger.Info("Received proposal message from %v", proposal.Block.Author)
+	logger.Info("Round %v node %v received proposal message from %v",
+		x.pacemaker.GetCurrentRound(), x.peer.ID().String(), proposal.Block.Author)
 	// Is from valid leader
 	if x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String() != proposal.Block.Author {
 		logger.Warning("Proposal author %v is not a valid leader for round %v, ignoring proposal",
@@ -541,16 +554,16 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	}
 	// timestamp proposal received, used to make sure root chain is not running faster than block time
 	x.pacemaker.RegisterProposal()
+	// Check current state against new QC
+	if x.checkRecoveryNeeded(proposal.Block.Qc, x.roundPipeline.GetExecStateId()) {
+		logger.Error("Proposal handling, recovery not yet implemented")
+		// todo: AB-320 try to recover
+		return
+	}
 	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
 	x.processCertificateQC(proposal.Block.Qc)
 	x.processTC(proposal.LastRoundTc)
-	// Check in sync with other root nodes
-	if x.checkRecoveryNeeded(proposal.Block.Qc) {
-		logger.Error("Recovery not yet implemented")
-		// todo: AB-320 try to recover
-		return
-	}
 	// execute proposed payload
 	changes, err := x.VerifyProposalPayload(proposal.Block.Payload)
 	// execute proposal
@@ -580,6 +593,15 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		}, []peer.ID{nextLeader})
 	if err != nil {
 		logger.Warning("Failed to send vote message: %v", err)
+	}
+	// process vote buffer
+	if len(x.voteBuffer) > 0 {
+		logger.Info("Handling %v buffered vote messages", len(x.voteBuffer))
+		for _, v := range x.voteBuffer {
+			x.onVoteMsg(v)
+		}
+		// clear
+		x.voteBuffer = []*atomic_broadcast.VoteMsg{}
 	}
 }
 

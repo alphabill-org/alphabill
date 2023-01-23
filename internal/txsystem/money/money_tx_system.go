@@ -357,6 +357,9 @@ func (m *moneyTxSystem) consolidateFees() error {
 	for sid, sdr := range m.sdrs {
 		addedCredit := m.feeCreditTxRecorder.getAddedCredit(sid)
 		reclaimedCredit := m.feeCreditTxRecorder.getReclaimedCredit(sid)
+		if addedCredit == reclaimedCredit {
+			continue // no update if bill value doesn't change
+		}
 		fcUnitID := uint256.NewInt(0).SetBytes(sdr.FeeCreditBill.UnitId)
 		fcUnit, err := m.revertibleState.GetUnit(fcUnitID)
 		if err != nil {
@@ -381,25 +384,27 @@ func (m *moneyTxSystem) consolidateFees() error {
 
 	// increment money fee credit bill with spent fees
 	spentFeeSum := m.feeCreditTxRecorder.getSpentFeeSum()
-	moneyFCUnitID := uint256.NewInt(0).SetBytes(m.sdrs[string(m.systemIdentifier)].FeeCreditBill.UnitId)
-	moneyFCUnit, err := m.revertibleState.GetUnit(moneyFCUnitID)
-	if err != nil {
-		return err
-	}
-	updateData := rma.UpdateData(moneyFCUnitID,
-		func(data rma.UnitData) (newData rma.UnitData) {
-			bd, ok := data.(*BillData)
-			if !ok {
-				// TODO updateData should return error
-				return data
-			}
-			bd.V = bd.V + spentFeeSum
-			return bd
-		},
-		moneyFCUnit.StateHash)
-	err = m.revertibleState.AtomicUpdate(updateData)
-	if err != nil {
-		return err
+	if spentFeeSum > 0 {
+		moneyFCUnitID := uint256.NewInt(0).SetBytes(m.sdrs[string(m.systemIdentifier)].FeeCreditBill.UnitId)
+		moneyFCUnit, err := m.revertibleState.GetUnit(moneyFCUnitID)
+		if err != nil {
+			return err
+		}
+		updateData := rma.UpdateData(moneyFCUnitID,
+			func(data rma.UnitData) (newData rma.UnitData) {
+				bd, ok := data.(*BillData)
+				if !ok {
+					// TODO updateData should return error
+					return data
+				}
+				bd.V = bd.V + spentFeeSum
+				return bd
+			},
+			moneyFCUnit.StateHash)
+		err = m.revertibleState.AtomicUpdate(updateData)
+		if err != nil {
+			return err
+		}
 	}
 
 	// clear recorded fee credit transactions

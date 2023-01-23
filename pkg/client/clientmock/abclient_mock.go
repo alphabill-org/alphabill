@@ -9,13 +9,14 @@ import (
 
 // MockAlphabillClient for testing. NOT thread safe.
 type MockAlphabillClient struct {
-	recordedTxs    []*txsystem.Transaction
-	txResponse     *txsystem.TransactionResponse
-	maxBlockNumber uint64
-	maxRoundNumber uint64
-	shutdown       bool
-	blocks         map[uint64]*block.Block
-	txListener     func(tx *txsystem.Transaction)
+	recordedTxs      []*txsystem.Transaction
+	txResponse       *txsystem.TransactionResponse
+	maxBlockNumber   uint64
+	maxRoundNumber   uint64
+	shutdown         bool
+	blocks           map[uint64]*block.Block
+	txListener       func(tx *txsystem.Transaction)
+	incrementOnFetch bool // if true, maxBlockNumber will be incremented on each GetBlocks call
 }
 
 func NewMockAlphabillClient(maxBlockNumber uint64, blocks map[uint64]*block.Block) *MockAlphabillClient {
@@ -37,6 +38,9 @@ func (c *MockAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsyst
 }
 
 func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
+	if c.incrementOnFetch {
+		defer c.SetMaxBlockNumber(blockNumber + 1)
+	}
 	if c.blocks != nil {
 		b := c.blocks[blockNumber]
 		return b, nil
@@ -45,6 +49,9 @@ func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error)
 }
 
 func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+	if c.incrementOnFetch {
+		defer c.SetMaxBlockNumber(blockNumber + 1)
+	}
 	if blockNumber <= c.maxBlockNumber {
 		var blocks []*block.Block
 		b, f := c.blocks[blockNumber]
@@ -55,11 +62,13 @@ func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphab
 		}
 		return &alphabill.GetBlocksResponse{
 			MaxBlockNumber: c.maxBlockNumber,
+			MaxRoundNumber: c.maxRoundNumber,
 			Blocks:         blocks,
 		}, nil
 	}
 	return &alphabill.GetBlocksResponse{
 		MaxBlockNumber: c.maxBlockNumber,
+		MaxRoundNumber: c.maxRoundNumber,
 		Blocks:         []*block.Block{},
 	}, nil
 }
@@ -109,4 +118,8 @@ func (c *MockAlphabillClient) ClearRecordedTransactions() {
 
 func (c *MockAlphabillClient) SetTxListener(txListener func(tx *txsystem.Transaction)) {
 	c.txListener = txListener
+}
+
+func (c *MockAlphabillClient) SetIncrementOnFetch(incrementOnFetch bool) {
+	c.incrementOnFetch = incrementOnFetch
 }

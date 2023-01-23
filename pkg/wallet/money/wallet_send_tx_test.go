@@ -160,8 +160,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}})
-
+	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}}})
+	mockClient.SetIncrementOnFetch(true)
 	// verify balance before transactions
 	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, b1.Value+b2.Value, balance)

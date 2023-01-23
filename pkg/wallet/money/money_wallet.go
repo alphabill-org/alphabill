@@ -804,24 +804,24 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	})
 }
 
-func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxRoundNumber, timeout, accountIndex uint64) ([]*Bill, error) {
+func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, latestRoundNumber, timeout, accountIndex uint64) ([]*Bill, error) {
 	log.Info("waiting for confirmation(s)...")
-	latestRoundNumber := maxRoundNumber
+	latestBlockNumber := latestRoundNumber
 	txsLog := newTxLog(pendingTxs)
 	txc := NewTxConverter(w.SystemID())
-	for latestRoundNumber <= timeout {
-		b, err := w.AlphabillClient.GetBlock(latestRoundNumber)
+	for latestBlockNumber <= timeout {
+		b, err := w.AlphabillClient.GetBlock(latestBlockNumber)
 		if err != nil {
 			return nil, err
 		}
 		if b == nil {
 			// block might be empty, check latest round number
-			_, rn, err := w.AlphabillClient.GetMaxBlockNumber()
+			_, latestRoundNumber, err = w.AlphabillClient.GetMaxBlockNumber()
 			if err != nil {
 				return nil, err
 			}
-			if rn > latestRoundNumber {
-				latestRoundNumber = rn
+			if latestRoundNumber > latestBlockNumber {
+				latestBlockNumber++
 				continue
 			}
 			// wait for some time before retrying to fetch new block
@@ -851,7 +851,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				}
 			}
 		}
-		latestRoundNumber++
+		latestBlockNumber++
 	}
 	return nil, ErrTxFailedToConfirm
 }

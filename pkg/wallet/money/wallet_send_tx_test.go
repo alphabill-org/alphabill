@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -72,10 +73,12 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 
 	// create block with expected transaction
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
-	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
+	tx, err := createTransaction(pubKey, k, b.Value, w.SystemID(), b, txTimeoutBlockCount)
+	require.NoError(t, err)
+	require.NotNil(t, tx)
+	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx,
-	}})
+	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
 
 	// verify balance before transaction
 	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
@@ -106,11 +109,11 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 
 	// create block with expected transactions
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx1, _ := createTransaction(pubKey, k, b1.Value, b1, txTimeoutBlockCount)
-	tx2, _ := createTransaction(pubKey, k, b2.Value, b2, txTimeoutBlockCount)
-	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
+	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount)
+	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount)
+	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2, tx1,
-	}})
+	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
 
 	// verify balance before transactions
 	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
@@ -143,14 +146,14 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 
 	// create block with expected transactions
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx1, _ := createTransaction(pubKey, k, b1.Value, b1, txTimeoutBlockCount)
-	tx2, _ := createTransaction(pubKey, k, b2.Value, b2, txTimeoutBlockCount)
-	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
+	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount)
+	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount)
+	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx1,
-	}})
-	mockClient.SetBlock(&block.Block{BlockNumber: 1, Transactions: []*txsystem.Transaction{
+	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2,
-	}})
+	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}})
 
 	// verify balance before transactions
 	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
@@ -177,7 +180,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 	_ = w.db.Do().SetBill(0, b)
 
 	for i := 0; i <= txTimeoutBlockCount; i++ {
-		mockClient.SetBlock(&block.Block{BlockNumber: uint64(i)})
+		mockClient.SetBlock(&block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: uint64(i)}}})
 	}
 
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true})
@@ -214,24 +217,15 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
 
 	// send tx
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	var sendError error
-	go func() {
-		_, sendError = w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
-		wg.Done()
-	}()
+	_, sendError := w.Send(context.Background(), SendCmd{ReceiverPubKey: make([]byte, 33), Amount: 50})
 
-	// verify txs are broadcasted multiple times
+	// verify send tx error
+	require.ErrorIs(t, sendError, wallet.ErrFailedToBroadcastTx)
+
+	// verify txs were broadcasted multiple times
 	require.Eventually(t, func() bool {
 		return len(mockClient.GetRecordedTransactions()) == maxTxFailedTries
 	}, test.WaitDuration, test.WaitTick)
-
-	// wait for send goroutine to finish
-	wg.Wait()
-
-	// and verify send tx error
-	require.ErrorIs(t, sendError, wallet.ErrFailedToBroadcastTx)
 }
 
 func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {

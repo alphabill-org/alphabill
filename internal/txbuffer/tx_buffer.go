@@ -3,9 +3,9 @@ package txbuffer
 import (
 	"context"
 	gocrypto "crypto"
+	"errors"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )

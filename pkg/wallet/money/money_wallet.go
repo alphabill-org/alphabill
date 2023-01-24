@@ -13,11 +13,11 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
+
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -36,8 +36,6 @@ var (
 	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
 	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
 	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	ErrInvalidAmount        = errors.New("invalid amount")
-	ErrInvalidAccountIndex  = errors.New("invalid account index")
 	ErrInvalidPassword      = errors.New("invalid password")
 	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
 	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
@@ -129,9 +127,15 @@ func IsEncrypted(config WalletConfig) (bool, error) {
 	return db.Do().IsEncrypted()
 }
 
+func (w *Wallet) SystemID() []byte {
+	// TODO: return the default "AlphaBill Money System ID" for now
+	// but this should come from config (base wallet? AB client?)
+	return []byte{0, 0, 0, 0}
+}
+
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	log.Info("processing block: ", b.BlockNumber)
-	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {
+	log.Info("processing block: ", b.UnicityCertificate.InputRecord.RoundNumber)
+	if !bytes.Equal(w.SystemID(), b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
 
@@ -140,7 +144,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		err = validateBlockNumber(b.BlockNumber, lastBlockNumber)
+		err = validateBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 		if err != nil {
 			return err
 		}
@@ -157,7 +161,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 }
 
 func (w *Wallet) endBlock(dbTx TxContext, b *block.Block) error {
-	blockNumber := b.BlockNumber
+	blockNumber := b.UnicityCertificate.InputRecord.RoundNumber
 	err := dbTx.SetBlockNumber(blockNumber)
 	if err != nil {
 		return err
@@ -274,7 +278,7 @@ func (w *Wallet) AddBill(accountIndex uint64, bill *Bill) error {
 	if err != nil {
 		return err
 	}
-	gtx, err := txConverter.ConvertTx(tx)
+	gtx, err := NewTxConverter(w.SystemID()).ConvertTx(tx)
 	if err != nil {
 		return err
 	}
@@ -373,6 +377,7 @@ func (w *Wallet) AddAccount() (uint64, []byte, error) {
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritzing larger bills.
+// Waits for initial response from the node, returns error if any transaction was not accepted to the mempool.
 // Returns list of bills including transaction and proof data, if waitForConfirmation=true, otherwise nil.
 func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 	if err := cmd.isValid(); err != nil {
@@ -414,7 +419,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
+	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, w.SystemID(), bills, k, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -457,12 +462,12 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context) error {
 }
 
 func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, acc *account) error {
-	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
+	gtx, err := money.NewMoneyTx(w.SystemID(), txPb)
 	if err != nil {
 		return err
 	}
-	stx := gtx.(txsystem.GenericTransaction)
-	switch tx := stx.(type) {
+
+	switch tx := gtx.(type) {
 	case money.Transfer:
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
@@ -490,7 +495,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				IsDcBill:            true,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
-				DcExpirationTimeout: b.BlockNumber + dustBillDeletionTimeout,
+				DcExpirationTimeout: b.UnicityCertificate.InputRecord.RoundNumber + dustBillDeletionTimeout,
 			}, acc.accountIndex)
 			if err != nil {
 				return err
@@ -568,7 +573,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 }
 
 func (w *Wallet) saveWithProof(dbTx TxContext, b *block.Block, txPb *txsystem.Transaction, bill *Bill, accountIndex uint64) error {
-	err := bill.addProof(b, txPb)
+	err := bill.addProof(b, txPb, NewTxConverter(w.SystemID()))
 	if err != nil {
 		return err
 	}
@@ -704,7 +709,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			for _, b := range bills {
 				dcValueSum += b.Value
 				billIds = append(billIds, b.GetID())
-				tx, err := createDustTx(k, b, dcNonce, dcTimeout)
+				tx, err := createDustTx(k, w.SystemID(), b, dcNonce, dcTimeout)
 				if err != nil {
 					return err
 				}
@@ -758,7 +763,7 @@ func (w *Wallet) swapDcBills(tx TxContext, dcBills []*Bill, dcNonce []byte, bill
 	if err != nil {
 		return err
 	}
-	swap, err := createSwapTx(k, dcBills, dcNonce, billIds, timeout)
+	swap, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
 	}
@@ -803,6 +808,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 	log.Info("waiting for confirmation(s)...")
 	blockNumber := maxBlockNumber
 	txsLog := newTxLog(pendingTxs)
+	txc := NewTxConverter(w.SystemID())
 	for blockNumber <= timeout {
 		b, err := w.AlphabillClient.GetBlock(blockNumber)
 		if err != nil {
@@ -826,7 +832,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				if err != nil {
 					return nil, err
 				}
-				err = txsLog.recordTx(tx, b)
+				err = txsLog.recordTx(tx, b, txc)
 				if err != nil {
 					return nil, err
 				}
@@ -845,12 +851,7 @@ func (s *SendCmd) isValid() error {
 	if len(s.ReceiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return ErrInvalidPubKey
 	}
-	if s.Amount < 0 {
-		return ErrInvalidAmount
-	}
-	if s.AccountIndex < 0 {
-		return ErrInvalidAccountIndex
-	}
+
 	return nil
 }
 
@@ -941,10 +942,10 @@ func groupDcBills(bills []*Bill) map[uint256.Int]*dcBillGroup {
 }
 
 func validateBlockNumber(blockNumber uint64, lastBlockNumber uint64) error {
-	// verify that we are processing blocks sequentially
 	// TODO verify last prev block hash?
-	if blockNumber != lastBlockNumber+1 {
-		return fmt.Errorf("invalid block height. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
+	// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+	if lastBlockNumber >= blockNumber {
+		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 	}
 	return nil
 }

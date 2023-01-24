@@ -58,13 +58,12 @@ func TestSync(t *testing.T) {
 	serviceServer := testserver.NewTestAlphabillServiceServer()
 	blocks := []*block.Block{
 		{
-			SystemIdentifier:  alphabillMoneySystemId,
-			BlockNumber:       1,
+			SystemIdentifier:  w.SystemID(),
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
 				// random dust transfer can be processed
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x00}),
 					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
@@ -72,7 +71,7 @@ func TestSync(t *testing.T) {
 				},
 				// receive transfer of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x01}),
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
@@ -80,7 +79,7 @@ func TestSync(t *testing.T) {
 				},
 				// receive split of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x02}),
 					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
@@ -88,19 +87,19 @@ func TestSync(t *testing.T) {
 				},
 				// receive swap of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x03}),
 					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
 				},
 			},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 		},
 	}
 	serviceServer.SetMaxBlockNumber(1)
 	for _, b := range blocks {
-		serviceServer.SetBlock(b.BlockNumber, b)
+		serviceServer.SetBlock(b.UnicityCertificate.InputRecord.RoundNumber, b)
 	}
 	server := testserver.StartServer(port, serviceServer)
 	t.Cleanup(server.GracefulStop)
@@ -151,11 +150,10 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	maxBlockNumber := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
 		b := &block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
-			BlockNumber:        blockNo,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
 		}
 		serviceServer.SetBlock(blockNo, b)
 	}
@@ -229,11 +227,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
-			BlockNumber:        blockNo,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
 		}
 		serverService.SetBlock(blockNo, b)
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -44,11 +45,15 @@ func (mn *MockNode) SubmitTx(tx *txsystem.Transaction) error {
 }
 
 func (mn *MockNode) GetBlock(blockNumber uint64) (*block.Block, error) {
-	return &block.Block{BlockNumber: blockNumber}, nil
+	return &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
-func (mn *MockNode) GetLatestBlock() *block.Block {
-	return &block.Block{BlockNumber: mn.maxBlockNumber}
+func (mn *MockNode) GetLatestBlock() (*block.Block, error) {
+	return mn.GetBlock(mn.maxBlockNumber)
+}
+
+func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
+	return mn.maxBlockNumber, nil
 }
 
 func (mn *MockNode) SystemIdentifier() []byte {

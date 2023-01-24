@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,10 +26,10 @@ func TestLedgerReplicationResponse_Pretty_okWithBlocks(t *testing.T) {
 		Message: "",
 		Blocks: []*block.Block{
 			{
-				BlockNumber: 1,
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 			},
 			{
-				BlockNumber: 2,
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
 			},
 		},
 	}

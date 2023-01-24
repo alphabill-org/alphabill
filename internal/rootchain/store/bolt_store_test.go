@@ -113,7 +113,7 @@ func testBadNextRound(t *testing.T, rs *BoltStore) {
 	require.NoError(t, err)
 	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{"1": uc}
 	err = rs.WriteState(RootState{LatestRound: round, Certificates: certs, LatestRootHash: []byte{1}})
-	require.ErrorContains(t, err, "Inconsistent round number, current=2, new=2")
+	require.ErrorContains(t, err, "inconsistent round number, current=2, new=2")
 }
 
 func createBoltRootStore(t *testing.T) *BoltStore {

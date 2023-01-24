@@ -3,12 +3,12 @@ package partition
 import (
 	gocrypto "crypto"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	pg "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -129,28 +129,17 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 
 	zeroHash := make([]byte, c.hashAlgorithm.Size())
 
-	// first block
-	b := &block.GenericBlock{
-		SystemIdentifier:  c.systemIdentifier,
-		BlockNumber:       1,
-		PreviousBlockHash: nil,
-		Transactions:      nil,
-	}
-	blockHash, err := b.Hash(c.hashAlgorithm)
-	if err != nil {
-		return nil, err
-	}
-
 	// Protocol request
 	id := c.peerID.String()
 	blockCertificationRequest := &certification.BlockCertificationRequest{
 		SystemIdentifier: c.systemIdentifier,
 		NodeIdentifier:   id,
-		RootRoundNumber:  1,
+		RootRoundNumber:  pg.GenesisRootRoundNumber,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: zeroHash, // extend zero hash
 			Hash:         hash,
-			BlockHash:    blockHash,
+			BlockHash:    zeroHash, // first block's hash is zero
+			RoundNumber:  pg.GenesisRoundNumber,
 			SummaryValue: summaryValue,
 		},
 	}

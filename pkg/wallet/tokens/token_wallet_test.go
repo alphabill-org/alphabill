@@ -1,7 +1,9 @@
 package tokens
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"fmt"
 	"os"
 	"path"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -133,6 +136,98 @@ func TestNewFungibleToken(t *testing.T) {
 			tt.validateOwner(t, tt.accNr, newToken)
 		})
 	}
+}
+
+func TestFungibleTokenDC(t *testing.T) {
+	tw, abClient := createTestWallet(t)
+	_, _, err := tw.mw.AddAccount()
+	require.NoError(t, err)
+	ctx := context.Background()
+	acc1 := uint64(1)
+	acc2 := uint64(2)
+	typeID1 := randomBytes(t)
+	typeID2 := randomBytes(t)
+	typeID3 := randomBytes(t)
+	nftTypeID := randomBytes(t)
+	accTokens := []struct {
+		acc   uint64
+		token *TokenUnit
+	}{
+		// acc 1, 1 token
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB1", TypeID: typeID1, Amount: 100}},
+		// acc 2, 1 token
+		{acc2, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB2", TypeID: typeID2, Amount: 100}},
+		// acc 1, 3 tokens
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}},
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}},
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: FungibleToken, Symbol: "AB3", TypeID: typeID3, Amount: 100}},
+		// ensure NFTs are untouched
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: NonFungibleToken, Symbol: "NFT", TypeID: nftTypeID}},
+		{acc1, &TokenUnit{ID: randomBytes(t), Kind: NonFungibleToken, Symbol: "NFT", TypeID: nftTypeID}},
+	}
+	for _, tok := range accTokens {
+		require.NoError(t, tw.db.Do().SetToken(tok.acc, tok.token))
+	}
+	findAcc := func(id TokenID) uint64 {
+		for _, tok := range accTokens {
+			if bytes.Equal(tok.token.ID, id) {
+				return tok.acc
+			}
+		}
+		t.Fatalf("unit %X not found", id)
+		return 0
+	}
+
+	require.ErrorContains(t, tw.CollectDust(ctx, 0, nil, nil), "invalid account number for dust collection")
+
+	abClient.ClearRecordedTransactions()
+	var burnedValue = uint64(0)
+	var joinTx *txsystem.Transaction
+	var joinedUnitBacklink []byte
+	abClient.SetTxListener(func(tx *txsystem.Transaction) {
+		if tx.TransactionAttributes.TypeUrl == "type.googleapis.com/alphabill.tokens.v1.BurnFungibleTokenAttributes" {
+			acc := findAcc(tx.UnitId)
+			tok, err := tw.db.Do().GetToken(acc, tx.UnitId)
+			require.NoError(t, err)
+			require.Equal(t, FungibleToken, tok.Kind)
+			tok.Burned = true
+			tok.Proof = &Proof{BlockNumber: 1, Tx: tx, Proof: nil}
+			require.NoError(t, tw.db.Do().SetToken(acc, tok))
+			burnedValue += tok.Amount
+		} else if tx.TransactionAttributes.TypeUrl == "type.googleapis.com/alphabill.tokens.v1.JoinFungibleTokenAttributes" {
+			acc := findAcc(tx.UnitId)
+			tok, err := tw.db.Do().GetToken(acc, tx.UnitId)
+			require.NoError(t, err)
+			require.Equal(t, FungibleToken, tok.Kind)
+			joinedUnitBacklink = tok.Backlink
+			attrs := &tokens.JoinFungibleTokenAttributes{}
+			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+			require.Equal(t, uint64(300), tok.Amount+burnedValue)
+			joinTx = tx
+		}
+	})
+	// this should only join tokens with type typeID3
+	err = tw.CollectDust(ctx, AllAccounts, nil, nil)
+	require.NoError(t, err)
+	// tx validation is done in TxListener
+
+	// ensure backlink of a joined unit gets updated (AB-647)
+	require.NotNil(t, joinTx)
+	roundNr, err := tw.db.Do().GetBlockNumber()
+	require.NoError(t, err)
+	require.NoError(t, tw.ProcessBlock(&block.Block{
+		SystemIdentifier: joinTx.SystemId,
+		Transactions: []*txsystem.Transaction{
+			joinTx,
+		},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: roundNr + 1}},
+	}))
+	acc := findAcc(joinTx.UnitId)
+	tok, err := tw.db.Do().GetToken(acc, joinTx.UnitId)
+	require.NotEqual(t, joinedUnitBacklink, tok.Backlink, "backlink of joined unit should be updated")
+	gtx, err := tw.txs.ConvertTx(joinTx)
+	require.NoError(t, err)
+	require.Equal(t, gtx.Hash(crypto.SHA256), tok.Backlink)
 }
 
 func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {

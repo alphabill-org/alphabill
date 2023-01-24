@@ -2,11 +2,11 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/pkg/errors"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -193,7 +193,7 @@ func (s *BoltStore) WriteState(newState RootState) error {
 			latestRoundNr = util.BytesToUint64(tx.Bucket(roundBucket).Get(latestRoundNumberKey))
 		}
 		if latestRoundNr+1 != newState.LatestRound {
-			return errors.Errorf("Inconsistent round number, current=%v, new=%v", latestRoundNr, newState.LatestRound)
+			return fmt.Errorf("inconsistent round number, current=%v, new=%v", latestRoundNr, newState.LatestRound)
 		}
 		if err := tx.Bucket(roundBucket).Put(latestRoundNumberKey, util.Uint64ToBytes(newState.LatestRound)); err != nil {
 			return err

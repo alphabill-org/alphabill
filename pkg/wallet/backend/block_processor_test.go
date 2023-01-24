@@ -38,12 +38,12 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 		TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(pubKeyHash),
 	}
 	b := &block.Block{
-		BlockNumber:        1,
 		Transactions:       []*txsystem.Transaction{tx1, tx2, tx3, tx4},
-		UnicityCertificate: &certificates.UnicityCertificate{},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 	}
 
 	store, err := createTestBillStore(t)
+	require.NoError(t, err)
 	_ = store.AddKey(NewPubkey(pubKeyBytes))
 	bp := NewBlockProcessor(store)
 

@@ -251,14 +251,6 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	verifyProof(t, burnTx, network, trustBase, hashAlgorithm)
 	burnGenTx, err := NewGenericTx(burnTx)
 	require.NoError(t, err)
-	burnGenTxHash := burnGenTx.Hash(hashAlgorithm)
-	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
-		unitID:     util.Uint256ToBytes(sUnitID1),
-		typeUnitID: fungibleTokenTypeID,
-		backlink:   burnGenTxHash,
-		bearer:     []byte{0},
-		tokenValue: splitValue1,
-	})
 
 	burnTx2 := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
@@ -278,14 +270,6 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	verifyProof(t, burnTx2, network, trustBase, hashAlgorithm)
 	burnGenTx2, err := NewGenericTx(burnTx2)
 	require.NoError(t, err)
-
-	RequireFungibleTokenState(t, state, fungibleTokenUnitData{
-		unitID:     util.Uint256ToBytes(sUnitID2),
-		typeUnitID: fungibleTokenTypeID,
-		backlink:   burnGenTx2.Hash(hashAlgorithm),
-		bearer:     []byte{0},
-		tokenValue: splitValue2,
-	})
 
 	// join token
 	_, burnProof1, err := network.GetBlockProof(burnTx, NewGenericTx)

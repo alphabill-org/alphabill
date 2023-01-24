@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/pkg/errors"
 )
 
 type (
@@ -59,16 +58,22 @@ func New(ctx context.Context, conf *VDClientConfig) (*VDClient, error) {
 	}, nil
 }
 
+func (v *VDClient) SystemID() []byte {
+	// TODO: return the default "AlphaBill VD System ID" for now
+	// but this should come from config (base wallet? AB client?)
+	return []byte{0, 0, 0, 1}
+}
+
 func (v *VDClient) RegisterFileHash(filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return errors.Wrapf(err, "failed to open the file %s", filePath)
+		return fmt.Errorf("failed to open the file %q: %w", filePath, err)
 	}
 	defer func() { _ = file.Close() }()
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
-		return errors.Wrapf(err, "failed to read the file %s", filePath)
+		return fmt.Errorf("failed to read the file %q: %w", filePath, err)
 	}
 
 	hash := hasher.Sum(nil)
@@ -124,7 +129,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 
 	log.Info("Current block #: ", currentBlockNumber)
 	timeout := currentBlockNumber + v.timeoutDelta
-	tx, err := createRegisterDataTx(hash, timeout)
+	tx, err := createRegisterDataTx(v.SystemID(), hash, timeout)
 	if err != nil {
 		return err
 	}
@@ -159,27 +164,27 @@ func (p VDBlockProcessor) ProcessBlock(b *block.Block) error {
 
 func (v *VDClient) prepareProcessor(timeout uint64, hash []byte) VDBlockProcessor {
 	return func(b *block.Block) error {
-		log.Debug("Fetched block #", b.GetBlockNumber(), ", tx count: ", len(b.GetTransactions()))
-		if b.GetBlockNumber() > timeout {
+		log.Debug("Fetched block #", b.UnicityCertificate.InputRecord.RoundNumber, ", tx count: ", len(b.GetTransactions()))
+		if b.UnicityCertificate.InputRecord.RoundNumber > timeout {
 			log.Info("Block timeout reached")
 			v.shutdown()
 			return nil
 		}
 		for _, tx := range b.GetTransactions() {
-			log.Debug("Processing block #", b.GetBlockNumber())
+			log.Debug("Processing block #", b.UnicityCertificate.InputRecord.RoundNumber)
 			if hash != nil {
 				// if hash is provided, print only the corresponding block
 				if bytes.Equal(hash, tx.GetUnitId()) {
-					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(hash)))
+					log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.UnicityCertificate.InputRecord.RoundNumber, hex.EncodeToString(hash)))
 					if v.blockCallback != nil {
 						log.Info("Invoking block callback")
-						v.blockCallback(&VDBlock{blockNumber: b.BlockNumber})
+						v.blockCallback(&VDBlock{blockNumber: b.UnicityCertificate.InputRecord.RoundNumber})
 					}
 					v.shutdown()
 					break
 				}
 			} else {
-				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.GetBlockNumber(), hex.EncodeToString(tx.GetUnitId())))
+				log.Info(fmt.Sprintf("Tx in block #%d, hash: %s", b.UnicityCertificate.InputRecord.RoundNumber, hex.EncodeToString(tx.GetUnitId())))
 			}
 		}
 		return nil
@@ -211,10 +216,10 @@ func validateHash(hash []byte) error {
 	return nil
 }
 
-func createRegisterDataTx(hash []byte, timeout uint64) (*txsystem.Transaction, error) {
+func createRegisterDataTx(systemId, hash []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
 		UnitId:   hash,
-		SystemId: []byte{0, 0, 0, 1},
+		SystemId: systemId,
 		Timeout:  timeout,
 	}
 	return tx, nil

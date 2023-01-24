@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/util"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -83,8 +84,8 @@ func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
 			txs = append(txs, mock.tx)
 		}
 		return &block.Block{
-			BlockNumber:  nr,
-			Transactions: txs,
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: nr}},
+			Transactions:       txs,
 		}
 	}
 
@@ -216,7 +217,7 @@ func TestVdClient_ListAllBlocksWithTx(t *testing.T) {
 	mock.incrementBlock = true
 	mock.block = func(nr uint64) *block.Block {
 		return &block.Block{
-			BlockNumber: nr,
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: nr}},
 		}
 	}
 

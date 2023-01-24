@@ -27,8 +27,8 @@ func (t *txLog) contains(tx *txsystem.Transaction) bool {
 	return exists
 }
 
-func (t *txLog) recordTx(tx *txsystem.Transaction, b *block.Block) error {
-	bill, err := t.extractBill(tx, b)
+func (t *txLog) recordTx(tx *txsystem.Transaction, b *block.Block, txConverter *TxConverter) error {
+	bill, err := t.extractBill(tx, b, txConverter)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (t *txLog) recordTx(tx *txsystem.Transaction, b *block.Block) error {
 }
 
 // extractBill extracts bill with proof from given transaction and block
-func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, error) {
+func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block, txConverter *TxConverter) (*Bill, error) {
 	gtx, err := txConverter.ConvertTx(txPb)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	if err != nil {
 		return nil, err
 	}
-	blockProof, err := NewBlockProof(txPb, proof, b.BlockNumber)
+	blockProof, err := NewBlockProof(txPb, proof, b.UnicityCertificate.InputRecord.RoundNumber)
 	if err != nil {
 		return nil, err
 	}

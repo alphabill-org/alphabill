@@ -21,7 +21,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
-	bl := tp.GetLatestBlock()
+	bl := tp.GetLatestBlock(t)
 	transfer := moneytesttx.RandomBillTransfer(t)
 	require.NoError(t, tp.SubmitTx(transfer))
 
@@ -67,9 +67,10 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
-	bl := tp.GetLatestBlock()
+	bl := tp.GetLatestBlock(t)
 
-	tp.partition.startNewRound(tp.partition.luc)
+	err := tp.partition.startNewRound(tp.partition.luc)
+	require.NoError(t, err)
 
 	// send UC with different block hash
 	ir := proto.Clone(bl.UnicityCertificate.InputRecord).(*certificates.InputRecord)
@@ -109,7 +110,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 func TestNode_RecoverBlocks(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
-	genesisBlock := tp.GetLatestBlock()
+	genesisBlock := tp.GetLatestBlock(t)
 
 	system := &testtxsystem.CounterTxSystem{}
 	newBlock1 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
@@ -156,9 +157,10 @@ func TestNode_RecoverBlocks(t *testing.T) {
 func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 5))
 	defer tp.Close()
-	genesisBlockNumber := tp.GetLatestBlock().BlockNumber
+	genesisBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
 
-	tp.partition.startNewRound(tp.partition.luc)
+	err := tp.partition.startNewRound(tp.partition.luc)
+	require.NoError(t, err)
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
@@ -175,10 +177,10 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 			return count == 3
 		}, test.WaitDuration, test.WaitTick)
 		require.NoError(t, tp.CreateBlock(t))
-		block := tp.GetLatestBlock()
-		require.Equal(t, 3, len(block.Transactions))
+		bl := tp.GetLatestBlock(t)
+		require.Equal(t, 3, len(bl.Transactions))
 	}
-	latestBlockNumber := tp.GetLatestBlock().BlockNumber
+	latestBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 
 	//send replication request, it will hit tx replication limit
@@ -233,7 +235,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 
 	// create new block
 	newBlock := proto.Clone(currentBlock).(*block.Block)
-	newBlock.BlockNumber = currentBlock.BlockNumber + 1
+	newBlock.UnicityCertificate.InputRecord.RoundNumber = currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1
 	newBlock.PreviousBlockHash, _ = currentBlock.Hash(system, tp.partition.configuration.hashAlgorithm)
 	newBlock.Transactions = make([]*txsystem.Transaction, 1)
 	newBlock.Transactions[0] = moneytesttx.RandomBillTransfer(t)

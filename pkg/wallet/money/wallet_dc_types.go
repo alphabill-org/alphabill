@@ -32,7 +32,7 @@ type dcWaitGroup struct {
 
 	// swaps list of expected transactions to be received during dc process
 	// key - dc nonce;
-	// value - timeout block height
+	// value - timeout block number
 	swaps map[uint256.Int]uint64
 }
 

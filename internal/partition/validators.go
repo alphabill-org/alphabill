@@ -83,7 +83,7 @@ func (dtv *DefaultTxValidator) Validate(tx txsystem.GenericTransaction, latestBl
 
 	if tx.Timeout() <= latestBlockNumber {
 		// transaction is expired
-		return errors.Errorf("transaction timeout must be greater than latest block height: transaction timeout %v, latest blockNumber: %v", tx.Timeout(), latestBlockNumber)
+		return errors.Errorf("transaction timeout must be greater than latest block number: transaction timeout %v, latest blockNumber: %v", tx.Timeout(), latestBlockNumber)
 	}
 	return nil
 }

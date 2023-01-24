@@ -9,7 +9,7 @@ func (r *LedgerReplicationResponse) Pretty() string {
 	} else {
 		count := len(r.Blocks)
 		if count > 0 {
-			result += fmt.Sprintf(", blocks %d..%d", r.Blocks[0].BlockNumber, r.Blocks[count-1].BlockNumber)
+			result += fmt.Sprintf(", blocks %d..%d", r.Blocks[0].UnicityCertificate.InputRecord.RoundNumber, r.Blocks[count-1].UnicityCertificate.InputRecord.RoundNumber)
 		}
 	}
 	return result

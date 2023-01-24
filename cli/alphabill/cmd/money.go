@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"crypto"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/logger"
@@ -76,6 +77,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	trustBase, err := genesis.NewValidatorTrustBase(pg.RootValidators)
+	if err != nil {
+		return fmt.Errorf("failed to create trust base validator: %w", err)
+	}
 
 	txs, err := money.NewMoneyTxSystem(
 		crypto.SHA256,

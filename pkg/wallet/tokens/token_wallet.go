@@ -62,6 +62,12 @@ func Load(mw *money.Wallet, sync bool) (*Wallet, error) {
 	return w, nil
 }
 
+func (w *Wallet) SystemID() []byte {
+	// TODO: return the default "AlphaBill Token System ID" for now
+	// but in the future this should come from config (w.mw.SystemID()?)
+	return tokens.DefaultTokenTxSystemIdentifier
+}
+
 func (w *Wallet) GetAccountManager() wallet.AccountManager {
 	return w.mw
 }
@@ -234,7 +240,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 
-	return w.syncToUnit(ctx, tokenId, sub.timeout)
+	return w.syncToUnit(ctx, sub)
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
@@ -269,21 +275,18 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	if targetAmount > totalBalance {
 		return fmt.Errorf("insufficient value: got %v, need %v", totalBalance, targetAmount)
 	}
-	var submissions map[string]*submittedTx
-	var maxTimeout uint64
+	var submissions *submissionSet
 	// optimization: first try to make a single operation instead of iterating through all tokens in doSendMultiple
 	if closestMatch.Amount >= targetAmount {
 		var sub *submittedTx
 		sub, err = w.sendSplitOrTransferTx(acc, targetAmount, closestMatch, receiverPubKey, invariantPredicateArgs)
-		submissions = make(map[string]*submittedTx, 1)
-		submissions[sub.id.String()] = sub
-		maxTimeout = sub.timeout
+		submissions = newSubmissionSet().add(sub)
 	} else {
-		submissions, maxTimeout, err = w.doSendMultiple(targetAmount, fungibleTokens, acc, receiverPubKey, invariantPredicateArgs)
+		submissions, err = w.doSendMultiple(targetAmount, fungibleTokens, acc, receiverPubKey, invariantPredicateArgs)
 	}
 
 	// error might have happened, but some submissions could have succeeded
-	syncErr := w.syncToUnits(ctx, submissions, maxTimeout)
+	syncErr := w.syncToUnits(ctx, submissions)
 
 	if err != nil {
 		return err
@@ -329,5 +332,138 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		return err
 	}
 
-	return w.syncToUnit(ctx, tokenId, sub.timeout)
+	return w.syncToUnit(ctx, sub)
+}
+
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenTypes []TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+	if accountNumber == alwaysTrueTokensAccountNumber {
+		return errors.New("invalid account number for dust collection (#0)")
+	}
+
+	var keys []*wallet.AccountKey
+	var err error
+	singleKey := false
+	if accountNumber > AllAccounts+1 {
+		key, err := w.mw.GetAccountKey(uint64(accountNumber - 1))
+		if err != nil {
+			return err
+		}
+		keys = append(keys, key)
+		singleKey = true
+	} else {
+		keys, err = w.mw.GetAccountKeys()
+		if err != nil {
+			return err
+		}
+	}
+	if singleKey {
+		return w.collectDust(ctx, uint64(accountNumber), tokenTypes, invariantPredicateArgs)
+	}
+	for idx := range keys {
+		err := w.collectDust(ctx, uint64(idx+1), tokenTypes, invariantPredicateArgs)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, tokenTypes []TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+	acc, err := w.getAccountKey(accountNumber)
+	if err != nil {
+		return err
+	}
+	// find tokens to join
+	allTokens, err := w.db.Do().GetTokens(accountNumber)
+	if err != nil {
+		return err
+	}
+	// group tokens by type
+	var tokensByTypes = make(map[string][]*TokenUnit, len(tokenTypes))
+	for _, tokenType := range tokenTypes {
+		tokensByTypes[tokenType.String()] = make([]*TokenUnit, 0)
+	}
+	for _, tok := range allTokens {
+		if !tok.IsFungible() {
+			continue
+		}
+		tokenTypeStr := tok.TypeID.String()
+		tokenz, found := tokensByTypes[tokenTypeStr]
+		if !found {
+			if len(tokenTypes) == 0 {
+				// any type
+				tokenz = make([]*TokenUnit, 0, 1)
+			} else {
+				continue
+			}
+		}
+		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
+	}
+
+	for k, v := range tokensByTypes {
+		if len(v) < 2 { // not interested if tokens count is less than two
+			delete(tokensByTypes, k)
+			continue
+		}
+		// first token to be joined into
+		targetToken := v[0]
+		submissions := newSubmissionSet()
+		// burn the rest
+		for i := 1; i < len(v); i++ {
+			token := v[i]
+			attrs := newBurnTxAttrs(token, targetToken.Backlink)
+			sub, err := w.sendTx(token.ID, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+				signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+				if err != nil {
+					return err
+				}
+				attrs.SetInvariantPredicateSignatures(signatures)
+				return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+			})
+			if err != nil {
+				return err
+			}
+			submissions.add(sub)
+		}
+		err = w.syncToUnits(ctx, submissions)
+		if err != nil {
+			return err
+		}
+		burnTxs := make([]*txsystem.Transaction, 0, 1)
+		proofs := make([]*block.BlockProof, 0, 1)
+		for _, tx := range submissions.submissions {
+			tok, err := w.db.Do().GetToken(accountNumber, tx.id)
+			if err != nil {
+				return err
+			}
+			if !tok.Burned {
+				return fmt.Errorf("token not burned, ID='%X'", tok.ID)
+			}
+			burnTxs = append(burnTxs, tx.tx)
+			proofs = append(proofs, tok.Proof.Proof)
+		}
+
+		joinAttrs := &tokens.JoinFungibleTokenAttributes{
+			BurnTransactions:             burnTxs,
+			Proofs:                       proofs,
+			Backlink:                     targetToken.Backlink,
+			InvariantPredicateSignatures: nil,
+		}
+		sub, err := w.sendTx(targetToken.ID, joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+			if err != nil {
+				return err
+			}
+			joinAttrs.SetInvariantPredicateSignatures(signatures)
+			return anypb.MarshalFrom(tx.TransactionAttributes, joinAttrs, proto.MarshalOptions{})
+		})
+		if err != nil {
+			return err
+		}
+		err = w.syncToUnit(ctx, sub)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

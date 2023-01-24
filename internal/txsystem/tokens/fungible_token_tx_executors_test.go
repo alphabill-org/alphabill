@@ -645,15 +645,8 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	u, err := executor.state.GetUnit(uID)
-	require.NoError(t, err)
-	require.NotNil(t, u)
-	require.Equal(t, rma.Predicate([]byte{0}), u.Bearer)
-	require.IsType(t, &fungibleTokenData{}, u.Data)
-	d := u.Data.(*fungibleTokenData)
-
-	require.Equal(t, burnAttributes.Value, d.value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
-	require.Equal(t, roundNr, d.t)
+	require.Nil(t, u)
+	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uID)))
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"crypto"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -100,6 +101,10 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		config.DCMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(config.SystemIdentifier),
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create money tx system: %w", err)
+	}
+
 	params, err := config.getPartitionParams()
 	if err != nil {
 		return err

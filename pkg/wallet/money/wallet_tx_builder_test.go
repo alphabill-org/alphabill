@@ -30,12 +30,12 @@ func TestSplitTransactionAmount(t *testing.T) {
 	}
 	amount := uint64(150)
 	timeout := uint64(100)
+	systemId := []byte{0, 0, 0, 0}
 
-	tx, err := createSplitTx(amount, receiverPubKey, keys.AccountKey, b, timeout)
+	tx, err := createSplitTx(amount, receiverPubKey, keys.AccountKey, systemId, b, timeout)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-
-	require.EqualValues(t, alphabillMoneySystemId, tx.SystemId)
+	require.EqualValues(t, systemId, tx.SystemId)
 	require.EqualValues(t, billIdBytes, tx.UnitId)
 	require.EqualValues(t, timeout, tx.Timeout)
 	require.NotNil(t, tx.OwnerProof)
@@ -55,25 +55,25 @@ func TestCreateTransactions(t *testing.T) {
 		bills       []*Bill
 		amount      uint64
 		txCount     int
-		verify      func(t *testing.T, txs []*txsystem.Transaction)
+		verify      func(t *testing.T, systemId []byte, txs []*txsystem.Transaction)
 		expectedErr error
 	}{
 		{
 			name:   "have more bills than target amount",
 			bills:  []*Bill{createBill(5), createBill(3), createBill(1)},
 			amount: uint64(7),
-			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				// verify tx count
 				require.Len(t, txs, 2)
 
 				// verify first tx is transfer order of bill no1
-				tx, _ := moneytx.NewMoneyTx(alphabillMoneySystemId, txs[0])
+				tx, _ := moneytx.NewMoneyTx(systemId, txs[0])
 				transferTx, ok := tx.(moneytx.Transfer)
 				require.True(t, ok)
 				require.EqualValues(t, 5, transferTx.TargetValue())
 
 				// verify second tx is split order of bill no2
-				tx, _ = moneytx.NewMoneyTx(alphabillMoneySystemId, txs[1])
+				tx, _ = moneytx.NewMoneyTx(systemId, txs[1])
 				splitTx, ok := tx.(moneytx.Split)
 				require.True(t, ok)
 				require.EqualValues(t, 2, splitTx.Amount())
@@ -82,7 +82,7 @@ func TestCreateTransactions(t *testing.T) {
 			name:   "have less bills than target amount",
 			bills:  []*Bill{createBill(5), createBill(1)},
 			amount: uint64(7),
-			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				require.Empty(t, txs)
 			},
 			expectedErr: ErrInsufficientBalance,
@@ -90,13 +90,13 @@ func TestCreateTransactions(t *testing.T) {
 			name:   "have exact amount of bills than target amount",
 			bills:  []*Bill{createBill(5), createBill(5)},
 			amount: uint64(10),
-			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				// verify tx count
 				require.Len(t, txs, 2)
 
 				// verify both bills are transfer orders
 				for _, tx := range txs {
-					mtx, _ := moneytx.NewMoneyTx(alphabillMoneySystemId, tx)
+					mtx, _ := moneytx.NewMoneyTx(systemId, tx)
 					transferTx, ok := mtx.(moneytx.Transfer)
 					require.True(t, ok)
 					require.EqualValues(t, 5, transferTx.TargetValue())
@@ -106,21 +106,23 @@ func TestCreateTransactions(t *testing.T) {
 			name:   "have exactly one bill with equal target amount",
 			bills:  []*Bill{createBill(5)},
 			amount: uint64(5),
-			verify: func(t *testing.T, txs []*txsystem.Transaction) {
+			verify: func(t *testing.T, systemId []byte, txs []*txsystem.Transaction) {
 				// verify tx count
 				require.Len(t, txs, 1)
 
 				// verify transfer tx
-				mtx, _ := moneytx.NewMoneyTx(alphabillMoneySystemId, txs[0])
+				mtx, _ := moneytx.NewMoneyTx(systemId, txs[0])
 				transferTx, ok := mtx.(moneytx.Transfer)
 				require.True(t, ok)
 				require.EqualValues(t, 5, transferTx.TargetValue())
 			},
 		},
 	}
+	systemId := []byte{0, 0, 0, 0}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			txs, err := createTransactions(receiverPubKey, tt.amount, tt.bills, accountKey.AccountKey, 100)
+			txs, err := createTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
 				require.Nil(t, txs)
@@ -128,7 +130,7 @@ func TestCreateTransactions(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, txs)
 			}
-			tt.verify(t, txs)
+			tt.verify(t, systemId, txs)
 		})
 	}
 }

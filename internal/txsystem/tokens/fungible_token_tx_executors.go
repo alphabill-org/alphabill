@@ -147,23 +147,7 @@ func (b *burnFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 		return err
 	}
 	unitID := tx.UnitID()
-	h := tx.Hash(b.hashAlgorithm)
-	return b.state.AtomicUpdate(
-		rma.SetOwner(unitID, []byte{0}, h),
-		rma.UpdateData(unitID,
-			func(data rma.UnitData) rma.UnitData {
-				d, ok := data.(*fungibleTokenData)
-				if !ok {
-					// No change in case of incorrect data type.
-					return data
-				}
-				return &fungibleTokenData{
-					tokenType: d.tokenType,
-					value:     d.value,
-					t:         currentBlockNr,
-					backlink:  h,
-				}
-			}, h))
+	return b.state.AtomicUpdate(rma.DeleteItem(unitID))
 }
 
 func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, currentBlockNr uint64) error {
@@ -366,12 +350,12 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
 	for i, btx := range transactions {
-		tokenTypeID := d.tokenType.Bytes32()
-		if !bytes.Equal(btx.TypeID(), tokenTypeID[:]) {
+		tokenTypeID := util.Uint256ToBytes(d.tokenType)
+		if !bytes.Equal(btx.TypeID(), tokenTypeID) {
 			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeID())
 		}
 
-		if !bytes.Equal(btx.Nonce(), tx.attributes.Backlink) {
+		if !bytes.Equal(btx.Nonce(), tx.Backlink()) {
 			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.Nonce(), tx.Backlink())
 		}
 		proof := proofs[i]

@@ -12,6 +12,8 @@ const walletPass = "default-wallet-pass"
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	_ = DeleteWalletDb(os.TempDir())
 	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass})
+	require.NoError(t, err)
+	require.NotNil(t, w)
 	t.Cleanup(func() {
 		DeleteWallet(w)
 	})

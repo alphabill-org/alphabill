@@ -26,12 +26,46 @@ import (
 
 type (
 	submittedTx struct {
-		id      TokenID
-		timeout uint64
+		id        TokenID
+		tx        *txsystem.Transaction
+		confirmed bool
+	}
+
+	submissionSet struct {
+		submissions map[string]*submittedTx
+		maxTimeout  uint64
 	}
 
 	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
 )
+
+func newSubmissionSet() *submissionSet {
+	return &submissionSet{
+		submissions: make(map[string]*submittedTx, 1),
+		maxTimeout:  0,
+	}
+}
+
+func (s *submittedTx) confirm() {
+	s.confirmed = true
+}
+
+func (s *submissionSet) confirmed() bool {
+	for _, sub := range s.submissions {
+		if !sub.confirmed {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *submissionSet) add(sub *submittedTx) *submissionSet {
+	if sub.tx.Timeout > s.maxTimeout {
+		s.maxTimeout = sub.tx.Timeout
+	}
+	s.submissions[sub.id.String()] = sub
+	return s
+}
 
 func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.Block, accNr uint64, key *wallet.KeyHashes) error {
 	gtx, err := w.txs.ConvertTx(tx)
@@ -138,13 +172,14 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		} else {
-			tokenInfo, err = txc.GetTokenType(ctx.TypeID())
+			ti, err := txc.GetTokenType(ctx.TypeID())
 			if err != nil {
 				return err
 			}
-			if tokenInfo == nil {
+			if ti == nil {
 				return errors.Errorf("split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
+			tokenInfo = ti
 		}
 
 		if checkOwner(accNr, key, ctx.NewBearer()) {
@@ -164,10 +199,60 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 		}
 	case tokens.BurnFungibleToken:
 		log.Info("Token tx: BurnFungibleToken")
-		panic("not implemented") // TODO
+		tok, err := txc.GetToken(accNr, id)
+		if err != nil {
+			return err
+		}
+		if tok != nil {
+			log.Info("Token was burned on account #", accNr)
+			if tok.Amount != ctx.Value() {
+				return fmt.Errorf("expected burned amount: %v, got %v. token id='%X', type id='%X'", tok.Amount, ctx.Value(), tok.ID, tok.TypeID)
+			}
+			tok.Burned = true
+			err = w.addTokenWithProof(accNr, tok, b, tx, txc)
+			if err != nil {
+				return err
+			}
+		}
 	case tokens.JoinFungibleToken:
 		log.Info("Token tx: JoinFungibleToken")
-		panic("not implemented") // TODO
+		joinedToken, err := txc.GetToken(accNr, id)
+		if err != nil {
+			return err
+		}
+		if joinedToken == nil {
+			return nil
+		}
+		bl := joinedToken.Backlink
+		// burned tokens must be on the same account as the target unit
+		var burnedValue uint64
+		for _, burnTx := range ctx.BurnTransactions() {
+			burnedID := util.Uint256ToBytes(burnTx.UnitID())
+			burnedToken, err := txc.GetToken(accNr, burnedID)
+			if err != nil {
+				return err
+			}
+			if burnedToken == nil {
+				return fmt.Errorf("burned token with id '%X' not found", burnedID)
+			}
+			if !burnedToken.Burned {
+				return fmt.Errorf("token with id '%X' is expected to be burned, but it is not", burnedID)
+			}
+			if !bytes.Equal(bl, burnTx.Nonce()) {
+				return fmt.Errorf("expected burned token's nonce '%X', got %X", bl, burnTx.Nonce())
+			}
+			err = txc.RemoveToken(accNr, burnedID)
+			if err != nil {
+				return err
+			}
+			burnedValue += burnTx.Value()
+		}
+		joinedToken.Amount += burnedValue
+		joinedToken.Backlink = txHash
+		err = w.addTokenWithProof(accNr, joinedToken, b, tx, txc)
+		if err != nil {
+			return err
+		}
 	case tokens.CreateNonFungibleTokenType:
 		log.Info("Token tx: CreateNonFungibleTokenType")
 		err := w.addTokenTypeWithProof(&TokenUnitType{
@@ -271,7 +356,7 @@ func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInput
 	if err != nil {
 		return nil, err
 	}
-	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
+	return sub.id, w.syncToUnit(ctx, sub)
 }
 
 func preparePredicateSignatures(am wallet.AccountManager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
@@ -320,7 +405,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 		return nil, err
 	}
 
-	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
+	return sub.id, w.syncToUnit(ctx, sub)
 }
 
 func RandomID() (TokenID, error) {
@@ -347,7 +432,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	if err != nil {
 		return txSub, err
 	}
-	tx := createTx(txSub.id, blockNumber+txTimeoutBlockCount)
+	tx := createTx(w.SystemID(), txSub.id, blockNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
 		return txSub, err
@@ -372,7 +457,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	if err != nil {
 		return txSub, err
 	}
-	txSub.timeout = tx.Timeout
+	txSub.tx = tx
 	return txSub, nil
 }
 
@@ -434,34 +519,41 @@ func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *to
 		TargetValue:                  amount,
 		RemainingValue:               token.Amount - amount,
 		Backlink:                     token.Backlink,
-		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		InvariantPredicateSignatures: nil,
+	}
+}
+
+func newBurnTxAttrs(tok *TokenUnit, targetStateHash []byte) *tokens.BurnFungibleTokenAttributes {
+	log.Info(fmt.Sprintf("Creating burn tx of unit=%X with bl=%X, new value=%v", tok.ID, tok.Backlink, tok.Amount))
+	return &tokens.BurnFungibleTokenAttributes{
+		Type:                         tok.TypeID,
+		Value:                        tok.Amount,
+		Nonce:                        targetStateHash,
+		Backlink:                     tok.Backlink,
+		InvariantPredicateSignatures: nil,
 	}
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (map[string]*submittedTx, uint64, error) {
+func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submissionSet, error) {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
 	})
-	var maxTimeout uint64 = 0
-	submissions := make(map[string]*submittedTx, 2)
+	submissions := newSubmissionSet()
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
 		sub, err := w.sendSplitOrTransferTx(acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
-		if sub.timeout > maxTimeout {
-			maxTimeout = sub.timeout
-		}
 		if err != nil {
-			return submissions, maxTimeout, err
+			return submissions, err
 		}
-		submissions[sub.id.String()] = sub
+		submissions.add(sub)
 		accumulatedSum += t.Amount
 		if accumulatedSum >= amount {
 			break
 		}
 	}
-	return submissions, maxTimeout, nil
+	return submissions, nil
 }
 
 func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submittedTx, error) {
@@ -485,9 +577,9 @@ func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, to
 	return sub, nil
 }
 
-func createTx(unitId []byte, timeout uint64) *txsystem.Transaction {
+func createTx(systemId, unitId []byte, timeout uint64) *txsystem.Transaction {
 	return &txsystem.Transaction{
-		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
+		SystemId:              systemId,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,
@@ -526,7 +618,7 @@ func (w *Wallet) createProof(unitID []byte, b *block.Block, tx *txsystem.Transac
 		return nil, err
 	}
 	return &Proof{
-		BlockNumber: b.BlockNumber,
+		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       proof,
 	}, nil

@@ -29,6 +29,7 @@ type (
 		URI      string      `json:"uri,omitempty"` // nft only
 		Backlink []byte      `json:"backlink"`
 		Proof    *Proof      `json:"proof"`
+		Burned   bool        `json:"burned"`
 	}
 
 	TokenKind uint
@@ -126,6 +127,10 @@ func (k TokenKind) String() string {
 
 func (t TokenTypeID) equal(to TokenTypeID) bool {
 	return bytes.Equal(t, to)
+}
+
+func (t TokenTypeID) String() string {
+	return string(t)
 }
 
 func (tp *TokenUnitType) GetSymbol() string {

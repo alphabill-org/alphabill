@@ -539,7 +539,7 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, toke
 	require.NotNil(t, tokensState)
 	network, err := testpartition.NewNetwork(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
-			system, err := tokens.New(tokens.WithState(tokensState))
+			system, err := tokens.New(tokens.WithState(tokensState), tokens.WithTrustBase(tb))
 			require.NoError(t, err)
 			return system
 		}, tokens.DefaultTokenTxSystemIdentifier)

@@ -655,9 +655,9 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 
 	if n.pendingBlockProposal == nil {
 		// There is no pending block proposal. Start recovery unless the state is already up-to-date with UC.
-		state, err := n.transactionSystem.EndBlock()
+		state, err := n.transactionSystem.State()
 		if err != nil {
-			return errors.Wrap(err, "tx system failed to end block")
+			return errors.Wrap(err, "failed to get tx system state")
 		}
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
 			logger.Warning("UC IR hash not equal to state's hash: '%X' vs '%X'", uc.InputRecord.Hash, state.Root())

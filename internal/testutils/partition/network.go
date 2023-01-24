@@ -32,7 +32,7 @@ type AlphabillPartition struct {
 	EventHandler *testevent.TestEventHandler
 }
 
-const rootValidatorNodes = 1
+const rootValidatorNodes = 3
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
 // transaction system and a root chain.
@@ -118,7 +118,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		}
 		rootGenesisFiles[i] = rg
 	}
-	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewDistributedRootGenesis(rootGenesisFiles)
+	rootGenesis, partitionGenesisFiles, err := rootgenesis.MergeRootGenesisFiles(rootGenesisFiles)
 	if err != nil {
 		return nil, err
 	}

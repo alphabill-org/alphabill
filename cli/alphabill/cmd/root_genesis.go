@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -45,13 +44,27 @@ type rootGenesisConfig struct {
 }
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
-func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
-	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
+func rootGenesisCmd(_ context.Context, config *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
+		Run: func(cmd *cobra.Command, args []string) {
+			consoleWriter.Println("Error: must specify a subcommand like new, combine, sign")
+		},
+	}
+	cmd.AddCommand(newGenesisCmd(config))
+	cmd.AddCommand(combineRootGenesisCmd(config))
+	cmd.AddCommand(signRootGenesisCmd(config))
+	return cmd
+}
+
+func newGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
+	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
+	var cmd = &cobra.Command{
+		Use:   "new",
+		Short: "Generates root chain genesis file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return rootGenesisRunFunc(ctx, config)
+			return rootGenesisRunFunc(config)
 		},
 	}
 	config.Keys.addCmdFlags(cmd)
@@ -95,13 +108,13 @@ func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
 	return c.QuorumThreshold
 }
 
-func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
+func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	// ensure output dir is present before keys generation
 	_ = config.getOutputDir()
 	// load or generate keys
 	keys, err := LoadKeys(config.Keys.GetKeyFileLocation(), config.Keys.GenerateKeys, config.Keys.ForceGeneration)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read root chain keys from file '%s'", config.Keys.GetKeyFileLocation())
+		return fmt.Errorf("failed to read root chain keys from file '%s', error %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	pn, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
@@ -149,7 +162,7 @@ func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, er
 	for _, p := range paths {
 		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read partition node genesis file '%s'", p)
+			return nil, fmt.Errorf("failed to read partition node genesis file '%s', error %w", p, err)
 		}
 		pns = append(pns, pr)
 	}

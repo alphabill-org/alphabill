@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"os"
 	"path"
 	"testing"
@@ -12,7 +11,7 @@ import (
 // Happy path
 func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	outputDir := setupTestDir(t, "genesis")
-	conf := &distributedGenesisConfig{
+	conf := &combineGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
@@ -25,7 +24,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 			"testdata/root3-genesis.json",
 			"testdata/root4-genesis.json"},
 	}
-	err := distributedRootGenesisRunFunc(context.Background(), conf)
+	err := combineRootGenesisRunFunc(conf)
 	require.NoError(t, err)
 	expectedRGFile, _ := os.ReadFile("testdata/expected/distributed-root-genesis.json")
 	actualRGFile, _ := os.ReadFile(path.Join(outputDir, "root-genesis.json"))
@@ -38,7 +37,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 
 func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 	outputDir := setupTestDir(t, "genesis")
-	conf := &distributedGenesisConfig{
+	conf := &combineGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
@@ -51,13 +50,13 @@ func TestDistributedGenesisFiles_DifferentRootConsensus(t *testing.T) {
 			"testdata/root3-genesis.json",
 			"testdata/root4-genesis.json"},
 	}
-	err := distributedRootGenesisRunFunc(context.Background(), conf)
+	err := combineRootGenesisRunFunc(conf)
 	require.Error(t, err)
 }
 
 func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	outputDir := setupTestDir(t, "genesis")
-	conf := &distributedGenesisConfig{
+	conf := &combineGenesisConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
@@ -65,11 +64,12 @@ func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 		},
 		OutputDir: outputDir,
 		RootGenesisFiles: []string{
-			"testdata/root1-genesis.json", // This is a monolithic root node genesis file
+			"testdata/root1-genesis.json",
 			"testdata/root2-genesis.json",
 			"testdata/root3-genesis.json",
-			"testdata/root2-genesis.json"},
+			"testdata/root2-genesis.json"}, // duplicate node, is ignored
 	}
-	err := distributedRootGenesisRunFunc(context.Background(), conf)
-	require.Error(t, err)
+	err := combineRootGenesisRunFunc(conf)
+	require.NoError(t, err)
+	// however it does not verify, since genesis not signed by all validators
 }

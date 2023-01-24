@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -30,7 +31,7 @@ func (x *GenesisRootRecord) IsValid() error {
 	// 2. Check the consensus structure
 	err = x.Consensus.IsValid()
 	if err != nil {
-		return err
+		return fmt.Errorf("consnesus parameters not valid, %w", err)
 	}
 	// 3. Verify that all signatures are valid and from known authors
 	verifiers, err := NewValidatorTrustBase(x.RootValidators)
@@ -51,6 +52,7 @@ func (x *GenesisRootRecord) Verify() error {
 		return ErrGenesisRootIssNil
 	}
 	// 1. Check genesis is valid, all structures are filled correctly and consensus is signed by all validators
+	//  listed in RootValidators
 	err := x.IsValid()
 	if err != nil {
 		return err

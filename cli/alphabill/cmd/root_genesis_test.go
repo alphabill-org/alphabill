@@ -29,7 +29,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 		ConsensusTimeoutMs: 10000,
 		QuorumThreshold:    1,
 	}
-	err := rootGenesisRunFunc(context.Background(), conf)
+	err := rootGenesisRunFunc(conf)
 	require.NoError(t, err)
 
 	expectedRGFile, _ := os.ReadFile("testdata/expected/root-genesis.json")
@@ -44,7 +44,7 @@ func TestGenerateGenesisFiles(t *testing.T) {
 func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 	homeDir := setupTestDir(t, alphabillDir)
 	cmd := New()
-	args := "root-genesis --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	args := "root-genesis new --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 
@@ -55,7 +55,7 @@ func TestRootGenesis_KeyFileNotFound(t *testing.T) {
 func TestRootGenesis_ForceKeyGeneration(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
 	cmd := New()
-	args := "root-genesis --gen-keys --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
+	args := "root-genesis new --gen-keys --home " + homeDir + " -p testdata/partition-node-genesis-1.json"
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestGenerateGenesisFiles_InvalidPartitionSignature(t *testing.T) {
 		},
 		OutputDir: outputDir,
 	}
-	err := rootGenesisRunFunc(context.Background(), conf)
+	err := rootGenesisRunFunc(conf)
 	require.ErrorContains(t, err, "signature verification failed")
 }
 

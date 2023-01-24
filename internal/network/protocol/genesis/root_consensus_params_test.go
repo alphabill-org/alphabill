@@ -283,3 +283,14 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 	err := x.Verify(nil)
 	require.ErrorContains(t, err, "missing root validator public info")
 }
+
+func TestConsensusParams_Nil(t *testing.T) {
+	var x *ConsensusParams = nil
+	require.ErrorIs(t, x.IsValid(), ErrConsensusParamsIsNil)
+	require.Empty(t, x.Bytes())
+	sig, ver := testsig.CreateSignerAndVerifier(t)
+	require.ErrorIs(t, x.Sign("1", sig), ErrConsensusParamsIsNil)
+	tb := map[string]crypto.Verifier{"1": ver}
+	require.ErrorIs(t, x.Verify(tb), ErrConsensusParamsIsNil)
+
+}

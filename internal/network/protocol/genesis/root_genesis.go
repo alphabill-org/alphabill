@@ -1,12 +1,9 @@
 package genesis
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
-
-	"github.com/alphabill-org/alphabill/internal/crypto"
 )
 
 var (
@@ -33,33 +30,17 @@ func CheckPartitionSystemIdentifiersUnique[T SystemDescriptionRecordGetter](reco
 }
 
 // IsValid verifies that the genesis file is signed by the generator and that the public key is included
-func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
+func (x *RootGenesis) IsValid() error {
 	if x == nil {
 		return ErrRootGenesisIsNil
-	}
-	if verifier == nil {
-		return ErrVerifierIsNil
-	}
-	pubKeyBytes, err := verifier.MarshalPublicKey()
-	if err != nil {
-		return fmt.Errorf("invalid verifier, unable to extract public key: %w", err)
 	}
 	if x.Root == nil {
 		return ErrRootGenesisRecordIsNil
 	}
 	// check the root genesis record is valid
-	err = x.Root.IsValid()
+	err := x.Root.IsValid()
 	if err != nil {
 		return fmt.Errorf("root genesis record verification failed: %w", err)
-	}
-	// verify that the signing public key is present in root validator info
-	pubKeyInfo := x.Root.FindPubKeyById(rootId)
-	if pubKeyInfo == nil {
-		return fmt.Errorf("missing public key info for node id %v", rootId)
-	}
-	// Compare keys
-	if !bytes.Equal(pubKeyBytes, pubKeyInfo.SigningPublicKey) {
-		return fmt.Errorf("invalid trust base. expected %X, got %X", pubKeyBytes, pubKeyInfo.SigningPublicKey)
 	}
 	// Verify that UC Seal has been correctly signed
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
@@ -70,9 +51,9 @@ func (x *RootGenesis) IsValid(rootId string, verifier crypto.Verifier) error {
 	if err = CheckPartitionSystemIdentifiersUnique(x.Partitions); err != nil {
 		return fmt.Errorf("root genesis duplicate partition record error: %w", err)
 	}
-	verifiers := map[string]crypto.Verifier{rootId: verifier}
+	trustBase, err := NewValidatorTrustBase(x.Root.RootValidators)
 	for _, p := range x.Partitions {
-		if err = p.IsValid(verifiers, alg); err != nil {
+		if err = p.IsValid(trustBase, alg); err != nil {
 			return err
 		}
 	}
@@ -104,7 +85,7 @@ func (x *RootGenesis) Verify() error {
 	// Check all signatures on Partition UC Seals
 	verifiers, err := NewValidatorTrustBase(x.Root.RootValidators)
 	if err != nil {
-		return fmt.Errorf("root genesis validators, trust base error: %w", err)
+		return fmt.Errorf("root genesis verify failed, unable to create trust base: %w", err)
 	}
 	// Use hash algorithm from consensus structure
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)

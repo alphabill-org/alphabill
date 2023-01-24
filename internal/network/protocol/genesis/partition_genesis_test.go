@@ -90,7 +90,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys:           []*PublicKeyInfo{nil},
 			},
-			wantErrStr: ErrValidatorPublicInfoIsEmpty,
+			wantErrStr: ErrValidatorPublicInfoIsEmpty.Error(),
 		},
 
 		{

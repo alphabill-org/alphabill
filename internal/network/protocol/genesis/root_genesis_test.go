@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -13,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRootGenesis_IsValid1(t *testing.T) {
+func TestRootGenesis_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
@@ -47,9 +46,14 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "verifier is nil",
-			args:    args{verifier: nil},
-			wantErr: ErrVerifierIsNil.Error(),
+			name: "root is nil",
+			args: args{
+				verifier: verifier,
+			},
+			fields: fields{
+				Root: nil,
+			},
+			wantErr: ErrRootGenesisRecordIsNil.Error(),
 		},
 		{
 			name: "invalid root validator info",
@@ -61,7 +65,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 					RootValidators: []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
 					Consensus:      rootConsensus},
 			},
-			wantErr: ErrPubKeyInfoSigningKeyIsInvalid,
+			wantErr: ErrPubKeyInfoSigningKeyIsInvalid.Error(),
 		},
 		{
 			name: "partitions not found",
@@ -123,7 +127,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 				Root:       tt.fields.Root,
 				Partitions: tt.fields.Partitions,
 			}
-			err := x.IsValid("1", tt.args.verifier)
+			err := x.IsValid()
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
@@ -131,7 +135,7 @@ func TestRootGenesis_IsValid1(t *testing.T) {
 
 func TestRootGenesis_IsValid_Nil(t *testing.T) {
 	var rg *RootGenesis = nil
-	err := rg.IsValid("", nil)
+	err := rg.IsValid()
 	require.ErrorContains(t, err, ErrRootGenesisIsNil.Error())
 }
 
@@ -217,5 +221,27 @@ func TestRootGenesis(t *testing.T) {
 		Partitions: []*GenesisPartitionRecord{},
 	}
 	require.ErrorIs(t, rgNoPartitions.Verify(), ErrPartitionsNotFound)
-
+	// duplicate partition
+	rgDuplicatePartitions := &RootGenesis{
+		Root: rg.Root,
+		Partitions: []*GenesisPartitionRecord{
+			{
+				Nodes: []*PartitionNode{node},
+				Certificate: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{},
+					UnicitySeal: unicitySeal,
+				},
+				SystemDescriptionRecord: systemDescription,
+			},
+			{
+				Nodes: []*PartitionNode{node},
+				Certificate: &certificates.UnicityCertificate{
+					InputRecord: &certificates.InputRecord{},
+					UnicitySeal: unicitySeal,
+				},
+				SystemDescriptionRecord: systemDescription,
+			},
+		},
+	}
+	require.ErrorContains(t, rgDuplicatePartitions.Verify(), "root genesis duplicate partition error")
 }

@@ -271,7 +271,6 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 		return
 	}
 	l.leader = l.currentNode
-	return
 }
 
 func (l *TestLeaderSelector) GetLeaderID() peer.ID {
@@ -291,6 +290,7 @@ func createPeer(t *testing.T) *network.Peer {
 	conf := &network.PeerConfiguration{}
 	// fake validator, so that network 'send' requests don't fail
 	_, validatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
 	validatorPubKeyBytes, _ := validatorPubKey.Raw()
 
 	conf.PersistentPeers = []*network.PeerInfo{{

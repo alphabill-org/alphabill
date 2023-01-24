@@ -284,6 +284,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	require.NoError(t, tp.CreateBlock(t))
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 	block = tp.GetLatestBlock(t)
+	require.NotNil(t, block)
 	latestUC := tp.partition.luc
 
 	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)

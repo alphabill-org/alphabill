@@ -5,7 +5,6 @@ import (
 	gocrypto "crypto"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/spf13/cobra"
 )
@@ -38,12 +37,7 @@ func newTokensNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra
 		},
 	}
 
-	nodeCmd.Flags().StringVarP(&config.Node.Address, "address", "a", "/ip4/127.0.0.1/tcp/26652", "node address in libp2p multiaddress-format")
-	nodeCmd.Flags().StringVarP(&config.Node.RootChainAddress, "rootchain", "r", "/ip4/127.0.0.1/tcp/26662", "root chain address in libp2p multiaddress-format")
-	nodeCmd.Flags().StringToStringVarP(&config.Node.Peers, "peers", "p", nil, "a map of partition peer identifiers and addresses. must contain all genesis validator addresses")
-	nodeCmd.Flags().StringVarP(&config.Node.KeyFile, keyFileCmdFlag, "k", "", "path to the key file (default: $AB_HOME/tokens/keys.json)")
-	nodeCmd.Flags().StringVarP(&config.Node.Genesis, "genesis", "g", "", "path to the partition genesis file : $AB_HOME/tokens/partition-genesis.json)")
-	nodeCmd.Flags().StringVarP(&config.Node.DbFile, "db", "f", "", "path to the database file (default: $AB_HOME/tokens/"+store.BoltBlockStoreFileName+")")
+	addCommonNodeConfigurationFlags(nodeCmd, config.Node, "tokens")
 
 	config.RPCServer.addConfigurationFlags(nodeCmd)
 	config.RESTServer.addConfigurationFlags(nodeCmd)

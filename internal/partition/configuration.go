@@ -21,8 +21,10 @@ import (
 )
 
 const (
-	DefaultT1Timeout    = 750 * time.Millisecond
-	DefaultTxBufferSize = 1000
+	DefaultT1Timeout                   = 750 * time.Millisecond
+	DefaultTxBufferSize                = 1000
+	DefaultReplicationMaxBlocks uint64 = 1000
+	DefaultReplicationMaxTx     uint32 = 10 * DefaultTxBufferSize
 )
 
 var (
@@ -52,9 +54,15 @@ type (
 		rootChainID                 peer.ID
 		eventHandler                event.Handler
 		eventChCapacity             int
+		replicationConfig           ledgerReplicationConfig
 	}
 
 	NodeOption func(c *configuration)
+
+	ledgerReplicationConfig struct {
+		maxBlocks uint64
+		maxTx     uint32
+	}
 )
 
 func WithContext(context context.Context) NodeOption {
@@ -63,9 +71,10 @@ func WithContext(context context.Context) NodeOption {
 	}
 }
 
-func WithTxValidator(txValidator TxValidator) NodeOption {
+func WithReplicationParams(maxBlocks uint64, maxTx uint32) NodeOption {
 	return func(c *configuration) {
-		c.txValidator = txValidator
+		c.replicationConfig.maxBlocks = maxBlocks
+		c.replicationConfig.maxTx = maxTx
 	}
 }
 
@@ -110,6 +119,12 @@ func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
 	return func(c *configuration) {
 		c.eventHandler = eh
 		c.eventChCapacity = eventChCapacity
+	}
+}
+
+func WithTxValidator(txValidator TxValidator) NodeOption {
+	return func(c *configuration) {
+		c.txValidator = txValidator
 	}
 }
 
@@ -199,6 +214,12 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 	if c.rootChainAddress != nil {
 		// add rootchain address to the peer store. this enables us to send receivedMessages to the rootchain.
 		c.peer.Network().Peerstore().AddAddr(c.rootChainID, c.rootChainAddress, peerstore.PermanentAddrTTL)
+	}
+	if c.replicationConfig.maxBlocks == 0 {
+		c.replicationConfig.maxBlocks = DefaultReplicationMaxBlocks
+	}
+	if c.replicationConfig.maxTx == 0 {
+		c.replicationConfig.maxTx = DefaultReplicationMaxTx
 	}
 	return nil
 }

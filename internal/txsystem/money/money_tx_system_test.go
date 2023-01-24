@@ -341,7 +341,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	txSystem.BeginBlock(0)
 	reclaimFC := testfc.NewReclaimFC(t, signer,
 		testfc.NewReclaimFCAttr(t, signer,
-			testfc.WithReclaimFCCloseFCTx(
+			testfc.WithReclaimFCClosureTx(
 				testfc.NewCloseFC(t, nil, testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 2})).Transaction,
 			),
 		),

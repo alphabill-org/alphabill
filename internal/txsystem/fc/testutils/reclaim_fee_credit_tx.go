@@ -56,14 +56,14 @@ func WithReclaimFCBacklink(backlink []byte) ReclaimFCOption {
 	}
 }
 
-func WithReclaimFCCloseFCProof(proof *block.BlockProof) ReclaimFCOption {
+func WithReclaimFCClosureProof(proof *block.BlockProof) ReclaimFCOption {
 	return func(tx *fc.ReclaimFeeCreditOrder) ReclaimFCOption {
 		tx.CloseFeeCreditProof = proof
 		return nil
 	}
 }
 
-func WithReclaimFCCloseFCTx(closeFCTx *txsystem.Transaction) ReclaimFCOption {
+func WithReclaimFCClosureTx(closeFCTx *txsystem.Transaction) ReclaimFCOption {
 	return func(tx *fc.ReclaimFeeCreditOrder) ReclaimFCOption {
 		tx.CloseFeeCreditTransfer = closeFCTx
 		return nil

@@ -156,7 +156,8 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 		return errors.Errorf("invalid tx type: %T", gtx)
 	}
 	logger.Debug("Processing Join Fungible Token tx: %v", tx)
-	if err := j.validate(tx); err != nil {
+	sum, err := j.validate(tx)
+	if err != nil {
 		return err
 	}
 	unitID := tx.UnitID()
@@ -169,13 +170,9 @@ func (j *joinFungibleTokenTxExecutor) Execute(gtx txsystem.GenericTransaction, c
 					// No change in case of incorrect data type.
 					return data
 				}
-				var sum uint64 = 0
-				for _, burnTransaction := range tx.burnTransactions {
-					sum += burnTransaction.Value()
-				}
 				return &fungibleTokenData{
 					tokenType: d.tokenType,
-					value:     d.value + sum,
+					value:     sum,
 					t:         currentBlockNr,
 					backlink:  h,
 				}
@@ -339,37 +336,43 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }
 
-func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) error {
+func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) (uint64, error) {
 	d, err := j.getFungibleTokenData(tx.UnitID())
 	if err != nil {
-		return err
+		return 0, err
 	}
 	transactions := tx.burnTransactions
 	proofs := tx.BlockProofs()
 	if len(transactions) != len(proofs) {
-		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
+		return 0, errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
+	sum := d.value
 	for i, btx := range transactions {
+		prevSum := sum
+		sum += btx.Value()
+		if prevSum > sum { // overflow
+			return 0, errors.New("invalid sum of tokens: uint64 overflow")
+		}
 		tokenTypeID := util.Uint256ToBytes(d.tokenType)
 		if !bytes.Equal(btx.TypeID(), tokenTypeID) {
-			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeID())
+			return 0, errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeID())
 		}
 
 		if !bytes.Equal(btx.Nonce(), tx.Backlink()) {
-			return errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.Nonce(), tx.Backlink())
+			return 0, errors.Errorf("the source tokens weren't burned to join them to the target token: source %X, target %X", btx.Nonce(), tx.Backlink())
 		}
 		proof := proofs[i]
 		if proof.ProofType != block.ProofType_PRIM {
-			return errors.New("invalid proof type")
+			return 0, errors.New("invalid proof type")
 		}
 
 		err = proof.Verify(util.Uint256ToBytes(btx.UnitID()), btx, j.trustBase, j.hashAlgorithm)
 		if err != nil {
-			return errors.Wrap(err, "proof is not valid")
+			return 0, errors.Wrap(err, "proof is not valid")
 		}
 	}
 	if !bytes.Equal(d.backlink, tx.Backlink()) {
-		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.Backlink())
+		return 0, errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.Backlink())
 	}
 	predicates, err := j.getChainedPredicates(
 		d.tokenType,
@@ -381,7 +384,7 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 		},
 	)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return sum, verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
 }

@@ -2,7 +2,6 @@ package block
 
 import (
 	"crypto"
-	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
@@ -18,19 +17,6 @@ func (x *Block) Hash(txConverter TxConverter, hashAlgorithm crypto.Hash) ([]byte
 		return nil, err
 	}
 	return b.Hash(hashAlgorithm)
-}
-
-func (x *Block) HashHeader(hashAlgorithm crypto.Hash) []byte {
-	hasher := hashAlgorithm.New()
-	x.AddHeaderToHasher(hasher)
-	return hasher.Sum(nil)
-}
-
-func (x *Block) AddHeaderToHasher(hasher hash.Hash) {
-	hasher.Write(x.SystemIdentifier)
-	hasher.Write(x.ShardIdentifier)
-	hasher.Write(x.PreviousBlockHash)
-	hasher.Write([]byte(x.NodeIdentifier))
 }
 
 func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {

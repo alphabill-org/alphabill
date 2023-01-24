@@ -178,7 +178,16 @@ func (x *BlockProof) verifyUC(unitID []byte, verifiers map[string]abcrypto.Verif
 
 	chain := FromProtobufHashChain(x.getChainItems())
 	rblock := omt.EvalMerklePath(chain, unitID, hashAlgorithm)
-	blockhash := hash.Sum(hashAlgorithm, x.BlockHeaderHash, x.TransactionsHash, rblock)
+	blockhash, err := makeBlockHash(hashAlgorithm, len(chain) != 0, func() (*genericBlockHashingContext, error) {
+		return &genericBlockHashingContext{
+			headerHash: x.BlockHeaderHash,
+			txsHash:    x.TransactionsHash,
+			treeHash:   rblock,
+		}, nil
+	})
+	if err != nil {
+		return err
+	}
 	if !bytes.Equal(x.UnicityCertificate.InputRecord.BlockHash, blockhash) {
 		return aberrors.Wrap(
 			ErrProofVerificationFailed,

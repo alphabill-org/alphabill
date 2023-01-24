@@ -60,12 +60,12 @@ func TestSync(t *testing.T) {
 	serviceServer := testserver.NewTestAlphabillServiceServer()
 	blocks := []*block.Block{
 		{
-			SystemIdentifier:  alphabillMoneySystemId,
+			SystemIdentifier:  w.SystemID(),
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
 				// random dust transfer can be processed
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x00}),
 					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
@@ -73,7 +73,7 @@ func TestSync(t *testing.T) {
 				},
 				// receive transfer of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x01}),
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
@@ -81,7 +81,7 @@ func TestSync(t *testing.T) {
 				},
 				// receive split of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x02}),
 					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
@@ -89,7 +89,7 @@ func TestSync(t *testing.T) {
 				},
 				// receive swap of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x03}),
 					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
@@ -152,7 +152,7 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 	maxBlockNumber := uint64(3)
 	for blockNo := uint64(1); blockNo <= 10; blockNo++ {
 		b := &block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
@@ -229,7 +229,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},

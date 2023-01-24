@@ -321,6 +321,7 @@ func (s *BoltBillStore) removeBill(tx *bolt.Tx, pubkey []byte, unitID []byte) er
 
 func (s *BoltBillStore) getExpiredBills(tx *bolt.Tx, blockNumber uint64) ([]*expiredBill, error) {
 	var expiredBills []*expiredBill
+	// TODO: AB-505 - there might be gaps in blocks as empty blocks are not stored
 	b := tx.Bucket(expiredBillsBucket).Get(util.Uint64ToBytes(blockNumber))
 	if b == nil {
 		return nil, nil

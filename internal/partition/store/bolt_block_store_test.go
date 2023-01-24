@@ -8,6 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/partition/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -20,9 +21,74 @@ func TestPersistentBlockStore_CanBeCreated(t *testing.T) {
 	require.NotNil(t, bs)
 }
 
-func TestPersistentBlockStore_AddGetBlock(t *testing.T) {
+func TestPersistentBlockStore_AddGenesisBlock(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
-	tp := newDummyBlock(t, 1)
+	require.Error(t, bs.AddGenesis(newEmptyBlock(genesis.GenesisRoundNumber+1)))
+
+	tp := newEmptyBlock(genesis.GenesisRoundNumber)
+
+	uc, err := bs.LatestUC()
+	require.NoError(t, err)
+	require.Nil(t, uc)
+
+	// add block
+	require.NoError(t, bs.AddGenesis(tp))
+
+	// verify block
+	b, err := bs.Get(tp.UnicityCertificate.InputRecord.RoundNumber)
+	require.NoError(t, err)
+	verifyBlock(t, tp, b)
+
+	genesisUC, err := bs.LatestUC()
+	require.NoError(t, err)
+	require.NotNil(t, genesisUC)
+	require.Equal(t, tp.UnicityCertificate.InputRecord.RoundNumber, genesisUC.InputRecord.RoundNumber)
+	rn, err := bs.LatestRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, genesis.GenesisRoundNumber, rn)
+	bn, err := bs.BlockNumber()
+	require.NoError(t, err)
+	require.Equal(t, genesis.GenesisRoundNumber, bn)
+}
+
+func TestPersistentBlockStore_AddGet_EmptyBlock(t *testing.T) {
+	bs, _ := createTestBlockStore(t)
+	require.NoError(t, bs.AddGenesis(newEmptyBlock(genesis.GenesisRoundNumber)))
+
+	rn, err := bs.LatestRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, genesis.GenesisRoundNumber, rn)
+	genesisBlock, err := bs.LatestBlock()
+	require.NoError(t, err)
+	require.Equal(t, genesis.GenesisRoundNumber, genesisBlock.UnicityCertificate.InputRecord.RoundNumber)
+	uc, err := bs.LatestUC()
+	require.NoError(t, err)
+	require.Equal(t, genesisBlock.UnicityCertificate, uc)
+
+	// add empty block
+	newBlock := newEmptyBlock(genesis.GenesisRoundNumber + 1)
+	require.NoError(t, bs.Add(newBlock))
+
+	// verify block is not persisted, but round number and UC are updated
+	latestPersistedBlock, err := bs.LatestBlock()
+	require.Equal(t, genesisBlock, latestPersistedBlock)
+	b, err := bs.Get(newBlock.UnicityCertificate.InputRecord.RoundNumber)
+	require.NoError(t, err)
+	require.Nil(t, b)
+
+	uc, err = bs.LatestUC()
+	require.NoError(t, err)
+	require.Equal(t, newBlock.UnicityCertificate, uc)
+	rn, err = bs.LatestRoundNumber()
+	require.NoError(t, err)
+	require.Equal(t, newBlock.UnicityCertificate.InputRecord.RoundNumber, rn)
+	require.NotEqual(t, newBlock.UnicityCertificate.InputRecord.RoundNumber, latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber)
+
+}
+
+func TestPersistentBlockStore_AddGet_NonEmptyBlock(t *testing.T) {
+	bs, _ := createTestBlockStore(t)
+	tp := newNonEmptyBlock(t, 1)
 
 	// add block
 	err := bs.Add(tp)
@@ -37,9 +103,9 @@ func TestPersistentBlockStore_AddGetBlock(t *testing.T) {
 func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 
-	tb1 := newDummyBlock(t, 1)
-	tb2 := newDummyBlock(t, 2)
-	tb3 := newDummyBlock(t, 3)
+	tb1 := newNonEmptyBlock(t, 1)
+	tb2 := newNonEmptyBlock(t, 2)
+	tb3 := newNonEmptyBlock(t, 3)
 
 	_ = bs.Add(tb1)
 	_ = bs.Add(tb2)
@@ -51,7 +117,8 @@ func TestPersistentBlockStore_LatestBlock(t *testing.T) {
 	require.EqualValues(t, 3, number)
 
 	// verify latest block is the last block added
-	b := bs.LatestBlock()
+	b, err := bs.LatestBlock()
+	require.NoError(t, err)
 	verifyBlock(t, tb3, b)
 }
 
@@ -64,7 +131,7 @@ func TestPersistentBlockStore_EmptyStore(t *testing.T) {
 	require.EqualValues(t, 0, number)
 
 	// verify latest block returns nil
-	b := bs.LatestBlock()
+	b, err := bs.LatestBlock()
 	require.NoError(t, err)
 	require.Nil(t, b)
 }
@@ -93,19 +160,28 @@ func TestPersistentBlockStore_InvalidBlockNo(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 
 	// try adding invalid block
-	invalidBlock := newDummyBlock(t, 2)
+	invalidBlock := newNonEmptyBlock(t, 2)
 	err := bs.Add(invalidBlock)
 	require.ErrorIs(t, err, errInvalidBlockNo)
 
 	// try adding valid block twice
-	validBlock := newDummyBlock(t, 1)
+	validBlock := newNonEmptyBlock(t, 1)
 	err = bs.Add(validBlock)
 	require.NoError(t, err)
 	err = bs.Add(validBlock)
 	require.ErrorIs(t, err, errInvalidBlockNo)
 }
 
-func newDummyBlock(t *testing.T, blockNo uint64) *block.Block {
+func newEmptyBlock(blockNo uint64) *block.Block {
+	return &block.Block{
+		SystemIdentifier:   []byte{0},
+		PreviousBlockHash:  []byte{2},
+		Transactions:       nil,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
+	}
+}
+
+func newNonEmptyBlock(t *testing.T, blockNo uint64) *block.Block {
 	return &block.Block{
 		SystemIdentifier:   []byte{0},
 		PreviousBlockHash:  []byte{2},

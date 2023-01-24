@@ -73,7 +73,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 
 	// create block with expected transaction
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
+	tx, err := createTransaction(pubKey, k, b.Value, w.SystemID(), b, txTimeoutBlockCount)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
@@ -109,8 +109,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 
 	// create block with expected transactions
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx1, _ := createTransaction(pubKey, k, b1.Value, b1, txTimeoutBlockCount)
-	tx2, _ := createTransaction(pubKey, k, b2.Value, b2, txTimeoutBlockCount)
+	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount)
+	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2, tx1,
 	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
@@ -146,8 +146,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 
 	// create block with expected transactions
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx1, _ := createTransaction(pubKey, k, b1.Value, b1, txTimeoutBlockCount)
-	tx2, _ := createTransaction(pubKey, k, b2.Value, b2, txTimeoutBlockCount)
+	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount)
+	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount)
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx1,
 	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})

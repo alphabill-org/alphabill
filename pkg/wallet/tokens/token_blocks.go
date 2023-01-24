@@ -7,7 +7,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
@@ -21,7 +20,7 @@ func (l BlockListener) ProcessBlock(b *block.Block) error {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	if !bytes.Equal(tokens.DefaultTokenTxSystemIdentifier, b.GetSystemIdentifier()) {
+	if !bytes.Equal(w.SystemID(), b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
 	return w.db.WithTransaction(func(txc TokenTxContext) error {
@@ -30,7 +29,8 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		if blockNumber != lastBlockNumber+1 {
+		// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+		if lastBlockNumber >= blockNumber {
 			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", blockNumber, lastBlockNumber)
 		}
 

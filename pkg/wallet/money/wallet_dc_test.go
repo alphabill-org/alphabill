@@ -40,7 +40,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	swapTimeout := uint64(swapTimeoutBlockCount + 1)
 	mockClient.SetMaxBlockNumber(1)
 	b := &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       mockClient.GetRecordedTransactions(),
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
@@ -71,7 +71,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)
 	for blockHeight := uint64(2); blockHeight <= dcTimeoutBlockCount; blockHeight++ {
 		b = &block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockHeight}},
@@ -92,7 +92,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	err = w.db.Do().SetBlockNumber(swapTimeoutBlockCount)
 	require.NoError(t, err)
 	b = &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       mockClient.GetRecordedTransactions()[2:3], // swap tx
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: swapTimeout}},
@@ -120,7 +120,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	err := w.db.Do().SetBlockNumber(dcTimeoutBlockCount - 1)
 	require.NoError(t, err)
 	b := &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: dcTimeoutBlockCount}},
@@ -160,7 +160,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 
 	// when swap timeout is reached
 	b := &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: swapTimeoutBlockCount}},
@@ -195,7 +195,7 @@ func TestMetadataIsClearedWhenDcTimeoutIsReached(t *testing.T) {
 
 	// when dc timeout is reached
 	b := &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: dcTimeoutBlockCount}},
@@ -242,7 +242,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
+	tx, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, dcBillIds, 10)
 	require.NoError(t, err)
 	swapTx := parseSwapTx(t, tx)
 
@@ -273,7 +273,7 @@ func TestExpiredDcBillsGetDeleted(t *testing.T) {
 
 	// receiving a block should delete expired bills
 	err := w.ProcessBlock(&block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockHeight + 1}},
 	})
@@ -315,7 +315,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)
 	_ = w.db.Do().SetBlockNumber(dcTimeoutBlockCount - 1)
 	b := &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       dcTxs[0:2],
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: dcTimeoutBlockCount}},
@@ -346,7 +346,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	mockClient.SetMaxBlockNumber(swapTimeout)
 	_ = w.db.Do().SetBlockNumber(swapTimeout - 1)
 	b = &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   w.SystemID(),
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: swapTimeout}},
@@ -391,7 +391,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 	}
 	k, _ := w.db.Do().GetAccountKey(0)
 
-	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
+	tx, err := createDustTx(k, w.SystemID(), &b, nonceB32[:], timeout)
 	require.NoError(t, err)
 	b.BlockProof = &BlockProof{Tx: tx}
 

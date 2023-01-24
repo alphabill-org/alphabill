@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"sort"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -31,12 +33,14 @@ type baseNodeConfiguration struct {
 }
 
 type startNodeConfiguration struct {
-	Address          string
-	Peers            map[string]string
-	Genesis          string
-	KeyFile          string
-	RootChainAddress string
-	DbFile           string
+	Address                    string
+	Peers                      map[string]string
+	Genesis                    string
+	KeyFile                    string
+	RootChainAddress           string
+	DbFile                     string
+	LedgerReplicationMaxBlocks uint64
+	LedgerReplicationMaxTx     uint32
 }
 
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
@@ -225,6 +229,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 		partition.WithContext(ctx),
 		partition.WithRootAddressAndIdentifier(newMultiAddr, rootID),
 		partition.WithBlockStore(blockStore),
+		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -254,4 +259,15 @@ func (c *startNodeConfiguration) getPeerAddress(identifier string) (string, erro
 		return "", errors.Errorf("address for node %v not found.", identifier)
 	}
 	return address, nil
+}
+
+func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {
+	nodeCmd.Flags().StringVarP(&config.Address, "address", "a", "/ip4/127.0.0.1/tcp/26652", "node address in libp2p multiaddress-format")
+	nodeCmd.Flags().StringVarP(&config.RootChainAddress, "rootchain", "r", "/ip4/127.0.0.1/tcp/26662", "root chain address in libp2p multiaddress-format")
+	nodeCmd.Flags().StringToStringVarP(&config.Peers, "peers", "p", nil, "a map of partition peer identifiers and addresses. must contain all genesis validator addresses")
+	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
+	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
+	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, store.BoltBlockStoreFileName))
+	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
+	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

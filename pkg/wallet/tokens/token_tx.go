@@ -248,6 +248,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 			burnedValue += burnTx.Value()
 		}
 		joinedToken.Amount += burnedValue
+		joinedToken.Backlink = txHash
 		err = w.addTokenWithProof(accNr, joinedToken, b, tx, txc)
 		if err != nil {
 			return err
@@ -431,7 +432,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	if err != nil {
 		return txSub, err
 	}
-	tx := createTx(txSub.id, blockNumber+txTimeoutBlockCount)
+	tx := createTx(w.SystemID(), txSub.id, blockNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
 		return txSub, err
@@ -576,9 +577,9 @@ func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, to
 	return sub, nil
 }
 
-func createTx(unitId []byte, timeout uint64) *txsystem.Transaction {
+func createTx(systemId, unitId []byte, timeout uint64) *txsystem.Transaction {
 	return &txsystem.Transaction{
-		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
+		SystemId:              systemId,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,

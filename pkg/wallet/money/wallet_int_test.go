@@ -410,12 +410,12 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 	return tx, nil
 }
 
-func createSDRs(id uint64) []*genesis.SystemDescriptionRecord {
+func createSDRs(unitID uint64) []*genesis.SystemDescriptionRecord {
 	return []*genesis.SystemDescriptionRecord{{
-		SystemIdentifier: alphabillMoneySystemId,
+		SystemIdentifier: []byte{0, 0, 0, 0},
 		T2Timeout:        2500,
 		FeeCreditBill: &genesis.FeeCreditBill{
-			UnitId:         util.Uint256ToBytes(uint256.NewInt(id)),
+			UnitId:         util.Uint256ToBytes(uint256.NewInt(unitID)),
 			OwnerPredicate: script.PredicateAlwaysTrue(),
 		},
 	}}

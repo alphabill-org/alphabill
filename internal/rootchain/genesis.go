@@ -1,7 +1,6 @@
 package rootchain
 
 import (
-	"bytes"
 	gocrypto "crypto"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -253,71 +252,4 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 		return nil, err
 	}
 	return pr, nil
-}
-
-func NewDistributedRootGenesis(rootGenesis []*genesis.RootGenesis) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
-	if len(rootGenesis) < genesis.MinDistributedRootValidators {
-		return nil, nil, errors.Errorf("distributed root chain genesis requires at least %v root validator genesis files", genesis.MinDistributedRootValidators)
-	}
-	// Take the first and start appending to it from the rest
-	rg, rest := rootGenesis[0], rootGenesis[1:]
-	consensusBytes := rg.Root.Consensus.Bytes()
-	// Check and append
-	for _, appendGen := range rest {
-		// Check consensus parameters are same by comparing serialized bytes
-		// Should probably write a compare method instead of comparing serialized struct
-		if bytes.Compare(consensusBytes, appendGen.Root.Consensus.Bytes()) != 0 {
-			return nil, nil, errors.New("not compatible root genesis files, consensus is different")
-		}
-		// Take a naive approach for start: append first, validate later
-		// append root info
-		rg.Root.RootValidators = append(rg.Root.RootValidators, appendGen.Root.RootValidators...)
-		// append consensus signatures
-		for k, v := range appendGen.Root.Consensus.Signatures {
-			rg.Root.Consensus.Signatures[k] = v
-		}
-		// Make sure that they have same partitions and merge UC Seal signature
-		if len(rg.Partitions) != len(appendGen.Partitions) {
-			return nil, nil, errors.New("not compatible root genesis files, different number of partitions")
-		}
-		// Append UC Seal signatures
-		for _, rgPart := range rg.Partitions {
-			rgPartSdh := rgPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash
-			for _, appendPart := range appendGen.Partitions {
-				if bytes.Compare(rgPartSdh, appendPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash) == 0 {
-					// copy partition UC Seal signatures
-					for k, v := range appendPart.Certificate.UnicitySeal.Signatures {
-						rgPart.Certificate.UnicitySeal.Signatures[k] = v
-					}
-					// There can be only one partition with same system description hash
-					break
-				}
-			}
-		}
-	}
-	// extract new partition genesis files
-	partitionGenesis := make([]*genesis.PartitionGenesis, len(rg.Partitions))
-	for i, partition := range rg.Partitions {
-		var keys = make([]*genesis.PublicKeyInfo, len(partition.Nodes))
-		for j, v := range partition.Nodes {
-			keys[j] = &genesis.PublicKeyInfo{
-				NodeIdentifier:      v.NodeIdentifier,
-				SigningPublicKey:    v.SigningPublicKey,
-				EncryptionPublicKey: v.EncryptionPublicKey,
-			}
-		}
-		partitionGenesis[i] = &genesis.PartitionGenesis{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Certificate:             partition.Certificate,
-			RootValidators:          rg.Root.RootValidators,
-			Keys:                    keys,
-			Params:                  partition.Nodes[0].Params,
-		}
-	}
-	// verify result
-	err := rg.Verify()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "root genesis combine failed")
-	}
-	return rg, partitionGenesis, nil
 }

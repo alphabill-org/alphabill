@@ -5,6 +5,7 @@ import (
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -29,7 +30,6 @@ func (x *InputRecord) IsValid() error {
 		return ErrPreviousHashIsNil
 	}
 	if x.SummaryValue == nil {
-
 		return ErrSummaryValueIsNil
 	}
 	return nil
@@ -45,5 +45,6 @@ func (x *InputRecord) Bytes() []byte {
 	b.Write(x.Hash)
 	b.Write(x.BlockHash)
 	b.Write(x.SummaryValue)
+	b.Write(util.Uint64ToBytes(x.SumOfEarnedFees))
 	return b.Bytes()
 }

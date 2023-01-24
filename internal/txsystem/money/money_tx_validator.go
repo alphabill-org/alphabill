@@ -41,10 +41,10 @@ var (
 	ErrInvalidBacklink = errors.New("the transaction backlink is not equal to unit backlink")
 
 	// reclaim fee credit errors
-	ErrReclFCInvalidCloseFCType = errors.New("reclaimFC: invalid nested closeFC tx type")
-	ErrReclFCInvalidTargetUnit  = errors.New("reclaimFC: invalid target unit")
-	ErrReclFCInvalidTxFee       = errors.New("reclaimFC: the transaction fees cannot exceed the transferred value")
-	ErrReclFCInvalidNonce       = errors.New("reclaimFC: invalid nonce")
+	ErrReclaimFCInvalidCloseFCType = errors.New("reclaimFC: invalid nested closeFC tx type")
+	ErrReclaimFCInvalidTargetUnit  = errors.New("reclaimFC: invalid target unit")
+	ErrReclaimFCInvalidTxFee       = errors.New("reclaimFC: the transaction fees cannot exceed the transferred value")
+	ErrReclaimFCInvalidNonce       = errors.New("reclaimFC: invalid nonce")
 )
 
 func validateTransfer(data rma.UnitData, tx Transfer) error {
@@ -212,16 +212,16 @@ func validateReclaimFC(tx *fc.ReclaimFeeCreditWrapper, bd *BillData, verifiers m
 	}
 	closeFCWrapper, ok := closeFC.(*fc.CloseFeeCreditWrapper)
 	if !ok {
-		return ErrReclFCInvalidCloseFCType
+		return ErrReclaimFCInvalidCloseFCType
 	}
 	if !bytes.Equal(tx.Transaction.UnitId, closeFCWrapper.CloseFC.TargetUnitId) {
-		return ErrReclFCInvalidTargetUnit
+		return ErrReclaimFCInvalidTargetUnit
 	}
 	if closeFCWrapper.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
-		return ErrReclFCInvalidTxFee
+		return ErrReclaimFCInvalidTxFee
 	}
 	if !bytes.Equal(bd.Backlink, closeFCWrapper.CloseFC.Nonce) {
-		return ErrReclFCInvalidNonce
+		return ErrReclaimFCInvalidNonce
 	}
 	if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
 		return ErrInvalidBacklink

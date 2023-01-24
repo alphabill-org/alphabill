@@ -2,11 +2,11 @@ package money
 
 import (
 	"crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -343,39 +343,39 @@ func TestReclaimFC(t *testing.T) {
 			tx: testfc.NewReclaimFC(t, signer, nil,
 				testtransaction.WithUnitId(test.NewUnitID(2)),
 			),
-			wantErr: ErrReclFCInvalidTargetUnit,
+			wantErr: ErrReclaimFCInvalidTargetUnit,
 		},
 		{
 			name:    "Invalid tx fee",
 			bd:      newBillData(1, backlink),
 			tx:      testfc.NewReclaimFC(t, signer, nil),
-			wantErr: ErrReclFCInvalidTxFee,
+			wantErr: ErrReclaimFCInvalidTxFee,
 		},
 		{
 			name:    "Invalid nonce",
 			bd:      newBillData(amount, []byte("nonce not equal to bill backlink")),
 			tx:      testfc.NewReclaimFC(t, signer, nil),
-			wantErr: ErrReclFCInvalidNonce,
+			wantErr: ErrReclaimFCInvalidNonce,
 		},
 		{
 			name:    "Invalid backlink",
 			bd:      newBillData(amount, backlink),
-			tx:      testfc.NewReclaimFC(t, signer, testfc.NewReclFCAttr(t, signer, testfc.WithReclFCBacklink([]byte("backlink not equal")))),
+			tx:      testfc.NewReclaimFC(t, signer, testfc.NewReclaimFCAttr(t, signer, testfc.WithReclaimFCBacklink([]byte("backlink not equal")))),
 			wantErr: ErrInvalidBacklink,
 		},
 		{
 			name: "Invalid proof type",
 			bd:   newBillData(amount, backlink),
-			tx: testfc.NewReclaimFC(t, signer, testfc.NewReclFCAttr(t, signer,
-				testfc.WithReclFCProof(&block.BlockProof{ProofType: block.ProofType_NOTRANS}),
+			tx: testfc.NewReclaimFC(t, signer, testfc.NewReclaimFCAttr(t, signer,
+				testfc.WithReclaimFCClosureProof(&block.BlockProof{ProofType: block.ProofType_NOTRANS}),
 			)),
 			wantErr: ErrInvalidProofType,
 		},
 		{
 			name: "Invalid proof",
 			bd:   newBillData(amount, backlink),
-			tx: testfc.NewReclaimFC(t, signer, testfc.NewReclFCAttr(t, signer,
-				testfc.WithReclFCProof(newInvalidProof(t, signer)),
+			tx: testfc.NewReclaimFC(t, signer, testfc.NewReclaimFCAttr(t, signer,
+				testfc.WithReclaimFCClosureProof(newInvalidProof(t, signer)),
 			)),
 			wantErrMsg: "reclaimFC: invalid proof",
 		},
@@ -668,7 +668,7 @@ func newBillData(v uint64, backlink []byte) *BillData {
 }
 
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *block.BlockProof {
-	attr := testfc.NewDefaultReclFCAttr(t, signer)
+	attr := testfc.NewDefaultReclaimFCAttr(t, signer)
 	attr.CloseFeeCreditProof.TransactionsHash = []byte("invalid hash")
 	return attr.CloseFeeCreditProof
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -94,6 +95,8 @@ type (
 		trustBase          map[string]abcrypto.Verifier
 		// sdrs system description records indexed by string(system_identifier)
 		sdrs map[string]*genesis.SystemDescriptionRecord
+		// feeCreditTxRecorder recorded fee credit transactions in current round
+		feeCreditTxRecorder *feeCreditTxRecorder
 	}
 )
 
@@ -121,13 +124,14 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 	}
 
 	txs := &moneyTxSystem{
-		systemIdentifier:   options.systemIdentifier,
-		hashAlgorithm:      hashAlgorithm,
-		revertibleState:    options.revertibleState,
-		dustCollectorBills: make(map[uint64][]*uint256.Int),
-		currentBlockNumber: uint64(0),
-		trustBase:          options.trustBase,
-		sdrs:               make(map[string]*genesis.SystemDescriptionRecord),
+		systemIdentifier:    options.systemIdentifier,
+		hashAlgorithm:       hashAlgorithm,
+		revertibleState:     options.revertibleState,
+		dustCollectorBills:  make(map[uint64][]*uint256.Int),
+		currentBlockNumber:  uint64(0),
+		trustBase:           options.trustBase,
+		sdrs:                make(map[string]*genesis.SystemDescriptionRecord),
+		feeCreditTxRecorder: newFeeCreditTxRecorder(),
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -141,14 +145,14 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 
 	// add fee credit bills to state tree
 	for _, sdr := range sdrs {
-		fc := sdr.FeeCreditBill
-		if fc == nil {
+		feeCreditBill := sdr.FeeCreditBill
+		if feeCreditBill == nil {
 			return nil, ErrNilFeeCreditBill
 		}
-		if bytes.Equal(fc.UnitId, util.Uint256ToBytes(dustCollectorMoneySupplyID)) || bytes.Equal(fc.UnitId, util.Uint256ToBytes(initialBill.ID)) {
+		if bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(dustCollectorMoneySupplyID)) || bytes.Equal(feeCreditBill.UnitId, util.Uint256ToBytes(initialBill.ID)) {
 			return nil, ErrInvalidFeeCreditBillID
 		}
-		err = txs.revertibleState.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(fc.UnitId), fc.OwnerPredicate, &BillData{
+		err = txs.revertibleState.AtomicUpdate(rma.AddItem(uint256.NewInt(0).SetBytes(feeCreditBill.UnitId), feeCreditBill.OwnerPredicate, &BillData{
 			V:        0,
 			T:        0,
 			Backlink: nil,
@@ -258,6 +262,12 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 				T:        m.currentBlockNumber,
 				Backlink: tx.Hash(m.hashAlgorithm),
 			}, tx.Hash(m.hashAlgorithm)))
+	case *fc.TransferFeeCreditWrapper:
+		m.feeCreditTxRecorder.recordTransferFC(tx)
+		return nil
+	case *fc.ReclaimFeeCreditWrapper:
+		m.feeCreditTxRecorder.recordReclaimFC(tx)
+		return nil
 	default:
 		return errors.Errorf("unknown type %T", gtx)
 	}
@@ -289,14 +299,29 @@ func (m *moneyTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTra
 	return NewMoneyTx(m.systemIdentifier, tx)
 }
 
-// EndBlock deletes dust bills from the state tree.
+// EndBlock deletes dust bills from the state tree and consolidates fee credits.
 func (m *moneyTxSystem) EndBlock() (txsystem.State, error) {
+	err := m.consolidateDust()
+	if err != nil {
+		return nil, err
+	}
+	err = m.consolidateFees()
+	if err != nil {
+		return nil, err
+	}
+	return txsystem.NewStateSummary(
+		m.revertibleState.GetRootHash(),
+		m.revertibleState.TotalValue().Bytes(),
+	), nil
+}
+
+func (m *moneyTxSystem) consolidateDust() error {
 	dustBills := m.dustCollectorBills[m.currentBlockNumber]
 	var valueToTransfer uint64
 	for _, billID := range dustBills {
 		u, err := m.revertibleState.GetUnit(billID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		bd, ok := u.Data.(*BillData)
 		if !ok {
@@ -306,7 +331,7 @@ func (m *moneyTxSystem) EndBlock() (txsystem.State, error) {
 		valueToTransfer += bd.V
 		err = m.revertibleState.AtomicUpdate(rma.DeleteItem(billID))
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	if valueToTransfer > 0 {
@@ -320,14 +345,71 @@ func (m *moneyTxSystem) EndBlock() (txsystem.State, error) {
 				return bd
 			}, []byte{}))
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	delete(m.dustCollectorBills, m.currentBlockNumber)
-	return txsystem.NewStateSummary(
-		m.revertibleState.GetRootHash(),
-		m.revertibleState.TotalValue().Bytes(),
-	), nil
+	return nil
+}
+
+func (m *moneyTxSystem) consolidateFees() error {
+	// update fee credit bills for all known partitions with added and removed credits
+	for sid, sdr := range m.sdrs {
+		addedCredit := m.feeCreditTxRecorder.getAddedCredit(sid)
+		reclaimedCredit := m.feeCreditTxRecorder.getReclaimedCredit(sid)
+		if addedCredit == reclaimedCredit {
+			continue // no update if bill value doesn't change
+		}
+		fcUnitID := uint256.NewInt(0).SetBytes(sdr.FeeCreditBill.UnitId)
+		fcUnit, err := m.revertibleState.GetUnit(fcUnitID)
+		if err != nil {
+			return err
+		}
+		updateData := rma.UpdateData(fcUnitID,
+			func(data rma.UnitData) (newData rma.UnitData) {
+				bd, ok := data.(*BillData)
+				if !ok {
+					// TODO updateData should return error
+					return data
+				}
+				bd.V = bd.V + addedCredit - reclaimedCredit
+				return bd
+			},
+			fcUnit.StateHash)
+		err = m.revertibleState.AtomicUpdate(updateData)
+		if err != nil {
+			return err
+		}
+	}
+
+	// increment money fee credit bill with spent fees
+	spentFeeSum := m.feeCreditTxRecorder.getSpentFeeSum()
+	if spentFeeSum > 0 {
+		moneyFCUnitID := uint256.NewInt(0).SetBytes(m.sdrs[string(m.systemIdentifier)].FeeCreditBill.UnitId)
+		moneyFCUnit, err := m.revertibleState.GetUnit(moneyFCUnitID)
+		if err != nil {
+			return err
+		}
+		updateData := rma.UpdateData(moneyFCUnitID,
+			func(data rma.UnitData) (newData rma.UnitData) {
+				bd, ok := data.(*BillData)
+				if !ok {
+					// TODO updateData should return error
+					return data
+				}
+				bd.V = bd.V + spentFeeSum
+				return bd
+			},
+			moneyFCUnit.StateHash)
+		err = m.revertibleState.AtomicUpdate(updateData)
+		if err != nil {
+			return err
+		}
+	}
+
+	// clear recorded fee credit transactions
+	m.feeCreditTxRecorder = newFeeCreditTxRecorder()
+	return nil
 }
 
 func (m *moneyTxSystem) updateBillData(tx txsystem.GenericTransaction) error {

@@ -7,6 +7,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -15,28 +16,28 @@ import (
 
 func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *fc.ReclaimFeeCreditOrder, opts ...testtransaction.Option) *fc.ReclaimFeeCreditWrapper {
 	if reclaimFCAttr == nil {
-		reclaimFCAttr = NewReclFCAttr(t, signer)
+		reclaimFCAttr = NewReclaimFCAttr(t, signer)
 	}
-	defaultReclFC := testtransaction.NewTransaction(t,
+	defaultReclaimFC := testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithAttributes(reclaimFCAttr),
 	)
 	for _, opt := range opts {
-		require.NoError(t, opt(defaultReclFC))
+		require.NoError(t, opt(defaultReclaimFC))
 	}
-	tx, _ := fc.NewFeeCreditTx(defaultReclFC)
+	tx, _ := fc.NewFeeCreditTx(defaultReclaimFC)
 	return tx.(*fc.ReclaimFeeCreditWrapper)
 }
 
-func NewReclFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclFCOption) *fc.ReclaimFeeCreditOrder {
-	defaultReclaimFC := NewDefaultReclFCAttr(t, signer)
+func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOption) *fc.ReclaimFeeCreditOrder {
+	defaultReclaimFC := NewDefaultReclaimFCAttr(t, signer)
 	for _, opt := range opts {
 		opt(defaultReclaimFC)
 	}
 	return defaultReclaimFC
 }
 
-func NewDefaultReclFCAttr(t *testing.T, signer abcrypto.Signer) *fc.ReclaimFeeCreditOrder {
+func NewDefaultReclaimFCAttr(t *testing.T, signer abcrypto.Signer) *fc.ReclaimFeeCreditOrder {
 	closeFC := newCloseFC(t)
 	closeFCProof := testblock.CreateProof(t, closeFC, signer, closeFC.Transaction.UnitId)
 	return &fc.ReclaimFeeCreditOrder{
@@ -46,18 +47,25 @@ func NewDefaultReclFCAttr(t *testing.T, signer abcrypto.Signer) *fc.ReclaimFeeCr
 	}
 }
 
-type ReclFCOption func(*fc.ReclaimFeeCreditOrder) ReclFCOption
+type ReclaimFCOption func(*fc.ReclaimFeeCreditOrder) ReclaimFCOption
 
-func WithReclFCBacklink(backlink []byte) ReclFCOption {
-	return func(tx *fc.ReclaimFeeCreditOrder) ReclFCOption {
+func WithReclaimFCBacklink(backlink []byte) ReclaimFCOption {
+	return func(tx *fc.ReclaimFeeCreditOrder) ReclaimFCOption {
 		tx.Backlink = backlink
 		return nil
 	}
 }
 
-func WithReclFCProof(proof *block.BlockProof) ReclFCOption {
-	return func(tx *fc.ReclaimFeeCreditOrder) ReclFCOption {
+func WithReclaimFCClosureProof(proof *block.BlockProof) ReclaimFCOption {
+	return func(tx *fc.ReclaimFeeCreditOrder) ReclaimFCOption {
 		tx.CloseFeeCreditProof = proof
+		return nil
+	}
+}
+
+func WithReclaimFCClosureTx(closeFCTx *txsystem.Transaction) ReclaimFCOption {
+	return func(tx *fc.ReclaimFeeCreditOrder) ReclaimFCOption {
+		tx.CloseFeeCreditTransfer = closeFCTx
 		return nil
 	}
 }

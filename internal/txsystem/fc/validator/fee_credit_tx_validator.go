@@ -50,7 +50,7 @@ type (
 	AddFCValidationContext struct {
 		Tx                 *fc.AddFeeCreditWrapper
 		Unit               *rma.Unit
-		currentRoundNumber uint64
+		CurrentRoundNumber uint64
 	}
 
 	CloseFCValidationContext struct {
@@ -133,10 +133,10 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
-	if ctx.currentRoundNumber+1 < transferFCWrapper.TransferFC.EarliestAdditionTime {
+	if ctx.CurrentRoundNumber+1 < transferFCWrapper.TransferFC.EarliestAdditionTime {
 		return ErrAddFCInvalidTimeout
 	}
-	if ctx.currentRoundNumber+1 > transferFCWrapper.TransferFC.LatestAdditionTime {
+	if ctx.CurrentRoundNumber+1 > transferFCWrapper.TransferFC.LatestAdditionTime {
 		return ErrAddFCInvalidTimeout
 	}
 

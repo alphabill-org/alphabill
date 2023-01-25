@@ -202,7 +202,7 @@ func TestAddFC(t *testing.T) {
 			err := validator.ValidateAddFC(&AddFCValidationContext{
 				Tx:                 tt.tx,
 				Unit:               tt.unit,
-				currentRoundNumber: tt.roundNumber,
+				CurrentRoundNumber: tt.roundNumber,
 			})
 			if tt.wantErr == nil && tt.wantErrMsg == "" {
 				require.NoError(t, err)

@@ -437,6 +437,30 @@ func TestRegisterData_Revert(t *testing.T) {
 	require.Equal(t, vdState, state)
 }
 
+func TestExecute_TransferFC_OK(t *testing.T) {
+	rmaTree, txSystem, _ := createRMATreeAndTxSystem(t)
+
+	// transfer 20 alphas to FCB
+	txAmount := uint64(20)
+	txFee := txCost()
+	transferFC := testfc.NewTransferFC(t,
+		testfc.NewTransferFCAttr(
+			testfc.WithBacklink(nil),
+			testfc.WithAmount(txAmount),
+		),
+		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	txSystem.BeginBlock(1)
+	err := txSystem.Execute(transferFC)
+	require.NoError(t, err)
+
+	// verify IB is value is reduced by 21
+	ib, err := rmaTree.GetUnit(initialBill.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, initialBill.Value-txAmount-txFee, ib.Data.Value())
+}
+
 func unitIdFromTransaction(tx *billSplitWrapper) []byte {
 	hasher := crypto.SHA256.New()
 	idBytes := tx.UnitID().Bytes32()

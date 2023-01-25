@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/validator"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -84,6 +85,11 @@ type (
 		Backlink []byte // Backlink (256-bit hash)
 	}
 
+	FeeCreditTxValidator interface {
+		ValidateAddFC(ctx *validator.AddFCValidationContext) error
+		ValidateCloseFC(ctx *validator.CloseFCValidationContext) error
+	}
+
 	moneyTxSystem struct {
 		systemIdentifier   []byte
 		revertibleState    *rma.Tree
@@ -97,6 +103,8 @@ type (
 		sdrs map[string]*genesis.SystemDescriptionRecord
 		// feeCreditTxRecorder recorded fee credit transactions in current round
 		feeCreditTxRecorder *feeCreditTxRecorder
+		// feeCreditTxValidator validator for partition specific AddFC and CloseFC fee credit transactions
+		feeCreditTxValidator FeeCreditTxValidator
 	}
 )
 
@@ -124,14 +132,15 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 	}
 
 	txs := &moneyTxSystem{
-		systemIdentifier:    options.systemIdentifier,
-		hashAlgorithm:       hashAlgorithm,
-		revertibleState:     options.revertibleState,
-		dustCollectorBills:  make(map[uint64][]*uint256.Int),
-		currentBlockNumber:  uint64(0),
-		trustBase:           options.trustBase,
-		sdrs:                make(map[string]*genesis.SystemDescriptionRecord),
-		feeCreditTxRecorder: newFeeCreditTxRecorder(),
+		systemIdentifier:     options.systemIdentifier,
+		hashAlgorithm:        hashAlgorithm,
+		revertibleState:      options.revertibleState,
+		dustCollectorBills:   make(map[uint64][]*uint256.Int),
+		currentBlockNumber:   uint64(0),
+		trustBase:            options.trustBase,
+		sdrs:                 make(map[string]*genesis.SystemDescriptionRecord),
+		feeCreditTxRecorder:  newFeeCreditTxRecorder(),
+		feeCreditTxValidator: validator.NewDefaultFeeCreditTxValidator(options.systemIdentifier, options.systemIdentifier, hashAlgorithm, options.trustBase),
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -263,6 +272,48 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 				Backlink: tx.Hash(m.hashAlgorithm),
 			}, tx.Hash(m.hashAlgorithm)))
 	case *fc.TransferFeeCreditWrapper:
+		log.Debug("Processing transferFC %v", tx)
+		if bd == nil {
+			return errors.New("unit not found for transferFC")
+		}
+		bdd, ok := bd.Data.(*BillData)
+		if !ok {
+			return errors.New("invalid unit data type for transferFC")
+		}
+		err = validateTransferFC(tx, bdd)
+		if err != nil {
+			return errors.Wrap(err, "transferFC validation failed")
+		}
+
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txCost()
+
+		// remove value from source unit, or delete source bill entirely
+		v := tx.TransferFC.Amount + tx.Transaction.ServerMetadata.Fee
+		if v < bdd.V {
+			updateFunc := func(data rma.UnitData) (newData rma.UnitData) {
+				newBillData, ok := data.(*BillData)
+				if !ok {
+					return data // TODO should return error instead
+				}
+				newBillData.V = newBillData.V - v
+				newBillData.T = m.currentBlockNumber
+				newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+				return newBillData
+			}
+			updateAction := rma.UpdateData(gtx.UnitID(), updateFunc, tx.Hash(m.hashAlgorithm))
+			err = m.revertibleState.AtomicUpdate(updateAction)
+			if err != nil {
+				return err
+			}
+		} else {
+			updateAction := rma.DeleteItem(gtx.UnitID())
+			err = m.revertibleState.AtomicUpdate(updateAction)
+			if err != nil {
+				return err
+			}
+		}
+		// record fee tx for end of the round consolidation
 		m.feeCreditTxRecorder.recordTransferFC(tx)
 		return nil
 	case *fc.ReclaimFeeCreditWrapper:
@@ -409,6 +460,7 @@ func (m *moneyTxSystem) consolidateFees() error {
 
 	// clear recorded fee credit transactions
 	m.feeCreditTxRecorder = newFeeCreditTxRecorder()
+	// TODO clear in commit and/or revert functions instead?
 	return nil
 }
 
@@ -495,4 +547,9 @@ func (b *BillData) AddToHasher(hasher hash.Hash) {
 
 func (b *BillData) Value() rma.SummaryValue {
 	return rma.Uint64SummaryValue(b.V)
+}
+
+// txCost placeholder transaction cost function, all tx costs hardcoded to 1 (smallest?) alpha
+func txCost() uint64 {
+	return 1
 }

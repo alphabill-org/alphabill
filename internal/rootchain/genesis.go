@@ -1,7 +1,6 @@
 package rootchain
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"fmt"
 
@@ -161,7 +160,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 
 	genesisPartitions := make([]*genesis.GenesisPartitionRecord, len(partitions))
 	partitionGenesis := make([]*genesis.PartitionGenesis, len(partitions))
-	rootPublicKey, verifier, err := GetPublicKeyAndVerifier(c.signer)
+	rootPublicKey, _, err := GetPublicKeyAndVerifier(c.signer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -225,21 +224,8 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		Partitions: genesisPartitions,
 	}
 
-	if err := rootGenesis.IsValid(); err != nil {
+	if err = rootGenesis.IsValid(); err != nil {
 		return nil, nil, err
-	}
-	// verify that the signing public key is present in root validator info
-	pubKeyInfo := rootGenesis.Root.FindPubKeyById(c.peerID)
-	if pubKeyInfo == nil {
-		return nil, nil, fmt.Errorf("missing public key info for node id %v", c.peerID)
-	}
-	pubKeyBytes, err := verifier.MarshalPublicKey()
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to extract public key bytes: %w", err)
-	}
-	// Compare keys
-	if !bytes.Equal(pubKeyBytes, pubKeyInfo.SigningPublicKey) {
-		return nil, nil, fmt.Errorf("invalid trust base. expected %X, got %X", pubKeyBytes, pubKeyInfo.SigningPublicKey)
 	}
 	return rootGenesis, partitionGenesis, nil
 }

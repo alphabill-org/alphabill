@@ -251,7 +251,6 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	}
 
 	genesisPartitions := make([]*genesis.GenesisPartitionRecord, len(partitions))
-	partitionGenesis := make([]*genesis.PartitionGenesis, len(partitions))
 	rootPublicKey, err := ver.MarshalPublicKey()
 	if err != nil {
 		return nil, nil, err
@@ -285,14 +284,6 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 				EncryptionPublicKey: v.EncryptionPublicKey,
 			}
 		}
-
-		partitionGenesis[i] = &genesis.PartitionGenesis{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Certificate:             certificate,
-			RootValidators:          rootValidatorInfo,
-			Keys:                    keys,
-			Params:                  partition.Validators[0].Params,
-		}
 	}
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{
@@ -303,8 +294,7 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		HashAlgorithm:       uint32(c.hashAlgorithm),
 		Signatures:          make(map[string][]byte),
 	}
-	err = consensusParams.Sign(c.peerID, c.signer)
-	if err != nil {
+	if err = consensusParams.Sign(c.peerID, c.signer); err != nil {
 		return nil, nil, err
 	}
 	genesisRoot := &genesis.GenesisRootRecord{
@@ -315,32 +305,14 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 		Root:       genesisRoot,
 		Partitions: genesisPartitions,
 	}
-
 	if err = rootGenesis.IsValid(); err != nil {
 		return nil, nil, err
 	}
-	// sanity check, make sure that node public key info is present
-	pubKeyInfo := rootGenesis.Root.FindPubKeyById(c.peerID)
-	if pubKeyInfo == nil {
-		return nil, nil, fmt.Errorf("root genesis not valid, peer ID %v not found", c.peerID)
-	}
-	signPubKey, err := ver.MarshalPublicKey()
-	if err != nil {
-		return nil, nil, fmt.Errorf("root genesis not valid, unable to extract signing pubkey")
-	}
-	if !bytes.Equal(pubKeyInfo.SigningPublicKey, signPubKey) {
-		return nil, nil, fmt.Errorf("root genesis not valid, node %v siging pubkey invalid", c.peerID)
-	}
-	if !bytes.Equal(pubKeyInfo.EncryptionPublicKey, encPubKey) {
-		return nil, nil, fmt.Errorf("root genesis not valid, node %v encryption pubkey invalid", c.peerID)
-	}
+	partitionGenesis := partitionGenesisFromRoot(rootGenesis)
 	return rootGenesis, partitionGenesis, nil
 }
 
-func NewPartitionGenesisFromRoot(rg *genesis.RootGenesis) ([]*genesis.PartitionGenesis, error) {
-	if err := rg.Verify(); err != nil {
-		return nil, err
-	}
+func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenesis {
 	partitionGenesis := make([]*genesis.PartitionGenesis, len(rg.Partitions))
 	for i, partition := range rg.Partitions {
 		var keys = make([]*genesis.PublicKeyInfo, len(partition.Nodes))
@@ -359,7 +331,7 @@ func NewPartitionGenesisFromRoot(rg *genesis.RootGenesis) ([]*genesis.PartitionG
 			Params:                  partition.Nodes[0].Params,
 		}
 	}
-	return partitionGenesis, nil
+	return partitionGenesis
 }
 
 func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecord, error) {
@@ -443,30 +415,12 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 			}
 		}
 	}
-	// extract new partition genesis files
-	partitionGenesis := make([]*genesis.PartitionGenesis, len(rg.Partitions))
-	for i, partition := range rg.Partitions {
-		var keys = make([]*genesis.PublicKeyInfo, len(partition.Nodes))
-		for j, v := range partition.Nodes {
-			keys[j] = &genesis.PublicKeyInfo{
-				NodeIdentifier:      v.NodeIdentifier,
-				SigningPublicKey:    v.SigningPublicKey,
-				EncryptionPublicKey: v.EncryptionPublicKey,
-			}
-		}
-		partitionGenesis[i] = &genesis.PartitionGenesis{
-			SystemDescriptionRecord: partition.SystemDescriptionRecord,
-			Certificate:             partition.Certificate,
-			RootValidators:          rg.Root.RootValidators,
-			Keys:                    keys,
-			Params:                  partition.Nodes[0].Params,
-		}
-	}
 	// verify result
-	err := rg.IsValid()
-	if err != nil {
+	if err := rg.IsValid(); err != nil {
 		return nil, nil, fmt.Errorf("root genesis combine failed: %w", err)
 	}
+	// extract new partition genesis files
+	partitionGenesis := partitionGenesisFromRoot(rg)
 	return rg, partitionGenesis, nil
 }
 

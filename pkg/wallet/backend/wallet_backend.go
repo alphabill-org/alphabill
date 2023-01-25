@@ -175,7 +175,8 @@ func (w *WalletBackend) AddKey(pubkey []byte) error {
 
 // GetMaxBlockNumber returns max block number known to the connected AB node.
 func (w *WalletBackend) GetMaxBlockNumber() (uint64, error) {
-	return w.genericWallet.GetMaxBlockNumber()
+	blNo, _, err := w.genericWallet.GetMaxBlockNumber() // TODO return latest round number?
+	return blNo, err
 }
 
 // Shutdown terminates wallet backend service.

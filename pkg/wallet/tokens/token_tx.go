@@ -428,11 +428,11 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	}
 	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", txSub.id, reflect.TypeOf(attrs)))
 
-	blockNumber, err := w.mw.GetMaxBlockNumber()
+	_, roundNumber, err := w.mw.GetMaxBlockNumber()
 	if err != nil {
 		return txSub, err
 	}
-	tx := createTx(w.SystemID(), txSub.id, blockNumber+txTimeoutBlockCount)
+	tx := createTx(w.SystemID(), txSub.id, roundNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
 		return txSub, err

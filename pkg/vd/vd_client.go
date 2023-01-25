@@ -102,7 +102,7 @@ func (v *VDClient) FetchBlockWithHash(hash []byte, blockNumber uint64) error {
 func (v *VDClient) ListAllBlocksWithTx() error {
 	defer v.shutdown()
 	log.Info("Fetching blocks...")
-	maxBlockNumber, err := v.abClient.GetMaxBlockNumber()
+	maxBlockNumber, _, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
@@ -122,13 +122,13 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 		return err
 	}
 
-	currentBlockNumber, err := v.abClient.GetMaxBlockNumber()
+	_, currentRoundNumber, err := v.abClient.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
 
-	log.Info("Current block #: ", currentBlockNumber)
-	timeout := currentBlockNumber + v.timeoutDelta
+	log.Info("Current block #: ", currentRoundNumber)
+	timeout := currentRoundNumber + v.timeoutDelta
 	tx, err := createRegisterDataTx(v.SystemID(), hash, timeout)
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	log.Info("Hash successfully submitted, timeout block: ", timeout)
 
 	if v.syncToBlock {
-		return v.sync(currentBlockNumber, timeout, hash)
+		return v.sync(currentRoundNumber, timeout, hash)
 	}
 	return nil
 }

@@ -46,8 +46,8 @@ func newDcWaitGroup() *dcWaitGroup {
 	return &dcWaitGroup{swaps: map[uint256.Int]uint64{}}
 }
 
-func (m *dcMetadata) isSwapRequired(blockHeight uint64, dcSum uint64) bool {
-	return m.dcSumReached(dcSum) || m.timeoutReached(blockHeight)
+func (m *dcMetadata) isSwapRequired(roundNumber uint64, dcSum uint64) bool {
+	return m.dcSumReached(dcSum) || m.timeoutReached(roundNumber)
 }
 
 func (m *dcMetadata) dcSumReached(dcSum uint64) bool {

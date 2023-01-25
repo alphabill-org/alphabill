@@ -23,6 +23,7 @@ message GetBlocksResponse {
   uint64 max_block_number = 2;
   repeated Block blocks = 3;
   uint64 max_round_number = 4;
+  uint64 batch_max_block_number = 5;
 }
 
 message GetBlockRequest {

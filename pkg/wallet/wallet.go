@@ -46,6 +46,12 @@ type (
 		// RetryOnFullTxBuffer retries to send transaction when tx buffer is full
 		RetryOnFullTxBuffer bool
 	}
+
+	fetchBlocksResult struct {
+		lastFetchedBlockNumber  uint64 // latest processed block by a wallet/client
+		maxAvailableBlockNumber uint64 // latest non-empty block in a partition shard
+		maxAvailableRoundNumber uint64 // latest round number in a partition shard, greater or equal to maxAvailableBlockNumber
+	}
 )
 
 func New() *Builder {
@@ -167,7 +173,6 @@ func (w *Wallet) syncLedger(ctx context.Context, lastBlockNumber uint64, syncFor
 
 func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
 	log.Info("syncing until cancelled from current block number ", lastBlockNumber)
-	var err error
 	var maxBlockNumber uint64
 	for {
 		select {
@@ -186,10 +191,12 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 					return nil
 				}
 			}
-			lastBlockNumber, maxBlockNumber, err = w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
+			res, err := w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
 			if err != nil {
 				return err
 			}
+			lastBlockNumber = res.lastFetchedBlockNumber
+			maxBlockNumber = res.maxAvailableBlockNumber
 		}
 	}
 }
@@ -208,25 +215,36 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 			return nil
 		default:
 			batchSize := util.Min(blockDownloadMaxBatchSize, maxBlockNumber-lastBlockNumber)
-			lastBlockNumber, _, err = w.fetchBlocks(lastBlockNumber, batchSize, ch)
+			res, err := w.fetchBlocks(lastBlockNumber, batchSize, ch)
 			if err != nil {
 				return err
 			}
+			lastBlockNumber = res.lastFetchedBlockNumber
 		}
 	}
 	return nil
 }
 
-func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (uint64, uint64, error) {
-	res, err := w.AlphabillClient.GetBlocks(lastBlockNumber+1, batchSize)
+func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (*fetchBlocksResult, error) {
+	fromBlockNumber := lastBlockNumber + 1
+	res, err := w.AlphabillClient.GetBlocks(fromBlockNumber, batchSize)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
+	}
+	result := &fetchBlocksResult{
+		lastFetchedBlockNumber:  lastBlockNumber,
+		maxAvailableBlockNumber: res.MaxBlockNumber,
+		maxAvailableRoundNumber: res.MaxRoundNumber,
 	}
 	for _, b := range res.Blocks {
-		lastBlockNumber = b.UnicityCertificate.InputRecord.RoundNumber
+		result.lastFetchedBlockNumber = b.UnicityCertificate.InputRecord.RoundNumber
 		ch <- b
 	}
-	return lastBlockNumber, res.MaxBlockNumber, nil
+	// this makes sure empty blocks are taken into account (the whole batch might be empty in fact)
+	if res.BatchMaxBlockNumber > result.lastFetchedBlockNumber {
+		result.lastFetchedBlockNumber = res.BatchMaxBlockNumber
+	}
+	return result, nil
 }
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {

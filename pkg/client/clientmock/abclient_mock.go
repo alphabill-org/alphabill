@@ -9,14 +9,15 @@ import (
 
 // MockAlphabillClient for testing. NOT thread safe.
 type MockAlphabillClient struct {
-	recordedTxs      []*txsystem.Transaction
-	txResponse       *txsystem.TransactionResponse
-	maxBlockNumber   uint64
-	maxRoundNumber   uint64
-	shutdown         bool
-	blocks           map[uint64]*block.Block
-	txListener       func(tx *txsystem.Transaction)
-	incrementOnFetch bool // if true, maxBlockNumber will be incremented on each GetBlocks call
+	recordedTxs              []*txsystem.Transaction
+	txResponse               *txsystem.TransactionResponse
+	maxBlockNumber           uint64
+	maxRoundNumber           uint64
+	shutdown                 bool
+	blocks                   map[uint64]*block.Block
+	txListener               func(tx *txsystem.Transaction)
+	incrementOnFetch         bool // if true, maxBlockNumber will be incremented on each GetBlocks call
+	lastRequestedBlockNumber uint64
 }
 
 func NewMockAlphabillClient(maxBlockNumber uint64, blocks map[uint64]*block.Block) *MockAlphabillClient {
@@ -49,27 +50,32 @@ func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error)
 }
 
 func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+	c.lastRequestedBlockNumber = blockNumber
 	if c.incrementOnFetch {
 		defer c.SetMaxBlockNumber(blockNumber + 1)
 	}
+	batchMaxBlockNumber := blockNumber
 	if blockNumber <= c.maxBlockNumber {
 		var blocks []*block.Block
 		b, f := c.blocks[blockNumber]
 		if f {
 			blocks = []*block.Block{b}
+			batchMaxBlockNumber = b.UnicityCertificate.InputRecord.RoundNumber
 		} else {
 			blocks = []*block.Block{}
 		}
 		return &alphabill.GetBlocksResponse{
-			MaxBlockNumber: c.maxBlockNumber,
-			MaxRoundNumber: c.maxRoundNumber,
-			Blocks:         blocks,
+			MaxBlockNumber:      c.maxBlockNumber,
+			MaxRoundNumber:      c.maxRoundNumber,
+			Blocks:              blocks,
+			BatchMaxBlockNumber: batchMaxBlockNumber,
 		}, nil
 	}
 	return &alphabill.GetBlocksResponse{
-		MaxBlockNumber: c.maxBlockNumber,
-		MaxRoundNumber: c.maxRoundNumber,
-		Blocks:         []*block.Block{},
+		MaxBlockNumber:      c.maxBlockNumber,
+		MaxRoundNumber:      c.maxRoundNumber,
+		Blocks:              []*block.Block{},
+		BatchMaxBlockNumber: batchMaxBlockNumber,
 	}, nil
 }
 
@@ -122,4 +128,8 @@ func (c *MockAlphabillClient) SetTxListener(txListener func(tx *txsystem.Transac
 
 func (c *MockAlphabillClient) SetIncrementOnFetch(incrementOnFetch bool) {
 	c.incrementOnFetch = incrementOnFetch
+}
+
+func (c *MockAlphabillClient) GetLastRequestedBlockNumber() uint64 {
+	return c.lastRequestedBlockNumber
 }

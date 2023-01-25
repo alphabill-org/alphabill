@@ -38,7 +38,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			log.Info("Processing non-empty block: ", b.BlockNumber)
 
 			// lists tokens for all keys and with 'always true' predicate
-			accounts, err := w.mw.GetAccountKeys()
+			accounts, err := w.am.GetAccountKeys()
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func (w *Wallet) Sync(ctx context.Context) error {
 		return err
 	}
 	log.Info("Synchronizing tokens from block #", latestBlockNumber)
-	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
+	return w.sdk.SyncToMaxBlockNumber(ctx, latestBlockNumber)
 }
 
 func (w *Wallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
@@ -137,5 +137,5 @@ func (w *Wallet) syncUntilCanceled(ctx context.Context) error {
 		return err
 	}
 	log.Info("Synchronizing tokens from block #", latestBlockNumber)
-	return w.mw.Wallet.Sync(ctx, latestBlockNumber)
+	return w.sdk.Sync(ctx, latestBlockNumber)
 }

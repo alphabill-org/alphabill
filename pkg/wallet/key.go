@@ -32,10 +32,6 @@ type (
 		Sha256 []byte `json:"sha256"`
 		Sha512 []byte `json:"sha512"`
 	}
-
-	AccountManager interface {
-		GetAccountKey(accountIndex uint64) (*AccountKey, error)
-	}
 )
 
 const mnemonicEntropyBitSize = 128

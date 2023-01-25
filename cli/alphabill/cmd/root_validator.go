@@ -54,14 +54,14 @@ type validatorConfig struct {
 	StateStore distributed.StateStore
 }
 
-// newRootValidatorCmd creates a new cobra command for root validator chain
-func newRootValidatorCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+// newRootNodeCmd creates a new cobra command for root validator chain
+func newRootNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	config := &validatorConfig{
 		Base:       baseConfig,
 		StateStore: store.NewInMemStateStore(),
 	}
 	var cmd = &cobra.Command{
-		Use:   "root-validator",
+		Use:   "root",
 		Short: "Starts a root validator node",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return defaultValidatorRunFunc(ctx, config)
@@ -70,7 +70,7 @@ func newRootValidatorCmd(ctx context.Context, baseConfig *baseConfiguration) *co
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root validator validator key file")
 	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain)")
 	cmd.Flags().StringVarP(&config.DbFile, "db", "f", "", "path to the database file (default: $AB_HOME/rootchain/"+store.BoltRootChainStoreFileName+")")
-	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/25666", "validator address in libp2p multiaddress-format")
+	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringVar(&config.RootListener, "root-listener", "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root validator identifiers and addresses. must contain all genesis validator addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")

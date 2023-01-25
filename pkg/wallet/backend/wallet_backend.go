@@ -14,8 +14,6 @@ import (
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )
 
-var alphabillMoneySystemId = []byte{0, 0, 0, 0}
-
 var (
 	errKeyNotIndexed  = errors.New("pubkey is not indexed")
 	errBillsIsNil     = errors.New("bills input is empty")
@@ -115,6 +113,12 @@ func (w *WalletBackend) StartProcess(ctx context.Context) {
 	}
 }
 
+func (w *WalletBackend) SystemID() []byte {
+	// TODO: return the default "AlphaBill Money System ID" for now
+	// but this should come from config (w.genericWallet?)
+	return []byte{0, 0, 0, 0}
+}
+
 // GetBills returns all bills for given public key.
 func (w *WalletBackend) GetBills(pubkey []byte) ([]*Bill, error) {
 	return w.store.GetBills(pubkey)
@@ -136,8 +140,9 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *moneytx.Bills) error {
 	if len(bills.Bills) == 0 {
 		return errEmptyBillsList
 	}
-	err := bills.Verify(txConverter, w.verifiers)
-	if err != nil {
+
+	txc := NewTxConverter(w.SystemID())
+	if err := bills.Verify(txc, w.verifiers); err != nil {
 		return err
 	}
 	key, err := w.store.GetKey(pubkey)
@@ -150,7 +155,7 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *moneytx.Bills) error {
 	pubkeyHash := wallet.NewKeyHash(pubkey)
 	domainBills := newBillsFromProto(bills)
 	for _, bill := range domainBills {
-		tx, err := txConverter.ConvertTx(bill.TxProof.Tx)
+		tx, err := txc.ConvertTx(bill.TxProof.Tx)
 		if err != nil {
 			return err
 		}

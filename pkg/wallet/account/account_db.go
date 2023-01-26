@@ -252,7 +252,7 @@ func (a *adbtx) VerifyPassword() (bool, error) {
 		return false, err
 	}
 	if encrypted {
-		_, err = a.GetAccountKey(0)
+		_, err := a.GetAccountKeys()
 		if err != nil {
 			if errors.Is(err, abcrypto.ErrEmptyPassphrase) {
 				return false, nil
@@ -321,6 +321,13 @@ func openDb(dbFilePath string, pw string, create bool) (*adb, error) {
 	err = a.createBuckets()
 	if err != nil {
 		return nil, err
+	}
+
+	if create {
+		err := a.Do().SetEncrypted(pw != "")
+		if err != nil {
+			return nil, err
+		}
 	}
 	return a, nil
 }

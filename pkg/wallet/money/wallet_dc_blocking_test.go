@@ -26,7 +26,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -66,7 +66,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 	dcNonce := uint256.NewInt(1337)
 	addDcBills(t, w, dcNonce, 10)
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -110,7 +110,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	b22 := addDcBill(t, w, dcNonce2, 4, 10)
 	b23 := addDcBill(t, w, dcNonce2, 5, 10)
 
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)

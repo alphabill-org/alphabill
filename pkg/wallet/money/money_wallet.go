@@ -256,6 +256,17 @@ func (w *Wallet) AddBill(accountIndex uint64, bill *Bill) error {
 	return w.db.Do().SetBill(accountIndex, bill)
 }
 
+// AddAccount adds the next account in account key series to the wallet.
+// New accounts are indexed only from the time of creation and not backwards in time.
+// Returns new account's index and public key.
+func (w *Wallet) AddAccount() (uint64, []byte, error) {
+	idx, pubKey, err := w.am.AddAccount()
+	if err != nil {
+		return 0, nil, err
+	}
+	return idx, pubKey, w.db.Do().AddAccount(idx)
+}
+
 // Send creates, signs and broadcasts transactions, in total for the given amount,
 // to the given public key, the public key must be in compressed secp256k1 format.
 // Sends one transaction per bill, prioritzing larger bills.
@@ -749,7 +760,15 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string, am account.M
 		}
 	}()
 
-	am.CreateKeys(mnemonic)
+	err = am.CreateKeys(mnemonic)
+	if err != nil {
+		return
+	}
+
+	err = mw.db.Do().AddAccount(0)
+	if err != nil {
+		return
+	}
 
 	mw.Wallet = wallet.New().
 		SetBlockProcessor(mw).
@@ -830,7 +849,7 @@ func getDb(config WalletConfig, create bool) (Db, error) {
 	if create {
 		return createNewDb(config)
 	}
-	return OpenDb(config)
+	return openDb(config)
 }
 
 func (w *Wallet) GetConfig() WalletConfig {

@@ -42,6 +42,7 @@ type Db interface {
 }
 
 type TxContext interface {
+	AddAccount(accountIndex uint64) error
 	GetBlockNumber() (uint64, error)
 	SetBlockNumber(blockNumber uint64) error
 
@@ -69,13 +70,31 @@ type wdbtx struct {
 	tx  *bolt.Tx
 }
 
-func OpenDb(config WalletConfig) (*wdb, error) {
+func openDb(config WalletConfig) (*wdb, error) {
 	walletDir, err := config.GetWalletDir()
 	if err != nil {
 		return nil, err
 	}
 	dbFilePath := path.Join(walletDir, WalletFileName)
-	return openDb(dbFilePath, false)
+	return doOpenDb(dbFilePath, false)
+}
+
+func (w *wdbtx) AddAccount(accountIndex uint64) error {
+	return w.withTx(w.tx, func(tx *bolt.Tx) error {
+		accBucket, err := tx.Bucket(accountsBucket).CreateBucketIfNotExists(util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		_, err = accBucket.CreateBucketIfNotExists(accountBillsBucket)
+		if err != nil {
+			return err
+		}
+		_, err = accBucket.CreateBucketIfNotExists(accountDcMetaBucket)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, true)
 }
 
 func (w *wdbtx) GetBill(accountIndex uint64, billId []byte) (*Bill, error) {
@@ -405,7 +424,7 @@ func (w *wdb) createBuckets() error {
 	})
 }
 
-func openDb(dbFilePath string, create bool) (*wdb, error) {
+func doOpenDb(dbFilePath string, create bool) (*wdb, error) {
 	exists := util.FileExists(dbFilePath)
 	if create && exists {
 		return nil, errWalletDbAlreadyExists
@@ -437,7 +456,7 @@ func createNewDb(config WalletConfig) (*wdb, error) {
 	}
 
 	dbFilePath := path.Join(walletDir, WalletFileName)
-	return openDb(dbFilePath, true)
+	return doOpenDb(dbFilePath, true)
 }
 
 func parseBill(v []byte) (*Bill, error) {
@@ -445,6 +464,22 @@ func parseBill(v []byte) (*Bill, error) {
 	err := json.Unmarshal(v, &b)
 	return b, err
 }
+
+//func ensureAccountBucket(tx *bolt.Tx, accountIndex []byte) (*bolt.Bucket, error) {
+//	accBucket, err := tx.Bucket(accountsBucket).CreateBucketIfNotExists(accountIndex)
+//	if err != nil {
+//		return nil, err
+//	}
+//	_, err = accBucket.CreateBucketIfNotExists(accountBillsBucket)
+//	if err != nil {
+//		return nil, err
+//	}
+//	_, err = accBucket.CreateBucketIfNotExists(accountDcMetaBucket)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return accBucket, nil
+//}
 
 func getAccountBucket(tx *bolt.Tx, accountIndex []byte) (*bolt.Bucket, error) {
 	bkt := tx.Bucket(accountsBucket).Bucket(accountIndex)

@@ -12,18 +12,21 @@ type (
 	// Manager manages accounts
 	Manager interface {
 		GetAll() []Account
-		CreateKeys(mnemonic string)
+		CreateKeys(mnemonic string) error
+		AddAccount() (uint64, []byte, error)
 		GetAccountKey(uint64) (*wallet.AccountKey, error)
 		GetAccountKeys() ([]*wallet.AccountKey, error)
 		GetMaxAccountIndex() (uint64, error)
 		GetPublicKey(accountIndex uint64) ([]byte, error)
 		GetPublicKeys() ([][]byte, error)
+		IsEncrypted() (bool, error)
 		Close()
 	}
 
 	managerImpl struct {
 		db       Db
 		accounts *accounts
+		dir      string
 		password string
 	}
 )
@@ -32,7 +35,11 @@ var (
 	ErrInvalidPassword = errors.New("invalid password")
 )
 
-func NewAccountManager(dir string, password string, create bool) (Manager, error) {
+func NewManager(dir string, password string, create bool) (Manager, error) {
+	return newManager(dir, password, create)
+}
+
+func newManager(dir string, password string, create bool) (*managerImpl, error) {
 	db, err := getDb(dir, create, password)
 	if err != nil {
 		return nil, err
@@ -56,23 +63,24 @@ func NewAccountManager(dir string, password string, create bool) (Manager, error
 			AccountKeys:  *val.PubKeyHash,
 		}
 	}
-	return &managerImpl{db: db, accounts: &accounts{accounts: accs}, password: password}, nil
+	return &managerImpl{db: db, accounts: &accounts{accounts: accs}, password: password, dir: dir}, nil
 }
 
-func (m *managerImpl) CreateKeys(mnemonic string) {
+func (m *managerImpl) CreateKeys(mnemonic string) error {
 	keys, err := wallet.NewKeys(mnemonic)
 	if err != nil {
-		return
+		return err
 	}
 	err = m.saveKeys(keys)
 	if err != nil {
-		return
+		return err
 	}
 
 	m.accounts.add(&Account{
 		AccountIndex: 0,
 		AccountKeys:  *keys.AccountKey.PubKeyHash,
 	})
+	return nil
 }
 
 func (m *managerImpl) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
@@ -116,7 +124,7 @@ func (m *managerImpl) GetMnemonic() (string, error) {
 
 // AddAccount adds the next account in account key series to the wallet.
 // New accounts are indexed only from the time of creation and not backwards in time.
-// Returns new account's index and public key.
+// Returns newManager account's index and public key.
 func (m *managerImpl) AddAccount() (uint64, []byte, error) {
 	masterKeyString, err := m.db.Do().GetMasterKey()
 	if err != nil {
@@ -157,14 +165,10 @@ func (m *managerImpl) AddAccount() (uint64, []byte, error) {
 }
 
 // IsEncrypted returns true if wallet exists and is encrypted and or false if wallet exists and is not encrypted,
-// returns error if wallet does not exist.
-func IsEncrypted(dir string, pw string) (bool, error) {
-	db, err := getDb(dir, false, pw)
-	if err != nil {
-		return false, err
-	}
-	defer db.Close()
-	return db.Do().IsEncrypted()
+// returns error if wallet does not exist. Closes DB upon completion.
+func (m *managerImpl) IsEncrypted() (bool, error) {
+	defer m.Close()
+	return m.db.Do().IsEncrypted()
 }
 
 func (m *managerImpl) GetAll() []Account {

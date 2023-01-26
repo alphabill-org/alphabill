@@ -71,7 +71,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	_ = w.db.Do().SetBill(0, b)
 
 	// create block with expected transaction
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
 	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
 		tx,
@@ -105,7 +105,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	_ = w.db.Do().SetBill(0, b2)
 
 	// create block with expected transactions
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 	tx1, _ := createTransaction(pubKey, k, b1.Value, b1, txTimeoutBlockCount)
 	tx2, _ := createTransaction(pubKey, k, b2.Value, b2, txTimeoutBlockCount)
 	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
@@ -142,7 +142,7 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	_ = w.db.Do().SetBill(0, b2)
 
 	// create block with expected transactions
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 	tx1, _ := createTransaction(pubKey, k, b1.Value, b1, txTimeoutBlockCount)
 	tx2, _ := createTransaction(pubKey, k, b2.Value, b2, txTimeoutBlockCount)
 	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{

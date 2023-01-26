@@ -378,10 +378,6 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		if bytes.Compare(consensusBytes, appendGen.Root.Consensus.Bytes()) != 0 {
 			return nil, nil, errors.New("not compatible root genesis files, consensus is different")
 		}
-		// Make sure that they have same the number of partitions
-		if len(rg.Partitions) != len(appendGen.Partitions) {
-			return nil, nil, errors.New("not compatible root genesis files, different number of partitions")
-		}
 		// append consensus signatures
 		for k, v := range appendGen.Root.Consensus.Signatures {
 			// skip, already present
@@ -399,19 +395,20 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 			rg.Root.RootValidators = append(rg.Root.RootValidators, v)
 			nodeIds[v.NodeIdentifier] = true
 		}
-		// Append UC Seal signatures
-		for _, rgPart := range rg.Partitions {
+		// Make sure that they have same the number of partitions
+		if len(rg.Partitions) != len(appendGen.Partitions) {
+			return nil, nil, errors.New("not compatible root genesis files, different number of partitions")
+		}
+		// Append to UC Seal signatures, assume partitions are in the same order
+		for i, rgPart := range rg.Partitions {
 			rgPartSdh := rgPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash
-			for _, appendPart := range appendGen.Partitions {
-				if bytes.Compare(rgPartSdh, appendPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash) != 0 {
-					return nil, nil, errors.New("not compatible genesis files, partitions are different")
-				}
-				// copy partition UC Seal signatures
-				for k, v := range appendPart.Certificate.UnicitySeal.Signatures {
-					rgPart.Certificate.UnicitySeal.Signatures[k] = v
-				}
-				// There can be only one partition with same system description hash
-				break
+			appendPart := appendGen.Partitions[i]
+			if bytes.Compare(rgPartSdh, appendPart.Certificate.UnicityTreeCertificate.SystemDescriptionHash) != 0 {
+				return nil, nil, errors.New("not compatible genesis files, partitions are different")
+			}
+			// copy partition UC Seal signatures
+			for k, v := range appendPart.Certificate.UnicitySeal.Signatures {
+				rgPart.Certificate.UnicitySeal.Signatures[k] = v
 			}
 		}
 	}

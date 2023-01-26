@@ -41,10 +41,9 @@ var (
 	ErrInvalidBacklink = errors.New("the transaction backlink is not equal to unit backlink")
 
 	// reclaim fee credit errors
-	ErrReclaimFCInvalidCloseFCType = errors.New("reclaimFC: invalid nested closeFC tx type")
-	ErrReclaimFCInvalidTargetUnit  = errors.New("reclaimFC: invalid target unit")
-	ErrReclaimFCInvalidTxFee       = errors.New("reclaimFC: the transaction fees cannot exceed the transferred value")
-	ErrReclaimFCInvalidNonce       = errors.New("reclaimFC: invalid nonce")
+	ErrReclaimFCInvalidTargetUnit = errors.New("reclaimFC: invalid target unit")
+	ErrReclaimFCInvalidTxFee      = errors.New("reclaimFC: the transaction fees cannot exceed the transferred value")
+	ErrReclaimFCInvalidNonce      = errors.New("reclaimFC: invalid nonce")
 )
 
 func validateTransfer(data rma.UnitData, tx Transfer) error {
@@ -206,32 +205,24 @@ func validateReclaimFC(tx *fc.ReclaimFeeCreditWrapper, bd *BillData, verifiers m
 	if tx.Transaction.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	closeFC, err := fc.NewFeeCreditTx(tx.ReclaimFC.CloseFeeCreditTransfer)
-	if err != nil {
-		return err
-	}
-	closeFCWrapper, ok := closeFC.(*fc.CloseFeeCreditWrapper)
-	if !ok {
-		return ErrReclaimFCInvalidCloseFCType
-	}
-	if !bytes.Equal(tx.Transaction.UnitId, closeFCWrapper.CloseFC.TargetUnitId) {
+	if !bytes.Equal(tx.Transaction.UnitId, tx.CloseFCTransfer.CloseFC.TargetUnitId) {
 		return ErrReclaimFCInvalidTargetUnit
 	}
-	if closeFCWrapper.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
-		return ErrReclaimFCInvalidTxFee
-	}
-	if !bytes.Equal(bd.Backlink, closeFCWrapper.CloseFC.Nonce) {
+	if !bytes.Equal(bd.Backlink, tx.CloseFCTransfer.CloseFC.Nonce) {
 		return ErrReclaimFCInvalidNonce
 	}
 	if !bytes.Equal(bd.Backlink, tx.ReclaimFC.Backlink) {
 		return ErrInvalidBacklink
+	}
+	if tx.CloseFCTransfer.Transaction.ServerMetadata.Fee+tx.Transaction.ClientMetadata.MaxFee > bd.V {
+		return ErrReclaimFCInvalidTxFee
 	}
 	// verify proof
 	proof := tx.ReclaimFC.CloseFeeCreditProof
 	if proof.ProofType != block.ProofType_PRIM {
 		return ErrInvalidProofType
 	}
-	err = proof.Verify(tx.ReclaimFC.CloseFeeCreditTransfer.UnitId, closeFC, verifiers, hashAlgorithm)
+	err := proof.Verify(tx.ReclaimFC.CloseFeeCreditTransfer.UnitId, tx.CloseFCTransfer, verifiers, hashAlgorithm)
 	if err != nil {
 		return errors.Wrap(err, "reclaimFC: invalid proof")
 	}

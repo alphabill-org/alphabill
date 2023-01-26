@@ -274,15 +274,15 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 	case *fc.TransferFeeCreditWrapper:
 		log.Debug("Processing transferFC %v", tx)
 		if bd == nil {
-			return errors.New("unit not found for transferFC")
+			return errors.New("transferFC: unit not found")
 		}
 		bdd, ok := bd.Data.(*BillData)
 		if !ok {
-			return errors.New("invalid unit data type for transferFC")
+			return errors.New("transferFC: invalid unit type")
 		}
 		err = validateTransferFC(tx, bdd)
 		if err != nil {
-			return errors.Wrap(err, "transferFC validation failed")
+			return errors.Wrap(err, "transferFC: validation failed")
 		}
 
 		// calculate actual tx fee cost
@@ -296,7 +296,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 				if !ok {
 					return data // TODO should return error instead
 				}
-				newBillData.V = newBillData.V - v
+				newBillData.V -= v
 				newBillData.T = m.currentBlockNumber
 				newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 				return newBillData
@@ -370,6 +370,42 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
+		return nil
+	case *fc.ReclaimFeeCreditWrapper:
+		log.Debug("Processing reclaimFC %v", tx)
+		if bd == nil {
+			return errors.New("reclaimFC: unit not found")
+		}
+		bdd, ok := bd.Data.(*BillData)
+		if !ok {
+			return errors.New("reclaimFC: invalid unit type")
+		}
+		err = validateReclaimFC(tx, bdd, m.trustBase, m.hashAlgorithm)
+		if err != nil {
+			return errors.Wrap(err, "reclaimFC: validation failed")
+		}
+
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+
+		// add reclaimed value to source unit
+		v := tx.CloseFCTransfer.CloseFC.Amount - tx.CloseFCTransfer.Transaction.ServerMetadata.Fee - tx.Transaction.ServerMetadata.Fee
+		updateFunc := func(data rma.UnitData) (newData rma.UnitData) {
+			newBillData, ok := data.(*BillData)
+			if !ok {
+				return data // TODO should return error instead
+			}
+			newBillData.V += v
+			newBillData.T = m.currentBlockNumber
+			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+			return newBillData
+		}
+		updateAction := rma.UpdateData(gtx.UnitID(), updateFunc, tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.AtomicUpdate(updateAction)
+		if err != nil {
+			return err
+		}
+		m.feeCreditTxRecorder.recordReclaimFC(tx)
 		return nil
 	default:
 		return errors.Errorf("unknown type %T", gtx)

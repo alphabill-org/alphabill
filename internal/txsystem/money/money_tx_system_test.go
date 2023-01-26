@@ -462,6 +462,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	ib, err := rmaTree.GetUnit(initialBill.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, initialBill.Value-txAmount-txFee, ib.Data.Value())
+	require.Equal(t, txFee, transferFC.Transaction.ServerMetadata.Fee)
 
 	// send addFC
 	transferFCPb := transferFC.Transaction
@@ -484,6 +485,26 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	fcrUnitData, ok := fcrUnit.Data.(*txsystem.FeeCreditRecord)
 	require.True(t, ok)
 	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
+	require.Equal(t, txFee, addFC.Transaction.ServerMetadata.Fee)
+
+	// send closeFC
+	closeFC := testfc.NewCloseFC(t,
+		testfc.NewCloseFCAttr(
+			testfc.WithCloseFCAmount(remainingValue),
+		),
+		testtransaction.WithUnitId(fcrUnitID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err = txSystem.Execute(closeFC)
+	require.NoError(t, err)
+	require.Equal(t, txFee, closeFC.Transaction.ServerMetadata.Fee)
+
+	// verify user fee credit is closed (balance 0, unit will be deleted on round completion)
+	fcrUnit, err = rmaTree.GetUnit(uint256.NewInt(0).SetBytes(fcrUnitID))
+	require.NoError(t, err)
+	fcrUnitData, ok = fcrUnit.Data.(*txsystem.FeeCreditRecord)
+	require.True(t, ok)
+	require.EqualValues(t, 0, fcrUnitData.Balance)
 }
 
 func unitIdFromTransaction(tx *billSplitWrapper) []byte {

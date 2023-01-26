@@ -326,8 +326,11 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+
 		// find net value of credit
-		v := tx.TransferFC.TransferFC.Amount - txFeeFunc()
+		v := tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee
 		if bd == nil {
 			// add credit
 			fcr := &txsystem.FeeCreditRecord{
@@ -347,6 +350,25 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			if err != nil {
 				return err
 			}
+		}
+		return nil
+	case *fc.CloseFeeCreditWrapper:
+		log.Debug("Processing closeFC %v", tx)
+		err = m.feeCreditTxValidator.ValidateCloseFC(&validator.CloseFCValidationContext{
+			Tx:   tx,
+			Unit: bd,
+		})
+		if err != nil {
+			return err
+		}
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+
+		// decrement credit
+		updateFunc := txsystem.DecrCredit(tx.UnitID(), tx.CloseFC.Amount, tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.AtomicUpdate(updateFunc)
+		if err != nil {
+			return err
 		}
 		return nil
 	default:

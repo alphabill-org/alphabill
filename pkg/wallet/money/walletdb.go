@@ -62,7 +62,6 @@ type TxContext interface {
 type wdb struct {
 	db         *bolt.DB
 	dbFilePath string
-	walletPass string
 }
 
 type wdbtx struct {
@@ -76,7 +75,7 @@ func OpenDb(config WalletConfig) (*wdb, error) {
 		return nil, err
 	}
 	dbFilePath := path.Join(walletDir, WalletFileName)
-	return openDb(dbFilePath, config.WalletPass, false)
+	return openDb(dbFilePath, false)
 }
 
 func (w *wdbtx) GetBill(accountIndex uint64, billId []byte) (*Bill, error) {
@@ -406,7 +405,7 @@ func (w *wdb) createBuckets() error {
 	})
 }
 
-func openDb(dbFilePath string, walletPass string, create bool) (*wdb, error) {
+func openDb(dbFilePath string, create bool) (*wdb, error) {
 	exists := util.FileExists(dbFilePath)
 	if create && exists {
 		return nil, errWalletDbAlreadyExists
@@ -419,7 +418,7 @@ func openDb(dbFilePath string, walletPass string, create bool) (*wdb, error) {
 		return nil, err
 	}
 
-	w := &wdb{db, dbFilePath, walletPass}
+	w := &wdb{db, dbFilePath}
 	err = w.createBuckets()
 	if err != nil {
 		return nil, err
@@ -438,7 +437,7 @@ func createNewDb(config WalletConfig) (*wdb, error) {
 	}
 
 	dbFilePath := path.Join(walletDir, WalletFileName)
-	return openDb(dbFilePath, config.WalletPass, true)
+	return openDb(dbFilePath, true)
 }
 
 func parseBill(v []byte) (*Bill, error) {

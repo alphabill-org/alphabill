@@ -12,7 +12,7 @@ type (
 	// Manager manages accounts
 	Manager interface {
 		GetAll() []Account
-		CreateKeys(string)
+		CreateKeys(mnemonic string)
 		GetAccountKey(uint64) (*wallet.AccountKey, error)
 		GetAccountKeys() ([]*wallet.AccountKey, error)
 		GetMaxAccountIndex() (uint64, error)
@@ -24,6 +24,7 @@ type (
 	managerImpl struct {
 		db       Db
 		accounts *accounts
+		password string
 	}
 )
 
@@ -31,8 +32,8 @@ var (
 	ErrInvalidPassword = errors.New("invalid password")
 )
 
-func NewAccountManager(dir string, pw string, create bool) (Manager, error) {
-	db, err := getDb(dir, create)
+func NewAccountManager(dir string, password string, create bool) (Manager, error) {
+	db, err := getDb(dir, create, password)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func NewAccountManager(dir string, pw string, create bool) (Manager, error) {
 			AccountKeys:  *val.PubKeyHash,
 		}
 	}
-	return &managerImpl{db: db, accounts: &accounts{accounts: accs}}, nil
+	return &managerImpl{db: db, accounts: &accounts{accounts: accs}, password: password}, nil
 }
 
 func (m *managerImpl) CreateKeys(mnemonic string) {
@@ -63,7 +64,7 @@ func (m *managerImpl) CreateKeys(mnemonic string) {
 	if err != nil {
 		return
 	}
-	err = m.saveKeys(keys, "") //TODO pw
+	err = m.saveKeys(keys)
 	if err != nil {
 		return
 	}
@@ -158,7 +159,7 @@ func (m *managerImpl) AddAccount() (uint64, []byte, error) {
 // IsEncrypted returns true if wallet exists and is encrypted and or false if wallet exists and is not encrypted,
 // returns error if wallet does not exist.
 func IsEncrypted(dir string, pw string) (bool, error) {
-	db, err := getDb(dir, false)
+	db, err := getDb(dir, false, pw)
 	if err != nil {
 		return false, err
 	}
@@ -176,18 +177,17 @@ func (m *managerImpl) Close() {
 	}
 }
 
-func getDb(dir string, create bool) (Db, error) {
-	// TODO pw
+func getDb(dir string, create bool, pw string) (Db, error) {
 	if create {
-		return createNewDb(dir, "")
+		return createNewDb(dir, pw)
 	}
 	dbFilePath := path.Join(dir, AccountFileName)
-	return openDb(dbFilePath, "", false)
+	return openDb(dbFilePath, pw, false)
 }
 
-func (m *managerImpl) saveKeys(keys *wallet.Keys, pw string) error {
+func (m *managerImpl) saveKeys(keys *wallet.Keys) error {
 	return m.db.WithTransaction(func(tx TxContext) error {
-		err := tx.SetEncrypted(pw != "")
+		err := tx.SetEncrypted(m.password != "")
 		if err != nil {
 			return err
 		}

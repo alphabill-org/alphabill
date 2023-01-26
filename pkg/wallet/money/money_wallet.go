@@ -74,36 +74,20 @@ type (
 // CreateNewWallet creates a new wallet. To synchronize wallet with a node call Sync.
 // Shutdown needs to be called to release resources used by wallet.
 // If mnemonic seed is empty then new mnemonic will ge generated, otherwise wallet is restored using given mnemonic.
-func CreateNewWallet(mnemonic string, config WalletConfig) (*Wallet, error) {
+func CreateNewWallet(am account.Manager, mnemonic string, config WalletConfig) (*Wallet, error) {
 	db, err := getDb(config, true)
-	if err != nil {
-		return nil, err
-	}
-	dir, err := config.GetWalletDir()
-	if err != nil {
-		return nil, err
-	}
-	am, err := account.NewAccountManager(dir, config.WalletPass, true)
 	if err != nil {
 		return nil, err
 	}
 	return createMoneyWallet(config, db, mnemonic, am)
 }
 
-func LoadExistingWallet(config WalletConfig) (*Wallet, error) {
+func LoadExistingWallet(config WalletConfig, am account.Manager) (*Wallet, error) {
 	db, err := getDb(config, false)
 	if err != nil {
 		return nil, err
 	}
 
-	dir, err := config.GetWalletDir()
-	if err != nil {
-		return nil, err
-	}
-	am, err := account.NewAccountManager(dir, config.WalletPass, false)
-	if err != nil {
-		return nil, err
-	}
 	mw := &Wallet{config: config, db: db, dustCollectorJob: cron.New(), dcWg: newDcWaitGroup(), am: am}
 
 	mw.Wallet = wallet.New().

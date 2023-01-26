@@ -16,9 +16,6 @@ type WalletConfig struct {
 	// if not set then boltdb is created at DbPath.
 	Db Db
 
-	// WalletPass used to encrypt/decrypt sensitive information. If empty then wallet will not be encrypted.
-	WalletPass string
-
 	// Configuration options for connecting to alphabill nodes.
 	AlphabillClientConfig client.AlphabillClientConfig
 }

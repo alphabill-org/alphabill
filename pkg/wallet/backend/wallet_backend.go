@@ -9,6 +9,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )
@@ -50,8 +51,8 @@ type (
 	}
 
 	Pubkey struct {
-		Pubkey     []byte            `json:"pubkey"`
-		PubkeyHash *wallet.KeyHashes `json:"pubkeyHash"`
+		Pubkey     []byte             `json:"pubkey"`
+		PubkeyHash *account.KeyHashes `json:"pubkeyHash"`
 	}
 
 	BillStore interface {
@@ -80,7 +81,7 @@ func New(wallet *wallet.Wallet, store BillStore, verifiers map[string]abcrypto.V
 func NewPubkey(pubkey []byte) *Pubkey {
 	return &Pubkey{
 		Pubkey:     pubkey,
-		PubkeyHash: wallet.NewKeyHash(pubkey),
+		PubkeyHash: account.NewKeyHash(pubkey),
 	}
 }
 
@@ -151,7 +152,7 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *block.Bills) error {
 	if key == nil {
 		return errKeyNotIndexed
 	}
-	pubkeyHash := wallet.NewKeyHash(pubkey)
+	pubkeyHash := account.NewKeyHash(pubkey)
 	domainBills := newBillsFromProto(bills)
 	for _, bill := range domainBills {
 		tx, err := txConverter.ConvertTx(bill.TxProof.Tx)

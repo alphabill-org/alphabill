@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -44,7 +44,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			}
 			for _, tx := range b.Transactions {
 				for n := 0; n <= len(accounts); n++ {
-					var keyHashes *wallet.KeyHashes
+					var keyHashes *account.KeyHashes
 					if n > 0 {
 						keyHashes = accounts[n-1].PubKeyHash
 					}

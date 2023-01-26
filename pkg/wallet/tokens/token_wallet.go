@@ -288,7 +288,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	return syncErr
 }
 
-func (w *Wallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, error) {
+func (w *Wallet) getAccountKey(accountNumber uint64) (*account.AccountKey, error) {
 	if accountNumber > 0 {
 		return w.am.GetAccountKey(accountNumber - 1)
 	}

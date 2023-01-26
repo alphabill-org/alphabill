@@ -4,7 +4,6 @@ import (
 	"errors"
 	"path"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 )
 
@@ -15,8 +14,8 @@ type (
 		CreateKeys(mnemonic string) error
 		AddAccount() (uint64, []byte, error)
 		GetMnemonic() (string, error)
-		GetAccountKey(uint64) (*wallet.AccountKey, error)
-		GetAccountKeys() ([]*wallet.AccountKey, error)
+		GetAccountKey(uint64) (*AccountKey, error)
+		GetAccountKeys() ([]*AccountKey, error)
 		GetMaxAccountIndex() (uint64, error)
 		GetPublicKey(accountIndex uint64) ([]byte, error)
 		GetPublicKeys() ([][]byte, error)
@@ -68,7 +67,7 @@ func newManager(dir string, password string, create bool) (*managerImpl, error) 
 }
 
 func (m *managerImpl) CreateKeys(mnemonic string) error {
-	keys, err := wallet.NewKeys(mnemonic)
+	keys, err := NewKeys(mnemonic)
 	if err != nil {
 		return err
 	}
@@ -84,11 +83,11 @@ func (m *managerImpl) CreateKeys(mnemonic string) error {
 	return nil
 }
 
-func (m *managerImpl) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
+func (m *managerImpl) GetAccountKey(accountIndex uint64) (*AccountKey, error) {
 	return m.db.Do().GetAccountKey(accountIndex)
 }
 
-func (m *managerImpl) GetAccountKeys() ([]*wallet.AccountKey, error) {
+func (m *managerImpl) GetAccountKeys() ([]*AccountKey, error) {
 	return m.db.Do().GetAccountKeys()
 }
 
@@ -142,8 +141,8 @@ func (m *managerImpl) AddAccount() (uint64, []byte, error) {
 	}
 	accountIndex += 1
 
-	derivationPath := wallet.NewDerivationPath(accountIndex)
-	accountKey, err := wallet.NewAccountKey(masterKey, derivationPath)
+	derivationPath := NewDerivationPath(accountIndex)
+	accountKey, err := NewAccountKey(masterKey, derivationPath)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -190,7 +189,7 @@ func getDb(dir string, create bool, pw string) (Db, error) {
 	return openDb(dbFilePath, pw, false)
 }
 
-func (m *managerImpl) saveKeys(keys *wallet.Keys) error {
+func (m *managerImpl) saveKeys(keys *Keys) error {
 	return m.db.WithTransaction(func(tx TxContext) error {
 		err := tx.SetEncrypted(m.password != "")
 		if err != nil {

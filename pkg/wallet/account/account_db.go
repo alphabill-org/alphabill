@@ -11,7 +11,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	bolt "go.etcd.io/bbolt"
 )
@@ -42,9 +41,9 @@ type Db interface {
 }
 
 type TxContext interface {
-	AddAccount(accountIndex uint64, key *wallet.AccountKey) error
-	GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error)
-	GetAccountKeys() ([]*wallet.AccountKey, error)
+	AddAccount(accountIndex uint64, key *AccountKey) error
+	GetAccountKey(accountIndex uint64) (*AccountKey, error)
+	GetAccountKeys() ([]*AccountKey, error)
 	GetMaxAccountIndex() (uint64, error)
 	SetMaxAccountIndex(accountIndex uint64) error
 
@@ -70,7 +69,7 @@ type adbtx struct {
 	tx  *bolt.Tx
 }
 
-func (a *adbtx) AddAccount(accountIndex uint64, key *wallet.AccountKey) error {
+func (a *adbtx) AddAccount(accountIndex uint64, key *AccountKey) error {
 	return a.withTx(a.tx, func(tx *bolt.Tx) error {
 		val, err := json.Marshal(key)
 		if err != nil {
@@ -88,8 +87,8 @@ func (a *adbtx) AddAccount(accountIndex uint64, key *wallet.AccountKey) error {
 	}, true)
 }
 
-func (a *adbtx) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
-	var key *wallet.AccountKey
+func (a *adbtx) GetAccountKey(accountIndex uint64) (*AccountKey, error) {
+	var key *AccountKey
 	err := a.withTx(a.tx, func(tx *bolt.Tx) error {
 		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
 		if err != nil {
@@ -112,8 +111,8 @@ func (a *adbtx) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
 	return key, nil
 }
 
-func (a *adbtx) GetAccountKeys() ([]*wallet.AccountKey, error) {
-	keys := make(map[uint64]*wallet.AccountKey)
+func (a *adbtx) GetAccountKeys() ([]*AccountKey, error) {
+	keys := make(map[uint64]*AccountKey)
 	err := a.withTx(a.tx, func(tx *bolt.Tx) error {
 		return tx.Bucket(accountsBucket).ForEach(func(accountIndex, v []byte) error {
 			if v != nil { // v is nil if entry is a bucket (ignore accounts metadata)
@@ -128,7 +127,7 @@ func (a *adbtx) GetAccountKeys() ([]*wallet.AccountKey, error) {
 			if err != nil {
 				return err
 			}
-			var accountKeyRes *wallet.AccountKey
+			var accountKeyRes *AccountKey
 			err = json.Unmarshal(accountKeyDecrypted, &accountKeyRes)
 			if err != nil {
 				return err
@@ -141,7 +140,7 @@ func (a *adbtx) GetAccountKeys() ([]*wallet.AccountKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	res := make([]*wallet.AccountKey, len(keys))
+	res := make([]*AccountKey, len(keys))
 	for accIdx, key := range keys {
 		res[accIdx] = key
 	}

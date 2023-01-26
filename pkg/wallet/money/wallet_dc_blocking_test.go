@@ -14,7 +14,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -180,7 +180,7 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	return &wg
 }
 
-func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey, bills ...*Bill) *alphabill.GetBlockResponse {
+func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *account.AccountKey, bills ...*Bill) *alphabill.GetBlockResponse {
 	var dcTxs []*txsystem.Transaction
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &txsystem.Transaction{
@@ -195,7 +195,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 	return createBlockWithSwapTx(dcNonce32[:], k, dcTxs)
 }
 
-func createBlockWithSwapTx(dcNonce []byte, k *wallet.AccountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
+func createBlockWithSwapTx(dcNonce []byte, k *account.AccountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
 	return &alphabill.GetBlockResponse{
 		Block: &block.Block{
 			SystemIdentifier:  alphabillMoneySystemId,

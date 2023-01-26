@@ -9,7 +9,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -60,7 +60,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 
 	switch tx := stx.(type) {
 	case moneytx.Transfer:
-		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.NewBearer()) {
+		if account.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.NewBearer()) {
 			wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
 				Id:     txPb.UnitId,
@@ -77,7 +77,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 			}
 		}
 	case moneytx.TransferDC:
-		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
+		if account.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
 			wlog.Info(fmt.Sprintf("received TransferDC order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
 				Id:       txPb.UnitId,
@@ -118,7 +118,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 				return err
 			}
 		}
-		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
+		if account.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.TargetBearer()) {
 			id := utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
 			wlog.Info(fmt.Sprintf("received split order (new UnitID=%x) for pubkey=%x", id, pubKey.Pubkey))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
@@ -131,7 +131,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 			}
 		}
 	case moneytx.Swap:
-		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.OwnerCondition()) {
+		if account.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.OwnerCondition()) {
 			wlog.Info(fmt.Sprintf("received swap order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{
 				Id:     txPb.UnitId,

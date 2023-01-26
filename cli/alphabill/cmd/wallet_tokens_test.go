@@ -14,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/holiman/uint256"
@@ -27,9 +26,9 @@ type accountManagerMock struct {
 	recordedIndex uint64
 }
 
-func (a *accountManagerMock) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
+func (a *accountManagerMock) GetAccountKey(accountIndex uint64) (*account.AccountKey, error) {
 	a.recordedIndex = accountIndex
-	return &wallet.AccountKey{PubKeyHash: &wallet.KeyHashes{Sha256: a.keyHash}}, nil
+	return &account.AccountKey{PubKeyHash: &account.KeyHashes{Sha256: a.keyHash}}, nil
 }
 
 func (a *accountManagerMock) GetAll() []account.Account {
@@ -48,7 +47,7 @@ func (a *accountManagerMock) GetMnemonic() (string, error) {
 	return "", nil
 }
 
-func (a *accountManagerMock) GetAccountKeys() ([]*wallet.AccountKey, error) {
+func (a *accountManagerMock) GetAccountKeys() ([]*account.AccountKey, error) {
 	return nil, nil
 }
 

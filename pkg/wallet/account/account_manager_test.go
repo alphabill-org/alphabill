@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/stretchr/testify/require"
 	"github.com/tyler-smith/go-bip39"
@@ -48,7 +47,7 @@ func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	ac, err := am.GetAccountKey(0)
 	require.NoError(t, err)
 
-	eac, err := wallet.NewAccountKey(masterKey, testAccountKeyDerivationPath)
+	eac, err := NewAccountKey(masterKey, testAccountKeyDerivationPath)
 	require.NoError(t, err)
 	require.NotNil(t, eac)
 	require.EqualValues(t, eac, ac)

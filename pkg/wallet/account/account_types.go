@@ -2,8 +2,6 @@ package account
 
 import (
 	"sync"
-
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 type (
@@ -14,7 +12,7 @@ type (
 	}
 	Account struct {
 		AccountIndex uint64
-		AccountKeys  wallet.KeyHashes
+		AccountKeys  KeyHashes
 	}
 )
 

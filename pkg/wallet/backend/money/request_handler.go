@@ -1,16 +1,15 @@
-package backend
+package money
 
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -25,8 +24,8 @@ const (
 
 type (
 	RequestHandler struct {
-		service            WalletBackendService
-		listBillsPageLimit int
+		Service            WalletBackendService
+		ListBillsPageLimit int
 	}
 
 	ListBillsResponse struct {
@@ -67,7 +66,7 @@ var (
 	errInvalidBillIDLength     = errors.New("bill_id hex string must be 66 characters long (with 0x prefix)")
 )
 
-func (s *RequestHandler) router() *mux.Router {
+func (s *RequestHandler) Router() *mux.Router {
 	// TODO add request/response headers middleware
 	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
 
@@ -78,17 +77,10 @@ func (s *RequestHandler) router() *mux.Router {
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
-
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof/{pubkey}", s.getProofFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/proof/{pubkey}", s.setProofFunc).Methods("POST", "OPTIONS")
 	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
-
-	// TODO authorization
-	v1Admin := apiV1.PathPrefix("/admin/").Subrouter()
-	v1Admin.HandleFunc("/add-key", s.addKeyFunc).Methods("POST", "OPTIONS")
-
 	return apiRouter
 }
 
@@ -96,24 +88,13 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
 		wlog.Debug("error parsing GET /list-bills request: ", err)
-		w.WriteHeader(http.StatusBadRequest)
-		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
-		}
+		s.handlePubKeyNotFoundError(w, err)
 		return
 	}
-	bills, err := s.service.GetBills(pk)
+	bills, err := s.Service.GetBills(pk)
 	if err != nil {
-		if errors.Is(err, ErrPubKeyNotIndexed) {
-			wlog.Debug("error on GET /list-bills: ", err)
-			w.WriteHeader(http.StatusBadRequest)
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			wlog.Error("error on GET /list-bills: ", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		wlog.Error("error on GET /list-bills: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	limit, offset := s.parsePagingParams(r)
@@ -132,27 +113,16 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
 		wlog.Debug("error parsing GET /balance request: ", err)
-		w.WriteHeader(http.StatusBadRequest)
-		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
-		}
+		s.handlePubKeyNotFoundError(w, err)
 		return
 	}
-	bills, err := s.service.GetBills(pk)
+	bills, err := s.Service.GetBills(pk)
 	if err != nil {
-		if errors.Is(err, ErrPubKeyNotIndexed) {
-			wlog.Debug("error on GET /balance: ", err)
-			w.WriteHeader(http.StatusBadRequest)
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			wlog.Error("error on GET /balance: ", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		wlog.Error("error on GET /balance: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	sum := uint64(0)
+	var sum uint64
 	for _, b := range bills {
 		if !b.IsDCBill {
 			sum += b.Value
@@ -163,17 +133,6 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
-	pubkey, err := s.parsePubkeyURLParam(r)
-	if err != nil {
-		wlog.Debug("error parsing GET /proof/{pubkey} request: ", err)
-		w.WriteHeader(http.StatusBadRequest)
-		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
-		}
-		return
-	}
 	billID, err := parseBillID(r)
 	if err != nil {
 		wlog.Debug("error parsing GET /proof{pubkey} request: ", err)
@@ -185,56 +144,19 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	bill, err := s.service.GetBill(pubkey, billID)
+	bill, err := s.Service.GetBill(billID)
 	if err != nil {
-		if errors.Is(err, ErrPubKeyNotIndexed) || errors.Is(err, ErrBillNotFound) {
-			wlog.Debug("error on GET /proof/{pubkey}: ", err)
-			w.WriteHeader(http.StatusBadRequest)
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			wlog.Error("error on GET /proof/{pubkey}: ", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		wlog.Error("error on GET /proof/{pubkey}: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if bill == nil {
+		wlog.Debug("error on GET /proof/{pubkey}: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return
 	}
 	writeAsProtoJson(w, bill.toProtoBills())
-}
-
-func (s *RequestHandler) setProofFunc(w http.ResponseWriter, r *http.Request) {
-	pubkey, err := s.parsePubkeyURLParam(r)
-	if err != nil {
-		wlog.Debug("error parsing POST /proof/{pubkey} request: ", err)
-		w.WriteHeader(http.StatusBadRequest)
-		if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
-		}
-		return
-	}
-	req, err := s.readBillsProto(r)
-	if err != nil {
-		wlog.Debug("error decoding POST /proof/{pubkey} request: ", err)
-		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
-		return
-	}
-	err = s.service.SetBills(pubkey, req)
-	if err != nil {
-		if errors.Is(err, errEmptyBillsList) ||
-			errors.Is(err, errKeyNotIndexed) ||
-			errors.Is(err, block.ErrProofVerificationFailed) ||
-			errors.Is(err, txverifier.ErrVerificationFailed) {
-			wlog.Debug("verification error POST /proof/{pubkey} request: ", err)
-			w.WriteHeader(http.StatusBadRequest)
-			writeAsJson(w, ErrorResponse{Message: err.Error()})
-		} else {
-			wlog.Error("error on POST /proof/{pubkey} request: ", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		return
-	}
-	writeAsJson(w, EmptyResponse{})
 }
 
 func (s *RequestHandler) parsePubkeyURLParam(r *http.Request) ([]byte, error) {
@@ -243,8 +165,17 @@ func (s *RequestHandler) parsePubkeyURLParam(r *http.Request) ([]byte, error) {
 	return parsePubKey(pubkeyParam)
 }
 
+func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err error) {
+	w.WriteHeader(http.StatusBadRequest)
+	if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
+		writeAsJson(w, ErrorResponse{Message: err.Error()})
+	} else {
+		writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
+	}
+}
+
 func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -256,39 +187,8 @@ func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
 	return req, nil
 }
 
-func (s *RequestHandler) addKeyFunc(w http.ResponseWriter, r *http.Request) {
-	req := &AddKeyRequest{}
-	err := json.NewDecoder(r.Body).Decode(req)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: "invalid request body"})
-		wlog.Debug("error decoding POST /add-key request ", err)
-		return
-	}
-	pubkeyBytes, err := decodePubKeyHex(req.Pubkey)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		writeAsJson(w, ErrorResponse{Message: err.Error()})
-		wlog.Debug("error parsing POST /add-key request ", err)
-		return
-	}
-	err = s.service.AddKey(pubkeyBytes)
-	if err != nil {
-		if errors.Is(err, ErrKeyAlreadyExists) {
-			wlog.Info("error on POST /add-key key ", req.Pubkey, " already exists")
-			w.WriteHeader(http.StatusBadRequest)
-			writeAsJson(w, ErrorResponse{Message: "pubkey already exists"})
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-			wlog.Error("error on POST /add-key ", err)
-		}
-		return
-	}
-	writeAsJson(w, EmptyResponse{})
-}
-
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request) {
-	maxBlockNumber, err := s.service.GetMaxBlockNumber()
+	maxBlockNumber, err := s.Service.GetMaxBlockNumber()
 	if err != nil {
 		log.Err(err).Msg("GET /block-height error fetching max block number")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -298,12 +198,12 @@ func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request)
 }
 
 func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
-	limit := parseInt(r.URL.Query().Get("limit"), s.listBillsPageLimit)
+	limit := parseInt(r.URL.Query().Get("limit"), s.ListBillsPageLimit)
 	if limit < 0 {
 		limit = 0
 	}
-	if limit > s.listBillsPageLimit {
-		limit = s.listBillsPageLimit
+	if limit > s.ListBillsPageLimit {
+		limit = s.ListBillsPageLimit
 	}
 	offset := parseInt(r.URL.Query().Get("offset"), 0)
 	if offset < 0 {
@@ -377,9 +277,6 @@ func decodeBillIdHex(billID string) ([]byte, error) {
 }
 
 func parseInt(str string, def int) int {
-	if str == "" {
-		return def
-	}
 	num, err := strconv.Atoi(str)
 	if err != nil {
 		return def

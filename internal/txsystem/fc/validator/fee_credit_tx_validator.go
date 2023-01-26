@@ -34,7 +34,6 @@ var (
 	ErrCloseFCInvalidUnitType = errors.New("closeFC: unit data is not of type fee credit record")
 	ErrCloseFCInvalidAmount   = errors.New("closeFC: invalid amount")
 	ErrCloseFCInvalidFee      = errors.New("closeFC: invalid fee")
-	ErrCloseFCInvalidBalance  = errors.New("closeFC: invalid negative balance")
 )
 
 type (
@@ -183,19 +182,13 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 		return ErrCloseFCInvalidUnitType
 	}
 
-	// unspecified check: cannot close negative balance, impled from the following checks
-	if fcr.Balance < 0 {
-		return ErrCloseFCInvalidBalance
-	}
-	fcrBalance := (uint64)(fcr.Balance)
-
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
-	if tx.CloseFC.Amount != fcrBalance {
+	if tx.CloseFC.Amount != fcr.Balance {
 		return ErrCloseFCInvalidAmount
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
-	if tx.Transaction.ClientMetadata.MaxFee > fcrBalance {
+	if tx.Transaction.ClientMetadata.MaxFee > fcr.Balance {
 		return ErrCloseFCInvalidFee
 	}
 	return nil

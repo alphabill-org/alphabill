@@ -264,12 +264,6 @@ func TestCloseFC(t *testing.T) {
 			wantErr: ErrCloseFCInvalidUnitType,
 		},
 		{
-			name:    "Invalid balance",
-			unit:    &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: -1}},
-			tx:      testfc.NewCloseFC(t, nil),
-			wantErr: ErrCloseFCInvalidBalance,
-		},
-		{
 			name:    "Invalid amount",
 			unit:    &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
 			tx:      testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51))),

@@ -151,12 +151,16 @@ func (x *ConsensusManager) loop() {
 			if found {
 				logger.Debug("Partition %X, pending request exists %v, ignoring new %v", req.SystemIdentifier,
 					ir, req.IR)
-				break
+				continue
 			}
 			logger.Debug("Partition %X, IR change request received", req.SystemIdentifier)
 			x.changes[req.SystemIdentifier] = req.IR
 		// handle timeouts
-		case nt := <-x.timers.C:
+		case nt, ok := <-x.timers.C:
+			if !ok {
+				logger.Warning("Timers channel closed, exiting main loop")
+				return
+			}
 			if nt == nil {
 				continue
 			}

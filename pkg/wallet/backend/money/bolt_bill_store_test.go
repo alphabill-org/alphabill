@@ -1,4 +1,4 @@
-package generic_indexer
+package money
 
 import (
 	"path/filepath"

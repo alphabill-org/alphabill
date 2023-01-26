@@ -3,10 +3,11 @@ package network
 import (
 	"context"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	mrand "math/rand"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p"
@@ -21,9 +22,6 @@ import (
 )
 
 const (
-	ErrStringInvalidPrivateKey = "invalid private key"
-	ErrStringInvalidPublicKey  = "invalid public key"
-
 	defaultAddress = "/ip4/0.0.0.0/tcp/0"
 )
 
@@ -262,12 +260,12 @@ func readOrGenerateKeyPair(conf *PeerConfiguration) (privateKey crypto.PrivKey, 
 	} else {
 		privateKey, err = crypto.UnmarshalSecp256k1PrivateKey(conf.KeyPair.PrivateKey)
 		if err != nil {
-			err = errors.Wrap(err, ErrStringInvalidPrivateKey)
+			err = fmt.Errorf("invalid private key error, %w", err)
 			return
 		}
 		publicKey, err = crypto.UnmarshalSecp256k1PublicKey(conf.KeyPair.PublicKey)
 		if err != nil {
-			err = errors.Wrap(err, ErrStringInvalidPublicKey)
+			err = fmt.Errorf("invalid public key error, %w", err)
 			return
 		}
 	}

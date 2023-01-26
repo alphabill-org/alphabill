@@ -286,7 +286,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		}
 
 		// calculate actual tx fee cost
-		tx.Transaction.ServerMetadata.Fee = txCost()
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
 
 		// remove value from source unit, or delete source bill entirely
 		v := tx.TransferFC.Amount + tx.Transaction.ServerMetadata.Fee
@@ -316,8 +316,38 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		// record fee tx for end of the round consolidation
 		m.feeCreditTxRecorder.recordTransferFC(tx)
 		return nil
-	case *fc.ReclaimFeeCreditWrapper:
-		m.feeCreditTxRecorder.recordReclaimFC(tx)
+	case *fc.AddFeeCreditWrapper:
+		log.Debug("Processing addFC %v", tx)
+		err = m.feeCreditTxValidator.ValidateAddFC(&validator.AddFCValidationContext{
+			Tx:                 tx,
+			Unit:               bd,
+			CurrentRoundNumber: m.currentBlockNumber,
+		})
+		if err != nil {
+			return err
+		}
+		// find net value of credit
+		v := tx.TransferFC.TransferFC.Amount - txFeeFunc()
+		if bd == nil {
+			// add credit
+			fcr := &txsystem.FeeCreditRecord{
+				Balance: v,
+				Hash:    tx.Hash(m.hashAlgorithm),
+				Timeout: tx.TransferFC.TransferFC.LatestAdditionTime + 1,
+			}
+			updateFunc := txsystem.AddCredit(tx.UnitID(), tx.AddFC.FeeCreditOwnerCondition, fcr, tx.Hash(m.hashAlgorithm))
+			err = m.revertibleState.AtomicUpdate(updateFunc)
+			if err != nil {
+				return err
+			}
+		} else {
+			// increment credit
+			updateFunc := txsystem.IncrCredit(tx.UnitID(), v, tx.TransferFC.TransferFC.LatestAdditionTime+1, tx.Hash(m.hashAlgorithm))
+			err = m.revertibleState.AtomicUpdate(updateFunc)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	default:
 		return errors.Errorf("unknown type %T", gtx)
@@ -549,7 +579,7 @@ func (b *BillData) Value() rma.SummaryValue {
 	return rma.Uint64SummaryValue(b.V)
 }
 
-// txCost placeholder transaction cost function, all tx costs hardcoded to 1 (smallest?) alpha
-func txCost() uint64 {
+// txFeeFunc placeholder transaction cost function, all tx costs hardcoded to 1 (smallest?) alpha
+func txFeeFunc() uint64 {
 	return 1
 }

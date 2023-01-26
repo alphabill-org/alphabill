@@ -437,28 +437,53 @@ func TestRegisterData_Revert(t *testing.T) {
 	require.Equal(t, vdState, state)
 }
 
-func TestExecute_TransferFC_OK(t *testing.T) {
-	rmaTree, txSystem, _ := createRMATreeAndTxSystem(t)
+// Test Transfer->Add->Close->Reclaim sequence OK
+func TestExecute_FeeCreditSequence_OK(t *testing.T) {
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
+	txFee := txFeeFunc()
+	fcrUnitID := util.Uint256ToBytes(uint256.NewInt(100))
+	txSystem.BeginBlock(1)
 
 	// transfer 20 alphas to FCB
 	txAmount := uint64(20)
-	txFee := txCost()
 	transferFC := testfc.NewTransferFC(t,
 		testfc.NewTransferFCAttr(
 			testfc.WithBacklink(nil),
 			testfc.WithAmount(txAmount),
+			testfc.WithTargetRecordID(fcrUnitID),
 		),
 		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
 		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
-	txSystem.BeginBlock(1)
 	err := txSystem.Execute(transferFC)
 	require.NoError(t, err)
 
-	// verify IB is value is reduced by 21
+	// verify unit value is reduced by 21
 	ib, err := rmaTree.GetUnit(initialBill.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, initialBill.Value-txAmount-txFee, ib.Data.Value())
+
+	// send addFC
+	transferFCPb := transferFC.Transaction
+	transferFCProof := testblock.CreateProof(t, transferFC, signer, transferFCPb.UnitId)
+	addFC := testfc.NewAddFC(t, signer,
+		testfc.NewAddFCAttr(t, signer,
+			testfc.WithTransferFCTx(transferFCPb),
+			testfc.WithTransferFCProof(transferFCProof),
+			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+		),
+		testtransaction.WithUnitId(fcrUnitID),
+	)
+	err = txSystem.Execute(addFC)
+	require.NoError(t, err)
+
+	// verify user fee credit is 19 (transfer 20 minus fee 1)
+	remainingValue := txAmount - txFee // 19
+	fcrUnit, err := rmaTree.GetUnit(uint256.NewInt(0).SetBytes(fcrUnitID))
+	require.NoError(t, err)
+	fcrUnitData, ok := fcrUnit.Data.(*txsystem.FeeCreditRecord)
+	require.True(t, ok)
+	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
 }
 
 func unitIdFromTransaction(tx *billSplitWrapper) []byte {

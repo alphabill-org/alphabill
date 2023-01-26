@@ -114,7 +114,7 @@ func (r *grpcServer) GetBlocks(_ context.Context, req *alphabill.GetBlocksReques
 		}
 		res = append(res, b)
 	}
-	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.UnicityCertificate.InputRecord.RoundNumber, MaxRoundNumber: latestRn}, nil
+	return &alphabill.GetBlocksResponse{Blocks: res, MaxBlockNumber: latestBlock.UnicityCertificate.InputRecord.RoundNumber, MaxRoundNumber: latestRn, BatchMaxBlockNumber: batchMaxBlockNumber}, nil
 }
 
 func verifyRequest(req *alphabill.GetBlocksRequest) error {

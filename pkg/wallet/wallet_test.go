@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWalletShutdownTerminatesSync(t *testing.T) {
-	w := New().SetBlockProcessor(DummyBlockProcessor{}).SetABClient(&DummyAlphabillClient{}).Build()
+	w := New().SetBlockProcessor(DummyBlockProcessor{}).SetABClient(&clientmock.MockAlphabillClient{}).Build()
 
 	// when Sync is called
 	wg := sync.WaitGroup{}
@@ -34,4 +35,15 @@ func TestWalletShutdownTerminatesSync(t *testing.T) {
 		wg.Wait()
 		return true
 	}, test.WaitDuration, test.WaitTick)
+}
+
+func TestWallet_SyncToMaxBlockNumber(t *testing.T) {
+	client := &clientmock.MockAlphabillClient{}
+	client.SetIncrementOnFetch(true)
+	w := New().SetBlockProcessor(DummyBlockProcessor{}).SetABClient(client).Build()
+	client.SetMaxBlockNumber(5)
+	client.SetMaxRoundNumber(10)
+	err := w.SyncToMaxBlockNumber(context.Background(), 0)
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), client.GetLastRequestedBlockNumber())
 }

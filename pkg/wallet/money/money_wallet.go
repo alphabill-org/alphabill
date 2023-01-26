@@ -98,6 +98,10 @@ func LoadExistingWallet(config WalletConfig, am account.Manager) (*Wallet, error
 	return mw, nil
 }
 
+func (w *Wallet) GetAccountManager() account.Manager {
+	return w.am
+}
+
 func (w *Wallet) ProcessBlock(b *block.Block) error {
 	log.Info("processing block: ", b.BlockNumber)
 	if !bytes.Equal(alphabillMoneySystemId, b.GetSystemIdentifier()) {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -19,6 +19,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -38,7 +39,7 @@ func TestWalletCreateCmd(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-	require.True(t, util.FileExists(path.Join(os.TempDir(), "wallet-test", "wallet", "wallet.db")))
+	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "wallet", "wallet.db")))
 	verifyStdout(t, outputWriter,
 		"Creating new wallet...",
 		"Wallet created successfully.",
@@ -124,11 +125,11 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.NoError(t, err)
 
 	w1, homedir1 := createNewWallet(t, ":9543")
-	w1PubKey, _ := w1.GetPublicKey(0)
+	w1PubKey, _ := w1.GetAccountManager().GetPublicKey(0)
 	w1.Shutdown()
 
 	w2, homedir2 := createNewWallet(t, ":9543")
-	w2PubKey, _ := w2.GetPublicKey(0)
+	w2PubKey, _ := w2.GetAccountManager().GetPublicKey(0)
 	w2.Shutdown()
 
 	// transfer initial bill to wallet 1
@@ -190,7 +191,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	//walletName := "wallet"
 	w, homedir := createNewWallet(t, ":9543")
-	pubKey1, _ := w.GetPublicKey(0)
+	pubKey1, _ := w.GetAccountManager().GetPublicKey(0)
 	w.Shutdown()
 
 	pubKey2Hex := addAccount(t, homedir)
@@ -241,7 +242,7 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 	// create wallet with 3 accounts
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	w, homedir := createNewWallet(t, ":9543")
-	pubKey1, _ := w.GetPublicKey(0)
+	pubKey1, _ := w.GetAccountManager().GetPublicKey(0)
 	w.Shutdown()
 
 	// transfer initial bill to wallet
@@ -299,7 +300,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	// verify wallet-2 send-all-balance outputs both bills
 	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --key %d", 2, pubKey1Hex, homedir, 2))
 	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
-	require.Contains(t, stdout.lines[1], fmt.Sprintf("Transaction proof(s) saved to: %s", path.Join(homedir, "bills.json")))
+	require.Contains(t, stdout.lines[1], fmt.Sprintf("Transaction proof(s) saved to: %s", filepath.Join(homedir, "bills.json")))
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
@@ -398,9 +399,12 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 }
 
 func createNewWallet(t *testing.T, addr string) (*money.Wallet, string) {
-	walletDir := t.TempDir()
-	w, err := money.CreateNewWallet("", money.WalletConfig{
-		DbPath: path.Join(walletDir, "wallet"),
+	homeDir := t.TempDir()
+	walletDir := filepath.Join(homeDir, "wallet")
+	am, err := account.NewManager(walletDir, "", true)
+	require.NoError(t, err)
+	w, err := money.CreateNewWallet(am, "", money.WalletConfig{
+		DbPath: walletDir,
 		AlphabillClientConfig: client.AlphabillClientConfig{
 			Uri:          addr,
 			WaitForReady: false,
@@ -408,13 +412,15 @@ func createNewWallet(t *testing.T, addr string) (*money.Wallet, string) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, w)
-	return w, walletDir
+	return w, homeDir
 }
 
 func createNewTestWallet(t *testing.T) string {
 	homeDir := t.TempDir()
-	walletDir := path.Join(homeDir, "wallet")
-	w, err := money.CreateNewWallet("dinosaur simple verify deliver bless ridge monkey design venue six problem lucky", money.WalletConfig{
+	walletDir := filepath.Join(homeDir, "wallet")
+	am, err := account.NewManager(walletDir, "", true)
+	require.NoError(t, err)
+	w, err := money.CreateNewWallet(am, "dinosaur simple verify deliver bless ridge monkey design venue six problem lucky", money.WalletConfig{
 		DbPath: walletDir,
 	})
 	defer w.Shutdown()

@@ -11,11 +11,12 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	t "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
@@ -884,7 +885,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, erro
 	if err != nil {
 		return nil, err
 	}
-	mw, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
 	if err != nil {
 		return nil, err
 	}
@@ -896,14 +897,14 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*t.Wallet, erro
 	if err != nil {
 		return nil, err
 	}
-	tw, err := t.Load(mw, sync)
+	tw, err := t.Load(config.WalletHomeDir, client.AlphabillClientConfig{Uri: uri}, am, sync)
 	if err != nil {
 		return nil, err
 	}
 	return tw, nil
 }
 
-func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Predicate, []*t.PredicateInput, error) {
+func readParentTypeInfo(cmd *cobra.Command, am account.Manager) (tokens.Predicate, []*t.PredicateInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err
@@ -922,7 +923,7 @@ func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Pr
 	return parentType, creationInputs, nil
 }
 
-func readPredicateInput(cmd *cobra.Command, flag string, am wallet.AccountManager) ([]*t.PredicateInput, error) {
+func readPredicateInput(cmd *cobra.Command, flag string, am account.Manager) ([]*t.PredicateInput, error) {
 	creationInputStrs, err := cmd.Flags().GetStringSlice(flag)
 	if err != nil {
 		return nil, err
@@ -944,7 +945,7 @@ func readPredicateInput(cmd *cobra.Command, flag string, am wallet.AccountManage
 // ptpkh
 // ptpkh:1
 // ptpkh:0x<hex> where hex value is the hash of a public key
-func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountManager) ([]byte, error) {
+func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am account.Manager) ([]byte, error) {
 	clause, err := cmd.Flags().GetString(flag)
 	if err != nil {
 		return nil, err
@@ -952,7 +953,7 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am wallet.AccountM
 	return parsePredicateClause(clause, am)
 }
 
-func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, error) {
+func parsePredicateClause(clause string, am account.Manager) ([]byte, error) {
 	if len(clause) == 0 || clause == predicateTrue {
 		return script.PredicateAlwaysTrue(), nil
 	}
@@ -997,7 +998,7 @@ func parsePredicateClause(clause string, am wallet.AccountManager) ([]byte, erro
 	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
 }
 
-func parsePredicateArguments(arguments []string, am wallet.AccountManager) ([]*t.PredicateInput, error) {
+func parsePredicateArguments(arguments []string, am account.Manager) ([]*t.PredicateInput, error) {
 	creationInputs := make([]*t.PredicateInput, 0, len(arguments))
 	for _, argument := range arguments {
 		input, err := parsePredicateArgument(argument, am)
@@ -1012,7 +1013,7 @@ func parsePredicateArguments(arguments []string, am wallet.AccountManager) ([]*t
 // parsePredicateArguments uses the following format:
 // empty|true|false|empty produce an empty predicate argument
 // ptpkh (key 1) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
-func parsePredicateArgument(argument string, am wallet.AccountManager) (*t.PredicateInput, error) {
+func parsePredicateArgument(argument string, am account.Manager) (*t.PredicateInput, error) {
 	if len(argument) == 0 || argument == predicateEmpty || argument == predicateTrue || argument == predicateFalse {
 		return &t.PredicateInput{Argument: script.PredicateArgumentEmpty()}, nil
 	}

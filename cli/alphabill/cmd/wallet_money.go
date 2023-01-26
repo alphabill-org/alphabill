@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -109,10 +110,14 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	c := money.WalletConfig{DbPath: config.WalletHomeDir, WalletPass: password}
+	am, err := account.NewManager(config.WalletHomeDir, password, true)
+	if err != nil {
+		return err
+	}
+	c := money.WalletConfig{DbPath: config.WalletHomeDir}
 	var w *money.Wallet
 	consoleWriter.Println("Creating new wallet...")
-	w, err = money.CreateNewWallet(mnemonic, c)
+	w, err = money.CreateNewWallet(am, mnemonic, c)
 	if err != nil {
 		return err
 	}
@@ -121,7 +126,7 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 
 	// print mnemonic if new wallet was created
 	if mnemonic == "" {
-		mnemonicSeed, err := w.GetMnemonic()
+		mnemonicSeed, err := w.GetAccountManager().GetMnemonic()
 		if err != nil {
 			return err
 		}
@@ -238,7 +243,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 			if err != nil {
 				return err
 			}
-			outputPath = path.Join(cwd, outputPath)
+			outputPath = filepath.Join(cwd, outputPath)
 		}
 	}
 	bills, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: pubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
@@ -352,7 +357,7 @@ func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	defer w.Shutdown()
 
-	pubKeys, err := w.GetPublicKeys()
+	pubKeys, err := w.GetAccountManager().GetPublicKeys()
 	if err != nil {
 		return err
 	}
@@ -450,7 +455,20 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*mone
 		DbPath:                walletDir,
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: uri},
 	}
-	isEncrypted, err := money.IsEncrypted(config)
+	am, err := loadExistingAccountManager(cmd, walletDir)
+	if err != nil {
+		return nil, err
+	}
+	return money.LoadExistingWallet(config, am)
+}
+
+func loadExistingAccountManager(cmd *cobra.Command, walletDir string) (account.Manager, error) {
+	pw := ""
+	am, err := account.NewManager(walletDir, pw, false)
+	if err != nil {
+		return nil, err
+	}
+	isEncrypted, err := am.IsEncrypted()
 	if err != nil {
 		return nil, err
 	}
@@ -459,9 +477,13 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*mone
 		if err != nil {
 			return nil, err
 		}
-		config.WalletPass = walletPass
+		pw = walletPass
 	}
-	return money.LoadExistingWallet(config)
+	am, err = account.NewManager(walletDir, pw, false)
+	if err != nil {
+		return nil, err
+	}
+	return am, nil
 }
 
 func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
@@ -472,7 +494,7 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 	if walletLocation != "" {
 		config.WalletHomeDir = walletLocation
 	} else {
-		config.WalletHomeDir = path.Join(config.Base.HomeDir, "wallet")
+		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "wallet")
 	}
 	return nil
 }

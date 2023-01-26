@@ -14,6 +14,7 @@ type (
 		GetAll() []Account
 		CreateKeys(mnemonic string) error
 		AddAccount() (uint64, []byte, error)
+		GetMnemonic() (string, error)
 		GetAccountKey(uint64) (*wallet.AccountKey, error)
 		GetAccountKeys() ([]*wallet.AccountKey, error)
 		GetMaxAccountIndex() (uint64, error)

@@ -66,6 +66,10 @@ func (w *Wallet) Shutdown() {
 	}
 }
 
+func (w *Wallet) GetAccountManager() account.Manager {
+	return w.am
+}
+
 func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token type")
 	parentType, err := w.db.Do().GetTokenType(attrs.ParentTypeId)

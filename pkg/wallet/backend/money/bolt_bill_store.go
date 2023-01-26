@@ -3,6 +3,7 @@ package money
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 	bolt "go.etcd.io/bbolt"
@@ -99,6 +100,9 @@ func (s *BoltBillStoreTx) GetBills(ownerPredicate []byte) ([]*Bill, error) {
 			unit, err := s.getUnit(tx, unitID)
 			if err != nil {
 				return err
+			}
+			if unit == nil {
+				return fmt.Errorf("unit in secondary index not found in primary unit bucket unitID=%x", unitID)
 			}
 			units = append(units, unit)
 			return nil

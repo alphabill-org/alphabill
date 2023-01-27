@@ -8,7 +8,6 @@ import (
 	bolt "go.etcd.io/bbolt"
 
 	"github.com/alphabill-org/alphabill/internal/util"
-	wtokens "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 )
 
 var (
@@ -25,7 +24,7 @@ type storage struct {
 	db *bolt.DB
 }
 
-func (s *storage) SaveTokenType(data *wtokens.TokenUnitType) error {
+func (s *storage) SaveTokenType(data *TokenUnitType) error {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token type data: %w", err)
@@ -35,7 +34,7 @@ func (s *storage) SaveTokenType(data *wtokens.TokenUnitType) error {
 	})
 }
 
-func (s *storage) GetTokenType(id []byte) (*wtokens.TokenUnitType, error) {
+func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	var data []byte
 	if err := s.db.View(func(tx *bolt.Tx) error {
 		if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
@@ -46,14 +45,14 @@ func (s *storage) GetTokenType(id []byte) (*wtokens.TokenUnitType, error) {
 		return nil, err
 	}
 
-	d := &wtokens.TokenUnitType{}
+	d := &TokenUnitType{}
 	if err := json.Unmarshal(data, d); err != nil {
 		return nil, fmt.Errorf("failed to deserialize token type data (%x): %w", id, err)
 	}
 	return d, nil
 }
 
-func (s *storage) SaveTokenUnit(data *wtokens.TokenUnit) error {
+func (s *storage) SaveToken(data *TokenUnit) error {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token unit data: %w", err)
@@ -61,6 +60,23 @@ func (s *storage) SaveTokenUnit(data *wtokens.TokenUnit) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket(bucketTokenUnit).Put(data.ID, b)
 	})
+}
+
+func (s *storage) GetToken(id TokenID) (*TokenUnit, error) {
+	var data []byte
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		if data = tx.Bucket(bucketTokenUnit).Get(id); data == nil {
+			return fmt.Errorf("failed to read token data %s[%x]: %w", bucketTokenUnit, id, errRecordNotFound)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	d := &TokenUnit{}
+	if err := json.Unmarshal(data, d); err != nil {
+		return nil, fmt.Errorf("failed to deserialize token data (%x): %w", id, err)
+	}
+	return d, nil
 }
 
 func (s *storage) GetBlockNumber() (uint64, error) {

@@ -16,7 +16,7 @@ var (
 	bucketTokenType = []byte("token-type")
 	bucketTokenUnit = []byte("token-unit")
 
-	keyBlockHeight = []byte("block-height")
+	keyBlockNumber = []byte("block-number")
 )
 
 var errRecordNotFound = errors.New("not found")
@@ -66,9 +66,9 @@ func (s *storage) SaveTokenUnit(data *wtokens.TokenUnit) error {
 func (s *storage) GetBlockNumber() (uint64, error) {
 	var blockNumber uint64
 	err := s.db.View(func(tx *bolt.Tx) error {
-		blockNumberBytes := tx.Bucket(bucketMetadata).Get(keyBlockHeight)
+		blockNumberBytes := tx.Bucket(bucketMetadata).Get(keyBlockNumber)
 		if blockNumberBytes == nil {
-			return fmt.Errorf("block number not stored (%s->%s)", bucketMetadata, keyBlockHeight)
+			return fmt.Errorf("block number not stored (%s->%s)", bucketMetadata, keyBlockNumber)
 		}
 		blockNumber = util.BytesToUint64(blockNumberBytes)
 		return nil
@@ -78,7 +78,7 @@ func (s *storage) GetBlockNumber() (uint64, error) {
 
 func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(bucketMetadata).Put(keyBlockHeight, util.Uint64ToBytes(blockNumber))
+		return tx.Bucket(bucketMetadata).Put(keyBlockNumber, util.Uint64ToBytes(blockNumber))
 	})
 }
 
@@ -97,9 +97,9 @@ func (s *storage) createBuckets(buckets ...[]byte) error {
 
 func (s *storage) initMetaData() error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		val := tx.Bucket(bucketMetadata).Get(keyBlockHeight)
+		val := tx.Bucket(bucketMetadata).Get(keyBlockNumber)
 		if val == nil {
-			return tx.Bucket(bucketMetadata).Put(keyBlockHeight, util.Uint64ToBytes(0))
+			return tx.Bucket(bucketMetadata).Put(keyBlockNumber, util.Uint64ToBytes(0))
 		}
 		return nil
 	})

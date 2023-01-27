@@ -424,14 +424,17 @@ func (m *moneyTxSystem) State() (txsystem.State, error) {
 
 func (m *moneyTxSystem) BeginBlock(blockNr uint64) {
 	m.currentBlockNumber = blockNr
+	m.feeCreditTxRecorder = newFeeCreditTxRecorder()
 }
 
 func (m *moneyTxSystem) Revert() {
 	m.revertibleState.Revert()
+	m.feeCreditTxRecorder = nil
 }
 
 func (m *moneyTxSystem) Commit() {
 	m.revertibleState.Commit()
+	m.feeCreditTxRecorder = nil
 }
 
 func (m *moneyTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
@@ -545,10 +548,6 @@ func (m *moneyTxSystem) consolidateFees() error {
 			return err
 		}
 	}
-
-	// clear recorded fee credit transactions
-	m.feeCreditTxRecorder = newFeeCreditTxRecorder()
-	// TODO clear in commit and/or revert functions instead?
 	return nil
 }
 

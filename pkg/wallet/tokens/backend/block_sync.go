@@ -36,7 +36,7 @@ func syncBlocks(ctx context.Context, db Storage, abc client.ABClient, batchSize 
 		if err != nil {
 			return fmt.Errorf("failed to create token tx system: %w", err)
 		}
-		bp := &blockProcessor{store: db, txs: txs}
+		bp := &blockProcessor{store: db, txp: &txProcessor{store: db, txs: txs}}
 		return processBlocks(ctx, blocks, bp.ProcessBlock)
 	})
 

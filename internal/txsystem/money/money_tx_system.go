@@ -139,7 +139,6 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 		currentBlockNumber:   uint64(0),
 		trustBase:            options.trustBase,
 		sdrs:                 make(map[string]*genesis.SystemDescriptionRecord),
-		feeCreditTxRecorder:  newFeeCreditTxRecorder(),
 		feeCreditTxValidator: validator.NewDefaultFeeCreditTxValidator(options.systemIdentifier, options.systemIdentifier, hashAlgorithm, options.trustBase),
 	}
 

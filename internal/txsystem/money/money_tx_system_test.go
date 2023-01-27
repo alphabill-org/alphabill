@@ -378,9 +378,8 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 3, moneyFCUnit.Data.Value())
 
-	// verfy that fee credit tx recorder is empty
-	require.Len(t, txSystem.feeCreditTxRecorder.transferFeeCredits, 0)
-	require.Len(t, txSystem.feeCreditTxRecorder.reclaimFeeCredits, 0)
+	// verfy that fee credit tx recorder is nil
+	require.Nil(t, txSystem.feeCreditTxRecorder)
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {

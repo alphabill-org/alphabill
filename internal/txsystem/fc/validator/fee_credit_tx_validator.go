@@ -3,10 +3,11 @@ package validator
 import (
 	"bytes"
 	"crypto"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
@@ -151,7 +152,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 	}
 	err = proof.Verify(tx.AddFC.FeeCreditTransfer.UnitId, transferFC, v.verifiers, v.hashAlgorithm)
 	if err != nil {
-		return errors.Wrap(err, "proof is not valid")
+		return fmt.Errorf("proof is not valid: %w", err)
 	}
 	return nil
 }

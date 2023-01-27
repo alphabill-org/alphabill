@@ -3,12 +3,13 @@ package fc
 import (
 	"bytes"
 	"crypto"
+	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -83,11 +84,11 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 		}
 		fcGen, err := NewFeeCreditTx(pb.FeeCreditTransfer)
 		if err != nil {
-			return nil, errors.Wrap(err, "add fee credit wrapping failed")
+			return nil, fmt.Errorf("add fee credit wrapping failed: %w", err)
 		}
 		fcWrapper, ok := fcGen.(*TransferFeeCreditWrapper)
 		if !ok {
-			return nil, errors.Errorf("transfer FC wrapper is invalid type: %T", fcWrapper)
+			return nil, fmt.Errorf("transfer FC wrapper is invalid type: %T", fcWrapper)
 		}
 		return &AddFeeCreditWrapper{
 			Wrapper:    Wrapper{Transaction: tx},
@@ -112,11 +113,11 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 		}
 		fcGen, err := NewFeeCreditTx(pb.CloseFeeCreditTransfer)
 		if err != nil {
-			return nil, errors.Wrap(err, "reclaim fee credit wrapping failed")
+			return nil, fmt.Errorf("reclaim fee credit wrapping failed: %w", err)
 		}
 		fcWrapper, ok := fcGen.(*CloseFeeCreditWrapper)
 		if !ok {
-			return nil, errors.Errorf("close fee credit wrapper is invalid type: %T", fcWrapper)
+			return nil, fmt.Errorf("close fee credit wrapper is invalid type: %T", fcWrapper)
 		}
 		return &ReclaimFeeCreditWrapper{
 			Wrapper:         Wrapper{Transaction: tx},

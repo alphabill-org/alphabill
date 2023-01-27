@@ -1,109 +1,64 @@
 #!/bin/bash
+
+clean_start=true
+build=true
+# exit on error
+set -e
+
+# print help
+usage() { echo "Usage: $0 [-h usage] [-b skip build alphabill] [-r resume instead of regenerating everything]"; exit 0; }
+
+# handle arguments
+while getopts "hbr" o; do
+  case "${o}" in
+  b)
+    build=false
+    ;;
+  r)
+    clean_start=false
+    ;;
+  h | *) # help.
+    usage
+    ;;
+  esac
+done
+
 # build binary
-make clean build
-mkdir testab
-mkdir testab/rootchain
-moneyNodeAddresses=""
-vdNodeAddresses=""
-tokensNodeAddresses=""
+if [ "$build" == true ]; then
+  make build
+fi
 
-# Generate money node genesis files.
-for i in 1 2 3
-do
-  # "-g" flags also generates keys
-  build/alphabill money-genesis --home testab/money$i -g
-done
+# get common functions
+source helper.sh
 
-# Generate vd node genesis files.
-for i in 1 2 3
-do
-  mkdir testab/vd$i
-  # "-g" flags also generates keys
-  build/alphabill vd-genesis --home testab/vd$i -g
-done
+if [ $clean_start == true ]; then
+  echo "clearing testab directory"
+  rm -rf testab || true
+  mkdir testab
+  # Generate all genesis files
+  echo "generating genesis files"
+  # Generate money node genesis files.
+  generate_partition_node_genesis "money" 3
+  # Generate money node genesis files.
+  generate_partition_node_genesis "vd" 3
+  # Generate money node genesis files.
+  generate_partition_node_genesis "token" 3
+  # generate root node genesis files
+  generate_root_genesis 3
+fi
 
-# Generate token partition node genesis files.
-for i in 1 2 3
-do
-  mkdir testab/tokens$i
-  # "-g" flags also generates keys
-  build/alphabill tokens-genesis --home testab/tokens$i -g
-done
+# start root
+echo "starting root nodes"
+start_root_nodes
 
-# generate rootchain and partition genesis files
-build/alphabill root-genesis new --home testab/rootchain -o testab/rootchain/genesis -p testab/tokens1/tokens/node-genesis.json -p testab/tokens2/tokens/node-genesis.json -p testab/tokens3/tokens/node-genesis.json -p testab/money1/money/node-genesis.json -p testab/money2/money/node-genesis.json -p testab/money3/money/node-genesis.json -p testab/vd1/vd/node-genesis.json -p testab/vd2/vd/node-genesis.json -p testab/vd3/vd/node-genesis.json -k testab/rootchain/keys.json -g
+# start money partition
+echo "starting money partition"
+start_partition_nodes "money"
 
-#start root chain
-build/alphabill root --home testab/rootchain -f testab/rootchain/rootchain.db -k testab/rootchain/keys.json -g testab/rootchain/genesis/root-genesis.json > testab/rootchain/rootchain.log &
+# start vd partition
+echo "starting vd partition"
+start_partition_nodes "vd"
 
-moneyPort=26666
-# money partition node addresses
-for i in 1 2 3
-do
-  id=$(build/alphabill identifier -k testab/money$i/money/keys.json | tail -n1)
-  moneyNodeAddresses="$moneyNodeAddresses,$id=/ip4/127.0.0.1/tcp/$moneyPort";
-
-  ((moneyPort=moneyPort+1))
-done
-
-moneyNodeAddresses="${moneyNodeAddresses:1}"
-
-moneyPort=26666
-moneyGrpcPort=26766
-moneyRestPort=26866
-#start money partition nodes
-for i in 1 2 3
-do
-  build/alphabill money --home testab/money$i -f testab/money$i/money/blocks.db -k testab/money$i/money/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$moneyPort" --server-address ":$moneyGrpcPort" --rest-server-address "localhost:$moneyRestPort" -g testab/rootchain/genesis/partition-genesis-0.json -p "$moneyNodeAddresses" > "testab/money$i/money$i.log" &
-  ((moneyPort=moneyPort+1))
-  ((moneyGrpcPort=moneyGrpcPort+1))
-  ((moneyRestPort=moneyRestPort+1))
-done
-
-vdPort=27666
-# vd partition node addresses
-for i in 1 2 3
-do
-  id=$(build/alphabill identifier -k testab/vd$i/vd/keys.json | tail -n1)
-  vdNodeAddresses="$vdNodeAddresses,$id=/ip4/127.0.0.1/tcp/$vdPort";
-
-  ((vdPort=vdPort+1))
-done
-
-vdNodeAddresses="${vdNodeAddresses:1}"
-
-vdPort=27666
-vdGrpcPort=27766
-vdRestPort=27866
-#start vd partition nodes
-for i in 1 2 3
-do
-  build/alphabill vd --home testab/vd$i -f testab/vd$i/vd/blocks.db -k testab/vd$i/vd/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$vdPort" --server-address ":$vdGrpcPort" --rest-server-address "localhost:$vdRestPort" -g testab/rootchain/genesis/partition-genesis-1.json -p "$vdNodeAddresses" > "testab/vd$i/vd$i.log" &
-  ((vdPort=vdPort+1))
-  ((vdGrpcPort=vdGrpcPort+1))
-  ((vdRestPort=vdRestPort+1))
-done
-
-tokensPort=28666
-# tokens partition node addresses
-for i in 1 2 3
-do
-  id=$(build/alphabill identifier -k testab/tokens$i/tokens/keys.json | tail -n1)
-  tokensNodeAddresses="$tokensNodeAddresses,$id=/ip4/127.0.0.1/tcp/$tokensPort";
-
-  ((tokensPort=tokensPort+1))
-done
-
-tokensNodeAddresses="${tokensNodeAddresses:1}"
-
-tokensPort=28666
-tokensGrpcPort=28766
-tokensRestPort=28866
-#start tokens partition nodes
-for i in 1 2 3
-do
-  build/alphabill tokens --home testab/tokens$i -f testab/tokens$i/tokens/blocks.db -k testab/tokens$i/tokens/keys.json -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$tokensPort" --server-address ":$tokensGrpcPort" --rest-server-address "localhost:$tokensRestPort" -g testab/rootchain/genesis/partition-genesis-2.json -p "$tokensNodeAddresses" > "testab/tokens$i/tokens$i.log" &
-  ((tokensPort=tokensPort+1))
-  ((tokensGrpcPort=tokensGrpcPort+1))
-  ((tokensRestPort=tokensRestPort+1))
-done
+# start token partition
+echo "starting tokens partition"
+start_partition_nodes "tokens"

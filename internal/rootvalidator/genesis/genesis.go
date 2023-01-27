@@ -5,12 +5,14 @@ import (
 	gocrypto "crypto"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 const (
@@ -285,6 +287,11 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 			}
 		}
 	}
+	// sort genesis partition by system id
+	sort.Slice(genesisPartitions, func(i, j int) bool {
+
+		return util.BytesToUint32(genesisPartitions[i].SystemDescriptionRecord.SystemIdentifier) < util.BytesToUint32(genesisPartitions[j].SystemDescriptionRecord.SystemIdentifier)
+	})
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{
 		TotalRootValidators: c.totalValidators,

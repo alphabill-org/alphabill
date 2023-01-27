@@ -14,8 +14,9 @@ import (
 
 /*
 Example usage
-start shard node:
-$ start-vd.sh
+start root and vd shard nodes:
+$ ./setup-testab.sh
+$ ./start.sh -r -p vd
 
 run script:
 $ go run scripts/verifiable_data/vd_register_data.go --data-hash 0x67588d4d37bf6f4d6c63ce4bda38da2b869012b1bc131db07aa1d2b5bfd810dd

@@ -3,11 +3,12 @@ package money
 import (
 	"bytes"
 	"crypto"
+	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -148,7 +149,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 		Backlink: nil,
 	}, nil))
 	if err != nil {
-		return nil, errors.Wrap(err, "could not set initial bill")
+		return nil, fmt.Errorf("could not set initial bill: %w", err)
 	}
 
 	// add fee credit bills to state tree
@@ -166,7 +167,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 			Backlink: nil,
 		}, nil))
 		if err != nil {
-			return nil, errors.Wrap(err, "could not set fee credit bill")
+			return nil, fmt.Errorf("could not set fee credit bill: %w", err)
 		}
 		txs.sdrs[string(sdr.SystemIdentifier)] = sdr
 	}
@@ -177,7 +178,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 		Backlink: nil,
 	}, nil))
 	if err != nil {
-		return nil, errors.Wrap(err, "could not set DC money supply")
+		return nil, fmt.Errorf("could not set DC money supply: %w", err)
 	}
 	txs.Commit()
 	return txs, nil
@@ -281,16 +282,17 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		}
 		err = validateTransferFC(tx, bdd)
 		if err != nil {
-			return errors.Wrap(err, "transferFC: validation failed")
+			return fmt.Errorf("transferFC: validation failed: %w", err)
 		}
 
 		// calculate actual tx fee cost
 		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
 
 		// remove value from source unit, or delete source bill entirely
+		var updateFunc rma.Action
 		v := tx.TransferFC.Amount + tx.Transaction.ServerMetadata.Fee
 		if v < bdd.V {
-			updateFunc := func(data rma.UnitData) (newData rma.UnitData) {
+			dataUpdateFunc := func(data rma.UnitData) (newData rma.UnitData) {
 				newBillData, ok := data.(*BillData)
 				if !ok {
 					return data // TODO should return error instead
@@ -300,17 +302,13 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 				newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 				return newBillData
 			}
-			updateAction := rma.UpdateData(gtx.UnitID(), updateFunc, tx.Hash(m.hashAlgorithm))
-			err = m.revertibleState.AtomicUpdate(updateAction)
-			if err != nil {
-				return err
-			}
+			updateFunc = rma.UpdateData(tx.UnitID(), dataUpdateFunc, tx.Hash(m.hashAlgorithm))
 		} else {
-			updateAction := rma.DeleteItem(gtx.UnitID())
-			err = m.revertibleState.AtomicUpdate(updateAction)
-			if err != nil {
-				return err
-			}
+			updateFunc = rma.DeleteItem(tx.UnitID())
+		}
+		err = m.revertibleState.AtomicUpdate(updateFunc)
+		if err != nil {
+			return fmt.Errorf("transferFC: failed to update state: %w", err)
 		}
 		// record fee tx for end of the round consolidation
 		m.feeCreditTxRecorder.recordTransferFC(tx)
@@ -323,7 +321,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			CurrentRoundNumber: m.currentBlockNumber,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("addFC tx validation failed: %w", err)
 		}
 		// calculate actual tx fee cost
 		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
@@ -345,7 +343,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		}
 		err = m.revertibleState.AtomicUpdate(updateFunc)
 		if err != nil {
-			return err
+			return fmt.Errorf("addFC state update failed: %w", err)
 		}
 		return nil
 	case *fc.CloseFeeCreditWrapper:
@@ -355,7 +353,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			Unit: bd,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
 		// calculate actual tx fee cost
 		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
@@ -364,7 +362,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		updateFunc := txsystem.DecrCredit(tx.UnitID(), tx.CloseFC.Amount, tx.Hash(m.hashAlgorithm))
 		err = m.revertibleState.AtomicUpdate(updateFunc)
 		if err != nil {
-			return err
+			return fmt.Errorf("closeFC: state update failed: %w", err)
 		}
 		return nil
 	case *fc.ReclaimFeeCreditWrapper:
@@ -378,7 +376,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		}
 		err = validateReclaimFC(tx, bdd, m.trustBase, m.hashAlgorithm)
 		if err != nil {
-			return errors.Wrap(err, "reclaimFC: validation failed")
+			return fmt.Errorf("reclaimFC: validation failed: %w", err)
 		}
 
 		// calculate actual tx fee cost
@@ -396,15 +394,15 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
 			return newBillData
 		}
-		updateAction := rma.UpdateData(gtx.UnitID(), updateFunc, tx.Hash(m.hashAlgorithm))
+		updateAction := rma.UpdateData(tx.UnitID(), updateFunc, tx.Hash(m.hashAlgorithm))
 		err = m.revertibleState.AtomicUpdate(updateAction)
 		if err != nil {
-			return err
+			return fmt.Errorf("reclaimFC: failed to update state: %w", err)
 		}
 		m.feeCreditTxRecorder.recordReclaimFC(tx)
 		return nil
 	default:
-		return errors.Errorf("unknown type %T", gtx)
+		return fmt.Errorf("unknown type %T", gtx)
 	}
 }
 
@@ -516,7 +514,7 @@ func (m *moneyTxSystem) consolidateFees() error {
 			fcUnit.StateHash)
 		err = m.revertibleState.AtomicUpdate(updateData)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to update [%x] partiton's fee credit bill: %w", sdr.SystemIdentifier, err)
 		}
 	}
 
@@ -526,7 +524,7 @@ func (m *moneyTxSystem) consolidateFees() error {
 		moneyFCUnitID := uint256.NewInt(0).SetBytes(m.sdrs[string(m.systemIdentifier)].FeeCreditBill.UnitId)
 		moneyFCUnit, err := m.revertibleState.GetUnit(moneyFCUnitID)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not find money fee credit bill: %w", err)
 		}
 		updateData := rma.UpdateData(moneyFCUnitID,
 			func(data rma.UnitData) (newData rma.UnitData) {
@@ -541,7 +539,7 @@ func (m *moneyTxSystem) consolidateFees() error {
 			moneyFCUnit.StateHash)
 		err = m.revertibleState.AtomicUpdate(updateData)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to update money fee credit bill with spent fees: %w", err)
 		}
 	}
 	return nil

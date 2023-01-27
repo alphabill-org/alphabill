@@ -10,9 +10,10 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -31,22 +32,17 @@ var (
 
 type (
 	Wallet struct {
-		mw            *money.Wallet
 		db            *tokensDb
 		txs           block.TxConverter
 		sync          bool
 		blockListener wallet.BlockProcessor
+		am            account.Manager
+		sdk           *wallet.Wallet
 	}
 )
 
-func Load(mw *money.Wallet, sync bool) (*Wallet, error) {
-	config := mw.GetConfig()
-	walletDir, err := config.GetWalletDir()
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := openTokensDb(walletDir)
+func Load(dir string, abConf client.AlphabillClientConfig, am account.Manager, sync bool) (*Wallet, error) {
+	db, err := openTokensDb(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -54,23 +50,24 @@ func Load(mw *money.Wallet, sync bool) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &Wallet{mw: mw, db: db, txs: txs, sync: sync, blockListener: nil}
-	w.mw.Wallet = wallet.New().
+	w := &Wallet{am: am, db: db, txs: txs, sync: sync, blockListener: nil}
+	w.sdk = wallet.New().
 		SetBlockProcessor(w).
-		SetABClient(mw.AlphabillClient).
+		SetABClientConf(abConf).
 		Build()
 	return w, nil
 }
 
-func (w *Wallet) GetAccountManager() wallet.AccountManager {
-	return w.mw
-}
-
 func (w *Wallet) Shutdown() {
-	w.mw.Shutdown()
+	w.am.Close()
+
 	if w.db != nil {
 		w.db.Close()
 	}
+}
+
+func (w *Wallet) GetAccountManager() account.Manager {
+	return w.am
 }
 
 func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
@@ -161,14 +158,14 @@ func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber i
 	var pubKeys [][]byte
 	singleKey := false
 	if accountNumber > AllAccounts+1 {
-		key, err := w.mw.GetPublicKey(uint64(accountNumber - 1))
+		key, err := w.am.GetPublicKey(uint64(accountNumber - 1))
 		if err != nil {
 			return nil, err
 		}
 		pubKeys = append(pubKeys, key)
 		singleKey = true
 	} else if accountNumber != alwaysTrueTokensAccountNumber {
-		pubKeys, err = w.mw.GetPublicKeys()
+		pubKeys, err = w.am.GetPublicKeys()
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +220,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 
 	attrs := newNonFungibleTransferTxAttrs(t, receiverPubKey)
 	sub, err := w.sendTx(tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
 		}
@@ -291,9 +288,9 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	return syncErr
 }
 
-func (w *Wallet) getAccountKey(accountNumber uint64) (*wallet.AccountKey, error) {
+func (w *Wallet) getAccountKey(accountNumber uint64) (*account.AccountKey, error) {
 	if accountNumber > 0 {
-		return w.mw.GetAccountKey(accountNumber - 1)
+		return w.am.GetAccountKey(accountNumber - 1)
 	}
 	return nil, nil
 }
@@ -318,7 +315,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	}
 
 	sub, err := w.sendTx(tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.GetAccountManager(), updatePredicateArgs, gtx)
+		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, gtx)
 		if err != nil {
 			return err
 		}

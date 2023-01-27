@@ -154,7 +154,7 @@ func TestTokensProcessBlock_withTx_sendTokens(t *testing.T) {
 	w.sync = true
 	defer w.Shutdown()
 
-	acc2idx, pubKey2, err := w.mw.AddAccount()
+	acc2idx, pubKey2, err := w.am.AddAccount()
 	acc2 := acc2idx + 1
 	require.NoError(t, err)
 	//prepare types

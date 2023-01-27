@@ -14,8 +14,9 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
@@ -105,7 +106,7 @@ func TestNewFungibleToken(t *testing.T) {
 			name:  "pub key bearer predicate",
 			accNr: uint64(1),
 			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintFungibleTokenAttributes) {
-				key, err := tw.mw.GetAccountKey(accNr - 1)
+				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
 				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
 			},
@@ -199,7 +200,7 @@ func TestNewNFT(t *testing.T) {
 			name:  "pub key bearer predicate",
 			accNr: uint64(1),
 			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes) {
-				key, err := tw.mw.GetAccountKey(accNr - 1)
+				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
 				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
 			},
@@ -422,9 +423,9 @@ func TestSendFungible(t *testing.T) {
 
 func TestList(t *testing.T) {
 	tw, _ := createTestWallet(t)
-	_, _, err := tw.mw.AddAccount() //#2
+	_, _, err := tw.am.AddAccount() //#2
 	require.NoError(t, err)
-	_, _, err = tw.mw.AddAccount() //#3 this acc has no tokens, should not be listed
+	_, _, err = tw.am.AddAccount() //#3 this acc has no tokens, should not be listed
 	require.NoError(t, err)
 	require.NoError(t, tw.db.WithTransaction(func(c TokenTxContext) error {
 		require.NoError(t, c.SetToken(0, &TokenUnit{ID: []byte{11}, TypeID: []byte{0x01}, Kind: FungibleToken, Symbol: "AB", Amount: 3}))
@@ -526,17 +527,18 @@ func TestList(t *testing.T) {
 }
 
 func createTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	c := money.WalletConfig{DbPath: t.TempDir()}
-	w, err := money.CreateNewWallet("", c)
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
-	tw, err := Load(w, false)
+	require.NoError(t, am.CreateKeys(""))
+	tw, err := Load(dir, client.AlphabillClientConfig{}, am, false)
 	t.Cleanup(func() {
 		deleteWallet(tw)
 	})
 	require.NoError(t, err)
 
 	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
-	w.AlphabillClient = mockClient
+	tw.sdk.AlphabillClient = mockClient
 	return tw, mockClient
 }
 
@@ -547,7 +549,6 @@ func deleteFile(dir string, file string) error {
 func deleteWallet(w *Wallet) {
 	if w != nil {
 		w.Shutdown()
-		w.mw.DeleteDb()
 		w.db.DeleteDb()
 	}
 }

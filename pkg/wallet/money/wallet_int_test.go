@@ -26,6 +26,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -39,19 +40,20 @@ const port = 9111
 
 func TestSync(t *testing.T) {
 	// setup wallet
-	_ = DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDbs(os.TempDir())
 	_ = log.InitStdoutLogger(log.DEBUG)
-	w, err := CreateNewWallet("", WalletConfig{
-		DbPath:                os.TempDir(),
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	w, err := CreateNewWallet(am, "", WalletConfig{
+		DbPath:                dir,
 		Db:                    nil,
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
 	})
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
 	require.NoError(t, err)
 
-	k, err := w.db.Do().GetAccountKey(0)
+	k, err := am.GetAccountKey(0)
+
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
@@ -135,15 +137,15 @@ func TestSync(t *testing.T) {
 
 func TestSyncToMaxBlockNumber(t *testing.T) {
 	// setup wallet
-	_ = DeleteWalletDb(os.TempDir())
+	_ = DeleteWalletDbs(os.TempDir())
 	_ = log.InitStdoutLogger(log.DEBUG)
-	w, err := CreateNewWallet("", WalletConfig{
-		DbPath:                os.TempDir(),
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	w, err := CreateNewWallet(am, "", WalletConfig{
+		DbPath:                dir,
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)}},
 	)
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
 	require.NoError(t, err)
 
 	// start server that sends given blocks to wallet
@@ -181,13 +183,12 @@ func TestSyncToMaxBlockNumber(t *testing.T) {
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// setup wallet
 	_ = log.InitStdoutLogger(log.DEBUG)
-	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet("", WalletConfig{
-		DbPath:                os.TempDir(),
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	w, err := CreateNewWallet(am, "", WalletConfig{
+		DbPath:                dir,
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)},
-	})
-	t.Cleanup(func() {
-		DeleteWallet(w)
 	})
 	require.NoError(t, err)
 	addBill(t, w, 100)
@@ -266,13 +267,13 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 
 	// setup wallet with multiple keys
 	_ = log.InitStdoutLogger(log.DEBUG)
-	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet("", WalletConfig{
-		DbPath:                os.TempDir(),
+	_ = DeleteWalletDbs(os.TempDir())
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	w, err := CreateNewWallet(am, "", WalletConfig{
+		DbPath:                dir,
 		AlphabillClientConfig: client.AlphabillClientConfig{Uri: addr},
-	})
-	t.Cleanup(func() {
-		DeleteWallet(w)
 	})
 	require.NoError(t, err)
 
@@ -280,7 +281,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	_, _, _ = w.AddAccount()
 
 	// transfer initial bill to wallet 1
-	pubkeys, err := w.GetPublicKeys()
+	pubkeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
 	transferInitialBillTx, err := createInitialBillTransferTx(pubkeys[0], initialBill.ID, initialBill.Value, 10000)
@@ -331,7 +332,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 }
 
 func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
-	receiverPubkey, err := w.GetPublicKey(accountIndexTo)
+	receiverPubkey, err := w.am.GetPublicKey(accountIndexTo)
 	require.NoError(t, err)
 
 	prevBalance, err := w.GetBalance(GetBalanceCmd{AccountIndex: accountIndexTo})

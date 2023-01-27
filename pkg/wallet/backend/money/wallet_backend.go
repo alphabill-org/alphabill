@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -40,8 +41,8 @@ type (
 	}
 
 	Pubkey struct {
-		Pubkey     []byte            `json:"pubkey"`
-		PubkeyHash *wallet.KeyHashes `json:"pubkeyHash"`
+		Pubkey     []byte             `json:"pubkey"`
+		PubkeyHash *account.KeyHashes `json:"pubkeyHash"`
 	}
 
 	// BillStore type for creating BillStoreTx transactions
@@ -105,7 +106,7 @@ func (w *WalletBackend) StartProcess(ctx context.Context) {
 
 // GetBills returns all bills for given public key.
 func (w *WalletBackend) GetBills(pubkey []byte) ([]*Bill, error) {
-	keyHashes := wallet.NewKeyHash(pubkey)
+	keyHashes := account.NewKeyHash(pubkey)
 	ownerPredicates := newOwnerPredicates(keyHashes)
 	s1, err := w.store.Do().GetBills(ownerPredicates.sha256)
 	if err != nil {
@@ -165,7 +166,7 @@ func (b *Bill) toProtoBills() *block.Bills {
 	}
 }
 
-func newOwnerPredicates(hashes *wallet.KeyHashes) *p2pkhOwnerPredicates {
+func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {
 	return &p2pkhOwnerPredicates{
 		sha256: script.PredicatePayToPublicKeyHashDefault(hashes.Sha256),
 		sha512: script.PredicatePayToPublicKeyHashDefault(hashes.Sha512),

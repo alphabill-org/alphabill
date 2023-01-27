@@ -16,7 +16,7 @@ import (
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -70,7 +70,7 @@ func (m *mockWalletService) SetBills(pubkey []byte, bills *block.Bills) error {
 func (m *mockWalletService) AddKey(pubkey []byte) error {
 	return m.store.AddKey(&Pubkey{
 		Pubkey:     pubkey,
-		PubkeyHash: wallet.NewKeyHash(pubkey),
+		PubkeyHash: account.NewKeyHash(pubkey),
 	})
 }
 

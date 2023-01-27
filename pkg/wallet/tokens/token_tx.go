@@ -18,7 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -33,7 +33,7 @@ type (
 	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
 )
 
-func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.Block, accNr uint64, key *wallet.KeyHashes) error {
+func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.Block, accNr uint64, key *account.KeyHashes) error {
 	gtx, err := w.txs.ConvertTx(tx)
 	if err != nil {
 		return err
@@ -251,17 +251,17 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 	return nil
 }
 
-func checkOwner(accNr uint64, pubkeyHashes *wallet.KeyHashes, bearerPredicate []byte) bool {
+func checkOwner(accNr uint64, pubkeyHashes *account.KeyHashes, bearerPredicate []byte) bool {
 	if accNr == alwaysTrueTokensAccountNumber {
 		return bytes.Equal(script.PredicateAlwaysTrue(), bearerPredicate)
 	} else {
-		return wallet.VerifyP2PKHOwner(pubkeyHashes, bearerPredicate)
+		return account.VerifyP2PKHOwner(pubkeyHashes, bearerPredicate)
 	}
 }
 
 func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
 	sub, err := w.sendTx(TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.GetAccountManager(), subtypePredicateArgs, gtx)
+		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, gtx)
 		if err != nil {
 			return err
 		}
@@ -274,7 +274,7 @@ func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInput
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func preparePredicateSignatures(am wallet.AccountManager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
+func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
 	signatures := make([][]byte, 0, len(args))
 	for _, input := range args {
 		if len(input.Argument) > 0 {
@@ -300,7 +300,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1
-		key, err := w.mw.GetAccountKey(accIdx)
+		key, err := w.am.GetAccountKey(accIdx)
 		if err != nil {
 			return nil, err
 		}
@@ -309,7 +309,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
 	sub, err := w.sendTx(tokenId, attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.GetAccountManager(), mintPredicateArgs, gtx)
+		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
 		if err != nil {
 			return err
 		}
@@ -332,7 +332,7 @@ func RandomID() (TokenID, error) {
 	return id, nil
 }
 
-func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountKey, txps txPreprocessor) (*submittedTx, error) {
+func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *account.AccountKey, txps txPreprocessor) (*submittedTx, error) {
 	txSub := &submittedTx{id: unitId}
 	if unitId == nil {
 		id, err := RandomID()
@@ -343,7 +343,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	}
 	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", txSub.id, reflect.TypeOf(attrs)))
 
-	blockNumber, err := w.mw.GetMaxBlockNumber()
+	blockNumber, err := w.sdk.GetMaxBlockNumber()
 	if err != nil {
 		return txSub, err
 	}
@@ -368,7 +368,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 		return txSub, err
 	}
 	tx.OwnerProof = sig
-	err = w.mw.SendTransaction(nil, tx, nil)
+	err = w.sdk.SendTransaction(nil, tx, nil)
 	if err != nil {
 		return txSub, err
 	}
@@ -376,7 +376,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	return txSub, nil
 }
 
-func signTx(gtx txsystem.GenericTransaction, ac *wallet.AccountKey) (tokens.Predicate, error) {
+func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (tokens.Predicate, error) {
 	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
@@ -439,7 +439,7 @@ func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *to
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (map[string]*submittedTx, uint64, error) {
+func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *account.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (map[string]*submittedTx, uint64, error) {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
@@ -464,7 +464,7 @@ func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *wallet.
 	return submissions, maxTimeout, nil
 }
 
-func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submittedTx, error) {
+func (w *Wallet) sendSplitOrTransferTx(acc *account.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submittedTx, error) {
 	var attrs AttrWithInvariantPredicateInputs
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
@@ -472,7 +472,7 @@ func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, to
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 	}
 	sub, err := w.sendTx(token.ID, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
-		signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
 		}

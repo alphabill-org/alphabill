@@ -1,4 +1,4 @@
-package wallet
+package account
 
 import (
 	"crypto/ecdsa"
@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/ethereum/go-ethereum/accounts"
+	acc "github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/tyler-smith/go-bip39"
 )
@@ -31,10 +31,6 @@ type (
 	KeyHashes struct {
 		Sha256 []byte `json:"sha256"`
 		Sha512 []byte `json:"sha512"`
-	}
-
-	AccountManager interface {
-		GetAccountKey(accountIndex uint64) (*AccountKey, error)
 	}
 )
 
@@ -77,7 +73,7 @@ func NewKeys(mnemonic string) (*Keys, error) {
 
 // NewAccountKey generates new account key from given master key and derivation path
 func NewAccountKey(masterKey *hdkeychain.ExtendedKey, derivationPath string) (*AccountKey, error) {
-	path, err := accounts.ParseDerivationPath(derivationPath)
+	path, err := acc.ParseDerivationPath(derivationPath)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +136,7 @@ func generateMnemonic() (string, error) {
 }
 
 // derivePrivateKey derives the private accountKey of the derivation path.
-func derivePrivateKey(path accounts.DerivationPath, masterKey *hdkeychain.ExtendedKey) (*ecdsa.PrivateKey, error) {
+func derivePrivateKey(path acc.DerivationPath, masterKey *hdkeychain.ExtendedKey) (*ecdsa.PrivateKey, error) {
 	var err error
 	var derivedKey = masterKey
 	for _, n := range path {

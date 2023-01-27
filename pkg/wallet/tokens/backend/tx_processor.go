@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	wtokens "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 )
 
 type txProcessor struct {
@@ -31,204 +31,143 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 	switch ctx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
 		log.Info("CreateFungibleTokenType tx")
-		err = w.addTokenTypeWithProof(&TokenUnitType{
-			ID:            id,
-			Kind:          FungibleTokenType,
-			Symbol:        ctx.Symbol(),
-			ParentTypeID:  ctx.ParentTypeID(),
-			DecimalPlaces: ctx.DecimalPlaces(),
-		}, b, tx, txc)
+		err = t.addTokenTypeWithProof(&TokenUnitType{
+			Kind:                     Fungible,
+			ID:                       id,
+			ParentTypeID:             ctx.ParentTypeID(),
+			Symbol:                   ctx.Symbol(),
+			DecimalPlaces:            ctx.DecimalPlaces(),
+			SubTypeCreationPredicate: ctx.SubTypeCreationPredicate(),
+			TokenCreationPredicate:   ctx.TokenCreationPredicate(),
+			InvariantPredicate:       ctx.InvariantPredicate(),
+		}, b, tx, txHash)
 		if err != nil {
 			return err
 		}
 	case tokens.MintFungibleToken:
 		log.Info("MintFungibleToken tx")
-		if checkOwner(accNr, key, ctx.Bearer()) {
-			tType, err := txc.GetTokenType(ctx.TypeID())
-			if err != nil {
-				return err
-			}
-			if tType == nil {
-				return errors.Errorf("mint fungible token tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
-			}
-			err = w.addTokenWithProof(accNr, &TokenUnit{
-				ID:       id,
-				Kind:     FungibleToken,
-				TypeID:   ctx.TypeID(),
-				Amount:   ctx.Value(),
-				Backlink: txHash,
-				Symbol:   tType.Symbol,
-			}, b, tx, txc)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := txc.RemoveToken(accNr, id)
-			if err != nil {
-				return err
-			}
+		tokenType, err := t.store.GetTokenType(ctx.TypeID())
+		if err != nil {
+			return errors.Wrapf(err, "mint fungible token tx: failed to get token type with id=%X, token id=%X", ctx.TypeID(), id)
+		}
+
+		newToken := &TokenUnit{
+			ID:       id,
+			Kind:     Fungible,
+			TypeID:   ctx.TypeID(),
+			Amount:   ctx.Value(),
+			Symbol:   tokenType.Symbol,
+			Decimals: tokenType.DecimalPlaces,
+		}
+
+		if err = t.addTokenWithProof(newToken, b, tx, txHash); err != nil {
+			return err
 		}
 	case tokens.TransferFungibleToken:
 		log.Info("TransferFungibleToken tx")
-		if checkOwner(accNr, key, ctx.NewBearer()) {
-			tokenInfo, err := txc.GetTokenType(ctx.TypeID())
-			if err != nil {
-				return err
-			}
-			if tokenInfo == nil {
-				return errors.Errorf("fungible transfer tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
-			}
-			err = w.addTokenWithProof(accNr, &TokenUnit{
-				ID:       id,
-				TypeID:   ctx.TypeID(),
-				Kind:     FungibleToken,
-				Amount:   ctx.Value(),
-				Symbol:   tokenInfo.Symbol,
-				Backlink: txHash,
-			}, b, tx, txc)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := txc.RemoveToken(accNr, id)
-			if err != nil {
-				return err
-			}
+		token, err := t.store.GetToken(id)
+		if err != nil {
+			return errors.Wrapf(err, "fungible transfer tx: failed to get token with id=%X", id)
+		}
+		//ctx.NewBearer() // TODO: change ownership
+		if err = t.addTokenWithProof(token, b, tx, txHash); err != nil {
+			return err
 		}
 	case tokens.SplitFungibleToken:
 		log.Info("SplitFungibleToken tx")
-		tok, err := txc.GetToken(accNr, id)
+		// check and update existing token
+		token, err := t.store.GetToken(id)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "split tx: failed to get token with id=%X", id)
 		}
-		var tokenInfo TokenTypeInfo
-		if tok != nil {
-			tokenInfo = tok
-			log.Info("SplitFungibleToken updating existing unit")
-			if !bytes.Equal(tok.TypeID, ctx.TypeID()) {
-				return errors.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), tok.TypeID, tok.ID)
-			}
-			remainingValue := tok.Amount - ctx.TargetValue()
-			if ctx.RemainingValue() != remainingValue {
-				return errors.Errorf("split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, tok.ID)
-			}
-			err = w.addTokenWithProof(accNr, &TokenUnit{
-				ID:       id,
-				Symbol:   tok.Symbol,
-				TypeID:   tok.TypeID,
-				Kind:     tok.Kind,
-				Amount:   tok.Amount - ctx.TargetValue(),
-				Backlink: txHash,
-			}, b, tx, txc)
-			if err != nil {
-				return err
-			}
-		} else {
-			tokenInfo, err = txc.GetTokenType(ctx.TypeID())
-			if err != nil {
-				return err
-			}
-			if tokenInfo == nil {
-				return errors.Errorf("split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
-			}
+		if !bytes.Equal(token.TypeID, ctx.TypeID()) {
+			return errors.Errorf("split tx: type id does not match (received '%X', expected '%X'), token id=%X", ctx.TypeID(), token.TypeID, token.ID)
+		}
+		remainingValue := token.Amount - ctx.TargetValue()
+		if ctx.RemainingValue() != remainingValue {
+			return errors.Errorf("split tx: invalid remaining amount (received '%v', expected '%v'), token id=%X", ctx.RemainingValue(), remainingValue, token.ID)
 		}
 
-		if checkOwner(accNr, key, ctx.NewBearer()) {
-			newId := txutil.SameShardIDBytes(ctx.UnitID(), ctx.HashForIDCalculation(crypto.SHA256))
-			log.Info(fmt.Sprintf("SplitFungibleToken: adding new unit from split, new UnitId=%X", newId))
-			err := w.addTokenWithProof(accNr, &TokenUnit{
-				ID:       newId,
-				Symbol:   tokenInfo.GetSymbol(),
-				TypeID:   tokenInfo.GetTypeId(),
-				Kind:     FungibleToken,
-				Amount:   ctx.TargetValue(),
-				Backlink: txHash,
-			}, b, tx, txc)
-			if err != nil {
-				return err
-			}
+		token.Amount = remainingValue
+
+		if err = t.addTokenWithProof(token, b, tx, txHash); err != nil {
+			return err
+		}
+
+		// save new token created by the split
+		newId := txutil.SameShardIDBytes(ctx.UnitID(), ctx.HashForIDCalculation(crypto.SHA256))
+		newToken := &TokenUnit{
+			ID:       newId,
+			Symbol:   token.Symbol,
+			TypeID:   token.TypeID,
+			Kind:     token.Kind,
+			Amount:   ctx.TargetValue(),
+			Decimals: token.Decimals,
+		}
+		// TODO: owner: ctx.NewBearer()
+		if err = t.addTokenWithProof(newToken, b, tx, txHash); err != nil {
+			return err
 		}
 	case tokens.BurnFungibleToken:
 		log.Info("Token tx: BurnFungibleToken")
-		panic("not implemented") // TODO
+		panic("not implemented") // TODO in 0.2.0
 	case tokens.JoinFungibleToken:
 		log.Info("Token tx: JoinFungibleToken")
-		panic("not implemented") // TODO
+		panic("not implemented") // TODO in 0.2.0
 	case tokens.CreateNonFungibleTokenType:
 		log.Info("Token tx: CreateNonFungibleTokenType")
-		err := w.addTokenTypeWithProof(&TokenUnitType{
-			ID:           id,
-			Kind:         NonFungibleTokenType,
-			Symbol:       ctx.Symbol(),
-			ParentTypeID: ctx.ParentTypeID(),
-		}, b, tx, txc)
+		err := t.addTokenTypeWithProof(&TokenUnitType{
+			Kind:                     NonFungible,
+			ID:                       id,
+			ParentTypeID:             ctx.ParentTypeID(),
+			Symbol:                   ctx.Symbol(),
+			SubTypeCreationPredicate: ctx.SubTypeCreationPredicate(),
+			TokenCreationPredicate:   ctx.TokenCreationPredicate(),
+			InvariantPredicate:       ctx.InvariantPredicate(),
+			NftDataUpdatePredicate:   ctx.DataUpdatePredicate(),
+		}, b, tx, txHash)
 		if err != nil {
 			return err
 		}
 	case tokens.MintNonFungibleToken:
 		log.Info("Token tx: MintNonFungibleToken")
-		if checkOwner(accNr, key, ctx.Bearer()) {
-			tType, err := txc.GetTokenType(ctx.NFTTypeID())
-			if err != nil {
-				return err
-			}
-			if tType == nil {
-				return errors.Errorf("mint nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
-			}
-			err = w.addTokenWithProof(accNr, &TokenUnit{
-				ID:       id,
-				Kind:     NonFungibleToken,
-				TypeID:   ctx.NFTTypeID(),
-				URI:      ctx.URI(),
-				Backlink: txHash,
-				Symbol:   tType.Symbol,
-			}, b, tx, txc)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := txc.RemoveToken(accNr, id)
-			if err != nil {
-				return err
-			}
+		tokenType, err := t.store.GetTokenType(ctx.NFTTypeID())
+		if err != nil {
+			return errors.Wrapf(err, "mint nft tx: failed to get token type with id=%X, token id=%X", ctx.NFTTypeID(), id)
+		}
+
+		newToken := &TokenUnit{
+			ID:                     id,
+			Kind:                   NonFungible,
+			TypeID:                 ctx.NFTTypeID(),
+			Symbol:                 tokenType.Symbol,
+			NftURI:                 ctx.URI(),
+			NftData:                ctx.Data(),
+			NftDataUpdatePredicate: ctx.DataUpdatePredicate(),
+		}
+
+		if err = t.addTokenWithProof(newToken, b, tx, txHash); err != nil {
+			return err
 		}
 	case tokens.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
-		if checkOwner(accNr, key, ctx.NewBearer()) {
-			tType, err := txc.GetTokenType(ctx.NFTTypeID())
-			if err != nil {
-				return err
-			}
-			if tType == nil {
-				return errors.Errorf("transfer nft tx: token type with id=%X not found, token id=%X", ctx.NFTTypeID(), id)
-			}
-			err = w.addTokenWithProof(accNr, &TokenUnit{
-				ID:       id,
-				TypeID:   ctx.NFTTypeID(),
-				Kind:     NonFungibleToken,
-				Backlink: txHash,
-				Symbol:   tType.Symbol,
-			}, b, tx, txc)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := txc.RemoveToken(accNr, id)
-			if err != nil {
-				return err
-			}
+		token, err := t.store.GetToken(id)
+		if err != nil {
+			return errors.Wrapf(err, "transfer nft tx: failed to get token with id=%X", id)
+		}
+		//ctx.NewBearer() // TODO: change ownership
+		if err = t.addTokenWithProof(token, b, tx, txHash); err != nil {
+			return err
 		}
 	case tokens.UpdateNonFungibleToken:
 		log.Info("Token tx: UpdateNonFungibleToken")
-		tok, err := txc.GetToken(accNr, id)
+		token, err := t.store.GetToken(id)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "update nft tx: failed to get token with id=%X", id)
 		}
-		if tok != nil {
-			tok.Backlink = txHash
-			if err = w.addTokenWithProof(accNr, tok, b, tx, txc); err != nil {
-				return err
-			}
+		token.NftData = ctx.Data()
+		if err = t.addTokenWithProof(token, b, tx, txHash); err != nil {
+			return err
 		}
 	default:
 		log.Warning(fmt.Sprintf("received unknown token transaction type, skipped processing: %s", ctx))
@@ -237,94 +176,40 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 	return nil
 }
 
-func (t *txProcessor) createProof(b *block.Block, tx *txsystem.Transaction) (*wtokens.Proof, error) {
+func (t *txProcessor) addTokenTypeWithProof(unit *TokenUnitType, b *block.Block, tx *txsystem.Transaction, txHash []byte) error {
+	proof, err := t.createProof(unit.ID, b, tx, txHash)
+	if err != nil {
+		return err
+	}
+	unit.Proof = proof
+	return t.store.SaveTokenType(unit)
+}
+
+func (t *txProcessor) addTokenWithProof(unit *TokenUnit, b *block.Block, tx *txsystem.Transaction, txHash []byte) error {
+	proof, err := t.createProof(unit.ID, b, tx, txHash)
+	if err != nil {
+		return err
+	}
+	unit.Proof = proof
+	return t.store.SaveToken(unit)
+}
+
+func (t *txProcessor) createProof(unitID []byte, b *block.Block, tx *txsystem.Transaction, txHash []byte) (*Proof, error) {
 	if b == nil {
 		return nil, nil
 	}
 	gblock, err := b.ToGenericBlock(t.txs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert block to generic block: %w", err)
+		return nil, err
 	}
-	proof, err := block.NewPrimaryProof(gblock, tx.UnitId, crypto.SHA256)
+	proof, err := block.NewPrimaryProof(gblock, unitID, crypto.SHA256)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create primary proof for the block: %w", err)
+		return nil, err
 	}
-	return &wtokens.Proof{
+	return &Proof{
 		BlockNumber: b.BlockNumber,
 		Tx:          tx,
+		TxHash:      txHash,
 		Proof:       proof,
 	}, nil
-}
-
-func (t *txProcessor) saveNonFungibleTokenTx(tx txsystem.GenericTransaction, proof *wtokens.Proof) error {
-	type nfTokenTx interface {
-		NFTTypeID() []byte
-	}
-	ttx := tx.(nfTokenTx)
-
-	tType, err := t.store.GetTokenType(ttx.NFTTypeID())
-	if err != nil {
-		return err
-	}
-
-	d := &wtokens.TokenUnit{
-		ID:       util.Uint256ToBytes(tx.UnitID()),
-		Kind:     wtokens.NonFungibleToken,
-		TypeID:   ttx.NFTTypeID(),
-		Backlink: tx.Hash(crypto.SHA256),
-		Symbol:   tType.Symbol,
-		Proof:    proof,
-	}
-	if u, ok := tx.(interface{ URI() string }); ok {
-		d.URI = u.URI()
-	}
-	if err := t.store.SaveTokenUnit(d); err != nil {
-		return fmt.Errorf("failed to save %s (%x): %w", d.Kind, d.ID, err)
-	}
-	return nil
-}
-
-func (t *txProcessor) saveFungibleTokenTx(tx txsystem.GenericTransaction, proof *wtokens.Proof) error {
-	type fungibleTokenTx interface {
-		TypeID() []byte
-		Value() uint64
-	}
-	ttx := tx.(fungibleTokenTx)
-
-	tType, err := t.store.GetTokenType(ttx.TypeID())
-	if err != nil {
-		return err
-	}
-
-	d := &wtokens.TokenUnit{
-		ID:       util.Uint256ToBytes(tx.UnitID()),
-		Kind:     wtokens.FungibleToken,
-		TypeID:   ttx.TypeID(),
-		Amount:   ttx.Value(),
-		Backlink: tx.Hash(crypto.SHA256),
-		Symbol:   tType.Symbol,
-		Proof:    proof,
-	}
-	if err := t.store.SaveTokenUnit(d); err != nil {
-		return fmt.Errorf("failed to save %s (%x): %w", d.Kind, d.ID, err)
-	}
-	return nil
-}
-
-func (t *txProcessor) saveTokenTypeTx(tx txsystem.GenericTransaction) error {
-	type tokenTypeTx interface {
-		Symbol() string
-		ParentTypeID() []byte
-	}
-	ttx := tx.(tokenTypeTx)
-	d := &wtokens.TokenUnitType{
-		ID:           util.Uint256ToBytes(tx.UnitID()),
-		Kind:         wtokens.NonFungibleTokenType,
-		Symbol:       ttx.Symbol(),
-		ParentTypeID: ttx.ParentTypeID(),
-	}
-	if err := t.store.SaveTokenType(d); err != nil {
-		return fmt.Errorf("failed to save %s (%x): %w", d.Kind, d.ID, err)
-	}
-	return nil
 }

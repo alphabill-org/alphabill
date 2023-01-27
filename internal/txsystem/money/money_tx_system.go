@@ -329,6 +329,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		// calculate actual tx fee cost
 		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
 
+		var updateFunc rma.Action
 		// find net value of credit
 		v := tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee
 		if bd == nil {
@@ -338,18 +339,14 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 				Hash:    tx.Hash(m.hashAlgorithm),
 				Timeout: tx.TransferFC.TransferFC.LatestAdditionTime + 1,
 			}
-			updateFunc := txsystem.AddCredit(tx.UnitID(), tx.AddFC.FeeCreditOwnerCondition, fcr, tx.Hash(m.hashAlgorithm))
-			err = m.revertibleState.AtomicUpdate(updateFunc)
-			if err != nil {
-				return err
-			}
+			updateFunc = txsystem.AddCredit(tx.UnitID(), tx.AddFC.FeeCreditOwnerCondition, fcr, tx.Hash(m.hashAlgorithm))
 		} else {
 			// increment credit
-			updateFunc := txsystem.IncrCredit(tx.UnitID(), v, tx.TransferFC.TransferFC.LatestAdditionTime+1, tx.Hash(m.hashAlgorithm))
-			err = m.revertibleState.AtomicUpdate(updateFunc)
-			if err != nil {
-				return err
-			}
+			updateFunc = txsystem.IncrCredit(tx.UnitID(), v, tx.TransferFC.TransferFC.LatestAdditionTime+1, tx.Hash(m.hashAlgorithm))
+		}
+		err = m.revertibleState.AtomicUpdate(updateFunc)
+		if err != nil {
+			return err
 		}
 		return nil
 	case *fc.CloseFeeCreditWrapper:

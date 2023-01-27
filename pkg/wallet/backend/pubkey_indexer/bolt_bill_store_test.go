@@ -1,13 +1,13 @@
-package backend
+package pubkey_indexer
 
 import (
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -50,7 +50,7 @@ func TestBillStore_GetSetBills(t *testing.T) {
 	// index key
 	err = bs.AddKey(&Pubkey{
 		Pubkey:     pubKey,
-		PubkeyHash: wallet.NewKeyHash(pubKey),
+		PubkeyHash: account.NewKeyHash(pubKey),
 	})
 	require.NoError(t, err)
 
@@ -134,13 +134,14 @@ func TestBillStore_GetSetProofs(t *testing.T) {
 	// index key
 	err = bs.AddKey(&Pubkey{
 		Pubkey:     pubkey,
-		PubkeyHash: wallet.NewKeyHash(pubkey),
+		PubkeyHash: account.NewKeyHash(pubkey),
 	})
 	require.NoError(t, err)
 
 	// verify GetBill ErrBillNotFound
 	b, err = bs.GetBill(pubkey, billID)
 	require.ErrorIs(t, err, ErrBillNotFound)
+	require.Nil(t, b)
 
 	// verify SetBills ok
 	err = bs.SetBills(pubkey, expectedBill)
@@ -194,13 +195,13 @@ func TestBillStore_DeletingBillForKey1DoesNotAffectKey2(t *testing.T) {
 	// index keys
 	key1 := &Pubkey{
 		Pubkey:     pk1,
-		PubkeyHash: wallet.NewKeyHash(pk1),
+		PubkeyHash: account.NewKeyHash(pk1),
 	}
 	_ = bs.AddKey(key1)
 
 	key2 := &Pubkey{
 		Pubkey:     pk2,
-		PubkeyHash: wallet.NewKeyHash(pk2),
+		PubkeyHash: account.NewKeyHash(pk2),
 	}
 	_ = bs.AddKey(key2)
 
@@ -228,6 +229,7 @@ func TestBillStore_DeletingBillForKey1DoesNotAffectKey2(t *testing.T) {
 	// and key1 bill should be removed
 	actualBill, err = bs.GetBill(pk1, bill.Id)
 	require.ErrorIs(t, err, ErrBillNotFound)
+	require.Nil(t, actualBill)
 
 	containsBill, err = bs.ContainsBill(pk1, bill.Id)
 	require.NoError(t, err)
@@ -272,7 +274,7 @@ func TestBillStore_DeleteExpiredBills(t *testing.T) {
 }
 
 func createTestBillStore(t *testing.T) (*BoltBillStore, error) {
-	dbFile := path.Join(t.TempDir(), BoltBillStoreFileName)
+	dbFile := filepath.Join(t.TempDir(), BoltBillStoreFileName)
 	return NewBoltBillStore(dbFile)
 }
 

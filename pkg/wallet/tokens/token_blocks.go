@@ -8,7 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -38,13 +38,13 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			log.Info("Processing non-empty block: ", b.BlockNumber)
 
 			// lists tokens for all keys and with 'always true' predicate
-			accounts, err := w.mw.GetAccountKeys()
+			accounts, err := w.am.GetAccountKeys()
 			if err != nil {
 				return err
 			}
 			for _, tx := range b.Transactions {
 				for n := 0; n <= len(accounts); n++ {
-					var keyHashes *wallet.KeyHashes
+					var keyHashes *account.KeyHashes
 					if n > 0 {
 						keyHashes = accounts[n-1].PubKeyHash
 					}
@@ -79,7 +79,7 @@ func (w *Wallet) Sync(ctx context.Context) error {
 		return err
 	}
 	log.Info("Synchronizing tokens from block #", latestBlockNumber)
-	return w.mw.Wallet.SyncToMaxBlockNumber(ctx, latestBlockNumber)
+	return w.sdk.SyncToMaxBlockNumber(ctx, latestBlockNumber)
 }
 
 func (w *Wallet) syncToUnit(ctx context.Context, id TokenID, timeout uint64) error {
@@ -137,5 +137,5 @@ func (w *Wallet) syncUntilCanceled(ctx context.Context) error {
 		return err
 	}
 	log.Info("Synchronizing tokens from block #", latestBlockNumber)
-	return w.mw.Wallet.Sync(ctx, latestBlockNumber)
+	return w.sdk.Sync(ctx, latestBlockNumber)
 }

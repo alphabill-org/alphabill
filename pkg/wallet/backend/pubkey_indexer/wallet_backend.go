@@ -1,4 +1,4 @@
-package backend
+package pubkey_indexer
 
 import (
 	"context"
@@ -9,11 +9,10 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
+	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )
-
-var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
 var (
 	errKeyNotIndexed  = errors.New("pubkey is not indexed")
@@ -25,6 +24,7 @@ type (
 	WalletBackend struct {
 		store         BillStore
 		genericWallet *wallet.Wallet
+		txConverter   TxConverter
 		verifiers     map[string]abcrypto.Verifier
 		cancelSyncCh  chan bool
 	}
@@ -50,8 +50,8 @@ type (
 	}
 
 	Pubkey struct {
-		Pubkey     []byte            `json:"pubkey"`
-		PubkeyHash *wallet.KeyHashes `json:"pubkeyHash"`
+		Pubkey     []byte             `json:"pubkey"`
+		PubkeyHash *account.KeyHashes `json:"pubkeyHash"`
 	}
 
 	BillStore interface {
@@ -68,19 +68,29 @@ type (
 		GetKey(pubkey []byte) (*Pubkey, error)
 		AddKey(key *Pubkey) error
 	}
+
+	TxConverter interface {
+		ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+	}
 )
 
 // New creates a new wallet backend service which can be started by calling the Start or StartProcess method.
 // Shutdown method should be called to close resources used by the service.
-func New(wallet *wallet.Wallet, store BillStore, verifiers map[string]abcrypto.Verifier) *WalletBackend {
-	return &WalletBackend{store: store, genericWallet: wallet, verifiers: verifiers, cancelSyncCh: make(chan bool, 1)}
+func New(wallet *wallet.Wallet, store BillStore, txConverter TxConverter, verifiers map[string]abcrypto.Verifier) *WalletBackend {
+	return &WalletBackend{
+		store:         store,
+		genericWallet: wallet,
+		txConverter:   txConverter,
+		verifiers:     verifiers,
+		cancelSyncCh:  make(chan bool, 1),
+	}
 }
 
 // NewPubkey creates a new hashed Pubkey
 func NewPubkey(pubkey []byte) *Pubkey {
 	return &Pubkey{
 		Pubkey:     pubkey,
-		PubkeyHash: wallet.NewKeyHash(pubkey),
+		PubkeyHash: account.NewKeyHash(pubkey),
 	}
 }
 
@@ -98,23 +108,18 @@ func (w *WalletBackend) Start(ctx context.Context) error {
 func (w *WalletBackend) StartProcess(ctx context.Context) {
 	wlog.Info("starting wallet-backend synchronization")
 	defer wlog.Info("wallet-backend synchronization ended")
-	retryCount := 0
+
 	for {
+		if err := w.Start(ctx); err != nil {
+			wlog.Error("error synchronizing wallet-backend: ", err)
+		}
+		// delay before retrying
 		select {
 		case <-ctx.Done(): // canceled from context
 			return
 		case <-w.cancelSyncCh: // canceled from shutdown method
 			return
-		default:
-			if retryCount > 0 {
-				wlog.Info("sleeping 10s before retrying alphabill connection")
-				time.Sleep(10 * time.Second)
-			}
-			err := w.Start(ctx)
-			if err != nil {
-				wlog.Error("error synchronizing wallet-backend: ", err)
-			}
-			retryCount++
+		case <-time.After(10 * time.Second):
 		}
 	}
 }
@@ -140,7 +145,7 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *block.Bills) error {
 	if len(bills.Bills) == 0 {
 		return errEmptyBillsList
 	}
-	err := bills.Verify(txConverter, w.verifiers)
+	err := bills.Verify(w.txConverter, w.verifiers)
 	if err != nil {
 		return err
 	}
@@ -151,10 +156,10 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *block.Bills) error {
 	if key == nil {
 		return errKeyNotIndexed
 	}
-	pubkeyHash := wallet.NewKeyHash(pubkey)
+	pubkeyHash := account.NewKeyHash(pubkey)
 	domainBills := newBillsFromProto(bills)
 	for _, bill := range domainBills {
-		tx, err := txConverter.ConvertTx(bill.TxProof.Tx)
+		tx, err := w.txConverter.ConvertTx(bill.TxProof.Tx)
 		if err != nil {
 			return err
 		}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	gocrypto "crypto"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,7 +13,8 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
@@ -24,9 +26,48 @@ type accountManagerMock struct {
 	recordedIndex uint64
 }
 
-func (a *accountManagerMock) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
+func (a *accountManagerMock) GetAccountKey(accountIndex uint64) (*account.AccountKey, error) {
 	a.recordedIndex = accountIndex
-	return &wallet.AccountKey{PubKeyHash: &wallet.KeyHashes{Sha256: a.keyHash}}, nil
+	return &account.AccountKey{PubKeyHash: &account.KeyHashes{Sha256: a.keyHash}}, nil
+}
+
+func (a *accountManagerMock) GetAll() []account.Account {
+	return nil
+}
+
+func (a *accountManagerMock) CreateKeys(mnemonic string) error {
+	return nil
+}
+
+func (a *accountManagerMock) AddAccount() (uint64, []byte, error) {
+	return 0, nil, nil
+}
+
+func (a *accountManagerMock) GetMnemonic() (string, error) {
+	return "", nil
+}
+
+func (a *accountManagerMock) GetAccountKeys() ([]*account.AccountKey, error) {
+	return nil, nil
+}
+
+func (a *accountManagerMock) GetMaxAccountIndex() (uint64, error) {
+	return 0, nil
+}
+
+func (a *accountManagerMock) GetPublicKey(accountIndex uint64) ([]byte, error) {
+	return nil, nil
+}
+
+func (a *accountManagerMock) GetPublicKeys() ([][]byte, error) {
+	return nil, nil
+}
+
+func (a *accountManagerMock) IsEncrypted() (bool, error) {
+	return false, nil
+}
+
+func (a *accountManagerMock) Close() {
 }
 
 func TestParsePredicateClause(t *testing.T) {
@@ -552,13 +593,19 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, toke
 }
 
 func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
-	mw, homedir := createNewWallet(t, addr)
-
-	w, err := tw.Load(mw, false)
+	homeDir := t.TempDir()
+	walletDir := filepath.Join(homeDir, "wallet")
+	am, err := account.NewManager(walletDir, "", true)
+	require.NoError(t, err)
+	require.NoError(t, am.CreateKeys(""))
+	w, err := tw.Load(walletDir, client.AlphabillClientConfig{
+		Uri:          addr,
+		WaitForReady: false,
+	}, am, false)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 
-	return w, homedir
+	return w, homeDir
 }
 
 func execTokensCmdWithError(t *testing.T, homedir string, command string, expectedError string) {
@@ -578,7 +625,7 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet token --log-level DEBUG --home " + homedir + " " + command
+	args := "wallet token --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())

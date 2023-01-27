@@ -1,4 +1,4 @@
-package backend
+package pubkey_indexer
 
 import (
 	"context"

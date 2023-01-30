@@ -79,7 +79,7 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
 	apiV1.HandleFunc("/list-bills", s.listBillsFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
-	apiV1.HandleFunc("/proof/{pubkey}", s.getProofFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
 	return apiRouter
 }
@@ -141,7 +141,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billID, err := parseBillID(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /proof{pubkey} request: ", err)
+		wlog.Debug("error parsing GET /proof request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -152,12 +152,12 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	bill, err := s.Service.GetBill(billID)
 	if err != nil {
-		wlog.Error("error on GET /proof/{pubkey}: ", err)
+		wlog.Error("error on GET /proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if bill == nil {
-		wlog.Debug("error on GET /proof/{pubkey}: ", err)
+		wlog.Debug("error on GET /proof: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return

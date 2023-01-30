@@ -28,8 +28,7 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 	txHash := gtx.Hash(crypto.SHA256)
 	log.Info(fmt.Sprintf("Converted tx: UnitId=%X, TxId=%X", id, txHash))
 
-	// TODO: save proofs in a different bucket, linking units and proofs with txHash?
-	proof, err := t.createProof(id, b, tx, txHash)
+	proof, err := t.createProof(id, b, tx)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create proof for tx with id=%X", txHash)
 	}
@@ -46,8 +45,8 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 			SubTypeCreationPredicate: ctx.SubTypeCreationPredicate(),
 			TokenCreationPredicate:   ctx.TokenCreationPredicate(),
 			InvariantPredicate:       ctx.InvariantPredicate(),
-			Proof:                    proof,
-		})
+			TxHash:                   txHash,
+		}, proof)
 		if err != nil {
 			return err
 		}
@@ -65,10 +64,11 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 			Amount:   ctx.Value(),
 			Symbol:   tokenType.Symbol,
 			Decimals: tokenType.DecimalPlaces,
-			Proof:    proof,
+			TxHash:   txHash,
+			Owner:    ctx.Bearer(),
 		}
 
-		if err = t.saveToken(newToken); err != nil {
+		if err = t.saveToken(newToken, proof); err != nil {
 			return err
 		}
 	case tokens.TransferFungibleToken:
@@ -77,9 +77,9 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 		if err != nil {
 			return errors.Wrapf(err, "fungible transfer tx: failed to get token with id=%X", id)
 		}
-		//ctx.NewBearer() // TODO: change ownership
-		token.Proof = proof
-		if err = t.saveToken(token); err != nil {
+		token.TxHash = txHash
+		token.Owner = ctx.NewBearer()
+		if err = t.saveToken(token, proof); err != nil {
 			return err
 		}
 	case tokens.SplitFungibleToken:
@@ -98,14 +98,14 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 		}
 
 		token.Amount = remainingValue
-		token.Proof = proof
-		if err = t.saveToken(token); err != nil {
+		token.TxHash = txHash
+		if err = t.saveToken(token, proof); err != nil {
 			return err
 		}
 
 		// save new token created by the split
 		newId := txutil.SameShardIDBytes(ctx.UnitID(), ctx.HashForIDCalculation(crypto.SHA256))
-		splitProof, err := t.createProof(newId, b, tx, txHash)
+		splitProof, err := t.createProof(newId, b, tx)
 		if err != nil {
 			return errors.Wrapf(err, "failed to create proof for split tx with id=%X for unit %X", txHash, newId)
 		}
@@ -116,10 +116,10 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 			Kind:     token.Kind,
 			Amount:   ctx.TargetValue(),
 			Decimals: token.Decimals,
-			Proof:    splitProof,
+			TxHash:   txHash,
+			Owner:    ctx.NewBearer(),
 		}
-		// TODO: owner: ctx.NewBearer()
-		if err = t.saveToken(newToken); err != nil {
+		if err = t.saveToken(newToken, splitProof); err != nil {
 			return err
 		}
 	case tokens.BurnFungibleToken:
@@ -139,8 +139,8 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 			TokenCreationPredicate:   ctx.TokenCreationPredicate(),
 			InvariantPredicate:       ctx.InvariantPredicate(),
 			NftDataUpdatePredicate:   ctx.DataUpdatePredicate(),
-			Proof:                    proof,
-		})
+			TxHash:                   txHash,
+		}, proof)
 		if err != nil {
 			return err
 		}
@@ -159,10 +159,11 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 			NftURI:                 ctx.URI(),
 			NftData:                ctx.Data(),
 			NftDataUpdatePredicate: ctx.DataUpdatePredicate(),
-			Proof:                  proof,
+			TxHash:                 txHash,
+			Owner:                  ctx.Bearer(),
 		}
 
-		if err = t.saveToken(newToken); err != nil {
+		if err = t.saveToken(newToken, proof); err != nil {
 			return err
 		}
 	case tokens.TransferNonFungibleToken:
@@ -171,9 +172,8 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 		if err != nil {
 			return errors.Wrapf(err, "transfer nft tx: failed to get token with id=%X", id)
 		}
-		//ctx.NewBearer() // TODO: change ownership
-		token.Proof = proof
-		if err = t.saveToken(token); err != nil {
+		token.Owner = ctx.NewBearer()
+		if err = t.saveToken(token, proof); err != nil {
 			return err
 		}
 	case tokens.UpdateNonFungibleToken:
@@ -183,8 +183,8 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 			return errors.Wrapf(err, "update nft tx: failed to get token with id=%X", id)
 		}
 		token.NftData = ctx.Data()
-		token.Proof = proof
-		if err = t.saveToken(token); err != nil {
+		token.TxHash = txHash
+		if err = t.saveToken(token, proof); err != nil {
 			return err
 		}
 	default:
@@ -194,15 +194,15 @@ func (t *txProcessor) readTx(tx *txsystem.Transaction, b *block.Block) error {
 	return nil
 }
 
-func (t *txProcessor) saveTokenType(unit *TokenUnitType) error {
-	return t.store.SaveTokenType(unit)
+func (t *txProcessor) saveTokenType(unit *TokenUnitType, proof *Proof) error {
+	return t.store.SaveTokenType(unit, proof)
 }
 
-func (t *txProcessor) saveToken(unit *TokenUnit) error {
-	return t.store.SaveToken(unit)
+func (t *txProcessor) saveToken(unit *TokenUnit, proof *Proof) error {
+	return t.store.SaveToken(unit, proof)
 }
 
-func (t *txProcessor) createProof(unitID []byte, b *block.Block, tx *txsystem.Transaction, txHash []byte) (*Proof, error) {
+func (t *txProcessor) createProof(unitID []byte, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -217,7 +217,6 @@ func (t *txProcessor) createProof(unitID []byte, b *block.Block, tx *txsystem.Tr
 	return &Proof{
 		BlockNumber: b.BlockNumber,
 		Tx:          tx,
-		TxHash:      txHash,
 		Proof:       proof,
 	}, nil
 }

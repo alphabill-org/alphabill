@@ -11,12 +11,38 @@ import (
 )
 
 var (
-	bucketMetadata  = []byte("meta")
-	bucketTokenType = []byte("token-type")
-	bucketTokenUnit = []byte("token-unit")
-
+	bucketMetadata = []byte("meta")
 	keyBlockNumber = []byte("block-number")
+
+	bucketTokenType   = []byte("token-type")   // TokenTypeID -> TokenUnitType
+	bucketTypeCreator = []byte("type-creator") // type creator (pub key) -> [TokenTypeID]
+	bucketTokenUnit   = []byte("token-unit")   // TokenID -> TokenUnit
+	bucketTokenOwner  = []byte("token-owner")  // token bearer (p2pkh predicate) -> [TokenID]
+	bucketTxHistory   = []byte("tx-history")   // UnitID(TokenTypeID|TokenID) -> [txHash -> block proof]
 )
+
+//submit tx endpoint:
+// 1. read creator public key
+// 2. parse tx
+// 3. if it's a 'create type' tx, save type data to "type-creator" bucket
+
+//list types endpoint:
+// 1. read creator public key, create a list of type ids from "type-creator" bucket
+// 2. read type data from "token-type" bucket
+// 3. group types by kind
+
+//list fungible/nft tokens endpoint:
+// 1. read creator public key, fetch token ids from "token-owner" bucket
+// 2. read token data from "token-unit" bucket, filter fungible/nft tokens by kind
+
+//list tx proofs endpoint:
+// 1. read unit id and tx hash from request
+// 2. read tx proof from "tx-history" bucket
+
+//list tx history endpoint:
+// 1. read unit id from request
+// 2. read tx history from "tx-history" bucket, optionally include proofs
+// 3. additionally, filter units by owner using "token-owner" bucket
 
 var errRecordNotFound = errors.New("not found")
 
@@ -24,7 +50,7 @@ type storage struct {
 	db *bolt.DB
 }
 
-func (s *storage) SaveTokenType(data *TokenUnitType) error {
+func (s *storage) SaveTokenType(data *TokenUnitType, proof *Proof) error {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token type data: %w", err)
@@ -52,12 +78,13 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	return d, nil
 }
 
-func (s *storage) SaveToken(data *TokenUnit) error {
+func (s *storage) SaveToken(data *TokenUnit, proof *Proof) error {
 	b, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token unit data: %w", err)
 	}
 	return s.db.Update(func(tx *bolt.Tx) error {
+		// TODO: drop ownership from previous bearer
 		return tx.Bucket(bucketTokenUnit).Put(data.ID, b)
 	})
 }
@@ -128,7 +155,7 @@ func newBoltStore(dbFile string) (*storage, error) {
 	}
 	s := &storage{db: db}
 
-	if err := s.createBuckets(bucketMetadata, bucketTokenType, bucketTokenUnit); err != nil {
+	if err := s.createBuckets(bucketMetadata, bucketTokenType, bucketTokenUnit, bucketTypeCreator, bucketTokenOwner, bucketTxHistory); err != nil {
 		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
 

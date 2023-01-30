@@ -110,7 +110,6 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		return nil, errors.New("network is nil")
 	}
 	log.SetContext(log.KeyNodeID, host.ID().String())
-	logger.Debug("Starting consensus manager")
 	safetyModule, err := NewSafetyModule(signer)
 	if err != nil {
 		return nil, err
@@ -131,6 +130,8 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	if err != nil {
 		return nil, err
 	}
+	latestRound := pipeline.GetHighQc().VoteInfo.RoundNumber
+	logger.Debug("Starting consensus manager, starting round %v", latestRound)
 
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan consensus.IRChangeRequest),
@@ -139,7 +140,7 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 		peer:           host,
 		timers:         timer.NewTimers(),
 		net:            net,
-		pacemaker:      NewPacemaker(lastState.LatestRound, conf.LocalTimeoutMs, conf.BlockRateMs),
+		pacemaker:      NewPacemaker(latestRound, conf.LocalTimeoutMs, conf.BlockRateMs),
 		leaderSelector: l,
 		rootVerifier:   rootVerifier,
 		irReqBuffer:    NewIrReqBuffer(),

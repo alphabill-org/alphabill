@@ -35,6 +35,8 @@ func NewRoundPipeline(hash gocrypto.Hash, persistedState *store.RootState, parti
 	//init IR map
 	var hQC *atomic_broadcast.QuorumCert = nil
 	inputRecords := make(map[protocol.SystemIdentifier]*certificates.InputRecord)
+	// restore high QC from last stored state
+	// todo: AB-691 High QC should probably be stored in DB, this shortcut may enable replay attack... must be investigated
 	for id, cert := range persistedState.Certificates {
 		// initiate the highest quorum certificate from persisted state
 		if hQC == nil && bytes.Equal(cert.UnicitySeal.CommitInfo.RootHash, persistedState.LatestRootHash) {

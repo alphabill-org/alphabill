@@ -186,29 +186,6 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.EqualValues(t, res.Bills[9].Value, 199)
 }
 
-func TestListBillsRequest_NoPaging(t *testing.T) {
-	// given set of bills
-	var bills []*Bill
-	for i := uint64(0); i < 200; i++ {
-		bills = append(bills, &Bill{
-			Id:             newUnitID(i),
-			Value:          i,
-			OrderNumber:    i,
-			OwnerPredicate: getOwnerPredicate(pubkeyHex),
-		})
-	}
-	walletService := newWalletBackend(t, withBills(bills...))
-	port := startServer(t, walletService)
-
-	res := &ListBillsResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/list-bills?nopaging=true&pubkey=%s", port, pubkeyHex), res)
-	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Equal(t, len(bills), res.Total)
-	require.Len(t, res.Bills, 200)
-	require.EqualValues(t, res.Bills[0].Value, 0)
-	require.EqualValues(t, res.Bills[199].Value, 199)
-}
-
 func TestBalanceRequest_Ok(t *testing.T) {
 	port := startServer(t, newWalletBackend(t, withBills(
 		&Bill{

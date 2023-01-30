@@ -27,13 +27,14 @@ const (
 	blockHeightPath = "api/v1/block-height"
 
 	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
-	listBillsUrlFormat   = "%v/%v?pubkey=%v?nopaging=true"
-	proofUrlFormat       = "%v/%v/%v?bill_id=%v"
+	listBillsUrlFormat   = "%v/%v?pubkey=%v"
+	proofUrlFormat       = "%v/%v?bill_id=%v"
 	blockHeightUrlFormat = "%v/%v"
 
-	scheme          = "http://"
-	contentType     = "Content-Type"
-	applicationJson = "application/json"
+	scheme             = "http://"
+	contentType        = "Content-Type"
+	applicationJson    = "application/json"
+	defaultPagingLimit = 100
 )
 
 func NewClient(baseUrl string) (*MoneyBackendClient, error) {
@@ -66,29 +67,31 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(listBillsUrlFormat, c.baseUrl, listBillsPath, hexutil.Encode(pubKey)), nil)
-	req.Header.Set(contentType, applicationJson)
-	response, err := c.httpClient.Do(req)
+func (c *MoneyBackendClient) ListBills(pubKey []byte, pagingLimit int) (*money.ListBillsResponse, error) {
+	offset := 0
+	responseObject, err := c.retrieveBills(pubKey, offset)
 	if err != nil {
-		return nil, fmt.Errorf("request ListBills failed: %w", err)
+		return nil, err
+	}
+	finalResponse := responseObject
+	if pagingLimit <= 0 {
+		pagingLimit = defaultPagingLimit
 	}
 
-	responseData, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
-	}
-	var responseObject money.ListBillsResponse
-	err = json.Unmarshal(responseData, &responseObject)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)
+	for len(responseObject.Bills) == pagingLimit {
+		offset += pagingLimit
+		responseObject, err = c.retrieveBills(pubKey, offset)
+		if err != nil {
+			return nil, err
+		}
+		finalResponse.Bills = append(finalResponse.Bills, responseObject.Bills...)
 	}
 
-	return &responseObject, nil
+	return finalResponse, nil
 }
 
-func (c *MoneyBackendClient) GetProof(pubKey []byte, billId []byte) (*block.Bills, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.baseUrl, proofPath, hexutil.Encode(pubKey), hexutil.Encode(billId)), nil)
+func (c *MoneyBackendClient) GetProof(billId []byte) (*block.Bills, error) {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.baseUrl, proofPath, hexutil.Encode(billId)), nil)
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
@@ -127,4 +130,29 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 	}
 
 	return responseObject.BlockHeight, nil
+}
+
+func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.ListBillsResponse, error) {
+	reqUrl := fmt.Sprintf(listBillsUrlFormat, c.baseUrl, listBillsPath, hexutil.Encode(pubKey))
+	if offset > 0 {
+		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
+	}
+	req, err := http.NewRequest(http.MethodGet, reqUrl, nil)
+	req.Header.Set(contentType, applicationJson)
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request ListBills failed: %w", err)
+	}
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
+	}
+	var responseObject money.ListBillsResponse
+	err = json.Unmarshal(responseData, &responseObject)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)
+	}
+
+	return &responseObject, nil
 }

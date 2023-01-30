@@ -17,7 +17,7 @@ func DelCredit(id *uint256.Int) rma.Action {
 }
 
 // IncrCredit increments the balance of given FeeCreditRecord
-func IncrCredit(id *uint256.Int, value int64, timeout uint64, stateHash []byte) rma.Action {
+func IncrCredit(id *uint256.Int, value uint64, timeout uint64, stateHash []byte) rma.Action {
 	updateDataFunc := func(data rma.UnitData) (newData rma.UnitData) {
 		fcr, ok := data.(*FeeCreditRecord)
 		if !ok {
@@ -34,7 +34,7 @@ func IncrCredit(id *uint256.Int, value int64, timeout uint64, stateHash []byte) 
 }
 
 // DecrCredit decrements the balance of given FeeCreditRecord
-func DecrCredit(id *uint256.Int, value int64, stateHash []byte) rma.Action {
+func DecrCredit(id *uint256.Int, value uint64, stateHash []byte) rma.Action {
 	updateDataFunc := func(data rma.UnitData) (newData rma.UnitData) {
 		fcr, ok := data.(*FeeCreditRecord)
 		if !ok {

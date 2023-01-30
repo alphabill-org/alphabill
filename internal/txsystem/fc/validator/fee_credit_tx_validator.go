@@ -3,10 +3,11 @@ package validator
 import (
 	"bytes"
 	"crypto"
+	"errors"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
@@ -34,7 +35,6 @@ var (
 	ErrCloseFCInvalidUnitType = errors.New("closeFC: unit data is not of type fee credit record")
 	ErrCloseFCInvalidAmount   = errors.New("closeFC: invalid amount")
 	ErrCloseFCInvalidFee      = errors.New("closeFC: invalid fee")
-	ErrCloseFCInvalidBalance  = errors.New("closeFC: invalid negative balance")
 )
 
 type (
@@ -50,7 +50,7 @@ type (
 	AddFCValidationContext struct {
 		Tx                 *fc.AddFeeCreditWrapper
 		Unit               *rma.Unit
-		currentRoundNumber uint64
+		CurrentRoundNumber uint64
 	}
 
 	CloseFCValidationContext struct {
@@ -133,10 +133,10 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
-	if ctx.currentRoundNumber+1 < transferFCWrapper.TransferFC.EarliestAdditionTime {
-		return ErrAddFCInvalidTimeout
-	}
-	if ctx.currentRoundNumber+1 > transferFCWrapper.TransferFC.LatestAdditionTime {
+	tb := transferFCWrapper.TransferFC.EarliestAdditionTime
+	te := transferFCWrapper.TransferFC.LatestAdditionTime
+	t := ctx.CurrentRoundNumber
+	if t < tb || t > te {
 		return ErrAddFCInvalidTimeout
 	}
 
@@ -152,7 +152,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 	}
 	err = proof.Verify(tx.AddFC.FeeCreditTransfer.UnitId, transferFC, v.verifiers, v.hashAlgorithm)
 	if err != nil {
-		return errors.Wrap(err, "proof is not valid")
+		return fmt.Errorf("proof is not valid: %w", err)
 	}
 	return nil
 }
@@ -183,19 +183,13 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 		return ErrCloseFCInvalidUnitType
 	}
 
-	// unspecified check: cannot close negative balance, impled from the following checks
-	if fcr.Balance < 0 {
-		return ErrCloseFCInvalidBalance
-	}
-	fcrBalance := (uint64)(fcr.Balance)
-
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
-	if tx.CloseFC.Amount != fcrBalance {
+	if tx.CloseFC.Amount != fcr.Balance {
 		return ErrCloseFCInvalidAmount
 	}
 
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record
-	if tx.Transaction.ClientMetadata.MaxFee > fcrBalance {
+	if tx.Transaction.ClientMetadata.MaxFee > fcr.Balance {
 		return ErrCloseFCInvalidFee
 	}
 	return nil

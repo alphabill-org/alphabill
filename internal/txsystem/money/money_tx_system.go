@@ -3,11 +3,12 @@ package money
 import (
 	"bytes"
 	"crypto"
+	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	abHasher "github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -15,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/validator"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -84,6 +86,11 @@ type (
 		Backlink []byte // Backlink (256-bit hash)
 	}
 
+	FeeCreditTxValidator interface {
+		ValidateAddFC(ctx *validator.AddFCValidationContext) error
+		ValidateCloseFC(ctx *validator.CloseFCValidationContext) error
+	}
+
 	moneyTxSystem struct {
 		systemIdentifier   []byte
 		revertibleState    *rma.Tree
@@ -97,6 +104,8 @@ type (
 		sdrs map[string]*genesis.SystemDescriptionRecord
 		// feeCreditTxRecorder recorded fee credit transactions in current round
 		feeCreditTxRecorder *feeCreditTxRecorder
+		// feeCreditTxValidator validator for partition specific AddFC and CloseFC fee credit transactions
+		feeCreditTxValidator FeeCreditTxValidator
 	}
 )
 
@@ -124,14 +133,14 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 	}
 
 	txs := &moneyTxSystem{
-		systemIdentifier:    options.systemIdentifier,
-		hashAlgorithm:       hashAlgorithm,
-		revertibleState:     options.revertibleState,
-		dustCollectorBills:  make(map[uint64][]*uint256.Int),
-		currentBlockNumber:  uint64(0),
-		trustBase:           options.trustBase,
-		sdrs:                make(map[string]*genesis.SystemDescriptionRecord),
-		feeCreditTxRecorder: newFeeCreditTxRecorder(),
+		systemIdentifier:     options.systemIdentifier,
+		hashAlgorithm:        hashAlgorithm,
+		revertibleState:      options.revertibleState,
+		dustCollectorBills:   make(map[uint64][]*uint256.Int),
+		currentBlockNumber:   uint64(0),
+		trustBase:            options.trustBase,
+		sdrs:                 make(map[string]*genesis.SystemDescriptionRecord),
+		feeCreditTxValidator: validator.NewDefaultFeeCreditTxValidator(options.systemIdentifier, options.systemIdentifier, hashAlgorithm, options.trustBase),
 	}
 
 	err = txs.revertibleState.AtomicUpdate(rma.AddItem(initialBill.ID, initialBill.Owner, &BillData{
@@ -140,7 +149,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 		Backlink: nil,
 	}, nil))
 	if err != nil {
-		return nil, errors.Wrap(err, "could not set initial bill")
+		return nil, fmt.Errorf("could not set initial bill: %w", err)
 	}
 
 	// add fee credit bills to state tree
@@ -158,7 +167,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 			Backlink: nil,
 		}, nil))
 		if err != nil {
-			return nil, errors.Wrap(err, "could not set fee credit bill")
+			return nil, fmt.Errorf("could not set fee credit bill: %w", err)
 		}
 		txs.sdrs[string(sdr.SystemIdentifier)] = sdr
 	}
@@ -169,7 +178,7 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 		Backlink: nil,
 	}, nil))
 	if err != nil {
-		return nil, errors.Wrap(err, "could not set DC money supply")
+		return nil, fmt.Errorf("could not set DC money supply: %w", err)
 	}
 	txs.Commit()
 	return txs, nil
@@ -263,13 +272,137 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 				Backlink: tx.Hash(m.hashAlgorithm),
 			}, tx.Hash(m.hashAlgorithm)))
 	case *fc.TransferFeeCreditWrapper:
+		log.Debug("Processing transferFC %v", tx)
+		if bd == nil {
+			return errors.New("transferFC: unit not found")
+		}
+		bdd, ok := bd.Data.(*BillData)
+		if !ok {
+			return errors.New("transferFC: invalid unit type")
+		}
+		err = validateTransferFC(tx, bdd)
+		if err != nil {
+			return fmt.Errorf("transferFC: validation failed: %w", err)
+		}
+
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+
+		// remove value from source unit, or delete source bill entirely
+		var updateFunc rma.Action
+		v := tx.TransferFC.Amount + tx.Transaction.ServerMetadata.Fee
+		if v < bdd.V {
+			dataUpdateFunc := func(data rma.UnitData) (newData rma.UnitData) {
+				newBillData, ok := data.(*BillData)
+				if !ok {
+					return data // TODO should return error instead
+				}
+				newBillData.V -= v
+				newBillData.T = m.currentBlockNumber
+				newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+				return newBillData
+			}
+			updateFunc = rma.UpdateData(tx.UnitID(), dataUpdateFunc, tx.Hash(m.hashAlgorithm))
+		} else {
+			updateFunc = rma.DeleteItem(tx.UnitID())
+		}
+		err = m.revertibleState.AtomicUpdate(updateFunc)
+		if err != nil {
+			return fmt.Errorf("transferFC: failed to update state: %w", err)
+		}
+		// record fee tx for end of the round consolidation
 		m.feeCreditTxRecorder.recordTransferFC(tx)
 		return nil
+	case *fc.AddFeeCreditWrapper:
+		log.Debug("Processing addFC %v", tx)
+		err = m.feeCreditTxValidator.ValidateAddFC(&validator.AddFCValidationContext{
+			Tx:                 tx,
+			Unit:               bd,
+			CurrentRoundNumber: m.currentBlockNumber,
+		})
+		if err != nil {
+			return fmt.Errorf("addFC tx validation failed: %w", err)
+		}
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+
+		var updateFunc rma.Action
+		// find net value of credit
+		v := tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee
+		if bd == nil {
+			// add credit
+			fcr := &txsystem.FeeCreditRecord{
+				Balance: v,
+				Hash:    tx.Hash(m.hashAlgorithm),
+				Timeout: tx.TransferFC.TransferFC.LatestAdditionTime + 1,
+			}
+			updateFunc = txsystem.AddCredit(tx.UnitID(), tx.AddFC.FeeCreditOwnerCondition, fcr, tx.Hash(m.hashAlgorithm))
+		} else {
+			// increment credit
+			updateFunc = txsystem.IncrCredit(tx.UnitID(), v, tx.TransferFC.TransferFC.LatestAdditionTime+1, tx.Hash(m.hashAlgorithm))
+		}
+		err = m.revertibleState.AtomicUpdate(updateFunc)
+		if err != nil {
+			return fmt.Errorf("addFC state update failed: %w", err)
+		}
+		return nil
+	case *fc.CloseFeeCreditWrapper:
+		log.Debug("Processing closeFC %v", tx)
+		err = m.feeCreditTxValidator.ValidateCloseFC(&validator.CloseFCValidationContext{
+			Tx:   tx,
+			Unit: bd,
+		})
+		if err != nil {
+			return fmt.Errorf("closeFC: tx validation failed: %w", err)
+		}
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+
+		// decrement credit
+		updateFunc := txsystem.DecrCredit(tx.UnitID(), tx.CloseFC.Amount, tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.AtomicUpdate(updateFunc)
+		if err != nil {
+			return fmt.Errorf("closeFC: state update failed: %w", err)
+		}
+		return nil
 	case *fc.ReclaimFeeCreditWrapper:
+		log.Debug("Processing reclaimFC %v", tx)
+		if bd == nil {
+			return errors.New("reclaimFC: unit not found")
+		}
+		bdd, ok := bd.Data.(*BillData)
+		if !ok {
+			return errors.New("reclaimFC: invalid unit type")
+		}
+		err = validateReclaimFC(tx, bdd, m.trustBase, m.hashAlgorithm)
+		if err != nil {
+			return fmt.Errorf("reclaimFC: validation failed: %w", err)
+		}
+
+		// calculate actual tx fee cost
+		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+
+		// add reclaimed value to source unit
+		v := tx.CloseFCTransfer.CloseFC.Amount - tx.CloseFCTransfer.Transaction.ServerMetadata.Fee - tx.Transaction.ServerMetadata.Fee
+		updateFunc := func(data rma.UnitData) (newData rma.UnitData) {
+			newBillData, ok := data.(*BillData)
+			if !ok {
+				return data // TODO should return error instead
+			}
+			newBillData.V += v
+			newBillData.T = m.currentBlockNumber
+			newBillData.Backlink = tx.Hash(m.hashAlgorithm)
+			return newBillData
+		}
+		updateAction := rma.UpdateData(tx.UnitID(), updateFunc, tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.AtomicUpdate(updateAction)
+		if err != nil {
+			return fmt.Errorf("reclaimFC: failed to update state: %w", err)
+		}
 		m.feeCreditTxRecorder.recordReclaimFC(tx)
 		return nil
 	default:
-		return errors.Errorf("unknown type %T", gtx)
+		return fmt.Errorf("unknown type %T", gtx)
 	}
 }
 
@@ -285,14 +418,17 @@ func (m *moneyTxSystem) State() (txsystem.State, error) {
 
 func (m *moneyTxSystem) BeginBlock(blockNr uint64) {
 	m.currentBlockNumber = blockNr
+	m.feeCreditTxRecorder = newFeeCreditTxRecorder()
 }
 
 func (m *moneyTxSystem) Revert() {
 	m.revertibleState.Revert()
+	m.feeCreditTxRecorder = nil
 }
 
 func (m *moneyTxSystem) Commit() {
 	m.revertibleState.Commit()
+	m.feeCreditTxRecorder = nil
 }
 
 func (m *moneyTxSystem) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
@@ -378,7 +514,7 @@ func (m *moneyTxSystem) consolidateFees() error {
 			fcUnit.StateHash)
 		err = m.revertibleState.AtomicUpdate(updateData)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to update [%x] partiton's fee credit bill: %w", sdr.SystemIdentifier, err)
 		}
 	}
 
@@ -388,7 +524,7 @@ func (m *moneyTxSystem) consolidateFees() error {
 		moneyFCUnitID := uint256.NewInt(0).SetBytes(m.sdrs[string(m.systemIdentifier)].FeeCreditBill.UnitId)
 		moneyFCUnit, err := m.revertibleState.GetUnit(moneyFCUnitID)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not find money fee credit bill: %w", err)
 		}
 		updateData := rma.UpdateData(moneyFCUnitID,
 			func(data rma.UnitData) (newData rma.UnitData) {
@@ -403,12 +539,9 @@ func (m *moneyTxSystem) consolidateFees() error {
 			moneyFCUnit.StateHash)
 		err = m.revertibleState.AtomicUpdate(updateData)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to update money fee credit bill with spent fees: %w", err)
 		}
 	}
-
-	// clear recorded fee credit transactions
-	m.feeCreditTxRecorder = newFeeCreditTxRecorder()
 	return nil
 }
 
@@ -495,4 +628,9 @@ func (b *BillData) AddToHasher(hasher hash.Hash) {
 
 func (b *BillData) Value() rma.SummaryValue {
 	return rma.Uint64SummaryValue(b.V)
+}
+
+// txFeeFunc placeholder transaction cost function, all tx costs hardcoded to 1 (smallest?) alpha
+func txFeeFunc() uint64 {
+	return 1
 }

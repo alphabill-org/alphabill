@@ -317,14 +317,21 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 // 3) end block (moneyFCB=50+1=51)
 // commit
 // 1) begin block
-// 2) process reclaim FC (amount=50, fee=1, closeFC(amount=50, fee=2))
-// 3) end block (moneyFCB=51-(50-2)+1=4)
+// 2) process reclaim FC closeFC(amount=50, fee=1)
+// 3) end block (moneyFCB=51-50+1+1=3)
 func TestEndBlock_FeesConsolidation(t *testing.T) {
 	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
 
 	// process transferFC with amount 50 and fees 1
 	txSystem.BeginBlock(0)
-	transferFC := testfc.NewTransferFC(t, nil, testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}))
+	transferFC := testfc.NewTransferFC(t,
+		testfc.NewTransferFCAttr(
+			testfc.WithBacklink(nil),
+		),
+		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+
 	err := txSystem.Execute(transferFC)
 	require.NoError(t, err)
 	_, err = txSystem.EndBlock()
@@ -337,15 +344,28 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 51, moneyFCUnit.Data.Value())
 
-	// process reclaimFC with amount 50 and fees 1 (with closeFC amount=50 and fee=2)
+	// process reclaimFC (with closeFC amount=50 and fee=1)
 	txSystem.BeginBlock(0)
+
+	transferFCHash := transferFC.Hash(crypto.SHA256)
+	closeFC := testfc.NewCloseFC(t,
+		testfc.NewCloseFCAttr(
+			testfc.WithCloseFCAmount(50),
+			testfc.WithCloseFCTargetUnitID(util.Uint256ToBytes(initialBill.ID)),
+			testfc.WithCloseFCNonce(transferFCHash),
+		),
+	)
+
+	closeFCPb := closeFC.Transaction
+	proof := testblock.CreateProof(t, closeFC, signer, closeFCPb.UnitId)
 	reclaimFC := testfc.NewReclaimFC(t, signer,
 		testfc.NewReclaimFCAttr(t, signer,
-			testfc.WithReclaimFCClosureTx(
-				testfc.NewCloseFC(t, nil, testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 2})).Transaction,
-			),
+			testfc.WithReclaimFCClosureTx(closeFCPb),
+			testfc.WithReclaimFCClosureProof(proof),
+			testfc.WithReclaimFCBacklink(transferFCHash),
 		),
-		testtransaction.WithServerMetadata(&txsystem.ServerMetadata{Fee: 1}),
+		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 	)
 	err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
@@ -353,14 +373,13 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, err)
 	txSystem.Commit()
 
-	// verify that money fee credit bill is 51-48+1=4 (moneyFCB-reclaimedCredits+reclaimFCFee)
+	// verify that moneyFCB=51-50+1+1=3 (moneyFCB - closeAmount + closeFee + reclaimFee)
 	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID)
 	require.NoError(t, err)
-	require.EqualValues(t, 4, moneyFCUnit.Data.Value())
+	require.EqualValues(t, 3, moneyFCUnit.Data.Value())
 
-	// verfy that fee credit tx recorder is empty
-	require.Len(t, txSystem.feeCreditTxRecorder.transferFeeCredits, 0)
-	require.Len(t, txSystem.feeCreditTxRecorder.reclaimFeeCredits, 0)
+	// verfy that fee credit tx recorder is nil
+	require.Nil(t, txSystem.feeCreditTxRecorder)
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {
@@ -435,6 +454,103 @@ func TestRegisterData_Revert(t *testing.T) {
 	state, err := txSystem.State()
 	require.NoError(t, err)
 	require.Equal(t, vdState, state)
+}
+
+// Test Transfer->Add->Close->Reclaim sequence OK
+func TestExecute_FeeCreditSequence_OK(t *testing.T) {
+	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
+	txFee := txFeeFunc()
+	initialBillID := util.Uint256ToBytes(initialBill.ID)
+	fcrUnitID := util.Uint256ToBytes(uint256.NewInt(100))
+	txAmount := uint64(20)
+
+	txSystem.BeginBlock(1)
+
+	// transfer 20 alphas to FCB
+	transferFC := testfc.NewTransferFC(t,
+		testfc.NewTransferFCAttr(
+			testfc.WithBacklink(nil),
+			testfc.WithAmount(txAmount),
+			testfc.WithTargetRecordID(fcrUnitID),
+		),
+		testtransaction.WithUnitId(initialBillID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err := txSystem.Execute(transferFC)
+	require.NoError(t, err)
+
+	// verify unit value is reduced by 21
+	ib, err := rmaTree.GetUnit(initialBill.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, initialBill.Value-txAmount-txFee, ib.Data.Value())
+	require.Equal(t, txFee, transferFC.Transaction.ServerMetadata.Fee)
+
+	// send addFC
+	transferFCPb := transferFC.Transaction
+	transferFCProof := testblock.CreateProof(t, transferFC, signer, transferFCPb.UnitId)
+	addFC := testfc.NewAddFC(t, signer,
+		testfc.NewAddFCAttr(t, signer,
+			testfc.WithTransferFCTx(transferFCPb),
+			testfc.WithTransferFCProof(transferFCProof),
+			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
+		),
+		testtransaction.WithUnitId(fcrUnitID),
+	)
+	err = txSystem.Execute(addFC)
+	require.NoError(t, err)
+
+	// verify user fee credit is 19 (transfer 20 minus fee 1)
+	remainingValue := txAmount - txFee // 19
+	fcrUnit, err := rmaTree.GetUnit(uint256.NewInt(0).SetBytes(fcrUnitID))
+	require.NoError(t, err)
+	fcrUnitData, ok := fcrUnit.Data.(*txsystem.FeeCreditRecord)
+	require.True(t, ok)
+	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
+	require.Equal(t, txFee, addFC.Transaction.ServerMetadata.Fee)
+
+	// send closeFC
+	transferFCHash := transferFC.Hash(crypto.SHA256)
+	closeFC := testfc.NewCloseFC(t,
+		testfc.NewCloseFCAttr(
+			testfc.WithCloseFCAmount(remainingValue),
+			testfc.WithCloseFCTargetUnitID(initialBillID),
+			testfc.WithCloseFCNonce(transferFCHash),
+		),
+		testtransaction.WithUnitId(fcrUnitID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err = txSystem.Execute(closeFC)
+	require.NoError(t, err)
+	require.Equal(t, txFee, closeFC.Transaction.ServerMetadata.Fee)
+
+	// verify user fee credit is closed (balance 0, unit will be deleted on round completion)
+	fcrUnit, err = rmaTree.GetUnit(uint256.NewInt(0).SetBytes(fcrUnitID))
+	require.NoError(t, err)
+	fcrUnitData, ok = fcrUnit.Data.(*txsystem.FeeCreditRecord)
+	require.True(t, ok)
+	require.EqualValues(t, 0, fcrUnitData.Balance)
+
+	// send reclaimFC
+	closeFCPb := closeFC.Transaction
+	closeFCProof := testblock.CreateProof(t, closeFC, signer, closeFCPb.UnitId)
+	reclaimFC := testfc.NewReclaimFC(t, signer,
+		testfc.NewReclaimFCAttr(t, signer,
+			testfc.WithReclaimFCClosureTx(closeFCPb),
+			testfc.WithReclaimFCClosureProof(closeFCProof),
+			testfc.WithReclaimFCBacklink(transferFCHash),
+		),
+		testtransaction.WithUnitId(initialBillID),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+	)
+	err = txSystem.Execute(reclaimFC)
+	require.NoError(t, err)
+	require.Equal(t, txFee, reclaimFC.Transaction.ServerMetadata.Fee)
+
+	// verify reclaimed fee is added back to initial bill (original value minus 4x txfee)
+	ib, err = rmaTree.GetUnit(initialBill.ID)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.EqualValues(t, initialBill.Value-4*txFee, ib.Data.Value())
 }
 
 func unitIdFromTransaction(tx *billSplitWrapper) []byte {

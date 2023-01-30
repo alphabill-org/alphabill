@@ -48,9 +48,12 @@ func (mn *MockNode) GetBlock(blockNumber uint64) (*block.Block, error) {
 	return &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}}, nil
 }
 
-func (mn *MockNode) GetLatestBlock() *block.Block {
-	b, _ := mn.GetBlock(mn.maxBlockNumber)
-	return b
+func (mn *MockNode) GetLatestBlock() (*block.Block, error) {
+	return mn.GetBlock(mn.maxBlockNumber)
+}
+
+func (mn *MockNode) GetLatestRoundNumber() (uint64, error) {
+	return mn.maxBlockNumber, nil
 }
 
 func (mn *MockNode) SystemIdentifier() []byte {

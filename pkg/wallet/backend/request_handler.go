@@ -3,7 +3,7 @@ package backend
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -245,7 +245,7 @@ func (s *RequestHandler) parsePubkeyURLParam(r *http.Request) ([]byte, error) {
 }
 
 func (s *RequestHandler) readBillsProto(r *http.Request) (*moneytx.Bills, error) {
-	b, err := ioutil.ReadAll(r.Body)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

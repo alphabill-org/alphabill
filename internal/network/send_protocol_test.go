@@ -63,7 +63,7 @@ func TestSend_UnknownPeer(t *testing.T) {
 
 	err = peer2Protocol.Send(moneytesttx.RandomBillTransfer(t), peer1.ID())
 	require.Error(t, err)
-	require.ErrorContains(t, err, "failed to open stream")
+	require.ErrorContains(t, err, "open stream error")
 }
 
 func TestSend_ConnectionRefused(t *testing.T) {

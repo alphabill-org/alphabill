@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -950,7 +950,6 @@ func readParentTypeInfo(cmd *cobra.Command, am wallet.AccountManager) (tokens.Pr
 	}
 
 	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
-		parentType = NoParent
 		return NoParent, []*t.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
 
@@ -1114,7 +1113,7 @@ func readNFTData(cmd *cobra.Command, required bool) ([]byte, error) {
 	return data, nil
 }
 
-//getHexFlag returns nil in case array is empty (weird behaviour by cobra)
+// getHexFlag returns nil in case array is empty (weird behaviour by cobra)
 func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
 	res, err := cmd.Flags().GetBytesHex(flag)
 	if err != nil {
@@ -1146,7 +1145,7 @@ func readDataFile(path string) ([]byte, error) {
 	if size > maxBinaryFile64Kb {
 		return nil, fmt.Errorf("data-file read error: file size over 64Kb limit")
 	}
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("data-file read error: %w", err)
 	}

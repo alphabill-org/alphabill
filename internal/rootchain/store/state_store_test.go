@@ -41,6 +41,7 @@ func TestPersistentRootState_GetAndSave(t *testing.T) {
 	stateStore, err := NewPersistentStateStore(storage)
 	require.NoError(t, err)
 	s, err := stateStore.Get()
+	require.NoError(t, err)
 	require.Equal(t, s.LatestRound, uint64(1))
 	require.Equal(t, s.LatestRootHash, zeroHash)
 	eqCerts := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{sysId: mockUc}

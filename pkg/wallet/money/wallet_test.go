@@ -164,12 +164,12 @@ func TestBlockProcessing(t *testing.T) {
 
 	blocks := []*block.Block{
 		{
-			SystemIdentifier:  alphabillMoneySystemId,
+			SystemIdentifier:  w.SystemID(),
 			PreviousBlockHash: hash.Sum256([]byte{}),
 			Transactions: []*txsystem.Transaction{
 				// random dust transfer can be processed
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x00}),
 					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
@@ -177,7 +177,7 @@ func TestBlockProcessing(t *testing.T) {
 				},
 				// receive transfer of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x01}),
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
@@ -185,7 +185,7 @@ func TestBlockProcessing(t *testing.T) {
 				},
 				// receive split of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x02}),
 					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
@@ -193,7 +193,7 @@ func TestBlockProcessing(t *testing.T) {
 				},
 				// receive swap of 100 bills
 				{
-					SystemId:              alphabillMoneySystemId,
+					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x03}),
 					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
@@ -250,12 +250,12 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	k, _ := w.db.Do().GetAccountKey(0)
 
 	testBlock := &block.Block{
-		SystemIdentifier:  alphabillMoneySystemId,
+		SystemIdentifier:  w.SystemID(),
 		PreviousBlockHash: hash.Sum256([]byte{}),
 		Transactions: []*txsystem.Transaction{
 			// receive transfer of 100 bills
 			{
-				SystemId:              alphabillMoneySystemId,
+				SystemId:              w.SystemID(),
 				UnitId:                hash.Sum256([]byte{0x00}),
 				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
@@ -263,7 +263,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			},
 			// receive dc transfer of 100 bills
 			{
-				SystemId:              alphabillMoneySystemId,
+				SystemId:              w.SystemID(),
 				UnitId:                hash.Sum256([]byte{0x01}),
 				TransactionAttributes: moneytesttx.CreateDustTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
@@ -271,7 +271,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			},
 			// receive split of 100 bills
 			{
-				SystemId:              alphabillMoneySystemId,
+				SystemId:              w.SystemID(),
 				UnitId:                hash.Sum256([]byte{0x02}),
 				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 				Timeout:               1000,
@@ -279,7 +279,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 			},
 			// receive swap of 100 bills
 			{
-				SystemId:              alphabillMoneySystemId,
+				SystemId:              w.SystemID(),
 				UnitId:                hash.Sum256([]byte{0x03}),
 				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
@@ -288,14 +288,16 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 		},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 	}
-	certifiedBlock, verifiers := testblock.CertifyBlock(t, testBlock, txConverter)
+	txc := NewTxConverter(w.SystemID())
+
+	certifiedBlock, verifiers := testblock.CertifyBlock(t, testBlock, txc)
 	err := w.ProcessBlock(certifiedBlock)
 	require.NoError(t, err)
 
 	bills, _ := w.db.Do().GetBills(0)
 	require.Len(t, bills, 4)
 	for _, b := range bills {
-		err = b.BlockProof.Verify(b.GetID(), verifiers, crypto.SHA256)
+		err = b.BlockProof.Verify(b.GetID(), verifiers, crypto.SHA256, txc)
 		require.NoError(t, err)
 		require.Equal(t, block.ProofType_PRIM, b.BlockProof.Proof.ProofType)
 	}
@@ -408,7 +410,7 @@ func TestWalletAddBill(t *testing.T) {
 	err = w.AddBill(0, &Bill{
 		Id:         uint256.NewInt(0),
 		TxHash:     []byte{},
-		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(invalidPubkey)},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(w.SystemID(), invalidPubkey)},
 	})
 	require.ErrorContains(t, err, "invalid bearer predicate")
 
@@ -416,7 +418,7 @@ func TestWalletAddBill(t *testing.T) {
 	err = w.AddBill(0, &Bill{
 		Id:         uint256.NewInt(0),
 		TxHash:     []byte{},
-		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(pubkey)},
+		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(w.SystemID(), pubkey)},
 	})
 	require.NoError(t, err)
 }
@@ -427,6 +429,7 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.Equal(t, testMnemonic, mnemonic)
 
 	mk, err := w.db.Do().GetMasterKey()
+	require.NoError(t, err)
 	require.Equal(t, testMasterKeyBase58, mk)
 
 	ac, err := w.db.Do().GetAccountKey(0)
@@ -437,9 +440,9 @@ func verifyTestWallet(t *testing.T, w *Wallet) {
 	require.Equal(t, testPubKey0HashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
 }
 
-func createTransferTxForPubKey(pubkey []byte) *txsystem.Transaction {
+func createTransferTxForPubKey(systemId, pubkey []byte) *txsystem.Transaction {
 	return &txsystem.Transaction{
-		SystemId:              alphabillMoneySystemId,
+		SystemId:              systemId,
 		UnitId:                hash.Sum256([]byte{0x01}),
 		TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey)),
 		Timeout:               1000,

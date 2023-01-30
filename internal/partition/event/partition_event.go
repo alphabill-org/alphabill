@@ -10,6 +10,8 @@ const (
 	RecoveryStarted
 	RecoveryFinished
 	StateReverted
+	ReplicationResponseSent
+	LatestUnicityCertificateUpdated
 )
 
 type (

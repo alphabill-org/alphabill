@@ -33,7 +33,6 @@ type (
 	// Shutdown needs to be called to release resources used by wallet.
 	Wallet struct {
 		BlockProcessor  BlockProcessor
-		config          Config
 		AlphabillClient client.ABClient
 		syncFlag        *syncFlagWrapper
 	}
@@ -46,6 +45,12 @@ type (
 	SendOpts struct {
 		// RetryOnFullTxBuffer retries to send transaction when tx buffer is full
 		RetryOnFullTxBuffer bool
+	}
+
+	fetchBlocksResult struct {
+		lastFetchedBlockNumber  uint64 // latest processed block by a wallet/client
+		maxAvailableBlockNumber uint64 // latest non-empty block in a partition shard
+		maxAvailableRoundNumber uint64 // latest round number in a partition shard, greater or equal to maxAvailableBlockNumber
 	}
 )
 
@@ -97,8 +102,8 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context, lastBlockNumber uint6
 	return w.syncLedger(ctx, lastBlockNumber, false)
 }
 
-// GetMaxBlockNumber queries the node for latest block number
-func (w *Wallet) GetMaxBlockNumber() (uint64, error) {
+// GetMaxBlockNumber queries the node for latest block and round number
+func (w *Wallet) GetMaxBlockNumber() (uint64, uint64, error) {
 	return w.AlphabillClient.GetMaxBlockNumber()
 }
 
@@ -168,7 +173,6 @@ func (w *Wallet) syncLedger(ctx context.Context, lastBlockNumber uint64, syncFor
 
 func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
 	log.Info("syncing until cancelled from current block number ", lastBlockNumber)
-	var err error
 	var maxBlockNumber uint64
 	for {
 		select {
@@ -187,16 +191,18 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 					return nil
 				}
 			}
-			lastBlockNumber, maxBlockNumber, err = w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
+			res, err := w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
 			if err != nil {
 				return err
 			}
+			lastBlockNumber = res.lastFetchedBlockNumber
+			maxBlockNumber = res.maxAvailableBlockNumber
 		}
 	}
 }
 
 func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
-	maxBlockNumber, err := w.GetMaxBlockNumber()
+	maxBlockNumber, _, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return err
 	}
@@ -209,25 +215,36 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 			return nil
 		default:
 			batchSize := util.Min(blockDownloadMaxBatchSize, maxBlockNumber-lastBlockNumber)
-			lastBlockNumber, _, err = w.fetchBlocks(lastBlockNumber, batchSize, ch)
+			res, err := w.fetchBlocks(lastBlockNumber, batchSize, ch)
 			if err != nil {
 				return err
 			}
+			lastBlockNumber = res.lastFetchedBlockNumber
 		}
 	}
 	return nil
 }
 
-func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (uint64, uint64, error) {
-	res, err := w.AlphabillClient.GetBlocks(lastBlockNumber+1, batchSize)
+func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (*fetchBlocksResult, error) {
+	fromBlockNumber := lastBlockNumber + 1
+	res, err := w.AlphabillClient.GetBlocks(fromBlockNumber, batchSize)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
+	}
+	result := &fetchBlocksResult{
+		lastFetchedBlockNumber:  lastBlockNumber,
+		maxAvailableBlockNumber: res.MaxBlockNumber,
+		maxAvailableRoundNumber: res.MaxRoundNumber,
 	}
 	for _, b := range res.Blocks {
-		lastBlockNumber = b.UnicityCertificate.InputRecord.RoundNumber
+		result.lastFetchedBlockNumber = b.UnicityCertificate.InputRecord.RoundNumber
 		ch <- b
 	}
-	return lastBlockNumber, res.MaxBlockNumber, nil
+	// this makes sure empty blocks are taken into account (the whole batch might be empty in fact)
+	if res.BatchMaxBlockNumber > result.lastFetchedBlockNumber {
+		result.lastFetchedBlockNumber = res.BatchMaxBlockNumber
+	}
+	return result, nil
 }
 
 func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
@@ -243,9 +260,8 @@ func (w *Wallet) processBlocks(ch <-chan *block.Block) error {
 }
 
 func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetries int) error {
-	failedTries := 0
-	for {
-		// node side error is incuded in both res.Message and err.Error(),
+	for failedTries := 0; failedTries < maxRetries; failedTries++ {
+		// node side error is included in both res.Message and err.Error(),
 		// we use res.Message here to check if tx passed
 		res, err := w.AlphabillClient.SendTransaction(tx)
 		if res == nil && err == nil {
@@ -253,22 +269,15 @@ func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetrie
 		}
 		if res != nil {
 			if res.Ok {
-				log.Debug("successfully sent transaction")
 				return nil
 			}
 			// res.Message can also contain stacktrace when node returns aberror, so we check prefix instead of exact match
 			if strings.HasPrefix(res.Message, txBufferFullErrMsg) {
-				failedTries += 1
-				if failedTries >= maxRetries {
-					return ErrFailedToBroadcastTx
-				}
 				log.Debug("tx buffer full, waiting 1s to retry...")
-				timer := time.NewTimer(time.Second)
 				select {
-				case <-timer.C:
+				case <-time.After(time.Second):
 					continue
 				case <-ctx.Done():
-					timer.Stop()
 					return ErrTxRetryCanceled
 				}
 			}
@@ -278,4 +287,5 @@ func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetrie
 			return err
 		}
 	}
+	return ErrFailedToBroadcastTx
 }

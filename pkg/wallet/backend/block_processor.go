@@ -16,11 +16,12 @@ import (
 const dustBillDeletionTimeout = 65536
 
 type BlockProcessor struct {
-	store BillStore
+	systemId []byte
+	store    BillStore
 }
 
-func NewBlockProcessor(store BillStore) *BlockProcessor {
-	return &BlockProcessor{store: store}
+func NewBlockProcessor(systemId []byte, store BillStore) *BlockProcessor {
+	return &BlockProcessor{systemId: systemId, store: store}
 }
 
 func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
@@ -29,7 +30,8 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 	if err != nil {
 		return err
 	}
-	if b.UnicityCertificate.InputRecord.RoundNumber != lastBlockNumber+1 {
+	// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+	if lastBlockNumber >= b.UnicityCertificate.InputRecord.RoundNumber {
 		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 	keys, err := p.store.GetKeys()
@@ -52,13 +54,12 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 }
 
 func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, pubKey *Pubkey) error {
-	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
+	gtx, err := moneytx.NewMoneyTx(p.systemId, txPb)
 	if err != nil {
 		return err
 	}
-	stx := gtx.(txsystem.GenericTransaction)
 
-	switch tx := stx.(type) {
+	switch tx := gtx.(type) {
 	case moneytx.Transfer:
 		if wallet.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.NewBearer()) {
 			wlog.Info(fmt.Sprintf("received transfer order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
@@ -161,7 +162,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 }
 
 func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, tx *txsystem.Transaction, bi *Bill) error {
-	genericBlock, err := b.ToGenericBlock(txConverter)
+	genericBlock, err := b.ToGenericBlock(NewTxConverter(p.systemId))
 	if err != nil {
 		return err
 	}

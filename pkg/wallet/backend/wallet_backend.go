@@ -11,10 +11,8 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
+	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )
-
-var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
 var (
 	errKeyNotIndexed  = errors.New("pubkey is not indexed")
@@ -99,31 +97,26 @@ func (w *WalletBackend) Start(ctx context.Context) error {
 func (w *WalletBackend) StartProcess(ctx context.Context) {
 	wlog.Info("starting wallet-backend synchronization")
 	defer wlog.Info("wallet-backend synchronization ended")
-	retryCount := 0
+
 	for {
+		if err := w.Start(ctx); err != nil {
+			wlog.Error("error synchronizing wallet-backend: ", err)
+		}
+		// delay before retrying
 		select {
 		case <-ctx.Done(): // canceled from context
 			return
 		case <-w.cancelSyncCh: // canceled from shutdown method
 			return
-		default:
-			if retryCount > 0 {
-				wlog.Info("sleeping 10s before retrying alphabill connection")
-				timer := time.NewTimer(10 * time.Second)
-				select {
-				case <-timer.C:
-				case <-ctx.Done():
-					timer.Stop()
-					return
-				}
-			}
-			err := w.Start(ctx)
-			if err != nil {
-				wlog.Error("error synchronizing wallet-backend: ", err)
-			}
-			retryCount++
+		case <-time.After(10 * time.Second):
 		}
 	}
+}
+
+func (w *WalletBackend) SystemID() []byte {
+	// TODO: return the default "AlphaBill Money System ID" for now
+	// but this should come from config (w.genericWallet?)
+	return []byte{0, 0, 0, 0}
 }
 
 // GetBills returns all bills for given public key.
@@ -147,8 +140,9 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *moneytx.Bills) error {
 	if len(bills.Bills) == 0 {
 		return errEmptyBillsList
 	}
-	err := bills.Verify(txConverter, w.verifiers)
-	if err != nil {
+
+	txc := NewTxConverter(w.SystemID())
+	if err := bills.Verify(txc, w.verifiers); err != nil {
 		return err
 	}
 	key, err := w.store.GetKey(pubkey)
@@ -161,7 +155,7 @@ func (w *WalletBackend) SetBills(pubkey []byte, bills *moneytx.Bills) error {
 	pubkeyHash := wallet.NewKeyHash(pubkey)
 	domainBills := newBillsFromProto(bills)
 	for _, bill := range domainBills {
-		tx, err := txConverter.ConvertTx(bill.TxProof.Tx)
+		tx, err := txc.ConvertTx(bill.TxProof.Tx)
 		if err != nil {
 			return err
 		}
@@ -181,7 +175,8 @@ func (w *WalletBackend) AddKey(pubkey []byte) error {
 
 // GetMaxBlockNumber returns max block number known to the connected AB node.
 func (w *WalletBackend) GetMaxBlockNumber() (uint64, error) {
-	return w.genericWallet.GetMaxBlockNumber()
+	blNo, _, err := w.genericWallet.GetMaxBlockNumber() // TODO return latest round number?
+	return blNo, err
 }
 
 // Shutdown terminates wallet backend service.

@@ -1,10 +1,11 @@
 package network
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	uc "github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/errors/errstr"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
@@ -226,7 +227,7 @@ func (n *LibP2PNetwork) registerReceiveProtocol(receiveProtocol *ReceiveProtocol
 		return errors.New(errstr.NilArgument)
 	}
 	if _, f := n.receiveProtocols[receiveProtocol.ID()]; f {
-		return errors.Errorf("protocol %v already registered", receiveProtocol.ID())
+		return fmt.Errorf("protocol %v already registered", receiveProtocol.ID())
 	}
 	n.receiveProtocols[receiveProtocol.ID()] = receiveProtocol
 	return nil
@@ -237,7 +238,7 @@ func (n *LibP2PNetwork) registerSendProtocol(sendProtocol *SendProtocol) error {
 		return errors.New(errstr.NilArgument)
 	}
 	if _, f := n.sendProtocols[sendProtocol.ID()]; f {
-		return errors.Errorf("protocol %v already registered", sendProtocol.ID())
+		return fmt.Errorf("protocol %v already registered", sendProtocol.ID())
 	}
 	n.sendProtocols[sendProtocol.ID()] = sendProtocol
 	return nil
@@ -249,7 +250,7 @@ func (n *LibP2PNetwork) Send(out OutputMessage, receivers []peer.ID) error {
 	}
 	p, f := n.sendProtocols[out.Protocol]
 	if !f {
-		return errors.Errorf("protocol '%s' is not supported", out.Protocol)
+		return fmt.Errorf("protocol '%s' is not supported", out.Protocol)
 	}
 	go n.send(p, out.Message, receivers)
 	return nil
@@ -272,7 +273,8 @@ func (n *LibP2PNetwork) send(protocol *SendProtocol, m proto.Message, receivers 
 		}
 		err := protocol.Send(m, receiver)
 		if err != nil {
-			logger.Warning("Failed to send message to peer %v: %v", receiver, err)
+			logger.Warning("Send error, message %v receiver: %v sender: %v, %v",
+				protocol.protocolID, receiver, n.self.ID(), err)
 			continue
 		}
 	}
@@ -316,7 +318,7 @@ func initSendProtocol(protocolID string, peer *Peer, timeout time.Duration, n *L
 		return err
 	}
 	if err = n.registerSendProtocol(p); err != nil {
-		return errors.Wrapf(err, "failed to register protocol %s ", protocolID)
+		return fmt.Errorf("failed to register protocol %s, error: %w", protocolID, err)
 	}
 	return nil
 }

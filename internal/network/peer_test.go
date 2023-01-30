@@ -69,7 +69,7 @@ func TestNewPeer_InvalidPrivateKey(t *testing.T) {
 		},
 	}
 	_, err := NewPeer(conf)
-	require.ErrorContains(t, err, ErrStringInvalidPrivateKey)
+	require.ErrorContains(t, err, "invalid private key error, expected secp256k1 data size to be 32")
 }
 
 func TestNewPeer_InvalidPublicKey(t *testing.T) {
@@ -82,7 +82,7 @@ func TestNewPeer_InvalidPublicKey(t *testing.T) {
 		},
 	}
 	_, err := NewPeer(conf)
-	require.ErrorContains(t, err, ErrStringInvalidPublicKey)
+	require.ErrorContains(t, err, "invalid public key error, malformed public key: invalid length: 30")
 }
 
 func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {

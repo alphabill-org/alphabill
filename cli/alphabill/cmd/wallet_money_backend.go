@@ -103,8 +103,8 @@ func newWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *co
 			consoleWriter.Println("Error: must specify a subcommand")
 		},
 	}
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
+	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.AddCommand(startCmd(ctx, config))
 	return walletCmd
 }
@@ -151,7 +151,8 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 			return err
 		}
 	}
-	bp := backend.NewBlockProcessor(store)
+	// TODO: hardcoded AlphaBill Money SystemId for now, should come from config in the future
+	bp := backend.NewBlockProcessor([]byte{0, 0, 0, 0}, store)
 	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 
 	service := backend.New(w, store, verifiers)

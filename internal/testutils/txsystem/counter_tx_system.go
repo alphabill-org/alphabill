@@ -58,6 +58,7 @@ func (m *CounterTxSystem) State() (txsystem.State, error) {
 func (m *CounterTxSystem) BeginBlock(_ uint64) {
 	logger.Debug("CounterTxSystem: BeginBlock()")
 	m.BeginBlockCountDelta++
+	m.ExecuteCountDelta = 0
 }
 
 func (m *CounterTxSystem) Revert() {

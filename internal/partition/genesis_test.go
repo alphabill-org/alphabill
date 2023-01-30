@@ -110,7 +110,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	ir := blockCertificationRequestRequest.InputRecord
 	expectedHash := make([]byte, 32)
 	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, calculateBlockHash(systemIdentifier, nil), ir.BlockHash)
+	require.Equal(t, calculateBlockHash(systemIdentifier, nil, true), ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
@@ -131,9 +131,12 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, nodeEncrypt
 	return pn
 }
 
-func calculateBlockHash(systemIdentifier, previousHash []byte) []byte {
+func calculateBlockHash(systemIdentifier, previousHash []byte, isEmpty bool) []byte {
 	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
 	hasher := gocrypto.SHA256.New()
+	if isEmpty {
+		return zeroHash
+	}
 	hasher.Write(systemIdentifier)
 	hasher.Write(previousHash)
 	headerHash := hasher.Sum(nil)

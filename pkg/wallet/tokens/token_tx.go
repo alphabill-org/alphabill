@@ -172,13 +172,14 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		} else {
-			tokenInfo, err = txc.GetTokenType(ctx.TypeID())
+			ti, err := txc.GetTokenType(ctx.TypeID())
 			if err != nil {
 				return err
 			}
-			if tokenInfo == nil {
+			if ti == nil {
 				return errors.Errorf("split tx: token type with id=%X not found, token id=%X", ctx.TypeID(), id)
 			}
+			tokenInfo = ti
 		}
 
 		if checkOwner(accNr, key, ctx.NewBearer()) {
@@ -247,6 +248,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 			burnedValue += burnTx.Value()
 		}
 		joinedToken.Amount += burnedValue
+		joinedToken.Backlink = txHash
 		err = w.addTokenWithProof(accNr, joinedToken, b, tx, txc)
 		if err != nil {
 			return err
@@ -426,11 +428,11 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *wallet.AccountK
 	}
 	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", txSub.id, reflect.TypeOf(attrs)))
 
-	blockNumber, err := w.mw.GetMaxBlockNumber()
+	_, roundNumber, err := w.mw.GetMaxBlockNumber()
 	if err != nil {
 		return txSub, err
 	}
-	tx := createTx(txSub.id, blockNumber+txTimeoutBlockCount)
+	tx := createTx(w.SystemID(), txSub.id, roundNumber+txTimeoutBlockCount)
 	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
 		return txSub, err
@@ -575,9 +577,9 @@ func (w *Wallet) sendSplitOrTransferTx(acc *wallet.AccountKey, amount uint64, to
 	return sub, nil
 }
 
-func createTx(unitId []byte, timeout uint64) *txsystem.Transaction {
+func createTx(systemId, unitId []byte, timeout uint64) *txsystem.Transaction {
 	return &txsystem.Transaction{
-		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
+		SystemId:              systemId,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,

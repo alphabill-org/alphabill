@@ -187,8 +187,8 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.EqualValues(t, bill.Value, 1)
 	require.False(t, bill.IsDCBill)
 	bill = res.Bills[1]
-	require.EqualValues(t, res.Bills[1].Value, 2)
-	require.True(t, res.Bills[1].IsDCBill)
+	require.EqualValues(t, bill.Value, 2)
+	require.True(t, bill.IsDCBill)
 }
 
 func TestListBillsRequest_Paging(t *testing.T) {
@@ -435,7 +435,7 @@ func TestAddProofRequest_Ok(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
-	gtx, _ := txConverter.ConvertTx(tx)
+	gtx, _ := NewTxConverter(tx.SystemId).ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 	store, _ := createTestBillStore(t)
@@ -483,7 +483,7 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
 	}))
-	gtx, _ := txConverter.ConvertTx(tx)
+	gtx, _ := NewTxConverter(tx.SystemId).ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 
@@ -521,7 +521,7 @@ func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256([]byte("invalid pub key"))),
 	}))
-	gtx, _ := txConverter.ConvertTx(tx)
+	gtx, _ := NewTxConverter(tx.SystemId).ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 
@@ -561,7 +561,7 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 		TargetValue:  txValue,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
-	gtx, _ := txConverter.ConvertTx(tx)
+	gtx, _ := NewTxConverter(tx.SystemId).ConvertTx(tx)
 	txHash := gtx.Hash(crypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 	store, _ := createTestBillStore(t)
@@ -608,13 +608,14 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 
 func createProofForTx(t *testing.T, tx *txsystem.Transaction) (*block.BlockProof, map[string]abcrypto.Verifier) {
 	b := &block.Block{
-		SystemIdentifier:   alphabillMoneySystemId,
+		SystemIdentifier:   tx.SystemId,
 		PreviousBlockHash:  hash.Sum256([]byte{}),
 		Transactions:       []*txsystem.Transaction{tx},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 	}
-	b, verifiers := testblock.CertifyBlock(t, b, txConverter)
-	genericBlock, _ := b.ToGenericBlock(txConverter)
+	txc := NewTxConverter(tx.SystemId)
+	b, verifiers := testblock.CertifyBlock(t, b, txc)
+	genericBlock, _ := b.ToGenericBlock(txc)
 	proof, _ := block.NewPrimaryProof(genericBlock, tx.UnitId, crypto.SHA256)
 	return proof, verifiers
 }
@@ -694,7 +695,7 @@ func startServer(t *testing.T, service WalletBackendService) int {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
 
-	server := NewHttpServer(fmt.Sprintf(":%d", port), 100, service)
+	server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
 	err = server.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {

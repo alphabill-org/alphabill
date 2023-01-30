@@ -3,8 +3,8 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"reflect"
 	"testing"
 
@@ -73,7 +73,7 @@ func TestWalletCreateNonFungibleTokenCmd_TokenIdFlag(t *testing.T) {
 
 func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 	data := make([]byte, maxBinaryFile64Kb+1)
-	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
+	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestWalletCreateNonFungibleTokenCmd_DataFileFlag(t *testing.T) {
 
 func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 	data := make([]byte, maxBinaryFile64Kb+1)
-	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
+	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
@@ -203,8 +203,8 @@ func TestNFTs_Integration(t *testing.T) {
 	//check what is left in w1, nothing, that is
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list non-fungible -u %s", dialAddr)), "No tokens")
 	// list token types
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types")), "symbol=ABNFT (type,non-fungible)")
-	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types non-fungible")), "symbol=ABNFT (type,non-fungible)")
+	verifyStdout(t, execTokensCmd(t, homedirW1, "list-types"), "symbol=ABNFT (type,non-fungible)")
+	verifyStdout(t, execTokensCmd(t, homedirW1, "list-types non-fungible"), "symbol=ABNFT (type,non-fungible)")
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
@@ -223,7 +223,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	nftID := randomID(t)
 	data := make([]byte, 1024)
 	rand.Read(data)
-	tmpfile, err := ioutil.TempFile(t.TempDir(), "test")
+	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data)
 	require.NoError(t, err)
@@ -243,7 +243,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	data2 := make([]byte, 1024)
 	rand.Read(data2)
 	require.NotEqual(t, data, data2)
-	tmpfile, err = ioutil.TempFile(t.TempDir(), "test")
+	tmpfile, err = os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 	_, err = tmpfile.Write(data2)
 	require.NoError(t, err)

@@ -17,6 +17,7 @@ import (
 func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	pubKeyBytes, _ := hexutil.Decode("0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 	pubKeyHash := hash.Sum256(pubKeyBytes)
+	alphabillMoneySystemId := []byte{0, 0, 0, 0}
 	tx1 := &txsystem.Transaction{
 		UnitId:                newUnitID(1),
 		SystemId:              alphabillMoneySystemId,
@@ -43,8 +44,9 @@ func TestBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	}
 
 	store, err := createTestBillStore(t)
+	require.NoError(t, err)
 	_ = store.AddKey(NewPubkey(pubKeyBytes))
-	bp := NewBlockProcessor(store)
+	bp := NewBlockProcessor(alphabillMoneySystemId, store)
 
 	// process transactions
 	err = bp.ProcessBlock(b)

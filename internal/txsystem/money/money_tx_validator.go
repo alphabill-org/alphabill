@@ -8,6 +8,7 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -26,6 +27,7 @@ var (
 	ErrSwapInvalidNonce              = errors.New("dust transfer orders do not contain proper nonce")
 	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
 	ErrInvalidProofType              = errors.New("invalid proof type")
+	ErrSwapOwnerProofFailed          = errors.New("owner proof does not satisfy the bearer condition of the swapped bill")
 )
 
 func validateTransfer(data rma.UnitData, tx Transfer) error {
@@ -98,14 +100,10 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 		return ErrSwapInvalidBillId
 	}
 
-	// 7. bills were transfered to DC (validate dc transfer type)
+	// 7. transfers were in the money partition
+	// 8. bills were transferred to DC (validate dc transfer type)
 	// already checked on language/protobuf level
 
-	// 8. bill transfer orders are listed in strictly increasing order of bill identifiers
-	// (in particular, this ensures that no bill can be included multiple times)
-	// 9. bill transfer orders contain proper nonce
-	// 10. bill transfer orders contain proper target bearer
-	// 11. block proofs of the bill transfer orders verify
 	var prevDcTx TransferDC
 	dustTransfers := tx.DCTransfers()
 	proofs := tx.Proofs()
@@ -113,30 +111,46 @@ func validateSwap(tx Swap, hashAlgorithm crypto.Hash, trustBase map[string]abcry
 		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(dustTransfers), len(proofs))
 	}
 	for i, dcTx := range dustTransfers {
-		if i > 0 {
-			if !dcTx.UnitID().Gt(prevDcTx.UnitID()) {
-				return ErrSwapDustTransfersInvalidOrder
-			}
+		// 9. bill transfer orders are listed in strictly increasing order of bill identifiers
+		// (in particular, this ensures that no bill can be included multiple times)
+		if (i > 0) && !dcTx.UnitID().Gt(prevDcTx.UnitID()) {
+			return ErrSwapDustTransfersInvalidOrder
 		}
-		if !bytes.Equal(dcTx.Nonce(), unitIdBytes[:]) {
-			return ErrSwapInvalidNonce
-		}
-		if !bytes.Equal(dcTx.TargetBearer(), tx.OwnerCondition()) {
-			return ErrSwapInvalidTargetBearer
-		}
-		proof := proofs[i]
-		if proof.ProofType != block.ProofType_PRIM {
-			return ErrInvalidProofType
-		}
-		// verify proof itself
-		err := proof.Verify(util.Uint256ToBytes(dcTx.UnitID()), dcTx, trustBase, hashAlgorithm)
+
+		err := validateDustTransfer(dcTx, proofs[i], unitIdBytes, tx.OwnerCondition(), hashAlgorithm, trustBase)
 		if err != nil {
-			return errors.Wrap(err, "proof is not valid")
+			return err
 		}
 
 		prevDcTx = dcTx
 	}
-	// done in validateGenericTransaction function
+
+	// 12. the owner proof of the swap transaction satisfies the bearer condition of the new bill
+	err := script.RunScript(tx.OwnerProof(), tx.OwnerCondition(), tx.SigBytes())
+	if err != nil {
+		return errors.Wrap(err, ErrSwapOwnerProofFailed.Error())
+	}
+	return nil
+}
+
+func validateDustTransfer(dcTx TransferDC, proof *block.BlockProof, unitIdBytes [32]byte, ownerCondition []byte, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+	// 10. bill transfer orders contain proper nonce
+	if !bytes.Equal(dcTx.Nonce(), unitIdBytes[:]) {
+		return ErrSwapInvalidNonce
+	}
+	// 11. bill transfer orders contain proper target bearer
+	if !bytes.Equal(dcTx.TargetBearer(), ownerCondition) {
+		return ErrSwapInvalidTargetBearer
+	}
+	// 13. block proofs of the bill transfer orders verify
+	if proof.ProofType != block.ProofType_PRIM {
+		return ErrInvalidProofType
+	}
+	err := proof.Verify(util.Uint256ToBytes(dcTx.UnitID()), dcTx, trustBase, hashAlgorithm)
+	if err != nil {
+		return errors.Wrap(err, "proof is not valid")
+	}
+
 	return nil
 }
 

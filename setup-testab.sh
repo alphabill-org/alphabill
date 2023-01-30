@@ -4,16 +4,19 @@ money_nodes=3
 vd_nodes=3
 token_nodes=3
 root_nodes=3
+reset_db_only=false
 # exit on error
 set -e
 
 # print help
-usage() { echo "Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-d number of vd nodes]  [-r number of root nodes]"; exit 0; }
-
+usage() { echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-d number of vd nodes]  [-r number of root nodes] [-c reset all DB files]"; exit 0; }
 # handle arguments
 # NB! add check to make parameter is numeric
-while getopts "hd:m:t:r:" o; do
+while getopts "chd:m:t:r:" o; do
   case "${o}" in
+  c)
+    reset_db_only=true
+    ;;
   d)
     vd_nodes=${OPTARG}
     ;;
@@ -32,7 +35,15 @@ while getopts "hd:m:t:r:" o; do
   esac
 done
 
-echo "clearing testab directory and building alphabill"
+if [ "$reset_db_only" == true ]; then
+  echo "deleting all blocks.db and rootchain.db files"
+  find testab/*/* -name blocks.db -type f -delete
+  find testab/*/* -name rootchain.db -type f -delete
+  exit 0
+fi
+
+#make clean will remove "testab" directory with all of the content
+echo "clearing 'testab' directory and building alphabill"
 make clean build
 
 # get common functions
@@ -49,3 +60,5 @@ generate_partition_node_genesis "vd" $vd_nodes
 generate_partition_node_genesis "token" $token_nodes
 # generate root node genesis files
 generate_root_genesis $root_nodes
+# generate log configuration for all nodes
+generate_log_configuration

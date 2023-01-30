@@ -14,10 +14,10 @@ usage() { echo "Usage: $0 [-h usage] [-r start root] [-p start partition: money,
 while getopts "hrp:" o; do
   case "${o}" in
   r)
-    echo "starting root nodes" && start_root_nodes
+    echo "starting root nodes..." && start_root_nodes
     ;;
   p)
-    echo "starting ${OPTARG} nodes" && start_partition_nodes ${OPTARG}
+    echo "starting ${OPTARG} nodes..." && start_partition_nodes ${OPTARG}
     ;;
   h | *) # help.
     usage && exit 0

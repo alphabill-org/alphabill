@@ -4,7 +4,7 @@
 # expects two arguments
 # $1 - path to key files
 # $2 - port number
-function generate_peer_addresses () {
+function generate_peer_addresses() {
 local port=$2
 local addresses=
 for keyfile in $1
@@ -17,11 +17,42 @@ addresses="${addresses:1}"
 echo "$addresses"
 }
 
+function generate_log_configuration() {
+  # to iterate over all directories with key files
+  for key_file_path in testab/*/*/keys.json
+  do
+    node_path=${key_file_path%/*}
+    # generate log file itself
+    cat <<EOT >> "$node_path/logger-config.yaml"
+# File name to log to. If not set, logs to stdout.
+outputPath:
+# Set to true to log in console optimized way. If false, uses JSON format.
+consoleFormat: true
+# Controls if the log caller file name and row number is added to log.
+showCaller: true
+# The time zone for log messages.
+timeLocation: UTC
+# Controls if goroutine ID is added to log.
+showGoroutineID: true
+# Controls if Node ID is added to log.
+showNodeID: true
+# The default log level for all loggers
+# Possible levels: NONE; ERROR; WARNING; INFO; DEBUG; TRACE
+defaultLevel: DEBUG
+# Override the logger level for each package. Use _ for separating directories and other special characters.
+# E.g. internal/txsystem/state becomes internal_txsystem_state.
+packageLevels:
+internal_txbuffer: WARNING
+EOT
+  done
+  return 0
+}
+
 # generates genesis files
 # expects two arguments
 # $1 alphabill partition type ('money', 'vd', 'toke') or root as string
 # $2 nof genesis files to generate
-function generate_partition_node_genesis () {
+function generate_partition_node_genesis() {
 local cmd=""
 local home=""
 case $1 in
@@ -52,7 +83,7 @@ done
 
 # generate root genesis
 # $1 nof root nodes
-function generate_root_genesis () {
+function generate_root_genesis() {
   # this function assumes a directory structure with indexed home such as
   # testab/money1/money, testab/money2/money, ..., testab/vd1/vd, testab/vd2/vd,...
   # it scans all partition node genesis files from the directories and uses them to create root genesis
@@ -84,7 +115,7 @@ function generate_root_genesis () {
   done
 }
 
-function start_root_nodes () {
+function start_root_nodes() {
   local rPort=29666
   local pPort=26662
   root_node_addresses=$(generate_peer_addresses "testab/rootchain*/rootchain/keys.json" $rPort)
@@ -99,7 +130,7 @@ function start_root_nodes () {
   echo "started $(($i-1)) root nodes, addresses: $root_node_addresses"
 }
 
-function start_partition_nodes () {
+function start_partition_nodes() {
 local home=""
 local key_files=""
 local genesis_file=""
@@ -138,14 +169,15 @@ local restPort=0
   esac
   # generate node addresses
   nodeAddresses=$(generate_peer_addresses "$key_files" $aPort)
-  index=1
+  i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$index -f ${home}$index/$1/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file -p $nodeAddresses >> "${home}$index/$1.log" &
-    ((index=index+1))
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/$1/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file -p $nodeAddresses >> ${home}$i/$1/$1.log &
+    ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
     ((restPort=restPort+1))
   done
+    echo "started $(($i-1)) $1 nodes, addresses: $nodeAddresses"
 }
 

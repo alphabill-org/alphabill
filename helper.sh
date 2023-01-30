@@ -9,6 +9,10 @@ local port=$2
 local addresses=
 for keyfile in $1
 do
+  if [[ ! -f $keyfile ]]; then
+    echo "Key files do not exist, generate setup!" 1>&2
+    exit 1
+  fi
   id=$(build/alphabill identifier -k "$keyfile" | tail -n1)
   addresses="$addresses,$id=/ip4/127.0.0.1/tcp/$port";
   ((port=port+1))

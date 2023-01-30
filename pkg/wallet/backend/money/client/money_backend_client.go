@@ -3,108 +3,20 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/encoding/protojson"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"time"
 )
 
 type (
 	MoneyBackendClient struct {
-		baseUri    string
+		baseUrl    string
 		httpClient http.Client
-	}
-
-	BalanceResponse struct {
-		Balance uint64 `json:"balance"`
-	}
-
-	ListBillsResponse struct {
-		Total int           `json:"total"`
-		Bills []*ListBillVM `json:"bills"`
-	}
-
-	ListBillVM struct {
-		Id       string `json:"id"`
-		Value    uint64 `json:"value"`
-		TxHash   string `json:"txHash"`
-		IsDCBill bool   `json:"isDCBill"`
-	}
-
-	BlockHeightResponse struct {
-		BlockHeight uint64 `json:"blockHeight"`
-	}
-
-	ProofsResponse struct {
-		Proofs []*Bill `json:"bills"`
-	}
-
-	Bill struct {
-		Id       string   `json:"id"`
-		Value    uint64   `json:"value"`
-		TxHash   string   `json:"txHash"`
-		IsDCBill bool     `json:"isDCBill"`
-		TxProofs *TxProof `json:"txProof"`
-	}
-
-	TxProof struct {
-		BlockNumber uint64 `json:"blockNumber"`
-		Tx          *Tx    `json:"tx"`
-		Proof       *Proof `json:"proof"`
-	}
-
-	Tx struct {
-		SystemId              string     `json:"systemId"`
-		UnitId                string     `json:"unitId"`
-		Timeout               uint64     `json:"timeout"`
-		TransactionAttributes *anypb.Any `json:"transactionAttributes"`
-		OwnerProof            []byte     `json:"ownerProof"`
-	}
-
-	Proof struct {
-		ProofType          string              `json:"proofType"`
-		BlockHeaderHash    string              `json:"blockHeaderHash"`
-		TransactionHash    string              `json:"transactionsHash"`
-		HashValue          string              `json:"hashValue"`
-		BlockTreeHashChain *BlockTreeHashChain `json:"blockTreeHashChain"`
-		SecTreeHashChain   string              `json:"secTreeHashChain"`
-		UnicityCertificate *UnicityCertificate `json:"unicityCertificate"`
-	}
-
-	BlockTreeHashChain struct {
-		Items *[]BlockTreeHashChainItem `json:"items"`
-	}
-
-	BlockTreeHashChainItem struct {
-		Val  string `json:"val"`
-		Hash string `json:"hash"`
-	}
-
-	UnicityCertificate struct {
-		InputRecord            *InputRecord            `json:"inputRecord"`
-		UnicitySeal            *UnicitySeal            `json:"unicitySeal"`
-		UnicityTreeCertificate *UnicityTreeCertificate `json:"unicityTreeCertificate"`
-	}
-
-	InputRecord struct {
-		PreviousHash string `json:"previousHash"`
-		Hash         string `json:"hash"`
-		BlockHash    string `json:"blockHash"`
-		SummaryValue string `json:"summaryValue"`
-	}
-
-	UnicitySeal struct {
-		RootChainRoundNumber uint64 `json:"rootChainRoundNumber"`
-		PreviousHash         string `json:"previousHash"`
-		Hash                 string `json:"hash"`
-		Signatures           string `json:"signatures"`
-	}
-
-	UnicityTreeCertificate struct {
-		SystemIdentifier      string `json:"systemIdentifier"`
-		SiblingHashes         string `json:"siblingHashes"`
-		SystemDescriptionHash string `json:"systemDescriptionHash"`
 	}
 )
 
@@ -113,91 +25,105 @@ const (
 	listBillsPath   = "api/v1/list-bills"
 	proofPath       = "api/v1/proof"
 	blockHeightPath = "api/v1/block-height"
+
+	balanceUrlFormat     = "%v/%v?pubkey=%v&includedcbills=%v"
+	listBillsUrlFormat   = "%v/%v?pubkey=%v?nopaging=true"
+	proofUrlFormat       = "%v/%v/%v?bill_id=%v"
+	blockHeightUrlFormat = "%v/%v"
+
+	scheme          = "http://"
+	contentType     = "Content-Type"
+	applicationJson = "application/json"
 )
 
-func NewClient(baseUri string) *MoneyBackendClient {
-	return &MoneyBackendClient{baseUri, http.Client{Timeout: time.Minute}}
+func NewClient(baseUrl string) (*MoneyBackendClient, error) {
+	u, err := url.Parse(scheme + baseUrl)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
+	}
+	return &MoneyBackendClient{u.String(), http.Client{Timeout: time.Minute}}, nil
 }
 
-func (c *MoneyBackendClient) getBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%v/%v?pubkey=%v&includedcbills=%v", c.baseUri, balancePath, hexutil.Encode(pubKey), includeDCBills), nil)
-	req.Header.Set("Content-Type", "application/json")
+func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(balanceUrlFormat, c.baseUrl, balancePath, hexutil.Encode(pubKey), includeDCBills), nil)
+	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("request GetBalance failed: %w", err)
 	}
 
 	responseData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to read GetBalance response: %w", err)
 	}
-	var responseObject BalanceResponse
+	var responseObject money.BalanceResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to unmarshall GetBalance response data: %w", err)
 	}
 
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) listBills(pubKey []byte) (*ListBillsResponse, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%v/%v?pubkey=%v", c.baseUri, listBillsPath, hexutil.Encode(pubKey)), nil)
-	req.Header.Set("Content-Type", "application/json")
+func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(listBillsUrlFormat, c.baseUrl, listBillsPath, hexutil.Encode(pubKey)), nil)
+	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request ListBills failed: %w", err)
 	}
 
 	responseData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
 	}
-	var responseObject ListBillsResponse
+	var responseObject money.ListBillsResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshall ListBills response data: %w", err)
 	}
 
 	return &responseObject, nil
 }
 
-func (c *MoneyBackendClient) getProof(pubKey []byte, billId []byte) (*ProofsResponse, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%v/%v/%v?bill_id=%v", c.baseUri, proofPath, hexutil.Encode(pubKey), hexutil.Encode(billId)), nil)
-	req.Header.Set("Content-Type", "application/json")
+func (c *MoneyBackendClient) GetProof(pubKey []byte, billId []byte) (*block.Bills, error) {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.baseUrl, proofPath, hexutil.Encode(pubKey), hexutil.Encode(billId)), nil)
+	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request GetProof failed: %w", err)
 	}
 
 	responseData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
 	}
-	var responseObject ProofsResponse
-	err = json.Unmarshal(responseData, &responseObject)
+	var responseObject block.Bills
+	err = protojson.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)
 	}
 
 	return &responseObject, nil
 }
 
-func (c *MoneyBackendClient) getBlockHeight() (uint64, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%v/%v", c.baseUri, blockHeightPath), nil)
-	req.Header.Set("Content-Type", "application/json")
+func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(blockHeightUrlFormat, c.baseUrl, blockHeightPath), nil)
+	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("request GetBlockHeight failed: %w", err)
 	}
 
 	responseData, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to read GetBlockHeight response: %w", err)
 	}
-	var responseObject BlockHeightResponse
+	var responseObject money.BlockHeightResponse
 	err = json.Unmarshal(responseData, &responseObject)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
 	}
 
 	return responseObject.BlockHeight, nil

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/base64"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -18,8 +19,8 @@ func TestGetBalance(t *testing.T) {
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
-	restClient := NewClient(mockAddress.Host)
-	balance, err := restClient.getBalance(pubKey, true)
+	restClient, _ := NewClient(mockAddress.Host)
+	balance, err := restClient.GetBalance(pubKey, true)
 
 	require.NoError(t, err)
 	require.EqualValues(t, 15, balance)
@@ -30,13 +31,14 @@ func TestListBills(t *testing.T) {
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
-	restClient := NewClient(mockAddress.Host)
-	billsResponse, err := restClient.listBills(pubKey)
+	restClient, _ := NewClient(mockAddress.Host)
+	billsResponse, err := restClient.ListBills(pubKey)
 
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 2)
 	require.EqualValues(t, 15, billsResponse.Total)
-	require.EqualValues(t, billId, billsResponse.Bills[0].Id)
+	b, _ := base64.StdEncoding.DecodeString(billId)
+	require.EqualValues(t, b, billsResponse.Bills[0].Id)
 }
 
 func TestGetProof(t *testing.T) {
@@ -44,23 +46,29 @@ func TestGetProof(t *testing.T) {
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
-	restClient := NewClient(mockAddress.Host)
-	proofResponse, err := restClient.getProof(pubKey, []byte(billId))
+	restClient, _ := NewClient(mockAddress.Host)
+	proofResponse, err := restClient.GetProof(pubKey, []byte(billId))
 
 	require.NoError(t, err)
-	require.Len(t, proofResponse.Proofs, 1)
-	require.EqualValues(t, billId, proofResponse.Proofs[0].Id)
+	require.Len(t, proofResponse.Bills, 1)
+	b, _ := base64.StdEncoding.DecodeString(billId)
+	require.EqualValues(t, b, proofResponse.Bills[0].Id)
 }
 
 func TestBlockHeight(t *testing.T) {
 	mockServer, mockAddress := mockGetBlockHeightCall(t)
 	defer mockServer.Close()
 
-	restClient := NewClient(mockAddress.Host)
-	blockHeight, err := restClient.getBlockHeight()
+	restClient, _ := NewClient(mockAddress.Host)
+	blockHeight, err := restClient.GetBlockHeight()
 
 	require.NoError(t, err)
 	require.EqualValues(t, 1000, blockHeight)
+}
+
+func TestInvalidBaseUrl(t *testing.T) {
+	_, err := NewClient("x:y:z")
+	require.ErrorContains(t, err, "error parsing Money Backend Client base URL")
 }
 
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {

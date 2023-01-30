@@ -97,7 +97,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	limit, offset := s.parsePagingParams(r)
+	limit, offset, noPaging := s.parsePagingParams(r)
 	// if offset and limit go out of bounds just return what we have
 	if offset > len(bills) {
 		offset = len(bills)
@@ -105,7 +105,7 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	if offset+limit > len(bills) {
 		limit = len(bills) - offset
 	}
-	res := newListBillsResponse(bills, limit, offset)
+	res := newListBillsResponse(bills, noPaging, limit, offset)
 	writeAsJson(w, res)
 }
 
@@ -116,6 +116,12 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 		s.handlePubKeyNotFoundError(w, err)
 		return
 	}
+	includeDCBills, err := parseIncludeDCCBillsQueryParam(r)
+	if err != nil {
+		wlog.Debug("error parsing GET /balance request: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	bills, err := s.Service.GetBills(pk)
 	if err != nil {
 		wlog.Error("error on GET /balance: ", err)
@@ -124,7 +130,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	var sum uint64
 	for _, b := range bills {
-		if !b.IsDCBill {
+		if !b.IsDCBill || includeDCBills {
 			sum += b.Value
 		}
 	}
@@ -197,7 +203,8 @@ func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request)
 	}
 }
 
-func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
+func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int, bool) {
+	noPaging, _ := parseNoPagingQueryParam(r)
 	limit := parseInt(r.URL.Query().Get("limit"), s.ListBillsPageLimit)
 	if limit < 0 {
 		limit = 0
@@ -209,7 +216,7 @@ func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {
 	if offset < 0 {
 		offset = 0
 	}
-	return limit, offset
+	return limit, offset, noPaging
 }
 
 func writeAsJson(w http.ResponseWriter, res interface{}) {
@@ -257,6 +264,20 @@ func decodePubKeyHex(pubKey string) ([]byte, error) {
 	return bytes, nil
 }
 
+func parseIncludeDCCBillsQueryParam(r *http.Request) (bool, error) {
+	if r.URL.Query().Has("includedcbills") {
+		return strconv.ParseBool(r.URL.Query().Get("includedcbills"))
+	}
+	return false, nil
+}
+
+func parseNoPagingQueryParam(r *http.Request) (bool, error) {
+	if r.URL.Query().Has("nopaging") {
+		return strconv.ParseBool(r.URL.Query().Get("nopaging"))
+	}
+	return false, nil
+}
+
 func parseBillID(r *http.Request) ([]byte, error) {
 	billIdHex := r.URL.Query().Get("bill_id")
 	if billIdHex == "" {
@@ -284,11 +305,14 @@ func parseInt(str string, def int) int {
 	return num
 }
 
-func newListBillsResponse(bills []*Bill, limit, offset int) *ListBillsResponse {
+func newListBillsResponse(bills []*Bill, noPaging bool, limit, offset int) *ListBillsResponse {
 	sort.Slice(bills, func(i, j int) bool {
 		return bills[i].OrderNumber < bills[j].OrderNumber
 	})
 	billVMs := toBillVMList(bills)
+	if noPaging {
+		return &ListBillsResponse{Bills: billVMs, Total: len(bills)}
+	}
 	return &ListBillsResponse{Bills: billVMs[offset : offset+limit], Total: len(bills)}
 }
 

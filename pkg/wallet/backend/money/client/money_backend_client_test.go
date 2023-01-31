@@ -46,7 +46,7 @@ func TestListBillsWithPaging(t *testing.T) {
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
-	restClient, _ := NewTestClient(mockAddress.Host, 5)
+	restClient, _ := NewClient(mockAddress.Host)
 	billsResponse, err := restClient.ListBills(pubKey)
 
 	require.NoError(t, err)

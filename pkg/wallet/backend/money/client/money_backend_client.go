@@ -15,9 +15,8 @@ import (
 
 type (
 	MoneyBackendClient struct {
-		baseUrl     string
-		pagingLimit int
-		httpClient  http.Client
+		baseUrl    string
+		httpClient http.Client
 	}
 )
 
@@ -32,10 +31,9 @@ const (
 	proofUrlFormat       = "%v/%v?bill_id=%v"
 	blockHeightUrlFormat = "%v/%v"
 
-	scheme             = "http://"
-	contentType        = "Content-Type"
-	applicationJson    = "application/json"
-	defaultPagingLimit = 100
+	scheme          = "http://"
+	contentType     = "Content-Type"
+	applicationJson = "application/json"
 )
 
 func NewClient(baseUrl string) (*MoneyBackendClient, error) {
@@ -43,15 +41,7 @@ func NewClient(baseUrl string) (*MoneyBackendClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
-	return &MoneyBackendClient{u.String(), defaultPagingLimit, http.Client{Timeout: time.Minute}}, nil
-}
-
-func NewTestClient(baseUrl string, pagingLimit int) (*MoneyBackendClient, error) {
-	u, err := url.Parse(scheme + baseUrl)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
-	}
-	return &MoneyBackendClient{u.String(), pagingLimit, http.Client{Timeout: time.Minute}}, nil
+	return &MoneyBackendClient{u.String(), http.Client{Timeout: time.Minute}}, nil
 }
 
 func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
@@ -84,8 +74,8 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse,
 	}
 	finalResponse := responseObject
 
-	for len(responseObject.Bills) == c.pagingLimit {
-		offset += c.pagingLimit
+	for len(finalResponse.Bills) < finalResponse.Total {
+		offset += len(responseObject.Bills)
 		responseObject, err = c.retrieveBills(pubKey, offset)
 		if err != nil {
 			return nil, err

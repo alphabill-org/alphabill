@@ -12,19 +12,6 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const (
-	TypeTransferFeeCreditOrder = "TransferFeeCreditOrder"
-	TypeAddFeeCreditOrder      = "AddFeeCreditOrder" // #nosec G101
-	TypeCloseFeeCreditOrder    = "CloseFeeCreditOrder"
-	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditOrder"
-
-	protobufTypeUrlPrefix         = "type.googleapis.com/"
-	TypeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
-	TypeURLAddFeeCreditOrder      = protobufTypeUrlPrefix + TypeAddFeeCreditOrder
-	TypeURLCloseFeeCreditOrder    = protobufTypeUrlPrefix + TypeCloseFeeCreditOrder
-	TypeURLReclaimFeeCreditOrder  = protobufTypeUrlPrefix + TypeReclaimFeeCreditOrder
-)
-
 type (
 	Wrapper struct {
 		Transaction *txsystem.Transaction
@@ -66,7 +53,7 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 		return nil, errors.New("cannot create fee credit tx wrapper: tx is nil")
 	}
 	switch tx.TransactionAttributes.TypeUrl {
-	case TypeURLTransferFeeCreditOrder:
+	case txsystem.TypeURLTransferFeeCreditOrder:
 		pb := &TransferFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
@@ -76,7 +63,7 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 			Wrapper:    Wrapper{Transaction: tx},
 			TransferFC: pb,
 		}, nil
-	case TypeURLAddFeeCreditOrder:
+	case txsystem.TypeURLAddFeeCreditOrder:
 		pb := &AddFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
@@ -95,7 +82,7 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 			AddFC:      pb,
 			TransferFC: fcWrapper,
 		}, nil
-	case TypeURLCloseFeeCreditOrder:
+	case txsystem.TypeURLCloseFeeCreditOrder:
 		pb := &CloseFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {
@@ -105,7 +92,7 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 			Wrapper: Wrapper{Transaction: tx},
 			CloseFC: pb,
 		}, nil
-	case TypeURLReclaimFeeCreditOrder:
+	case txsystem.TypeURLReclaimFeeCreditOrder:
 		pb := &ReclaimFeeCreditOrder{}
 		err := tx.TransactionAttributes.UnmarshalTo(pb)
 		if err != nil {

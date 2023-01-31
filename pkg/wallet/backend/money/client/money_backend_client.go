@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"google.golang.org/protobuf/encoding/protojson"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -15,8 +15,9 @@ import (
 
 type (
 	MoneyBackendClient struct {
-		baseUrl    string
-		httpClient http.Client
+		baseUrl     string
+		pagingLimit int
+		httpClient  http.Client
 	}
 )
 
@@ -42,7 +43,15 @@ func NewClient(baseUrl string) (*MoneyBackendClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
-	return &MoneyBackendClient{u.String(), http.Client{Timeout: time.Minute}}, nil
+	return &MoneyBackendClient{u.String(), defaultPagingLimit, http.Client{Timeout: time.Minute}}, nil
+}
+
+func NewTestClient(baseUrl string, pagingLimit int) (*MoneyBackendClient, error) {
+	u, err := url.Parse(scheme + baseUrl)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
+	}
+	return &MoneyBackendClient{u.String(), pagingLimit, http.Client{Timeout: time.Minute}}, nil
 }
 
 func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
@@ -54,7 +63,7 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 		return 0, fmt.Errorf("request GetBalance failed: %w", err)
 	}
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read GetBalance response: %w", err)
 	}
@@ -67,19 +76,16 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	return responseObject.Balance, nil
 }
 
-func (c *MoneyBackendClient) ListBills(pubKey []byte, pagingLimit int) (*money.ListBillsResponse, error) {
+func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse, error) {
 	offset := 0
 	responseObject, err := c.retrieveBills(pubKey, offset)
 	if err != nil {
 		return nil, err
 	}
 	finalResponse := responseObject
-	if pagingLimit <= 0 {
-		pagingLimit = defaultPagingLimit
-	}
 
-	for len(responseObject.Bills) == pagingLimit {
-		offset += pagingLimit
+	for len(responseObject.Bills) == c.pagingLimit {
+		offset += c.pagingLimit
 		responseObject, err = c.retrieveBills(pubKey, offset)
 		if err != nil {
 			return nil, err
@@ -98,7 +104,7 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*block.Bills, error) {
 		return nil, fmt.Errorf("request GetProof failed: %w", err)
 	}
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
 	}
@@ -119,7 +125,7 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 		return 0, fmt.Errorf("request GetBlockHeight failed: %w", err)
 	}
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read GetBlockHeight response: %w", err)
 	}
@@ -144,7 +150,7 @@ func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.Li
 		return nil, fmt.Errorf("request ListBills failed: %w", err)
 	}
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ListBills response: %w", err)
 	}

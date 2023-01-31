@@ -115,6 +115,27 @@ func TestStorage_SaveToken(t *testing.T) {
 	require.Equal(t, token, tokens[0])
 
 	// TODO: check proof
+
+	// change ownership
+	owner2 := script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32))
+	tokens2, err := store.GetTokensByOwner(owner2)
+	require.NoError(t, err)
+	require.Len(t, tokens2, 0)
+
+	token.Owner = owner2
+	err = store.SaveToken(token, proof)
+	require.NoError(t, err)
+
+	//owner 1 does not have any tokens
+	tokens, err = store.GetTokensByOwner(owner)
+	require.NoError(t, err)
+	require.Len(t, tokens, 0)
+
+	//owner 2 has one token
+	tokens2, err = store.GetTokensByOwner(owner2)
+	require.NoError(t, err)
+	require.Len(t, tokens2, 1)
+	require.Equal(t, token, tokens2[0])
 }
 
 func TestStorage_BlockNumbers(t *testing.T) {

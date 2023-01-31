@@ -23,7 +23,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-var initialBill = &InitialBill{ID: uint256.NewInt(77), Value: 110, Owner: script.PredicateAlwaysTrue()}
+var (
+	initialBill = &InitialBill{ID: uint256.NewInt(77), Value: 110, Owner: script.PredicateAlwaysTrue()}
+	fcrID       = uint256.NewInt(88)
+)
 
 const initialDustCollectorMoneyAmount uint64 = 100
 
@@ -621,6 +624,11 @@ func createDCTransferAndSwapTxs(
 		Timeout:               20,
 		TransactionAttributes: &anypb.Any{},
 		OwnerProof:            script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(fcrID),
+		},
 	}
 
 	bt := &SwapOrder{
@@ -669,6 +677,12 @@ func createTx(fromID *uint256.Int) *txsystem.Transaction {
 		Timeout:               20,
 		TransactionAttributes: &anypb.Any{},
 		OwnerProof:            script.PredicateArgumentEmpty(),
+		FeeProof:              script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(fcrID),
+		},
 	}
 	return tx
 }
@@ -700,6 +714,16 @@ func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *moneyTxSystem, abcrypto
 		SchemeOpts.TrustBase(trustBase),
 	)
 	require.NoError(t, err)
+
+	// add fee credit record with empty predicate
+	fcrData := &txsystem.FeeCreditRecord{
+		Balance: 100,
+		Timeout: 100,
+	}
+	err = mss.revertibleState.AtomicUpdate(txsystem.AddCredit(fcrID, script.PredicateAlwaysTrue(), fcrData, nil))
+	require.NoError(t, err)
+	mss.Commit()
+
 	return rmaTree, mss, signer
 }
 

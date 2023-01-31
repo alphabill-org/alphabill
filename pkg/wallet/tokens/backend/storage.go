@@ -11,6 +11,8 @@ type (
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 
+		SaveTokenTypeCreator(id TokenTypeID, creator PubKey) error
+
 		SaveTokenType(data *TokenUnitType, proof *Proof) error
 		GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 
@@ -65,7 +67,9 @@ type (
 		Proof       *block.BlockProof     `json:"proof"`
 	}
 
-	Predicate []byte
+	Predicate  []byte
+	PubKey     []byte
+	PubKeyHash []byte
 )
 
 const (

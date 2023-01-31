@@ -1,6 +1,7 @@
 package twb
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,13 +51,27 @@ type storage struct {
 	db *bolt.DB
 }
 
-func (s *storage) SaveTokenType(data *TokenUnitType, proof *Proof) error {
-	b, err := json.Marshal(data)
+func (s *storage) SaveTokenTypeCreator(id TokenTypeID, creator PubKey) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b, err := s.ensureSubBucket(tx, bucketTypeCreator, creator)
+		if err != nil {
+			return fmt.Errorf("bucket %s/%X not found", bucketTypeCreator, creator)
+		}
+		return b.Put(id, nil)
+	})
+}
+
+func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *Proof) error {
+	tokenData, err := json.Marshal(tokenType)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token type data: %w", err)
 	}
 	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(bucketTokenType).Put(data.ID, b)
+		err := tx.Bucket(bucketTokenType).Put(tokenType.ID, tokenData)
+		if err != nil {
+			return fmt.Errorf("failed to save token type data: %w", err)
+		}
+		return s.storeUnitBlockProof(tx, tokenType.ID, tokenType.TxHash, proof)
 	})
 }
 
@@ -78,32 +93,52 @@ func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	return d, nil
 }
 
-func (s *storage) SaveToken(data *TokenUnit, proof *Proof) error {
-	b, err := json.Marshal(data)
+func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
+	tokenData, err := json.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token unit data: %w", err)
 	}
 	return s.db.Update(func(tx *bolt.Tx) error {
-		// TODO: drop ownership from previous bearer
-		return tx.Bucket(bucketTokenUnit).Put(data.ID, b)
+		prevTokenData, err := s.getToken(tx, token.ID)
+		if err != nil {
+			return err
+		}
+		if prevTokenData != nil && !bytes.Equal(prevTokenData.Owner, token.Owner) {
+			prevOwnerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, prevTokenData.Owner)
+			if err != nil {
+				return err
+			}
+			if err = prevOwnerBucket.Delete(prevTokenData.ID); err != nil {
+				return err
+			}
+		}
+		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, token.Owner)
+		if err != nil {
+			return err
+		}
+		if err = ownerBucket.Put(token.ID, nil); err != nil {
+			return err
+		}
+		if err = tx.Bucket(bucketTokenUnit).Put(token.ID, tokenData); err != nil {
+			return err
+		}
+		return s.storeUnitBlockProof(tx, token.ID, token.TxHash, proof)
 	})
 }
 
 func (s *storage) GetToken(id TokenID) (*TokenUnit, error) {
-	var data []byte
+	var token *TokenUnit
 	if err := s.db.View(func(tx *bolt.Tx) error {
-		if data = tx.Bucket(bucketTokenUnit).Get(id); data == nil {
-			return fmt.Errorf("failed to read token data %s[%x]: %w", bucketTokenUnit, id, errRecordNotFound)
+		result, err := s.getToken(tx, id)
+		if err != nil {
+			return err
 		}
+		token = result
 		return nil
 	}); err != nil {
 		return nil, err
 	}
-	d := &TokenUnit{}
-	if err := json.Unmarshal(data, d); err != nil {
-		return nil, fmt.Errorf("failed to deserialize token data (%x): %w", id, err)
-	}
-	return d, nil
+	return token, nil
 }
 
 func (s *storage) GetBlockNumber() (uint64, error) {
@@ -126,6 +161,42 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 }
 
 func (s *storage) Close() error { return s.db.Close() }
+
+func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
+	var data []byte
+	if data = tx.Bucket(bucketTokenUnit).Get(id); data == nil {
+		return nil, fmt.Errorf("failed to read token data %s[%x]: %w", bucketTokenUnit, id, errRecordNotFound)
+	}
+	token := &TokenUnit{}
+	if err := json.Unmarshal(data, token); err != nil {
+		return nil, fmt.Errorf("failed to deserialize token data (%x): %w", id, err)
+	}
+	return token, nil
+}
+
+func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID []byte, txHash []byte, proof *Proof) error {
+	proofData, err := json.Marshal(proof)
+	if err != nil {
+		return fmt.Errorf("failed to serialize proof data: %w", err)
+	}
+	b, err := s.ensureSubBucket(tx, bucketTxHistory, unitID)
+	if err != nil {
+		return err
+	}
+	return b.Put(txHash, proofData)
+}
+
+func (s *storage) ensureSubBucket(tx *bolt.Tx, parentBucket []byte, bucket []byte) (*bolt.Bucket, error) {
+	b := tx.Bucket(parentBucket)
+	if b == nil {
+		return nil, fmt.Errorf("bucket %s not found", parentBucket)
+	}
+	b, err := b.CreateBucketIfNotExists(bucket)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create bucket %s/%X: %w", parentBucket, bucket, err)
+	}
+	return b, nil
+}
 
 func (s *storage) createBuckets(buckets ...[]byte) error {
 	return s.db.Update(func(tx *bolt.Tx) error {

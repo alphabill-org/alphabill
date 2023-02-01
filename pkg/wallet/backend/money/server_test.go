@@ -262,7 +262,7 @@ func TestProofRequest_Ok(t *testing.T) {
 	port := startServer(t, walletBackend)
 
 	response := &block.Bills{}
-	httpRes := testhttp.DoGetProto(t, fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), response)
+	httpRes := testhttp.DoGetProto(t, fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, response.Bills, 1)
 	res := response.Bills[0]
@@ -281,7 +281,7 @@ func TestProofRequest_MissingBillId(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof/%s", port, pubkeyHex), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof", port), res)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "missing required bill_id query parameter", res.Message)
 }
@@ -292,19 +292,19 @@ func TestProofRequest_InvalidBillIdLength(t *testing.T) {
 	// verify bill id larger than 32 bytes returns error
 	res := &ErrorResponse{}
 	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id smaller than 32 bytes returns error
 	res = &ErrorResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=0x01", port, pubkeyHex), res)
+	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=0x01", port), res)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 
 	// verify bill id with correct length but missing prefix returns error
 	res = &ErrorResponse{}
-	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), res)
+	httpRes = testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
 }
@@ -313,7 +313,7 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 	port := startServer(t, newWalletBackend(t))
 
 	res := &ErrorResponse{}
-	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), res)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
 	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
 	require.Equal(t, "bill does not exist", res.Message)
 }

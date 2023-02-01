@@ -11,10 +11,12 @@ type (
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 
-		SaveTokenType(data *TokenUnitType) error
+		SaveTokenTypeCreator(id TokenTypeID, creator PubKey) error
+
+		SaveTokenType(data *TokenUnitType, proof *Proof) error
 		GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 
-		SaveToken(data *TokenUnit) error
+		SaveToken(data *TokenUnit, proof *Proof) error
 		GetToken(id TokenID) (*TokenUnit, error)
 	}
 )
@@ -25,34 +27,34 @@ type (
 		ID                       TokenTypeID `json:"id"`
 		ParentTypeID             TokenTypeID `json:"typeId"`
 		Symbol                   string      `json:"symbol"`
-		SubTypeCreationPredicate []byte      `json:"subTypeCreationPredicate,omitempty"`
-		TokenCreationPredicate   []byte      `json:"tokenCreationPredicate,omitempty"`
-		InvariantPredicate       []byte      `json:"invariantPredicate,omitempty"`
+		SubTypeCreationPredicate Predicate   `json:"subTypeCreationPredicate,omitempty"`
+		TokenCreationPredicate   Predicate   `json:"tokenCreationPredicate,omitempty"`
+		InvariantPredicate       Predicate   `json:"invariantPredicate,omitempty"`
 		// fungible only
 		DecimalPlaces uint32 `json:"decimalPlaces,omitempty"`
 		// nft only
-		NftDataUpdatePredicate []byte `json:"nftDataUpdatePredicate,omitempty"`
+		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind  Kind   `json:"kind"`
-		Proof *Proof `json:"proof"`
+		Kind   Kind   `json:"kind"`
+		TxHash []byte `json:"txHash"`
 	}
 
 	TokenUnit struct {
-		// Backlink []byte  `json:"backlink"` // TODO: Proof.TxHash can be used instead
 		// common
 		ID     TokenID     `json:"id"`
 		Symbol string      `json:"symbol"`
 		TypeID TokenTypeID `json:"typeId"`
+		Owner  Predicate   `json:"owner"`
 		// fungible only
 		Amount   uint64 `json:"amount"`
 		Decimals uint32 `json:"decimals,omitempty"`
 		// nft only
-		NftURI                 string `json:"nftUri,omitempty"`
-		NftData                []byte `json:"nftData,omitempty"`
-		NftDataUpdatePredicate []byte `json:"nftDataUpdatePredicate,omitempty"`
+		NftURI                 string    `json:"nftUri,omitempty"`
+		NftData                Predicate `json:"nftData,omitempty"`
+		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
-		Kind  Kind   `json:"kind"`
-		Proof *Proof `json:"proof"`
+		Kind   Kind   `json:"kind"`
+		TxHash []byte `json:"txHash"`
 	}
 
 	TokenID     []byte
@@ -62,9 +64,12 @@ type (
 	Proof struct {
 		BlockNumber uint64                `json:"blockNumber"`
 		Tx          *txsystem.Transaction `json:"tx"`
-		TxHash      []byte                `json:"txHash"`
 		Proof       *block.BlockProof     `json:"proof"`
 	}
+
+	Predicate  []byte
+	PubKey     []byte
+	PubKeyHash []byte
 )
 
 const (

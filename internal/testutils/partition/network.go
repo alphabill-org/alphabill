@@ -14,7 +14,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -122,7 +124,6 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, err
 	}
-
 	// start root chain nodes
 	rootNodes := make([]*rootvalidator.Node, rootValidatorNodes)
 	rootPartitionHots := make([]*network.Peer, rootValidatorNodes)
@@ -136,8 +137,17 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 			return nil, err
 		}
 		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond)
+		// Initiate partition store
+		partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract partition info from genesis, %w", err)
+		}
 		// Create distributed consensus manager
-		rn, err := rootvalidator.NewRootValidatorNode(rootGenesis, partitionHost, rootNet, rootvalidator.DistributedConsensus(rootPeers[i], rootGenesis.GetRoot(), rootConsensusNet, rootSigners[i]))
+		cm, err := distributed.NewDistributedAbConsensusManager(rootPeers[i], rootGenesis, partitionStore, rootConsensusNet, rootSigners[i])
+		if err != nil {
+			return nil, fmt.Errorf("consensus manager initialization failed, %w", err)
+		}
+		rn, err := rootvalidator.NewRootValidatorNode(partitionHost, rootNet, partitionStore, cm)
 		if err != nil {
 			return nil, err
 		}

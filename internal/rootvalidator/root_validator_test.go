@@ -1,6 +1,7 @@
 package rootvalidator
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,7 +11,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -30,6 +35,22 @@ var partitionInputRecord = &certificates.InputRecord{
 type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
 	certResultCh chan certificates.UnicityCertificate
+	partitions   PartitionStore
+	stateStore   StateStore
+}
+
+func NewMockConsensus(rg *genesis.RootGenesis, partitionStore PartitionStore) (*MockConsensusManager, error) {
+	storage, err := store.New(rg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initiate state store, %w", err)
+	}
+	return &MockConsensusManager{
+		// use buffered channels here, we just want to know if a tlg is received
+		certReqCh:    make(chan consensus.IRChangeRequest, 1),
+		certResultCh: make(chan certificates.UnicityCertificate, 1),
+		partitions:   partitionStore,
+		stateStore:   storage,
+	}, nil
 }
 
 func (m *MockConsensusManager) RequestCertification() chan<- consensus.IRChangeRequest {
@@ -44,14 +65,16 @@ func (m *MockConsensusManager) Stop() {
 	// nothing to do
 }
 
-func MockConsensus() ConsensusFn {
-	return func(partitionStore PartitionStore, stateStore StateStore) (ConsensusManager, error) {
-		cm := &MockConsensusManager{
-			certReqCh:    make(chan consensus.IRChangeRequest, 1),
-			certResultCh: make(chan certificates.UnicityCertificate, 1),
-		}
-		return cm, nil
+func (m *MockConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
+	state, err := m.stateStore.Get()
+	if err != nil {
+		return nil, err
 	}
+	luc, f := state.Certificates[id]
+	if !f {
+		return nil, fmt.Errorf("no certificate found for system id %X", id)
+	}
+	return luc, nil
 }
 
 func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
@@ -64,8 +87,11 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	id := node.Peer.ID()
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-
-	validator, err := NewRootValidatorNode(rootGenesis, node.Peer, net, MockConsensus())
+	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
+	cm, err := NewMockConsensus(rootGenesis, partitionStore)
+	require.NoError(t, err)
+	validator, err := NewRootValidatorNode(node.Peer, net, partitionStore, cm)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	return validator, node, partitionNodes, rootGenesis
@@ -81,8 +107,14 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	mockNet := testnetwork.NewMockNetwork()
-
-	validator, err := NewRootValidatorNode(rootGenesis, node.Peer, mockNet, MonolithicConsensus(node.Peer.ID().String(), node.Signer))
+	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
+	cm, err := monolithic.NewMonolithicConsensusManager(node.Peer.ID().String(),
+		rootGenesis,
+		partitionStore,
+		node.Signer)
+	require.NoError(t, err)
+	validator, err := NewRootValidatorNode(node.Peer, mockNet, partitionStore, cm)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	defer validator.Close()
@@ -100,8 +132,15 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	partitionNetMock := testnetwork.NewMockNetwork()
 	rootHost := testutils.NewTestNode(t)
 	rootNetMock := testnetwork.NewMockNetwork()
-	validator, err := NewRootValidatorNode(rootGenesis, node.Peer, partitionNetMock,
-		DistributedConsensus(rootHost.Peer, rootGenesis.GetRoot(), rootNetMock, rootHost.Signer))
+	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	require.NoError(t, err)
+	cm, err := distributed.NewDistributedAbConsensusManager(rootHost.Peer,
+		rootGenesis,
+		partitionStore,
+		rootNetMock,
+		rootHost.Signer)
+	require.NoError(t, err)
+	validator, err := NewRootValidatorNode(node.Peer, partitionNetMock, partitionStore, cm)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	defer validator.Close()
@@ -244,12 +283,12 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	require.Len(t, partitionNodes, 3)
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.Peer.ID().String())
-	// create handshake
-	handshake := &handshake.Handshake{
+	// create
+	h := &handshake.Handshake{
 		SystemIdentifier: partitionID,
 		NodeIdentifier:   partitionNodes[1].Peer.ID().String(),
 	}
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolHandshake, handshake)
+	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].Peer.ID(), network.ProtocolHandshake, h)
 	// no drama, make sure it is received and does not crash or anything, this message should be removed someday
 }
 

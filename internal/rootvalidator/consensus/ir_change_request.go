@@ -21,10 +21,10 @@ type (
 	IRChangeRequest struct {
 		SystemIdentifier protocol.SystemIdentifier
 		Reason           CertReqReason
-		IR               *certificates.InputRecord
 		Requests         []*certification.BlockCertificationRequest
 	}
 )
+
 
 func CheckBlockCertificationRequest(req *certification.BlockCertificationRequest, luc *certificates.UnicityCertificate) error {
 	if req == nil {

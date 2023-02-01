@@ -185,16 +185,33 @@ func initState(n *Node) error {
 	// latest block from the store
 	latestPersistedBlock, err := n.blockStore.LatestBlock()
 	if err != nil {
-		return err
+		return fmt.Errorf("node state init error: %w", err)
 	}
-	var uc *certificates.UnicityCertificate
-	if latestPersistedBlock != nil && latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber > genesisBlock.UnicityCertificate.InputRecord.RoundNumber {
+	if latestPersistedBlock == nil {
+		logger.Info("Init state from genesis")
+		if err := n.blockStore.AddGenesis(genesisBlock); err != nil {
+			return fmt.Errorf("failed to init node state: %w", err)
+		}
+		n.transactionSystem.Commit() // commit everything from the genesis
+		n.updateLUC(genesisBlock.UnicityCertificate)
+		return nil
+	}
+	// block store is initiated
+	uc := genesisBlock.UnicityCertificate
+	if latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber >= genesisBlock.UnicityCertificate.InputRecord.RoundNumber {
 		// restore from store
+		logger.Info("Init restore from store")
+
 		prevBlock := genesisBlock
 		for i := genesisBlock.UnicityCertificate.InputRecord.RoundNumber + 1; i <= latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber; i++ {
+			logger.Info("Init node state, apply block %v", i)
 			bl, err := n.blockStore.Get(i)
 			if err != nil {
 				return err
+			}
+			// skip empty blocks
+			if bl == nil {
+				continue
 			}
 			if !bytes.Equal(prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.PreviousBlockHash) {
 				return errors.Errorf("state init failed, invalid blockchain (previous block #%v hash='%X', current block #%v backlink='%X')", prevBlock.UnicityCertificate.InputRecord.RoundNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.UnicityCertificate.InputRecord.RoundNumber, bl.PreviousBlockHash)
@@ -208,13 +225,6 @@ func initState(n *Node) error {
 		logger.Info("State initialised from persistent store up to block #%v", prevBlock.UnicityCertificate.InputRecord.RoundNumber)
 
 		n.restoreBlockProposal(prevBlock)
-	} else {
-		if err := n.blockStore.AddGenesis(genesisBlock); err != nil {
-			return err
-		}
-		n.transactionSystem.Commit() // commit everything from the genesis
-		uc = genesisBlock.UnicityCertificate
-		logger.Info("State initialised from the genesis block")
 	}
 	n.updateLUC(uc)
 	return nil

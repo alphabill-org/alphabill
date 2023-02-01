@@ -5,24 +5,24 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
 
 const (
-	ErrIllegalNewRound = "illegal new round number in new state"
+	stateKey = "state"
 )
 
 type (
 	RootState struct {
-		LatestRound    uint64
-		LatestRootHash []byte
-		Certificates   map[protocol.SystemIdentifier]*certificates.UnicityCertificate
+		LatestRound    uint64                                                         `json:"latestRound"`
+		LatestRootHash []byte                                                         `json:"latestRootHash"`
+		Certificates   map[protocol.SystemIdentifier]*certificates.UnicityCertificate `json:"certificates"`
 	}
 
 	PersistentStore interface {
-		Read() (*RootState, error)
-		Write(newState *RootState) error
+		Read(k string, v any) error
+		Write(k string, v any) error
 	}
 
 	Conf struct {
@@ -31,16 +31,16 @@ type (
 
 	StateStore struct {
 		state *RootState
-		conf  *Conf
+		db    PersistentStore
 		mu    sync.Mutex
 	}
 
 	Option func(c *Conf)
 )
 
-func WithDBStore(store PersistentStore) Option {
+func WithDBStore(p PersistentStore) Option {
 	return func(c *Conf) {
-		c.db = store
+		c.db = p
 	}
 }
 
@@ -50,6 +50,16 @@ func NewRootState() *RootState {
 		LatestRootHash: nil,
 		Certificates:   map[protocol.SystemIdentifier]*certificates.UnicityCertificate{},
 	}
+}
+
+func NewRootStateFromGenesis(rg *genesis.RootGenesis) *RootState {
+	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
+	for _, partition := range rg.Partitions {
+		identifier := partition.GetSystemIdentifierString()
+		certs[identifier] = partition.Certificate
+	}
+	// If not initiated, save genesis file to store
+	return &RootState{LatestRound: rg.GetRoundNumber(), Certificates: certs, LatestRootHash: rg.GetRoundHash()}
 }
 
 func (r *RootState) Update(newState *RootState) {
@@ -74,28 +84,40 @@ func loadConf(opts []Option) *Conf {
 	return conf
 }
 
-func New(opts ...Option) (*StateStore, error) {
+func New(genesis *genesis.RootGenesis, opts ...Option) (*StateStore, error) {
+	if genesis == nil {
+		return nil, fmt.Errorf("genesis is nil")
+	}
 	config := loadConf(opts)
 	if config.db == nil {
 		return &StateStore{
-			conf:  config,
-			state: NewRootState(),
+			db:    nil,
+			state: NewRootStateFromGenesis(genesis),
 		}, nil
 	}
-	lastState, err := config.db.Read()
-	if err != nil {
+	lastState := NewRootState()
+	var err error = nil
+	if err = config.db.Read(stateKey, lastState); err != nil && err != ErrNotFound {
 		return nil, err
 	}
+	// DB is empty, initiate store
+	if err == ErrNotFound {
+		// initiate DB
+		lastState = NewRootStateFromGenesis(genesis)
+		if err = config.db.Write(stateKey, lastState); err != nil {
+			return nil, fmt.Errorf("init DB error, %w", err)
+		}
+	}
 	return &StateStore{
+		db:    config.db,
 		state: lastState,
-		conf:  config,
 	}, nil
 }
 
 // NewInMemStateStore stores state in volatile memory only, everything is lost on exit
 func NewInMemStateStore() *StateStore {
 	return &StateStore{
-		conf:  &Conf{db: nil},
+		db:    nil,
 		state: NewRootState(),
 	}
 }
@@ -113,8 +135,8 @@ func (s *StateStore) Save(newState *RootState) error {
 	// update local cache
 	s.state.Update(newState)
 	// persist state
-	if s.conf.db != nil {
-		if err := s.conf.db.Write(newState); err != nil {
+	if s.db != nil {
+		if err := s.db.Write(stateKey, newState); err != nil {
 			return err
 		}
 	}
@@ -132,7 +154,7 @@ func (s *StateStore) Get() (*RootState, error) {
 func checkRoundNumber(current, newState *RootState) error {
 	// Round number must be increasing
 	if current.LatestRound >= newState.LatestRound {
-		return errors.New(ErrIllegalNewRound)
+		return fmt.Errorf("error new round %v is in past, latest stored round %v", newState.LatestRound, current.LatestRound)
 	}
 	return nil
 }

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/async"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +33,7 @@ func TestRootValidatorInvalidRootKey_CannotBeStarted(t *testing.T) {
 	ctx, _ := async.WithWaitGroup(context.Background())
 
 	err := defaultValidatorRunFunc(ctx, conf)
-	require.ErrorContains(t, err, "invalid root validator sign key")
+	require.ErrorContains(t, err, "error root node key not found in genesis file")
 }
 
 func validMonolithicRootValidatorConfig() *validatorConfig {
@@ -48,7 +47,7 @@ func validMonolithicRootValidatorConfig() *validatorConfig {
 		GenesisFile:  "testdata/expected/root-genesis.json",
 		RootListener: "/ip4/0.0.0.0/tcp/0",
 		MaxRequests:  1000,
-		StateStore:   store.NewInMemStateStore(),
+		StoragePath:  "",
 	}
 	return conf
 }

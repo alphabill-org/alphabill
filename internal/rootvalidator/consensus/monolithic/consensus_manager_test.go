@@ -53,19 +53,7 @@ func initConsensusManager(t *testing.T) (*ConsensusManager, *testutils.TestNode,
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	// initiate state store
-	stateStore := store.NewInMemStateStore()
-	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
-	for _, partition := range rootGenesis.Partitions {
-		identifier := partition.GetSystemIdentifierString()
-		certs[identifier] = partition.Certificate
-	}
-	require.NoError(t, stateStore.Save(&store.RootState{
-		LatestRound:    rootGenesis.GetRoundNumber(),
-		Certificates:   certs,
-		LatestRootHash: rootGenesis.GetRoundHash(),
-	}))
-	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), partitions, stateStore, rootNode.Signer)
+	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer)
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -78,11 +66,10 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 	})
 	require.NoError(t, err)
 	manager := &ConsensusManager{
-		conf: &consensusConfig{
-			hashAlgo:  gocrypto.SHA256,
-			t3Timeout: 900 * time.Millisecond,
+		selfID: "test",
+		params: &consensus.Parameters{
+			BlockRateMs: 900 * time.Millisecond, // also known as T3
 		},
-		selfID:     "test",
 		partitions: partitions,
 		ir: map[p.SystemIdentifier]*certificates.InputRecord{
 			p.SystemIdentifier(sysID0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
@@ -131,7 +118,6 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	req := consensus.IRChangeRequest{
 		SystemIdentifier: p.SystemIdentifier(partitionID),
 		Reason:           consensus.Quorum,
-		IR:               newIR,
 		Requests:         requests}
 	// submit IR change request from partition with quorum
 	cm.RequestCertification() <- req

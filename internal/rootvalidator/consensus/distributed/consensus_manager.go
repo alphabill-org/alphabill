@@ -3,7 +3,6 @@ package distributed
 import (
 	"bytes"
 	"context"
-	gocrypto "crypto"
 	"fmt"
 	"time"
 
@@ -52,26 +51,18 @@ type (
 		Get() (*store.RootState, error)
 	}
 
-	AbConsensusConfig struct {
-		BlockRateMs        time.Duration
-		LocalTimeoutMs     time.Duration
-		ConsensusThreshold uint32
-		RootTrustBase      map[string]crypto.Verifier
-		HashAlgorithm      gocrypto.Hash
-	}
-
 	ConsensusManager struct {
 		ctx            context.Context
 		ctxCancel      context.CancelFunc
 		certReqCh      chan consensus.IRChangeRequest
 		certResultCh   chan certificates.UnicityCertificate
-		config         *AbConsensusConfig
+		params         *consensus.Parameters
 		peer           *network.Peer
 		timers         *timer.Timers
 		net            RootNet
 		pacemaker      *Pacemaker
 		leaderSelector Leader
-		rootVerifier   *RootNodeVerifier
+		trustBase      *RootTrustBase
 		irReqBuffer    *IrReqBuffer
 		safety         *SafetyModule
 		roundPipeline  *RoundPipeline
@@ -82,39 +73,24 @@ type (
 	}
 )
 
-func loadConf(genesisRoot *genesis.GenesisRootRecord) *AbConsensusConfig {
-	rootTrustBase, err := genesis.NewValidatorTrustBase(genesisRoot.RootValidators)
-	if err != nil {
-		return nil
-	}
-	conf := &AbConsensusConfig{
-		BlockRateMs:        time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
-		LocalTimeoutMs:     time.Duration(genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond,
-		ConsensusThreshold: genesisRoot.Consensus.QuorumThreshold,
-		RootTrustBase:      rootTrustBase,
-		HashAlgorithm:      gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
-	}
-	return conf
-}
-
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
-func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.GenesisRootRecord,
-	partitionStore PartitionStore, stateStore StateStore, signer crypto.Signer, net RootNet) (*ConsensusManager, error) {
+func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesis,
+	partitionStore PartitionStore, net RootNet, signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
 	// Sanity checks
-	if genesisRoot == nil {
+	if rg == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
 	}
-	// load configuration
-	conf := loadConf(genesisRoot)
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
 	log.SetContext(log.KeyNodeID, host.ID().String())
-	safetyModule, err := NewSafetyModule(signer)
-	if err != nil {
-		return nil, err
-	}
-	lastState, err := stateStore.Get()
+	// load options
+	optional := consensus.LoadConf(opts)
+	// load configuration
+	cParams := consensus.NewConsensusParams(rg.Root)
+	// Initiate store
+	storage, err := store.New(rg, store.WithDBStore(optional.Storage))
+	lastState, err := storage.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -122,35 +98,39 @@ func NewDistributedAbConsensusManager(host *network.Peer, genesisRoot *genesis.G
 	if err != nil {
 		return nil, err
 	}
-	rootVerifier, err := NewRootClusterVerifier(conf.RootTrustBase, conf.ConsensusThreshold)
+	tb, err := NewRootTrustBaseFromGenesis(rg.Root)
 	if err != nil {
 		return nil, err
 	}
-	pipeline := NewRoundPipeline(conf.HashAlgorithm, lastState, partitionStore)
+	pipeline := NewRoundPipeline(cParams.HashAlgorithm, lastState, partitionStore)
 	if err != nil {
 		return nil, err
 	}
 	latestRound := pipeline.GetHighQc().VoteInfo.RoundNumber
-	logger.Debug("Starting consensus manager, starting round %v", latestRound)
+	safetyModule, err := NewSafetyModule(signer)
+	if err != nil {
+		return nil, err
+	}
 
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan consensus.IRChangeRequest),
 		certResultCh:   make(chan certificates.UnicityCertificate),
-		config:         conf,
+		params:         cParams,
 		peer:           host,
 		timers:         timer.NewTimers(),
 		net:            net,
-		pacemaker:      NewPacemaker(latestRound, conf.LocalTimeoutMs, conf.BlockRateMs),
+		pacemaker:      NewPacemaker(latestRound, cParams.LocalTimeoutMs, cParams.BlockRateMs),
 		leaderSelector: l,
-		rootVerifier:   rootVerifier,
+		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(),
 		safety:         safetyModule,
 		roundPipeline:  pipeline,
 		partitions:     partitionStore,
-		stateStore:     stateStore,
+		stateStore:     storage,
 		waitPropose:    false,
 		voteBuffer:     []*atomic_broadcast.VoteMsg{},
 	}
+	logger.Debug("Round %v, starting consensus manager", consensusManager.pacemaker.GetCurrentRound())
 	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
 	// start
 	consensusManager.start()
@@ -165,15 +145,27 @@ func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCert
 	return x.certResultCh
 }
 
+func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
+	state, err := x.stateStore.Get()
+	if err != nil {
+		return nil, err
+	}
+	luc, f := state.Certificates[id]
+	if !f {
+		return nil, fmt.Errorf("no certificate found for system id %X", id)
+	}
+	return luc, nil
+}
+
 func (x *ConsensusManager) start() {
 	// Start timers and network processing
-	x.timers.Start(localTimeoutID, x.config.LocalTimeoutMs)
+	x.timers.Start(localTimeoutID, x.params.LocalTimeoutMs)
 	// Am I the leader?
 	currentRound := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(currentRound) == x.peer.ID() {
 		// on start wait a bit before making a proposal
 		x.waitPropose = true
-		x.timers.Start(blockRateID, x.config.BlockRateMs)
+		x.timers.Start(blockRateID, x.params.BlockRateMs)
 	}
 	go x.loop()
 }
@@ -328,7 +320,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 			x.pacemaker.GetCurrentRound(), 0, x.roundPipeline.GetHighQc()), x.peer.ID().String())
 		// sign
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
-			logger.Warning("Local timeout error %v", err)
+			logger.Warning("Local timeout error, %v", err)
 			return
 		}
 		// Record vote
@@ -384,7 +376,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// calculate LUC age using rounds and min block rate
-	lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.config.BlockRateMs
+	lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.params.BlockRateMs
 	inputRecord, err := irChange.Verify(partitionInfo, luc, lucAgeInRounds)
 	if err != nil {
 		logger.Warning("Invalid IR change request error: %v", err)
@@ -397,7 +389,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		return
 	}
 	// Buffer and wait for opportunity to make the next proposal
-	if err := x.irReqBuffer.Add(IRChange{InputRecord: inputRecord, Reason: irChange.CertReason, Msg: irChange}); err != nil {
+	if err = x.irReqBuffer.Add(IRChange{InputRecord: inputRecord, Reason: irChange.CertReason, Msg: irChange}); err != nil {
 		logger.Warning("IR change request from partition %X error: %w", sysID.Bytes(), err)
 		return
 	}
@@ -406,7 +398,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 // onVoteMsg handle votes and timeout votes
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
-	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
+	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
 		logger.Warning("Vote verify failed: %v", err)
 	}
@@ -440,7 +432,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		return
 	}
 	// Store vote, check for QC
-	qc := x.pacemaker.RegisterVote(vote, x.rootVerifier)
+	qc := x.pacemaker.RegisterVote(vote, x.trustBase)
 	if qc == nil {
 		logger.Debug("Round %v processed vote for round %v, no quorum yet",
 			x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
@@ -465,7 +457,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 
 func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	// verify signature on vote
-	err := vote.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
+	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
 		logger.Warning("Timeout vote verify failed: %v", err)
 	}
@@ -477,7 +469,7 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 		logger.Error("Timeout vote, recovery not yet implemented")
 		// todo: AB-320 try to recover
 	}
-	tc := x.pacemaker.RegisterTimeoutVote(vote, x.rootVerifier)
+	tc := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if tc == nil {
 		logger.Debug("Round %v processed timeout vote for round %v, no quorum yet",
 			x.pacemaker.GetCurrentRound(), vote.Timeout.Round)
@@ -528,7 +520,7 @@ func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Paylo
 		if err != nil {
 			return nil, fmt.Errorf("invalid payload: unknown partition %X", systemID.Bytes())
 		}
-		lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.config.BlockRateMs
+		lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.params.BlockRateMs
 		// verify request
 		inputRecord, err := irChReq.Verify(partitionInfo, luc, lucAgeInRounds)
 		if err != nil {
@@ -541,7 +533,7 @@ func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Paylo
 
 func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	// verify signature on proposal (does not verify partition request signatures)
-	err := proposal.Verify(x.rootVerifier.GetQuorumThreshold(), x.rootVerifier.GetVerifiers())
+	err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
 		logger.Warning("Invalid Proposal message, verify failed: %v", err)
 	}
@@ -656,7 +648,7 @@ func (x *ConsensusManager) generateTimeoutRequests() ([]*atomic_broadcast.IRChan
 		if err != nil {
 			return nil, err
 		}
-		if time.Duration(x.pacemaker.GetCurrentRound()-cert.UnicitySeal.RootRoundInfo.RoundNumber)*x.config.BlockRateMs >=
+		if time.Duration(x.pacemaker.GetCurrentRound()-cert.UnicitySeal.RootRoundInfo.RoundNumber)*x.params.BlockRateMs >=
 			time.Duration(partInfo.SystemDescription.T2Timeout)*time.Millisecond {
 			logger.Info("Round %v request partition %X T2 timeout", x.pacemaker.GetCurrentRound(), id.Bytes())
 			timeoutReq := &atomic_broadcast.IRChangeReqMsg{

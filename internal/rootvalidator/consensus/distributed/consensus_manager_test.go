@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -53,19 +52,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	// initiate state store
-	stateStore := store.NewInMemStateStore()
-	var certs = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
-	for _, partition := range rootGenesis.Partitions {
-		identifier := partition.GetSystemIdentifierString()
-		certs[identifier] = partition.Certificate
-	}
-	require.NoError(t, stateStore.Save(&store.RootState{
-		LatestRound:    rootGenesis.GetRoundNumber(),
-		Certificates:   certs,
-		LatestRootHash: rootGenesis.GetRoundHash(),
-	}))
-	cm, err := NewDistributedAbConsensusManager(rootNode.Peer, rootGenesis.GetRoot(), partitions, stateStore, rootNode.Signer, net)
+	cm, err := NewDistributedAbConsensusManager(rootNode.Peer, rootGenesis, partitions, net, rootNode.Signer)
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -97,7 +84,6 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 	req := consensus.IRChangeRequest{
 		SystemIdentifier: p.SystemIdentifier(partitionID),
 		Reason:           consensus.Quorum,
-		IR:               requests[0].InputRecord,
 		Requests:         requests}
 	cm.RequestCertification() <- req
 	// since there is only one root node, it is the next leader, the request will be buffered
@@ -285,7 +271,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), time.Second)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
 	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
-	result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh)
+	require.NoError(t, result.IsValid(trustBase, gocrypto.SHA256, partitionID, sdrh))
 
 	// roor will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)

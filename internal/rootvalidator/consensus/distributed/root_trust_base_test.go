@@ -97,7 +97,7 @@ func TestNewRootClusterVerifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewRootClusterVerifier(tt.args.keyMap, tt.args.threshold)
+			got, err := NewRootTrustBase(tt.args.keyMap, tt.args.threshold)
 
 			if len(tt.wantErrStr) != 0 {
 				require.ErrorContains(t, err, tt.wantErrStr)
@@ -111,17 +111,17 @@ func TestNewRootClusterVerifier(t *testing.T) {
 	}
 }
 
-func TestRootNodeVerifier_GetQuorumThreshold(t *testing.T) {
+func TestRootNodeTrustBase_GetQuorumThreshold(t *testing.T) {
 	keyMap := generateDummyValidatorMap(4)
-	ver, err := NewRootClusterVerifier(keyMap, 3)
+	ver, err := NewRootTrustBase(keyMap, 3)
 	require.NoError(t, err)
 	require.Equal(t, uint32(3), ver.GetQuorumThreshold())
 }
 
-func TestRootNodeVerifier_GetVerifier(t *testing.T) {
+func TestRootNodeTrustBase_GetVerifier(t *testing.T) {
 	// generates map with node id's from "0" to "3"
 	keyMap := generateDummyValidatorMap(4)
-	ver, err := NewRootClusterVerifier(keyMap, 3)
+	ver, err := NewRootTrustBase(keyMap, 3)
 	require.NoError(t, err)
 	nodeVer, err := ver.GetVerifier("1")
 	require.NoError(t, err)
@@ -134,16 +134,16 @@ func TestRootNodeVerifier_GetVerifier(t *testing.T) {
 	require.Nil(t, nodeVer)
 }
 
-func TestRootNodeVerifier_GetVerifiers(t *testing.T) {
+func TestRootNodeTrustBase_GetVerifiers(t *testing.T) {
 	// generates map with node id's from "0" to "3"
 	keyMap := generateDummyValidatorMap(4)
-	ver, err := NewRootClusterVerifier(keyMap, 3)
+	ver, err := NewRootTrustBase(keyMap, 3)
 	require.NoError(t, err)
 	nodeMap := ver.GetVerifiers()
 	require.Equal(t, 4, len(nodeMap))
 }
 
-func TestRootNodeVerifier_ValidateQuorum(t *testing.T) {
+func TestRootNodeTrustBase_ValidateQuorum(t *testing.T) {
 	type args struct {
 		keyMap    map[string]crypto.Verifier
 		threshold uint32
@@ -175,7 +175,7 @@ func TestRootNodeVerifier_ValidateQuorum(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			verifier, err := NewRootClusterVerifier(tt.args.keyMap, tt.args.threshold)
+			verifier, err := NewRootTrustBase(tt.args.keyMap, tt.args.threshold)
 			require.NoError(t, err)
 			err = verifier.ValidateQuorum(tt.args.authors)
 			if len(tt.wantErrStr) != 0 {
@@ -185,14 +185,14 @@ func TestRootNodeVerifier_ValidateQuorum(t *testing.T) {
 	}
 }
 
-func TestRootNodeVerifier_VerifyBytes(t *testing.T) {
+func TestRootNodeTrustBase_VerifyBytes(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
 	commitInfo := &certificates.CommitInfo{RootRoundInfoHash: []byte{0, 1, 2}, RootHash: []byte{2, 3, 4}}
 	bytes := commitInfo.Bytes()
 	signer, _ := signers["0"]
 	sig, err := signer.SignBytes(bytes)
 	require.NoError(t, err)
-	verifier, err := NewRootClusterVerifier(validators, 3)
+	verifier, err := NewRootTrustBase(validators, 3)
 	require.NoError(t, err)
 	require.NoError(t, verifier.VerifyBytes(bytes, sig, "0"))
 	require.ErrorContains(t, verifier.VerifyBytes(bytes, sig, "N"), "no public key exist for node id")
@@ -202,9 +202,9 @@ func TestRootNodeVerifier_VerifyBytes(t *testing.T) {
 
 }
 
-func TestRootNodeVerifier_VerifyQuorumSignatures(t *testing.T) {
+func TestRootNodeTrustBase_VerifyQuorumSignatures(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
-	verifier, err := NewRootClusterVerifier(validators, 3)
+	verifier, err := NewRootTrustBase(validators, 3)
 	require.NoError(t, err)
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 1, 2, 3})
 	commitInfo := NewDummyLedgerCommitInfo(voteInfo)
@@ -229,7 +229,7 @@ func TestRootNodeVerifier_VerifyQuorumSignatures(t *testing.T) {
 	require.ErrorContains(t, verifier.VerifyQuorumSignatures(hash, qc.Signatures), "quorum verify failed: signature length")
 }
 
-func TestRootNodeVerifier_VerifySignature(t *testing.T) {
+func TestRootNodeTrustBase_VerifySignature(t *testing.T) {
 	signers, validators := generateSignersAndVerifiers(4)
 	// create certificate for previous round
 	roundInfo := &certificates.RootRoundInfo{RoundNumber: 1, Timestamp: 11111, CurrentRootHash: []byte{0, 1, 3}}
@@ -251,7 +251,7 @@ func TestRootNodeVerifier_VerifySignature(t *testing.T) {
 	require.NoError(t, err)
 	sig, err := signer.SignHash(hash)
 	require.NoError(t, err)
-	verifier, err := NewRootClusterVerifier(validators, 3)
+	verifier, err := NewRootTrustBase(validators, 3)
 	require.NoError(t, err)
 	require.NoError(t, verifier.VerifySignature(hash, sig, peer.ID(blockData.Author)))
 }

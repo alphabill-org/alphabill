@@ -52,13 +52,14 @@ func TestPersistentStore_NewAndUninitiated(t *testing.T) {
 	boltDB, err := NewBoltStore(f.Name())
 	require.NoError(t, err)
 	require.NotNil(t, boltDB)
-	state, err := boltDB.Read()
-	require.NoError(t, err)
+	state := NewRootState()
+	require.ErrorIs(t, boltDB.Read("state", state), ErrNotFound)
 	require.Empty(t, len(state.Certificates))
 	require.Equal(t, uint64(0), state.LatestRound)
 	require.Nil(t, state.LatestRootHash)
 	// make writing nil fails
-	require.Error(t, boltDB.Write(nil))
+	require.Error(t, boltDB.Write("", nil))
+	require.Error(t, boltDB.Write("some", nil))
 }
 
 func TestNextSave_ok(t *testing.T) {
@@ -72,9 +73,9 @@ func TestNextSave_ok(t *testing.T) {
 	require.NotNil(t, boltDB)
 	ucs := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: mockUc}
 	// initiate state, i.e. boltDB something
-	require.NoError(t, boltDB.Write(&RootState{LatestRound: round, Certificates: ucs, LatestRootHash: previousHash}))
-	state, err := boltDB.Read()
-	require.NoError(t, err)
+	require.NoError(t, boltDB.Write("state", &RootState{LatestRound: round, Certificates: ucs, LatestRootHash: previousHash}))
+	state := NewRootState()
+	require.NoError(t, boltDB.Read("state", state))
 	// check that initial state was saved as intended
 	require.Equal(t, round, state.LatestRound)
 	require.Equal(t, state.LatestRootHash, previousHash)
@@ -87,10 +88,9 @@ func TestNextSave_ok(t *testing.T) {
 	}
 	newHash := []byte{1}
 	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: uc}
-	err = boltDB.Write(&RootState{LatestRound: round + 1, Certificates: certs, LatestRootHash: newHash})
+	err = boltDB.Write("state", &RootState{LatestRound: round + 1, Certificates: certs, LatestRootHash: newHash})
 	require.NoError(t, err)
-	state, err = boltDB.Read()
-	require.NoError(t, err)
+	require.NoError(t, boltDB.Read("state", state))
 	require.Equal(t, round+1, state.LatestRound)
 	require.Equal(t, state.LatestRootHash, newHash)
 	require.Len(t, state.Certificates, 1)

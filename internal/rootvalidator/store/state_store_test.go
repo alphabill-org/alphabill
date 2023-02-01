@@ -7,10 +7,24 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
+	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/stretchr/testify/require"
 )
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
+
+var testGenesis = &genesis.RootGenesis{
+	Partitions: []*genesis.GenesisPartitionRecord{
+		{
+			Nodes:       nil,
+			Certificate: mockUc,
+			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
+				SystemIdentifier: sysID.Bytes(),
+				T2Timeout:        2500,
+			},
+		},
+	},
+}
 
 func TestInMemState_Initialization(t *testing.T) {
 	stateStore := NewInMemStateStore()
@@ -32,7 +46,6 @@ func TestInMemState_GetAndSave(t *testing.T) {
 	// Root round number can skip rounds, but must not be smaller or equal
 	require.Error(t, stateStore.Save(&RootState{LatestRound: 1, Certificates: nil, LatestRootHash: nil}))
 	require.NoError(t, stateStore.Save(&RootState{LatestRound: 3, Certificates: nil, LatestRootHash: nil}))
-
 }
 
 func TestPersistentRootState_GetAndSave(t *testing.T) {
@@ -43,16 +56,13 @@ func TestPersistentRootState_GetAndSave(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 	storage, err := NewBoltStore(f.Name())
-	require.NotNil(t, storage)
-	// save a state in DB
-	ucs := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{"1": mockUc}
-	// initiate state, i.e. store something
-	require.NoError(t, storage.Write(&RootState{LatestRound: round, Certificates: ucs, LatestRootHash: previousHash}))
-	stateStore, err := New(WithDBStore(storage))
+	require.NoError(t, err)
+	// init storage from DB
+	stateStore, err := New(testGenesis, WithDBStore(storage))
 	require.NoError(t, err)
 	s, err := stateStore.Get()
-	require.Equal(t, s.LatestRound, uint64(1))
-	require.Equal(t, s.LatestRootHash, zeroHash)
+	require.Equal(t, uint64(1), s.LatestRound)
+	require.Equal(t, zeroHash, s.LatestRootHash)
 	eqCerts := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{sysID: mockUc}
 	require.Equal(t, s.Certificates, eqCerts)
 	// Try to store a nil state

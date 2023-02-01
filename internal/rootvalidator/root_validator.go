@@ -4,16 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
-
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -26,12 +19,6 @@ import (
 )
 
 type (
-	ConsensusManager interface {
-		RequestCertification() chan<- consensus.IRChangeRequest
-		CertificationResult() <-chan certificates.UnicityCertificate
-		Stop()
-	}
-
 	PartitionNet interface {
 		Send(msg network.OutputMessage, receivers []peer.ID) error
 		ReceivedChannel() <-chan network.ReceivedMessage
@@ -46,112 +33,38 @@ type (
 		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
-	RootNodeConf struct {
-		stateStore StateStore
-	}
-	Option func(c *RootNodeConf)
-
-	ConsensusFn func(partition PartitionStore, state StateStore) (ConsensusManager, error)
-
 	Node struct {
 		ctx              context.Context
 		ctxCancel        context.CancelFunc
-		conf             *RootNodeConf
 		partitionHost    *network.Peer // p2p network host for partition
 		partitionStore   PartitionStore
 		incomingRequests *CertRequestBuffer
 		net              PartitionNet
-		consensusManager ConsensusManager
+		consensusManager consensus.Manager
 	}
 )
 
-func WithStateStore(store StateStore) Option {
-	return func(c *RootNodeConf) {
-		c.stateStore = store
-	}
-}
-
-func MonolithicConsensus(selfID string, signer crypto.Signer) ConsensusFn {
-	return func(partitionStore PartitionStore, stateStore StateStore) (ConsensusManager, error) {
-		return monolithic.NewMonolithicConsensusManager(selfID,
-			partitionStore,
-			stateStore,
-			signer)
-	}
-}
-
-func DistributedConsensus(rootHost *network.Peer, rootGenesis *genesis.GenesisRootRecord, net distributed.RootNet, signer crypto.Signer) ConsensusFn {
-	return func(partitionStore PartitionStore, stateStore StateStore) (ConsensusManager, error) {
-		return distributed.NewDistributedAbConsensusManager(
-			rootHost,
-			rootGenesis,
-			partitionStore,
-			stateStore,
-			signer,
-			net)
-	}
-}
-
-func initiateStateStore(stateStore distributed.StateStore, rg *genesis.RootGenesis) error {
-	state, err := stateStore.Get()
-	if err != nil {
-		return err
-	}
-	// Init from genesis file is done only once
-	if state.LatestRound > 0 {
-		return nil
-	}
-	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
-	for _, partition := range rg.Partitions {
-		identifier := partition.GetSystemIdentifierString()
-		certs[identifier] = partition.Certificate
-	}
-	// If not initiated, save genesis file to store
-	if err := stateStore.Save(&store.RootState{LatestRound: rg.GetRoundNumber(), Certificates: certs, LatestRootHash: rg.GetRoundHash()}); err != nil {
-		return err
-	}
-	return nil
-}
-
 // NewRootValidatorNode creates a new instance of the root validator node
 func NewRootValidatorNode(
-	genesis *genesis.RootGenesis,
 	host *network.Peer,
 	pNet PartitionNet,
-	consensus ConsensusFn,
-	opts ...Option,
+	ps PartitionStore,
+	cm consensus.Manager,
 ) (*Node, error) {
 	if host == nil {
-		return nil, errors.New("partition listener is nil")
+		return nil, fmt.Errorf("partition listener is nil")
 	}
 	log.SetContext(log.KeyNodeID, host.ID().String())
 	if pNet == nil {
-		return nil, errors.New("network is nil")
-	}
-	config := loadConf(opts)
-	// Initiate state store
-	err := initiateStateStore(config.stateStore, genesis)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initiate state store, %w", err)
-	}
-	// Initiate partition store
-	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(genesis.Partitions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initiate partition store: %w", err)
-	}
-	// create consensus manager
-	consensusManager, err := consensus(partitionStore, config.stateStore)
-	if err != nil {
-		return nil, fmt.Errorf("failed to construct consensus manager, %w", err)
+		return nil, fmt.Errorf("network is nil")
 	}
 	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", host.ID(), host.MultiAddresses())
 	node := &Node{
-		conf:             config,
 		partitionHost:    host,
-		partitionStore:   partitionStore,
+		partitionStore:   ps,
 		incomingRequests: NewCertificationRequestBuffer(),
 		net:              pNet,
-		consensusManager: consensusManager,
+		consensusManager: cm,
 	}
 	node.ctx, node.ctxCancel = context.WithCancel(context.Background())
 	// Start receiving messages from partition nodes
@@ -212,31 +125,6 @@ func (v *Node) loop() {
 	}
 }
 
-func loadConf(opts []Option) *RootNodeConf {
-	conf := &RootNodeConf{
-		stateStore: store.NewInMemStateStore(),
-	}
-	for _, opt := range opts {
-		if opt == nil {
-			continue
-		}
-		opt(conf)
-	}
-	return conf
-}
-
-func (v *Node) getLatestUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {
-	state, err := v.conf.stateStore.Get()
-	if err != nil {
-		return nil, err
-	}
-	luc, f := state.Certificates[id]
-	if !f {
-		return nil, errors.Errorf("no certificate found for system id %X", id)
-	}
-	return luc, nil
-}
-
 func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) {
 	peerID, err := peer.Decode(nodeID)
 	if err != nil {
@@ -281,7 +169,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		return
 	}
 	systemIdentifier := proto.SystemIdentifier(req.SystemIdentifier)
-	latestUnicityCertificate, err := v.getLatestUnicityCertificate(systemIdentifier)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(systemIdentifier)
 	if err != nil {
 		logger.Warning("Block certification request from %X node %v rejected, failed to read last certified state %v",
 			req.SystemIdentifier, req.NodeIdentifier, err)
@@ -306,22 +194,14 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
 			Reason:           consensus.Quorum,
-			IR:               ir,
 			Requests:         requests}
 	} else if !consensusPossible {
 		logger.Info("Partition %X consensus not possible, repeat UC", systemIdentifier.Bytes())
-		// Get last unicity certificate for the partition
-		luc, err := v.getLatestUnicityCertificate(systemIdentifier)
-		if err != nil {
-			logger.Error("Cannot re-certify partition: SystemIdentifier: %X, error: %v", systemIdentifier.Bytes(), err.Error())
-			return
-		}
-		// repeat IR for repeat UC
+		// add all requests to prove that no consensus is possible
 		requests := v.incomingRequests.GetRequests(systemIdentifier)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
 			Reason:           consensus.QuorumNotPossible,
-			IR:               luc.InputRecord,
 			Requests:         requests}
 	}
 }

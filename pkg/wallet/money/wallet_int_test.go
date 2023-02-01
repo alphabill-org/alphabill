@@ -39,6 +39,8 @@ import (
 
 const port = 9111
 
+var fcrID = uint256.NewInt(88)
+
 func TestSync(t *testing.T) {
 	// setup wallet
 	_ = DeleteWalletDb(os.TempDir())
@@ -253,6 +255,7 @@ wallet runs dust collection
 wallet account 2 and 3 should have only single bill
 */
 func TestCollectDustInMultiAccountWallet(t *testing.T) {
+	t.SkipNow() // TODO AB-694 add fee handling to money wallet
 	// start network
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),

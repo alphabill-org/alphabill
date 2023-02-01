@@ -56,8 +56,7 @@ func TestPartition_Ok(t *testing.T) {
 	txFee := txFeeFunc()
 
 	// create fee credit bill from initial bill
-	fcrAmount, transferFC, err := createFCB(t, initialBill, network, network.RootSigner)
-	require.NoError(t, err)
+	fcrAmount, transferFC := createFeeCredit(t, initialBill, network)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx := createBillTransfer(initialBill.ID, total-fcrAmount-txFee, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
@@ -116,7 +115,7 @@ func TestPartition_SwapOk(t *testing.T) {
 	require.NoError(t, err)
 
 	// create fee credit bill from initial bill
-	fcrAmount, transferFC, err := createFCB(t, initialBill, network, network.RootSigner)
+	fcrAmount, transferFC := createFeeCredit(t, initialBill, network)
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
@@ -279,7 +278,7 @@ func decodeHex(hex string) []byte {
 	return decoded
 }
 
-func createFCB(t *testing.T, initialBill *InitialBill, network *testpartition.AlphabillPartition, signer abcrypto.Signer) (uint64, *fc.TransferFeeCreditWrapper, error) {
+func createFeeCredit(t *testing.T, initialBill *InitialBill, network *testpartition.AlphabillPartition) (uint64, *fc.TransferFeeCreditWrapper) {
 	// send transferFC
 	fcrIDBytes := fcrID.Bytes32()
 	fcrAmount := uint64(100)
@@ -299,8 +298,8 @@ func createFCB(t *testing.T, initialBill *InitialBill, network *testpartition.Al
 	// send addFC
 	_, transferFCProof, err := network.GetBlockProof(transferFC.Transaction, fc.NewFeeCreditTx)
 	require.NoError(t, err)
-	addFC := testfc.NewAddFC(t, signer,
-		testfc.NewAddFCAttr(t, signer,
+	addFC := testfc.NewAddFC(t, network.RootSigner,
+		testfc.NewAddFCAttr(t, network.RootSigner,
 			testfc.WithTransferFCTx(transferFC.Transaction),
 			testfc.WithTransferFCProof(transferFCProof),
 			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
@@ -310,5 +309,5 @@ func createFCB(t *testing.T, initialBill *InitialBill, network *testpartition.Al
 	err = network.SubmitTx(addFC.Transaction)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(addFC.Transaction, network), test.WaitDuration, test.WaitTick)
-	return fcrAmount, transferFC, err
+	return fcrAmount, transferFC
 }

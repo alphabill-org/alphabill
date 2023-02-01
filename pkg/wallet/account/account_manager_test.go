@@ -32,6 +32,7 @@ func TestEncryptedWalletCanBeCreated(t *testing.T) {
 	isEncrypted, err := am.db.Do().IsEncrypted()
 	require.NoError(t, err)
 	require.True(t, isEncrypted)
+	am.Close()
 
 	am, err = newManager(am.dir, walletPass, false)
 	require.NoError(t, am.CreateKeys(testMnemonic))

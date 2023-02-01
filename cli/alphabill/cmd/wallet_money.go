@@ -463,23 +463,11 @@ func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*mone
 }
 
 func loadExistingAccountManager(cmd *cobra.Command, walletDir string) (account.Manager, error) {
-	pw := ""
+	pw, err := getPassphrase(cmd, "Enter passphrase: ")
+	if err != nil {
+		return nil, err
+	}
 	am, err := account.NewManager(walletDir, pw, false)
-	if err != nil {
-		return nil, err
-	}
-	isEncrypted, err := am.IsEncrypted()
-	if err != nil {
-		return nil, err
-	}
-	if isEncrypted {
-		walletPass, err := getPassphrase(cmd, "Enter passphrase: ")
-		if err != nil {
-			return nil, err
-		}
-		pw = walletPass
-	}
-	am, err = account.NewManager(walletDir, pw, false)
 	if err != nil {
 		return nil, err
 	}
@@ -560,6 +548,13 @@ func getPassphrase(cmd *cobra.Command, promptMessage string) (string, error) {
 	}
 	if passwordFromArg != "" {
 		return passwordFromArg, nil
+	}
+	passwordFlag, err := cmd.Flags().GetBool(passwordPromptCmdName)
+	if err != nil {
+		return "", err
+	}
+	if !passwordFlag {
+		return "", nil
 	}
 	return readPassword(promptMessage)
 }

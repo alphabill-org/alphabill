@@ -502,6 +502,11 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 func initWalletLogger(config *walletConfig) error {
 	var logWriter io.Writer
 	if config.LogFile != "" {
+		// ensure intermediate directories exist
+		err := os.MkdirAll(filepath.Dir(config.LogFile), 0700)
+		if err != nil {
+			return err
+		}
 		logFile, err := os.OpenFile(config.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // -rw-------
 		if err != nil {
 			return err

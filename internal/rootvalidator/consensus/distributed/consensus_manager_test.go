@@ -95,7 +95,7 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirtstRound(t *testing.T) {
+func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) {
 	var lastProposalMsg *atomic_broadcast.ProposalMsg = nil
 	var lastVoteMsg *atomic_broadcast.VoteMsg = nil
 	var lastTimeoutMsg *atomic_broadcast.TimeoutMsg = nil

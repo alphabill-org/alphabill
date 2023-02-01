@@ -49,11 +49,13 @@ func newManager(dir string, password string, create bool) (*managerImpl, error) 
 		return nil, err
 	}
 	if !ok {
+		db.Close()
 		return nil, ErrInvalidPassword
 	}
 
 	accountKeys, err := db.Do().GetAccountKeys()
 	if err != nil {
+		db.Close()
 		return nil, err
 	}
 	accs := make([]Account, len(accountKeys))

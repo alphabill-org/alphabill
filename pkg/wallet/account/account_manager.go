@@ -19,7 +19,6 @@ type (
 		GetMaxAccountIndex() (uint64, error)
 		GetPublicKey(accountIndex uint64) ([]byte, error)
 		GetPublicKeys() ([][]byte, error)
-		IsEncrypted() (bool, error)
 		Close()
 	}
 
@@ -164,13 +163,6 @@ func (m *managerImpl) AddAccount() (uint64, []byte, error) {
 		return 0, nil, err
 	}
 	return accountIndex, accountKey.PubKey, nil
-}
-
-// IsEncrypted returns true if wallet exists and is encrypted and or false if wallet exists and is not encrypted,
-// returns error if wallet does not exist. Closes DB upon completion.
-func (m *managerImpl) IsEncrypted() (bool, error) {
-	defer m.Close()
-	return m.db.Do().IsEncrypted()
 }
 
 func (m *managerImpl) GetAll() []Account {

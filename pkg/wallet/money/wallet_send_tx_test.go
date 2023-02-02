@@ -50,9 +50,16 @@ func TestWalletSendFunction(t *testing.T) {
 	require.ErrorIs(t, err, ErrSwapInProgress)
 	setDcMetadata(t, w, nonce, nil)
 
-	// test ok response
+	// test ok response, ensure tx timeout is correct
+	mockClient.SetMaxBlockNumber(0)
+	mockClient.SetMaxRoundNumber(100)
+	mockClient.SetTxListener(func(tx *txsystem.Transaction) {
+		_, rn, _ := mockClient.GetMaxBlockNumber()
+		require.Equal(t, rn+txTimeoutBlockCount, tx.Timeout)
+	})
 	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.NoError(t, err)
+	mockClient.SetTxListener(nil)
 
 	// test another account
 	_, _, _ = w.AddAccount()
@@ -153,8 +160,8 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}}})
-
+	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}}})
+	mockClient.SetIncrementOnFetch(true)
 	// verify balance before transactions
 	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
 	require.EqualValues(t, b1.Value+b2.Value, balance)

@@ -400,11 +400,11 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, ErrInsufficientBalance
 	}
 
-	maxBlockNo, err := w.GetMaxBlockNumber()
+	_, roundNumber, err := w.GetMaxBlockNumber()
 	if err != nil {
 		return nil, err
 	}
-	timeout := maxBlockNo + txTimeoutBlockCount
+	timeout := roundNumber + txTimeoutBlockCount
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +430,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		}
 	}
 	if cmd.WaitForConfirmation {
-		txProofs, err := w.waitForConfirmation(ctx, txs, maxBlockNo, timeout, cmd.AccountIndex)
+		txProofs, err := w.waitForConfirmation(ctx, txs, roundNumber, timeout, cmd.AccountIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -614,11 +614,11 @@ func (w *Wallet) trySwap(tx TxContext, accountIndex uint64) error {
 			return err
 		}
 		if dcMeta != nil && dcMeta.isSwapRequired(blockHeight, billGroup.valueSum) {
-			maxBlockNumber, err := w.GetMaxBlockNumber()
+			_, maxRoundNumber, err := w.GetMaxBlockNumber()
 			if err != nil {
 				return err
 			}
-			timeout := maxBlockNumber + swapTimeoutBlockCount
+			timeout := maxRoundNumber + swapTimeoutBlockCount
 			err = w.swapDcBills(tx, billGroup.dcBills, billGroup.dcNonce, dcMeta.BillIds, timeout, accountIndex)
 			if err != nil {
 				return err
@@ -656,7 +656,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		if err != nil {
 			return err
 		}
-		maxBlockNo, err := w.GetMaxBlockNumber()
+		_, maxRoundNumber, err := w.GetMaxBlockNumber()
 		if err != nil {
 			return err
 		}
@@ -673,7 +673,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		if len(dcBillGroups) > 0 {
 			for _, v := range dcBillGroups {
 				if blockHeight >= v.dcTimeout {
-					swapTimeout := maxBlockNo + swapTimeoutBlockCount
+					swapTimeout := maxRoundNumber + swapTimeoutBlockCount
 					billIds, err := getBillIds(dbTx, accountIndex, v)
 					if err != nil {
 						return err
@@ -703,7 +703,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 			}
 
 			dcNonce := calculateDcNonce(bills)
-			dcTimeout := maxBlockNo + dcTimeoutBlockCount
+			dcTimeout := maxRoundNumber + dcTimeoutBlockCount
 			var dcValueSum uint64
 			var billIds [][]byte
 			for _, b := range bills {
@@ -804,19 +804,28 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 	})
 }
 
-func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxBlockNumber, timeout, accountIndex uint64) ([]*Bill, error) {
+func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, latestRoundNumber, timeout, accountIndex uint64) ([]*Bill, error) {
 	log.Info("waiting for confirmation(s)...")
-	blockNumber := maxBlockNumber
+	latestBlockNumber := latestRoundNumber
 	txsLog := newTxLog(pendingTxs)
 	txc := NewTxConverter(w.SystemID())
-	for blockNumber <= timeout {
-		b, err := w.AlphabillClient.GetBlock(blockNumber)
+	for latestBlockNumber <= timeout {
+		b, err := w.AlphabillClient.GetBlock(latestBlockNumber)
 		if err != nil {
 			return nil, err
 		}
 		if b == nil {
+			// block might be empty, check latest round number
+			_, latestRoundNumber, err = w.AlphabillClient.GetMaxBlockNumber()
+			if err != nil {
+				return nil, err
+			}
+			if latestRoundNumber > latestBlockNumber {
+				latestBlockNumber++
+				continue
+			}
 			// wait for some time before retrying to fetch new block
-			timer := time.NewTimer(100 * time.Millisecond)
+			timer := time.NewTimer(500 * time.Millisecond)
 			select {
 			case <-timer.C:
 				continue
@@ -842,7 +851,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 				}
 			}
 		}
-		blockNumber += 1
+		latestBlockNumber++
 	}
 	return nil, ErrTxFailedToConfirm
 }

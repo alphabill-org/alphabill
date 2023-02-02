@@ -151,7 +151,8 @@ func execStartCmd(ctx context.Context, _ *cobra.Command, config *walletBackendCo
 			return err
 		}
 	}
-	bp := backend.NewBlockProcessor(store)
+	// TODO: hardcoded AlphaBill Money SystemId for now, should come from config in the future
+	bp := backend.NewBlockProcessor([]byte{0, 0, 0, 0}, store)
 	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 
 	service := backend.New(w, store, verifiers)

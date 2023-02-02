@@ -26,6 +26,7 @@ type abClientMock struct {
 	// record most recent transaction
 	tx             *txsystem.Transaction
 	maxBlock       uint64
+	maxRoundNumber uint64
 	incrementBlock bool
 	fail           bool
 	shutdown       bool
@@ -51,7 +52,7 @@ func TestVDClient_Create(t *testing.T) {
 func TestVdClient_RegisterHash(t *testing.T) {
 	vdClient, err := New(context.Background(), testConf())
 	require.NoError(t, err)
-	mock := &abClientMock{}
+	mock := &abClientMock{maxBlock: 1, maxRoundNumber: 100}
 	vdClient.abClient = mock
 
 	hashHex := "0x67588D4D37BF6F4D6C63CE4BDA38DA2B869012B1BC131DB07AA1D2B5BFD810DD"
@@ -61,6 +62,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
 	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
+	require.Equal(t, mock.maxRoundNumber+vdClient.timeoutDelta, mock.tx.Timeout)
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {
@@ -270,12 +272,17 @@ func (a *abClientMock) GetBlocks(blockNumber, blockCount uint64) (*alphabill.Get
 	return &alphabill.GetBlocksResponse{MaxBlockNumber: a.maxBlock, Blocks: []*block.Block{a.block(blockNumber)}}, nil
 }
 
-func (a *abClientMock) GetMaxBlockNumber() (uint64, error) {
+func (a *abClientMock) GetMaxBlockNumber() (uint64, uint64, error) {
 	fmt.Printf("GetMaxBlockNumber: %v\n", a.maxBlock)
 	if a.incrementBlock {
-		defer func() { a.maxBlock++ }()
+		defer func() {
+			a.maxBlock++
+			if a.maxBlock > a.maxRoundNumber {
+				a.maxRoundNumber = a.maxBlock
+			}
+		}()
 	}
-	return a.maxBlock, nil
+	return a.maxBlock, a.maxRoundNumber, nil
 }
 
 func (a *abClientMock) Shutdown() error {

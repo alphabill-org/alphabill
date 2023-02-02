@@ -72,6 +72,7 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
+	walletCmd.AddCommand(newWalletFeesCmd(ctx, config))
 	walletCmd.AddCommand(createCmd(config))
 	walletCmd.AddCommand(syncCmd(config))
 	walletCmd.AddCommand(getBalanceCmd(config))

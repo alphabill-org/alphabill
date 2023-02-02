@@ -32,6 +32,7 @@ var (
 	blockHeightKeyName     = []byte("blockHeightKey")
 	isEncryptedKeyName     = []byte("isEncryptedKey")
 	maxAccountIndexKeyName = []byte("maxAccountIndexKey")
+	accountFCBKeyName      = []byte("accountFeeCreditBillKey")
 )
 
 var (
@@ -82,6 +83,9 @@ type TxContext interface {
 	GetDcMetadataMap(accountIndex uint64) (map[uint256.Int]*dcMetadata, error)
 	GetDcMetadata(accountIndex uint64, nonce []byte) (*dcMetadata, error)
 	SetDcMetadata(accountIndex uint64, nonce []byte, dcMetadata *dcMetadata) error
+
+	GetFeeCreditBill(accountIndex uint64) (*Bill, error)
+	SetFeeCreditBill(accountIndex uint64, fcb *Bill) error
 }
 
 type wdb struct {
@@ -568,6 +572,44 @@ func (w *wdbtx) SetDcMetadata(accountIndex uint64, dcNonce []byte, dcMetadata *d
 	}, true)
 }
 
+func (w *wdbtx) GetFeeCreditBill(accountIndex uint64) (*Bill, error) {
+	var b *Bill
+	err := w.withTx(w.tx, func(tx *bolt.Tx) error {
+		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		fcbBytes := bkt.Get(accountFCBKeyName)
+		if fcbBytes == nil {
+			return nil
+		}
+		err = json.Unmarshal(fcbBytes, &b)
+		if err != nil {
+			return err
+		}
+		return nil
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (w *wdbtx) SetFeeCreditBill(accountIndex uint64, fcb *Bill) error {
+	return w.withTx(w.tx, func(tx *bolt.Tx) error {
+		log.Info(fmt.Sprintf("adding fee credit bill: value=%d id=%s, for account=%d", fcb.Value, fcb.Id.String(), accountIndex))
+		bkt, err := getAccountBucket(tx, util.Uint64ToBytes(accountIndex))
+		if err != nil {
+			return err
+		}
+		fcbBytes, err := json.Marshal(fcb)
+		if err != nil {
+			return err
+		}
+		return bkt.Put(accountFCBKeyName, fcbBytes)
+	}, true)
+}
+
 func (w *wdb) DeleteDb() {
 	if w.db == nil {
 		return
@@ -600,7 +642,7 @@ func (w *wdb) Close() {
 	if w.db == nil {
 		return
 	}
-	log.Info("closing wallet db")
+	log.Debug("closing wallet db")
 	err := w.db.Close()
 	if err != nil {
 		log.Warning("error closing db: ", err)

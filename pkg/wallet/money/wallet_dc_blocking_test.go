@@ -25,6 +25,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	// wallet contains 2 normal bills
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
+	addFeeCreditBill(t, w)
 
 	k, _ := w.db.Do().GetAccountKey(0)
 
@@ -155,6 +156,7 @@ func TestSendingSwapUpdatesDcWaitGroupTimeout(t *testing.T) {
 	nonce := uint256.NewInt(2)
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2, dcTimeoutBlockCount)
+	addFeeCreditBill(t, w)
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
 	_ = w.db.Do().SetBlockNumber(dcTimeoutBlockCount)
 	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)

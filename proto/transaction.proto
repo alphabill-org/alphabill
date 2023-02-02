@@ -32,7 +32,7 @@ message ClientMetadata {
   uint64 timeout = 1;
   // maximum fee the user is willing to pay for the execution of this transaction
   uint64 max_fee = 2;
-  // optional identifier of the fee credit record
+  // fee credit record identifier (should be empty for fee credit transactions)
   bytes fee_credit_record_id = 3;
 }
 

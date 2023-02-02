@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path"
 	"testing"
 
@@ -317,14 +316,13 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 
 func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	// create wallet with invalid seed
-	_ = DeleteWalletDb(os.TempDir())
-	c := WalletConfig{DbPath: os.TempDir()}
+	c := WalletConfig{DbPath: t.TempDir()}
 	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
 	_, err := CreateNewWallet(invalidSeed, c)
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created
-	require.False(t, util.FileExists(path.Join(os.TempDir(), WalletFileName)))
+	require.False(t, util.FileExists(path.Join(c.DbPath, WalletFileName)))
 }
 
 func TestWalletGetBills_Ok(t *testing.T) {

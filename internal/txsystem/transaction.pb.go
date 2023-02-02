@@ -195,7 +195,7 @@ type ClientMetadata struct {
 	Timeout uint64 `protobuf:"varint,1,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	// maximum fee the user is willing to pay for the execution of this transaction
 	MaxFee uint64 `protobuf:"varint,2,opt,name=max_fee,json=maxFee,proto3" json:"max_fee,omitempty"`
-	// optional identifier of the fee credit record
+	// fee credit record identifier (should be empty for fee credit transactions)
 	FeeCreditRecordId []byte `protobuf:"bytes,3,opt,name=fee_credit_record_id,json=feeCreditRecordId,proto3" json:"fee_credit_record_id,omitempty"`
 }
 

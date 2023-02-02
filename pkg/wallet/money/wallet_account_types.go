@@ -15,6 +15,7 @@ type (
 	account struct {
 		accountIndex uint64
 		accountKeys  wallet.KeyHashes
+		privKeyHash  []byte
 	}
 )
 

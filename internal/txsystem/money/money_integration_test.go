@@ -10,11 +10,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testmoneyfc "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
-	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
-	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -53,10 +51,11 @@ func TestPartition_Ok(t *testing.T) {
 		return system
 	}, systemIdentifier)
 	require.NoError(t, err)
-	txFee := txFeeFunc()
 
-	// create fee credit bill from initial bill
-	fcrAmount, transferFC := createFeeCredit(t, initialBill, network)
+	// create fee credit for initial bill transfer
+	txFee := TxFeeFunc()
+	fcrAmount := testmoneyfc.FCRAmount
+	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx := createBillTransfer(initialBill.ID, total-fcrAmount-txFee, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
@@ -114,12 +113,13 @@ func TestPartition_SwapOk(t *testing.T) {
 	}, systemIdentifier)
 	require.NoError(t, err)
 
-	// create fee credit bill from initial bill
-	fcrAmount, transferFC := createFeeCredit(t, initialBill, network)
+	// create fee credit for initial bill transfer
+	txFee := TxFeeFunc()
+	fcrAmount := testmoneyfc.FCRAmount
+	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
-	txFee := txFeeFunc()
 	transferInitialBillTx := createBillTransfer(initialBill.ID, total-fcrAmount-txFee, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
@@ -276,38 +276,4 @@ func decodeAndHashHex(hex string) []byte {
 func decodeHex(hex string) []byte {
 	decoded, _ := hexutil.Decode(hex)
 	return decoded
-}
-
-func createFeeCredit(t *testing.T, initialBill *InitialBill, network *testpartition.AlphabillPartition) (uint64, *fc.TransferFeeCreditWrapper) {
-	// send transferFC
-	fcrIDBytes := fcrID.Bytes32()
-	fcrAmount := uint64(100)
-	transferFC := testfc.NewTransferFC(t,
-		testfc.NewTransferFCAttr(
-			testfc.WithBacklink(nil),
-			testfc.WithAmount(fcrAmount),
-			testfc.WithTargetRecordID(fcrIDBytes[:]),
-		),
-		testtransaction.WithUnitId(util.Uint256ToBytes(initialBill.ID)),
-		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
-	)
-	err := network.SubmitTx(transferFC.Transaction)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(transferFC.Transaction, network), test.WaitDuration, test.WaitTick)
-
-	// send addFC
-	_, transferFCProof, err := network.GetBlockProof(transferFC.Transaction, fc.NewFeeCreditTx)
-	require.NoError(t, err)
-	addFC := testfc.NewAddFC(t, network.RootSigner,
-		testfc.NewAddFCAttr(t, network.RootSigner,
-			testfc.WithTransferFCTx(transferFC.Transaction),
-			testfc.WithTransferFCProof(transferFCProof),
-			testfc.WithFCOwnerCondition(script.PredicateAlwaysTrue()),
-		),
-		testtransaction.WithUnitId(fcrIDBytes[:]),
-	)
-	err = network.SubmitTx(addFC.Transaction)
-	require.NoError(t, err)
-	require.Eventually(t, testpartition.BlockchainContainsTx(addFC.Transaction, network), test.WaitDuration, test.WaitTick)
-	return fcrAmount, transferFC
 }

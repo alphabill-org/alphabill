@@ -197,9 +197,9 @@ type CloseFeeCreditOrder struct {
 
 	// current balance of the fee credit record
 	Amount uint64 `protobuf:"varint,1,opt,name=amount,proto3" json:"amount,omitempty"`
-	// unit id of the fee credit record
+	// unit id of the fee credit record in money partition
 	TargetUnitId []byte `protobuf:"bytes,2,opt,name=target_unit_id,json=targetUnitId,proto3" json:"target_unit_id,omitempty"`
-	// the current state hash of the target bill
+	// the current state hash of the target unit in money partition
 	Nonce []byte `protobuf:"bytes,3,opt,name=nonce,proto3" json:"nonce,omitempty"`
 }
 

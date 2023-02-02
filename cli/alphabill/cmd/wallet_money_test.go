@@ -40,10 +40,46 @@ func TestWalletCreateCmd(t *testing.T) {
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "wallet", "wallet.db")))
+	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "wallet", "accounts.db")))
 	verifyStdout(t, outputWriter,
 		"Creating new wallet...",
 		"Wallet created successfully.",
 	)
+}
+
+func TestWalletCreateCmd_encrypt(t *testing.T) {
+	outputWriter := &testConsoleWriter{}
+	consoleWriter = outputWriter
+	homeDir := setupTestHomeDir(t, "wallet-test")
+
+	cmd := New()
+	pw := "123456"
+	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" create --pn "+pw, " "))
+	err := cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
+	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "wallet", "wallet.db")))
+	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "wallet", "accounts.db")))
+	verifyStdout(t, outputWriter,
+		"Creating new wallet...",
+		"Wallet created successfully.",
+	)
+
+	// verify wallet is encrypted
+	// failing case: missing password
+	cmd = New()
+	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key", " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.ErrorContains(t, err, "invalid password")
+	// failing case: wrong password
+	cmd = New()
+	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key --pn 123", " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.ErrorContains(t, err, "invalid password")
+	// passing case:
+	cmd = New()
+	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" add-key --pn "+pw, " "))
+	err = cmd.addAndExecuteCommand(context.Background())
+	require.NoError(t, err)
 }
 
 func TestWalletGetBalanceCmd(t *testing.T) {

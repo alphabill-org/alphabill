@@ -27,25 +27,25 @@ var testGenesis = &genesis.RootGenesis{
 }
 
 func TestInMemState_Initialization(t *testing.T) {
-	stateStore := NewInMemStateStore()
+	stateStore := New()
 	s, err := stateStore.Get()
-	require.NoError(t, err)
-	require.Equal(t, s.LatestRound, uint64(0))
-	require.Nil(t, s.LatestRootHash)
-	require.Equal(t, len(s.Certificates), 0)
+	require.ErrorIs(t, ErrValueEmpty, err)
+	require.Nil(t, s)
 }
 
 func TestInMemState_GetAndSave(t *testing.T) {
-	stateStore := NewInMemStateStore()
+	stateStore := New()
+	s, err := stateStore.Get()
+	require.ErrorIs(t, ErrValueEmpty, err)
 	// Save State
 	certs := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{sysID: mockUc}
-	require.NoError(t, stateStore.Save(&RootState{LatestRound: 1, Certificates: certs, LatestRootHash: []byte{1}}))
-	s, err := stateStore.Get()
+	require.NoError(t, stateStore.Save(&RootState{Round: 1, Certificates: certs, RootHash: []byte{1}}))
+	s, err = stateStore.Get()
 	require.NoError(t, err)
-	require.Equal(t, s.LatestRound, uint64(1))
+	require.Equal(t, s.Round, uint64(1))
 	// Root round number can skip rounds, but must not be smaller or equal
-	require.Error(t, stateStore.Save(&RootState{LatestRound: 1, Certificates: nil, LatestRootHash: nil}))
-	require.NoError(t, stateStore.Save(&RootState{LatestRound: 3, Certificates: nil, LatestRootHash: nil}))
+	require.Error(t, stateStore.Save(&RootState{Round: 1, Certificates: nil, RootHash: nil}))
+	require.NoError(t, stateStore.Save(&RootState{Round: 3, Certificates: nil, RootHash: nil}))
 }
 
 func TestPersistentRootState_GetAndSave(t *testing.T) {
@@ -58,15 +58,17 @@ func TestPersistentRootState_GetAndSave(t *testing.T) {
 	storage, err := NewBoltStore(f.Name())
 	require.NoError(t, err)
 	// init storage from DB
-	stateStore, err := New(testGenesis, WithDBStore(storage))
-	require.NoError(t, err)
+	stateStore := New(WithDBStore(storage))
 	s, err := stateStore.Get()
-	require.Equal(t, uint64(1), s.LatestRound)
-	require.Equal(t, zeroHash, s.LatestRootHash)
+	require.ErrorIs(t, ErrValueEmpty, err)
+	require.NoError(t, stateStore.Save(NewRootStateFromGenesis(testGenesis)))
+	s, err = stateStore.Get()
+	require.Equal(t, uint64(1), s.Round)
+	require.Equal(t, zeroHash, s.RootHash)
 	eqCerts := map[protocol.SystemIdentifier]*certificates.UnicityCertificate{sysID: mockUc}
 	require.Equal(t, s.Certificates, eqCerts)
 	// Try to store a nil state
 	require.Error(t, stateStore.Save(nil))
 	// Illegal round number - remove, this check does not belong to a store?
-	require.Error(t, stateStore.Save(&RootState{LatestRound: 0, Certificates: nil, LatestRootHash: nil}))
+	require.Error(t, stateStore.Save(&RootState{Round: 0, Certificates: nil, RootHash: nil}))
 }

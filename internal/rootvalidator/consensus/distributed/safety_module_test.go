@@ -1,20 +1,22 @@
 package distributed
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/stretchr/testify/require"
 )
 
-func initSafetyModule(t *testing.T) *SafetyModule {
+func initSafetyModule(t *testing.T, id string) *SafetyModule {
 	t.Helper()
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.Nil(t, err)
-	safety, err := NewSafetyModule(signer)
+	safety, err := NewSafetyModule(id, signer)
 	require.NoError(t, err)
 	require.NotNil(t, safety)
 	require.NotNil(t, safety.verifier)
@@ -30,14 +32,52 @@ func TestIsConsecutive(t *testing.T) {
 }
 
 func TestNewSafetyModule(t *testing.T) {
-	safety := initSafetyModule(t)
-	require.Equal(t, uint64(0), safety.highestQcRound)
-	require.Equal(t, uint64(0), safety.highestVotedRound)
+	safety := initSafetyModule(t, "node1")
+	require.Equal(t, uint64(defaultHighestQcRound), safety.data.GetHighestQcRound())
+	require.Equal(t, uint64(defaultHighestVotedRound), safety.data.HighestVotedRound)
+}
+
+func TestNewSafetyModule_WithStorageEmpty(t *testing.T) {
+	// creates and initiates the bolt store backend, and saves initial state
+	f, err := os.CreateTemp("", "bolt-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer require.NoError(t, os.Remove(f.Name()))
+	storage, err := store.NewBoltStore(f.Name())
+	require.NoError(t, err)
+
+	signer, err := crypto.NewInMemorySecp256K1Signer()
+	require.Nil(t, err)
+	s, err := NewSafetyModule("1", signer, WithSafetyStore(storage))
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	require.Equal(t, uint64(defaultHighestQcRound), s.data.GetHighestQcRound())
+	require.Equal(t, uint64(defaultHighestVotedRound), s.data.HighestVotedRound)
+}
+
+func TestNewSafetyModule_WithStorageNotEmpty(t *testing.T) {
+	// creates and initiates the bolt store backend, and saves initial state
+	f, err := os.CreateTemp("", "bolt-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer require.NoError(t, os.Remove(f.Name()))
+	storage, err := store.NewBoltStore(f.Name())
+	require.NoError(t, err)
+	require.NoError(t, storage.Write(safetyDataKey, &SafetyData{HighestQcRound: 3, HighestVotedRound: 4}))
+	signer, err := crypto.NewInMemorySecp256K1Signer()
+	require.Nil(t, err)
+	s, err := NewSafetyModule("1", signer, WithSafetyStore(storage))
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	require.Equal(t, uint64(3), s.data.GetHighestQcRound())
+	require.Equal(t, uint64(4), s.data.HighestVotedRound)
 }
 
 func TestSafetyModule_IsSafeToVote(t *testing.T) {
 	var blockRound uint64 = 4
-	s := initSafetyModule(t)
+	s := initSafetyModule(t, "node1")
 	// Assume last round was not TC - TC is nil
 	// then it is safe to vote:
 	// 1. must vote in monotonically increasing rounds
@@ -65,7 +105,7 @@ func TestSafetyModule_IsSafeToVote(t *testing.T) {
 }
 
 func TestSafetyModule_MakeVote(t *testing.T) {
-	s := initSafetyModule(t)
+	s := initSafetyModule(t, "node1")
 	dummyRootHash := []byte{1, 2, 3}
 	blockData := &atomic_broadcast.BlockData{
 		Author:    "test",
@@ -76,23 +116,23 @@ func TestSafetyModule_MakeVote(t *testing.T) {
 		Qc:        nil,
 	}
 	var tc *atomic_broadcast.TimeoutCert = nil
-	vote, err := s.MakeVote(blockData, dummyRootHash, "node1", tc)
+	vote, err := s.MakeVote(blockData, dummyRootHash, nil, tc)
 	require.Error(t, atomic_broadcast.ErrMissingQuorumCertificate, err)
 	require.Nil(t, vote)
 	// try to make a successful dummy vote
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
 	// create a dummy QC
 	blockData.Qc = atomic_broadcast.NewQuorumCertificate(voteInfo, nil)
-	vote, err = s.MakeVote(blockData, dummyRootHash, "node1", tc)
+	vote, err = s.MakeVote(blockData, dummyRootHash, nil, tc)
 	require.NoError(t, err)
 	require.NotNil(t, vote)
 	require.Equal(t, "node1", vote.Author)
 	require.Greater(t, len(vote.Signature), 1)
 	require.NotNil(t, vote.LedgerCommitInfo)
-	require.Equal(t, uint64(3), s.highestQcRound)
-	require.Equal(t, uint64(4), s.highestVotedRound)
+	require.Equal(t, uint64(3), s.data.HighestQcRound)
+	require.Equal(t, uint64(4), s.data.HighestVotedRound)
 	// try to sign the same vote again
-	vote, err = s.MakeVote(blockData, dummyRootHash, "node1", tc)
+	vote, err = s.MakeVote(blockData, dummyRootHash, nil, tc)
 	// only allowed to vote for monotonically increasing rounds
 	require.ErrorContains(t, err, "Not safe to vote")
 	require.Nil(t, vote)
@@ -100,7 +140,7 @@ func TestSafetyModule_MakeVote(t *testing.T) {
 }
 
 func TestSafetyModule_SignProposal(t *testing.T) {
-	s := initSafetyModule(t)
+	s := initSafetyModule(t, "node1")
 	// create a dummy proposal message
 	proposal := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{
@@ -133,9 +173,8 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.Nil(t, err)
 	s := &SafetyModule{
-		highestVotedRound: 3,
-		highestQcRound:    2,
-		signer:            signer,
+		data:   &SafetyData{HighestVotedRound: 3, HighestQcRound: 2},
+		signer: signer,
 	}
 	require.NotNil(t, s)
 	// previous round did not timeout
@@ -198,9 +237,8 @@ func TestSafetyModule_constructLedgerCommitInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &SafetyModule{
-				highestVotedRound: tt.fields.highestVotedRound,
-				highestQcRound:    tt.fields.highestQcRound,
-				signer:            tt.fields.signer,
+				data:   &SafetyData{HighestVotedRound: tt.fields.highestVotedRound, HighestQcRound: tt.fields.highestQcRound},
+				signer: tt.fields.signer,
 			}
 			if got := s.constructCommitInfo(tt.args.block, tt.args.voteInfoHash); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("constructCommitInfo() = %v, want %v", got, tt.want)
@@ -259,9 +297,8 @@ func TestSafetyModule_isCommitCandidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &SafetyModule{
-				highestVotedRound: tt.fields.highestVotedRound,
-				highestQcRound:    tt.fields.highestQcRound,
-				signer:            tt.fields.signer,
+				data:   &SafetyData{HighestVotedRound: tt.fields.highestVotedRound, HighestQcRound: tt.fields.highestQcRound},
+				signer: tt.fields.signer,
 			}
 			if got := s.isCommitCandidate(tt.args.block); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("isCommitCandidate() = %v, want %v", got, tt.want)
@@ -325,9 +362,8 @@ func TestSafetyModule_isSafeToTimeout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &SafetyModule{
-				highestVotedRound: tt.fields.highestVotedRound,
-				highestQcRound:    tt.fields.highestQcRound,
-				signer:            tt.fields.signer,
+				data:   &SafetyData{HighestVotedRound: tt.fields.highestVotedRound, HighestQcRound: tt.fields.highestQcRound},
+				signer: tt.fields.signer,
 			}
 			if got := s.isSafeToTimeout(tt.args.round, tt.args.qcRound, tt.args.tc); got != tt.want {
 				t.Errorf("isSafeToTimeout() = %v, want %v", got, tt.want)

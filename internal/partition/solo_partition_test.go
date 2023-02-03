@@ -96,9 +96,9 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 		certs[partition.GetSystemIdentifierString()] = partition.Certificate
 	}
 	rootState := rstore.RootState{
-		LatestRound:    rootGenesis.GetRoundNumber(),
-		LatestRootHash: rootGenesis.GetRoundHash(),
-		Certificates:   certs,
+		Round:        rootGenesis.GetRoundNumber(),
+		RootHash:     rootGenesis.GetRoundHash(),
+		Certificates: certs,
 	}
 	/*	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemStateStore(gocrypto.SHA256))
 		require.NoError(t, err)
@@ -238,13 +238,13 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 	if err := consensus.CheckBlockCertificationRequest(req, luc); err != nil {
 		return err
 	}
-	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.LatestRound+1)
+	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.Round+1)
 	if err != nil {
 		return err
 	}
 	// update state
-	sn.rootState.LatestRound = uc.UnicitySeal.RootRoundInfo.RoundNumber
-	sn.rootState.LatestRootHash = uc.UnicitySeal.CommitInfo.RootHash
+	sn.rootState.Round = uc.UnicitySeal.RootRoundInfo.RoundNumber
+	sn.rootState.RootHash = uc.UnicitySeal.CommitInfo.RootHash
 	sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)] = uc
 	sn.eh.Reset()
 	sn.mockNet.Receive(network.ReceivedMessage{

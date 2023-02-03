@@ -8,13 +8,86 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 )
 
-type SafetyModule struct {
-	highestVotedRound uint64
-	highestQcRound    uint64
-	signer            crypto.Signer
-	verifier          crypto.Verifier
+const (
+	// genesis state is certified with rounds 1 and 2
+	defaultHighestVotedRound = 2
+	defaultHighestQcRound    = 2
+	safetyDataKey            = "safety_data"
+)
+
+type (
+	SafetyData struct {
+		HighestVotedRound uint64                    `json:"votedRound"`
+		HighestQcRound    uint64                    `json:"qcRound"`
+		storage           consensus.KeyValueStorage `json:"-"`
+	}
+	SafetyModule struct {
+		peerID   string
+		signer   crypto.Signer
+		verifier crypto.Verifier
+		data     *SafetyData
+	}
+
+	SafetyOption func(data *SafetyData)
+)
+
+func (d *SafetyData) GetHighestVotedRound() uint64 {
+	return d.HighestVotedRound
+}
+
+func (d *SafetyData) SetHighestVotedRound(highestVotedRound uint64) {
+	d.HighestVotedRound = highestVotedRound
+	if d.storage != nil {
+		_ = d.storage.Write(safetyDataKey, d)
+	}
+}
+
+func (d *SafetyData) GetHighestQcRound() uint64 {
+	return d.HighestQcRound
+}
+
+func (d *SafetyData) SetHighestQcRound(highestQcRound uint64) {
+	d.HighestQcRound = highestQcRound
+	if d.storage != nil {
+		_ = d.storage.Write(safetyDataKey, d)
+	}
+}
+
+func WithSafetyStore(p consensus.KeyValueStorage) SafetyOption {
+	return func(s *SafetyData) {
+		s.storage = p
+	}
+}
+
+func newSafetyStoreFromOptions(opts []SafetyOption) (*SafetyData, error) {
+	ds := &SafetyData{
+		HighestVotedRound: defaultHighestVotedRound,
+		HighestQcRound:    defaultHighestQcRound,
+	}
+	// apply options
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(ds)
+	}
+	if ds.storage != nil {
+		d := &SafetyData{}
+		var err error = nil
+		if err = ds.storage.Read(safetyDataKey, d); err != nil && err != store.ErrValueEmpty {
+			return nil, err
+		}
+		// if values not initiated use default
+		if err != store.ErrValueEmpty {
+			ds.HighestVotedRound = d.HighestVotedRound
+			ds.HighestQcRound = d.HighestQcRound
+		}
+	}
+	return ds, nil
 }
 
 func max(a, b uint64) uint64 {
@@ -35,21 +108,25 @@ func isSafeToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert
 	if qcRound < tc.Timeout.HighQc.VoteInfo.RoundNumber {
 		return false
 	}
-	//return isConsecutive(blockRound, tc.Timeout.Round) && qcRound >= tc.Timeout.Hqc.VoteInfo.RootRound
 	return true
 }
 
-func NewSafetyModule(signer crypto.Signer) (*SafetyModule, error) {
+func NewSafetyModule(id string, signer crypto.Signer, opts ...SafetyOption) (*SafetyModule, error) {
+	// load options
+	sd, err := newSafetyStoreFromOptions(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init safety module data store, %w", err)
+	}
 	ver, err := signer.Verifier()
 	if err != nil {
 		return nil, fmt.Errorf("invalid root validator sign key: %w", err)
 	}
 
-	return &SafetyModule{highestVotedRound: 0, highestQcRound: 0, signer: signer, verifier: ver}, nil
+	return &SafetyModule{peerID: id, signer: signer, verifier: ver, data: sd}, nil
 }
 
 func (s *SafetyModule) isSafeToVote(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
-	if blockRound <= max(s.highestVotedRound, qcRound) {
+	if blockRound <= max(s.data.GetHighestVotedRound(), qcRound) {
 		// 1. must vote in monotonically increasing rounds
 		// 2. must extend a smaller round
 		return false
@@ -66,7 +143,7 @@ func (s *SafetyModule) constructCommitInfo(block *atomic_broadcast.BlockData, vo
 	return &certificates.CommitInfo{RootRoundInfoHash: voteInfoHash, RootHash: commitHash}
 }
 
-func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID []byte, author string, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
+func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID []byte, highQC *atomic_broadcast.QuorumCert, lastRoundTC *atomic_broadcast.TimeoutCert) (*atomic_broadcast.VoteMsg, error) {
 	// The overall validity of the block must be checked prior to calling this method
 	// However since we are de-referencing QC make sure it is not nil
 	if block.Qc == nil {
@@ -92,8 +169,8 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID [
 	voteMsg := &atomic_broadcast.VoteMsg{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: ledgerCommitInfo,
-		HighQc:           block.Qc,
-		Author:           author,
+		HighQc:           highQC,
+		Author:           s.peerID,
 	}
 	// signs commit info hash
 	if err := voteMsg.Sign(s.signer); err != nil {
@@ -119,11 +196,11 @@ func (s SafetyModule) SignProposal(proposalMsg *atomic_broadcast.ProposalMsg) er
 }
 
 func (s *SafetyModule) increaseHigestVoteRound(round uint64) {
-	s.highestVotedRound = max(s.highestVotedRound, round)
+	s.data.SetHighestVotedRound(max(s.data.GetHighestVotedRound(), round))
 }
 
 func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
-	s.highestQcRound = max(s.highestQcRound, qcRound)
+	s.data.SetHighestQcRound(max(s.data.GetHighestQcRound(), qcRound))
 }
 
 func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, tc *atomic_broadcast.TimeoutCert) bool {
@@ -132,10 +209,10 @@ func (s *SafetyModule) isSafeToTimeout(round, qcRound uint64, tc *atomic_broadca
 	if tc != nil {
 		tcRound = tc.Timeout.Round
 	}
-	if s.highestVotedRound > 0 {
-		highestVotedRound = s.highestVotedRound - 1
+	if s.data.GetHighestVotedRound() > 0 {
+		highestVotedRound = s.data.GetHighestVotedRound() - 1
 	}
-	if qcRound < s.highestQcRound || round <= max(highestVotedRound, qcRound) {
+	if qcRound < s.data.GetHighestQcRound() || round <= max(highestVotedRound, qcRound) {
 		// respect highest qc round and don’t timeout in a past round
 		return false
 	}
@@ -151,8 +228,4 @@ func (s *SafetyModule) isCommitCandidate(block *atomic_broadcast.BlockData) []by
 		return block.Qc.VoteInfo.CurrentRootHash
 	}
 	return nil
-}
-
-func (s *SafetyModule) GetVerifier() crypto.Verifier {
-	return s.verifier
 }

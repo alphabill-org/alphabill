@@ -40,7 +40,8 @@ type MockConsensusManager struct {
 }
 
 func NewMockConsensus(rg *genesis.RootGenesis, partitionStore PartitionStore) (*MockConsensusManager, error) {
-	storage, err := store.New(rg)
+	storage := store.New()
+	err := storage.Save(store.NewRootStateFromGenesis(rg))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initiate state store, %w", err)
 	}

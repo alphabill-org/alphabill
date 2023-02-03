@@ -7,22 +7,21 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRoundPipeline_Add(t *testing.T) {
-	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}}})
-	require.NoError(t, err)
 	state := &store.RootState{
-		LatestRound:    1,
-		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),
+		Round:    1,
+		RootHash: make([]byte, gocrypto.SHA256.Size()),
 		Certificates: map[protocol.SystemIdentifier]*certificates.UnicityCertificate{
 			protocol.SystemIdentifier(sysID1): {
 				InputRecord: inputRecord1,
+				UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+					SystemIdentifier:      sysID1,
+					SystemDescriptionHash: []byte{1, 2, 3},
+				},
 				UnicitySeal: &certificates.UnicitySeal{
 					RootRoundInfo: &certificates.RootRoundInfo{
 						RoundNumber: 1,
@@ -34,15 +33,15 @@ func TestRoundPipeline_Add(t *testing.T) {
 			},
 		},
 	}
-	roundPipe := NewRoundPipeline(gocrypto.SHA256, state, partitions)
+	roundPipe, err := NewRoundPipelineFromRootState(gocrypto.SHA256, state)
+	require.NoError(t, err)
 	require.NotNil(t, roundPipe)
-	require.Equal(t, state.LatestRootHash, roundPipe.GetExecStateId())
+	require.Equal(t, state.RootHash, roundPipe.GetExecStateId())
 	require.NotNil(t, roundPipe.GetHighQc())
 	hQC := roundPipe.GetHighQc()
-	require.Empty(t, roundPipe.inProgress)
 	require.False(t, roundPipe.IsChangeInPipeline(protocol.SystemIdentifier(sysID1)))
-	changed := map[protocol.SystemIdentifier]*certificates.InputRecord{
-		protocol.SystemIdentifier(sysID1): inputRecord2}
+	changed := map[protocol.SystemIdentifier]*InputData{
+		protocol.SystemIdentifier(sysID1): {ir: inputRecord2, sdrh: []byte{1, 2, 3}}}
 	newState, err := roundPipe.Add(2, changed)
 	require.NoError(t, err)
 	require.NotNil(t, newState)
@@ -55,7 +54,7 @@ func TestRoundPipeline_Add(t *testing.T) {
 	require.ErrorContains(t, err, "add state failed: partition 00000001 has pending changes in pipeline")
 	require.Nil(t, newState)
 	// Verify exec state id
-	require.NotEqual(t, state.LatestRootHash, roundPipe.GetExecStateId())
+	require.NotEqual(t, state.RootHash, roundPipe.GetExecStateId())
 	// sysid 1 is in progress
 	require.True(t, roundPipe.IsChangeInPipeline(protocol.SystemIdentifier(sysID1)))
 	// call update with nil (qc nil, is no-op)
@@ -75,7 +74,7 @@ func TestRoundPipeline_Add(t *testing.T) {
 	// high QC is updated to latest
 	require.Equal(t, qc, roundPipe.GetHighQc())
 	// round 3 empty block
-	changed = map[protocol.SystemIdentifier]*certificates.InputRecord{}
+	changed = map[protocol.SystemIdentifier]*InputData{}
 	newState, err = roundPipe.Add(3, changed)
 	require.NoError(t, err)
 	require.Equal(t, newState, stateId)
@@ -89,7 +88,7 @@ func TestRoundPipeline_Add(t *testing.T) {
 	qc = atomic_broadcast.NewQuorumCertificate(voteInfo, stateId)
 	rootState := roundPipe.Update(qc)
 	require.NotNil(t, rootState)
-	require.Equal(t, rootState.LatestRootHash, stateId)
+	require.Equal(t, rootState.RootHash, stateId)
 	require.Equal(t, 1, len(rootState.Certificates))
 	require.Contains(t, rootState.Certificates, protocol.SystemIdentifier(sysID1))
 	// Changes for partition 1 now possible again
@@ -98,15 +97,16 @@ func TestRoundPipeline_Add(t *testing.T) {
 }
 
 func TestRoundPipeline_Reset(t *testing.T) {
-	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
-		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}}})
-	require.NoError(t, err)
 	state := &store.RootState{
-		LatestRound:    1,
-		LatestRootHash: make([]byte, gocrypto.SHA256.Size()),
+		Round:    1,
+		RootHash: make([]byte, gocrypto.SHA256.Size()),
 		Certificates: map[protocol.SystemIdentifier]*certificates.UnicityCertificate{
 			protocol.SystemIdentifier(sysID1): {
 				InputRecord: inputRecord1,
+				UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
+					SystemIdentifier:      sysID1,
+					SystemDescriptionHash: []byte{1, 2, 3},
+				},
 				UnicitySeal: &certificates.UnicitySeal{
 					RootRoundInfo: &certificates.RootRoundInfo{
 						RoundNumber: 1,
@@ -118,13 +118,13 @@ func TestRoundPipeline_Reset(t *testing.T) {
 			},
 		},
 	}
-	roundPipe := NewRoundPipeline(gocrypto.SHA256, state, partitions)
+	roundPipe, err := NewRoundPipelineFromRootState(gocrypto.SHA256, state)
+	require.NoError(t, err)
 	require.NotNil(t, roundPipe)
 	require.NotNil(t, roundPipe.GetHighQc())
-	require.Empty(t, roundPipe.inProgress)
 	require.False(t, roundPipe.IsChangeInPipeline(protocol.SystemIdentifier(sysID1)))
-	changed := map[protocol.SystemIdentifier]*certificates.InputRecord{
-		protocol.SystemIdentifier(sysID1): inputRecord2}
+	changed := map[protocol.SystemIdentifier]*InputData{
+		protocol.SystemIdentifier(sysID1): {ir: inputRecord2, sdrh: []byte{1, 2, 3}}}
 	newState, err := roundPipe.Add(2, changed)
 	require.NoError(t, err)
 	require.NotNil(t, newState)
@@ -145,7 +145,6 @@ func TestRoundPipeline_Reset(t *testing.T) {
 	// Reset as if with TC
 	roundPipe.Reset(state)
 	require.NotNil(t, roundPipe)
-	require.Empty(t, roundPipe.inProgress)
 	require.False(t, roundPipe.IsChangeInPipeline(protocol.SystemIdentifier(sysID1)))
 	require.Empty(t, roundPipe.statePipeline)
 	// HighQC is will not be reset

@@ -15,9 +15,9 @@ const (
 
 type (
 	RootState struct {
-		LatestRound    uint64                                                         `json:"latestRound"`
-		LatestRootHash []byte                                                         `json:"latestRootHash"`
-		Certificates   map[protocol.SystemIdentifier]*certificates.UnicityCertificate `json:"certificates"`
+		Round        uint64                                                         `json:"latestRound"`
+		RootHash     []byte                                                         `json:"latestRootHash"`
+		Certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate `json:"certificates"`
 	}
 
 	PersistentStore interface {
@@ -46,9 +46,9 @@ func WithDBStore(p PersistentStore) Option {
 
 func NewRootState() *RootState {
 	return &RootState{
-		LatestRound:    0,
-		LatestRootHash: nil,
-		Certificates:   map[protocol.SystemIdentifier]*certificates.UnicityCertificate{},
+		Round:        0,
+		RootHash:     nil,
+		Certificates: map[protocol.SystemIdentifier]*certificates.UnicityCertificate{},
 	}
 }
 
@@ -59,12 +59,12 @@ func NewRootStateFromGenesis(rg *genesis.RootGenesis) *RootState {
 		certs[identifier] = partition.Certificate
 	}
 	// If not initiated, save genesis file to store
-	return &RootState{LatestRound: rg.GetRoundNumber(), Certificates: certs, LatestRootHash: rg.GetRoundHash()}
+	return &RootState{Round: rg.GetRoundNumber(), Certificates: certs, RootHash: rg.GetRoundHash()}
 }
 
 func (r *RootState) Update(newState *RootState) {
-	r.LatestRound = newState.LatestRound
-	r.LatestRootHash = newState.LatestRootHash
+	r.Round = newState.Round
+	r.RootHash = newState.RootHash
 	// Update changed UC's
 	for id, uc := range newState.Certificates {
 		r.Certificates[id] = uc
@@ -84,7 +84,15 @@ func loadConf(opts []Option) *Conf {
 	return conf
 }
 
-func New(genesis *genesis.RootGenesis, opts ...Option) (*StateStore, error) {
+func New(opts ...Option) *StateStore {
+	config := loadConf(opts)
+	return &StateStore{
+		db:    config.db,
+		state: nil,
+	}
+}
+
+func NewFromGenesis(genesis *genesis.RootGenesis, opts ...Option) (*StateStore, error) {
 	if genesis == nil {
 		return nil, fmt.Errorf("genesis is nil")
 	}
@@ -97,11 +105,11 @@ func New(genesis *genesis.RootGenesis, opts ...Option) (*StateStore, error) {
 	}
 	lastState := NewRootState()
 	var err error = nil
-	if err = config.db.Read(stateKey, lastState); err != nil && err != ErrNotFound {
+	if err = config.db.Read(stateKey, lastState); err != nil && err != ErrValueEmpty {
 		return nil, err
 	}
 	// DB is empty, initiate store
-	if err == ErrNotFound {
+	if err == ErrValueEmpty {
 		// initiate DB
 		lastState = NewRootStateFromGenesis(genesis)
 		if err = config.db.Write(stateKey, lastState); err != nil {
@@ -114,12 +122,19 @@ func New(genesis *genesis.RootGenesis, opts ...Option) (*StateStore, error) {
 	}, nil
 }
 
-// NewInMemStateStore stores state in volatile memory only, everything is lost on exit
-func NewInMemStateStore() *StateStore {
-	return &StateStore{
-		db:    nil,
-		state: NewRootState(),
+func (s *StateStore) IsEmpty() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state == nil && s.db == nil {
+		return true
 	}
+	if s.db != nil {
+		lastState := &RootState{}
+		if err := s.db.Read(stateKey, lastState); err == ErrValueEmpty {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *StateStore) Save(newState *RootState) error {
@@ -128,12 +143,16 @@ func (s *StateStore) Save(newState *RootState) error {
 	if newState == nil {
 		return fmt.Errorf("state is nil")
 	}
-	// round number sanity check
-	if err := checkRoundNumber(s.state, newState); err != nil {
-		return err
+	if s.state == nil {
+		s.state = newState
+	} else {
+		// round number sanity check
+		if err := checkRoundNumber(s.state, newState); err != nil {
+			return err
+		}
+		// update local cache
+		s.state.Update(newState)
 	}
-	// update local cache
-	s.state.Update(newState)
 	// persist state
 	if s.db != nil {
 		if err := s.db.Write(stateKey, newState); err != nil {
@@ -146,6 +165,17 @@ func (s *StateStore) Save(newState *RootState) error {
 func (s *StateStore) Get() (*RootState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.state == nil {
+		if s.db == nil {
+			return nil, ErrValueEmpty
+		}
+		lastState := NewRootState()
+		// also returns ErrValueEmpty if no state is stored
+		if err := s.db.Read(stateKey, lastState); err != nil {
+			return nil, err
+		}
+		s.state = lastState
+	}
 	return s.state, nil
 }
 
@@ -153,8 +183,8 @@ func (s *StateStore) Get() (*RootState, error) {
 // This will become obsolete in distributed root chain solution, then it just has to be bigger and caps are possible
 func checkRoundNumber(current, newState *RootState) error {
 	// Round number must be increasing
-	if current.LatestRound >= newState.LatestRound {
-		return fmt.Errorf("error new round %v is in past, latest stored round %v", newState.LatestRound, current.LatestRound)
+	if current.Round >= newState.Round {
+		return fmt.Errorf("error new round %v is in past, latest stored round %v", newState.Round, current.Round)
 	}
 	return nil
 }

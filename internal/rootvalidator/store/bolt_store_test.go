@@ -53,10 +53,10 @@ func TestPersistentStore_NewAndUninitiated(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, boltDB)
 	state := NewRootState()
-	require.ErrorIs(t, boltDB.Read("state", state), ErrNotFound)
+	require.ErrorIs(t, boltDB.Read("state", state), ErrValueEmpty)
 	require.Empty(t, len(state.Certificates))
-	require.Equal(t, uint64(0), state.LatestRound)
-	require.Nil(t, state.LatestRootHash)
+	require.Equal(t, uint64(0), state.Round)
+	require.Nil(t, state.RootHash)
 	// make writing nil fails
 	require.Error(t, boltDB.Write("", nil))
 	require.Error(t, boltDB.Write("some", nil))
@@ -73,12 +73,12 @@ func TestNextSave_ok(t *testing.T) {
 	require.NotNil(t, boltDB)
 	ucs := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: mockUc}
 	// initiate state, i.e. boltDB something
-	require.NoError(t, boltDB.Write("state", &RootState{LatestRound: round, Certificates: ucs, LatestRootHash: previousHash}))
+	require.NoError(t, boltDB.Write("state", &RootState{Round: round, Certificates: ucs, RootHash: previousHash}))
 	state := NewRootState()
 	require.NoError(t, boltDB.Read("state", state))
 	// check that initial state was saved as intended
-	require.Equal(t, round, state.LatestRound)
-	require.Equal(t, state.LatestRootHash, previousHash)
+	require.Equal(t, round, state.Round)
+	require.Equal(t, state.RootHash, previousHash)
 	require.Len(t, state.Certificates, 1)
 	// update
 	uc := &certificates.UnicityCertificate{
@@ -88,11 +88,11 @@ func TestNextSave_ok(t *testing.T) {
 	}
 	newHash := []byte{1}
 	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{sysID: uc}
-	err = boltDB.Write("state", &RootState{LatestRound: round + 1, Certificates: certs, LatestRootHash: newHash})
+	err = boltDB.Write("state", &RootState{Round: round + 1, Certificates: certs, RootHash: newHash})
 	require.NoError(t, err)
 	require.NoError(t, boltDB.Read("state", state))
-	require.Equal(t, round+1, state.LatestRound)
-	require.Equal(t, state.LatestRootHash, newHash)
+	require.Equal(t, round+1, state.Round)
+	require.Equal(t, state.RootHash, newHash)
 	require.Len(t, state.Certificates, 1)
 	require.Contains(t, state.Certificates, sysID)
 	ucStored, found := state.Certificates[sysID]

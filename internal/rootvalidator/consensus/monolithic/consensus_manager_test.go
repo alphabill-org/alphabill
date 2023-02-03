@@ -79,7 +79,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		changes: map[p.SystemIdentifier]*certificates.InputRecord{},
 	}
 	// store mock state
-	lastState := store.RootState{LatestRound: 4, LatestRootHash: []byte{0, 1}, Certificates: map[p.SystemIdentifier]*certificates.UnicityCertificate{
+	lastState := store.RootState{Round: 4, RootHash: []byte{0, 1}, Certificates: map[p.SystemIdentifier]*certificates.UnicityCertificate{
 		p.SystemIdentifier(sysID0): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},

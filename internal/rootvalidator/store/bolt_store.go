@@ -11,7 +11,7 @@ const BoltRootChainStoreFileName = "rootchain.db"
 const defaultBucket = "default"
 
 var (
-	ErrNotFound   = errors.New("empty")
+	ErrValueEmpty = errors.New("empty")
 	ErrInvalidKey = errors.New("invalid key")
 	ErrValueIsNil = errors.New("value is nil")
 )
@@ -64,7 +64,7 @@ func (s *BoltStore) Read(key string, v any) error {
 		if data != nil {
 			return json.Unmarshal(data, v)
 		}
-		return ErrNotFound
+		return ErrValueEmpty
 	})
 	return err
 }

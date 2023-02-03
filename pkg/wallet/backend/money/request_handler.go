@@ -9,11 +9,12 @@ import (
 	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/rs/zerolog/log"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -68,8 +69,16 @@ var (
 
 func (s *RequestHandler) Router() *mux.Router {
 	// TODO add request/response headers middleware
-	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
+	router := mux.NewRouter().StrictSlash(true)
 
+	router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"), //The url pointing to API definition
+		httpSwagger.DeepLinking(true),
+		httpSwagger.DocExpansion("list"),
+		httpSwagger.DomID("swagger-ui"),
+	)).Methods(http.MethodGet)
+
+	apiRouter := router.PathPrefix("/api").Subrouter()
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
 	// OPTIONS method needs to be explicitly defined for each handler func
@@ -81,19 +90,27 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
-	return apiRouter
+
+	return router
 }
 
+// @Summary List bills
+// @Id 1
+// @version 1.0
+// @produce application/json
+// @Param pubkey query string true "Public key prefixed with 0x"
+// @Success 200 {object} ListBillsResponse
+// @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /list-bills request: ", err)
+		log.Debug("error parsing GET /list-bills request: ", err)
 		s.handlePubKeyNotFoundError(w, err)
 		return
 	}
 	bills, err := s.Service.GetBills(pk)
 	if err != nil {
-		wlog.Error("error on GET /list-bills: ", err)
+		log.Error("error on GET /list-bills: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -109,22 +126,29 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, res)
 }
 
+// @Summary Get balance
+// @Id 2
+// @version 1.0
+// @produce application/json
+// @Param pubkey query string true "Public key prefixed with 0x"
+// @Success 200 {object} BalanceResponse
+// @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /balance request: ", err)
+		log.Debug("error parsing GET /balance request: ", err)
 		s.handlePubKeyNotFoundError(w, err)
 		return
 	}
 	includeDCBills, err := parseIncludeDCCBillsQueryParam(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /balance request: ", err)
+		log.Debug("error parsing GET /balance request: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	bills, err := s.Service.GetBills(pk)
 	if err != nil {
-		wlog.Error("error on GET /balance: ", err)
+		log.Error("error on GET /balance: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -138,10 +162,17 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsJson(w, res)
 }
 
+// @Summary Get proof
+// @Id 3
+// @version 1.0
+// @produce application/json
+// @Param bill_id query string true "ID of the bill (hex)"
+// @Success 200 {object} block.Bills
+// @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billID, err := parseBillID(r)
 	if err != nil {
-		wlog.Debug("error parsing GET /proof request: ", err)
+		log.Debug("error parsing GET /proof request: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
 			writeAsJson(w, ErrorResponse{Message: err.Error()})
@@ -152,12 +183,12 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	bill, err := s.Service.GetBill(billID)
 	if err != nil {
-		wlog.Error("error on GET /proof: ", err)
+		log.Error("error on GET /proof: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if bill == nil {
-		wlog.Debug("error on GET /proof: ", err)
+		log.Debug("error on GET /proof: ", err)
 		w.WriteHeader(http.StatusBadRequest)
 		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return
@@ -193,10 +224,16 @@ func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
 	return req, nil
 }
 
+// @Summary Money partition's latest block number
+// @Id 4
+// @version 1.0
+// @produce application/json
+// @Success 200 {object} BlockHeightResponse
+// @Router /block-height [get]
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request) {
 	maxBlockNumber, err := s.Service.GetMaxBlockNumber()
 	if err != nil {
-		log.Err(err).Msg("GET /block-height error fetching max block number")
+		log.Error("GET /block-height error fetching max block number", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber})
@@ -222,7 +259,7 @@ func writeAsJson(w http.ResponseWriter, res interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(res)
 	if err != nil {
-		wlog.Error("error encoding response to json ", err)
+		log.Error("error encoding response to json ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
@@ -231,13 +268,13 @@ func writeAsProtoJson(w http.ResponseWriter, res proto.Message) {
 	w.Header().Set("Content-Type", "application/json")
 	bytes, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(res)
 	if err != nil {
-		wlog.Error("error encoding response to proto json: ", err)
+		log.Error("error encoding response to proto json: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	_, err = w.Write(bytes)
 	if err != nil {
-		wlog.Error("error writing proto json to response: ", err)
+		log.Error("error writing proto json to response: ", err)
 	}
 }
 

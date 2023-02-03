@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	backend "github.com/alphabill-org/alphabill/pkg/wallet/backend/pubkey_indexer"
+	backend "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"

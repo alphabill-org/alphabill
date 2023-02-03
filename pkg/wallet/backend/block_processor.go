@@ -16,11 +16,12 @@ import (
 const dustBillDeletionTimeout = 65536
 
 type BlockProcessor struct {
-	store BillStore
+	systemId []byte
+	store    BillStore
 }
 
-func NewBlockProcessor(store BillStore) *BlockProcessor {
-	return &BlockProcessor{store: store}
+func NewBlockProcessor(systemId []byte, store BillStore) *BlockProcessor {
+	return &BlockProcessor{systemId: systemId, store: store}
 }
 
 func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
@@ -53,7 +54,7 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 }
 
 func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, pubKey *Pubkey) error {
-	gtx, err := moneytx.NewMoneyTx(alphabillMoneySystemId, txPb)
+	gtx, err := moneytx.NewMoneyTx(p.systemId, txPb)
 	if err != nil {
 		return err
 	}
@@ -161,7 +162,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 }
 
 func (p *BlockProcessor) saveBillWithProof(pubkey []byte, b *block.Block, tx *txsystem.Transaction, bi *Bill) error {
-	genericBlock, err := b.ToGenericBlock(txConverter)
+	genericBlock, err := b.ToGenericBlock(NewTxConverter(p.systemId))
 	if err != nil {
 		return err
 	}

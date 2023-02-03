@@ -32,6 +32,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	billId2 := test.NewUnitID(2)
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 
+	alphabillMoneySystemId := []byte{0, 0, 0, 0}
 	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{
 		1: {
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
@@ -50,7 +51,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 			}},
 		},
 	})
-	w := createWalletBackend(t, abclient)
+	w := createWalletBackend(t, alphabillMoneySystemId, abclient)
 	err := w.AddKey(pubKey1)
 	require.NoError(t, err)
 
@@ -90,7 +91,7 @@ func TestSetBill_OK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
-	gtx, _ := txConverter.ConvertTx(tx)
+	gtx, _ := NewTxConverter(tx.SystemId).ConvertTx(tx)
 	txHash := gtx.Hash(gocrypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 
@@ -138,7 +139,7 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
 		TargetValue: txValue,
 	}))
-	gtx, _ := txConverter.ConvertTx(tx)
+	gtx, _ := NewTxConverter(tx.SystemId).ConvertTx(tx)
 	txHash := gtx.Hash(gocrypto.SHA256)
 	proof, verifiers := createProofForTx(t, tx)
 	proof.BlockHeaderHash = make([]byte, 32) // invalidate proof
@@ -161,9 +162,9 @@ func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	require.ErrorIs(t, err, block.ErrProofVerificationFailed)
 }
 
-func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
+func createWalletBackend(t *testing.T, systemId []byte, abclient client.ABClient) *WalletBackend {
 	storage, _ := createTestBillStore(t)
-	bp := NewBlockProcessor(storage)
+	bp := NewBlockProcessor(systemId, storage)
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	return New(genericWallet, storage, map[string]crypto.Verifier{"test": verifier})

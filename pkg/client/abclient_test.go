@@ -47,7 +47,7 @@ func TestRaceConditions(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		_, _ = abclient.GetMaxBlockNumber()
+		_, _, _ = abclient.GetMaxBlockNumber()
 		wg.Done()
 	}()
 

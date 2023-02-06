@@ -54,7 +54,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		bp := &blockProcessor{store: db, txs: txs}
+		bp := &blockProcessor{store: db, txs: txs, logErr: cfg.ErrLogger()}
 		// on bootstrap storage returns 0 as current block and as block numbering
 		// starts from 1 by adding 1 to it we start with the first block.
 		blockNumber, err := db.GetBlockNumber()
@@ -69,6 +69,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 			db:              db,
 			convertTx:       txs.ConvertTx,
 			sendTransaction: abc.SendTransaction,
+			logErr:          cfg.ErrLogger(),
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
 	})

@@ -96,6 +96,7 @@ func NewConfig(apiAddr, abURL, boltDB string, errLog func(a ...any)) Configurati
 		abc:     client.AlphabillClientConfig{Uri: abURL},
 		boltDB:  boltDB,
 		apiAddr: apiAddr,
+		errLog:  errLog,
 	}
 }
 

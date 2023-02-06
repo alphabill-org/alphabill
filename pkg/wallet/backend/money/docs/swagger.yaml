@@ -268,7 +268,6 @@ definitions:
           type: integer
         type: array
     type: object
-host: localhost:8080
 info:
   contact: {}
   description: This service processes blocks from the Money partition and indexes

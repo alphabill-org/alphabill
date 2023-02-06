@@ -13,7 +13,6 @@ import (
 // @version         1.0
 // @description     This service processes blocks from the Money partition and indexes ownership of bills.
 
-// @host      localhost:8080
 // @BasePath  /api/v1
 type (
 	WalletBackendHttpServer struct {

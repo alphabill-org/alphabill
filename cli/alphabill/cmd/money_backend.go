@@ -5,15 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
-	"syscall"
 
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/spf13/cobra"
 )
 
@@ -84,45 +77,15 @@ func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobr
 }
 
 func execMoneyBackendStartCmd(ctx context.Context, _ *cobra.Command, config *moneyBackendConfig) error {
-	abclient := client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})
 	dbFile, err := config.GetDbFile()
 	if err != nil {
 		return err
 	}
-	store, err := indexer.NewBoltBillStore(dbFile)
-	if err != nil {
-		return err
-	}
-	bp := indexer.NewBlockProcessor(store, backend.NewTxConverter(defaultABMoneySystemIdentifier))
-	w := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
-
-	service := indexer.New(w, store)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		service.StartProcess(ctx)
-		wg.Done()
-	}()
-
-	server := indexer.NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, service)
-	err = server.Start()
-	if err != nil {
-		service.Shutdown()
-		return aberrors.Wrap(err, "error starting wallet backend http server")
-	}
-
-	// listen for termination signal and shutdown the app
-	hook := func(sig os.Signal) {
-		wlog.Info("Received signal '", sig, "' shutting down application...")
-		err := server.Shutdown(context.Background())
-		if err != nil {
-			wlog.Error("error shutting down server: ", err)
-		}
-		service.Shutdown()
-	}
-	listen(hook, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGINT)
-
-	wg.Wait() // wait for service shutdown to complete
-
-	return nil
+	return indexer.CreateAndRun(ctx, &indexer.Config{
+		ABMoneySystemIdentifier: defaultABMoneySystemIdentifier,
+		AlphabillUrl:            config.AlphabillUrl,
+		ServerAddr:              config.ServerAddr,
+		DbFile:                  dbFile,
+		ListBillsPageLimit:      config.ListBillsPageLimit,
+	})
 }

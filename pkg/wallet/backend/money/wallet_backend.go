@@ -2,13 +2,20 @@ package money
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -67,7 +74,57 @@ type (
 		sha256 []byte
 		sha512 []byte
 	}
+
+	Config struct {
+		ABMoneySystemIdentifier []byte
+		AlphabillUrl            string
+		ServerAddr              string
+		DbFile                  string
+		ListBillsPageLimit      int
+	}
 )
+
+func CreateAndRun(ctx context.Context, config *Config) error {
+	store, err := NewBoltBillStore(config.DbFile)
+	if err != nil {
+		return err
+	}
+
+	bp := NewBlockProcessor(store, backend.NewTxConverter(config.ABMoneySystemIdentifier))
+	w := wallet.New().SetBlockProcessor(bp).SetABClient(client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})).Build()
+
+	service := New(w, store)
+	wg := sync.WaitGroup{}
+	if config.AlphabillUrl != "" {
+		wg.Add(1)
+		go func() {
+			service.StartProcess(ctx)
+			wg.Done()
+		}()
+	}
+
+	server := NewHttpServer(config.ServerAddr, config.ListBillsPageLimit, service)
+	err = server.Start()
+	if err != nil {
+		service.Shutdown()
+		return aberrors.Wrap(err, "error starting wallet backend http server")
+	}
+
+	// listen for termination signal and shutdown the app
+	hook := func(sig os.Signal) {
+		wlog.Info("Received signal '", sig, "' shutting down application...")
+		err := server.Shutdown(context.Background())
+		if err != nil {
+			wlog.Error("error shutting down server: ", err)
+		}
+		service.Shutdown()
+	}
+	listen(hook, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGINT)
+
+	wg.Wait() // wait for service shutdown to complete
+
+	return nil
+}
 
 // New creates a new wallet backend Service which can be started by calling the Start or StartProcess method.
 // Shutdown method should be called to close resources used by the Service.
@@ -171,4 +228,12 @@ func newOwnerPredicates(hashes *account.KeyHashes) *p2pkhOwnerPredicates {
 		sha256: script.PredicatePayToPublicKeyHashDefault(hashes.Sha256),
 		sha512: script.PredicatePayToPublicKeyHashDefault(hashes.Sha512),
 	}
+}
+
+// listen waits for given OS signals and then calls given shutdownHook func
+func listen(shutdownHook func(sig os.Signal), signals ...os.Signal) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, signals...)
+	sig := <-ch
+	shutdownHook(sig)
 }

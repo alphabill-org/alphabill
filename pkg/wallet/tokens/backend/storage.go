@@ -1,6 +1,8 @@
 package twb
 
 import (
+	"fmt"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 )
@@ -11,13 +13,14 @@ type (
 		GetBlockNumber() (uint64, error)
 		SetBlockNumber(blockNumber uint64) error
 
-		SaveTokenTypeCreator(id TokenTypeID, creator PubKey) error
-
+		SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
 		SaveTokenType(data *TokenUnitType, proof *Proof) error
 		GetTokenType(id TokenTypeID) (*TokenUnitType, error)
+		QueryTokenType(kind Kind, creator, startKey []byte, count int) ([]*TokenUnitType, []byte, error)
 
 		SaveToken(data *TokenUnit, proof *Proof) error
 		GetToken(id TokenID) (*TokenUnit, error)
+		QueryTokens(kind Kind, owner Predicate, startKey []byte, count int) ([]*TokenUnit, []byte, error)
 	}
 )
 
@@ -77,3 +80,27 @@ const (
 	Fungible
 	NonFungible
 )
+
+func (kind Kind) String() string {
+	switch kind {
+	case Any:
+		return "all"
+	case Fungible:
+		return "fungible"
+	case NonFungible:
+		return "nft"
+	}
+	return "unknown"
+}
+
+func strToTokenKind(s string) (Kind, error) {
+	switch s {
+	case "all", "":
+		return Any, nil
+	case "fungible":
+		return Fungible, nil
+	case "nft":
+		return NonFungible, nil
+	}
+	return Any, fmt.Errorf("%q is not valid token kind", s)
+}

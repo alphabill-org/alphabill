@@ -10,6 +10,7 @@ replace (
 )
 
 require (
+	github.com/ainvaltin/httpsrv v0.1.2
 	github.com/btcsuite/btcd v0.23.2
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/ethereum/go-ethereum v1.10.25

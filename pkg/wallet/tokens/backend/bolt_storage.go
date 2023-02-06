@@ -8,45 +8,19 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
-
-const BoltTokenStoreFileName = "tokens.db"
 
 var (
 	bucketMetadata = []byte("meta")
 	keyBlockNumber = []byte("block-number")
 
-	bucketTokenType   = []byte("token-type")   // TokenTypeID -> TokenUnitType
-	bucketTypeCreator = []byte("type-creator") // type creator (pub key) -> [TokenTypeID]
-	bucketTokenUnit   = []byte("token-unit")   // TokenID -> TokenUnit
-	bucketTokenOwner  = []byte("token-owner")  // token bearer (p2pkh predicate) -> [TokenID]
-	bucketTxHistory   = []byte("tx-history")   // UnitID(TokenTypeID|TokenID) -> [txHash -> block proof]
+	bucketTokenType   = []byte("token-type")   // TokenTypeID -> json(TokenUnitType)
+	bucketTypeCreator = []byte("type-creator") // type creator (pub key) -> [TokenTypeID -> b(kind)]
+	bucketTokenUnit   = []byte("token-unit")   // TokenID -> json(TokenUnit)
+	bucketTokenOwner  = []byte("token-owner")  // token bearer (p2pkh predicate) -> [TokenID -> b(kind)]
+	bucketTxHistory   = []byte("tx-history")   // UnitID(TokenTypeID|TokenID) -> [txHash -> json(block proof)]
 )
-
-//submit tx endpoint:
-// 1. read creator public key
-// 2. parse tx
-// 3. if it's a 'create type' tx, save type data to "type-creator" bucket
-
-//list types endpoint:
-// 1. read creator public key, create a list of type ids from "type-creator" bucket
-// 2. read type data from "token-type" bucket
-// 3. group types by kind
-
-//list fungible/nft tokens endpoint:
-// 1. read creator public key, fetch token ids from "token-owner" bucket
-// 2. read token data from "token-unit" bucket, filter fungible/nft tokens by kind
-
-//list tx proofs endpoint:
-// 1. read unit id and tx hash from request
-// 2. read tx proof from "tx-history" bucket
-
-//list tx history endpoint:
-// 1. read unit id from request
-// 2. read tx history from "tx-history" bucket, optionally include proofs
-// 3. additionally, filter units by owner using "token-owner" bucket
 
 var errRecordNotFound = errors.New("not found")
 
@@ -54,58 +28,79 @@ type storage struct {
 	db *bolt.DB
 }
 
-func (s *storage) SaveTokenTypeCreator(id TokenTypeID, creator PubKey) error {
+func (s *storage) Close() error { return s.db.Close() }
+
+func (s *storage) SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, false)
 		if err != nil {
 			return fmt.Errorf("bucket %s/%X not found", bucketTypeCreator, creator)
 		}
-		return b.Put(id, nil)
+		return b.Put(id, []byte{byte(kind)})
 	})
 }
 
-func (s *storage) GetTokenTypesByCreator(creator PubKey) ([]*TokenUnitType, error) {
-	var types []*TokenUnitType
-	err := s.db.View(func(tx *bolt.Tx) error {
-		ids, err := s.getTokenTypeIDsByCreator(tx, creator)
-		if err != nil {
-			return err
-		}
-		for _, id := range ids {
-			t, err := s.getTokenType(tx, id)
-			if err != nil {
-				if aberrors.ErrorCausedBy(err, errRecordNotFound) {
-					// it is expected that token data may be missing
-					continue
-				}
-				return err
+/*
+QueryTokenType loads token types filtered by "kind" and "creator", starting from "startKey" and returning at maximum "count" items.
+  - "creator" parameter is optional, when nil result is not filterd by creator.
+  - return value "next" just indicates that there is more data, it might not match the (kind) filter!
+*/
+func (s *storage) QueryTokenType(kind Kind, creator, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
+	if creator != nil {
+		return s.tokenTypesByCreator(creator, kind, startKey, count)
+	}
+
+	// slow path, decode items and check the kind
+	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket(bucketTokenType).Cursor()
+		for k, v := setPosition(c, startKey); k != nil; k, v = c.Next() {
+			item := &TokenUnitType{}
+			if err := json.Unmarshal(v, item); err != nil {
+				return fmt.Errorf("failed to deserialize token type data (%x: %s): %w", k, v, err)
 			}
-			types = append(types, t)
+			// does the item match our query?
+			if kind == Any || kind == item.Kind {
+				rsp = append(rsp, item)
+				if count--; count == 0 {
+					next, _ = c.Next()
+					return nil
+				}
+			}
 		}
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return types, nil
 }
 
-func (s *storage) getTokenTypeIDsByCreator(tx *bolt.Tx, creator PubKey) ([]TokenTypeID, error) {
-	b, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, true)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]TokenTypeID, 0)
-	if b != nil {
-		err = b.ForEach(func(k, _ []byte) error {
-			ids = append(ids, k)
-			return nil
-		})
+func (s *storage) tokenTypesByCreator(creator []byte, kind Kind, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
+	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
+		ownerBucket, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, true)
 		if err != nil {
-			return nil, err
+			return err
 		}
-	}
-	return ids, nil
+		if ownerBucket == nil {
+			return nil
+		}
+
+		obc := ownerBucket.Cursor()
+		for k, v := setPosition(obc, startKey); k != nil; k, v = obc.Next() {
+			if kind == Any || kind == Kind(v[0]) {
+				item, err := s.getTokenType(tx, k)
+				if err != nil {
+					if errors.Is(err, errRecordNotFound) {
+						// it is expected that token data may be missing
+						continue
+					}
+					return err
+				}
+				rsp = append(rsp, item)
+				if count--; count == 0 {
+					next, _ = obc.Next()
+					return nil
+				}
+			}
+		}
+		return nil
+	})
 }
 
 func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *Proof) error {
@@ -118,24 +113,27 @@ func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *Proof) error {
 		if err != nil {
 			return fmt.Errorf("failed to save token type data: %w", err)
 		}
-		return s.storeUnitBlockProof(tx, tokenType.ID, tokenType.TxHash, proof)
+		if err := s.storeUnitBlockProof(tx, tokenType.ID, tokenType.TxHash, proof); err != nil {
+			return fmt.Errorf("failed to store unit block proof: %w", err)
+		}
+		return nil
 	})
 }
 
 func (s *storage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
-	var data []byte
-	if err := s.db.View(func(tx *bolt.Tx) error {
-		if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
+	d := &TokenUnitType{}
+	err := s.db.View(func(tx *bolt.Tx) error {
+		data := tx.Bucket(bucketTokenType).Get(id)
+		if data == nil {
 			return fmt.Errorf("failed to read token type data %s[%x]: %w", bucketTokenType, id, errRecordNotFound)
 		}
+		if err := json.Unmarshal(data, d); err != nil {
+			return fmt.Errorf("failed to deserialize token type data (%x): %w", id, err)
+		}
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
-	}
-
-	d := &TokenUnitType{}
-	if err := json.Unmarshal(data, d); err != nil {
-		return nil, fmt.Errorf("failed to deserialize token type data (%x): %w", id, err)
 	}
 	return d, nil
 }
@@ -148,7 +146,7 @@ func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		prevTokenData, err := s.getToken(tx, token.ID)
 		if err != nil {
-			if !aberrors.ErrorCausedBy(err, errRecordNotFound) {
+			if !errors.Is(err, errRecordNotFound) {
 				return err
 			}
 		}
@@ -158,15 +156,15 @@ func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
 				return err
 			}
 			if err = prevOwnerBucket.Delete(prevTokenData.ID); err != nil {
-				return err
+				return fmt.Errorf("failed to delete token from previous owner bucket: %w", err)
 			}
 		}
 		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, token.Owner, false)
 		if err != nil {
 			return err
 		}
-		if err = ownerBucket.Put(token.ID, nil); err != nil {
-			return err
+		if err = ownerBucket.Put(token.ID, []byte{byte(token.Kind)}); err != nil {
+			return fmt.Errorf("failed to store token-owner relation: %w", err)
 		}
 		if err = tx.Bucket(bucketTokenUnit).Put(token.ID, tokenData); err != nil {
 			return err
@@ -175,24 +173,20 @@ func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
 	})
 }
 
-func (s *storage) GetToken(id TokenID) (*TokenUnit, error) {
-	var token *TokenUnit
-	if err := s.db.View(func(tx *bolt.Tx) error {
-		result, err := s.getToken(tx, id)
-		if err != nil {
-			return err
-		}
-		token = result
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	return token, nil
+func (s *storage) GetToken(id TokenID) (token *TokenUnit, _ error) {
+	return token, s.db.View(func(tx *bolt.Tx) (err error) {
+		token, err = s.getToken(tx, id)
+		return err
+	})
 }
 
-func (s *storage) GetTokensByOwner(owner Predicate) ([]*TokenUnit, error) {
-	tokens := make([]*TokenUnit, 0)
-	if err := s.db.View(func(tx *bolt.Tx) error {
+/*
+QueryTokens loads tokens filtered by "kind" and "owner", starting from "startKey" and returning at maximum "count" items.
+  - owner is required, ie can't query "any owner".
+  - return value "next" just indicates that there is more data, it might not match the (kind) filter!
+*/
+func (s *storage) QueryTokens(kind Kind, owner Predicate, startKey []byte, count int) (rsp []*TokenUnit, next []byte, _ error) {
+	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
 		ownerBucket, err := s.ensureSubBucket(tx, bucketTokenOwner, owner, true)
 		if err != nil {
 			return err
@@ -200,18 +194,23 @@ func (s *storage) GetTokensByOwner(owner Predicate) ([]*TokenUnit, error) {
 		if ownerBucket == nil {
 			return nil
 		}
-		return ownerBucket.ForEach(func(k, _ []byte) error {
-			token, err := s.getToken(tx, k)
-			if err != nil {
-				return err
+
+		obc := ownerBucket.Cursor()
+		for k, v := setPosition(obc, startKey); k != nil; k, v = obc.Next() {
+			if kind == Any || kind == Kind(v[0]) {
+				item, err := s.getToken(tx, k)
+				if err != nil {
+					return err
+				}
+				rsp = append(rsp, item)
+				if count--; count == 0 {
+					next, _ = obc.Next()
+					return nil
+				}
 			}
-			tokens = append(tokens, token)
-			return nil
-		})
-	}); err != nil {
-		return nil, err
-	}
-	return tokens, nil
+		}
+		return nil
+	})
 }
 
 func (s *storage) GetBlockNumber() (uint64, error) {
@@ -229,20 +228,14 @@ func (s *storage) GetBlockNumber() (uint64, error) {
 
 func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		prev := util.BytesToUint64(tx.Bucket(bucketMetadata).Get(keyBlockNumber))
-		if prev >= blockNumber {
-			return fmt.Errorf("block number must be greater than previous one (%d >= %d)", prev, blockNumber)
-		}
 		return tx.Bucket(bucketMetadata).Put(keyBlockNumber, util.Uint64ToBytes(blockNumber))
 	})
 }
 
-func (s *storage) Close() error { return s.db.Close() }
-
 func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
-		return nil, aberrors.Wrapf(errRecordNotFound, "failed to read token type data %s[%X]", bucketTokenType, id)
+		return nil, fmt.Errorf("failed to read token type data %s[%X]: %w", bucketTokenType, id, errRecordNotFound)
 	}
 	tokenType := &TokenUnitType{}
 	if err := json.Unmarshal(data, tokenType); err != nil {
@@ -254,7 +247,7 @@ func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, err
 func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenUnit).Get(id); data == nil {
-		return nil, aberrors.Wrapf(errRecordNotFound, "failed to read token data %s[%X]", bucketTokenUnit, id)
+		return nil, fmt.Errorf("failed to read token data %s[%X]: %w", bucketTokenUnit, id, errRecordNotFound)
 	}
 	token := &TokenUnit{}
 	if err := json.Unmarshal(data, token); err != nil {
@@ -312,6 +305,13 @@ func (s *storage) initMetaData() error {
 		}
 		return nil
 	})
+}
+
+func setPosition(c *bolt.Cursor, key []byte) (k, v []byte) {
+	if key != nil {
+		return c.Seek(key)
+	}
+	return c.First()
 }
 
 func newBoltStore(dbFile string) (*storage, error) {

@@ -228,16 +228,18 @@ definitions:
   money.ListBillVM:
     properties:
       id:
-        items:
-          type: integer
-        type: array
+        example: AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4=
+        format: base64
+        type: string
       isDCBill:
+        example: false
         type: boolean
       txHash:
-        items:
-          type: integer
-        type: array
+        example: Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8=
+        format: base64
+        type: string
       value:
+        example: 1000
         type: integer
     type: object
   money.ListBillsResponse:
@@ -247,6 +249,7 @@ definitions:
           $ref: '#/definitions/money.ListBillVM'
         type: array
       total:
+        example: 1
         type: integer
     type: object
   txsystem.Transaction:
@@ -308,10 +311,21 @@ paths:
       operationId: "1"
       parameters:
       - description: Public key prefixed with 0x
+        example: "0x000000000000000000000000000000000000000000000000000000000000000123"
         in: query
         name: pubkey
         required: true
         type: string
+      - default: 0
+        description: limits how many bills are returned in response
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: response will include bills starting after offset
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:

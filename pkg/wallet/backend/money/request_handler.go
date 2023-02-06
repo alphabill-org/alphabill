@@ -30,15 +30,15 @@ type (
 	}
 
 	ListBillsResponse struct {
-		Total int           `json:"total"`
+		Total int           `json:"total" example:"1"`
 		Bills []*ListBillVM `json:"bills"`
 	}
 
 	ListBillVM struct {
-		Id       []byte `json:"id"`
-		Value    uint64 `json:"value"`
-		TxHash   []byte `json:"txHash"`
-		IsDCBill bool   `json:"isDCBill"`
+		Id       []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
+		Value    uint64 `json:"value" example:"1000"`
+		TxHash   []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
+		IsDCBill bool   `json:"isDCBill" example:"false"`
 	}
 
 	BalanceResponse struct {
@@ -98,7 +98,9 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Id 1
 // @version 1.0
 // @produce application/json
-// @Param pubkey query string true "Public key prefixed with 0x"
+// @Param pubkey query string true "Public key prefixed with 0x" example(0x000000000000000000000000000000000000000000000000000000000000000123)
+// @Param limit query int false "limits how many bills are returned in response" default(0)
+// @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {

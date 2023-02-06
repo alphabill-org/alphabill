@@ -68,10 +68,25 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "example": "0x000000000000000000000000000000000000000000000000000000000000000123",
                         "description": "Public key prefixed with 0x",
                         "name": "pubkey",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "limits how many bills are returned in response",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "response will include bills starting after offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -409,22 +424,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "string",
+                    "format": "base64",
+                    "example": "AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="
                 },
                 "isDCBill": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": false
                 },
                 "txHash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "string",
+                    "format": "base64",
+                    "example": "Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="
                 },
                 "value": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1000
                 }
             }
         },
@@ -438,7 +453,8 @@ const docTemplate = `{
                     }
                 },
                 "total": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },

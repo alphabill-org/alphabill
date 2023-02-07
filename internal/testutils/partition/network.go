@@ -1,6 +1,7 @@
 package testpartition
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
@@ -30,6 +31,7 @@ type AlphabillPartition struct {
 	ctx          context.Context
 	TrustBase    map[string]crypto.Verifier
 	EventHandler *testevent.TestEventHandler
+	RootSigner   crypto.Signer
 }
 
 // NewNetwork creates the AlphabillPartition for integration tests. It starts partition nodes with given
@@ -157,6 +159,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		ctxCancel:    ctxCancel,
 		TrustBase:    trustBase,
 		EventHandler: eh,
+		RootSigner:   rootSigner,
 	}, nil
 }
 
@@ -194,7 +197,7 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 				continue
 			}
 			for _, t := range b.Transactions {
-				if proto.Equal(t, tx) {
+				if ProtoEqual(t, tx) {
 					genBlock, err := b.ToGenericBlock(txConverter)
 					if err != nil {
 						return nil, nil, err
@@ -293,8 +296,8 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
-	return BlockchainContains(network, func(t *txsystem.Transaction) bool {
-		return proto.Equal(t, tx)
+	return BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
+		return ProtoEqual(tx, actualTx)
 	})
 }
 
@@ -321,4 +324,16 @@ func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.
 		}
 		return false
 	}
+}
+
+// ProtoEqual compares all fields except server metadata.
+// Broadcasted and actual transactions are different by ServerMetadata field.
+func ProtoEqual(a, b *txsystem.Transaction) bool {
+	return bytes.Equal(a.UnitId, b.UnitId) &&
+		bytes.Equal(a.SystemId, b.SystemId) &&
+		bytes.Equal(a.OwnerProof, b.OwnerProof) &&
+		bytes.Equal(a.FeeProof, b.FeeProof) &&
+		a.Timeout == b.Timeout &&
+		proto.Equal(a.ClientMetadata, b.ClientMetadata) &&
+		proto.Equal(a.TransactionAttributes, b.TransactionAttributes)
 }

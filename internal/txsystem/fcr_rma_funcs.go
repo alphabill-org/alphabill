@@ -6,6 +6,19 @@ import (
 	"github.com/holiman/uint256"
 )
 
+const (
+	TypeTransferFeeCreditOrder = "TransferFeeCreditOrder"
+	TypeAddFeeCreditOrder      = "AddFeeCreditOrder" // #nosec G101
+	TypeCloseFeeCreditOrder    = "CloseFeeCreditOrder"
+	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditOrder"
+
+	protobufTypeUrlPrefix         = "type.googleapis.com/"
+	TypeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
+	TypeURLAddFeeCreditOrder      = protobufTypeUrlPrefix + TypeAddFeeCreditOrder
+	TypeURLCloseFeeCreditOrder    = protobufTypeUrlPrefix + TypeCloseFeeCreditOrder
+	TypeURLReclaimFeeCreditOrder  = protobufTypeUrlPrefix + TypeReclaimFeeCreditOrder
+)
+
 // AddCredit adds a new credit record
 func AddCredit(id *uint256.Int, owner rma.Predicate, data *FeeCreditRecord, stateHash []byte) rma.Action {
 	return rma.AddItem(id, owner, data, stateHash)
@@ -21,8 +34,7 @@ func IncrCredit(id *uint256.Int, value uint64, timeout uint64, stateHash []byte)
 	updateDataFunc := func(data rma.UnitData) (newData rma.UnitData) {
 		fcr, ok := data.(*FeeCreditRecord)
 		if !ok {
-			// No change in case of incorrect data type.
-			return data
+			return data // todo return error
 		}
 		return &FeeCreditRecord{
 			Balance: fcr.Balance + value,
@@ -38,8 +50,7 @@ func DecrCredit(id *uint256.Int, value uint64, stateHash []byte) rma.Action {
 	updateDataFunc := func(data rma.UnitData) (newData rma.UnitData) {
 		fcr, ok := data.(*FeeCreditRecord)
 		if !ok {
-			// No change in case of incorrect data type.
-			return data
+			return data // todo return error
 		}
 		// note that hash and timeout remain unchanged in this operation
 		return &FeeCreditRecord{

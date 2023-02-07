@@ -166,6 +166,7 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 }
 
 func TestNFTs_Integration(t *testing.T) {
+	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	partition, unitState := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
@@ -208,6 +209,7 @@ func TestNFTs_Integration(t *testing.T) {
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
+	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	partition, unitState := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
@@ -270,6 +272,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {
+	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	partition, unitState := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))

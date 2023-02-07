@@ -186,55 +186,95 @@ func NewMoneyTxSystem(hashAlgorithm crypto.Hash, initialBill *InitialBill, sdrs 
 
 func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 	bd, _ := m.revertibleState.GetUnit(gtx.UnitID())
-	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{Tx: gtx, Bd: bd, SystemIdentifier: m.systemIdentifier, BlockNumber: m.currentBlockNumber})
+	txPB := gtx.ToProtoBuf()
+	clientMD := txPB.ClientMetadata
+	if clientMD == nil {
+		return errors.New("client metadata is empty")
+	}
+	err := txsystem.ValidateGenericTransaction(&txsystem.TxValidationContext{
+		Tx:               gtx,
+		Bd:               bd,
+		SystemIdentifier: m.systemIdentifier,
+		BlockNumber:      m.currentBlockNumber,
+		FeeCreditRecord:  m.getFCR(clientMD),
+		TxFee:            txFeeFunc(),
+	})
 	if err != nil {
 		return err
 	}
 	switch tx := gtx.(type) {
 	case Transfer:
 		log.Debug("Processing transfer %v", tx)
-		err := m.validateTransferTx(tx)
+		err = m.validateTransferTx(tx)
 		if err != nil {
 			return err
 		}
-		err = m.updateBillData(tx)
+		// calculate actual tx fee cost
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
+
+		// update state
+		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId)
+		decrCreditFunc := txsystem.DecrCredit(fcrID, txPB.ServerMetadata.Fee, tx.Hash(m.hashAlgorithm))
+		updateDataFunc := m.updateBillDataFunc(tx)
+		setOwnerFunc := rma.SetOwner(tx.UnitID(), tx.NewBearer(), tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.AtomicUpdate(
+			decrCreditFunc,
+			updateDataFunc,
+			setOwnerFunc,
+		)
 		if err != nil {
-			return err
+			return fmt.Errorf("transfer: failed to update state: %w", err)
 		}
-		return m.revertibleState.AtomicUpdate(rma.SetOwner(tx.UnitID(), tx.NewBearer(), tx.Hash(m.hashAlgorithm)))
+		return nil
 	case TransferDC:
 		log.Debug("Processing transferDC %v", tx)
-		err := m.validateTransferDCTx(tx)
+		err = m.validateTransferDCTx(tx)
 		if err != nil {
 			return err
 		}
-		err = m.updateBillData(tx)
+		// calculate actual tx fee cost
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
+
+		// update state
+		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId)
+		decrCreditFunc := txsystem.DecrCredit(fcrID, txPB.ServerMetadata.Fee, tx.Hash(m.hashAlgorithm))
+		updateDataFunc := m.updateBillDataFunc(tx)
+		setOwnerFunc := rma.SetOwner(tx.UnitID(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm))
+		err = m.revertibleState.AtomicUpdate(
+			decrCreditFunc,
+			updateDataFunc,
+			setOwnerFunc,
+		)
 		if err != nil {
-			return err
+			return fmt.Errorf("transferDC: failed to update state: %w", err)
 		}
-		err = m.revertibleState.AtomicUpdate(rma.SetOwner(tx.UnitID(), dustCollectorPredicate, tx.Hash(m.hashAlgorithm)))
-		if err != nil {
-			return err
-		}
+
+		// record dust bills for later deletion
 		delBlockNr := m.currentBlockNumber + dustBillDeletionTimeout
 		dustBillsArray := m.dustCollectorBills[delBlockNr]
 		m.dustCollectorBills[delBlockNr] = append(dustBillsArray, tx.UnitID())
 		return nil
 	case Split:
 		log.Debug("Processing split %v", tx)
-		err := m.validateSplitTx(tx)
+		err = m.validateSplitTx(tx)
 		if err != nil {
 			return err
 		}
 		h := tx.Hash(m.hashAlgorithm)
 		newItemId := txutil.SameShardID(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
+
+		// calculate actual tx fee cost
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
+
+		// update state
+		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId)
 		return m.revertibleState.AtomicUpdate(
+			txsystem.DecrCredit(fcrID, txPB.ServerMetadata.Fee, h),
 			rma.UpdateData(tx.UnitID(),
 				func(data rma.UnitData) (newData rma.UnitData) {
 					bd, ok := data.(*BillData)
 					if !ok {
-						// No change in case of incorrect data type.
-						return data
+						return data // todo return error
 					}
 					return &BillData{
 						V:        bd.V - tx.Amount(),
@@ -245,14 +285,17 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			rma.AddItem(newItemId, tx.TargetBearer(), &BillData{
 				V:        tx.Amount(),
 				T:        m.currentBlockNumber,
-				Backlink: tx.Hash(m.hashAlgorithm),
+				Backlink: h,
 			}, h))
 	case Swap:
 		log.Debug("Processing swap %v", tx)
-		err := m.validateSwapTx(tx)
+		err = m.validateSwapTx(tx)
 		if err != nil {
 			return err
 		}
+		// calculate actual tx fee cost
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
+
 		// set n as the target value
 		n := tx.TargetValue()
 		// reduce dc-money supply by n
@@ -264,7 +307,11 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			bd.V -= n
 			return bd
 		}
+
+		// update state
+		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId)
 		return m.revertibleState.AtomicUpdate(
+			txsystem.DecrCredit(fcrID, txPB.ServerMetadata.Fee, tx.Hash(m.hashAlgorithm)),
 			rma.UpdateData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn, []byte{}),
 			rma.AddItem(tx.UnitID(), tx.OwnerCondition(), &BillData{
 				V:        n,
@@ -286,11 +333,11 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		}
 
 		// calculate actual tx fee cost
-		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
 
 		// remove value from source unit, or delete source bill entirely
 		var updateFunc rma.Action
-		v := tx.TransferFC.Amount + tx.Transaction.ServerMetadata.Fee
+		v := tx.TransferFC.Amount + txPB.ServerMetadata.Fee
 		if v < bdd.V {
 			dataUpdateFunc := func(data rma.UnitData) (newData rma.UnitData) {
 				newBillData, ok := data.(*BillData)
@@ -324,11 +371,11 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return fmt.Errorf("addFC tx validation failed: %w", err)
 		}
 		// calculate actual tx fee cost
-		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
 
 		var updateFunc rma.Action
 		// find net value of credit
-		v := tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee
+		v := tx.TransferFC.TransferFC.Amount - txPB.ServerMetadata.Fee
 		if bd == nil {
 			// add credit
 			fcr := &txsystem.FeeCreditRecord{
@@ -356,7 +403,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
 		// calculate actual tx fee cost
-		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
 
 		// decrement credit
 		updateFunc := txsystem.DecrCredit(tx.UnitID(), tx.CloseFC.Amount, tx.Hash(m.hashAlgorithm))
@@ -380,10 +427,10 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		}
 
 		// calculate actual tx fee cost
-		tx.Transaction.ServerMetadata.Fee = txFeeFunc()
+		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: txFeeFunc()}
 
 		// add reclaimed value to source unit
-		v := tx.CloseFCTransfer.CloseFC.Amount - tx.CloseFCTransfer.Transaction.ServerMetadata.Fee - tx.Transaction.ServerMetadata.Fee
+		v := tx.CloseFCTransfer.CloseFC.Amount - tx.CloseFCTransfer.Transaction.ServerMetadata.Fee - txPB.ServerMetadata.Fee
 		updateFunc := func(data rma.UnitData) (newData rma.UnitData) {
 			newBillData, ok := data.(*BillData)
 			if !ok {
@@ -545,18 +592,17 @@ func (m *moneyTxSystem) consolidateFees() error {
 	return nil
 }
 
-func (m *moneyTxSystem) updateBillData(tx txsystem.GenericTransaction) error {
-	return m.revertibleState.AtomicUpdate(rma.UpdateData(tx.UnitID(),
+func (m *moneyTxSystem) updateBillDataFunc(tx txsystem.GenericTransaction) rma.Action {
+	return rma.UpdateData(tx.UnitID(),
 		func(data rma.UnitData) (newData rma.UnitData) {
 			bd, ok := data.(*BillData)
 			if !ok {
-				// No change in case of incorrect data type.
-				return data
+				return data // TODO return error
 			}
 			bd.T = m.currentBlockNumber
 			bd.Backlink = tx.Hash(m.hashAlgorithm)
 			return bd
-		}, tx.Hash(m.hashAlgorithm)))
+		}, tx.Hash(m.hashAlgorithm))
 }
 
 func (m *moneyTxSystem) validateTransferTx(tx Transfer) error {
@@ -618,6 +664,14 @@ func (m *moneyTxSystem) TotalValue() (uint64, error) {
 		return 0, errors.New("summary was not *BillSummary")
 	}
 	return bs.Value(), nil
+}
+
+func (m *moneyTxSystem) getFCR(clientMD *txsystem.ClientMetadata) *rma.Unit {
+	var fcr *rma.Unit
+	if len(clientMD.FeeCreditRecordId) > 0 {
+		fcr, _ = m.revertibleState.GetUnit(uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId))
+	}
+	return fcr
 }
 
 func (b *BillData) AddToHasher(hasher hash.Hash) {

@@ -99,27 +99,6 @@ func TestWallet_GetBalances(t *testing.T) {
 	require.EqualValues(t, 4, balances[1])
 }
 
-func TestWalletIsClosedAfterCallingIsEncrypted(t *testing.T) {
-	// create and shutdown wallet
-	w, _ := CreateTestWallet(t)
-	w.Shutdown()
-
-	// call IsEncrypted
-	am, err := account.NewManager(w.config.DbPath, "", false)
-	require.NoError(t, err)
-	_, err = am.IsEncrypted()
-	require.NoError(t, err)
-
-	// when wallet is loaded
-	am, err = account.NewManager(w.config.DbPath, "", false)
-	w, err = LoadExistingWallet(w.config, am)
-	require.NoError(t, err)
-
-	// then using wallet db should not hang
-	_, err = w.am.GetPublicKey(0)
-	require.NoError(t, err)
-}
-
 func TestBlockProcessing(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 

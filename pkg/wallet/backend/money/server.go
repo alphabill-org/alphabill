@@ -9,6 +9,11 @@ import (
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
+// @title           Money Partition Indexing Backend API
+// @version         1.0
+// @description     This service processes blocks from the Money partition and indexes ownership of bills.
+
+// @BasePath  /api/v1
 type (
 	WalletBackendHttpServer struct {
 		Handler RequestHandler

@@ -18,13 +18,21 @@ func Test_storage(t *testing.T) {
 	// testing things in one bucket only ie can (re)use the same db
 	db := initTestStorage(t)
 
-	testBlockNumber(t, db)
+	t.Run("block number", func(t *testing.T) {
+		testBlockNumber(t, db)
+	})
 
-	testTokenType(t, db)
+	t.Run("token type", func(t *testing.T) {
+		testTokenType(t, db)
+	})
 
-	testTokenTypeCreator(t, db)
+	t.Run("token type creator", func(t *testing.T) {
+		testTokenTypeCreator(t, db)
+	})
 
-	testSaveToken(t, db)
+	t.Run("save token", func(t *testing.T) {
+		testSaveToken(t, db)
+	})
 }
 
 func testTokenTypeCreator(t *testing.T, db *storage) {

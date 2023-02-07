@@ -16,7 +16,7 @@ type (
 		SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
 		SaveTokenType(data *TokenUnitType, proof *Proof) error
 		GetTokenType(id TokenTypeID) (*TokenUnitType, error)
-		QueryTokenType(kind Kind, creator, startKey []byte, count int) ([]*TokenUnitType, []byte, error)
+		QueryTokenType(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error)
 
 		SaveToken(data *TokenUnit, proof *Proof) error
 		GetToken(id TokenID) (*TokenUnit, error)

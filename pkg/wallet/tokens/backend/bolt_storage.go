@@ -45,7 +45,7 @@ QueryTokenType loads token types filtered by "kind" and "creator", starting from
   - "creator" parameter is optional, when nil result is not filterd by creator.
   - return value "next" just indicates that there is more data, it might not match the (kind) filter!
 */
-func (s *storage) QueryTokenType(kind Kind, creator, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
+func (s *storage) QueryTokenType(kind Kind, creator PubKey, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
 	if creator != nil {
 		return s.tokenTypesByCreator(creator, kind, startKey, count)
 	}
@@ -71,7 +71,7 @@ func (s *storage) QueryTokenType(kind Kind, creator, startKey []byte, count int)
 	})
 }
 
-func (s *storage) tokenTypesByCreator(creator []byte, kind Kind, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
+func (s *storage) tokenTypesByCreator(creator PubKey, kind Kind, startKey []byte, count int) (rsp []*TokenUnitType, next []byte, _ error) {
 	return rsp, next, s.db.View(func(tx *bolt.Tx) error {
 		ownerBucket, err := s.ensureSubBucket(tx, bucketTypeCreator, creator, true)
 		if err != nil {

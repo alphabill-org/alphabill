@@ -23,7 +23,7 @@ import (
 
 type dataSource interface {
 	GetBlockNumber() (uint64, error)
-	QueryTokenType(kind Kind, creator, startKey []byte, count int) ([]*TokenUnitType, []byte, error)
+	QueryTokenType(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error)
 	QueryTokens(kind Kind, owner Predicate, startKey []byte, count int) ([]*TokenUnit, []byte, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
 }
@@ -68,9 +68,9 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	qp := r.URL.Query()
-	startKey, err := parseTokenID(qp.Get("position"), false)
+	startKey, err := parseTokenID(qp.Get("offsetKey"), false)
 	if err != nil {
-		api.invalidParamResponse(w, "position", err)
+		api.invalidParamResponse(w, "offsetKey", err)
 		return
 	}
 
@@ -98,9 +98,9 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startKey, err := parseTokenTypeID(qp.Get("position"), false)
+	startKey, err := parseTokenTypeID(qp.Get("offsetKey"), false)
 	if err != nil {
-		api.invalidParamResponse(w, "position", err)
+		api.invalidParamResponse(w, "offsetKey", err)
 		return
 	}
 
@@ -223,6 +223,7 @@ func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {
 
 func (api *restAPI) writeErrorResponse(w http.ResponseWriter, err error) {
 	api.errorResponse(w, http.StatusInternalServerError, err)
+	api.logErr(err)
 }
 
 func (api *restAPI) invalidParamResponse(w http.ResponseWriter, name string, err error) {
@@ -249,7 +250,7 @@ func setLinkHeader(u *url.URL, w http.ResponseWriter, next string) {
 		return
 	}
 	qp := u.Query()
-	qp.Set("position", next)
+	qp.Set("offsetKey", next)
 	u.RawQuery = qp.Encode()
 	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="next"`, u))
 }

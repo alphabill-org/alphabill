@@ -223,7 +223,7 @@ func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {
 
 func (api *restAPI) writeErrorResponse(w http.ResponseWriter, err error) {
 	api.errorResponse(w, http.StatusInternalServerError, err)
-	api.logErr(err)
+	api.logError(err)
 }
 
 func (api *restAPI) invalidParamResponse(w http.ResponseWriter, name string, err error) {

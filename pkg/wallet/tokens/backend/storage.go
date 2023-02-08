@@ -70,9 +70,8 @@ type (
 		Proof       *block.BlockProof     `json:"proof"`
 	}
 
-	Predicate  []byte
-	PubKey     []byte
-	PubKeyHash []byte
+	Predicate []byte
+	PubKey    []byte
 )
 
 const (

@@ -90,21 +90,23 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		}
 
 		for n, tc := range cases {
-			tx := randomTx(t, tc.txAttr)
-			bp := &blockProcessor{
-				txs: txs,
-				store: &mockStorage{
-					getBlockNumber: func() (uint64, error) { return 3, nil },
-					setBlockNumber: func(blockNumber uint64) error { return nil },
-					saveTokenType: func(data *TokenUnitType, proof *Proof) error {
-						require.EqualValues(t, tx.UnitId, data.ID)
-						require.Equal(t, tc.kind, data.Kind, "[%d] expected kind %d got %d", n, tc.kind, data.Kind)
-						return nil
+			t.Run(fmt.Sprintf("case [%d] %s", n, tc.kind), func(t *testing.T) {
+				tx := randomTx(t, tc.txAttr)
+				bp := &blockProcessor{
+					txs: txs,
+					store: &mockStorage{
+						getBlockNumber: func() (uint64, error) { return 3, nil },
+						setBlockNumber: func(blockNumber uint64) error { return nil },
+						saveTokenType: func(data *TokenUnitType, proof *Proof) error {
+							require.EqualValues(t, tx.UnitId, data.ID, "token IDs do not match")
+							require.Equal(t, tc.kind, data.Kind, "expected kind %s got %s", tc.kind, data.Kind)
+							return nil
+						},
 					},
-				},
-			}
-			err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
-			require.NoError(t, err)
+				}
+				err = bp.ProcessBlock(context.Background(), &block.Block{BlockNumber: 4, Transactions: []*txsystem.Transaction{tx}})
+				require.NoError(t, err)
+			})
 		}
 	})
 
@@ -168,7 +170,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 
 	t.Run("TransferFungibleToken", func(t *testing.T) {
 		txAttr := &tokens.TransferFungibleTokenAttributes{
-			Value:     42,
+			Value:     50,
 			Type:      test.RandomBytes(4),
 			NewBearer: test.RandomBytes(4),
 		}
@@ -179,13 +181,13 @@ func Test_blockProcessor_processTx(t *testing.T) {
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return nil },
 				getToken: func(id TokenID) (*TokenUnit, error) {
-					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: 50, Kind: Fungible}, nil
+					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *Proof) error {
 					require.EqualValues(t, tx.UnitId, data.ID)
 					require.EqualValues(t, txAttr.Type, data.TypeID)
 					require.EqualValues(t, txAttr.NewBearer, data.Owner)
-					require.EqualValues(t, 50, data.Amount) // must be Amount getToken loaded, not txAttr.Value
+					require.EqualValues(t, txAttr.Value, data.Amount)
 					require.Equal(t, Fungible, data.Kind)
 					return nil
 				},

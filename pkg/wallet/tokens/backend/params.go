@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-func parsePubKey(pubkey string, required bool) ([]byte, error) {
+func parsePubKey(pubkey string, required bool) (PubKey, error) {
 	if pubkey == "" {
 		if required {
 			return nil, fmt.Errorf("parameter is required")
@@ -16,7 +16,7 @@ func parsePubKey(pubkey string, required bool) ([]byte, error) {
 	return decodePubKeyHex(pubkey)
 }
 
-func decodePubKeyHex(pubKey string) ([]byte, error) {
+func decodePubKeyHex(pubKey string) (PubKey, error) {
 	if n := len(pubKey); n != 68 {
 		s := " starting "
 		switch {

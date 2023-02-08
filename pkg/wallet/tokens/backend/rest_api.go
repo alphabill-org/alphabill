@@ -17,6 +17,8 @@ import (
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
@@ -74,7 +76,11 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, next, err := api.db.QueryTokens(kind, owner, startKey, maxResponseItems(qp.Get("limit")))
+	data, next, err := api.db.QueryTokens(
+		kind,
+		script.PredicatePayToPublicKeyHashDefault(hash.Sum256(owner)),
+		startKey,
+		maxResponseItems(qp.Get("limit")))
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return

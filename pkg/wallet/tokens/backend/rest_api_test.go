@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
@@ -206,7 +208,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 	n, err := rand.Read(ownerID)
 	require.NoError(t, err)
 	require.EqualValues(t, len(ownerID), n)
-	vphex := hexutil.Encode(ownerID)
+	pubKeyHex := hexutil.Encode(ownerID)
 
 	t.Run("invalid parameters", func(t *testing.T) {
 		cases := []struct {
@@ -215,14 +217,14 @@ func Test_restAPI_listTokens(t *testing.T) {
 			qparam string
 			errMsg string
 		}{
-			{kind: "foo", owner: vphex, qparam: "", errMsg: `invalid parameter "kind": "foo" is not valid token kind`},
+			{kind: "foo", owner: pubKeyHex, qparam: "", errMsg: `invalid parameter "kind": "foo" is not valid token kind`},
 			{kind: "all", owner: "", qparam: "", errMsg: `invalid parameter "owner": parameter is required`},
 			{kind: "all", owner: "AA", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 2 characters starting AA`},
 			{kind: "all", owner: "0x", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 2 characters starting 0x`},
 			{kind: "all", owner: "0xAA", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 4 characters starting 0xAA`},
 			{kind: "all", owner: "0x" + strings.Repeat("ABCDEFGHIJK", 6), qparam: "", errMsg: `invalid parameter "owner": invalid hex string`}, // correct length but invalid content
-			{kind: "all", owner: vphex, qparam: "offsetKey=ABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`},
-			{kind: "all", owner: vphex, qparam: "offsetKey=0xABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": invalid hex string`},
+			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=ABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`},
+			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=0xABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": invalid hex string`},
 		}
 
 		api := &restAPI{db: &mockStorage{
@@ -239,9 +241,11 @@ func Test_restAPI_listTokens(t *testing.T) {
 			return w.Result()
 		}
 
-		for _, tc := range cases {
-			resp := makeRequest(tc.kind, tc.owner, tc.qparam)
-			expectErrorResponse(t, resp, http.StatusBadRequest, tc.errMsg)
+		for n, tc := range cases {
+			t.Run(fmt.Sprintf("test case %d", n), func(t *testing.T) {
+				resp := makeRequest(tc.kind, tc.owner, tc.qparam)
+				expectErrorResponse(t, resp, http.StatusBadRequest, tc.errMsg)
+			})
 		}
 	})
 
@@ -262,7 +266,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 		}
 		ds := &mockStorage{
 			queryTokens: func(kind Kind, owner, startKey []byte, count int) ([]*TokenUnit, []byte, error) {
-				require.Equal(t, ownerID, owner, "unexpected owner key in the query")
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
 				return data, data[len(data)-1].ID, nil
 			},
 		}

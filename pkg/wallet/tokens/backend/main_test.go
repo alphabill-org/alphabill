@@ -16,7 +16,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -224,14 +226,18 @@ func Test_Run_API(t *testing.T) {
 
 	// post an tx to mint NFT with the existing type
 	ownerID := test.RandomBytes(33)
-	vphex := hexutil.Encode(ownerID)
+	pubKeyHex := hexutil.Encode(ownerID)
 	message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(&txsystem.Transactions{
-		Transactions: []*txsystem.Transaction{randomTx(t, &tokens.MintNonFungibleTokenAttributes{Bearer: ownerID, NftType: createNTFTypeTx.UnitId})},
+		Transactions: []*txsystem.Transaction{randomTx(t,
+			&tokens.MintNonFungibleTokenAttributes{
+				Bearer:  script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)),
+				NftType: createNTFTypeTx.UnitId,
+			})},
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, message)
 
-	rsp, err := http.Post(cfg.HttpURL("/transactions/"+vphex), "", bytes.NewBuffer(message))
+	rsp, err := http.Post(cfg.HttpURL("/transactions/"+pubKeyHex), "", bytes.NewBuffer(message))
 	require.NoError(t, err)
 	require.NotNil(t, rsp)
 	data := map[string]string{}
@@ -243,10 +249,10 @@ func Test_Run_API(t *testing.T) {
 
 	// read back the token we minted
 	var tokens []*TokenUnit
-	require.NoError(t, doGet("/kinds/nft/owners/"+vphex+"/tokens", http.StatusOK, &tokens))
+	require.NoError(t, doGet("/kinds/nft/owners/"+pubKeyHex+"/tokens", http.StatusOK, &tokens))
 	require.Len(t, tokens, 1, "expected that one token is found")
 	// should get no fungible tokens
-	require.NoError(t, doGet("/kinds/fungible/owners/"+vphex+"/tokens", http.StatusOK, &tokens))
+	require.NoError(t, doGet("/kinds/fungible/owners/"+pubKeyHex+"/tokens", http.StatusOK, &tokens))
 	require.Empty(t, tokens, "expected no fungible tokens to be found")
 
 	// stop the backend

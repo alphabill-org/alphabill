@@ -155,9 +155,9 @@ type mockStorage struct {
 	saveTokenType    func(data *TokenUnitType, proof *Proof) error
 	saveToken        func(data *TokenUnit, proof *Proof) error
 	getToken         func(id TokenID) (*TokenUnit, error)
-	queryTokens      func(kind Kind, owner, startKey []byte, count int) ([]*TokenUnit, []byte, error)
+	queryTokens      func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
-	queryTTypes      func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error)
+	queryTTypes      func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator PubKey) error
 }
 
@@ -198,7 +198,7 @@ func (ms *mockStorage) GetTokenType(id TokenTypeID) (*TokenUnitType, error) {
 	return nil, fmt.Errorf("unexpected GetTokenType(%x) call", id)
 }
 
-func (ms *mockStorage) QueryTokenType(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+func (ms *mockStorage) QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 	if ms.queryTTypes != nil {
 		return ms.queryTTypes(kind, creator, startKey, count)
 	}
@@ -219,7 +219,7 @@ func (ms *mockStorage) GetToken(id TokenID) (*TokenUnit, error) {
 	return nil, fmt.Errorf("unexpected GetToken(%x) call", id)
 }
 
-func (ms *mockStorage) QueryTokens(kind Kind, owner Predicate, startKey []byte, count int) ([]*TokenUnit, []byte, error) {
+func (ms *mockStorage) QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
 	if ms.queryTokens != nil {
 		return ms.queryTokens(kind, owner, startKey, count)
 	}

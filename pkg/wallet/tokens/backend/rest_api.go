@@ -25,8 +25,8 @@ import (
 
 type dataSource interface {
 	GetBlockNumber() (uint64, error)
-	QueryTokenType(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error)
-	QueryTokens(kind Kind, owner Predicate, startKey []byte, count int) ([]*TokenUnit, []byte, error)
+	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
 }
 

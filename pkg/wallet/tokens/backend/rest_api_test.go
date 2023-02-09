@@ -228,7 +228,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 		}
 
 		api := &restAPI{db: &mockStorage{
-			queryTokens: func(kind Kind, owner, startKey []byte, count int) ([]*TokenUnit, []byte, error) {
+			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
 				t.Error("unexpected QueryTokens call")
 				return nil, nil, fmt.Errorf("unexpected QueryTokens(%s, %x, %x, %d) call", kind, owner, startKey, count)
 			},
@@ -265,8 +265,8 @@ func Test_restAPI_listTokens(t *testing.T) {
 			{ID: []byte("3333"), Kind: Fungible},
 		}
 		ds := &mockStorage{
-			queryTokens: func(kind Kind, owner, startKey []byte, count int) ([]*TokenUnit, []byte, error) {
-				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
+			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+				require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
 				return data, data[len(data)-1].ID, nil
 			},
 		}
@@ -330,7 +330,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 		}
 
 		api := &restAPI{db: &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				t.Error("unexpected QueryTokenType call")
 				return nil, nil, fmt.Errorf("unexpected QueryTokenType call")
 			},
@@ -360,7 +360,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 		}
 		for _, tc := range cases {
 			ds := &mockStorage{
-				queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+				queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 					require.Equal(t, tc.value, count, "unexpected count sent to the query func with param %q", tc.qpar)
 					return nil, nil, nil
 				},
@@ -379,7 +379,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 		require.EqualValues(t, len(creatorID), n)
 
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				require.EqualValues(t, creatorID, creator)
 				require.Empty(t, startKey)
 				require.True(t, count > 0, "expected count to be > 0, got %d", count)
@@ -399,8 +399,8 @@ func Test_restAPI_listTypes(t *testing.T) {
 		require.EqualValues(t, len(currentID), n)
 
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
-				require.Equal(t, currentID, startKey)
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				require.EqualValues(t, currentID, startKey)
 				require.Empty(t, creator)
 				require.True(t, count > 0, "expected count to be > 0, got %d", count)
 				return nil, nil, nil
@@ -415,7 +415,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 	t.Run("kind parameter is sent to the query", func(t *testing.T) {
 		for _, tc := range []Kind{Any, Fungible, NonFungible} {
 			ds := &mockStorage{
-				queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+				queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 					require.Equal(t, kind, tc, "unexpected token kind sent to the query func")
 					return nil, nil, nil
 				},
@@ -429,7 +429,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 
 	t.Run("invalid kind parameter is sent", func(t *testing.T) {
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				t.Error("unexpected queryTTypes call")
 				return nil, nil, nil
 			},
@@ -448,7 +448,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 	t.Run("query returns error", func(t *testing.T) {
 		expErr := fmt.Errorf("failed to query database")
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				return nil, nil, expErr
 			},
 		}
@@ -459,7 +459,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 
 	t.Run("no data matches the query", func(t *testing.T) {
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				return nil, nil, nil
 			},
 		}
@@ -481,7 +481,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 			{ID: []byte("3333"), Kind: Fungible},
 		}
 		ds := &mockStorage{
-			queryTTypes: func(kind Kind, creator PubKey, startKey []byte, count int) ([]*TokenUnitType, []byte, error) {
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
 				return data, data[len(data)-1].ID, nil
 			},
 		}

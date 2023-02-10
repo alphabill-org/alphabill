@@ -28,7 +28,7 @@ type (
 	TokenUnitType struct {
 		// common
 		ID                       TokenTypeID `json:"id"`
-		ParentTypeID             TokenTypeID `json:"typeId"`
+		ParentTypeID             TokenTypeID `json:"parentTypeId"`
 		Symbol                   string      `json:"symbol"`
 		SubTypeCreationPredicate Predicate   `json:"subTypeCreationPredicate,omitempty"`
 		TokenCreationPredicate   Predicate   `json:"tokenCreationPredicate,omitempty"`

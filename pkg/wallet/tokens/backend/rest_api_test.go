@@ -36,21 +36,15 @@ func Test_restAPI_endpoints(t *testing.T) {
 
 	api := &restAPI{}
 	h := api.endpoints()
-	if h == nil {
-		t.Fatal("nil handler was returned")
-	}
+	require.NotNil(t, h, "nil handler was returned")
 
 	req := httptest.NewRequest("GET", "http://ab.com/api/v1/foobar", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
 	rsp := w.Result()
-	if rsp == nil {
-		t.Fatal("got nil response")
-	}
-	if rsp.StatusCode != http.StatusNotFound {
-		t.Errorf("expected 404, got %s", rsp.Status)
-	}
+	require.NotNil(t, rsp, "got nil response")
+	require.Equal(t, http.StatusNotFound, rsp.StatusCode, "unexpected status")
 }
 
 func Test_restAPI_postTransaction(t *testing.T) {
@@ -290,6 +284,23 @@ func Test_restAPI_listTokens(t *testing.T) {
 			if s := u.Query().Get("offsetKey"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
+		}
+	})
+
+	t.Run("no data", func(t *testing.T) {
+		ds := &mockStorage{
+			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+				return nil, nil, nil
+			},
+		}
+		resp := makeRequest(&restAPI{db: ds}, Any, ownerID, "")
+		// check that there is no data in body
+		var rspData []*TokenUnit
+		require.NoError(t, decodeResponse(t, resp, http.StatusOK, &rspData))
+		require.Empty(t, rspData)
+		// no more data
+		if lh := resp.Header.Get("Link"); lh != "" {
+			t.Errorf("unexpectedly the Link header is not empty, got %q", lh)
 		}
 	})
 }

@@ -53,7 +53,7 @@ type (
 		Decimals uint32 `json:"decimals,omitempty"`
 		// nft only
 		NftURI                 string    `json:"nftUri,omitempty"`
-		NftData                Predicate `json:"nftData,omitempty"`
+		NftData                []byte    `json:"nftData,omitempty"`
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
 		Kind   Kind   `json:"kind"`

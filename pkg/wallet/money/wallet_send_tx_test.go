@@ -32,9 +32,10 @@ func TestWalletSendFunction(t *testing.T) {
 
 	// add bill to wallet
 	b := Bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		Id:         uint256.NewInt(0),
+		Value:      100,
+		TxHash:     hash.Sum256([]byte{0x01}),
+		BlockProof: &BlockProof{},
 	}
 	err = w.db.Do().SetBill(0, &b)
 	require.NoError(t, err)
@@ -236,9 +237,10 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	// setup wallet
 	w, mockClient := CreateTestWallet(t)
 	b := Bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		Id:         uint256.NewInt(0),
+		Value:      100,
+		TxHash:     hash.Sum256([]byte{0x01}),
+		BlockProof: &BlockProof{},
 	}
 	_ = w.db.Do().SetBill(0, &b)
 	_ = w.db.Do().SetFeeCreditBill(0, &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}})
@@ -262,9 +264,10 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 	// setup wallet
 	w, mockClient := CreateTestWallet(t)
 	b := Bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		Id:         uint256.NewInt(0),
+		Value:      100,
+		TxHash:     hash.Sum256([]byte{0x01}),
+		BlockProof: &BlockProof{},
 	}
 	_ = w.db.Do().SetBill(0, &b)
 	_ = w.db.Do().SetFeeCreditBill(0, &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}})

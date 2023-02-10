@@ -372,9 +372,10 @@ func addBills(t *testing.T, w *Wallet) {
 
 func addBill(t *testing.T, w *Wallet, value uint64) *Bill {
 	b1 := Bill{
-		Id:     uint256.NewInt(value),
-		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		Id:         uint256.NewInt(value),
+		Value:      value,
+		TxHash:     hash.Sum256([]byte{byte(value)}),
+		BlockProof: &BlockProof{},
 	}
 	err := w.db.Do().SetBill(0, &b1)
 	require.NoError(t, err)
@@ -399,9 +400,10 @@ func addFeeCreditBill(t *testing.T, w *Wallet) *Bill {
 func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeout uint64) *Bill {
 	nonceB32 := nonce.Bytes32()
 	b := Bill{
-		Id:     uint256.NewInt(value),
-		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		Id:         uint256.NewInt(value),
+		Value:      value,
+		TxHash:     hash.Sum256([]byte{byte(value)}),
+		BlockProof: &BlockProof{},
 	}
 	k, _ := w.db.Do().GetAccountKey(0)
 

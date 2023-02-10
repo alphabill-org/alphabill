@@ -230,6 +230,75 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestBlockProcessing_OldBlockDoesNotOverwriteNewerBills(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+
+	k, err := w.db.Do().GetAccountKey(0)
+	require.NoError(t, err)
+
+	// create block with each type of tx
+	b := &block.Block{
+		SystemIdentifier:  w.SystemID(),
+		PreviousBlockHash: hash.Sum256([]byte{}),
+		Transactions: []*txsystem.Transaction{
+			// random dust transfer can be processed
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x00}),
+				TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentEmpty(),
+			},
+			// receive transfer of 100 bills
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x01}),
+				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			},
+			// receive split of 100 bills
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x02}),
+				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			},
+			// receive swap of 100 bills
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x03}),
+				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+			},
+		},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 10}},
+	}
+
+	// for each tx in a block add unit to db with newer block number
+	actualBlockNumber := b.UnicityCertificate.InputRecord.RoundNumber + 1
+	for _, tx := range b.Transactions {
+		bill := &Bill{
+			Id:         uint256.NewInt(0).SetBytes(tx.UnitId),
+			Value:      1,
+			BlockProof: &BlockProof{BlockNumber: actualBlockNumber},
+		}
+		_ = w.db.Do().SetBill(0, bill)
+	}
+
+	// process block
+	err = w.ProcessBlock(b)
+	require.NoError(t, err)
+
+	// verify none of the txs are processed
+	bills, _ := w.db.Do().GetBills(0)
+	for _, actualBill := range bills {
+		require.Equal(t, actualBlockNumber, actualBill.BlockProof.BlockNumber)
+	}
+}
+
 func TestBlockProcessing_InvalidSystemID(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 

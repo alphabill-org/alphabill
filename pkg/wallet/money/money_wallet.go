@@ -153,7 +153,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 	}
 
 	return w.db.WithTransaction(func(dbTx TxContext) error {
-		lastBlockNumber, err := w.db.Do().GetBlockNumber()
+		lastBlockNumber, err := dbTx.GetBlockNumber()
 		if err != nil {
 			return err
 		}
@@ -162,8 +162,12 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 			return err
 		}
 		for _, acc := range w.accounts.getAll() {
+			fcb, err := dbTx.GetFeeCreditBill(acc.accountIndex)
+			if err != nil {
+				return err
+			}
 			for _, pbTx := range b.Transactions {
-				err = w.collectBills(dbTx, pbTx, b, &acc)
+				err = w.collectBills(dbTx, pbTx, b, getFCBlockNumber(fcb), &acc)
 				if err != nil {
 					return err
 				}
@@ -560,6 +564,8 @@ func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof
 	if err != nil {
 		return nil, err
 	}
+	// TODO waiting can be canceled or AddFC tx can fail
+	// record some metadata about transferFC so that AddFC can be retried
 	fcTransferProof, err := w.waitForConfirmation(ctx, []*txsystem.Transaction{tx}, lastRoundNo, timeout, cmd.AccountIndex)
 	if err != nil {
 		return nil, err
@@ -657,7 +663,7 @@ func (w *Wallet) GetConfig() WalletConfig {
 	return w.config
 }
 
-func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, acc *account) error {
+func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *block.Block, fcBlockNumber uint64, acc *account) error {
 	gtx, err := money.NewMoneyTx(w.SystemID(), txPb)
 	if err != nil {
 		return err
@@ -665,6 +671,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	currentBlockNumber := b.UnicityCertificate.InputRecord.RoundNumber
 	switch tx := gtx.(type) {
 	case money.Transfer:
+		err := w.updateFCB(dbTx, txPb, acc, fcBlockNumber, currentBlockNumber)
+		if err != nil {
+			return err
+		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
 			bill, err := dbTx.GetBill(acc.accountIndex, txPb.UnitId)
 			if err != nil && !errors.Is(err, errBillNotFound) {
@@ -684,6 +694,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			return dbTx.RemoveBill(acc.accountIndex, tx.UnitID())
 		}
 	case money.TransferDC:
+		err := w.updateFCB(dbTx, txPb, acc, fcBlockNumber, currentBlockNumber)
+		if err != nil {
+			return err
+		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.TargetBearer()) {
 			bill, err := dbTx.GetBill(acc.accountIndex, txPb.UnitId)
 			if err != nil && !errors.Is(err, errBillNotFound) {
@@ -707,6 +721,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			return dbTx.RemoveBill(acc.accountIndex, tx.UnitID())
 		}
 	case money.Split:
+		err := w.updateFCB(dbTx, txPb, acc, fcBlockNumber, currentBlockNumber)
+		if err != nil {
+			return err
+		}
 		// split tx contains two bills: existing bill and new bill
 		// if any of these bills belong to wallet then we have to
 		// 1) update the existing bill and
@@ -748,6 +766,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}, acc.accountIndex)
 		}
 	case money.Swap:
+		err := w.updateFCB(dbTx, txPb, acc, fcBlockNumber, currentBlockNumber)
+		if err != nil {
+			return err
+		}
 		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.OwnerCondition()) {
 			bill, err := dbTx.GetBill(acc.accountIndex, txPb.UnitId)
 			if err != nil && !errors.Is(err, errBillNotFound) {
@@ -810,9 +832,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 			log.Info("received addFC order")
 			err = w.saveFCBWithProof(dbTx, b, txPb, &Bill{
-				Id:     tx.UnitID(),
-				Value:  getValue(fcb) + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
-				TxHash: tx.Hash(crypto.SHA256),
+				Id:            tx.UnitID(),
+				Value:         getValue(fcb) + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
+				TxHash:        tx.Hash(crypto.SHA256),
+				FCBlockNumber: currentBlockNumber,
 			}, acc.accountIndex)
 			if err != nil {
 				return err
@@ -831,9 +854,10 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			}
 			log.Info("received closeFC order")
 			err = w.saveFCBWithProof(dbTx, b, txPb, &Bill{
-				Id:     tx.UnitID(),
-				Value:  getValue(fcb) - tx.CloseFC.Amount,
-				TxHash: tx.Hash(crypto.SHA256),
+				Id:            tx.UnitID(),
+				Value:         getValue(fcb) - tx.CloseFC.Amount,
+				TxHash:        tx.Hash(crypto.SHA256),
+				FCBlockNumber: currentBlockNumber,
 			}, acc.accountIndex)
 			if err != nil {
 				return err
@@ -862,6 +886,33 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	default:
 		log.Warning(fmt.Sprintf("received unknown transaction type, skipping processing: %s", tx))
 		return nil
+	}
+	return nil
+}
+
+func (w *Wallet) updateFCB(dbTx TxContext, txPb *txsystem.Transaction, acc *account, fcBlockNumber, currentBlockNumber uint64) error {
+	if bytes.Equal(txPb.ClientMetadata.FeeCreditRecordId, acc.privKeyHash) {
+		fcb, err := dbTx.GetFeeCreditBill(acc.accountIndex)
+		if err != nil {
+			return err
+		}
+		if fcb == nil {
+			return errors.New("received tx with wallet's fee credit record id, but wallet's FCB is nil")
+		}
+		if fcBlockNumber >= currentBlockNumber {
+			log.Debug("not updating FCB (already updated)")
+			return nil
+		}
+		if fcb.Value < txPb.ServerMetadata.Fee {
+			return errors.New("received tx where charged fee is greater than wallet's FCB balance")
+		}
+		log.Debug("updating FCB value: old=", fcb.Value, " new=", fcb.Value-txPb.ServerMetadata.Fee, " lastUpdatedBlockNumber=", fcBlockNumber, " CurrentBlockNumber=", currentBlockNumber)
+		fcb.Value -= txPb.ServerMetadata.Fee
+		fcb.FCBlockNumber = currentBlockNumber
+		err = dbTx.SetFeeCreditBill(acc.accountIndex, fcb)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1159,7 +1210,13 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 			tx := gtx.ToProtoBuf()
 			if txsLog.contains(tx) {
 				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				err = w.collectBills(w.db.Do(), tx, b, &w.accounts.getAll()[accountIndex])
+				err = w.db.WithTransaction(func(dbTx TxContext) error {
+					fcb, err := dbTx.GetFeeCreditBill(accountIndex)
+					if err != nil {
+						return err
+					}
+					return w.collectBills(dbTx, tx, b, getFCBlockNumber(fcb), &w.accounts.getAll()[accountIndex])
+				})
 				if err != nil {
 					return nil, err
 				}

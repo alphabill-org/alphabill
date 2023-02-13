@@ -173,6 +173,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 				// receive transfer of 100 bills
 				{
@@ -181,6 +182,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 				// receive split of 100 bills
 				{
@@ -189,6 +191,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 				// receive swap of 100 bills
 				{
@@ -197,6 +200,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 			},
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
@@ -248,6 +252,7 @@ func TestBlockProcessing_OldBlockDoesNotOverwriteNewerBills(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentEmpty(),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive transfer of 100 bills
 			{
@@ -256,6 +261,7 @@ func TestBlockProcessing_OldBlockDoesNotOverwriteNewerBills(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive split of 100 bills
 			{
@@ -264,6 +270,7 @@ func TestBlockProcessing_OldBlockDoesNotOverwriteNewerBills(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive swap of 100 bills
 			{
@@ -272,6 +279,7 @@ func TestBlockProcessing_OldBlockDoesNotOverwriteNewerBills(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 		},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 10}},
@@ -328,6 +336,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive dc transfer of 100 bills
 			{
@@ -336,6 +345,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateDustTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive split of 100 bills
 			{
@@ -344,6 +354,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive swap of 100 bills
 			{
@@ -352,6 +363,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 		},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},

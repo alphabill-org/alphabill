@@ -25,6 +25,10 @@ type (
 		DcNonce   []byte `json:"dcNonce"`
 		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree
 		DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
+
+		// fcb specific fields
+		// FCBlockNumber block number when fee credit bill balance was last updated
+		FCBlockNumber uint64 `json:"fcBlockNumber"`
 	}
 
 	BlockProof struct {
@@ -110,6 +114,13 @@ func getTxHash(b *Bill) []byte {
 func getValue(b *Bill) uint64 {
 	if b != nil {
 		return b.Value
+	}
+	return 0
+}
+
+func getFCBlockNumber(b *Bill) uint64 {
+	if b != nil {
+		return b.FCBlockNumber
 	}
 	return 0
 }

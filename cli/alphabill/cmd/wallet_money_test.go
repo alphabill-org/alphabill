@@ -283,10 +283,20 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// verify balance after swap remains the same
 	verifyAccountBalance(t, homedir, w2Balance, 1)
 
-	// send account 2 bills to account 3
+	// verify account-2 fcb balance is reduced after swap
+	stdout = execWalletCmd(t, homedir, "fees list -k 2")
+	w2FeeCredit = w2FeeCredit - 1 - 3 // 6 => added 10 credit minus 1 for transferFC minus 3 for 2x dcTx and 1x swap tx
+	verifyStdout(t, stdout, fmt.Sprintf("Account #2 %d", w2FeeCredit))
+
+	// send account-2 bills to account 3
 	stdout = execWalletCmd(t, homedir, "send --amount 2 --key 2 --address "+pubKey3Hex)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 	waitForBalance(t, homedir, 2, 2)
+
+	// verify account-2 fcb balance is reduced after send
+	stdout = execWalletCmd(t, homedir, "fees list -k 2")
+	w2FeeCredit = w2FeeCredit - 1
+	verifyStdout(t, stdout, fmt.Sprintf("Account #2 %d", w2FeeCredit))
 }
 
 func TestSendWithoutWaitingForConfirmation(t *testing.T) {

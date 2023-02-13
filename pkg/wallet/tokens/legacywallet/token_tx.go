@@ -1,4 +1,4 @@
-package oldwallet
+package legacywallet
 
 import (
 	"bytes"

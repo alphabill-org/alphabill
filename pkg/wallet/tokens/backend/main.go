@@ -4,6 +4,7 @@ package twb
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"time"
@@ -55,13 +56,20 @@ func Run(ctx context.Context, cfg Configuration) error {
 
 	g.Go(func() error {
 		bp := &blockProcessor{store: db, txs: txs, logErr: cfg.ErrLogger()}
-		// on bootstrap storage returns 0 as current block and as block numbering
-		// starts from 1 by adding 1 to it we start with the first block.
-		blockNumber, err := db.GetBlockNumber()
-		if err != nil {
-			return fmt.Errorf("failed to read current block number for a sync starting point: %w", err)
+		errLog := cfg.ErrLogger()
+		// we act as if all errors returned by block sync are recoverable ie we
+		// just retry in a loop until ctx is cancelled
+		for {
+			err := runBlockSync(ctx, abc.GetBlocks, db.GetBlockNumber, cfg.BatchSize(), bp.ProcessBlock)
+			if err != nil {
+				errLog("synchronizing blocks returned error:", err)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(rand.Int31n(10)+10) * time.Second):
+			}
 		}
-		return blocksync.Run(ctx, abc.GetBlocks, blockNumber+1, 0, cfg.BatchSize(), bp.ProcessBlock)
 	})
 
 	g.Go(func() error {
@@ -75,6 +83,16 @@ func Run(ctx context.Context, cfg Configuration) error {
 	})
 
 	return g.Wait()
+}
+
+func runBlockSync(ctx context.Context, getBlocks blocksync.BlocksLoaderFunc, getBlockNumber func() (uint64, error), batchSize int, processor blocksync.BlockProcessorFunc) error {
+	blockNumber, err := getBlockNumber()
+	if err != nil {
+		return fmt.Errorf("failed to read current block number for a sync starting point: %w", err)
+	}
+	// on bootstrap storage returns 0 as current block and as block numbering
+	// starts from 1 by adding 1 to it we start with the first block
+	return blocksync.Run(ctx, getBlocks, blockNumber+1, 0, batchSize, processor)
 }
 
 type cfg struct {

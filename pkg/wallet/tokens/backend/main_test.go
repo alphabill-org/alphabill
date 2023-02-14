@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,39 +30,75 @@ func Test_Run(t *testing.T) {
 	t.Parallel()
 
 	t.Run("failure to get storage", func(t *testing.T) {
-		cfg := &mockCfg{} // no db cfg assigned, will cause error
+		cfg := &mockCfg{} // no db cfg assigned, should cause error before subprocesses start
 		err := Run(context.Background(), cfg)
 		require.EqualError(t, err, `failed to get storage: neither db file name nor mock is assigned`)
 	})
 
+	// extract error from logger func passed in via conf - we expect
+	// that logger is called with two arguments (string, error) and we return
+	// the error argument logged.
+	getErrorFromLog := func(a ...any) error {
+		if len(a) != 2 {
+			return fmt.Errorf("expected slice length 2, got %d", len(a))
+		}
+		err, ok := a[1].(error)
+		if !ok {
+			return fmt.Errorf("the second element of the slice is not an error but %T", a[1])
+		}
+		return err
+	}
+
 	t.Run("failure to get starting block number from storage", func(t *testing.T) {
-		expErr := fmt.Errorf("can't get  block number")
+		// as the sync subprocess runs in retry loop we check that expected error is
+		// logged and then stop the service by cancelling the ctx
+		ctx, cancel := context.WithCancel(context.Background())
+		var logCalls int32
+		expErr := fmt.Errorf("can't get block number")
 		cfg := &mockCfg{
 			db: &mockStorage{
-				getBlockNumber: func() (uint64, error) { return 0, expErr },
+				getBlockNumber: func() (uint64, error) {
+					cancel() // stop the service
+					return 0, expErr
+				},
 			},
 			abc: &mockABClient{},
+			errLog: func(a ...any) {
+				atomic.AddInt32(&logCalls, 1)
+				require.ErrorIs(t, getErrorFromLog(a...), expErr)
+			},
 		}
 		require.NoError(t, cfg.initListener())
 
-		err := Run(context.Background(), cfg)
-		require.ErrorIs(t, err, expErr)
+		err := Run(ctx, cfg)
+		require.ErrorIs(t, err, context.Canceled)
+		require.EqualValues(t, 1, logCalls, "expected logError to be called once")
 	})
 
 	t.Run("failure to fetch new blocks from AB", func(t *testing.T) {
+		// as the sync subprocess runs in retry loop we check that expected error is
+		// logged and then stop the service by cancelling the ctx
+		ctx, cancel := context.WithCancel(context.Background())
+		var logCalls int32
 		expErr := fmt.Errorf("AB doesn't return blocks right now")
 		cfg := &mockCfg{
 			dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 			abc: &mockABClient{
 				getBlocks: func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+					cancel() // stop the service
 					return nil, expErr
 				},
+			},
+			errLog: func(a ...any) {
+				atomic.AddInt32(&logCalls, 1)
+				require.ErrorIs(t, getErrorFromLog(a...), expErr)
 			},
 		}
 		require.NoError(t, cfg.initListener())
 
-		err := Run(context.Background(), cfg)
-		require.ErrorIs(t, err, expErr)
+		err := Run(ctx, cfg)
+		require.ErrorIs(t, err, context.Canceled)
+		require.EqualValues(t, 1, logCalls, "expected logError to be called once")
 	})
 
 	t.Run("cancelling ctx stops the backend", func(t *testing.T) {
@@ -78,6 +115,7 @@ func Test_Run(t *testing.T) {
 					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber}, nil
 				},
 			},
+			errLog: func(a ...any) { t.Log(a...) },
 		}
 		require.NoError(t, cfg.initListener())
 
@@ -110,7 +148,7 @@ func Test_Run_API(t *testing.T) {
 	syncing := make(chan *txsystem.Transaction)
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
-		errLog: func(a ...any) { t.Errorf("ERROR LOG: %v", a) },
+		errLog: func(a ...any) { t.Log(a) },
 		dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 		abc: &mockABClient{
 			sendTransaction: func(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {

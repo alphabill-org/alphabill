@@ -148,7 +148,7 @@ func Test_Run_API(t *testing.T) {
 	syncing := make(chan *txsystem.Transaction)
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
-		errLog: func(a ...any) { t.Log(a) },
+		errLog: func(a ...any) { fmt.Println(a...) },
 		dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 		abc: &mockABClient{
 			sendTransaction: func(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {

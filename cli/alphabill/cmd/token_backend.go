@@ -54,12 +54,9 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 	if err != nil {
 		return fmt.Errorf("failed to get %q flag value: %w", serverAddrCmdName, err)
 	}
-	dbFile, err := cmd.Flags().GetString(dbFileCmdName)
+	dbFile, err := filenameEnsureDir(dbFileCmdName, cmd, config.HomeDir, "token-backend", "tokens.db")
 	if err != nil {
-		return fmt.Errorf("failed to get %q flag value: %w", dbFileCmdName, err)
-	}
-	if dbFile == "" {
-		dbFile = filepath.Join(config.HomeDir, "token-backend", "tokens.db")
+		return fmt.Errorf("failed to get path for database: %w", err)
 	}
 
 	logFile, err := cmd.Flags().GetString(logFileCmdName)
@@ -82,6 +79,26 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 	}()
 
 	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger.Error))
+}
+
+/*
+filenameEnsureDir assumes that "flagName" is a filename parameter in "cmd" and returns it's value
+or name constructed from defaultPathElements (when the flag value is empty). It also ensures that
+the directory of the file exists (ie creates it when it doesn't exist already).
+*/
+func filenameEnsureDir(flagName string, cmd *cobra.Command, defaultPathElements ...string) (string, error) {
+	fileName, err := cmd.Flags().GetString(flagName)
+	if err != nil {
+		return "", fmt.Errorf("failed to get %q flag value: %w", flagName, err)
+	}
+	if fileName == "" {
+		fileName = filepath.Join(defaultPathElements...)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(fileName), 0700); err != nil {
+		return "", fmt.Errorf("failed to create directory path: %w", err)
+	}
+	return fileName, nil
 }
 
 func initLogger(fileName, logLevel string) (wlog.Logger, error) {

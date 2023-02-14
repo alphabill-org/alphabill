@@ -34,7 +34,7 @@ type (
 		TokenCreationPredicate   Predicate   `json:"tokenCreationPredicate,omitempty"`
 		InvariantPredicate       Predicate   `json:"invariantPredicate,omitempty"`
 		// fungible only
-		DecimalPlaces uint32 `json:"decimalPlaces,omitempty"`
+		DecimalPlaces uint32 `json:"decimalPlaces"`
 		// nft only
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
@@ -50,7 +50,7 @@ type (
 		Owner  Predicate   `json:"owner"`
 		// fungible only
 		Amount   uint64 `json:"amount"`
-		Decimals uint32 `json:"decimals,omitempty"`
+		Decimals uint32 `json:"decimals"`
 		// nft only
 		NftURI                 string    `json:"nftUri,omitempty"`
 		NftData                []byte    `json:"nftData,omitempty"`

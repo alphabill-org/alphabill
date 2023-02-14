@@ -15,11 +15,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -43,7 +44,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 	log.Info(fmt.Sprintf("Converted tx: UnitId=%X, TxId=%X", id, txHash))
 
 	switch ctx := gtx.(type) {
-	case tokens.CreateFungibleTokenType:
+	case ttxs.CreateFungibleTokenType:
 		log.Info("CreateFungibleTokenType tx")
 		err = w.addTokenTypeWithProof(&TokenUnitType{
 			ID:            id,
@@ -55,7 +56,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 		if err != nil {
 			return err
 		}
-	case tokens.MintFungibleToken:
+	case ttxs.MintFungibleToken:
 		log.Info("MintFungibleToken tx")
 		if checkOwner(accNr, key, ctx.Bearer()) {
 			tType, err := txc.GetTokenType(ctx.TypeID())
@@ -82,7 +83,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		}
-	case tokens.TransferFungibleToken:
+	case ttxs.TransferFungibleToken:
 		log.Info("TransferFungibleToken tx")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
 			tokenInfo, err := txc.GetTokenType(ctx.TypeID())
@@ -109,7 +110,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		}
-	case tokens.SplitFungibleToken:
+	case ttxs.SplitFungibleToken:
 		log.Info("SplitFungibleToken tx")
 		tok, err := txc.GetToken(accNr, id)
 		if err != nil {
@@ -162,13 +163,13 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		}
-	case tokens.BurnFungibleToken:
+	case ttxs.BurnFungibleToken:
 		log.Info("Token tx: BurnFungibleToken")
 		panic("not implemented") // TODO
-	case tokens.JoinFungibleToken:
+	case ttxs.JoinFungibleToken:
 		log.Info("Token tx: JoinFungibleToken")
 		panic("not implemented") // TODO
-	case tokens.CreateNonFungibleTokenType:
+	case ttxs.CreateNonFungibleTokenType:
 		log.Info("Token tx: CreateNonFungibleTokenType")
 		err := w.addTokenTypeWithProof(&TokenUnitType{
 			ID:           id,
@@ -179,7 +180,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 		if err != nil {
 			return err
 		}
-	case tokens.MintNonFungibleToken:
+	case ttxs.MintNonFungibleToken:
 		log.Info("Token tx: MintNonFungibleToken")
 		if checkOwner(accNr, key, ctx.Bearer()) {
 			tType, err := txc.GetTokenType(ctx.NFTTypeID())
@@ -206,7 +207,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		}
-	case tokens.TransferNonFungibleToken:
+	case ttxs.TransferNonFungibleToken:
 		log.Info("Token tx: TransferNonFungibleToken")
 		if checkOwner(accNr, key, ctx.NewBearer()) {
 			tType, err := txc.GetTokenType(ctx.NFTTypeID())
@@ -232,7 +233,7 @@ func (w *Wallet) readTx(txc TokenTxContext, tx *txsystem.Transaction, b *block.B
 				return err
 			}
 		}
-	case tokens.UpdateNonFungibleToken:
+	case ttxs.UpdateNonFungibleToken:
 		log.Info("Token tx: UpdateNonFungibleToken")
 		tok, err := txc.GetToken(accNr, id)
 		if err != nil {
@@ -259,7 +260,7 @@ func checkOwner(accNr uint64, pubkeyHashes *account.KeyHashes, bearerPredicate [
 	}
 }
 
-func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInputs, typeId TokenTypeID, subtypePredicateArgs []*tokens.PredicateInput) (TokenID, error) {
 	sub, err := w.sendTx(TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, gtx)
 		if err != nil {
@@ -274,7 +275,7 @@ func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInput
 	return sub.id, w.syncToUnit(ctx, sub.id, sub.timeout)
 }
 
-func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
+func preparePredicateSignatures(am account.Manager, args []*tokens.PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
 	signatures := make([][]byte, 0, len(args))
 	for _, input := range args {
 		if len(input.Argument) > 0 {
@@ -296,7 +297,7 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx 
 	return signatures, nil
 }
 
-func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId TokenID, mintPredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId TokenID, mintPredicateArgs []*tokens.PredicateInput) (TokenID, error) {
 	var keyHash []byte
 	if accNr > 0 {
 		accIdx := accNr - 1
@@ -352,7 +353,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *account.Account
 	if err != nil {
 		return txSub, err
 	}
-	gtx, err := tokens.NewGenericTx(tx)
+	gtx, err := ttxs.NewGenericTx(tx)
 	if err != nil {
 		return txSub, err
 	}
@@ -376,7 +377,7 @@ func (w *Wallet) sendTx(unitId TokenID, attrs proto.Message, ac *account.Account
 	return txSub, nil
 }
 
-func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (tokens.Predicate, error) {
+func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (ttxs.Predicate, error) {
 	if ac == nil {
 		return script.PredicateArgumentEmpty(), nil
 	}
@@ -391,9 +392,9 @@ func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (tokens.Pre
 	return script.PredicateArgumentPayToPublicKeyHashDefault(sig, ac.PubKey), nil
 }
 
-func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferFungibleTokenAttributes {
+func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *ttxs.TransferFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating transfer with bl=%X", token.Backlink))
-	return &tokens.TransferFungibleTokenAttributes{
+	return &ttxs.TransferFungibleTokenAttributes{
 		Type:                         token.TypeID,
 		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
 		Value:                        token.Amount,
@@ -402,9 +403,9 @@ func newFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens
 	}
 }
 
-func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tokens.TransferNonFungibleTokenAttributes {
+func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *ttxs.TransferNonFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating NFT transfer with bl=%X", token.Backlink))
-	return &tokens.TransferNonFungibleTokenAttributes{
+	return &ttxs.TransferNonFungibleTokenAttributes{
 		NftType:                      token.TypeID,
 		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
 		Backlink:                     token.Backlink,
@@ -412,23 +413,23 @@ func newNonFungibleTransferTxAttrs(token *TokenUnit, receiverPubKey []byte) *tok
 	}
 }
 
-func bearerPredicateFromHash(receiverPubKeyHash []byte) tokens.Predicate {
+func bearerPredicateFromHash(receiverPubKeyHash []byte) ttxs.Predicate {
 	if receiverPubKeyHash != nil {
 		return script.PredicatePayToPublicKeyHashDefault(receiverPubKeyHash)
 	}
 	return script.PredicateAlwaysTrue()
 }
 
-func bearerPredicateFromPubKey(receiverPubKey PublicKey) tokens.Predicate {
+func bearerPredicateFromPubKey(receiverPubKey PublicKey) ttxs.Predicate {
 	if receiverPubKey == nil {
 		return bearerPredicateFromHash(nil)
 	}
 	return bearerPredicateFromHash(hash.Sum256(receiverPubKey))
 }
 
-func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *tokens.SplitFungibleTokenAttributes {
+func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *ttxs.SplitFungibleTokenAttributes {
 	log.Info(fmt.Sprintf("Creating split with bl=%X, new value=%v", token.Backlink, amount))
-	return &tokens.SplitFungibleTokenAttributes{
+	return &ttxs.SplitFungibleTokenAttributes{
 		Type:                         token.TypeID,
 		NewBearer:                    bearerPredicateFromPubKey(receiverPubKey),
 		TargetValue:                  amount,
@@ -439,7 +440,7 @@ func newSplitTxAttrs(token *TokenUnit, amount uint64, receiverPubKey []byte) *to
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *account.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (map[string]*submittedTx, uint64, error) {
+func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *account.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*tokens.PredicateInput) (map[string]*submittedTx, uint64, error) {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
@@ -464,7 +465,7 @@ func (w *Wallet) doSendMultiple(amount uint64, tokens []*TokenUnit, acc *account
 	return submissions, maxTimeout, nil
 }
 
-func (w *Wallet) sendSplitOrTransferTx(acc *account.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submittedTx, error) {
+func (w *Wallet) sendSplitOrTransferTx(acc *account.AccountKey, amount uint64, token *TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*tokens.PredicateInput) (*submittedTx, error) {
 	var attrs AttrWithInvariantPredicateInputs
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
@@ -487,7 +488,7 @@ func (w *Wallet) sendSplitOrTransferTx(acc *account.AccountKey, amount uint64, t
 
 func createTx(unitId []byte, timeout uint64) *txsystem.Transaction {
 	return &txsystem.Transaction{
-		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
+		SystemId:              ttxs.DefaultTokenTxSystemIdentifier,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
 		Timeout:               timeout,

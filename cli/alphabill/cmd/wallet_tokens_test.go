@@ -542,7 +542,7 @@ func TestListTokensCommandInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind, accountNumber *int) error {
+			cmd := tokenLegacyCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind, accountNumber *int) error {
 				require.Equal(t, tt.accountNumber, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) > 0 {
@@ -681,7 +681,7 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind) error {
+			cmd := tokenLegacyCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind) error {
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) != 0 {
 					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)

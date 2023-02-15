@@ -163,8 +163,8 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 			if err != nil {
 				return nil, err
 			}
-			for _, t := range ts {
-				allTokensForKey = append(allTokensForKey, &t)
+			for i := range ts {
+				allTokensForKey = append(allTokensForKey, &ts[i])
 			}
 			if offsetKey == "" {
 				break

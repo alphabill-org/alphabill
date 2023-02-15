@@ -36,6 +36,92 @@ func Test_Load(t *testing.T) {
 	require.EqualValues(t, 42, rn)
 }
 
+func Test_ListTokens(t *testing.T) {
+	be := &mockTokenBackend{
+		getTokens: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, _ string, _ int) ([]twb.TokenUnit, string, error) {
+			fungible := []twb.TokenUnit{
+				{
+					ID:   test.RandomBytes(32),
+					Kind: twb.Fungible,
+				},
+				{
+					ID:   test.RandomBytes(32),
+					Kind: twb.Fungible,
+				},
+			}
+			nfts := []twb.TokenUnit{
+				{
+					ID:   test.RandomBytes(32),
+					Kind: twb.NonFungible,
+				},
+				{
+					ID:   test.RandomBytes(32),
+					Kind: twb.NonFungible,
+				},
+			}
+			switch kind {
+			case twb.Fungible:
+				return fungible, "", nil
+			case twb.NonFungible:
+				return nfts, "", nil
+			case twb.Any:
+				return append(fungible, nfts...), "", nil
+			}
+			return nil, "", fmt.Errorf("invalid kind")
+		},
+	}
+
+	tw := initTestWallet(t, be)
+	tokens, err := tw.ListTokens(context.Background(), twb.Any, AllAccounts)
+	require.NoError(t, err)
+	require.Len(t, tokens[1], 4)
+
+	tokens, err = tw.ListTokens(context.Background(), twb.Fungible, AllAccounts)
+	require.NoError(t, err)
+	require.Len(t, tokens[1], 2)
+
+	tokens, err = tw.ListTokens(context.Background(), twb.NonFungible, AllAccounts)
+	require.NoError(t, err)
+	require.Len(t, tokens[1], 2)
+}
+
+func Test_ListTokens_offset(t *testing.T) {
+	allTokens := []twb.TokenUnit{
+		{
+			ID:     test.RandomBytes(32),
+			Kind:   twb.Fungible,
+			Symbol: "1",
+		},
+		{
+			ID:     test.RandomBytes(32),
+			Kind:   twb.Fungible,
+			Symbol: "2",
+		},
+		{
+			ID:     test.RandomBytes(32),
+			Kind:   twb.Fungible,
+			Symbol: "3",
+		},
+	}
+
+	be := &mockTokenBackend{
+		getTokens: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, offsetKey string, _ int) ([]twb.TokenUnit, string, error) {
+			return getSubarray(allTokens, offsetKey)
+		},
+	}
+
+	tw := initTestWallet(t, be)
+	tokens, err := tw.ListTokens(context.Background(), twb.Any, AllAccounts)
+	tokensForAccount := tokens[1]
+	require.NoError(t, err)
+	require.Len(t, tokensForAccount, len(allTokens))
+	dereferencedTokens := make([]twb.TokenUnit, len(tokensForAccount))
+	for i := range tokensForAccount {
+		dereferencedTokens[i] = *tokensForAccount[i]
+	}
+	require.Equal(t, allTokens, dereferencedTokens)
+}
+
 func Test_ListTokenTypes(t *testing.T) {
 	be := &mockTokenBackend{
 		getTokenTypes: func(ctx context.Context, kind twb.Kind, _ twb.PubKey, _ string, _ int) ([]twb.TokenUnitType, string, error) {
@@ -115,22 +201,7 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 	}
 	be := &mockTokenBackend{
 		getTokenTypes: func(ctx context.Context, _ twb.Kind, _ twb.PubKey, offsetKey string, _ int) ([]twb.TokenUnitType, string, error) {
-			defaultLimit := 2
-			offset := 0
-			var err error
-
-			if offsetKey != "" {
-				offset, err = strconv.Atoi(offsetKey)
-				require.NoError(t, err)
-			}
-			types := allTypes[offset:util.Min(offset+defaultLimit, len(allTypes))]
-			offset += defaultLimit
-			if offset >= len(allTypes) {
-				offsetKey = ""
-			} else {
-				offsetKey = strconv.Itoa(offset)
-			}
-			return types, offsetKey, nil
+			return getSubarray(allTypes, offsetKey)
 		},
 	}
 
@@ -190,4 +261,25 @@ func (m *mockTokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 		return m.getRoundNumber(ctx)
 	}
 	return 0, fmt.Errorf("GetRoundNumber not implemented")
+}
+
+func getSubarray[T interface{}](array []T, offsetKey string) ([]T, string, error) {
+	defaultLimit := 2
+	offset := 0
+	var err error
+
+	if offsetKey != "" {
+		offset, err = strconv.Atoi(offsetKey)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	subarray := array[offset:util.Min(offset+defaultLimit, len(array))]
+	offset += defaultLimit
+	if offset >= len(array) {
+		offsetKey = ""
+	} else {
+		offsetKey = strconv.Itoa(offset)
+	}
+	return subarray, offsetKey, nil
 }

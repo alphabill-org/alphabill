@@ -106,8 +106,8 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, kind twb.Kind) ([]*twb.Toke
 			if err != nil {
 				return nil, err
 			}
-			for _, t := range types {
-				allTokenTypesForKey = append(allTokenTypesForKey, &t)
+			for i := range types {
+				allTokenTypesForKey = append(allTokenTypesForKey, &types[i])
 			}
 			if offsetKey == "" {
 				break

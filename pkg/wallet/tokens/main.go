@@ -31,7 +31,7 @@ type (
 	Wallet struct {
 		txs     block.TxConverter
 		am      account.Manager
-		backend *client.TokenBackend
+		backend client.TokenBackend
 	}
 )
 
@@ -202,4 +202,8 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 
 func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) error {
 	panic("not implemented")
+}
+
+func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {
+	return w.backend.GetRoundNumber(ctx)
 }

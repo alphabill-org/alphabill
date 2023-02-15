@@ -37,7 +37,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	require.NotNil(t, tx)
 	require.EqualValues(t, systemId, tx.SystemId)
 	require.EqualValues(t, billIdBytes, tx.UnitId)
-	require.EqualValues(t, timeout, tx.Timeout)
+	require.EqualValues(t, timeout, tx.Timeout())
 	require.NotNil(t, tx.OwnerProof)
 
 	so := &moneytx.SplitOrder{}

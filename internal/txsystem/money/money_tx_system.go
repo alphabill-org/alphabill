@@ -210,7 +210,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return err
 		}
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
 
 		// update state
 		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId)
@@ -233,7 +233,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return err
 		}
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
 
 		// update state
 		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId)
@@ -260,11 +260,13 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return err
 		}
-		h := tx.Hash(m.hashAlgorithm)
 		newItemId := txutil.SameShardID(tx.UnitID(), tx.HashForIdCalculation(m.hashAlgorithm))
 
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
+
+		// calcualte hash after setting server metadata
+		h := tx.Hash(m.hashAlgorithm)
 
 		// update state
 		fcrID := uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId)
@@ -279,7 +281,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 					return &BillData{
 						V:        bd.V - tx.Amount(),
 						T:        m.currentBlockNumber,
-						Backlink: tx.Hash(m.hashAlgorithm),
+						Backlink: h,
 					}
 				}, h),
 			rma.AddItem(newItemId, tx.TargetBearer(), &BillData{
@@ -294,7 +296,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return err
 		}
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
 
 		// set n as the target value
 		n := tx.TargetValue()
@@ -331,9 +333,8 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return fmt.Errorf("transferFC: validation failed: %w", err)
 		}
-
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
 
 		// remove value from source unit, or delete source bill entirely
 		var updateFunc rma.Action
@@ -371,7 +372,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return fmt.Errorf("addFC tx validation failed: %w", err)
 		}
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
 
 		var updateFunc rma.Action
 		// find net value of credit
@@ -403,7 +404,7 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 			return fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
 
 		// decrement credit
 		updateFunc := txsystem.DecrCredit(tx.UnitID(), tx.CloseFC.Amount, tx.Hash(m.hashAlgorithm))
@@ -425,9 +426,8 @@ func (m *moneyTxSystem) Execute(gtx txsystem.GenericTransaction) error {
 		if err != nil {
 			return fmt.Errorf("reclaimFC: validation failed: %w", err)
 		}
-
 		// calculate actual tx fee cost
-		txPB.ServerMetadata = &txsystem.ServerMetadata{Fee: TxFeeFunc()}
+		gtx.SetServerMetadata(&txsystem.ServerMetadata{Fee: TxFeeFunc()})
 
 		// add reclaimed value to source unit
 		v := tx.CloseFCTransfer.CloseFC.Amount - tx.CloseFCTransfer.Transaction.ServerMetadata.Fee - txPB.ServerMetadata.Fee

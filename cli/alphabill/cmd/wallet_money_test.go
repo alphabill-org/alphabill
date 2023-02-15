@@ -506,7 +506,6 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		UnitId:                billId32[:],
 		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout:           timeout,

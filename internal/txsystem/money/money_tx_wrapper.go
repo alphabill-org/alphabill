@@ -330,7 +330,7 @@ func (w *wrapper) UnitID() *uint256.Int {
 }
 
 func (w *wrapper) Timeout() uint64 {
-	return w.transaction.Timeout
+	return w.transaction.Timeout()
 }
 
 func (w *wrapper) SystemID() []byte {
@@ -349,17 +349,34 @@ func (w *wrapper) IsPrimary() bool {
 	return true
 }
 
+func (w *wrapper) SetServerMetadata(sm *txsystem.ServerMetadata) {
+	w.ToProtoBuf().ServerMetadata = sm
+	w.resetHasher()
+}
+
+func (w *wrapper) resetHasher() {
+	w.hashValue = nil
+}
+
 func (w *wrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.transaction.SystemId)
 	b.Write(w.transaction.UnitId)
-	b.Write(util.Uint64ToBytes(w.transaction.Timeout))
+	if w.transaction.ClientMetadata != nil {
+		b.Write(w.transaction.ClientMetadata.Bytes())
+	}
 }
 
 func (w *wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(w.transaction.SystemId)
 	hasher.Write(w.transaction.UnitId)
 	hasher.Write(w.transaction.OwnerProof)
-	hasher.Write(util.Uint64ToBytes(w.transaction.Timeout))
+	hasher.Write(w.transaction.FeeProof)
+	if w.transaction.ClientMetadata != nil {
+		hasher.Write(w.transaction.ClientMetadata.Bytes())
+	}
+	if w.transaction.ServerMetadata != nil {
+		hasher.Write(w.transaction.ServerMetadata.Bytes())
+	}
 }
 
 func (w *wrapper) hashComputed(hashFunc crypto.Hash) bool {

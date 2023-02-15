@@ -66,7 +66,7 @@ func TestWalletSendFunction(t *testing.T) {
 	mockClient.SetMaxRoundNumber(100)
 	mockClient.SetTxListener(func(tx *txsystem.Transaction) {
 		_, rn, _ := mockClient.GetMaxBlockNumber()
-		require.Equal(t, rn+txTimeoutBlockCount, tx.Timeout)
+		require.Equal(t, rn+txTimeoutBlockCount, tx.Timeout())
 	})
 	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.NoError(t, err)

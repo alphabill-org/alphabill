@@ -44,7 +44,7 @@ func TestWrapper_TransferFC(t *testing.T) {
 
 	require.Equal(t, pbTransaction.SystemId, fc.SystemID())
 	require.Equal(t, pbTransaction.UnitId, util.Uint256ToBytes(fc.UnitID()))
-	require.Equal(t, pbTransaction.Timeout, fc.Timeout())
+	require.Equal(t, pbTransaction.Timeout(), fc.Timeout())
 	require.Equal(t, pbTransaction.OwnerProof, fc.OwnerProof())
 
 	require.Equal(t, pbTransferFC.Amount, fc.TransferFC.Amount)
@@ -70,7 +70,7 @@ func TestWrapper_AddFC(t *testing.T) {
 
 	require.Equal(t, pbTransaction.SystemId, fc.SystemID())
 	require.Equal(t, pbTransaction.UnitId, util.Uint256ToBytes(fc.UnitID()))
-	require.Equal(t, pbTransaction.Timeout, fc.Timeout())
+	require.Equal(t, pbTransaction.Timeout(), fc.Timeout())
 	require.Equal(t, pbTransaction.OwnerProof, fc.OwnerProof())
 
 	require.Equal(t, pbAddFC.FeeCreditOwnerCondition, fc.AddFC.FeeCreditOwnerCondition)
@@ -118,6 +118,8 @@ func TestTransferFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
 	b.Write(util.Uint64ToBytes(amount))
 	b.Write(systemID)
 	b.Write(recordID)
@@ -138,6 +140,8 @@ func TestAddFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
 	b.Write(owner)
 	b.Write(transferFC.SigBytes())
 	b.Write(transferFC.OwnerProof())
@@ -151,6 +155,8 @@ func TestCloseFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
 	b.Write(util.Uint64ToBytes(amount))
 	b.Write(targetUnitId)
 	b.Write(nonce)
@@ -167,6 +173,8 @@ func TestReclaimFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0)) // max fee
+	b.Write(nil)                   // fee credit record id
 	b.Write(closeFC.SigBytes())
 	b.Write(closeFC.OwnerProof())
 	b.Write(closeFCProof.Bytes())
@@ -181,6 +189,8 @@ func TestTransferFC_HashIsCalculatedCorrectly(t *testing.T) {
 	h.Write(unitID)
 	h.Write(ownerProof)
 	h.Write(util.Uint64ToBytes(timeout))
+	h.Write(util.Uint64ToBytes(0)) // max fee
+	h.Write(nil)                   // fee credit record id
 	h.Write(util.Uint64ToBytes(amount))
 	h.Write(systemID)
 	h.Write(recordID)
@@ -201,6 +211,8 @@ func TestAddFC_HashIsCalculatedCorrectly(t *testing.T) {
 	h.Write(unitID)
 	h.Write(ownerProof)
 	h.Write(util.Uint64ToBytes(timeout))
+	h.Write(util.Uint64ToBytes(0)) // max fee
+	h.Write(nil)                   // fee credit record id
 	h.Write(owner)
 	transferFC.AddToHasher(h)
 	h.Write(transferFCProof.Bytes())
@@ -214,6 +226,8 @@ func TestCloseFC_HashIsCalculatedCorrectly(t *testing.T) {
 	h.Write(unitID)
 	h.Write(ownerProof)
 	h.Write(util.Uint64ToBytes(timeout))
+	h.Write(util.Uint64ToBytes(0)) // max fee
+	h.Write(nil)                   // fee credit record id
 	h.Write(util.Uint64ToBytes(amount))
 	h.Write(targetUnitId)
 	h.Write(nonce)
@@ -230,6 +244,8 @@ func TestReclaimFC_HashIsCalculatedCorrectly(t *testing.T) {
 	h.Write(unitID)
 	h.Write(ownerProof)
 	h.Write(util.Uint64ToBytes(timeout))
+	h.Write(util.Uint64ToBytes(0)) // max fee
+	h.Write(nil)                   // fee credit record id
 	closeFC.AddToHasher(h)
 	h.Write(closeFCProof.Bytes())
 	h.Write(backlink)
@@ -277,7 +293,7 @@ func createTransferFCTxOrder() txsystem.GenericTransaction {
 		SystemId:              systemID,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                unitID,
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	_ = tx.TransactionAttributes.MarshalFrom(newPBTransferFC(amount, t1, t2, systemID, recordID, nonce, backlink))
@@ -290,7 +306,7 @@ func createAddFCTxOrder(t *testing.T, transferFC *txsystem.Transaction, proof *b
 		SystemId:              systemID,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                unitID,
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	err := tx.TransactionAttributes.MarshalFrom(newPBAddFC(owner, transferFC, proof))
@@ -305,7 +321,7 @@ func createCloseFCTxOrder() txsystem.GenericTransaction {
 		SystemId:              systemID,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                unitID,
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	_ = tx.TransactionAttributes.MarshalFrom(newPBCloseFC(amount, targetUnitId, nonce))
@@ -318,7 +334,7 @@ func createReclaimFCTxOrder(t *testing.T, closeFC *txsystem.Transaction, closeFC
 		SystemId:              systemID,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                unitID,
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	err := tx.TransactionAttributes.MarshalFrom(newPBReclaimFC(backlink, closeFC, closeFCProof))
@@ -333,7 +349,7 @@ func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Mes
 		SystemId:              systemID,
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	err := anypb.MarshalFrom(to.TransactionAttributes, attr, proto.MarshalOptions{})

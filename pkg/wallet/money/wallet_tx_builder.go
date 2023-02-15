@@ -145,7 +145,6 @@ func createGenericTx(systemId, unitId []byte, timeout uint64, fcrID []byte) *txs
 		SystemId:              systemId,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout:           timeout,
 			MaxFee:            maxFee,

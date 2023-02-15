@@ -187,7 +187,6 @@ func TestPartition_SwapOk(t *testing.T) {
 	swapTx := &txsystem.Transaction{
 		SystemId:              systemIdentifier,
 		UnitId:                newBillID,
-		Timeout:               20,
 		TransactionAttributes: swapOrder,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		FeeProof:              script.PredicateArgumentEmpty(),

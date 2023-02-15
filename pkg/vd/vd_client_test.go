@@ -62,7 +62,7 @@ func TestVdClient_RegisterHash(t *testing.T) {
 	dataHash, err := uint256.FromHex(hashHex)
 	require.NoError(t, err)
 	require.EqualValues(t, util.Uint256ToBytes(dataHash), mock.tx.UnitId)
-	require.Equal(t, mock.maxRoundNumber+vdClient.timeoutDelta, mock.tx.Timeout)
+	require.Equal(t, mock.maxRoundNumber+vdClient.timeoutDelta, mock.tx.Timeout())
 }
 
 func TestVdClient_RegisterHash_SyncBlocks(t *testing.T) {

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
@@ -81,6 +83,66 @@ func Test_ListTokenTypes(t *testing.T) {
 	types, err = tw.ListTokenTypes(context.Background(), twb.NonFungible)
 	require.NoError(t, err)
 	require.Len(t, types, 2)
+}
+
+func Test_ListTokenTypes_offset(t *testing.T) {
+	allTypes := []twb.TokenUnitType{
+		{
+			ID:     test.RandomBytes(32),
+			Symbol: "1",
+			Kind:   twb.Fungible,
+		},
+		{
+			ID:     test.RandomBytes(32),
+			Symbol: "2",
+			Kind:   twb.Fungible,
+		},
+		{
+			ID:     test.RandomBytes(32),
+			Symbol: "3",
+			Kind:   twb.Fungible,
+		},
+		{
+			ID:     test.RandomBytes(32),
+			Symbol: "4",
+			Kind:   twb.Fungible,
+		},
+		{
+			ID:     test.RandomBytes(32),
+			Symbol: "5",
+			Kind:   twb.Fungible,
+		},
+	}
+	be := &mockTokenBackend{
+		getTokenTypes: func(ctx context.Context, _ twb.Kind, _ twb.PubKey, offsetKey string, _ int) ([]twb.TokenUnitType, string, error) {
+			defaultLimit := 2
+			offset := 0
+			var err error
+
+			if offsetKey != "" {
+				offset, err = strconv.Atoi(offsetKey)
+				require.NoError(t, err)
+			}
+			types := allTypes[offset:util.Min(offset+defaultLimit, len(allTypes))]
+			offset += defaultLimit
+			if offset >= len(allTypes) {
+				offsetKey = ""
+			} else {
+				offsetKey = strconv.Itoa(offset)
+			}
+			return types, offsetKey, nil
+		},
+	}
+
+	tw := initTestWallet(t, be)
+	types, err := tw.ListTokenTypes(context.Background(), twb.Any)
+	require.NoError(t, err)
+	require.Len(t, types, len(allTypes))
+	dereferencedTypes := make([]twb.TokenUnitType, len(types))
+	for i := range types {
+		dereferencedTypes[i] = *types[i]
+	}
+	require.Equal(t, allTypes, dereferencedTypes)
 }
 
 func initTestWallet(t *testing.T, backend client.TokenBackend) *Wallet {

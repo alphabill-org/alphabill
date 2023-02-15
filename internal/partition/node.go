@@ -187,8 +187,8 @@ func initState(n *Node) error {
 	if err != nil {
 		return err
 	}
-	var uc *certificates.UnicityCertificate
-	if latestPersistedBlock != nil && latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber > genesisBlock.UnicityCertificate.InputRecord.RoundNumber {
+	if latestPersistedBlock != nil && latestPersistedBlock.BlockNumber > genesisBlock.BlockNumber {
+		var uc *certificates.UnicityCertificate
 		// restore from store
 		prevBlock := genesisBlock
 		for i := genesisBlock.UnicityCertificate.InputRecord.RoundNumber + 1; i <= latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber; i++ {
@@ -206,17 +206,17 @@ func initState(n *Node) error {
 			prevBlock = bl
 		}
 		logger.Info("State initialised from persistent store up to block #%v", prevBlock.UnicityCertificate.InputRecord.RoundNumber)
-
+		n.updateLUC(uc)
 		n.restoreBlockProposal(prevBlock)
 	} else {
 		if err := n.blockStore.AddGenesis(genesisBlock); err != nil {
 			return err
 		}
 		n.transactionSystem.Commit() // commit everything from the genesis
-		uc = genesisBlock.UnicityCertificate
+		n.updateLUC(genesisBlock.UnicityCertificate)
 		logger.Info("State initialised from the genesis block")
 	}
-	n.updateLUC(uc)
+
 	return nil
 }
 
@@ -283,8 +283,8 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 			reportAndRevert("Block proposal recovery failed: %s", errors.Errorf(", invalid state (proposal's state hash: %X, current state hash: %X", proposal.StateHash, state.Root()))
 			return
 		}
-		n.transactionSystem.Commit()
-		n.handleT1TimeoutEvent()
+		// wait for UC to certify the block proposal
+		n.pendingBlockProposal = proposal
 	}
 }
 

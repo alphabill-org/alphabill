@@ -11,12 +11,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func createTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*Bill, k *wallet.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
+func createTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*Bill, k *account.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
 	var txs []*txsystem.Transaction
 	var accumulatedSum uint64
 	// sort bills by value in descending order
@@ -39,14 +39,14 @@ func createTransactions(pubKey []byte, amount uint64, systemId []byte, bills []*
 
 }
 
-func createTransaction(pubKey []byte, k *wallet.AccountKey, amount uint64, systemId []byte, b *Bill, timeout uint64) (*txsystem.Transaction, error) {
+func createTransaction(pubKey []byte, k *account.AccountKey, amount uint64, systemId []byte, b *Bill, timeout uint64) (*txsystem.Transaction, error) {
 	if b.Value <= amount {
 		return createTransferTx(pubKey, k, systemId, b, timeout)
 	}
 	return createSplitTx(amount, pubKey, k, systemId, b, timeout)
 }
 
-func createTransferTx(pubKey []byte, k *wallet.AccountKey, systemId []byte, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
+func createTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
@@ -73,7 +73,7 @@ func createGenericTx(systemId, unitId []byte, timeout uint64) *txsystem.Transact
 	}
 }
 
-func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, systemId []byte, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
+func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
 		Amount:         amount,
@@ -91,8 +91,8 @@ func createSplitTx(amount uint64, pubKey []byte, k *wallet.AccountKey, systemId 
 	return tx, nil
 }
 
-func createDustTx(k *wallet.AccountKey, systemId []byte, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(systemId, bill.GetID(), timeout)
+func createDustTx(k *account.AccountKey, systemId []byte, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
+	tx := createGenericTx(bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
@@ -109,7 +109,7 @@ func createDustTx(k *wallet.AccountKey, systemId []byte, bill *Bill, nonce []byt
 	return tx, nil
 }
 
-func createSwapTx(k *wallet.AccountKey, systemId []byte, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
+func createSwapTx(k *account.AccountKey, systemId []byte, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}
@@ -148,7 +148,7 @@ func createSwapTx(k *wallet.AccountKey, systemId []byte, dcBills []*Bill, dcNonc
 	return swapTx, nil
 }
 
-func signTx(systemId []byte, tx *txsystem.Transaction, ac *wallet.AccountKey) error {
+func signTx(systemId []byte, tx *txsystem.Transaction, ac *account.AccountKey) error {
 	signer, err := crypto.NewInMemorySecp256K1SignerFromKey(ac.PrivKey)
 	if err != nil {
 		return err

@@ -7,19 +7,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 var receiverPubKey, _ = hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
-var accountKey, _ = wallet.NewKeys(testMnemonic)
+var accountKey, _ = account.NewKeys(testMnemonic)
 
 func TestSplitTransactionAmount(t *testing.T) {
 	receiverPubKey, _ := hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
 	receiverPubKeyHash := hash.Sum256(receiverPubKey)
-	keys, _ := wallet.NewKeys(testMnemonic)
+	keys, _ := account.NewKeys(testMnemonic)
 	billId := uint256.NewInt(0)
 	billIdBytes32 := billId.Bytes32()
 	billIdBytes := billIdBytes32[:]

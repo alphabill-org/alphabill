@@ -3,7 +3,6 @@ package money
 import (
 	"context"
 	"crypto"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path"
@@ -17,72 +16,34 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"github.com/tyler-smith/go-bip39"
 )
 
 const (
-	testMnemonic                 = "dinosaur simple verify deliver bless ridge monkey design venue six problem lucky"
-	testMasterKeyBase58          = "xprv9s21ZrQH143K4ZSw4N2P35FTs9PNiLAuufvQWoodWoneZ71o52jTL4VJuEXHej21BPUF9dQm5u3curjcem5zsARtq1MKP9mrbbq1qKqyuFX"
-	testPubKey0Hex               = "03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
-	testPubKey1Hex               = "02d36c574db299904b285aaeb57eb7b1fa145c43af90bec3c635c4174c224587b6"
-	testPubKey2Hex               = "02f6cbeacfd97ebc9b657081eb8b6c9ed3a588646d618ddbd03e198290af94c9d2"
-	testPrivKey0Hex              = "70096ea8536cfba71203a959ed7de2a5900c5547762606f73b2aa078a66e355f"
-	testPubKey0HashSha256Hex     = "f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
-	testPubKey0HashSha512Hex     = "9254c2cb897e4b458ba51eb200015e301d578cd5572b75068dfd1332f8200d15b2642f623d5a5d8e8174508e93b22c75801ea95bf9be479de90aaf2776171251"
-	testAccountKeyDerivationPath = "m/44'/634'/0'/0/0"
+	testMnemonic   = "dinosaur simple verify deliver bless ridge monkey design venue six problem lucky"
+	testPubKey0Hex = "03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
+	testPubKey1Hex = "02d36c574db299904b285aaeb57eb7b1fa145c43af90bec3c635c4174c224587b6"
+	testPubKey2Hex = "02f6cbeacfd97ebc9b657081eb8b6c9ed3a588646d618ddbd03e198290af94c9d2"
 )
-
-func TestWalletCanBeCreated(t *testing.T) {
-	w, _ := CreateTestWallet(t)
-
-	balance, err := w.GetBalance(GetBalanceCmd{})
-	require.EqualValues(t, 0, balance)
-	require.NoError(t, err)
-
-	mnemonic, err := w.db.Do().GetMnemonic()
-	require.NoError(t, err)
-	require.True(t, bip39.IsMnemonicValid(mnemonic))
-
-	masterKeyString, err := w.db.Do().GetMasterKey()
-	require.NoError(t, err)
-	masterKey, err := hdkeychain.NewKeyFromString(masterKeyString)
-	require.NoError(t, err)
-
-	ac, err := w.db.Do().GetAccountKey(0)
-	require.NoError(t, err)
-
-	eac, err := wallet.NewAccountKey(masterKey, testAccountKeyDerivationPath)
-	require.NoError(t, err)
-	require.NotNil(t, eac)
-	require.EqualValues(t, eac, ac)
-}
 
 func TestExistingWalletCanBeLoaded(t *testing.T) {
 	walletDbPath, err := CopyWalletDBFile(t)
 	require.NoError(t, err)
 
-	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath})
+	am, err := account.NewManager(walletDbPath, "", true)
+	w, err := LoadExistingWallet(WalletConfig{DbPath: walletDbPath}, am)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		w.Shutdown()
 	})
-
-	verifyTestWallet(t, w)
-}
-
-func TestWalletCanBeCreatedFromSeed(t *testing.T) {
-	w, _ := CreateTestWalletFromSeed(t)
-	verifyTestWallet(t, w)
 }
 
 func TestWallet_GetPublicKey(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
-	pubKey, err := w.GetPublicKey(0)
+	pubKey, err := w.am.GetPublicKey(0)
 	require.NoError(t, err)
 	require.EqualValues(t, "0x"+testPubKey0Hex, hexutil.Encode(pubKey))
 }
@@ -91,7 +52,7 @@ func TestWallet_GetPublicKeys(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t)
 	_, _, _ = w.AddAccount()
 
-	pubKeys, err := w.GetPublicKeys()
+	pubKeys, err := w.am.GetPublicKeys()
 	require.NoError(t, err)
 	require.Len(t, pubKeys, 2)
 	require.EqualValues(t, "0x"+testPubKey0Hex, hexutil.Encode(pubKeys[0]))
@@ -105,14 +66,14 @@ func TestWallet_AddKey(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, accIdx)
 	require.EqualValues(t, "0x"+testPubKey1Hex, hexutil.Encode(accPubKey))
-	accIdx, _ = w.db.Do().GetMaxAccountIndex()
+	accIdx, _ = w.am.GetMaxAccountIndex()
 	require.EqualValues(t, 1, accIdx)
 
 	accIdx, accPubKey, err = w.AddAccount()
 	require.NoError(t, err)
 	require.EqualValues(t, 2, accIdx)
 	require.EqualValues(t, "0x"+testPubKey2Hex, hexutil.Encode(accPubKey))
-	accIdx, _ = w.db.Do().GetMaxAccountIndex()
+	accIdx, _ = w.am.GetMaxAccountIndex()
 	require.EqualValues(t, 2, accIdx)
 }
 
@@ -138,28 +99,10 @@ func TestWallet_GetBalances(t *testing.T) {
 	require.EqualValues(t, 4, balances[1])
 }
 
-func TestWalletIsClosedAfterCallingIsEncrypted(t *testing.T) {
-	// create and shutdown wallet
-	w, _ := CreateTestWallet(t)
-	w.Shutdown()
-
-	// call IsEncrypted
-	_, err := IsEncrypted(w.config)
-	require.NoError(t, err)
-
-	// when wallet is loaded
-	w, err = LoadExistingWallet(w.config)
-	require.NoError(t, err)
-
-	// then using wallet db should not hang
-	_, err = w.GetPublicKey(0)
-	require.NoError(t, err)
-}
-
 func TestBlockProcessing(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	k, err := w.db.Do().GetAccountKey(0)
+	k, err := w.am.GetAccountKey(0)
 	require.NoError(t, err)
 
 	blocks := []*block.Block{
@@ -247,7 +190,7 @@ func TestBlockProcessing_InvalidSystemID(t *testing.T) {
 
 func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 	w, _ := CreateTestWallet(t)
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 
 	testBlock := &block.Block{
 		SystemIdentifier:  w.SystemID(),
@@ -317,10 +260,12 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 
 func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	// create wallet with invalid seed
-	_ = DeleteWalletDb(os.TempDir())
-	c := WalletConfig{DbPath: os.TempDir()}
+	dir := t.TempDir()
+	c := WalletConfig{DbPath: dir}
 	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
-	_, err := CreateNewWallet(invalidSeed, c)
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+	_, err = CreateNewWallet(am, invalidSeed, c)
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created
@@ -384,7 +329,7 @@ func TestWalletGetBill(t *testing.T) {
 func TestWalletAddBill(t *testing.T) {
 	// setup wallet
 	w, _ := CreateTestWalletFromSeed(t)
-	pubkey, _ := w.GetPublicKey(0)
+	pubkey, _ := w.am.GetPublicKey(0)
 
 	// verify nil bill
 	err := w.AddBill(0, nil)
@@ -421,23 +366,6 @@ func TestWalletAddBill(t *testing.T) {
 		BlockProof: &BlockProof{Tx: createTransferTxForPubKey(w.SystemID(), pubkey)},
 	})
 	require.NoError(t, err)
-}
-
-func verifyTestWallet(t *testing.T, w *Wallet) {
-	mnemonic, err := w.db.Do().GetMnemonic()
-	require.NoError(t, err)
-	require.Equal(t, testMnemonic, mnemonic)
-
-	mk, err := w.db.Do().GetMasterKey()
-	require.NoError(t, err)
-	require.Equal(t, testMasterKeyBase58, mk)
-
-	ac, err := w.db.Do().GetAccountKey(0)
-	require.NoError(t, err)
-	require.Equal(t, testPubKey0Hex, hex.EncodeToString(ac.PubKey))
-	require.Equal(t, testPrivKey0Hex, hex.EncodeToString(ac.PrivKey))
-	require.Equal(t, testPubKey0HashSha256Hex, hex.EncodeToString(ac.PubKeyHash.Sha256))
-	require.Equal(t, testPubKey0HashSha512Hex, hex.EncodeToString(ac.PubKeyHash.Sha512))
 }
 
 func createTransferTxForPubKey(systemId, pubkey []byte) *txsystem.Transaction {

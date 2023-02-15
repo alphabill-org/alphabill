@@ -219,6 +219,9 @@ func Test_restAPI_listTokens(t *testing.T) {
 			{kind: "all", owner: "0x" + strings.Repeat("ABCDEFGHIJK", 6), qparam: "", errMsg: `invalid parameter "owner": invalid hex string`}, // correct length but invalid content
 			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=ABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`},
 			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=0xABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": invalid hex string`},
+			{kind: "all", owner: pubKeyHex, qparam: "limit=0", errMsg: `invalid parameter "limit": value must be greater than zero, got 0`},
+			{kind: "all", owner: pubKeyHex, qparam: "limit=-1", errMsg: `invalid parameter "limit": value must be greater than zero, got -1`},
+			{kind: "all", owner: pubKeyHex, qparam: "limit=foo", errMsg: `invalid parameter "limit": failed to parse "foo" as integer: strconv.Atoi: parsing "foo": invalid syntax`},
 		}
 
 		api := &restAPI{db: &mockStorage{
@@ -338,6 +341,9 @@ func Test_restAPI_listTypes(t *testing.T) {
 				qparam: "offsetKey=0x" + strings.Repeat("ABCDEFGHIJK", 6),
 				errMsg: `invalid parameter "offsetKey": invalid hex string`,
 			},
+			{qparam: "limit=0", errMsg: `invalid parameter "limit": value must be greater than zero, got 0`},
+			{qparam: "limit=-1", errMsg: `invalid parameter "limit": value must be greater than zero, got -1`},
+			{qparam: "limit=foo", errMsg: `invalid parameter "limit": failed to parse "foo" as integer: strconv.Atoi: parsing "foo": invalid syntax`},
 		}
 
 		api := &restAPI{db: &mockStorage{
@@ -354,20 +360,16 @@ func Test_restAPI_listTypes(t *testing.T) {
 	})
 
 	t.Run("limit param is sent to the query", func(t *testing.T) {
-		// when param is invalid or missing then default value 100 is used
 		cases := []struct {
 			qpar  string // param we send in URL
 			value int    // what we expect to see in a query callback
 		}{
-			{value: 100, qpar: "limit="},
-			{value: 100, qpar: "limit=0"},
+			{value: 100, qpar: "limit="}, // when param is missing then default value 100 is used
 			{value: 1, qpar: "limit=1"},
 			{value: 99, qpar: "limit=99"},
 			{value: 100, qpar: "limit=100"},
-			{value: 100, qpar: "limit=101"},
+			{value: 100, qpar: "limit=101"}, // when over limit max limit is used
 			{value: 100, qpar: "limit=321"},
-			{value: 100, qpar: "limit=-1"},
-			{value: 100, qpar: "limit=foo"},
 		}
 		for _, tc := range cases {
 			ds := &mockStorage{

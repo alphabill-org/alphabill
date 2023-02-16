@@ -93,7 +93,7 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 func processBlocks(ctx context.Context, blocks <-chan *block.Block, processor BlockProcessorFunc) error {
 	for b := range blocks {
 		if err := processor(ctx, b); err != nil {
-			return fmt.Errorf("failed to procces block {%x : %d}: %w", b.SystemIdentifier, b.UnicityCertificate.InputRecord.RoundNumber, err)
+			return fmt.Errorf("failed to procces block {%x : %d}: %w", b.SystemIdentifier, b.GetRoundNumber(), err)
 		}
 	}
 	return nil

@@ -33,3 +33,10 @@ func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
 		UnicityCertificate: x.UnicityCertificate,
 	}, nil
 }
+
+func (x *Block) GetRoundNumber() uint64 {
+	if x != nil {
+		return x.UnicityCertificate.GetRoundNumber()
+	}
+	return 0
+}

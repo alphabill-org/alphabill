@@ -99,7 +99,7 @@ func (s *RequestHandler) Router() *mux.Router {
 // @version 1.0
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x" example(0x000000000000000000000000000000000000000000000000000000000000000123)
-// @Param limit query int false "limits how many bills are returned in response" default(0)
+// @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
 // @Router /list-bills [get]

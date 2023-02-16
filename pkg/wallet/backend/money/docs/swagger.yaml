@@ -316,7 +316,7 @@ paths:
         name: pubkey
         required: true
         type: string
-      - default: 0
+      - default: 100
         description: limits how many bills are returned in response
         in: query
         name: limit

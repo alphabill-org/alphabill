@@ -76,7 +76,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "default": 0,
+                        "default": 100,
                         "description": "limits how many bills are returned in response",
                         "name": "limit",
                         "in": "query"

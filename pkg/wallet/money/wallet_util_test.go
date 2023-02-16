@@ -2,17 +2,21 @@ package money
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/stretchr/testify/require"
 )
 
 func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	c := WalletConfig{DbPath: t.TempDir()}
-	w, err := CreateNewWallet("", c)
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
+	require.NoError(t, err)
+
+	w, err := CreateNewWallet(am, "", WalletConfig{DbPath: dir})
 	require.NoError(t, err)
 	t.Cleanup(w.Shutdown)
 
@@ -22,8 +26,12 @@ func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 }
 
 func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: t.TempDir()})
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
+	w, err := CreateNewWallet(am, testMnemonic, WalletConfig{DbPath: dir})
+	require.NoError(t, err)
+	t.Cleanup(w.Shutdown)
 
 	mockClient := &clientmock.MockAlphabillClient{}
 	w.AlphabillClient = mockClient
@@ -32,19 +40,13 @@ func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *clientmock.MockAlphabillC
 
 func CopyWalletDBFile(t *testing.T) (string, error) {
 	wd, _ := os.Getwd()
-	srcDir := path.Join(wd, "testdata", "wallet")
-	return copyWalletDB(srcDir, t.TempDir())
+	srcDir := filepath.Join(wd, "testdata", "wallet")
+	return copyWalletDB(srcDir)
 }
 
-func CopyEncryptedWalletDBFile(t *testing.T) (string, error) {
-	wd, _ := os.Getwd()
-	srcDir := path.Join(wd, "testdata", "wallet", "encrypted")
-	return copyWalletDB(srcDir, t.TempDir())
-}
-
-func copyWalletDB(srcDir string, dstDir string) (string, error) {
-	srcFile := path.Join(srcDir, WalletFileName)
-	dstFile := path.Join(dstDir, WalletFileName)
+func copyWalletDB(srcDir string), dstDir string) (string, error) {
+	srcFile := filepath.Join(srcDir, WalletFileName)
+	dstFile := filepath.Join(dstDir, WalletFileName)
 	return dstDir, copyFile(srcFile, dstFile)
 }
 

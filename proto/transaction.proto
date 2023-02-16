@@ -38,3 +38,7 @@ message ServerMetadata {
   // actual transaction fee charged
   uint64 fee = 1;
 }
+
+message Transactions {
+  repeated Transaction transactions = 1;
+}

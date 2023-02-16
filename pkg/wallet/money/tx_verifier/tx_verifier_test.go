@@ -6,7 +6,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/hash"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,13 +22,13 @@ func TestTxVerifier(t *testing.T) {
 	tests := []struct {
 		name    string
 		gtx     txsystem.GenericTransaction
-		key     *wallet.KeyHashes
+		key     *account.KeyHashes
 		wantErr string
 	}{
 		{name: "tx is nil", gtx: nil, key: nil, wantErr: "tx is nil"},
 		{name: "key is nil", gtx: moneytesttx.RandomGenericBillTransfer(t), key: nil, wantErr: "key is nil"},
-		{name: "transfer invalid bearer predicate", gtx: moneytesttx.RandomGenericBillTransfer(t), key: wallet.NewKeyHash([]byte{}), wantErr: "invalid bearer predicate"},
-		{name: "transfer ok", gtx: gtx, key: wallet.NewKeyHash(pubkey), wantErr: ""},
+		{name: "transfer invalid bearer predicate", gtx: moneytesttx.RandomGenericBillTransfer(t), key: account.NewKeyHash([]byte{}), wantErr: "invalid bearer predicate"},
+		{name: "transfer ok", gtx: gtx, key: account.NewKeyHash(pubkey), wantErr: ""},
 	}
 
 	for _, tt := range tests {

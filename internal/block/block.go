@@ -41,3 +41,10 @@ func (x *Block) GetPrimaryProof(unitID []byte, txc TxConverter, hashAlgorithm cr
 	}
 	return NewPrimaryProof(block, unitID, hashAlgorithm)
 }
+
+func (x *Block) GetRoundNumber() uint64 {
+	if x != nil {
+		return x.UnicityCertificate.GetRoundNumber()
+	}
+	return 0
+}

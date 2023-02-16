@@ -616,7 +616,7 @@ func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	var types []t.TokenTypeID
+	var types []legacywallet.TokenTypeID
 	for _, tokenType := range typeIDStrs {
 		typeBytes, err := decodeHexOrEmpty(tokenType)
 		if err != nil {

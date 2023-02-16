@@ -64,10 +64,6 @@ func (w *Wallet) SystemID() []byte {
 	return tokens.DefaultTokenTxSystemIdentifier
 }
 
-func (w *Wallet) GetAccountManager() wallet.AccountManager {
-	return w.mw
-}
-
 func (w *Wallet) Shutdown() {
 	w.am.Close()
 
@@ -341,18 +337,18 @@ func (w *Wallet) CollectDust(ctx context.Context, accountNumber int, tokenTypes 
 		return errors.New("invalid account number for dust collection (#0)")
 	}
 
-	var keys []*wallet.AccountKey
+	var keys []*account.AccountKey
 	var err error
 	singleKey := false
 	if accountNumber > AllAccounts+1 {
-		key, err := w.mw.GetAccountKey(uint64(accountNumber - 1))
+		key, err := w.am.GetAccountKey(uint64(accountNumber - 1))
 		if err != nil {
 			return err
 		}
 		keys = append(keys, key)
 		singleKey = true
 	} else {
-		keys, err = w.mw.GetAccountKeys()
+		keys, err = w.am.GetAccountKeys()
 		if err != nil {
 			return err
 		}

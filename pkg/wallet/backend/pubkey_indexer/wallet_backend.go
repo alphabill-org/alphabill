@@ -123,9 +123,6 @@ func (w *WalletBackend) StartProcess(ctx context.Context) {
 		case <-time.After(10 * time.Second):
 		}
 	}
-		case <-time.After(10 * time.Second):
-		}
-	}
 }
 
 func (w *WalletBackend) SystemID() []byte {

@@ -187,7 +187,7 @@ func initState(n *Node) error {
 	if err != nil {
 		return err
 	}
-	if latestPersistedBlock != nil && latestPersistedBlock.BlockNumber > genesisBlock.BlockNumber {
+	if latestPersistedBlock != nil && latestPersistedBlock.UnicityCertificate.InputRecord.RoundNumber > genesisBlock.UnicityCertificate.InputRecord.RoundNumber {
 		var uc *certificates.UnicityCertificate
 		// restore from store
 		prevBlock := genesisBlock

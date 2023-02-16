@@ -29,14 +29,16 @@ func NewBlockProcessor(store BillStore, txConverter TxConverter) *BlockProcessor
 }
 
 func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
+	roundNumber := b.UnicityCertificate.InputRecord.RoundNumber
+	wlog.Info("processing block: ", roundNumber)
 	return p.store.WithTransaction(func(dbTx BillStoreTx) error {
-		wlog.Info("processing block: ", b.BlockNumber)
 		lastBlockNumber, err := dbTx.GetBlockNumber()
 		if err != nil {
 			return err
 		}
-		if b.BlockNumber != lastBlockNumber+1 {
-			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", b.BlockNumber, lastBlockNumber)
+		// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+		if lastBlockNumber >= roundNumber {
+			return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 		}
 		for _, tx := range b.Transactions {
 			err = p.processTx(tx, b, dbTx)
@@ -44,11 +46,11 @@ func (p *BlockProcessor) ProcessBlock(b *block.Block) error {
 				return err
 			}
 		}
-		err = dbTx.DeleteExpiredBills(b.BlockNumber)
+		err = dbTx.DeleteExpiredBills(roundNumber)
 		if err != nil {
 			return err
 		}
-		return dbTx.SetBlockNumber(b.BlockNumber)
+		return dbTx.SetBlockNumber(roundNumber)
 	})
 }
 
@@ -81,7 +83,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, d
 		if err != nil {
 			return err
 		}
-		err = dbTx.SetBillExpirationTime(b.BlockNumber+DustBillDeletionTimeout, txPb.UnitId)
+		err = dbTx.SetBillExpirationTime(b.UnicityCertificate.InputRecord.RoundNumber+DustBillDeletionTimeout, txPb.UnitId)
 		if err != nil {
 			return err
 		}
@@ -153,7 +155,7 @@ func (p *BlockProcessor) saveBillWithProof(b *block.Block, tx *txsystem.Transact
 		return err
 	}
 	proof := &TxProof{
-		BlockNumber: b.BlockNumber,
+		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       blockProof,
 	}

@@ -141,7 +141,7 @@ func TestNewFungibleToken(t *testing.T) {
 
 func TestFungibleTokenDC(t *testing.T) {
 	tw, abClient := createTestWallet(t)
-	_, _, err := tw.mw.AddAccount()
+	_, _, err := tw.am.AddAccount()
 	require.NoError(t, err)
 	ctx := context.Background()
 	acc1 := uint64(1)

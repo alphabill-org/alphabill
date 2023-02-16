@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/block"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -213,12 +213,12 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 	}
 }
 
-func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
+func (s *RequestHandler) readBillsProto(r *http.Request) (*moneytx.Bills, error) {
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
-	req := &block.Bills{}
+	req := &moneytx.Bills{}
 	err = protojson.Unmarshal(b, req)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
 // @Success 200 {object} BlockHeightResponse
 // @Router /block-height [get]
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request) {
-	maxBlockNumber, err := s.Service.GetMaxBlockNumber()
+	maxBlockNumber, _, err := s.Service.GetMaxBlockNumber()
 	if err != nil {
 		log.Error("GET /block-height error fetching max block number", err)
 		w.WriteHeader(http.StatusInternalServerError)

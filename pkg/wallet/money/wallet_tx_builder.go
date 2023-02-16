@@ -92,7 +92,7 @@ func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId
 }
 
 func createDustTx(k *account.AccountKey, systemId []byte, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
-	tx := createGenericTx(bill.GetID(), timeout)
+	tx := createGenericTx(systemId, bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),

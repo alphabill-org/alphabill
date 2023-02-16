@@ -77,7 +77,7 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 			for _, b := range rsp.Blocks {
 				out <- b
 			}
-			blockNumber = rsp.Blocks[n-1].BlockNumber + 1
+			blockNumber = rsp.Blocks[n-1].UnicityCertificate.InputRecord.RoundNumber + 1
 		}
 		if rsp.MaxBlockNumber <= blockNumber {
 			// we have reached to the last block the source currently has - wait a bit before asking for more
@@ -93,7 +93,7 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 func processBlocks(ctx context.Context, blocks <-chan *block.Block, processor BlockProcessorFunc) error {
 	for b := range blocks {
 		if err := processor(ctx, b); err != nil {
-			return fmt.Errorf("failed to procces block {%x : %d}: %w", b.SystemIdentifier, b.BlockNumber, err)
+			return fmt.Errorf("failed to procces block {%x : %d}: %w", b.SystemIdentifier, b.UnicityCertificate.InputRecord.RoundNumber, err)
 		}
 	}
 	return nil

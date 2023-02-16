@@ -12,11 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
-
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -24,6 +21,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func Test_Run(t *testing.T) {
@@ -161,9 +161,9 @@ func Test_Run_API(t *testing.T) {
 					return &alphabill.GetBlocksResponse{
 						MaxBlockNumber: blockNumber,
 						Blocks: []*block.Block{{
-							SystemIdentifier: tx.SystemId,
-							BlockNumber:      blockNumber,
-							Transactions:     []*txsystem.Transaction{tx},
+							SystemIdentifier:   tx.SystemId,
+							Transactions:       []*txsystem.Transaction{tx},
+							UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}},
 						}},
 					}, nil
 				default:

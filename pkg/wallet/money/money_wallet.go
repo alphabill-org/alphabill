@@ -18,7 +18,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
-	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/robfig/cron/v3"
@@ -371,13 +370,13 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 
 	switch tx := gtx.(type) {
 	case money.Transfer:
-		if wallet.VerifyP2PKHOwner(&acc.accountKeys, tx.NewBearer()) {
+		if account.VerifyP2PKHOwner(&acc.AccountKeys, tx.NewBearer()) {
 			log.Info("received transfer order")
 			err := w.saveWithProof(dbTx, b, txPb, &Bill{
 				Id:     tx.UnitID(),
 				Value:  tx.TargetValue(),
 				TxHash: tx.Hash(crypto.SHA256),
-			}, acc.accountIndex)
+			}, acc.AccountIndex)
 			if err != nil {
 				return err
 			}

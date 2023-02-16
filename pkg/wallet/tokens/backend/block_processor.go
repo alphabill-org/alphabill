@@ -24,8 +24,9 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 	if err != nil {
 		return fmt.Errorf("failed to read current block number: %w", err)
 	}
-	if b.BlockNumber != lastBlockNumber+1 {
-		return fmt.Errorf("invalid block order: current wallet blockNumber is %d, received %d as next block", lastBlockNumber, b.BlockNumber)
+	// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+	if lastBlockNumber >= b.UnicityCertificate.InputRecord.RoundNumber {
+		return fmt.Errorf("invalid block number. Received blockNumber %d current wallet blockNumber %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}
 
 	for _, tx := range b.Transactions {
@@ -34,7 +35,7 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 		}
 	}
 
-	return p.store.SetBlockNumber(b.BlockNumber)
+	return p.store.SetBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber)
 }
 
 func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) error {
@@ -207,7 +208,7 @@ func (p *blockProcessor) createProof(unitID []byte, b *block.Block, tx *txsystem
 		return nil, fmt.Errorf("failed to create primary proof for the block: %w", err)
 	}
 	return &Proof{
-		BlockNumber: b.BlockNumber,
+		BlockNumber: b.UnicityCertificate.InputRecord.RoundNumber,
 		Tx:          tx,
 		Proof:       proof,
 	}, nil

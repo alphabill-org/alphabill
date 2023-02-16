@@ -388,7 +388,7 @@ func addDcBills(t *testing.T, w *Wallet, nonce *uint256.Int, timeout uint64) {
 }
 
 func addFeeCreditBill(t *testing.T, w *Wallet) *Bill {
-	k, err := w.db.Do().GetAccountKey(0)
+	k, err := w.am.GetAccountKey(0)
 	require.NoError(t, err)
 
 	fcb := &Bill{Value: 100, Id: uint256.NewInt(0).SetBytes(k.PrivKeyHash)}

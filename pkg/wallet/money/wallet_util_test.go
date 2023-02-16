@@ -41,10 +41,10 @@ func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *clientmock.MockAlphabillC
 func CopyWalletDBFile(t *testing.T) (string, error) {
 	wd, _ := os.Getwd()
 	srcDir := filepath.Join(wd, "testdata", "wallet")
-	return copyWalletDB(srcDir)
+	return copyWalletDB(srcDir, t.TempDir())
 }
 
-func copyWalletDB(srcDir string), dstDir string) (string, error) {
+func copyWalletDB(srcDir string, dstDir string) (string, error) {
 	srcFile := filepath.Join(srcDir, WalletFileName)
 	dstFile := filepath.Join(dstDir, WalletFileName)
 	return dstDir, copyFile(srcFile, dstFile)

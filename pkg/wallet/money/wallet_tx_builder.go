@@ -66,7 +66,7 @@ func createTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bil
 	return tx, nil
 }
 
-func createTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *wallet.AccountKey, systemId []byte, unit *Bill, t1, t2 uint64) (*txsystem.Transaction, error) {
+func createTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, systemId []byte, unit *Bill, t1, t2 uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, unit.GetID(), t2, nil)
 	transferFC := &fc.TransferFeeCreditOrder{
 		Amount:                 amount,
@@ -88,7 +88,7 @@ func createTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *w
 	return tx, nil
 }
 
-func createAddFCTx(unitID []byte, fcProof *BlockProof, k *wallet.AccountKey, systemId []byte, timeout uint64) (*txsystem.Transaction, error) {
+func createAddFCTx(unitID []byte, fcProof *BlockProof, k *account.AccountKey, systemId []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, unitID, timeout, nil)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &fc.AddFeeCreditOrder{
 		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
@@ -105,7 +105,7 @@ func createAddFCTx(unitID []byte, fcProof *BlockProof, k *wallet.AccountKey, sys
 	return tx, nil
 }
 
-func createCloseFCTx(systemId []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, nonce []byte, k *wallet.AccountKey) (*txsystem.Transaction, error) {
+func createCloseFCTx(systemId []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, nonce []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, unitID, timeout, nil)
 	closeFC := &fc.CloseFeeCreditOrder{
 		Amount:       amount,
@@ -123,7 +123,7 @@ func createCloseFCTx(systemId []byte, unitID []byte, timeout uint64, amount uint
 	return tx, nil
 }
 
-func createReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *BlockProof, backlink []byte, k *wallet.AccountKey) (*txsystem.Transaction, error) {
+func createReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *BlockProof, backlink []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemID, unitID, timeout, nil)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &fc.ReclaimFeeCreditOrder{
 		CloseFeeCreditTransfer: fcProof.Tx,

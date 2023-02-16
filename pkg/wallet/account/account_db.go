@@ -335,7 +335,7 @@ func (a *adb) Close() {
 	if a.db == nil {
 		return
 	}
-	log.Info("closing Account db")
+	log.Debug("closing Account db")
 	err := a.db.Close()
 	if err != nil {
 		log.Warning("error closing db: ", err)

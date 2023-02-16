@@ -433,7 +433,7 @@ func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof
 		return nil, ErrInsufficientBillValue
 	}
 
-	k, err := w.db.Do().GetAccountKey(cmd.AccountIndex)
+	k, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +484,7 @@ func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof
 // Reclaimed fee credit is added to the largest bill in wallet.
 // Returns list of "reclaim fee credit" transaction proofs.
 func (w *Wallet) ReclaimFeeCredit(ctx context.Context, cmd ReclaimFeeCmd) ([]*BlockProof, error) {
-	k, err := w.db.Do().GetAccountKey(cmd.AccountIndex)
+	k, err := w.am.GetAccountKey(cmd.AccountIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -553,7 +553,7 @@ func (w *Wallet) GetFeeCreditBill(accountIndex uint64) (*Bill, error) {
 
 // GetMaxAccountIndex returns last added (largest) account number.
 func (w *Wallet) GetMaxAccountIndex() (uint64, error) {
-	return w.db.Do().GetMaxAccountIndex()
+	return w.am.GetMaxAccountIndex()
 }
 
 func (w *Wallet) GetConfig() WalletConfig {
@@ -591,7 +591,11 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			return dbTx.RemoveBill(acc.AccountIndex, tx.UnitID())
 		}
 	case money.TransferDC:
-		if account.VerifyP2PKHOwner(&acc.AccountIndex, tx.TargetBearer()) {
+		err := w.updateFCB(dbTx, txPb, acc, fcBlockNumber, currentBlockNumber)
+		if err != nil {
+			return err
+		}
+		if account.VerifyP2PKHOwner(&acc.AccountKeys, tx.TargetBearer()) {
 			bill, err := dbTx.GetBill(acc.AccountIndex, txPb.UnitId)
 			if err != nil && !errors.Is(err, errBillNotFound) {
 				return err
@@ -641,7 +645,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				return err
 			}
 		}
-		if wallet.VerifyP2PKHOwner(&acc.AccountKeys, tx.TargetBearer()) {
+		if account.VerifyP2PKHOwner(&acc.AccountKeys, tx.TargetBearer()) {
 			newUnitID := util.SameShardIDBytes(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
 			newUnit, err := dbTx.GetBill(acc.AccountIndex, newUnitID)
 			if err != nil && !errors.Is(err, errBillNotFound) {
@@ -714,7 +718,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			TxHash: tx.Hash(crypto.SHA256),
 		}, acc.AccountIndex)
 	case *fc.AddFeeCreditWrapper:
-		if bytes.Equal(txPb.UnitId, acc.privKeyHash) {
+		if bytes.Equal(txPb.UnitId, acc.PrivKeyHash) {
 			fcb, err := dbTx.GetFeeCreditBill(acc.AccountIndex)
 			if err != nil {
 				return err
@@ -733,7 +737,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 		}
 		return nil
 	case *fc.CloseFeeCreditWrapper:
-		if bytes.Equal(txPb.UnitId, acc.privKeyHash) {
+		if bytes.Equal(txPb.UnitId, acc.PrivKeyHash) {
 			fcb, err := dbTx.GetFeeCreditBill(acc.AccountIndex)
 			if err != nil {
 				return err
@@ -780,8 +784,8 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 	return nil
 }
 
-func (w *Wallet) updateFCB(dbTx TxContext, txPb *txsystem.Transaction, acc *account, fcBlockNumber, currentBlockNumber uint64) error {
-	if bytes.Equal(txPb.ClientMetadata.FeeCreditRecordId, acc.privKeyHash) {
+func (w *Wallet) updateFCB(dbTx TxContext, txPb *txsystem.Transaction, acc *account.Account, fcBlockNumber, currentBlockNumber uint64) error {
+	if bytes.Equal(txPb.ClientMetadata.FeeCreditRecordId, acc.PrivKeyHash) {
 		fcb, err := dbTx.GetFeeCreditBill(acc.AccountIndex)
 		if err != nil {
 			return err

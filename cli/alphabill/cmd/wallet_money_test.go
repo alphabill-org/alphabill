@@ -58,8 +58,8 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" create --pn "+pw, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "wallet", "wallet.db")))
-	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "wallet", "accounts.db")))
+	require.True(t, util.FileExists(filepath.Join(homeDir, "wallet", "wallet.db")))
+	require.True(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
 	verifyStdout(t, outputWriter,
 		"Creating new wallet...",
 		"Wallet created successfully.",

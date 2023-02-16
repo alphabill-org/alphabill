@@ -65,8 +65,8 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 		SystemId:              tokens.DefaultTokenTxSystemIdentifier,
 		TransactionAttributes: new(anypb.Any),
 		UnitId:                test.RandomBytes(32),
-		Timeout:               10,
 		OwnerProof:            test.RandomBytes(3),
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 	}
 	if err := tx.TransactionAttributes.MarshalFrom(attr); err != nil {
 		t.Errorf("failed to marshal tx attributes: %v", err)

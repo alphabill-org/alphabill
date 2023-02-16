@@ -176,7 +176,7 @@ func TestBlockProcessing(t *testing.T) {
 func TestBlockProcessing_OldBlockDoesNotOverwriteNewerBills(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
-	k, err := w.db.Do().GetAccountKey(0)
+	k, err := w.am.GetAccountKey(0)
 	require.NoError(t, err)
 
 	// create block with each type of tx

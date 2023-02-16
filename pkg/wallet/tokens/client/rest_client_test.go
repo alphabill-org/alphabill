@@ -52,7 +52,7 @@ func Test_get(t *testing.T) {
 	t.Parallel()
 
 	t.Run("http request fails", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) { return nil, fmt.Errorf("nope, won't work") },
 			}},
@@ -63,7 +63,7 @@ func Test_get(t *testing.T) {
 	})
 
 	t.Run("valid request is built", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
 					if r.URL.String() != `http://localhost:8000/api/v1/path?queryParam=foo` {
@@ -91,9 +91,9 @@ func Test_get(t *testing.T) {
 		require.Empty(t, data)
 	})
 
-	createClient := func(t *testing.T, status int, respBody string) *tokenBackend {
+	createClient := func(t *testing.T, status int, respBody string) *TokenBackend {
 		t.Helper()
-		return &tokenBackend{
+		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
 					do: func(r *http.Request) (*http.Response, error) {
@@ -156,8 +156,8 @@ func Test_get(t *testing.T) {
 		require.Empty(t, data)
 	})
 
-	clientWithHeader := func(t *testing.T, status int, linkHeader string) *tokenBackend {
-		return &tokenBackend{
+	clientWithHeader := func(t *testing.T, status int, linkHeader string) *TokenBackend {
+		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
 					do: func(r *http.Request) (*http.Response, error) {
@@ -192,7 +192,7 @@ func Test_GetRoundNumber(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid request is built", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -218,9 +218,9 @@ func Test_GetRoundNumber(t *testing.T) {
 		require.Zero(t, rn)
 	})
 
-	createClient := func(t *testing.T, respBody string) *tokenBackend {
+	createClient := func(t *testing.T, respBody string) *TokenBackend {
 		t.Helper()
-		return &tokenBackend{
+		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
 					do: func(r *http.Request) (*http.Response, error) {
@@ -263,7 +263,7 @@ func Test_GetTokens(t *testing.T) {
 	ownerID := test.RandomBytes(33)
 
 	t.Run("valid request is built", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -289,8 +289,8 @@ func Test_GetTokens(t *testing.T) {
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []twb.TokenUnit) *tokenBackend {
-		return &tokenBackend{
+	createClient := func(t *testing.T, respBody []twb.TokenUnit) *TokenBackend {
+		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
 					do: func(r *http.Request) (*http.Response, error) {
@@ -327,7 +327,7 @@ func Test_GetTokenTypes(t *testing.T) {
 	ownerID := test.RandomBytes(33)
 
 	t.Run("valid request is built", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -353,8 +353,8 @@ func Test_GetTokenTypes(t *testing.T) {
 		require.Empty(t, offset)
 	})
 
-	createClient := func(t *testing.T, respBody []twb.TokenUnitType) *tokenBackend {
-		return &tokenBackend{
+	createClient := func(t *testing.T, respBody []twb.TokenUnitType) *TokenBackend {
+		return &TokenBackend{
 			hc: &http.Client{
 				Transport: &mockRoundTripper{
 					do: func(r *http.Request) (*http.Response, error) {
@@ -395,7 +395,7 @@ func Test_PostTransactions(t *testing.T) {
 	t.Run("valid request is built", func(t *testing.T) {
 		var receivedData txsystem.Transactions
 
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -430,7 +430,7 @@ func Test_PostTransactions(t *testing.T) {
 	})
 
 	t.Run("invalid request", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -450,7 +450,7 @@ func Test_PostTransactions(t *testing.T) {
 	})
 
 	t.Run("processing tx failed", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -471,7 +471,7 @@ func Test_PostTransactions(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		cli := &tokenBackend{
+		cli := &TokenBackend{
 			addr: url.URL{Scheme: "http", Host: "localhost"},
 			hc: &http.Client{Transport: &mockRoundTripper{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -505,7 +505,7 @@ func Test_New(t *testing.T) {
 	addr, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 
-	cli := newBackend(*addr)
+	cli := New(*addr)
 	rn, err := cli.GetRoundNumber(context.Background())
 	require.NoError(t, err)
 	require.EqualValues(t, 900, rn)

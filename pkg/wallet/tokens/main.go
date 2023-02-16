@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -29,9 +30,17 @@ var (
 
 type (
 	Wallet struct {
-		txs     block.TxConverter
-		am      account.Manager
-		backend client.TokenBackend
+		systemID []byte
+		txs      block.TxConverter
+		am       account.Manager
+		backend  TokenBackend
+	}
+
+	TokenBackend interface {
+		GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
+		GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
+		GetRoundNumber(ctx context.Context) (uint64, error)
+		PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
 	}
 )
 
@@ -40,12 +49,12 @@ func Load(backendUrl string, am account.Manager) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	txs, err := tokens.New()
+	systemID := tokens.DefaultTokenTxSystemIdentifier
+	txs, err := tokens.New(tokens.WithSystemIdentifier(systemID))
 	if err != nil {
 		return nil, err
 	}
-	w := &Wallet{am: am, txs: txs, backend: client.New(*addr)}
+	w := &Wallet{systemID: systemID, am: am, txs: txs, backend: client.New(*addr)}
 
 	return w, nil
 }

@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/stretchr/testify/require"
 )
 
@@ -216,7 +216,7 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 	require.Equal(t, allTypes, dereferencedTypes)
 }
 
-func initTestWallet(t *testing.T, backend client.TokenBackend) *Wallet {
+func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	t.Helper()
 	txs, err := ttxs.New()
 	require.NoError(t, err)
@@ -237,9 +237,10 @@ func initAccountManager(t *testing.T) account.Manager {
 }
 
 type mockTokenBackend struct {
-	getTokens      func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
-	getTokenTypes  func(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
-	getRoundNumber func(ctx context.Context) (uint64, error)
+	getTokens        func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
+	getTokenTypes    func(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
+	getRoundNumber   func(ctx context.Context) (uint64, error)
+	postTransactions func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
 }
 
 func (m *mockTokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
@@ -261,6 +262,13 @@ func (m *mockTokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 		return m.getRoundNumber(ctx)
 	}
 	return 0, fmt.Errorf("GetRoundNumber not implemented")
+}
+
+func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+	if m.postTransactions != nil {
+		return m.postTransactions(ctx, pubKey, txs)
+	}
+	return fmt.Errorf("PostTransactions not implemented")
 }
 
 func getSubarray[T interface{}](array []T, offsetKey string) ([]T, string, error) {

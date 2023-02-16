@@ -30,13 +30,7 @@ const (
 	apiPathPrefix   = "/api/v1"
 )
 
-type TokenBackend interface {
-	GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
-	GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
-	GetRoundNumber(ctx context.Context) (uint64, error)
-}
-
-type tokenBackend struct {
+type TokenBackend struct {
 	addr url.URL
 	hc   *http.Client
 }
@@ -45,12 +39,8 @@ type tokenBackend struct {
 New creates REST API client for token wallet backend. The "abAddr" is
 address of the backend, Scheme and Host fields must be assigned.
 */
-func New(abAddr url.URL) TokenBackend {
-	return newBackend(abAddr)
-}
-
-func newBackend(abAddr url.URL) *tokenBackend {
-	return &tokenBackend{
+func New(abAddr url.URL) *TokenBackend {
+	return &TokenBackend{
 		addr: abAddr,
 		hc:   &http.Client{Timeout: 10 * time.Second},
 	}
@@ -68,7 +58,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *tokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+func (tb *TokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "owners", hexutil.Encode(owner), "tokens")
 	setPaginationParams(addr, offsetKey, limit)
 
@@ -90,7 +80,7 @@ Returns:
   - offsetKey for the next batch (if empty then there is no more data to query);
   - non-nil error when something failed;
 */
-func (tb *tokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error) {
+func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error) {
 	addr := tb.getURL(apiPathPrefix, "kinds", kind.String(), "types")
 	if len(creator) > 0 {
 		q := addr.Query()
@@ -107,7 +97,7 @@ func (tb *tokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creato
 	return rspData, pm, nil
 }
 
-func (tb *tokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
+func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	var rn twb.RoundNumberResponse
 	if _, err := tb.get(ctx, tb.getURL(apiPathPrefix, "round-number"), &rn, false); err != nil {
 		return 0, fmt.Errorf("get round-number request failed: %w", err)
@@ -115,7 +105,7 @@ func (tb *tokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	return rn.RoundNumber, nil
 }
 
-func (tb *tokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+func (tb *TokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
 	b, err := protojson.Marshal(txs)
 	if err != nil {
 		return fmt.Errorf("failed to encode transactions: %w", err)
@@ -136,7 +126,7 @@ func (tb *tokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubKey,
 	return nil
 }
 
-func (tb *tokenBackend) getURL(pathElements ...string) *url.URL {
+func (tb *TokenBackend) getURL(pathElements ...string) *url.URL {
 	u := tb.addr
 	u.Path = path.Join(pathElements...)
 	return &u
@@ -150,7 +140,7 @@ When "allowEmptyResponse" is false then response must have a non empty body with
 It returns value of the offsetKey parameter from the Link header (empty string when header is not
 present, ie missing header is not error).
 */
-func (tb *tokenBackend) get(ctx context.Context, addr *url.URL, data any, allowEmptyResponse bool) (string, error) {
+func (tb *TokenBackend) get(ctx context.Context, addr *url.URL, data any, allowEmptyResponse bool) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, addr.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to build http request: %w", err)
@@ -173,7 +163,7 @@ func (tb *tokenBackend) get(ctx context.Context, addr *url.URL, data any, allowE
 	return pm, nil
 }
 
-func (tb *tokenBackend) post(ctx context.Context, u *url.URL, body io.Reader, rspData any) error {
+func (tb *TokenBackend) post(ctx context.Context, u *url.URL, body io.Reader, rspData any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), body)
 	if err != nil {
 		return fmt.Errorf("failed to build http request: %w", err)

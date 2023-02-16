@@ -25,6 +25,10 @@ type (
 		DcNonce   []byte `json:"dcNonce"`
 		// DcExpirationTimeout blockHeight when dc bill gets removed from state tree
 		DcExpirationTimeout uint64 `json:"dcExpirationTimeout"`
+
+		// fcb specific fields
+		// FCBlockNumber block number when fee credit bill balance was last updated
+		FCBlockNumber uint64 `json:"fcBlockNumber"`
 	}
 
 	BlockProof struct {
@@ -84,18 +88,39 @@ func (b *Bill) isExpired(blockHeight uint64) bool {
 }
 
 func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction, txConverter *TxConverter) error {
-	genericBlock, err := bl.ToGenericBlock(txConverter)
+	proof, err := createProof(b.GetID(), txPb, bl, txConverter, crypto.SHA256)
 	if err != nil {
 		return err
 	}
-	proof, err := block.NewPrimaryProof(genericBlock, b.GetID(), crypto.SHA256)
-	if err != nil {
-		return err
-	}
-	blockProof, err := NewBlockProof(txPb, proof, bl.UnicityCertificate.InputRecord.RoundNumber)
-	if err != nil {
-		return err
-	}
-	b.BlockProof = blockProof
+	b.BlockProof = proof
 	return nil
+}
+
+func createProof(unitID []byte, tx *txsystem.Transaction, b *block.Block, txc *TxConverter, hashAlgorithm crypto.Hash) (*BlockProof, error) {
+	proof, err := b.GetPrimaryProof(unitID, txc, hashAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+	return NewBlockProof(tx, proof, b.UnicityCertificate.InputRecord.RoundNumber)
+}
+
+func getTxHash(b *Bill) []byte {
+	if b != nil {
+		return b.TxHash
+	}
+	return nil
+}
+
+func getValue(b *Bill) uint64 {
+	if b != nil {
+		return b.Value
+	}
+	return 0
+}
+
+func getFCBlockNumber(b *Bill) uint64 {
+	if b != nil {
+		return b.FCBlockNumber
+	}
+	return 0
 }

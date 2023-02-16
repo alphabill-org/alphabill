@@ -118,7 +118,7 @@ func (w *Wallet) SendTransaction(ctx context.Context, tx *txsystem.Transaction, 
 
 // Shutdown terminates connection to alphabill node and cancels any background goroutines.
 func (w *Wallet) Shutdown() {
-	log.Info("shutting down wallet")
+	log.Debug("shutting down wallet")
 
 	// send cancel signal only if channel is not full
 	// this check is needed in case Shutdown is called multiple times

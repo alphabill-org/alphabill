@@ -36,3 +36,17 @@ func (x *ServerMetadata) Bytes() []byte {
 	b.Write(util.Uint64ToBytes(x.Fee))
 	return b.Bytes()
 }
+
+// TxBytes returns Bytes without ServerMetadata field.
+func (x *Transaction) TxBytes() []byte {
+	var b bytes.Buffer
+	b.Write(x.SystemId)
+	b.Write(x.UnitId)
+	b.Write(util.Uint64ToBytes(x.Timeout))
+	b.Write(x.OwnerProof)
+	b.Write(x.FeeProof)
+	if x.ClientMetadata != nil {
+		b.Write(x.ClientMetadata.Bytes())
+	}
+	return b.Bytes()
+}

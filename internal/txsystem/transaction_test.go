@@ -41,3 +41,25 @@ func TestTransaction_BytesIsCalculatedCorrectly(t *testing.T) {
 
 	require.Equal(t, expectedBytes, tx.Bytes())
 }
+
+func TestTransactionTxBytes(t *testing.T) {
+	tx := &Transaction{
+		SystemId:   test.RandomBytes(32),
+		UnitId:     test.RandomBytes(32),
+		Timeout:    1,
+		OwnerProof: test.RandomBytes(32),
+		FeeProof:   test.RandomBytes(32),
+		ClientMetadata: &ClientMetadata{
+			Timeout:           2,
+			MaxFee:            3,
+			FeeCreditRecordId: []byte{4},
+		},
+		ServerMetadata: &ServerMetadata{
+			Fee: 5,
+		},
+	}
+	nBytes := len(tx.ServerMetadata.Bytes())
+	b := tx.Bytes()
+	expectedBytes := b[:len(b)-nBytes] // remove server metadata bytes
+	require.Equal(t, expectedBytes, tx.TxBytes())
+}

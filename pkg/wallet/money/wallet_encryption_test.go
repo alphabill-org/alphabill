@@ -1,7 +1,6 @@
 package money
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,13 +9,9 @@ import (
 const walletPass = "default-wallet-pass"
 
 func TestEncryptedWalletCanBeCreated(t *testing.T) {
-	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir(), WalletPass: walletPass})
+	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: t.TempDir(), WalletPass: walletPass})
 	require.NoError(t, err)
-	require.NotNil(t, w)
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
+	t.Cleanup(w.Shutdown)
 
 	isEncrypted, err := w.db.Do().IsEncrypted()
 	require.NoError(t, err)

@@ -115,6 +115,9 @@ func (c *MockAlphabillClient) SetBlock(b *block.Block) {
 }
 
 func (c *MockAlphabillClient) GetRecordedTransactions() []*txsystem.Transaction {
+	for _, tx := range c.recordedTxs {
+		tx.ServerMetadata = &txsystem.ServerMetadata{Fee: 1}
+	}
 	return c.recordedTxs
 }
 

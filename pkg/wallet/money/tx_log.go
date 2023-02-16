@@ -2,7 +2,6 @@ package money
 
 import (
 	"crypto"
-	"errors"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -12,73 +11,48 @@ import (
 
 // txLog helper struct used to track pending/confirmed transactions
 type txLog struct {
-	txsMap map[string]*Bill
+	txsMap map[string]*BlockProof
 }
 
 func newTxLog(pendingTxs []*txsystem.Transaction) *txLog {
-	txsMap := make(map[string]*Bill, len(pendingTxs))
+	txsMap := make(map[string]*BlockProof, len(pendingTxs))
 	for _, tx := range pendingTxs {
-		txsMap[tx.String()] = nil
+		txsMap[string(tx.TxBytes())] = nil
 	}
 	return &txLog{txsMap: txsMap}
 }
 func (t *txLog) contains(tx *txsystem.Transaction) bool {
-	_, exists := t.txsMap[tx.String()]
+	_, exists := t.txsMap[string(tx.TxBytes())]
 	return exists
 }
 
-func (t *txLog) recordTx(tx *txsystem.Transaction, b *block.Block, txConverter *TxConverter) error {
-	bill, err := t.extractBill(tx, b, txConverter)
+func (t *txLog) recordTx(gtx txsystem.GenericTransaction, b *block.GenericBlock) error {
+	proof, err := t.extractProof(gtx, b)
 	if err != nil {
 		return err
 	}
-	t.txsMap[tx.String()] = bill
+	t.txsMap[string(gtx.ToProtoBuf().TxBytes())] = proof
 	return nil
 }
 
-// extractBill extracts bill with proof from given transaction and block
-func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block, txConverter *TxConverter) (*Bill, error) {
-	gtx, err := txConverter.ConvertTx(txPb)
-	if err != nil {
-		return nil, err
-	}
-	genericBlock, err := b.ToGenericBlock(txConverter)
-	if err != nil {
-		return nil, err
-	}
-	var bill *Bill
+// extractProof Extracts proof from given transaction and block.
+func (t *txLog) extractProof(gtx txsystem.GenericTransaction, b *block.GenericBlock) (*BlockProof, error) {
+	var unitID []byte
 	switch tx := gtx.(type) {
-	case money.Transfer:
-		bill = &Bill{
-			Id:     tx.UnitID(),
-			Value:  tx.TargetValue(),
-			TxHash: tx.Hash(crypto.SHA256),
-		}
 	case money.Split:
-		bill = &Bill{
-			Id:     utiltx.SameShardID(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256)),
-			Value:  tx.Amount(),
-			TxHash: tx.Hash(crypto.SHA256),
-		}
-	case money.TransferDC:
-		return nil, errors.New("recorded dc tx (should not happen as we only send transfer and split txs)")
-	case money.Swap:
-		return nil, errors.New("recorded swap tx (should not happen as we only send transfer and split txs)")
+		unitID = utiltx.SameShardIDBytes(tx.UnitID(), tx.HashForIdCalculation(crypto.SHA256))
 	default:
-		return nil, errors.New("recorded unknown transaction type (should not happen as we only send transfer and split txs)")
+		unitID = gtx.ToProtoBuf().UnitId
 	}
-
-	// add proof to bill
-	proof, err := block.NewPrimaryProof(genericBlock, bill.GetID(), crypto.SHA256)
+	proof, err := block.NewPrimaryProof(b, unitID, crypto.SHA256)
 	if err != nil {
 		return nil, err
 	}
-	blockProof, err := NewBlockProof(txPb, proof, b.UnicityCertificate.InputRecord.RoundNumber)
+	blockProof, err := NewBlockProof(gtx.ToProtoBuf(), proof, b.UnicityCertificate.InputRecord.RoundNumber)
 	if err != nil {
 		return nil, err
 	}
-	bill.BlockProof = blockProof
-	return bill, nil
+	return blockProof, nil
 }
 
 func (t *txLog) isAllTxsConfirmed() bool {
@@ -90,12 +64,12 @@ func (t *txLog) isAllTxsConfirmed() bool {
 	return true
 }
 
-func (t *txLog) getAllRecordedBills() []*Bill {
-	var bills []*Bill
+func (t *txLog) getAllRecordedProofs() []*BlockProof {
+	var proofs []*BlockProof
 	for _, v := range t.txsMap {
 		if v != nil {
-			bills = append(bills, v)
+			proofs = append(proofs, v)
 		}
 	}
-	return bills
+	return proofs
 }

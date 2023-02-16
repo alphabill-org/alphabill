@@ -33,3 +33,11 @@ func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
 		UnicityCertificate: x.UnicityCertificate,
 	}, nil
 }
+
+func (x *Block) GetPrimaryProof(unitID []byte, txc TxConverter, hashAlgorithm crypto.Hash) (*BlockProof, error) {
+	block, err := x.ToGenericBlock(txc)
+	if err != nil {
+		return nil, err
+	}
+	return NewPrimaryProof(block, unitID, hashAlgorithm)
+}

@@ -30,14 +30,25 @@ func TestWalletSendFunction(t *testing.T) {
 	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 
-	// test abclient returns error
+	// add bill to wallet
 	b := Bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		Id:         uint256.NewInt(0),
+		Value:      100,
+		TxHash:     hash.Sum256([]byte{0x01}),
+		BlockProof: &BlockProof{},
 	}
 	err = w.db.Do().SetBill(0, &b)
 	require.NoError(t, err)
+
+	// test ErrInsufficientFeeCredit
+	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	require.ErrorIs(t, err, ErrInsufficientFeeCredit)
+
+	// add fee credit to wallet
+	err = w.db.Do().SetFeeCreditBill(0, &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}})
+	require.NoError(t, err)
+
+	// test abclient custom error
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: "some error"})
 	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorContains(t, err, "transaction returned error code: some error")
@@ -64,6 +75,7 @@ func TestWalletSendFunction(t *testing.T) {
 	// test another account
 	_, _, _ = w.AddAccount()
 	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(55555), Value: 50})
+	_ = w.db.Do().SetFeeCreditBill(1, &Bill{Id: uint256.NewInt(55556), Value: 50})
 	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount, AccountIndex: 1})
 	require.NoError(t, err)
 }
@@ -77,15 +89,20 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
 	_ = w.db.Do().SetBill(0, b)
+	fcb := &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}}
+	_ = w.db.Do().SetFeeCreditBill(0, fcb)
 
 	// create block with expected transaction
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx, err := createTransaction(pubKey, k, b.Value, w.SystemID(), b, txTimeoutBlockCount)
+	tx, err := createTransaction(pubKey, k, b.Value, w.SystemID(), b, txTimeoutBlockCount, fcb.GetID())
 	require.NoError(t, err)
 	require.NotNil(t, tx)
-	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
-		tx,
-	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
+	mockClient.SetBlock(&block.Block{
+		Transactions: []*txsystem.Transaction{tx},
+		UnicityCertificate: &certificates.UnicityCertificate{
+			InputRecord: &certificates.InputRecord{RoundNumber: 0},
+		},
+	})
 
 	// verify balance before transaction
 	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
@@ -113,11 +130,13 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 	}
 	_ = w.db.Do().SetBill(0, b1)
 	_ = w.db.Do().SetBill(0, b2)
+	fcb := &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}}
+	_ = w.db.Do().SetFeeCreditBill(0, fcb)
 
 	// create block with expected transactions
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount)
-	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount)
+	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount, fcb.GetID())
+	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount, fcb.GetID())
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx2, tx1,
 	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
@@ -150,11 +169,13 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 	}
 	_ = w.db.Do().SetBill(0, b1)
 	_ = w.db.Do().SetBill(0, b2)
+	fcb := &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}}
+	_ = w.db.Do().SetFeeCreditBill(0, fcb)
 
 	// create block with expected transactions
 	k, _ := w.db.Do().GetAccountKey(0)
-	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount)
-	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount)
+	tx1, _ := createTransaction(pubKey, k, b1.Value, w.SystemID(), b1, txTimeoutBlockCount, fcb.GetID())
+	tx2, _ := createTransaction(pubKey, k, b2.Value, w.SystemID(), b2, txTimeoutBlockCount, fcb.GetID())
 	mockClient.SetBlock(&block.Block{Transactions: []*txsystem.Transaction{
 		tx1,
 	}, UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 0}}})
@@ -185,6 +206,7 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
 	_ = w.db.Do().SetBill(0, b)
+	_ = w.db.Do().SetFeeCreditBill(0, &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}})
 
 	for i := 0; i <= txTimeoutBlockCount; i++ {
 		mockClient.SetBlock(&block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: uint64(i)}}})
@@ -199,6 +221,7 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	addBill(t, w, 100)
 	pubkey := make([]byte, 33)
+	_ = w.db.Do().SetFeeCreditBill(0, &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}})
 
 	// when whole balance is spent
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubkey, Amount: 100})
@@ -214,11 +237,13 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	// setup wallet
 	w, mockClient := CreateTestWallet(t)
 	b := Bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		Id:         uint256.NewInt(0),
+		Value:      100,
+		TxHash:     hash.Sum256([]byte{0x01}),
+		BlockProof: &BlockProof{},
 	}
 	_ = w.db.Do().SetBill(0, &b)
+	_ = w.db.Do().SetFeeCreditBill(0, &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}})
 
 	// make server return TxBufferFullErrMessage
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
@@ -239,11 +264,13 @@ func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 	// setup wallet
 	w, mockClient := CreateTestWallet(t)
 	b := Bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
+		Id:         uint256.NewInt(0),
+		Value:      100,
+		TxHash:     hash.Sum256([]byte{0x01}),
+		BlockProof: &BlockProof{},
 	}
 	_ = w.db.Do().SetBill(0, &b)
+	_ = w.db.Do().SetFeeCreditBill(0, &Bill{Id: uint256.NewInt(0), Value: 100, TxHash: []byte{0}})
 
 	// make server return TxBufferFullErrMessage
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})

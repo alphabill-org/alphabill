@@ -32,7 +32,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	timeout := uint64(100)
 	systemId := []byte{0, 0, 0, 0}
 
-	tx, err := createSplitTx(amount, receiverPubKey, keys.AccountKey, systemId, b, timeout)
+	tx, err := createSplitTx(amount, receiverPubKey, keys.AccountKey, systemId, b, timeout, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.EqualValues(t, systemId, tx.SystemId)
@@ -122,7 +122,7 @@ func TestCreateTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			txs, err := createTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100)
+			txs, err := createTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100, nil)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
 				require.Nil(t, txs)

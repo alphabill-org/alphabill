@@ -90,20 +90,8 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 
 	// 2. S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner condition matches
 	unit := ctx.Unit
-	if unit != nil {
-		if !bytes.Equal(unit.Bearer, tx.AddFC.FeeCreditOwnerCondition) {
-			return ErrAddFCInvalidOwnerCondition
-		}
-	}
-
-	// wrap nested transferFC to domain
-	transferFC, err := fc.NewFeeCreditTx(tx.AddFC.FeeCreditTransfer)
-	if err != nil {
-		return err
-	}
-	transferFCWrapper, ok := transferFC.(*fc.TransferFeeCreditWrapper)
-	if !ok {
-		return ErrAddFCInvalidCloseFCType
+	if unit != nil && !bytes.Equal(unit.Bearer, tx.AddFC.FeeCreditOwnerCondition) {
+		return ErrAddFCInvalidOwnerCondition
 	}
 
 	// 4. P.A.P.α = P.αmoney ∧ P.A.P.τ = transFC – bill was transferred to fee credits
@@ -112,36 +100,34 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 	}
 
 	// 5. P.A.P.A.α = P.α – bill was transferred to fee credits for this system
-	if !bytes.Equal(transferFCWrapper.TransferFC.TargetSystemIdentifier, v.systemID) {
+	if !bytes.Equal(tx.TransferFC.TransferFC.TargetSystemIdentifier, v.systemID) {
 		return ErrAddFCInvalidTargetSystemID
 	}
 
 	// 6. P.A.P.A.ιf = P.ι – bill was transferred to fee credits of the target record
-	if !bytes.Equal(transferFCWrapper.TransferFC.TargetRecordId, tx.Transaction.UnitId) {
+	if !bytes.Equal(tx.TransferFC.TransferFC.TargetRecordId, tx.Transaction.UnitId) {
 		return ErrAddFCInvalidTargetRecordID
 	}
 
 	// 7. (S.N[P.ι] = ⊥ ∧ P.A.P.A.η = ⊥) ∨ (S.N[P.ι] != ⊥ ∧ P.A.P.A.η = S.N[P.ι].λ) – bill transfer order contains correct nonce
-	if unit == nil {
-		if len(transferFCWrapper.TransferFC.Nonce) > 0 {
-			return ErrAddFCInvalidNonce
-		}
-	} else {
-		if !bytes.Equal(transferFCWrapper.TransferFC.Nonce, unit.StateHash) {
-			return ErrAddFCInvalidNonce
-		}
+	var backlink []byte
+	if unit != nil {
+		backlink = unit.StateHash
+	}
+	if !bytes.Equal(tx.TransferFC.TransferFC.Nonce, backlink) {
+		return ErrAddFCInvalidNonce
 	}
 
 	// 8. P.A.P.A.tb ≤ t ≤ P.A.P.A.te, where t is the number of the current block being composed – bill transfer is valid to be used in this block
-	tb := transferFCWrapper.TransferFC.EarliestAdditionTime
-	te := transferFCWrapper.TransferFC.LatestAdditionTime
+	tb := tx.TransferFC.TransferFC.EarliestAdditionTime
+	te := tx.TransferFC.TransferFC.LatestAdditionTime
 	t := ctx.CurrentRoundNumber
 	if t < tb || t > te {
 		return ErrAddFCInvalidTimeout
 	}
 
 	// 9. P.MC.fm ≤ P.A.P.A.v – the transaction fee can’t exceed the transferred value
-	if tx.Transaction.ClientMetadata.MaxFee > transferFCWrapper.TransferFC.Amount {
+	if tx.Transaction.ClientMetadata.MaxFee > tx.TransferFC.TransferFC.Amount {
 		return ErrAddFCInvalidTxFee
 	}
 
@@ -150,7 +136,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 	if proof.ProofType != block.ProofType_PRIM {
 		return ErrInvalidProofType
 	}
-	err = proof.Verify(tx.AddFC.FeeCreditTransfer.UnitId, transferFC, v.verifiers, v.hashAlgorithm)
+	err := proof.Verify(tx.AddFC.FeeCreditTransfer.UnitId, tx.TransferFC, v.verifiers, v.hashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("proof is not valid: %w", err)
 	}

@@ -92,6 +92,7 @@ func isFeeCreditTx(tx GenericTransaction) bool {
 		typeUrl == TypeURLReclaimFeeCreditOrder
 }
 
+// getFeeProof returns tx.FeeProof it it exists or tx.OwnerProof if it does not exist
 func getFeeProof(ctx *TxValidationContext) []byte {
 	feeProof := ctx.Tx.ToProtoBuf().FeeProof
 	if len(feeProof) > 0 {

@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path"
 	"testing"
 
@@ -174,6 +173,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 				// receive transfer of 100 bills
 				{
@@ -182,6 +182,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 				// receive split of 100 bills
 				{
@@ -190,6 +191,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 				// receive swap of 100 bills
 				{
@@ -198,6 +200,7 @@ func TestBlockProcessing(t *testing.T) {
 					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 				},
 			},
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
@@ -231,6 +234,79 @@ func TestBlockProcessing(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestBlockProcessing_OldBlockDoesNotOverwriteNewerBills(t *testing.T) {
+	w, _ := CreateTestWallet(t)
+
+	k, err := w.db.Do().GetAccountKey(0)
+	require.NoError(t, err)
+
+	// create block with each type of tx
+	b := &block.Block{
+		SystemIdentifier:  w.SystemID(),
+		PreviousBlockHash: hash.Sum256([]byte{}),
+		Transactions: []*txsystem.Transaction{
+			// random dust transfer can be processed
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x00}),
+				TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentEmpty(),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+			},
+			// receive transfer of 100 bills
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x01}),
+				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+			},
+			// receive split of 100 bills
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x02}),
+				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+			},
+			// receive swap of 100 bills
+			{
+				SystemId:              w.SystemID(),
+				UnitId:                hash.Sum256([]byte{0x03}),
+				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
+				Timeout:               1000,
+				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+			},
+		},
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 10}},
+	}
+
+	// for each tx in a block add unit to db with newer block number
+	actualBlockNumber := b.UnicityCertificate.InputRecord.RoundNumber + 1
+	for _, tx := range b.Transactions {
+		bill := &Bill{
+			Id:         uint256.NewInt(0).SetBytes(tx.UnitId),
+			Value:      1,
+			BlockProof: &BlockProof{BlockNumber: actualBlockNumber},
+		}
+		_ = w.db.Do().SetBill(0, bill)
+	}
+
+	// process block
+	err = w.ProcessBlock(b)
+	require.NoError(t, err)
+
+	// verify none of the txs are processed
+	bills, _ := w.db.Do().GetBills(0)
+	for _, actualBill := range bills {
+		require.Equal(t, actualBlockNumber, actualBill.BlockProof.BlockNumber)
+	}
+}
+
 func TestBlockProcessing_InvalidSystemID(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 
@@ -260,6 +336,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive dc transfer of 100 bills
 			{
@@ -268,6 +345,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateDustTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive split of 100 bills
 			{
@@ -276,6 +354,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 			// receive swap of 100 bills
 			{
@@ -284,6 +363,7 @@ func TestBlockProcessing_VerifyBlockProofs(t *testing.T) {
 				TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
 				Timeout:               1000,
 				OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+				ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
 			},
 		},
 		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
@@ -317,14 +397,13 @@ func TestSyncOnClosedWalletShouldNotHang(t *testing.T) {
 
 func TestWalletDbIsNotCreatedOnWalletCreationError(t *testing.T) {
 	// create wallet with invalid seed
-	_ = DeleteWalletDb(os.TempDir())
-	c := WalletConfig{DbPath: os.TempDir()}
+	c := WalletConfig{DbPath: t.TempDir()}
 	invalidSeed := "this pond palace oblige remind glory lens popular iron decide coral"
 	_, err := CreateNewWallet(invalidSeed, c)
 	require.ErrorContains(t, err, "invalid mnemonic")
 
 	// verify database is not created
-	require.False(t, util.FileExists(path.Join(os.TempDir(), WalletFileName)))
+	require.False(t, util.FileExists(path.Join(c.DbPath, WalletFileName)))
 }
 
 func TestWalletGetBills_Ok(t *testing.T) {

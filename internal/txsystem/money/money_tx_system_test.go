@@ -462,7 +462,7 @@ func TestRegisterData_Revert(t *testing.T) {
 // Test Transfer->Add->Close->Reclaim sequence OK
 func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	rmaTree, txSystem, signer := createRMATreeAndTxSystem(t)
-	txFee := txFeeFunc()
+	txFee := TxFeeFunc()
 	initialBillID := util.Uint256ToBytes(initialBill.ID)
 	fcrUnitID := util.Uint256ToBytes(uint256.NewInt(100))
 	txAmount := uint64(20)

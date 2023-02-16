@@ -34,9 +34,9 @@ message AddFeeCreditOrder {
 message CloseFeeCreditOrder {
   // current balance of the fee credit record
   uint64 amount = 1;
-  // unit id of the fee credit record
+  // unit id of the fee credit record in money partition
   bytes target_unit_id = 2;
-  // the current state hash of the target bill
+  // the current state hash of the target unit in money partition
   bytes nonce = 3;
 }
 

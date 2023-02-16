@@ -25,6 +25,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	// wallet contains 2 normal bills
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
+	addFeeCreditBill(t, w)
 
 	k, _ := w.db.Do().GetAccountKey(0)
 
@@ -155,6 +156,7 @@ func TestSendingSwapUpdatesDcWaitGroupTimeout(t *testing.T) {
 	nonce := uint256.NewInt(2)
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2, dcTimeoutBlockCount)
+	addFeeCreditBill(t, w)
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
 	_ = w.db.Do().SetBlockNumber(dcTimeoutBlockCount)
 	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)
@@ -189,6 +191,8 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 			TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
 			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),
+			ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}},
+			ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 		})
 	}
 	dcNonce32 := dcNonce.Bytes32()
@@ -207,6 +211,8 @@ func createBlockWithSwapTx(systemId, dcNonce []byte, k *wallet.AccountKey, dcTxs
 					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHash.Sha256, dcTxs),
 					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}},
+					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 				},
 			},
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},

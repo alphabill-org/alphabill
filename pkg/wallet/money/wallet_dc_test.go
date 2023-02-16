@@ -20,6 +20,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	// create wallet with 2 normal bills
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
+	addFeeCreditBill(t, w)
 
 	// when dc runs
 	err := w.collectDust(context.Background(), false, 0)
@@ -113,6 +114,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addBill(t, w, 1)
 	addDcBill(t, w, nonce, 2, 10)
+	addFeeCreditBill(t, w)
 	setDcMetadata(t, w, nonce32[:], &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount, SwapTimeout: 0})
 
 	// when dcTimeout is reached
@@ -151,6 +153,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	// wallet contains 1 dc bill and 1 normal bill
 	w, mockClient := CreateTestWallet(t)
 	addBill(t, w, 1)
+	addFeeCreditBill(t, w)
 	nonce := uint256.NewInt(2)
 	nonce32 := nonce.Bytes32()
 	addDcBill(t, w, nonce, 2, 10)
@@ -294,6 +297,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	b1 := addBill(t, w, 1)
 	b2 := addBill(t, w, 2)
 	b3 := addBill(t, w, 3)
+	addFeeCreditBill(t, w)
 
 	// when dc runs
 	err := w.collectDust(context.Background(), false, 0)
@@ -368,9 +372,10 @@ func addBills(t *testing.T, w *Wallet) {
 
 func addBill(t *testing.T, w *Wallet, value uint64) *Bill {
 	b1 := Bill{
-		Id:     uint256.NewInt(value),
-		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		Id:         uint256.NewInt(value),
+		Value:      value,
+		TxHash:     hash.Sum256([]byte{byte(value)}),
+		BlockProof: &BlockProof{},
 	}
 	err := w.db.Do().SetBill(0, &b1)
 	require.NoError(t, err)
@@ -382,12 +387,23 @@ func addDcBills(t *testing.T, w *Wallet, nonce *uint256.Int, timeout uint64) {
 	addDcBill(t, w, nonce, 2, timeout)
 }
 
+func addFeeCreditBill(t *testing.T, w *Wallet) *Bill {
+	k, err := w.db.Do().GetAccountKey(0)
+	require.NoError(t, err)
+
+	fcb := &Bill{Value: 100, Id: uint256.NewInt(0).SetBytes(k.PrivKeyHash)}
+	err = w.db.Do().SetFeeCreditBill(0, fcb)
+	require.NoError(t, err)
+	return fcb
+}
+
 func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeout uint64) *Bill {
 	nonceB32 := nonce.Bytes32()
 	b := Bill{
-		Id:     uint256.NewInt(value),
-		Value:  value,
-		TxHash: hash.Sum256([]byte{byte(value)}),
+		Id:         uint256.NewInt(value),
+		Value:      value,
+		TxHash:     hash.Sum256([]byte{byte(value)}),
+		BlockProof: &BlockProof{},
 	}
 	k, _ := w.db.Do().GetAccountKey(0)
 

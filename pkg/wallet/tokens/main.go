@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -30,10 +33,11 @@ var (
 
 type (
 	Wallet struct {
-		systemID []byte
-		txs      block.TxConverter
-		am       account.Manager
-		backend  TokenBackend
+		systemID  []byte
+		txs       block.TxConverter
+		am        account.Manager
+		backend   TokenBackend
+		confirmTx bool // TODO: ?
 	}
 
 	TokenBackend interface {
@@ -69,17 +73,18 @@ func (w *Wallet) GetAccountManager() account.Manager {
 
 func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new fungible token type")
-	panic("not implemented")
+	// TODO check if parent type's decimal places match
+	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new NFT type")
-	panic("not implemented")
+	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
 func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new fungible token")
-	panic("not implemented")
+	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
 func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
@@ -96,7 +101,7 @@ func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNon
 	if len(attrs.Data) > dataMaxSize {
 		return nil, ErrInvalidDataLength
 	}
-	panic("not implemented")
+	return w.newToken(ctx, accNr, attrs, tokenId, mintPredicateArgs)
 }
 
 func (w *Wallet) ListTokenTypes(ctx context.Context, kind twb.Kind) ([]*twb.TokenUnitType, error) {
@@ -138,7 +143,25 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, kind twb.Kind) ([]*twb.Toke
 
 // GetTokenType returns non-nil TokenUnitType or error if not found or other issues
 func (w *Wallet) GetTokenType(ctx context.Context, typeId twb.TokenTypeID) (*twb.TokenUnitType, error) {
-	panic("not implemented")
+	offsetKey := ""
+	var err error
+	for {
+		var types []twb.TokenUnitType
+		// TODO: allow passing type id to filter specific unit on the backend
+		types, offsetKey, err = w.backend.GetTokenTypes(ctx, twb.Any, nil, offsetKey, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, tokenType := range types {
+			if bytes.Equal(tokenType.ID, typeId) {
+				return &tokenType, nil
+			}
+		}
+		if offsetKey == "" {
+			break
+		}
+	}
+	return nil, fmt.Errorf("error token type %X not found", typeId)
 }
 
 // ListTokens specify accountNumber=0 to list tokens from all accounts
@@ -201,8 +224,49 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 	return allTokensByAccountNumber, nil
 }
 
+func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, tokenId twb.TokenID) (*twb.TokenUnit, error) {
+	offsetKey := ""
+	var err error
+	for {
+		var tokens []twb.TokenUnit
+		// TODO: allow passing type id to filter specific unit on the backend
+		tokens, offsetKey, err = w.backend.GetTokens(ctx, twb.Any, owner, offsetKey, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, token := range tokens {
+			if bytes.Equal(token.ID, tokenId) {
+				return &token, nil
+			}
+		}
+		if offsetKey == "" {
+			break
+		}
+	}
+	return nil, fmt.Errorf("error token %X not found", tokenId)
+}
+
 func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId twb.TokenID, receiverPubKey twb.PubKey, invariantPredicateArgs []*PredicateInput) error {
-	panic("not implemented")
+	key, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return err
+	}
+
+	token, err := w.GetToken(ctx, key.PubKey, tokenId)
+	if err != nil {
+		return err
+	}
+	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
+	_, err = w.sendTx(ctx, tokenId, attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.InvariantPredicateSignatures = signatures
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
+
+	return err
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId twb.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {

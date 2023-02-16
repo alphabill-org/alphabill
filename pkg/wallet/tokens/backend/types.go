@@ -86,3 +86,7 @@ func strToTokenKind(s string) (Kind, error) {
 	}
 	return Any, fmt.Errorf("%q is not valid token kind", s)
 }
+
+func (id TokenID) String() string {
+	return string(id)
+}

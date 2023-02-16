@@ -9,8 +9,6 @@ message Transaction {
   bytes system_id = 1;
   bytes unit_id = 2;
   google.protobuf.Any transaction_attributes = 3;
-  // deprecated: use clientMetadata.timeout instead TODO AB-605
-  uint64 timeout = 4;
   bytes owner_proof = 5;
   // optional fee authorization proof (omitted when the main owner proof also satisfies the fee owner condition)
   bytes fee_proof = 6;

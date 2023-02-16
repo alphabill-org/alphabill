@@ -163,7 +163,6 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 		UnitId:                unitID,
 		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout:           timeout,
@@ -187,7 +186,6 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 		UnitId:                unitID,
 		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               t2,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout: t2,
@@ -212,7 +210,6 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Tran
 		UnitId:                unitID,
 		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout: timeout,

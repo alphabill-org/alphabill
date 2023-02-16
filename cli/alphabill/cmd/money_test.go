@@ -379,7 +379,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 	tx := &txsystem.Transaction{
 		UnitId:                initialBillID[:],
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               10,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0, 0, 0, 0},
 	}
@@ -402,7 +402,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 	tx := &txsystem.Transaction{
 		UnitId:                wrongBillID[:],
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               10,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0},
 	}

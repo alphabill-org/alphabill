@@ -65,36 +65,32 @@ func TestSync(t *testing.T) {
 					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x00}),
 					TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
-					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentEmpty(),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}, Timeout: 1000},
 				},
 				// receive transfer of 100 bills
 				{
 					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x01}),
 					TransactionAttributes: moneytesttx.CreateBillTransferTx(k.PubKeyHash.Sha256),
-					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}, Timeout: 1000},
 				},
 				// receive split of 100 bills
 				{
 					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x02}),
 					TransactionAttributes: moneytesttx.CreateBillSplitTx(k.PubKeyHash.Sha256, 100, 100),
-					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}, Timeout: 1000},
 				},
 				// receive swap of 100 bills
 				{
 					SystemId:              w.SystemID(),
 					UnitId:                hash.Sum256([]byte{0x03}),
 					TransactionAttributes: moneytesttx.CreateRandomSwapTransferTx(k.PubKeyHash.Sha256),
-					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}},
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{}, Timeout: 1000},
 				},
 			},
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
@@ -427,7 +423,6 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		UnitId:                billId32[:],
 		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout:           timeout,

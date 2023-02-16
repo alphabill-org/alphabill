@@ -189,9 +189,8 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 			SystemId:              systemId,
 			UnitId:                b.GetID(),
 			TransactionAttributes: moneytesttx.CreateRandomDustTransferTx(),
-			Timeout:               1000,
 			OwnerProof:            script.PredicateArgumentEmpty(),
-			ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}},
+			ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}, Timeout: 1000},
 			ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 		})
 	}
@@ -209,9 +208,8 @@ func createBlockWithSwapTx(systemId, dcNonce []byte, k *wallet.AccountKey, dcTxs
 					SystemId:              systemId,
 					UnitId:                dcNonce,
 					TransactionAttributes: createSwapTxFromDcTxs(k.PubKeyHash.Sha256, dcTxs),
-					Timeout:               1000,
 					OwnerProof:            script.PredicateArgumentPayToPublicKeyHashDefault([]byte{}, k.PubKey),
-					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}},
+					ClientMetadata:        &txsystem.ClientMetadata{FeeCreditRecordId: []byte{1, 3, 3, 7}, Timeout: 1000},
 					ServerMetadata:        &txsystem.ServerMetadata{Fee: 1},
 				},
 			},

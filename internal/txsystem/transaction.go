@@ -11,7 +11,6 @@ func (x *Transaction) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemId)
 	b.Write(x.UnitId)
-	b.Write(util.Uint64ToBytes(x.Timeout))
 	b.Write(x.OwnerProof)
 	b.Write(x.FeeProof)
 	if x.ClientMetadata != nil {
@@ -42,11 +41,19 @@ func (x *Transaction) TxBytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemId)
 	b.Write(x.UnitId)
-	b.Write(util.Uint64ToBytes(x.Timeout))
 	b.Write(x.OwnerProof)
 	b.Write(x.FeeProof)
 	if x.ClientMetadata != nil {
 		b.Write(x.ClientMetadata.Bytes())
 	}
 	return b.Bytes()
+}
+
+// Timeout returns timeout from ClientMetadata, defaults to 0 if client metadata is nil.
+func (x *Transaction) Timeout() uint64 {
+	cm := x.ClientMetadata
+	if cm != nil {
+		return cm.Timeout
+	}
+	return 0
 }

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	timeout = uint64(2)
+	timeout = uint64(10)
 )
 
 type TransferFCOption func(order *fc.TransferFeeCreditOrder) TransferFCOption

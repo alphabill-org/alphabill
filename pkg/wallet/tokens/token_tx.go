@@ -60,8 +60,8 @@ func (s *submissionSet) confirmed() bool {
 }
 
 func (s *submissionSet) add(sub *submittedTx) *submissionSet {
-	if sub.tx.Timeout > s.maxTimeout {
-		s.maxTimeout = sub.tx.Timeout
+	if sub.tx.Timeout() > s.maxTimeout {
+		s.maxTimeout = sub.tx.Timeout()
 	}
 	s.submissions[sub.id.String()] = sub
 	return s
@@ -582,7 +582,7 @@ func createTx(systemId, unitId []byte, timeout uint64) *txsystem.Transaction {
 		SystemId:              systemId,
 		UnitId:                unitId,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		// OwnerProof is added after whole transaction is built
 	}
 }

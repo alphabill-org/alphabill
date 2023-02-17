@@ -21,7 +21,7 @@ func handleAddFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[*transaction
 		}
 		// calculate actual tx fee cost
 		fee := f.feeCalculator()
-		tx.Wrapper.Transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
 		var updateFunc rma.Action
 		// find net value of credit

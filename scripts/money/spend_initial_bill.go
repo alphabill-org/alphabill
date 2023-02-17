@@ -1,16 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"flag"
 	"log"
+	"time"
 
-	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"google.golang.org/grpc"
@@ -55,7 +63,7 @@ func main() {
 		log.Fatal(err)
 	}
 	bytes32 := uint256.NewInt(*billIdUint).Bytes32()
-	billId := bytes32[:]
+	billID := bytes32[:]
 
 	ctx := context.Background()
 	conn, err := grpc.DialContext(ctx, *uri, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -69,45 +77,197 @@ func main() {
 		}
 	}()
 	txClient := alphabill.NewAlphabillServiceClient(conn)
-	res, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	maxBlockNumberRes, err := txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	absoluteTimeout := res.BlockNo + *timeout
+	absoluteTimeout := maxBlockNumberRes.MaxRoundNumber + *timeout
 
-	// create tx
-	tx, err := createTransferTx(pubKey, billId, *billValue, absoluteTimeout)
+	txFee := uint64(1)
+	feeAmount := uint64(2)
+	fcrID := util.SameShardIDBytes(uint256.NewInt(0).SetBytes(billID), hash.Sum256(pubKey))
+
+	// create transferFC
+	transferFC, err := createTransferFC(feeAmount, billID, fcrID, maxBlockNumberRes.MaxRoundNumber, absoluteTimeout)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// send transferFC
+	transferFCResponse, err := txClient.ProcessTransaction(ctx, transferFC)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if transferFCResponse.Ok {
+		log.Println("sent transferFC transaction")
+	} else {
+		log.Fatalf("failed to send transferFC transaction %v", transferFCResponse.Message)
+	}
+	// wait for transferFC proof
+	transferFCProof, err := waitForConfirmation(ctx, txClient, transferFC, maxBlockNumberRes.MaxRoundNumber, absoluteTimeout)
+	if err != nil {
+		log.Fatalf("failed to confirm transferFC transaction %v", err)
+	} else {
+		log.Println("confirmed transferFC transaction")
+	}
 
-	// send tx
+	// create addFC
+	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// send addFC
+	addFCResponse, err := txClient.ProcessTransaction(ctx, addFC)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if addFCResponse.Ok {
+		log.Println("sent addFC transaction")
+	} else {
+		log.Fatalf("failed to send addFC transaction %v", addFCResponse.Message)
+	}
+	// get max block number
+	maxBlockNumberRes, err = txClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	// wait for addFC confirmation
+	_, err = waitForConfirmation(ctx, txClient, addFC, maxBlockNumberRes.MaxRoundNumber, absoluteTimeout)
+	if err != nil {
+		log.Fatalf("failed to confirm addFC transaction %v", err)
+	} else {
+		log.Println("confirmed addFC transaction")
+	}
+
+	// create transfer tx
+	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
+	if err != nil {
+		log.Fatalf("failed to wrap transferFC %v", err)
+	}
+	tx, err := createTransferTx(pubKey, billID, *billValue-feeAmount-txFee, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
+	if err != nil {
+		log.Fatal(err)
+	}
+	// send transfer tx
 	txResponse, err := txClient.ProcessTransaction(ctx, tx)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if txResponse.Ok {
-		log.Println("successfully sent transaction")
+		log.Println("sent initial bill transfer transaction")
 	} else {
 		log.Fatalf("failed to send transaction %v", txResponse.Message)
 	}
 }
 
-func createTransferTx(pubKey []byte, billId []byte, billValue uint64, timeout uint64) (*txsystem.Transaction, error) {
+func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {
 	tx := &txsystem.Transaction{
-		UnitId:                billId,
+		UnitId:                unitID,
 		SystemId:              []byte{0, 0, 0, 0},
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
 		OwnerProof:            script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout:           timeout,
+			MaxFee:            1,
+			FeeCreditRecordId: fcrID,
+		},
 	}
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferOrder{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
-		Backlink:    nil,
+		Backlink:    backlink,
 	}, proto.MarshalOptions{})
 	if err != nil {
 		return nil, err
 	}
 	return tx, nil
+}
+
+func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, t2 uint64) (*txsystem.Transaction, error) {
+	tx := &txsystem.Transaction{
+		UnitId:                unitID,
+		SystemId:              []byte{0, 0, 0, 0},
+		TransactionAttributes: new(anypb.Any),
+		OwnerProof:            script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout: t2,
+			MaxFee:  1,
+		},
+	}
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditOrder{
+		Amount:                 feeAmount,
+		TargetSystemIdentifier: []byte{0, 0, 0, 0},
+		TargetRecordId:         targetUnitID,
+		EarliestAdditionTime:   t1,
+		LatestAdditionTime:     t2,
+	}, proto.MarshalOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Transaction, transferFCProof *block.BlockProof, timeout uint64, maxFee uint64) (*txsystem.Transaction, error) {
+	tx := &txsystem.Transaction{
+		UnitId:                unitID,
+		SystemId:              []byte{0, 0, 0, 0},
+		TransactionAttributes: new(anypb.Any),
+		OwnerProof:            script.PredicateArgumentEmpty(),
+		ClientMetadata: &txsystem.ClientMetadata{
+			Timeout: timeout,
+			MaxFee:  maxFee,
+		},
+	}
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditOrder{
+		FeeCreditTransfer:       transferFC,
+		FeeCreditTransferProof:  transferFCProof,
+		FeeCreditOwnerCondition: ownerCondition,
+	}, proto.MarshalOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func waitForConfirmation(ctx context.Context, abClient alphabill.AlphabillServiceClient, pendingTx *txsystem.Transaction, latestRoundNumber, timeout uint64) (*block.BlockProof, error) {
+	txConverter := money.NewTxConverter([]byte{0, 0, 0, 0})
+	for latestRoundNumber <= timeout {
+		res, err := abClient.GetBlock(ctx, &alphabill.GetBlockRequest{BlockNo: latestRoundNumber})
+		if err != nil {
+			return nil, err
+		}
+		if res.Block == nil {
+			// block might be empty, check latest round number
+			res, err := abClient.GetMaxBlockNo(ctx, &alphabill.GetMaxBlockNoRequest{})
+			if err != nil {
+				return nil, err
+			}
+			if res.MaxRoundNumber > latestRoundNumber {
+				latestRoundNumber++
+			} else {
+				// wait for some time before retrying to fetch new block
+				select {
+				case <-time.After(time.Second):
+					continue
+				case <-ctx.Done():
+					return nil, nil
+				}
+			}
+		} else {
+			for _, tx := range res.Block.Transactions {
+				if bytes.Equal(tx.UnitId, pendingTx.UnitId) {
+					genericBlock, err := res.Block.ToGenericBlock(txConverter)
+					if err != nil {
+						return nil, err
+					}
+					proof, err := block.NewPrimaryProof(genericBlock, tx.UnitId, crypto.SHA256)
+					if err != nil {
+						return nil, err
+					}
+					return proof, nil
+				}
+			}
+			latestRoundNumber++
+		}
+	}
+	return nil, errors.New("error tx failed to confirm")
 }

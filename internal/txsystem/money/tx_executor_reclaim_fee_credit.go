@@ -38,7 +38,7 @@ func handleReclaimFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustB
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.Transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
 		// add reclaimed value to source unit
 		v := tx.CloseFCTransfer.CloseFC.Amount - tx.CloseFCTransfer.Transaction.ServerMetadata.Fee - fee

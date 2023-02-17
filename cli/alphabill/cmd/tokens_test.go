@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"math/rand"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -34,9 +34,9 @@ var (
 
 func TestRunTokensNode(t *testing.T) {
 	homeDir := setupTestHomeDir(t, "tokens")
-	keysFileLocation := path.Join(homeDir, defaultKeysFileName)
-	nodeGenesisFileLocation := path.Join(homeDir, nodeGenesisFileName)
-	partitionGenesisFileLocation := path.Join(homeDir, "partition-genesis.json")
+	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, nodeGenesisFileName)
+	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
 		ctx, _ := async.WithWaitGroup(context.Background())
 		ctx, ctxCancel := context.WithCancel(ctx)
@@ -91,7 +91,7 @@ func TestRunTokensNode(t *testing.T) {
 		tx := &txsystem.Transaction{
 			UnitId:                id[:],
 			TransactionAttributes: new(anypb.Any),
-			Timeout:               10,
+			ClientMetadata:        &txsystem.ClientMetadata{Timeout: 10},
 			SystemId:              tokens.DefaultTokenTxSystemIdentifier,
 		}
 		require.NoError(t, tx.TransactionAttributes.MarshalFrom(&tokens.CreateNonFungibleTokenTypeAttributes{

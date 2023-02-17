@@ -55,3 +55,10 @@ func (x *UnicityCertificate) Bytes() []byte {
 	}
 	return b.Bytes()
 }
+
+func (x *UnicityCertificate) GetRoundNumber() uint64 {
+	if x != nil {
+		return x.InputRecord.GetRoundNumber()
+	}
+	return 0
+}

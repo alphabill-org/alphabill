@@ -79,7 +79,7 @@ func CreateRandomDcTx() *txsystem.Transaction {
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                hash.Sum256([]byte{0x00}),
 		TransactionAttributes: CreateRandomDustTransferTx(),
-		Timeout:               1000,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 1000},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 	}
 }

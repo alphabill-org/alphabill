@@ -130,7 +130,6 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 
 func TestBillVerifySwapTransferTx(t *testing.T) {
 	tx, err := money.ConvertNewGenericMoneyTx(testtransaction.NewTransaction(t,
-		testtransaction.WithTimeout(100),
 		testtransaction.WithAttributes(money.CreateRandomSwapAttributes(t, 0)),
 		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
 		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),

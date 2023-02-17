@@ -53,9 +53,9 @@ func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
 
 func createVDTransaction() *txsystem.Transaction {
 	return &txsystem.Transaction{
-		SystemId:   systemIdentifier,
-		UnitId:     hash.Sum256(test.RandomBytes(32)),
-		Timeout:    100,
-		OwnerProof: nil,
+		SystemId:       systemIdentifier,
+		UnitId:         hash.Sum256(test.RandomBytes(32)),
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: 100},
+		OwnerProof:     nil,
 	}
 }

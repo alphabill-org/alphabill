@@ -654,7 +654,6 @@ func createDCTransferAndSwapTxs(
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                newBillID,
-		Timeout:               20,
 		TransactionAttributes: &anypb.Any{},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
@@ -707,7 +706,6 @@ func createTx(fromID *uint256.Int) *txsystem.Transaction {
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                unitId32[:],
-		Timeout:               20,
 		TransactionAttributes: &anypb.Any{},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		FeeProof:              script.PredicateArgumentEmpty(),
@@ -715,6 +713,10 @@ func createTx(fromID *uint256.Int) *txsystem.Transaction {
 			Timeout:           20,
 			MaxFee:            10,
 			FeeCreditRecordId: util.Uint256ToBytes(fcrID),
+		},
+		// add server metadata so that tx.Hash method matches bill backlink
+		ServerMetadata: &txsystem.ServerMetadata{
+			Fee: fc.FixedFee(1)(),
 		},
 	}
 	return tx
@@ -725,9 +727,9 @@ func createNonMoneyTx() *txsystem.Transaction {
 	hasher.Write(test.RandomBytes(32))
 	id := hasher.Sum(nil)
 	return &txsystem.Transaction{
-		SystemId: []byte{0, 0, 0, 1},
-		UnitId:   id,
-		Timeout:  2,
+		SystemId:       []byte{0, 0, 0, 1},
+		UnitId:         id,
+		ClientMetadata: &txsystem.ClientMetadata{Timeout: 2},
 	}
 }
 

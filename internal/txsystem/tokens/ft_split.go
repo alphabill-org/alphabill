@@ -28,7 +28,7 @@ func handleSplitFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*s
 		logger.Debug("Adding a fungible token with ID %v", newTokenID)
 		txHash := tx.Hash(options.hashAlgorithm)
 		fee := options.feeCalculator()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(

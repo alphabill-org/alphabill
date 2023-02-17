@@ -18,7 +18,7 @@ func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFu
 			return fmt.Errorf("invalid create fungible token tx: %w", err)
 		}
 		fee := options.feeCalculator()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		h := tx.Hash(options.hashAlgorithm)

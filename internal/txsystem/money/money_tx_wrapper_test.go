@@ -57,7 +57,7 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 	// Not a problem at the moment.
 	switch w := genericTx.(type) {
 	case *transferWrapper:
-		assert.Equal(t, pbTransaction.Timeout, w.Timeout())
+		assert.Equal(t, pbTransaction.Timeout(), w.Timeout())
 		assert.Equal(t, pbBillTransfer.NewBearer, w.NewBearer())
 		assert.Equal(t, pbBillTransfer.Backlink, w.Backlink())
 		assert.Equal(t, pbBillTransfer.TargetValue, w.TargetValue())
@@ -82,7 +82,7 @@ func TestWrapper_Transfer(t *testing.T) {
 
 	assert.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitID())
 	assert.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
-	assert.Equal(t, pbTransaction.Timeout, transfer.Timeout())
+	assert.Equal(t, pbTransaction.Timeout(), transfer.Timeout())
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
 
@@ -124,7 +124,7 @@ func TestWrapper_Split(t *testing.T) {
 
 	assert.Equal(t, toUint256(pbTransaction.UnitId), split.UnitID())
 	assert.Equal(t, pbTransaction.OwnerProof, split.OwnerProof())
-	assert.Equal(t, pbTransaction.Timeout, split.Timeout())
+	assert.Equal(t, pbTransaction.Timeout(), split.Timeout())
 
 	assert.Equal(t, pbSplit.Amount, split.Amount())
 	assert.Equal(t, pbSplit.TargetBearer, split.TargetBearer())
@@ -176,7 +176,7 @@ func TestWrapper_Swap(t *testing.T) {
 	assert.Equal(t, pbTransaction.SystemId, swap.SystemID())
 	assert.Equal(t, toUint256(pbTransaction.UnitId), swap.UnitID())
 	assert.Equal(t, pbTransaction.OwnerProof, swap.OwnerProof())
-	assert.Equal(t, pbTransaction.Timeout, swap.Timeout())
+	assert.Equal(t, pbTransaction.Timeout(), swap.Timeout())
 
 	assert.Equal(t, pbSwap.OwnerCondition, swap.OwnerCondition())
 	assert.Equal(t, []*uint256.Int{uint256.NewInt(0).SetBytes(pbSwap.BillIdentifiers[0])}, swap.BillIdentifiers())
@@ -214,7 +214,7 @@ func TestWrapper_TransferFC(t *testing.T) {
 	assert.Equal(t, toUint256(transferFCTx.UnitId), transferFCWrapper.UnitID())
 	assert.Equal(t, transferFCTx.SystemId, transferFCWrapper.SystemID())
 	assert.Equal(t, transferFCTx.OwnerProof, transferFCWrapper.OwnerProof())
-	assert.Equal(t, transferFCTx.Timeout, transferFCWrapper.Timeout())
+	assert.Equal(t, transferFCTx.Timeout(), transferFCWrapper.Timeout())
 
 	assert.Equal(t, transferFCOrder.Amount, transferFCWrapper.TransferFC.Amount)
 	assert.Equal(t, transferFCOrder.TargetSystemIdentifier, transferFCWrapper.TransferFC.TargetSystemIdentifier)
@@ -316,6 +316,8 @@ func TestTransferTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(newBearer)
 	b.Write(util.Uint64ToBytes(targetValue))
 	b.Write(backlink)
@@ -329,6 +331,8 @@ func TestTransferDCTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(nonce)
 	b.Write(targetBearer)
 	b.Write(util.Uint64ToBytes(targetValue))
@@ -343,6 +347,8 @@ func TestSplitTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(util.Uint64ToBytes(amount))
 	b.Write(targetBearer)
 	b.Write(util.Uint64ToBytes(remainingValue))
@@ -359,6 +365,8 @@ func TestSwapTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
+	b.Write(util.Uint64ToBytes(0))
+	b.Write(nil)
 	b.Write(ownerCondition)
 	for _, billIdentifier := range billIdentifiers {
 		b.Write(billIdentifier)
@@ -375,7 +383,7 @@ func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDCOrder, pbTran
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
 	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitID())
 	require.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
-	require.Equal(t, pbTransaction.Timeout, transfer.Timeout())
+	require.Equal(t, pbTransaction.Timeout(), transfer.Timeout())
 
 	require.Equal(t, pbTransferDC.TargetBearer, transfer.TargetBearer())
 	require.Equal(t, pbTransferDC.Backlink, transfer.Backlink())
@@ -390,7 +398,7 @@ func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Mes
 		SystemId:              systemIdentifier,
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	err := anypb.MarshalFrom(to.TransactionAttributes, attr, proto.MarshalOptions{})
@@ -444,7 +452,7 @@ func createTransferTxOrder(t *testing.T) txsystem.GenericTransaction {
 	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
 		testtransaction.WithSystemID(systemID),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferOrder{
 			NewBearer:   newBearer,
@@ -458,7 +466,7 @@ func createTransferDCTxOrder(t *testing.T) txsystem.GenericTransaction {
 	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
 		testtransaction.WithSystemID(systemID),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&TransferDCOrder{
 			Nonce:        nonce,
@@ -473,7 +481,7 @@ func createSplitTxOrder(t *testing.T) txsystem.GenericTransaction {
 	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
 		testtransaction.WithSystemID(systemID),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
 		testtransaction.WithAttributes(&SplitOrder{
 			Amount:         amount,
@@ -488,8 +496,7 @@ func createSwapTxOrder(t *testing.T, dcTransfers []*txsystem.Transaction, dcTran
 	return testtransaction.NewGenericTransaction(t, newMoneyGenericTx,
 		testtransaction.WithSystemID(systemID),
 		testtransaction.WithUnitId(unitID),
-		testtransaction.WithTimeout(timeout),
-		testtransaction.WithOwnerProof(ownerProof),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithAttributes(&SwapOrder{
 			OwnerCondition:  ownerCondition,
 			BillIdentifiers: billIdentifiers,

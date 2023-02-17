@@ -39,7 +39,7 @@ func handleTransferFeeCreditTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCr
 		}
 
 		// calculate actual tx fee cost
-		tx.Wrapper.Transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: feeCalc()}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: feeCalc()})
 
 		// remove value from source unit, or delete source bill entirely
 		var action rma.Action

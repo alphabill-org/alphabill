@@ -18,7 +18,7 @@ func handleBurnFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*bu
 			return fmt.Errorf("invalid burn fungible token transaction: %w", err)
 		}
 		fee := options.feeCalculator()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 

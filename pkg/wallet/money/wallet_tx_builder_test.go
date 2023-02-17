@@ -7,19 +7,19 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 var receiverPubKey, _ = hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
-var accountKey, _ = wallet.NewKeys(testMnemonic)
+var accountKey, _ = account.NewKeys(testMnemonic)
 
 func TestSplitTransactionAmount(t *testing.T) {
 	receiverPubKey, _ := hexutil.Decode("0x1234511c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c12345")
 	receiverPubKeyHash := hash.Sum256(receiverPubKey)
-	keys, _ := wallet.NewKeys(testMnemonic)
+	keys, _ := account.NewKeys(testMnemonic)
 	billId := uint256.NewInt(0)
 	billIdBytes32 := billId.Bytes32()
 	billIdBytes := billIdBytes32[:]
@@ -32,12 +32,12 @@ func TestSplitTransactionAmount(t *testing.T) {
 	timeout := uint64(100)
 	systemId := []byte{0, 0, 0, 0}
 
-	tx, err := createSplitTx(amount, receiverPubKey, keys.AccountKey, systemId, b, timeout)
+	tx, err := createSplitTx(amount, receiverPubKey, keys.AccountKey, systemId, b, timeout, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tx)
 	require.EqualValues(t, systemId, tx.SystemId)
 	require.EqualValues(t, billIdBytes, tx.UnitId)
-	require.EqualValues(t, timeout, tx.Timeout)
+	require.EqualValues(t, timeout, tx.Timeout())
 	require.NotNil(t, tx.OwnerProof)
 
 	so := &moneytx.SplitOrder{}
@@ -122,7 +122,7 @@ func TestCreateTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			txs, err := createTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100)
+			txs, err := createTransactions(receiverPubKey, tt.amount, systemId, tt.bills, accountKey.AccountKey, 100, nil)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
 				require.Nil(t, txs)

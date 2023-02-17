@@ -18,8 +18,7 @@ func handleTransferDCTx(state *rma.Tree, dustCollector *DustCollector, hashAlgor
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
-
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		decrCreditFunc := fc.DecrCredit(fcrID, tx.transaction.ServerMetadata.Fee, tx.Hash(hashAlgorithm))

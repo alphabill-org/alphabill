@@ -38,7 +38,7 @@ func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[st
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
 		// set n as the target value
 		n := tx.TargetValue()
@@ -53,7 +53,6 @@ func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[st
 		}
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()
-		// TODO error. revisit later
 		return state.AtomicUpdate(
 			fc.DecrCredit(fcrID, fee, tx.Hash(hashAlgorithm)),
 			rma.UpdateData(dustCollectorMoneySupplyID, decDustCollectorSupplyFn, []byte{}),

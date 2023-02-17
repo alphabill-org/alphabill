@@ -9,8 +9,6 @@ message Transaction {
   bytes system_id = 1;
   bytes unit_id = 2;
   google.protobuf.Any transaction_attributes = 3;
-  // deprecated: use clientMetadata.timeout instead TODO AB-605
-  uint64 timeout = 4;
   bytes owner_proof = 5;
   // optional fee authorization proof (omitted when the main owner proof also satisfies the fee owner condition)
   bytes fee_proof = 6;
@@ -32,11 +30,15 @@ message ClientMetadata {
   uint64 timeout = 1;
   // maximum fee the user is willing to pay for the execution of this transaction
   uint64 max_fee = 2;
-  // optional identifier of the fee credit record
+  // fee credit record identifier (should be empty for fee credit transactions)
   bytes fee_credit_record_id = 3;
 }
 
 message ServerMetadata {
   // actual transaction fee charged
   uint64 fee = 1;
+}
+
+message Transactions {
+  repeated Transaction transactions = 1;
 }

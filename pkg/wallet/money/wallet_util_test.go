@@ -2,22 +2,23 @@ package money
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/stretchr/testify/require"
 )
 
 func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	_ = DeleteWalletDb(os.TempDir())
-	c := WalletConfig{DbPath: os.TempDir()}
-	w, err := CreateNewWallet("", c)
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
+
+	w, err := CreateNewWallet(am, "", WalletConfig{DbPath: dir})
+	require.NoError(t, err)
+	t.Cleanup(w.Shutdown)
 
 	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
 	w.AlphabillClient = mockClient
@@ -25,54 +26,27 @@ func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 }
 
 func CreateTestWalletFromSeed(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
-	_ = DeleteWalletDb(os.TempDir())
-	w, err := CreateNewWallet(testMnemonic, WalletConfig{DbPath: os.TempDir()})
-	t.Cleanup(func() {
-		DeleteWallet(w)
-	})
+	dir := t.TempDir()
+	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
+	w, err := CreateNewWallet(am, testMnemonic, WalletConfig{DbPath: dir})
+	require.NoError(t, err)
+	t.Cleanup(w.Shutdown)
 
 	mockClient := &clientmock.MockAlphabillClient{}
 	w.AlphabillClient = mockClient
 	return w, mockClient
 }
 
-func DeleteWallet(w *Wallet) {
-	if w != nil {
-		w.Shutdown()
-		w.DeleteDb()
-	}
-}
-
-func DeleteWalletDb(walletDir string) error {
-	dbFilePath := path.Join(walletDir, WalletFileName)
-	return os.Remove(dbFilePath)
-}
-
 func CopyWalletDBFile(t *testing.T) (string, error) {
-	_ = DeleteWalletDb(os.TempDir())
-	t.Cleanup(func() {
-		_ = DeleteWalletDb(os.TempDir())
-	})
 	wd, _ := os.Getwd()
-	srcDir := path.Join(wd, "testdata", "wallet")
-	return copyWalletDB(srcDir)
+	srcDir := filepath.Join(wd, "testdata", "wallet")
+	return copyWalletDB(srcDir, t.TempDir())
 }
 
-func CopyEncryptedWalletDBFile(t *testing.T) (string, error) {
-	_ = DeleteWalletDb(os.TempDir())
-	t.Cleanup(func() {
-		_ = DeleteWalletDb(os.TempDir())
-	})
-	wd, _ := os.Getwd()
-	srcDir := path.Join(wd, "testdata", "wallet", "encrypted")
-	return copyWalletDB(srcDir)
-}
-
-func copyWalletDB(srcDir string) (string, error) {
-	dstDir := os.TempDir()
-	srcFile := path.Join(srcDir, WalletFileName)
-	dstFile := path.Join(dstDir, WalletFileName)
+func copyWalletDB(srcDir string, dstDir string) (string, error) {
+	srcFile := filepath.Join(srcDir, WalletFileName)
+	dstFile := filepath.Join(dstDir, WalletFileName)
 	return dstDir, copyFile(srcFile, dstFile)
 }
 

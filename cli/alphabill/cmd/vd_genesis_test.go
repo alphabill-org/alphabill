@@ -132,11 +132,8 @@ func TestVDGGenesis_WithSystemIdentifier(t *testing.T) {
 }
 
 func setupTestHomeDir(t *testing.T, dir string) string {
-	outputDir := path.Join(os.TempDir(), dir)
-	_ = os.RemoveAll(outputDir)
-	_ = os.MkdirAll(outputDir, 0700) // -rwx------
-	t.Cleanup(func() {
-		_ = os.RemoveAll(outputDir)
-	})
+	outputDir := path.Join(t.TempDir(), dir)
+	err := os.MkdirAll(outputDir, 0700) // -rwx------
+	require.NoError(t, err)
 	return outputDir
 }

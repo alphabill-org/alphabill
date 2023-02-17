@@ -41,6 +41,7 @@ func NewMoneyTxSystem(systemIdentifier []byte, opts ...Option) (*txsystem.Modula
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
+
 	return txsystem.NewModularTxSystem(
 		[]txsystem.Module{money, feeCredit},
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()),

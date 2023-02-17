@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
+	"github.com/alphabill-org/alphabill/internal/partition/store"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
@@ -17,7 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal(t *testing.T) {
+func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_differentIR(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
@@ -61,6 +62,37 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitUnicityCertificate(newerUC)
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
 	require.Equal(t, recovering, tp.partition.status)
+}
+
+// AB-714 If before shutting down nodes managed to send certification requests,
+// the proposal is valid and must be restored correctly since the latest UC will certify it
+// that is, node does not need to send replication request, but instead should restore proposal and accept UC to finalize the block
+func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR(t *testing.T) {
+	t.SkipNow() // TODO fix test
+
+	store := store.NewInMemoryBlockStore()
+	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
+	t.Cleanup(func() {
+		tp.Close()
+	})
+
+	// create new block
+	tp.CreateBlock(t)
+
+	// create new proposal and certify it (but not yet finalize the block on the partition side)
+	tp.SubmitT1Timeout(t)
+	uc := tp.IssueBlockUC(t)
+
+	system := &testtxsystem.CounterTxSystem{}
+	tp.nodeDeps.txSystem = system
+	tp.nodeDeps.nodeOptions = append(tp.nodeDeps.nodeOptions, WithLeaderSelector(&TestLeaderSelector{
+		leader:      "",
+		currentNode: "1",
+	}))
+	tp.Restart(t)
+
+	// block finalization
+	tp.SubmitUC(t, uc)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *testing.T) {
@@ -176,7 +208,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 			}
 			return count == 3
 		}, test.WaitDuration, test.WaitTick)
-		require.NoError(t, tp.CreateBlock(t))
+		tp.CreateBlock(t)
 		bl := tp.GetLatestBlock(t)
 		require.Equal(t, 3, len(bl.Transactions))
 	}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,8 +12,9 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/legacywallet"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -23,9 +25,48 @@ type accountManagerMock struct {
 	recordedIndex uint64
 }
 
-func (a *accountManagerMock) GetAccountKey(accountIndex uint64) (*wallet.AccountKey, error) {
+func (a *accountManagerMock) GetAccountKey(accountIndex uint64) (*account.AccountKey, error) {
 	a.recordedIndex = accountIndex
-	return &wallet.AccountKey{PubKeyHash: &wallet.KeyHashes{Sha256: a.keyHash}}, nil
+	return &account.AccountKey{PubKeyHash: &account.KeyHashes{Sha256: a.keyHash}}, nil
+}
+
+func (a *accountManagerMock) GetAll() []account.Account {
+	return nil
+}
+
+func (a *accountManagerMock) CreateKeys(mnemonic string) error {
+	return nil
+}
+
+func (a *accountManagerMock) AddAccount() (uint64, []byte, error) {
+	return 0, nil, nil
+}
+
+func (a *accountManagerMock) GetMnemonic() (string, error) {
+	return "", nil
+}
+
+func (a *accountManagerMock) GetAccountKeys() ([]*account.AccountKey, error) {
+	return nil, nil
+}
+
+func (a *accountManagerMock) GetMaxAccountIndex() (uint64, error) {
+	return 0, nil
+}
+
+func (a *accountManagerMock) GetPublicKey(accountIndex uint64) ([]byte, error) {
+	return nil, nil
+}
+
+func (a *accountManagerMock) GetPublicKeys() ([][]byte, error) {
+	return nil, nil
+}
+
+func (a *accountManagerMock) IsEncrypted() (bool, error) {
+	return false, nil
+}
+
+func (a *accountManagerMock) Close() {
 }
 
 func TestParsePredicateClause(t *testing.T) {
@@ -436,71 +477,71 @@ func TestListTokensCommandInputs(t *testing.T) {
 		name          string
 		args          []string
 		accountNumber int
-		expectedKind  tw.TokenKind
+		expectedKind  legacywallet.TokenKind
 		expectedPass  string
 	}{
 		{
 			name:          "list all tokens",
 			args:          []string{},
 			accountNumber: -1, // all tokens
-			expectedKind:  tw.Any,
+			expectedKind:  legacywallet.Any,
 		},
 		{
 			name:          "list all tokens, encrypted wallet",
 			args:          []string{"--pn", "some pass phrase"},
 			accountNumber: -1, // all tokens
-			expectedKind:  tw.Any,
+			expectedKind:  legacywallet.Any,
 			expectedPass:  "some pass phrase",
 		},
 		{
 			name:          "list account tokens",
 			args:          []string{"--key", "3"},
 			accountNumber: 3,
-			expectedKind:  tw.Any,
+			expectedKind:  legacywallet.Any,
 		},
 		{
 			name:          "list all fungible tokens",
 			args:          []string{"fungible"},
 			accountNumber: -1,
-			expectedKind:  tw.FungibleToken,
+			expectedKind:  legacywallet.FungibleToken,
 		},
 		{
 			name:          "list account fungible tokens",
 			args:          []string{"fungible", "--key", "4"},
 			accountNumber: 4,
-			expectedKind:  tw.FungibleToken,
+			expectedKind:  legacywallet.FungibleToken,
 		},
 		{
 			name:          "list account fungible tokens, encrypted wallet",
 			args:          []string{"fungible", "--key", "4", "--pn", "some pass phrase"},
 			accountNumber: 4,
-			expectedKind:  tw.FungibleToken,
+			expectedKind:  legacywallet.FungibleToken,
 			expectedPass:  "some pass phrase",
 		},
 		{
 			name:          "list all non-fungible tokens",
 			args:          []string{"non-fungible"},
 			accountNumber: -1,
-			expectedKind:  tw.NonFungibleToken,
+			expectedKind:  legacywallet.NonFungibleToken,
 		},
 		{
 			name:          "list account non-fungible tokens",
 			args:          []string{"non-fungible", "--key", "5"},
 			accountNumber: 5,
-			expectedKind:  tw.NonFungibleToken,
+			expectedKind:  legacywallet.NonFungibleToken,
 		},
 		{
 			name:          "list account non-fungible tokens, encrypted walled",
 			args:          []string{"non-fungible", "--key", "5", "--pn", "some pass phrase"},
 			accountNumber: 5,
-			expectedKind:  tw.NonFungibleToken,
+			expectedKind:  legacywallet.NonFungibleToken,
 			expectedPass:  "some pass phrase",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind, accountNumber *int) error {
+			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind, accountNumber *int) error {
 				require.Equal(t, tt.accountNumber, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) > 0 {
@@ -546,14 +587,20 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, *rma
 	return network, tokensState
 }
 
-func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
-	mw, homedir := createNewWallet(t, addr)
-
-	w, err := tw.Load(mw, false)
+func createNewTokenWallet(t *testing.T, addr string) (*legacywallet.Wallet, string) {
+	homeDir := t.TempDir()
+	walletDir := filepath.Join(homeDir, "wallet")
+	am, err := account.NewManager(walletDir, "", true)
+	require.NoError(t, err)
+	require.NoError(t, am.CreateKeys(""))
+	w, err := legacywallet.Load(walletDir, client.AlphabillClientConfig{
+		Uri:          addr,
+		WaitForReady: false,
+	}, am, false)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 
-	return w, homedir
+	return w, homeDir
 }
 
 func execTokensCmdWithError(t *testing.T, homedir string, command string, expectedError string) {
@@ -573,14 +620,14 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet token --log-level DEBUG --home " + homedir + " " + command
+	args := "wallet token-legacy --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func randomID(t *testing.T) tw.TokenID {
-	id, err := tw.RandomID()
+func randomID(t *testing.T) legacywallet.TokenID {
+	id, err := legacywallet.RandomID()
 	require.NoError(t, err)
 	return id
 }
@@ -589,47 +636,47 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 	tests := []struct {
 		name         string
 		args         []string
-		expectedKind tw.TokenKind
+		expectedKind legacywallet.TokenKind
 		expectedPass string
 	}{
 		{
 			name:         "list all tokens",
 			args:         []string{},
-			expectedKind: tw.Any,
+			expectedKind: legacywallet.Any,
 		},
 		{
 			name:         "list all tokens, encrypted wallet",
 			args:         []string{"--pn", "test pass phrase"},
-			expectedKind: tw.Any,
+			expectedKind: legacywallet.Any,
 			expectedPass: "test pass phrase",
 		},
 		{
 			name:         "list all fungible tokens",
 			args:         []string{"fungible"},
-			expectedKind: tw.FungibleTokenType,
+			expectedKind: legacywallet.FungibleTokenType,
 		},
 		{
 			name:         "list all fungible tokens, encrypted wallet",
 			args:         []string{"fungible", "--pn", "test pass phrase"},
-			expectedKind: tw.FungibleTokenType,
+			expectedKind: legacywallet.FungibleTokenType,
 			expectedPass: "test pass phrase",
 		},
 		{
 			name:         "list all non-fungible tokens",
 			args:         []string{"non-fungible"},
-			expectedKind: tw.NonFungibleTokenType,
+			expectedKind: legacywallet.NonFungibleTokenType,
 		},
 		{
 			name:         "list all non-fungible tokens, encrypted wallet",
 			args:         []string{"non-fungible", "--pn", "test pass phrase"},
-			expectedKind: tw.NonFungibleTokenType,
+			expectedKind: legacywallet.NonFungibleTokenType,
 			expectedPass: "test pass phrase",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind tw.TokenKind) error {
+			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind) error {
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) != 0 {
 					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)

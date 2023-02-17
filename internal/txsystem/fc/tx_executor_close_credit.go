@@ -15,7 +15,7 @@ func handleCloseFeeCreditTx(f *FeeCredit) txsystem.GenericExecuteFunc[*transacti
 			return fmt.Errorf("closeFC: tx validation failed: %w", err)
 		}
 		// calculate actual tx fee cost
-		tx.Wrapper.Transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: f.feeCalculator()}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: f.feeCalculator()})
 
 		// decrement credit
 		updateFunc := DecrCredit(tx.UnitID(), tx.CloseFC.Amount, tx.Hash(f.hashAlgorithm))

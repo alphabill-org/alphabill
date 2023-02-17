@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testmoneyfc "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -57,8 +58,9 @@ func TestPartition_Ok(t *testing.T) {
 	}, systemIdentifier)
 	require.NoError(t, err)
 
-	// create fee credit bill from initial bill
-	fcrAmount, transferFC := createFeeCredit(t, initialBill, network)
+	// create fee credit for initial bill transfer
+	fcrAmount := testmoneyfc.FCRAmount
+	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx := createBillTransfer(initialBill.ID, total-fcrAmount-txFee(), script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
@@ -114,12 +116,13 @@ func TestPartition_SwapOk(t *testing.T) {
 	}, systemIdentifier)
 	require.NoError(t, err)
 
-	// create fee credit bill from initial bill
-	fcrAmount, transferFC := createFeeCredit(t, initialBill, network)
+	// create fee credit for initial bill transfer
+	txFee := feeFunc()
+	fcrAmount := testmoneyfc.FCRAmount
+	transferFC := testmoneyfc.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 	require.NoError(t, err)
 
 	// transfer initial bill to pubKey1
-	txFee := feeFunc()
 	transferInitialBillTx := createBillTransfer(initialBill.ID, total-fcrAmount-txFee, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)), transferFC.Hash(crypto.SHA256))
 	err = network.SubmitTx(transferInitialBillTx)
 	require.NoError(t, err)
@@ -187,7 +190,6 @@ func TestPartition_SwapOk(t *testing.T) {
 	swapTx := &txsystem.Transaction{
 		SystemId:              systemIdentifier,
 		UnitId:                newBillID,
-		Timeout:               20,
 		TransactionAttributes: swapOrder,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		FeeProof:              script.PredicateArgumentEmpty(),

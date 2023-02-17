@@ -20,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/proto"
 )
 
 // AlphabillPartition for integration tests
@@ -197,7 +196,7 @@ func (a *AlphabillPartition) GetBlockProof(tx *txsystem.Transaction, txConverter
 				continue
 			}
 			for _, t := range b.Transactions {
-				if ProtoEqual(t, tx) {
+				if bytes.Equal(t.TxBytes(), tx.TxBytes()) {
 					genBlock, err := b.ToGenericBlock(txConverter)
 					if err != nil {
 						return nil, nil, err
@@ -297,7 +296,7 @@ func generateKeyPairs(count int) ([]*network.PeerKeyPair, error) {
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(tx *txsystem.Transaction, network *AlphabillPartition) func() bool {
 	return BlockchainContains(network, func(actualTx *txsystem.Transaction) bool {
-		return ProtoEqual(tx, actualTx)
+		return bytes.Equal(tx.TxBytes(), actualTx.TxBytes())
 	})
 }
 
@@ -324,16 +323,4 @@ func BlockchainContains(network *AlphabillPartition, criteria func(tx *txsystem.
 		}
 		return false
 	}
-}
-
-// ProtoEqual compares all fields except server metadata.
-// Broadcasted and actual transactions are different by ServerMetadata field.
-func ProtoEqual(a, b *txsystem.Transaction) bool {
-	return bytes.Equal(a.UnitId, b.UnitId) &&
-		bytes.Equal(a.SystemId, b.SystemId) &&
-		bytes.Equal(a.OwnerProof, b.OwnerProof) &&
-		bytes.Equal(a.FeeProof, b.FeeProof) &&
-		a.Timeout == b.Timeout &&
-		proto.Equal(a.ClientMetadata, b.ClientMetadata) &&
-		proto.Equal(a.TransactionAttributes, b.TransactionAttributes)
 }

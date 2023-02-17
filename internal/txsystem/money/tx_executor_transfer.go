@@ -19,7 +19,7 @@ func handleTransferTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.Fee
 		}
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()

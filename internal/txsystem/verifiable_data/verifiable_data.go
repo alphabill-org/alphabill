@@ -157,7 +157,7 @@ func (w *vdTransaction) UnitID() *uint256.Int {
 }
 
 func (w *vdTransaction) Timeout() uint64 {
-	return w.transaction.Timeout
+	return w.transaction.Timeout()
 }
 
 func (w *vdTransaction) SystemID() []byte {
@@ -180,10 +180,21 @@ func (w *vdTransaction) TargetUnits(_ crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{w.UnitID()}
 }
 
+func (w *vdTransaction) SetServerMetadata(sm *txsystem.ServerMetadata) {
+	w.ToProtoBuf().ServerMetadata = sm
+	w.resetHasher()
+}
+
+func (w *vdTransaction) resetHasher() {
+	w.hashValue = nil
+}
+
 func (w *vdTransaction) sigBytes(b *bytes.Buffer) {
 	b.Write(w.transaction.SystemId)
 	b.Write(w.transaction.UnitId)
-	b.Write(util.Uint64ToBytes(w.transaction.Timeout))
+	if w.transaction.ClientMetadata != nil {
+		b.Write(w.transaction.ClientMetadata.Bytes())
+	}
 }
 
 func (w *vdTransaction) hashComputed(hashFunc crypto.Hash) bool {

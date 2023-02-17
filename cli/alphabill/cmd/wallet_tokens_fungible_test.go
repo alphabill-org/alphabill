@@ -19,7 +19,7 @@ func TestWalletCreateFungibleTokenTypeCmd_SymbolFlag(t *testing.T) {
 	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	homedir := createNewTestWallet(t)
 	// missing symbol parameter
-	_, err := execCommand(homedir, "token new-type fungible --decimals 3")
+	_, err := execCommand(homedir, "token-legacy new-type fungible --decimals 3")
 	require.ErrorContains(t, err, "required flag(s) \"symbol\" not set")
 	// symbol parameter not set
 	_, err = execCommand(homedir, "flag needs an argument: --symbol")
@@ -31,11 +31,11 @@ func TestWalletCreateFungibleTokenTypeCmd_TypeIdlFlag(t *testing.T) {
 	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	homedir := createNewTestWallet(t)
 	// hidden parameter type (not a mandatory parameter)
-	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --type")
+	_, err := execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --type")
 	require.ErrorContains(t, err, "flag needs an argument: --type")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --type 011")
+	_, err = execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --type 011")
 	require.ErrorContains(t, err, "invalid argument \"011\" for \"--type\" flag: encoding/hex: odd length hex string")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --type foo")
+	_, err = execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --type foo")
 	require.ErrorContains(t, err, "invalid argument \"foo\" for \"--type\" flag")
 	// there currently are no restrictions on type length on CLI side
 }
@@ -44,13 +44,13 @@ func TestWalletCreateFungibleTokenTypeCmd_DecimalsFlag(t *testing.T) {
 	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	homedir := createNewTestWallet(t)
 	// hidden parameter type (not a mandatory parameter)
-	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals")
+	_, err := execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --decimals")
 	require.ErrorContains(t, err, "flag needs an argument: --decimals")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals foo")
+	_, err = execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --decimals foo")
 	require.ErrorContains(t, err, "invalid argument \"foo\" for \"--decimals\" flag")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals -1")
+	_, err = execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --decimals -1")
 	require.ErrorContains(t, err, "invalid argument \"-1\" for \"--decimals\"")
-	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --decimals 9")
+	_, err = execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --decimals 9")
 	require.ErrorContains(t, err, "argument \"9\" for \"--decimals\" flag is out of range, max value 8")
 }
 
@@ -251,18 +251,18 @@ func TestFungibleTokens_CollectDust_Integration(t *testing.T) {
 func TestWalletCreateFungibleTokenCmd_TypeFlag(t *testing.T) {
 	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	homedir := createNewTestWallet(t)
-	_, err := execCommand(homedir, "token new fungible --type A8B")
+	_, err := execCommand(homedir, "token-legacy new fungible --type A8B")
 	require.ErrorContains(t, err, "invalid argument \"A8B\" for \"--type\" flag: encoding/hex: odd length hex string")
-	_, err = execCommand(homedir, "token new fungible --type nothex")
+	_, err = execCommand(homedir, "token-legacy new fungible --type nothex")
 	require.ErrorContains(t, err, "invalid argument \"nothex\" for \"--type\" flag: encoding/hex: invalid byte")
-	_, err = execCommand(homedir, "token new fungible --amount 4")
+	_, err = execCommand(homedir, "token-legacy new fungible --amount 4")
 	require.ErrorContains(t, err, "required flag(s) \"type\" not set")
 }
 
 func TestWalletCreateFungibleTokenCmd_AmountFlag(t *testing.T) {
 	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	homedir := createNewTestWallet(t)
-	_, err := execCommand(homedir, "token new fungible --type A8BB")
+	_, err := execCommand(homedir, "token-legacy new fungible --type A8BB")
 	require.ErrorContains(t, err, "required flag(s) \"amount\" not set")
 }
 

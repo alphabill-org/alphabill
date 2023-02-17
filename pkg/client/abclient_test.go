@@ -101,7 +101,7 @@ func createRandomTx() *txsystem.Transaction {
 	return &txsystem.Transaction{
 		UnitId:                hash.Sum256([]byte{0x00}),
 		TransactionAttributes: createRandomTransfer(),
-		Timeout:               1000,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 1000},
 		OwnerProof:            script.PredicateArgumentEmpty(),
 	}
 }

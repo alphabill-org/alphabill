@@ -8,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/omt"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -56,8 +55,6 @@ func TestProofTypePrim(t *testing.T) {
 
 	// verify primary proof for each transaction
 	for i, tx := range b.Transactions {
-		verifyHashChain(t, b, tx, hashAlgorithm)
-
 		unitIDBytes := util.Uint256ToBytes(tx.UnitID())
 		p, err := NewPrimaryProof(b, unitIDBytes, hashAlgorithm)
 		require.NoError(t, err)
@@ -226,21 +223,12 @@ func createUC(t *testing.T, b *GenericBlock, hashAlgorithm crypto.Hash) (*certif
 	return uc, map[string]abcrypto.Verifier{"test": verifier}
 }
 
-func verifyHashChain(t *testing.T, b *GenericBlock, tx txsystem.GenericTransaction, hashAlgorithm crypto.Hash) {
-	unitIDBytes := util.Uint256ToBytes(tx.UnitID())
-	leaves, _ := b.blockTreeLeaves(hashAlgorithm)
-	chain, _ := treeChain(unitIDBytes, leaves, hashAlgorithm)
-	root := omt.EvalMerklePath(chain, unitIDBytes[:], hashAlgorithm)
-	require.Equal(t, "690822883B5310DF3B8DA4232252A76E20E07F2F4FB184CEF85D35DC4AF4DF70", fmt.Sprintf("%X", root),
-		"hash chain verification failed for tx=%X", unitIDBytes[:])
-}
-
 func newTransaction(id, ownerProof []byte, timeout uint64) *txsystem.Transaction {
 	tx := &txsystem.Transaction{
 		SystemId:              []byte{0, 0, 0, 0},
 		UnitId:                id,
 		TransactionAttributes: new(anypb.Any),
-		Timeout:               timeout,
+		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
 	return tx

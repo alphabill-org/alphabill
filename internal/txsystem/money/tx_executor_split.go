@@ -24,12 +24,15 @@ func handleSplitTx(state *rma.Tree, hashAlgorithm crypto.Hash, feeCalc fc.FeeCal
 		if err := validateSplitTx(tx, state); err != nil {
 			return fmt.Errorf("invalid split transaction: %w", err)
 		}
-		h := tx.Hash(hashAlgorithm)
+
 		newItemId := txutil.SameShardID(tx.UnitID(), tx.HashForIdCalculation(hashAlgorithm))
 
 		// calculate actual tx fee cost
 		fee := feeCalc()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
+
+		// calcualte hash after setting server metadata
+		h := tx.Hash(hashAlgorithm)
 
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()

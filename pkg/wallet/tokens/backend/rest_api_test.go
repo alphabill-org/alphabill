@@ -1,0 +1,552 @@
+package twb
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"math/rand"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"regexp"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+)
+
+func Test_restAPI_endpoints(t *testing.T) {
+	t.Parallel()
+
+	/*
+		purpose of the test is to make sure that router is built successfully.
+		unfortunately it seems that gorilla/mux doesn't fail to build router
+		even with invalid paths (ie the same path registered multiple times)
+	*/
+
+	api := &restAPI{}
+	h := api.endpoints()
+	require.NotNil(t, h, "nil handler was returned")
+
+	req := httptest.NewRequest("GET", "http://ab.com/api/v1/foobar", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	rsp := w.Result()
+	require.NotNil(t, rsp, "got nil response")
+	require.Equal(t, http.StatusNotFound, rsp.StatusCode, "unexpected status")
+}
+
+func Test_restAPI_postTransaction(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, owner string, body []byte) *http.Response {
+		req := httptest.NewRequest("POST", fmt.Sprintf("http://ab.com/api/v1/transactions/%s", owner), bytes.NewReader(body))
+		req = mux.SetURLVars(req, map[string]string{"pubkey": owner})
+		w := httptest.NewRecorder()
+		api.postTransactions(w, req)
+		return w.Result()
+	}
+
+	// some values to be reused by multiple tests
+
+	// valid owner ID
+	ownerID := make([]byte, 33)
+	n, err := rand.Read(ownerID)
+	require.NoError(t, err)
+	require.EqualValues(t, len(ownerID), n)
+	ownerIDstr := hexutil.Encode(ownerID)
+
+	// valid request body with single create-nft-type tx
+	createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
+	createNTFTypeMsg, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(&txsystem.Transactions{Transactions: []*txsystem.Transaction{createNTFTypeTx}})
+	require.NoError(t, err)
+	require.NotEmpty(t, createNTFTypeMsg)
+
+	t.Run("empty request body", func(t *testing.T) {
+		api := &restAPI{} // shouldn't need any of the dependencies
+		rsp := makeRequest(api, ownerIDstr, nil)
+		if rsp.StatusCode != http.StatusBadRequest {
+			t.Errorf("unexpected status %d", rsp.StatusCode)
+		}
+		// expecting error like
+		// failed to decode request body: proto: syntax error (line 1:1): unexpected token
+		// but it is not "stable" so check just for the expected beginning
+		er := &ErrorResponse{}
+		if err := decodeResponse(t, rsp, http.StatusBadRequest, er); err != nil {
+			t.Fatal(err.Error())
+		}
+		require.Contains(t, er.Message, `failed to decode request body`)
+	})
+
+	t.Run("empty object in request body", func(t *testing.T) {
+		api := &restAPI{} // shouldn't need any of the dependencies
+		rsp := makeRequest(api, ownerIDstr, []byte(`{}`))
+		if rsp.StatusCode != http.StatusBadRequest {
+			t.Errorf("unexpected status %d", rsp.StatusCode)
+		}
+		expectErrorResponse(t, rsp, http.StatusBadRequest, "request body contained no transactions to process")
+	})
+
+	t.Run("failure to convert tx", func(t *testing.T) {
+		expErr := fmt.Errorf("can't convert tx")
+		var saveTypeCalls, sendTxCalls int32
+		api := &restAPI{
+			convertTx: func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) { return nil, expErr },
+			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+				atomic.AddInt32(&sendTxCalls, 1)
+				return nil, fmt.Errorf("unexpected call")
+			},
+			db: &mockStorage{
+				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
+					atomic.AddInt32(&saveTypeCalls, 1)
+					return fmt.Errorf("unexpected call")
+				},
+			},
+		}
+		rsp := makeRequest(api, ownerIDstr, createNTFTypeMsg)
+		if rsp.StatusCode != http.StatusInternalServerError {
+			b, err := httputil.DumpResponse(rsp, true)
+			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
+		}
+		if saveTypeCalls != 0 {
+			t.Errorf("expected no saveTTypeCreator calls but it was called %d times", saveTypeCalls)
+		}
+		if sendTxCalls != 0 {
+			t.Errorf("expected no sendTransaction calls but it was called %d times", sendTxCalls)
+		}
+	})
+
+	t.Run("one valid type-creation transaction is sent", func(t *testing.T) {
+		var saveTypeCalls, sendTxCalls int32
+		api := &restAPI{
+			convertTx: tokens.NewGenericTx,
+			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+				atomic.AddInt32(&sendTxCalls, 1)
+				return &txsystem.TransactionResponse{Ok: true}, nil
+			},
+			db: &mockStorage{
+				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
+					atomic.AddInt32(&saveTypeCalls, 1)
+					if !bytes.Equal(id, createNTFTypeTx.UnitId) {
+						t.Errorf("unexpected unit ID %x", id)
+					}
+					return nil
+				},
+			},
+		}
+		rsp := makeRequest(api, ownerIDstr, createNTFTypeMsg)
+		if rsp.StatusCode != http.StatusAccepted {
+			b, err := httputil.DumpResponse(rsp, true)
+			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
+		}
+		require.EqualValues(t, 1, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
+		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+
+	t.Run("valid non-type-creation request", func(t *testing.T) {
+		txs := &txsystem.Transactions{Transactions: []*txsystem.Transaction{
+			randomTx(t, &tokens.MintFungibleTokenAttributes{Value: 42}),
+		}}
+		message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(txs)
+		require.NoError(t, err)
+
+		var saveTypeCalls, sendTxCalls int32
+		api := &restAPI{
+			convertTx: tokens.NewGenericTx,
+			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+				atomic.AddInt32(&sendTxCalls, 1)
+				return &txsystem.TransactionResponse{Ok: true}, nil
+			},
+			db: &mockStorage{
+				saveTTypeCreator: func(id TokenTypeID, kind Kind, creator PubKey) error {
+					atomic.AddInt32(&saveTypeCalls, 1)
+					return nil
+				},
+			},
+		}
+		rsp := makeRequest(api, ownerIDstr, message)
+		if rsp.StatusCode != http.StatusAccepted {
+			b, err := httputil.DumpResponse(rsp, true)
+			t.Errorf("unexpected status: %s\n%s\n%v", rsp.Status, b, err)
+		}
+		require.EqualValues(t, 0, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
+		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+}
+
+func Test_restAPI_listTokens(t *testing.T) {
+	t.Parallel()
+
+	ownerID := make([]byte, 33)
+	n, err := rand.Read(ownerID)
+	require.NoError(t, err)
+	require.EqualValues(t, len(ownerID), n)
+	pubKeyHex := hexutil.Encode(ownerID)
+
+	t.Run("invalid parameters", func(t *testing.T) {
+		cases := []struct {
+			kind   string
+			owner  string
+			qparam string
+			errMsg string
+		}{
+			{kind: "foo", owner: pubKeyHex, qparam: "", errMsg: `invalid parameter "kind": "foo" is not valid token kind`},
+			{kind: "all", owner: "", qparam: "", errMsg: `invalid parameter "owner": parameter is required`},
+			{kind: "all", owner: "AA", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 2 characters starting AA`},
+			{kind: "all", owner: "0x", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 2 characters starting 0x`},
+			{kind: "all", owner: "0xAA", qparam: "", errMsg: `invalid parameter "owner": must be 68 characters long (including 0x prefix), got 4 characters starting 0xAA`},
+			{kind: "all", owner: "0x" + strings.Repeat("ABCDEFGHIJK", 6), qparam: "", errMsg: `invalid parameter "owner": invalid hex string`}, // correct length but invalid content
+			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=ABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`},
+			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=0xABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": invalid hex string`},
+		}
+
+		api := &restAPI{db: &mockStorage{
+			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+				t.Error("unexpected QueryTokens call")
+				return nil, nil, fmt.Errorf("unexpected QueryTokens(%s, %x, %x, %d) call", kind, owner, startKey, count)
+			},
+		}}
+		makeRequest := func(kind, owner, qparam string) *http.Response {
+			req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/kinds/%s/owners/%s/tokens?%s", kind, owner, qparam), nil)
+			req = mux.SetURLVars(req, map[string]string{"kind": kind, "owner": owner})
+			w := httptest.NewRecorder()
+			api.listTokens(w, req)
+			return w.Result()
+		}
+
+		for n, tc := range cases {
+			t.Run(fmt.Sprintf("test case %d", n), func(t *testing.T) {
+				resp := makeRequest(tc.kind, tc.owner, tc.qparam)
+				expectErrorResponse(t, resp, http.StatusBadRequest, tc.errMsg)
+			})
+		}
+	})
+
+	makeRequest := func(api *restAPI, kind Kind, owner []byte, qparam string) *http.Response {
+		pubKey := hexutil.Encode(owner)
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/kinds/%s/owners/%s/tokens?%s", kind, pubKey, qparam), nil)
+		req = mux.SetURLVars(req, map[string]string{"kind": kind.String(), "owner": pubKey})
+		w := httptest.NewRecorder()
+		api.listTokens(w, req)
+		return w.Result()
+	}
+
+	t.Run("data is returned by the query and there is more", func(t *testing.T) {
+		data := []*TokenUnit{
+			{ID: []byte("1111"), Kind: Fungible},
+			{ID: []byte("2222"), Kind: NonFungible},
+			{ID: []byte("3333"), Kind: Fungible},
+		}
+		ds := &mockStorage{
+			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+				require.EqualValues(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(ownerID)), owner, "unexpected owner key in the query")
+				return data, data[len(data)-1].ID, nil
+			},
+		}
+
+		resp := makeRequest(&restAPI{db: ds}, Any, ownerID, "")
+		var rspData []*TokenUnit
+		require.NoError(t, decodeResponse(t, resp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, data, rspData)
+
+		// because query reported there is more data we must have "Link" header
+		var linkHdrMatcher = regexp.MustCompile("<(.*)>")
+		match := linkHdrMatcher.FindStringSubmatch(resp.Header.Get("Link"))
+		if len(match) != 2 {
+			t.Errorf("Link header didn't result in expected match\nHeader: %s\nmatches: %v\n", resp.Header.Get("Link"), match)
+		} else {
+			u, err := url.Parse(match[1])
+			if err != nil {
+				t.Fatal("failed to parse Link header:", err)
+			}
+			exp := encodeTokenID(data[len(data)-1].ID)
+			if s := u.Query().Get("offsetKey"); s != exp {
+				t.Errorf("expected %q got %q", exp, s)
+			}
+		}
+	})
+
+	t.Run("no data", func(t *testing.T) {
+		ds := &mockStorage{
+			queryTokens: func(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error) {
+				return nil, nil, nil
+			},
+		}
+		resp := makeRequest(&restAPI{db: ds}, Any, ownerID, "")
+		// check that there is no data in body
+		var rspData []*TokenUnit
+		require.NoError(t, decodeResponse(t, resp, http.StatusOK, &rspData))
+		require.Empty(t, rspData)
+		// no more data
+		if lh := resp.Header.Get("Link"); lh != "" {
+			t.Errorf("unexpectedly the Link header is not empty, got %q", lh)
+		}
+	})
+}
+
+func Test_restAPI_listTypes(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, kind Kind, qparam string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/kinds/%s/types?%s", kind, qparam), nil)
+		req = mux.SetURLVars(req, map[string]string{"kind": kind.String()})
+		w := httptest.NewRecorder()
+		api.listTypes(w, req)
+		return w.Result()
+	}
+
+	t.Run("invalid query parameter value", func(t *testing.T) {
+		cases := []struct {
+			qparam string
+			errMsg string
+		}{
+			{
+				qparam: "creator=" + hexutil.Encode([]byte{1, 2, 3, 4, 5, 6, 7, 8}),
+				errMsg: `invalid parameter "creator": must be 68 characters long (including 0x prefix), got 18 characters starting 0x0102`,
+			},
+			{
+				// correct length but invalid content
+				qparam: "creator=0x" + strings.Repeat("ABCDEFGHIJK", 6),
+				errMsg: `invalid parameter "creator": invalid hex string`,
+			},
+			{
+				qparam: "offsetKey=01234567890abcdef",
+				errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`,
+			},
+			{
+				qparam: "offsetKey=0x" + strings.Repeat("ABCDEFGHIJK", 6),
+				errMsg: `invalid parameter "offsetKey": invalid hex string`,
+			},
+		}
+
+		api := &restAPI{db: &mockStorage{
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				t.Error("unexpected QueryTokenType call")
+				return nil, nil, fmt.Errorf("unexpected QueryTokenType call")
+			},
+		}}
+
+		for _, tc := range cases {
+			resp := makeRequest(api, Any, tc.qparam)
+			expectErrorResponse(t, resp, http.StatusBadRequest, tc.errMsg)
+		}
+	})
+
+	t.Run("limit param is sent to the query", func(t *testing.T) {
+		// when param is invalid or missing then default value 100 is used
+		cases := []struct {
+			qpar  string // param we send in URL
+			value int    // what we expect to see in a query callback
+		}{
+			{value: 100, qpar: "limit="},
+			{value: 100, qpar: "limit=0"},
+			{value: 1, qpar: "limit=1"},
+			{value: 99, qpar: "limit=99"},
+			{value: 100, qpar: "limit=100"},
+			{value: 100, qpar: "limit=101"},
+			{value: 100, qpar: "limit=321"},
+			{value: 100, qpar: "limit=-1"},
+			{value: 100, qpar: "limit=foo"},
+		}
+		for _, tc := range cases {
+			ds := &mockStorage{
+				queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+					require.Equal(t, tc.value, count, "unexpected count sent to the query func with param %q", tc.qpar)
+					return nil, nil, nil
+				},
+			}
+			resp := makeRequest(&restAPI{db: ds}, Any, tc.qpar)
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("unexpected status %d for test %q -> %d", resp.StatusCode, tc.qpar, tc.value)
+			}
+		}
+	})
+
+	t.Run("creator param is passed to the query", func(t *testing.T) {
+		creatorID := make([]byte, 33)
+		n, err := rand.Read(creatorID)
+		require.NoError(t, err)
+		require.EqualValues(t, len(creatorID), n)
+
+		ds := &mockStorage{
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				require.EqualValues(t, creatorID, creator)
+				require.Empty(t, startKey)
+				require.True(t, count > 0, "expected count to be > 0, got %d", count)
+				return nil, nil, nil
+			},
+		}
+		resp := makeRequest(&restAPI{db: ds}, Any, "creator="+hexutil.Encode(creatorID))
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("unexpected status %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("position param is passed to the query", func(t *testing.T) {
+		currentID := make([]byte, 33)
+		n, err := rand.Read(currentID)
+		require.NoError(t, err)
+		require.EqualValues(t, len(currentID), n)
+
+		ds := &mockStorage{
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				require.EqualValues(t, currentID, startKey)
+				require.Empty(t, creator)
+				require.True(t, count > 0, "expected count to be > 0, got %d", count)
+				return nil, nil, nil
+			},
+		}
+		resp := makeRequest(&restAPI{db: ds}, Any, "offsetKey="+encodeTokenTypeID(currentID))
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("unexpected status %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("kind parameter is sent to the query", func(t *testing.T) {
+		for _, tc := range []Kind{Any, Fungible, NonFungible} {
+			ds := &mockStorage{
+				queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+					require.Equal(t, kind, tc, "unexpected token kind sent to the query func")
+					return nil, nil, nil
+				},
+			}
+			resp := makeRequest(&restAPI{db: ds}, tc, "")
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("unexpected status %d for kind %d", resp.StatusCode, tc)
+			}
+		}
+	})
+
+	t.Run("invalid kind parameter is sent", func(t *testing.T) {
+		ds := &mockStorage{
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				t.Error("unexpected queryTTypes call")
+				return nil, nil, nil
+			},
+		}
+		api := &restAPI{db: ds}
+
+		req := httptest.NewRequest("GET", "http://ab.com/api/v1/kinds/foo/types", nil)
+		req = mux.SetURLVars(req, map[string]string{"kind": "foo"})
+		w := httptest.NewRecorder()
+
+		api.listTypes(w, req)
+
+		expectErrorResponse(t, w.Result(), http.StatusBadRequest, `invalid parameter "kind": "foo" is not valid token kind`)
+	})
+
+	t.Run("query returns error", func(t *testing.T) {
+		expErr := fmt.Errorf("failed to query database")
+		ds := &mockStorage{
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				return nil, nil, expErr
+			},
+		}
+
+		resp := makeRequest(&restAPI{db: ds}, Any, "")
+		expectErrorResponse(t, resp, http.StatusInternalServerError, `failed to query database`)
+	})
+
+	t.Run("no data matches the query", func(t *testing.T) {
+		ds := &mockStorage{
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				return nil, nil, nil
+			},
+		}
+		resp := makeRequest(&restAPI{db: ds}, Any, "")
+		// check that there is nothing in body
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, resp, http.StatusOK, &rspData))
+		require.Empty(t, rspData)
+		// no more data
+		if lh := resp.Header.Get("Link"); lh != "" {
+			t.Errorf("unexpectedly the Link header is not empty, got %q", lh)
+		}
+	})
+
+	t.Run("data is returned by the query and there is more", func(t *testing.T) {
+		data := []*TokenUnitType{
+			{ID: []byte("1111"), Kind: Fungible},
+			{ID: []byte("2222"), Kind: NonFungible},
+			{ID: []byte("3333"), Kind: Fungible},
+		}
+		ds := &mockStorage{
+			queryTTypes: func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error) {
+				return data, data[len(data)-1].ID, nil
+			},
+		}
+
+		resp := makeRequest(&restAPI{db: ds}, Any, "")
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, resp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, data, rspData)
+
+		// because query reported there is more data we must have "Link" header
+		var linkHdrMatcher = regexp.MustCompile("<(.*)>")
+		match := linkHdrMatcher.FindStringSubmatch(resp.Header.Get("Link"))
+		if len(match) != 2 {
+			t.Errorf("Link header didn't result in expected match\nHeader: %s\nmatches: %v\n", resp.Header.Get("Link"), match)
+		} else {
+			u, err := url.Parse(match[1])
+			if err != nil {
+				t.Fatal("failed to parse Link header:", err)
+			}
+			exp := encodeTokenTypeID(data[len(data)-1].ID)
+			if s := u.Query().Get("offsetKey"); s != exp {
+				t.Errorf("expected %q got %q", exp, s)
+			}
+		}
+	})
+}
+
+func Test_restAPI_getRoundNumber(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI) *http.Response {
+		req := httptest.NewRequest("GET", "http://ab.com/api/v1/round-number", nil)
+		w := httptest.NewRecorder()
+		api.getRoundNumber(w, req)
+		return w.Result()
+	}
+
+	t.Run("query returns error", func(t *testing.T) {
+		expErr := fmt.Errorf("failed to read round number")
+		ds := &mockStorage{
+			getBlockNumber: func() (uint64, error) { return 0, expErr },
+		}
+		resp := makeRequest(&restAPI{db: ds})
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Errorf("unexpected status %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		ds := &mockStorage{
+			getBlockNumber: func() (uint64, error) { return 42, nil },
+		}
+		resp := makeRequest(&restAPI{db: ds})
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("unexpected status %d", resp.StatusCode)
+		}
+		defer resp.Body.Close()
+
+		rnr := &RoundNumberResponse{}
+		if err := json.NewDecoder(resp.Body).Decode(rnr); err != nil {
+			t.Fatalf("failed to decode response body: %v", err)
+		}
+		if rnr.RoundNumber != 42 {
+			t.Errorf("expected response to be 42, got %d", rnr.RoundNumber)
+		}
+	})
+}

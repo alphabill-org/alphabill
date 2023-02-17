@@ -19,7 +19,7 @@ func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFu
 		}
 		h := tx.Hash(options.hashAlgorithm)
 		fee := options.feeCalculator()
-		tx.transaction.ServerMetadata = &txsystem.ServerMetadata{Fee: fee}
+		tx.SetServerMetadata(&txsystem.ServerMetadata{Fee: fee})
 		// update state
 		fcrID := tx.transaction.GetClientFeeCreditRecordID()
 		return options.state.AtomicUpdate(

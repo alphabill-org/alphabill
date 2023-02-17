@@ -14,6 +14,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	nonce := uint256.NewInt(1)
 	nonce32 := nonce.Bytes32()
 	addDcBills(t, w, nonce, 10)
+	addFeeCreditBill(t, w)
 	setBlockHeight(t, w, 100)
 	mockClient.SetMaxBlockNumber(100)
 
@@ -45,6 +46,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	nonce32 := nonce.Bytes32()
 	addBill(t, w, 1)
 	addDcBill(t, w, nonce, 2, 10)
+	addFeeCreditBill(t, w)
 	setBlockHeight(t, w, 100)
 	mockClient.SetMaxBlockNumber(100)
 
@@ -73,6 +75,7 @@ func TestDcJobWithExistingNonDcBills(t *testing.T) {
 	// wallet contains 2 non dc bills
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
+	addFeeCreditBill(t, w)
 	setBlockHeight(t, w, 100)
 	mockClient.SetMaxBlockNumber(100)
 
@@ -114,6 +117,7 @@ func TestDcJobSendsMultipleSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	nonce2 := uint256.NewInt(2)
 	addDcBill(t, w, nonce1, 1, 10)
 	addDcBill(t, w, nonce2, 2, 10)
+	addFeeCreditBill(t, w)
 	setBlockHeight(t, w, 10)
 	mockClient.SetMaxBlockNumber(10)
 

@@ -25,15 +25,17 @@ type moneyBackendConfig struct {
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
+	var dbFile string
 	if c.DbFile != "" {
-		return c.DbFile, nil
+		dbFile = c.DbFile
+	} else {
+		dbFile = filepath.Join(c.Base.HomeDir, moneyBackendHomeDir, indexer.BoltBillStoreFileName)
 	}
-	indexerHomeDir := filepath.Join(c.Base.HomeDir, moneyBackendHomeDir)
-	err := os.MkdirAll(indexerHomeDir, 0700) // -rwx------
+	err := os.MkdirAll(filepath.Dir(dbFile), 0700) // -rwx------
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(indexerHomeDir, indexer.BoltBillStoreFileName), nil
+	return dbFile, nil
 }
 
 // newMoneyBackendCmd creates a new cobra command for the money-backend component.

@@ -284,6 +284,12 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
+
+	tokenTypeID := util.Uint256ToBytes(d.tokenType)
+	if !bytes.Equal(tx.TypeID(), tokenTypeID) {
+		return errors.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.TypeID())
+	}
+
 	predicates, err := t.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
@@ -310,6 +316,12 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
+
+	tokenTypeID := util.Uint256ToBytes(d.tokenType)
+	if !bytes.Equal(tx.TypeID(), tokenTypeID) {
+		return errors.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.TypeID())
+	}
+
 	predicates, err := s.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
@@ -330,9 +342,9 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	tokenTypeID := d.tokenType.Bytes32()
-	if !bytes.Equal(tokenTypeID[:], tx.attributes.Type) {
-		return errors.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", tokenTypeID, tx.attributes.Type)
+	tokenTypeID := util.Uint256ToBytes(d.tokenType)
+	if !bytes.Equal(tokenTypeID, tx.attributes.Type) {
+		return errors.Errorf("type of token to burn does not matches the actual type of the token: expected '%X', got '%X'", tokenTypeID, tx.attributes.Type)
 	}
 	if tx.attributes.Value != d.value {
 		return errors.Errorf("invalid token value: expected %v, got %v", d.value, tx.attributes.Value)
@@ -366,8 +378,8 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 		return errors.Errorf("invalid count of proofs: expected %v, got %v", len(transactions), len(proofs))
 	}
 	for i, btx := range transactions {
-		tokenTypeID := d.tokenType.Bytes32()
-		if !bytes.Equal(btx.TypeID(), tokenTypeID[:]) {
+		tokenTypeID := util.Uint256ToBytes(d.tokenType)
+		if !bytes.Equal(btx.TypeID(), tokenTypeID) {
 			return errors.Errorf("the type of the burned source token does not match the type of target token: expected %X, got %X", tokenTypeID, btx.TypeID())
 		}
 

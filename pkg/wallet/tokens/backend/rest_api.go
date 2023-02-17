@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -36,6 +35,8 @@ type restAPI struct {
 	convertTx       func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 	logErr          func(a ...any)
 }
+
+const maxResponseItems = 100
 
 func (api *restAPI) endpoints() http.Handler {
 	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
@@ -76,11 +77,17 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limit, err := parseMaxResponseItems(qp.Get("limit"), maxResponseItems)
+	if err != nil {
+		api.invalidParamResponse(w, "limit", err)
+		return
+	}
+
 	data, next, err := api.db.QueryTokens(
 		kind,
 		script.PredicatePayToPublicKeyHashDefault(hash.Sum256(owner)),
 		startKey,
-		maxResponseItems(qp.Get("limit")))
+		limit)
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
@@ -110,7 +117,13 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, next, err := api.db.QueryTokenType(kind, creator, startKey, maxResponseItems(qp.Get("limit")))
+	limit, err := parseMaxResponseItems(qp.Get("limit"), maxResponseItems)
+	if err != nil {
+		api.invalidParamResponse(w, "limit", err)
+		return
+	}
+
+	data, next, err := api.db.QueryTokenType(kind, creator, startKey, limit)
 	if err != nil {
 		api.writeErrorResponse(w, err)
 		return
@@ -259,15 +272,6 @@ func setLinkHeader(u *url.URL, w http.ResponseWriter, next string) {
 	qp.Set("offsetKey", next)
 	u.RawQuery = qp.Encode()
 	w.Header().Set("Link", fmt.Sprintf(`<%s>; rel="next"`, u))
-}
-
-func maxResponseItems(s string) int {
-	const def = 100 // default / max response item count
-	v, err := strconv.Atoi(s)
-	if v <= 0 || v > def || err != nil {
-		return def
-	}
-	return v
 }
 
 type (

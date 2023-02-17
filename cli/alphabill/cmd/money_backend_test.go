@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	backend "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -84,4 +86,12 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)
+}
+
+func TestMoneyBackendConfig_DbFileParentDirsAreCreated(t *testing.T) {
+	expectedFilePath := filepath.Join(t.TempDir(), "non-existent-dir", "my.db")
+	c := &moneyBackendConfig{DbFile: expectedFilePath}
+	_, err := c.GetDbFile()
+	require.NoError(t, err)
+	require.True(t, util.FileExists(filepath.Dir(expectedFilePath)))
 }

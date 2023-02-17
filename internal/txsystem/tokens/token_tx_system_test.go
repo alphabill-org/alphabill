@@ -594,6 +594,47 @@ func TestTransferNFT_InvalidBacklink(t *testing.T) {
 	require.ErrorContains(t, txs.Execute(tx), "invalid backlink")
 }
 
+func TestTransferNFT_InvalidTypeID(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      test.RandomBytes(32),
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{{0, 0, 0, 1}},
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "invalid type identifier")
+}
+
+func TestTransferNFT_EmptyTypeID(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{{0, 0, 0, 1}},
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "invalid type identifier")
+}
+
 func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)

@@ -27,7 +27,7 @@ var (
 	parent1Identifier = uint256.NewInt(1)
 	parent2Identifier = uint256.NewInt(2)
 	unitIdentifier    = uint256.NewInt(10)
-	nftTypeID         = []byte{100}
+	nftTypeID         = test.RandomBytes(32)
 )
 
 func TestNewTokenTxSystem_DefaultOptions(t *testing.T) {
@@ -605,6 +605,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -625,6 +626,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -645,6 +647,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),

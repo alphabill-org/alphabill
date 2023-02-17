@@ -270,7 +270,59 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId twb.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
-	panic("not implemented")
+	if accountNumber < 1 {
+		return fmt.Errorf("invalid account number: %d", accountNumber)
+	}
+	acc, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return err
+	}
+	tokensByAcc, err := w.ListTokens(ctx, twb.Fungible, accountNumber)
+	if err != nil {
+		return err
+	}
+	tokens, found := tokensByAcc[accountNumber]
+	if !found {
+		return fmt.Errorf("account %d has no tokens", accountNumber)
+	}
+	matchingTokens := make([]*twb.TokenUnit, 0)
+	var totalBalance uint64 = 0
+	// find the best unit candidate for transfer or split, value must be equal or larger than the target amount
+	var closestMatch *twb.TokenUnit = nil
+	for _, token := range tokens {
+		if token.Kind != twb.Fungible {
+			return fmt.Errorf("expected fungible token, got %v, token %X", token.Kind.String(), token.ID)
+		}
+		if typeId.Equal(token.TypeID) {
+			matchingTokens = append(matchingTokens, token)
+			totalBalance += token.Amount
+			if closestMatch == nil {
+				closestMatch = token
+			} else {
+				prevDiff := closestMatch.Amount - targetAmount
+				currDiff := token.Amount - targetAmount
+				// this should work with overflow nicely
+				if prevDiff > currDiff {
+					closestMatch = token
+				}
+			}
+		}
+	}
+	if targetAmount > totalBalance {
+		return fmt.Errorf("insufficient value: got %v, need %v", totalBalance, targetAmount)
+	}
+	var submissions map[string]*submittedTx
+	// optimization: first try to make a single operation instead of iterating through all tokens in doSendMultiple
+	if closestMatch.Amount >= targetAmount {
+		var sub *submittedTx
+		sub, err = w.sendSplitOrTransferTx(ctx, acc, targetAmount, closestMatch, receiverPubKey, invariantPredicateArgs)
+		submissions = make(map[string]*submittedTx, 1)
+		submissions[sub.id.String()] = sub
+	} else {
+		submissions, _, err = w.doSendMultiple(ctx, targetAmount, matchingTokens, acc, receiverPubKey, invariantPredicateArgs)
+	}
+
+	return err
 }
 
 func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) error {

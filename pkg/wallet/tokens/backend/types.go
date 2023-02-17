@@ -1,6 +1,7 @@
 package twb
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -62,6 +63,10 @@ const (
 	Fungible
 	NonFungible
 )
+
+func (t TokenTypeID) Equal(to TokenTypeID) bool {
+	return bytes.Equal(t, to)
+}
 
 func (kind Kind) String() string {
 	switch kind {

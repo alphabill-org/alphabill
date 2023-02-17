@@ -225,6 +225,7 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*tw
 	submissions := make(map[string]*submittedTx, 2)
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
+		// TODO: prepare transactions and then send them all at once
 		sub, err := w.sendSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
 		if sub.timeout > maxTimeout {
 			maxTimeout = sub.timeout

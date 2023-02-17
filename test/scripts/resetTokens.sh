@@ -66,9 +66,9 @@ build/alphabill wallet token send fungible --type $typeId1 --amount 3 --address 
 
 echo "Mint new NFT"
 nftId1=2000000000000000000000000000000000000000000000000000000000000001
-build/alphabill wallet token new non-fungible --type $typeId2 --token-identifier $nftId1 --log-level DEBUG -l ~/.alphabill/wallet1/ --log-file $abHome/wallet1/w1.log -u $url
+build/alphabill wallet token new non-fungible --type $typeId2 --token-uri="https://alphabill.org/1" --token-identifier $nftId1 --log-level DEBUG -l ~/.alphabill/wallet1/ --log-file $abHome/wallet1/w1.log -u $url
 nftId2=2000000000000000000000000000000000000000000000000000000000000002
-build/alphabill wallet token new non-fungible --type $typeId2 --token-identifier $nftId2 --log-level DEBUG -l ~/.alphabill/wallet1/ --log-file $abHome/wallet1/w1.log -u $url
+build/alphabill wallet token new non-fungible --type $typeId2 --token-uri="https://alphabill.org/2" --token-identifier $nftId2 --log-level DEBUG -l ~/.alphabill/wallet1/ --log-file $abHome/wallet1/w1.log -u $url
 
 sleep 5
 

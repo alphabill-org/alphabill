@@ -29,8 +29,15 @@ type (
 	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
 )
 
-func (w *Wallet) newType(ctx context.Context, attrs AttrWithSubTypeCreationInputs, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
-	sub, err := w.sendTx(ctx, twb.TokenID(typeId), attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTypeCreationInputs, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
+	if accNr < 1 {
+		return nil, errors.Errorf("invalid account number: %d", accNr)
+	}
+	acc, err := w.am.GetAccountKey(accNr - 1)
+	if err != nil {
+		return nil, err
+	}
+	sub, err := w.sendTx(ctx, twb.TokenID(typeId), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -68,17 +75,17 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx 
 
 func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	var keyHash []byte
-	if accNr > 0 {
-		accIdx := accNr - 1
-		key, err := w.am.GetAccountKey(accIdx)
-		if err != nil {
-			return nil, err
-		}
-		keyHash = key.PubKeyHash.Sha256
+	if accNr < 1 {
+		return nil, errors.Errorf("invalid account number: %d", accNr)
 	}
+	key, err := w.am.GetAccountKey(accNr - 1)
+	if err != nil {
+		return nil, err
+	}
+	keyHash = key.PubKeyHash.Sha256
 	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
-	sub, err := w.sendTx(ctx, tokenId, attrs, nil, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.sendTx(ctx, tokenId, attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
 		if err != nil {
 			return err

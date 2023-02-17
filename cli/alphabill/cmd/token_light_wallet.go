@@ -82,8 +82,8 @@ func tokenCmdNewType(config *walletConfig) *cobra.Command {
 			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
 		},
 	}
-	cmd.AddCommand(addCommonTypeFlags(tokenCmdNewTypeFungible(config)))
-	cmd.AddCommand(addCommonTypeFlags(tokenCmdNewTypeNonFungible(config)))
+	cmd.AddCommand(addCommonAccountFlags(addCommonTypeFlags(tokenCmdNewTypeFungible(config))))
+	cmd.AddCommand(addCommonAccountFlags(addCommonTypeFlags(tokenCmdNewTypeNonFungible(config))))
 	return cmd
 }
 
@@ -122,6 +122,10 @@ func tokenCmdNewTypeFungible(config *walletConfig) *cobra.Command {
 }
 
 func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
@@ -171,7 +175,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewFungibleType(ctx, a, typeId, creationInputs)
+	id, err := tw.NewFungibleType(ctx, accountNumber, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
@@ -194,6 +198,10 @@ func tokenCmdNewTypeNonFungible(config *walletConfig) *cobra.Command {
 }
 
 func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) error {
+	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
+	if err != nil {
+		return err
+	}
 	tw, err := initTokensWallet(cmd, config)
 	if err != nil {
 		return err
@@ -240,7 +248,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	id, err := tw.NewNonFungibleType(ctx, a, typeId, creationInputs)
+	id, err := tw.NewNonFungibleType(ctx, accountNumber, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}

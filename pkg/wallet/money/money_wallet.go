@@ -315,7 +315,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
+	txs, err := CreateTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +703,7 @@ func (w *Wallet) startDustCollectorJob() (cron.EntryID, error) {
 func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, maxBlockNumber, timeout, accountIndex uint64) ([]*Bill, error) {
 	log.Info("waiting for confirmation(s)...")
 	blockNumber := maxBlockNumber
-	txsLog := newTxLog(pendingTxs)
+	txsLog := NewTxLog(pendingTxs)
 	for blockNumber <= timeout {
 		b, err := w.AlphabillClient.GetBlock(blockNumber)
 		if err != nil {
@@ -721,19 +721,19 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 			}
 		}
 		for _, tx := range b.Transactions {
-			if txsLog.contains(tx) {
+			if txsLog.Contains(tx) {
 				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
 				err = w.collectBills(w.db.Do(), tx, b, &w.am.GetAll()[accountIndex])
 				if err != nil {
 					return nil, err
 				}
-				err = txsLog.recordTx(tx, b)
+				err = txsLog.RecordTx(tx, b)
 				if err != nil {
 					return nil, err
 				}
-				if txsLog.isAllTxsConfirmed() {
+				if txsLog.IsAllTxsConfirmed() {
 					log.Info("transaction(s) confirmed")
-					return txsLog.getAllRecordedBills(), nil
+					return txsLog.GetAllRecordedBills(), nil
 				}
 			}
 		}

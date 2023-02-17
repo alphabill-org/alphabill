@@ -87,8 +87,8 @@ func TestInvalidBaseUrl(t *testing.T) {
 
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != ("/" + balancePath) {
-			t.Errorf("Expected to request '%v', got: %s", balancePath, r.URL.Path)
+		if r.URL.Path != ("/" + BalancePath) {
+			t.Errorf("Expected to request '%v', got: %s", BalancePath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"balance": 15}`))
@@ -100,8 +100,8 @@ func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {
 
 func mockListBillsCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != ("/" + listBillsPath) {
-			t.Errorf("Expected to request '%v', got: %s", listBillsPath, r.URL.Path)
+		if r.URL.Path != ("/" + ListBillsPath) {
+			t.Errorf("Expected to request '%v', got: %s", ListBillsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"total": 8, "bills": [{"id":"` + billId + `","value":10,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":5,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":5,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":5,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":5,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":5,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":5,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false},{"id":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","value":5,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","isDCBill":false}]}`))
@@ -113,8 +113,8 @@ func mockListBillsCall(t *testing.T) (*httptest.Server, *url.URL) {
 
 func mockListBillsCallWithPaging(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != ("/" + listBillsPath) {
-			t.Errorf("Expected to request '%v', got: %s", listBillsPath, r.URL.Path)
+		if r.URL.Path != ("/" + ListBillsPath) {
+			t.Errorf("Expected to request '%v', got: %s", ListBillsPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		if !r.URL.Query().Has("offset") {
@@ -132,8 +132,8 @@ func mockListBillsCallWithPaging(t *testing.T) (*httptest.Server, *url.URL) {
 
 func mockGetProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/"+proofPath) {
-			t.Errorf("Expected to request '%v', got: %s", proofPath, r.URL.Path)
+		if !strings.HasPrefix(r.URL.Path, "/"+ProofPath) {
+			t.Errorf("Expected to request '%v', got: %s", ProofPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"bills":[{"id":"` + billId + `", "value":10, "txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=", "isDcBill":false, "txProof":{"blockNumber":1, "tx":{"systemId":"AAAAAA==", "unitId":"Uv38ByGCZU8WP18PmmIdcpVmx00QA3xNe7sEB9Hixkk=", "transactionAttributes":{}, "timeout":10, "ownerProof":"gYVa"}, "proof":{"proofType":"PRIM", "blockHeaderHash":"AA==", "transactionsHash":"", "hashValue":"", "blockTreeHashChain":{"items":[{"val":"AA==", "hash":"AA=="}]}, "secTreeHashChain":null, "unicityCertificate":null}}}]}`))
@@ -145,8 +145,8 @@ func mockGetProofCall(t *testing.T) (*httptest.Server, *url.URL) {
 
 func mockGetBlockHeightCall(t *testing.T) (*httptest.Server, *url.URL) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != ("/" + blockHeightPath) {
-			t.Errorf("Expected to request '%v', got: %s", blockHeightPath, r.URL.Path)
+		if r.URL.Path != ("/" + BlockHeightPath) {
+			t.Errorf("Expected to request '%v', got: %s", BlockHeightPath, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"blockHeight": 1000}`))

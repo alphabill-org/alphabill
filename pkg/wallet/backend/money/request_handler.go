@@ -191,7 +191,7 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	if bill == nil {
 		log.Debug("error on GET /proof: ", err)
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusNotFound)
 		writeAsJson(w, ErrorResponse{Message: "bill does not exist"})
 		return
 	}

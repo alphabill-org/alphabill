@@ -17,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
-
 	"github.com/btcsuite/btcd/btcutil/hdkeychain"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -906,7 +905,7 @@ func calculateDcNonce(bills []*Bill) []byte {
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})
 
-	hasher := crypto.Hash.New(crypto.SHA256)
+	hasher := crypto.SHA256.New()
 	for _, billId := range billIds {
 		hasher.Write(billId)
 	}

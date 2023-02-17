@@ -161,6 +161,10 @@ func New(config *Config) (*Tree, error) {
 	}, nil
 }
 
+func NewWithSHA256() *Tree {
+	return &Tree{hashAlgorithm: crypto.SHA256}
+}
+
 // AtomicUpdate applies changes to the state tree. If any of the change functions
 // returns an error all of them will be rolled back
 func (tree *Tree) AtomicUpdate(actions ...Action) error {

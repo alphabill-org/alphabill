@@ -15,6 +15,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -85,7 +86,7 @@ func TestWalletBackendCli(t *testing.T) {
 	require.NotNil(t, b.TxHash)
 
 	// verify /proof
-	resBlockProof := &moneytx.Bills{}
+	resBlockProof := &bp.Bills{}
 	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkeyHex, initialBillHex), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
@@ -166,7 +167,7 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 	require.Equal(t, 200, httpRes.StatusCode)
 
 	// 4. import bill to wallet-backend
-	reqImportBill, _ := moneytx.ReadBillsFile(exportFilePath)
+	reqImportBill, _ := bp.ReadBillsFile(exportFilePath)
 	url := fmt.Sprintf("http://%s/api/v1/proof/%s", serverAddr, pubkey1Hex)
 	httpRes, err = testhttp.DoPostProto(url, reqImportBill, &backend.EmptyResponse{})
 	require.NoError(t, err)
@@ -185,12 +186,12 @@ func TestFlowBillImportExportDownloadUpload(t *testing.T) {
 	}
 
 	// 6. download proof from wallet-backend
-	resGetProof := &moneytx.Bills{}
+	resGetProof := &bp.Bills{}
 	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof/%s?bill_id=%s", serverAddr, pubkey1Hex, initialBillIDHex), resGetProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	downloadedBillFile := path.Join(walletHomedir, "downloaded-bill.json")
-	err = moneytx.WriteBillsFile(downloadedBillFile, resGetProof)
+	err = bp.WriteBillsFile(downloadedBillFile, resGetProof)
 	require.NoError(t, err)
 
 	// 7. import downloaded proof to a same but new wallet

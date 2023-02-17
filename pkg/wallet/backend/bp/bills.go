@@ -1,4 +1,4 @@
-package money
+package bp
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -71,16 +72,16 @@ func (x *Bill) verifyTx(gtx txsystem.GenericTransaction) error {
 
 func (x *Bill) parseTx(gtx txsystem.GenericTransaction) (uint64, bool, error) {
 	switch tx := gtx.(type) {
-	case Transfer:
+	case money.Transfer:
 		return tx.TargetValue(), false, nil
-	case TransferDC:
+	case money.TransferDC:
 		return tx.TargetValue(), true, nil
-	case Split:
+	case money.Split:
 		if bytes.Equal(x.Id, util.Uint256ToBytes(gtx.UnitID())) { // proof is for the "old" bill
 			return tx.RemainingValue(), false, nil
 		}
 		return tx.Amount(), false, nil // proof is for the "new" bill
-	case Swap:
+	case money.Swap:
 		return tx.TargetValue(), false, nil
 	default:
 		return 0, false, ErrInvalidTxType

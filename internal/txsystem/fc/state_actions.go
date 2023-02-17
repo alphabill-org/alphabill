@@ -1,22 +1,9 @@
-package txsystem
+package fc
 
 import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
-)
-
-const (
-	TypeTransferFeeCreditOrder = "TransferFeeCreditOrder"
-	TypeAddFeeCreditOrder      = "AddFeeCreditOrder" // #nosec G101
-	TypeCloseFeeCreditOrder    = "CloseFeeCreditOrder"
-	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditOrder"
-
-	protobufTypeUrlPrefix         = "type.googleapis.com/"
-	TypeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
-	TypeURLAddFeeCreditOrder      = protobufTypeUrlPrefix + TypeAddFeeCreditOrder
-	TypeURLCloseFeeCreditOrder    = protobufTypeUrlPrefix + TypeCloseFeeCreditOrder
-	TypeURLReclaimFeeCreditOrder  = protobufTypeUrlPrefix + TypeReclaimFeeCreditOrder
 )
 
 // AddCredit adds a new credit record

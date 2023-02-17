@@ -4,14 +4,15 @@
 // 	protoc        v3.21.9
 // source: bills.proto
 
-package money
+package bp
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	block "github.com/alphabill-org/alphabill/internal/block"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (

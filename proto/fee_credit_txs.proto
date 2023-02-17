@@ -3,7 +3,7 @@ syntax = "proto3";
 import "transaction.proto";
 import "block_proof.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/fc;fc";
+option go_package = "github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions;transactions";
 
 message TransferFeeCreditOrder {
   // amount to transfer

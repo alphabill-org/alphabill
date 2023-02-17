@@ -2,7 +2,6 @@ package money
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"net"
 	"os"
@@ -351,11 +350,11 @@ func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
-			crypto.SHA256,
-			initialBill,
-			createSDRs(2),
-			10000,
-			moneytx.SchemeOpts.TrustBase(tb),
+			[]byte{0, 0, 0, 0},
+			moneytx.WithInitialBill(initialBill),
+			moneytx.WithSystemDescriptionRecords(createSDRs(2)),
+			moneytx.WithDCMoneyAmount(10000),
+			moneytx.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system

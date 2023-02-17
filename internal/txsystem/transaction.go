@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/holiman/uint256"
 )
 
 // Bytes serializes the generic transaction order fields.
@@ -21,6 +22,11 @@ func (x *Transaction) Bytes() []byte {
 		b.Write(x.ServerMetadata.Bytes())
 	}
 	return b.Bytes()
+}
+
+func (x *Transaction) GetClientFeeCreditRecordID() *uint256.Int {
+	clientFeeCreditID := x.ClientMetadata.FeeCreditRecordId
+	return uint256.NewInt(0).SetBytes(clientFeeCreditID)
 }
 
 func (x *ClientMetadata) Bytes() []byte {

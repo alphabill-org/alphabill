@@ -12,8 +12,8 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func TestTransfer(t *testing.T) {
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransfer(t, 100, []byte{5}),
-			res:  txsystem.ErrInvalidBacklink,
+			res:  ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
@@ -79,7 +79,7 @@ func TestTransferDC(t *testing.T) {
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newTransferDC(t, 100, []byte{5}, []byte{1}, test.RandomBytes(32), script.PredicateAlwaysTrue()),
-			res:  txsystem.ErrInvalidBacklink,
+			res:  ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
@@ -123,13 +123,13 @@ func TestSplit(t *testing.T) {
 			name: "InvalidRemainingValue",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 51, []byte{6}),
-			res:  ErrInvalidBillValue,
+			res:  ErrSplitTxInvalidBillRemainingValue,
 		},
 		{
 			name: "InvalidBacklink",
 			bd:   newBillData(100, []byte{6}),
 			tx:   newSplit(t, 50, 50, []byte{5}),
-			res:  txsystem.ErrInvalidBacklink,
+			res:  ErrInvalidBacklink,
 		},
 	}
 	for _, tt := range tests {
@@ -230,7 +230,7 @@ func TestTransferFC(t *testing.T) {
 	tests := []struct {
 		name    string
 		bd      *BillData
-		tx      *fc.TransferFeeCreditWrapper
+		tx      *transactions.TransferFeeCreditWrapper
 		wantErr error
 	}{
 		{
@@ -299,7 +299,7 @@ func TestReclaimFC(t *testing.T) {
 	tests := []struct {
 		name       string
 		bd         *BillData
-		tx         *fc.ReclaimFeeCreditWrapper
+		tx         *transactions.ReclaimFeeCreditWrapper
 		wantErr    error
 		wantErrMsg string
 	}{
@@ -377,7 +377,7 @@ func TestReclaimFC(t *testing.T) {
 			tx: testfc.NewReclaimFC(t, signer, testfc.NewReclaimFCAttr(t, signer,
 				testfc.WithReclaimFCClosureProof(newInvalidProof(t, signer)),
 			)),
-			wantErrMsg: "reclaimFC: invalid proof",
+			wantErrMsg: "invalid proof",
 		},
 	}
 	for _, tt := range tests {

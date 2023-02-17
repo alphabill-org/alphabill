@@ -1,18 +1,26 @@
-package money
+package bp
 
 import (
 	"crypto"
 	"testing"
 
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	"github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	util2 "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	amount         uint64 = 42
+	targetValue    uint64 = 100
+	remainingValue uint64 = 50
+)
+
 func TestBillVerifyTransferTx(t *testing.T) {
-	tx := createTransferTxOrder(t)
+	tx := money.NewTransferTx(t, targetValue, test.RandomBytes(32), test.RandomBytes(32))
 
 	// test invalid value
 	b := &Bill{Value: targetValue - 1}
@@ -36,11 +44,12 @@ func TestBillVerifyTransferTx(t *testing.T) {
 }
 
 func TestBillVerifyDCTransferTx(t *testing.T) {
-	tx := createTransferDCTxOrder(t)
+	tx, err := money.ConvertNewGenericMoneyTx(money.CreateRandomDcTx())
+	require.NoError(t, err)
 
 	// test invalid value
 	b := &Bill{Value: targetValue - 1, IsDcBill: true}
-	err := b.verifyTx(tx)
+	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
@@ -60,11 +69,16 @@ func TestBillVerifyDCTransferTx(t *testing.T) {
 }
 
 func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
-	tx := createSplitTxOrder(t)
+	tx, err := money.ConvertNewGenericMoneyTx(&txsystem.Transaction{
+		UnitId:                test.NewUnitID(3),
+		SystemId:              []byte{0, 0, 0, 0},
+		TransactionAttributes: money.CreateBillSplitTx(test.RandomBytes(32), targetValue, remainingValue),
+	})
+	require.NoError(t, err)
 
 	// test invalid value
 	b := &Bill{Id: util.Uint256ToBytes(tx.UnitID()), Value: remainingValue - 1}
-	err := b.verifyTx(tx)
+	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
@@ -84,12 +98,18 @@ func TestBillVerifySplitTransferTx_OldBill(t *testing.T) {
 }
 
 func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
-	tx := createSplitTxOrder(t)
-	newUnitID := util2.SameShardIDBytes(tx.UnitID(), tx.Hash(crypto.SHA256))
+	tx, err := money.ConvertNewGenericMoneyTx(&txsystem.Transaction{
+		UnitId:                test.NewUnitID(3),
+		SystemId:              []byte{0, 0, 0, 0},
+		TransactionAttributes: money.CreateBillSplitTx(test.RandomBytes(32), amount, remainingValue),
+	})
+	require.NoError(t, err)
+
+	newUnitID := txutil.SameShardIDBytes(tx.UnitID(), tx.Hash(crypto.SHA256))
 
 	// test invalid value
 	b := &Bill{Id: newUnitID, Value: amount - 1}
-	err := b.verifyTx(tx)
+	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag
@@ -109,11 +129,18 @@ func TestBillVerifySplitTransferTx_NewBill(t *testing.T) {
 }
 
 func TestBillVerifySwapTransferTx(t *testing.T) {
-	tx := createSwapTxOrder(t, nil, nil)
+	tx, err := money.ConvertNewGenericMoneyTx(testtransaction.NewTransaction(t,
+		testtransaction.WithTimeout(100),
+		testtransaction.WithAttributes(money.CreateRandomSwapAttributes(t, 0)),
+		testtransaction.WithUnitId([]byte{0, 0, 0, 1}),
+		testtransaction.WithSystemID([]byte{0, 0, 0, 0}),
+		testtransaction.WithOwnerProof([]byte{0, 0, 0, 2}),
+	))
+	require.NoError(t, err)
 
 	// test invalid value
 	b := &Bill{Value: targetValue - 1}
-	err := b.verifyTx(tx)
+	err = b.verifyTx(tx)
 	require.ErrorIs(t, err, ErrInvalidValue)
 
 	// test invalid DCBillFlag

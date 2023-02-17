@@ -1,4 +1,4 @@
-package validator
+package fc
 
 import (
 	"bytes"
@@ -9,8 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 )
 
 var (
@@ -20,7 +19,6 @@ var (
 	ErrFeeProofExists       = errors.New("fee tx cannot contain fee authorization proof")
 	ErrInvalidProofType     = errors.New("invalid proof type")
 
-	// add fee credit errors
 	ErrAddFCInvalidCloseFCType    = errors.New("addFC: invalid nested transferFC tx type")
 	ErrAddFCInvalidOwnerCondition = errors.New("addFC: invalid owner condition")
 	ErrAddFCInvalidSystemID       = errors.New("addFC: invalid transferFC system identifier")
@@ -30,7 +28,6 @@ var (
 	ErrAddFCInvalidTimeout        = errors.New("addFC: invalid transferFC timeout")
 	ErrAddFCInvalidTxFee          = errors.New("addFC: invalid transferFC fee")
 
-	// close fee credit errors
 	ErrCloseFCUnitIsNil       = errors.New("closeFC: unit is nil")
 	ErrCloseFCInvalidUnitType = errors.New("closeFC: unit data is not of type fee credit record")
 	ErrCloseFCInvalidAmount   = errors.New("closeFC: invalid amount")
@@ -48,13 +45,13 @@ type (
 	}
 
 	AddFCValidationContext struct {
-		Tx                 *fc.AddFeeCreditWrapper
+		Tx                 *transactions.AddFeeCreditWrapper
 		Unit               *rma.Unit
 		CurrentRoundNumber uint64
 	}
 
 	CloseFCValidationContext struct {
-		Tx   *fc.CloseFeeCreditWrapper
+		Tx   *transactions.CloseFeeCreditWrapper
 		Unit *rma.Unit
 	}
 )
@@ -68,7 +65,7 @@ func NewDefaultFeeCreditTxValidator(moneySystemID, systemID []byte, hashAlgorith
 	}
 }
 
-func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext) error {
+func (v *DefaultFeeCreditTxValidator) ValidateAddFeeCredit(ctx *AddFCValidationContext) error {
 	if ctx == nil {
 		return ErrValidationContextNil
 	}
@@ -97,11 +94,11 @@ func (v *DefaultFeeCreditTxValidator) ValidateAddFC(ctx *AddFCValidationContext)
 	}
 
 	// wrap nested transferFC to domain
-	transferFC, err := fc.NewFeeCreditTx(tx.AddFC.FeeCreditTransfer)
+	transferFC, err := transactions.NewFeeCreditTx(tx.AddFC.FeeCreditTransfer)
 	if err != nil {
 		return err
 	}
-	transferFCWrapper, ok := transferFC.(*fc.TransferFeeCreditWrapper)
+	transferFCWrapper, ok := transferFC.(*transactions.TransferFeeCreditWrapper)
 	if !ok {
 		return ErrAddFCInvalidCloseFCType
 	}
@@ -178,7 +175,7 @@ func (v *DefaultFeeCreditTxValidator) ValidateCloseFC(ctx *CloseFCValidationCont
 	if ctx.Unit == nil {
 		return ErrCloseFCUnitIsNil
 	}
-	fcr, ok := ctx.Unit.Data.(*txsystem.FeeCreditRecord)
+	fcr, ok := ctx.Unit.Data.(*FeeCreditRecord)
 	if !ok {
 		return ErrCloseFCInvalidUnitType
 	}

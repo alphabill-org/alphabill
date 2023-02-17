@@ -3,12 +3,12 @@ package money
 import (
 	"bytes"
 	"crypto"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -25,6 +25,41 @@ const (
 	typeURLTransferDCOrder = protobufTypeUrlPrefix + TypeTransferDCOrder
 	typeURLSplitOrder      = protobufTypeUrlPrefix + TypeSplitOrder
 	typeURLSwapOrder       = protobufTypeUrlPrefix + TypeSwapOrder
+)
+
+type (
+	Transfer interface {
+		txsystem.GenericTransaction
+		NewBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	TransferDC interface {
+		txsystem.GenericTransaction
+		Nonce() []byte
+		TargetBearer() []byte
+		TargetValue() uint64
+		Backlink() []byte
+	}
+
+	Split interface {
+		txsystem.GenericTransaction
+		Amount() uint64
+		TargetBearer() []byte
+		RemainingValue() uint64
+		Backlink() []byte
+		HashForIdCalculation(hashFunc crypto.Hash) []byte // Returns hash value for the sameShardId function
+	}
+
+	Swap interface {
+		txsystem.GenericTransaction
+		OwnerCondition() []byte
+		BillIdentifiers() []*uint256.Int
+		DCTransfers() []*transferDCWrapper
+		Proofs() []*block.BlockProof
+		TargetValue() uint64
+	}
 )
 
 type (
@@ -57,12 +92,14 @@ type (
 	}
 )
 
+var _ Swap = &swapWrapper{}
+
 // NewMoneyTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
 func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	if !bytes.Equal(systemID, tx.GetSystemId()) {
-		return nil, errors.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), systemID)
+		return nil, fmt.Errorf("transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), systemID)
 	}
-	feeTx, err := fc.NewFeeCreditTx(tx)
+	feeTx, err := transactions.NewFeeCreditTx(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -71,61 +108,81 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 	}
 	switch tx.TransactionAttributes.TypeUrl {
 	case typeURLTransferOrder:
-		pb := &TransferOrder{}
-		// This is slow operation, involves reflection. Would be good to do this only once.
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		return &transferWrapper{
-			wrapper:  wrapper{transaction: tx},
-			transfer: pb,
-		}, nil
+		return convertTransferTx(tx)
 	case typeURLTransferDCOrder:
-		pb := &TransferDCOrder{}
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		return &transferDCWrapper{
-			wrapper:    wrapper{transaction: tx},
-			transferDC: pb,
-		}, nil
+		return convertTransferDCTx(tx)
 	case typeURLSplitOrder:
-		pb := &SplitOrder{}
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		return &billSplitWrapper{
-			wrapper:   wrapper{transaction: tx},
-			billSplit: pb,
-		}, nil
+		return convertSplitTx(tx)
 	case typeURLSwapOrder:
-		pb := &SwapOrder{}
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		swapWr := &swapWrapper{
-			wrapper: wrapper{transaction: tx},
-			swap:    pb,
-		}
-		for _, dtTx := range pb.DcTransfers {
-			dt, err := NewMoneyTx(systemID, dtTx)
-			if err != nil {
-				return nil, errors.Wrap(err, "transfer DC wrapping failed")
-			}
-			dtw, ok := dt.(*transferDCWrapper)
-			if !ok {
-				return nil, errors.Errorf("transfer DC wrapper is invalid type: %T", dt)
-			}
-			swapWr.dcTransfers = append(swapWr.dcTransfers, dtw)
-		}
-		return swapWr, nil
+		return convertSwapDCTx(tx)
 	default:
-		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)
+		return nil, fmt.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)
 	}
+}
+
+func convertSwapDCTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &SwapOrder{}
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	swapWr := &swapWrapper{
+		wrapper: wrapper{transaction: tx},
+		swap:    pb,
+	}
+	for _, dtTx := range pb.DcTransfers {
+		dt, err := convertTransferDCTx(dtTx)
+
+		if err != nil {
+			return nil, fmt.Errorf("transfer DC wrapping failed: %w", err)
+		}
+		dtw, ok := dt.(*transferDCWrapper)
+		if !ok {
+			return nil, fmt.Errorf("transfer DC wrapper is invalid type: %T", dt)
+		}
+		if !bytes.Equal(tx.SystemId, dt.SystemID()) {
+			return nil, fmt.Errorf("transferDC transaction has invalid system identifier %X, expected %X", tx.GetSystemId(), dt.SystemID())
+		}
+		swapWr.dcTransfers = append(swapWr.dcTransfers, dtw)
+	}
+	return swapWr, nil
+}
+
+func convertSplitTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &SplitOrder{}
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	return &billSplitWrapper{
+		wrapper:   wrapper{transaction: tx},
+		billSplit: pb,
+	}, nil
+}
+
+func convertTransferDCTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &TransferDCOrder{}
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	return &transferDCWrapper{
+		wrapper:    wrapper{transaction: tx},
+		transferDC: pb,
+	}, nil
+}
+
+func convertTransferTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &TransferOrder{}
+	// This is slow operation, involves reflection. Would be good to do this only once.
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	return &transferWrapper{
+		wrapper:  wrapper{transaction: tx},
+		transfer: pb,
+	}, nil
 }
 
 func (w *transferWrapper) Hash(hashFunc crypto.Hash) []byte {
@@ -307,8 +364,8 @@ func (w *billSplitWrapper) TargetUnits(hashFunc crypto.Hash) []*uint256.Int {
 func (w *swapWrapper) OwnerCondition() []byte      { return w.swap.OwnerCondition }
 func (w *swapWrapper) Proofs() []*block.BlockProof { return w.swap.Proofs }
 func (w *swapWrapper) TargetValue() uint64         { return w.swap.TargetValue }
-func (w *swapWrapper) DCTransfers() []TransferDC {
-	var sdt []TransferDC
+func (w *swapWrapper) DCTransfers() []*transferDCWrapper {
+	var sdt []*transferDCWrapper
 	for _, dt := range w.dcTransfers {
 		sdt = append(sdt, dt)
 	}

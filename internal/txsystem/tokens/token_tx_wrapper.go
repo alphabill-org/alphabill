@@ -103,124 +103,163 @@ type (
 func NewGenericTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	switch tx.TransactionAttributes.TypeUrl {
 	case typeURLCreateNonFungibleTokenTypeAttributes:
-		return convertToWrapper(
-			&CreateNonFungibleTokenTypeAttributes{},
-			func(a *CreateNonFungibleTokenTypeAttributes) (txsystem.GenericTransaction, error) {
-				return &createNonFungibleTokenTypeWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertCreateNonFungibleTokenType(tx)
 	case typeURLMintNonFungibleTokenAttributes:
-		return convertToWrapper(
-			&MintNonFungibleTokenAttributes{},
-			func(a *MintNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				return &mintNonFungibleTokenWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertMintNonFungibleToken(tx)
 	case typeURLTransferNonFungibleTokenAttributes:
-		return convertToWrapper(
-			&TransferNonFungibleTokenAttributes{},
-			func(a *TransferNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				return &transferNonFungibleTokenWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertTransferNonFungibleToken(tx)
 	case typeURLUpdateNonFungibleTokenAttributes:
-		return convertToWrapper(
-			&UpdateNonFungibleTokenAttributes{},
-			func(a *UpdateNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				return &updateNonFungibleTokenWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertUpdateNonFungibleToken(tx)
 	case typeURLCreateFungibleTokenTypeAttributes:
-		return convertToWrapper(
-			&CreateFungibleTokenTypeAttributes{},
-			func(a *CreateFungibleTokenTypeAttributes) (txsystem.GenericTransaction, error) {
-				return &createFungibleTokenTypeWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertCreateFungibleTokenType(tx)
 	case typeURLMintFungibleTokenAttributes:
-		return convertToWrapper(
-			&MintFungibleTokenAttributes{},
-			func(a *MintFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				return &mintFungibleTokenWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertMintFungibleToken(tx)
 	case typeURLTransferFungibleTokenAttributes:
-		return convertToWrapper(
-			&TransferFungibleTokenAttributes{},
-			func(a *TransferFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				return &transferFungibleTokenWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertTransferFungibleToken(tx)
 	case typeURLSplitFungibleTokenAttributes:
-		return convertToWrapper(
-			&SplitFungibleTokenAttributes{},
-			func(a *SplitFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				return &splitFungibleTokenWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertSplitFungibleToken(tx)
 	case typeURLBurnFungibleTokenAttributes:
-		return convertToWrapper(
-			&BurnFungibleTokenAttributes{},
-			func(a *BurnFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				return &burnFungibleTokenWrapper{
-					wrapper:    wrapper{transaction: tx},
-					attributes: a,
-				}, nil
-			},
-			tx)
+		return convertBurnFungibleToken(tx)
 	case typeURLJoinFungibleTokenAttributes:
-		return convertToWrapper(
-			&JoinFungibleTokenAttributes{},
-			func(a *JoinFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
-				burnTransactions := a.BurnTransactions
-				lenBTxs := len(burnTransactions)
-				lenProofs := len(a.Proofs)
-				if lenProofs != lenBTxs {
-					return nil, errors.Errorf("invalid proofs count: expected %v, got %v", lenBTxs, lenProofs)
-				}
-				var bTxs = make([]BurnFungibleToken, lenBTxs)
-				for i, btx := range burnTransactions {
-					genericBurnTx, err := NewGenericTx(btx)
-					if err != nil {
-						return nil, errors.Errorf("burn transaction with index %v is invalid: %v", i, err)
-					}
-					bTxs[i] = genericBurnTx.(*burnFungibleTokenWrapper)
-				}
-
-				return &joinFungibleTokenWrapper{
-					wrapper:          wrapper{transaction: tx},
-					attributes:       a,
-					burnTransactions: bTxs,
-				}, nil
-			},
-			tx)
+		return convertJoinFungibleToken(tx)
 	default:
 		return nil, errors.Errorf("unknown transaction type %s", tx.TransactionAttributes.TypeUrl)
 	}
+}
+
+func convertJoinFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&JoinFungibleTokenAttributes{},
+		func(a *JoinFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			burnTransactions := a.BurnTransactions
+			lenBTxs := len(burnTransactions)
+			lenProofs := len(a.Proofs)
+			if lenProofs != lenBTxs {
+				return nil, errors.Errorf("invalid proofs count: expected %v, got %v", lenBTxs, lenProofs)
+			}
+			var bTxs = make([]BurnFungibleToken, lenBTxs)
+			for i, btx := range burnTransactions {
+				genericBurnTx, err := NewGenericTx(btx)
+				if err != nil {
+					return nil, errors.Errorf("burn transaction with index %v is invalid: %v", i, err)
+				}
+				bTxs[i] = genericBurnTx.(*burnFungibleTokenWrapper)
+			}
+
+			return &joinFungibleTokenWrapper{
+				wrapper:          wrapper{transaction: tx},
+				attributes:       a,
+				burnTransactions: bTxs,
+			}, nil
+		},
+		tx)
+}
+
+func convertBurnFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&BurnFungibleTokenAttributes{},
+		func(a *BurnFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			return &burnFungibleTokenWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertSplitFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&SplitFungibleTokenAttributes{},
+		func(a *SplitFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			return &splitFungibleTokenWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertTransferFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&TransferFungibleTokenAttributes{},
+		func(a *TransferFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			return &transferFungibleTokenWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertMintFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&MintFungibleTokenAttributes{},
+		func(a *MintFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			return &mintFungibleTokenWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertCreateFungibleTokenType(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&CreateFungibleTokenTypeAttributes{},
+		func(a *CreateFungibleTokenTypeAttributes) (txsystem.GenericTransaction, error) {
+			return &createFungibleTokenTypeWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertUpdateNonFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&UpdateNonFungibleTokenAttributes{},
+		func(a *UpdateNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			return &updateNonFungibleTokenWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertTransferNonFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&TransferNonFungibleTokenAttributes{},
+		func(a *TransferNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			return &transferNonFungibleTokenWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertMintNonFungibleToken(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&MintNonFungibleTokenAttributes{},
+		func(a *MintNonFungibleTokenAttributes) (txsystem.GenericTransaction, error) {
+			return &mintNonFungibleTokenWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		},
+		tx)
+}
+
+func convertCreateNonFungibleTokenType(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return convertToWrapper(
+		&CreateNonFungibleTokenTypeAttributes{},
+		func(a *CreateNonFungibleTokenTypeAttributes) (txsystem.GenericTransaction, error) {
+			return &createNonFungibleTokenTypeWrapper{
+				wrapper:    wrapper{transaction: tx},
+				attributes: a,
+			}, nil
+		}, tx)
 }
 
 // convertToWrapper converts given tx to a generic transaction. attrType is the type of the tx attributes. createGenericTxFunc creates an instance of given generic transaction.

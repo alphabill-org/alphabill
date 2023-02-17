@@ -7,8 +7,8 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	moneytx "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/holiman/uint256"
 )
 

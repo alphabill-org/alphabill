@@ -4,15 +4,17 @@
 // 	protoc        v3.21.9
 // source: fee_credit_txs.proto
 
-package fc
+package transactions
 
 import (
-	block "github.com/alphabill-org/alphabill/internal/block"
-	txsystem "github.com/alphabill-org/alphabill/internal/txsystem"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
+
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+
+	block "github.com/alphabill-org/alphabill/internal/block"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -129,7 +131,7 @@ type AddFeeCreditOrder struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// target fee credit record owner condition
+	// target fee credit record owner_bytes condition
 	FeeCreditOwnerCondition []byte `protobuf:"bytes,1,opt,name=fee_credit_owner_condition,json=feeCreditOwnerCondition,proto3" json:"fee_credit_owner_condition,omitempty"`
 	// bill transfer record of type "transfer fee credit"
 	FeeCreditTransfer *txsystem.Transaction `protobuf:"bytes,2,opt,name=fee_credit_transfer,json=feeCreditTransfer,proto3" json:"fee_credit_transfer,omitempty"`

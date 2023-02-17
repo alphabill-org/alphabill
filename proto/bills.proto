@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "block_proof.proto";
 
-option go_package = "github.com/alphabill-org/alphabill/txsystem/money;money";
+option go_package = "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp;bp";
 
 // bills with tx proofs
 message Bills {

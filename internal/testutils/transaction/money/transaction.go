@@ -18,11 +18,19 @@ import (
 )
 
 func RandomGenericBillTransfer(t *testing.T) txsystem.GenericTransaction {
-	return testtransaction.NewGenericTransaction(t, ConvertNewGenericMoneyTx, testtransaction.WithAttributes(&moneytx.TransferOrder{
-		NewBearer: testtransaction.RandomBytes(3),
+	return NewTransferTx(t,
 		// #nosec G404
-		TargetValue: rand.Uint64(),
-		Backlink:    testtransaction.RandomBytes(3),
+		rand.Uint64(),
+		testtransaction.RandomBytes(3),
+		testtransaction.RandomBytes(3),
+	)
+}
+
+func NewTransferTx(t *testing.T, targetValue uint64, bearer, backlink []byte) txsystem.GenericTransaction {
+	return testtransaction.NewGenericTransaction(t, ConvertNewGenericMoneyTx, testtransaction.WithAttributes(&moneytx.TransferOrder{
+		NewBearer:   bearer,
+		TargetValue: targetValue,
+		Backlink:    backlink,
 	}))
 }
 

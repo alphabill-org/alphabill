@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	gocrypto "crypto"
 	"strings"
 	"testing"
 
@@ -520,23 +519,19 @@ func TestListTokensCommandInputs(t *testing.T) {
 	}
 }
 
-func ensureUnitBytes(t *testing.T, state tokens.TokenState, id []byte) *rma.Unit {
+func ensureUnitBytes(t *testing.T, state *rma.Tree, id []byte) *rma.Unit {
 	return ensureUnit(t, state, uint256.NewInt(0).SetBytes(id))
 }
 
-func ensureUnit(t *testing.T, state tokens.TokenState, id *uint256.Int) *rma.Unit {
+func ensureUnit(t *testing.T, state *rma.Tree, id *uint256.Int) *rma.Unit {
 	unit, err := state.GetUnit(id)
 	require.NoError(t, err)
 	require.NotNil(t, unit)
 	return unit
 }
 
-func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, tokens.TokenState) {
-	tokensState, err := rma.New(&rma.Config{
-		HashAlgorithm: gocrypto.SHA256,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, tokensState)
+func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, *rma.Tree) {
+	tokensState := rma.NewWithSHA256()
 	network, err := testpartition.NewNetwork(1,
 		func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 			system, err := tokens.New(tokens.WithState(tokensState), tokens.WithTrustBase(tb))

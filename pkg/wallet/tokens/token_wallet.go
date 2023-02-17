@@ -50,11 +50,7 @@ func Load(mw *money.Wallet, sync bool) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	txs, err := tokens.New()
-	if err != nil {
-		return nil, err
-	}
-	w := &Wallet{mw: mw, db: db, txs: txs, sync: sync, blockListener: nil}
+	w := &Wallet{mw: mw, db: db, txs: block.TxConverterFunc(tokens.NewGenericTx), sync: sync, blockListener: nil}
 	w.mw.Wallet = wallet.New().
 		SetBlockProcessor(w).
 		SetABClient(mw.AlphabillClient).

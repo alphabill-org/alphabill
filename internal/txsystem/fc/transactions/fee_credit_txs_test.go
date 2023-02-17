@@ -1,4 +1,4 @@
-package fc
+package transactions
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ var (
 	backlink        = []byte{3}
 	nonce           = []byte{4}
 	recordID        = []byte{5}
-	owner           = []byte{6}
+	ownerBytes      = []byte{6}
 	blockHeaderHash = []byte{7}
 	targetUnitId    = []byte{8}
 	timeout         = uint64(100)
@@ -138,7 +138,7 @@ func TestAddFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(systemID)
 	b.Write(unitID)
 	b.Write(util.Uint64ToBytes(timeout))
-	b.Write(owner)
+	b.Write(ownerBytes)
 	b.Write(transferFC.SigBytes())
 	b.Write(transferFC.OwnerProof())
 	b.Write(transferFCProof.Bytes())
@@ -201,7 +201,7 @@ func TestAddFC_HashIsCalculatedCorrectly(t *testing.T) {
 	h.Write(unitID)
 	h.Write(ownerProof)
 	h.Write(util.Uint64ToBytes(timeout))
-	h.Write(owner)
+	h.Write(ownerBytes)
 	transferFC.AddToHasher(h)
 	h.Write(transferFCProof.Bytes())
 	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
@@ -293,7 +293,7 @@ func createAddFCTxOrder(t *testing.T, transferFC *txsystem.Transaction, proof *b
 		Timeout:               timeout,
 		OwnerProof:            ownerProof,
 	}
-	err := tx.TransactionAttributes.MarshalFrom(newPBAddFC(owner, transferFC, proof))
+	err := tx.TransactionAttributes.MarshalFrom(newPBAddFC(ownerBytes, transferFC, proof))
 	require.NoError(t, err)
 	gtx, err := NewFeeCreditTx(tx)
 	require.NoError(t, err)

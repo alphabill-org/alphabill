@@ -9,8 +9,8 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -270,7 +270,7 @@ func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	billFileJson, err := moneytx.ReadBillsFile(billFile)
+	billFileJson, err := bp.ReadBillsFile(billFile)
 	if err != nil {
 		return err
 	}
@@ -303,7 +303,7 @@ func writeBillsToFile(outputDir string, bills ...*money.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = moneytx.WriteBillsFile(outputFile, newBillsDTO(bills...))
+	err = bp.WriteBillsFile(outputFile, newBillsDTO(bills...))
 	if err != nil {
 		return "", err
 	}
@@ -333,15 +333,15 @@ func filterDcBills(bills []*money.Bill) []*money.Bill {
 	return normalBills
 }
 
-func newBillsDTO(bills ...*money.Bill) *moneytx.Bills {
-	var billsDTO []*moneytx.Bill
+func newBillsDTO(bills ...*money.Bill) *bp.Bills {
+	var billsDTO []*bp.Bill
 	for _, b := range bills {
 		billsDTO = append(billsDTO, b.ToProto())
 	}
-	return &moneytx.Bills{Bills: billsDTO}
+	return &bp.Bills{Bills: billsDTO}
 }
 
-func newBill(b *moneytx.Bill) *money.Bill {
+func newBill(b *bp.Bill) *money.Bill {
 	return &money.Bill{
 		Id:         uint256.NewInt(0).SetBytes(b.Id),
 		Value:      b.Value,

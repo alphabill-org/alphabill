@@ -11,6 +11,7 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -118,10 +119,10 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	require.ErrorContains(t, err, "required flag(s) \"bill-file\", \"trust-base-file\" not set")
 
 	// test invalid block proof cannot be imported
-	billsFile, _ := moneytx.ReadBillsFile(billsFilePath)
+	billsFile, _ := bp.ReadBillsFile(billsFilePath)
 	billsFile.Bills[0].TxProof.Proof.BlockHeaderHash = make([]byte, 32)
 	invalidBillsFilePath := path.Join(homedir, "invalid-bills.json")
-	_ = moneytx.WriteBillsFile(invalidBillsFilePath, billsFile)
+	_ = bp.WriteBillsFile(invalidBillsFilePath, billsFile)
 
 	_, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", invalidBillsFilePath, trustBaseFilePath))
 	require.ErrorContains(t, err, "proof verification failed")

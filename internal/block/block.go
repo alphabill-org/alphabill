@@ -10,6 +10,12 @@ type TxConverter interface {
 	ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 }
 
+type TxConverterFunc func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
+
+func (tcf TxConverterFunc) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	return tcf(tx)
+}
+
 // Hash returns the hash of the block.
 func (x *Block) Hash(txConverter TxConverter, hashAlgorithm crypto.Hash) ([]byte, error) {
 	b, err := x.ToGenericBlock(txConverter)

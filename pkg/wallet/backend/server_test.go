@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,7 @@ func (m *mockWalletService) GetBill(pubkey []byte, unitID []byte) (*Bill, error)
 	return m.store.GetBill(pubkey, unitID)
 }
 
-func (m *mockWalletService) SetBills(pubkey []byte, bills *moneytx.Bills) error {
+func (m *mockWalletService) SetBills(pubkey []byte, bills *bp.Bills) error {
 	domainBills := newBillsFromProto(bills)
 	return m.store.SetBills(pubkey, domainBills...)
 }
@@ -353,7 +354,7 @@ func TestProofRequest_Ok(t *testing.T) {
 	mockService := newMockWalletService(t, withBills(pubkey, b))
 	port := startServer(t, mockService)
 
-	response := &moneytx.Bills{}
+	response := &bp.Bills{}
 	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/proof/%s?bill_id=%s", port, pubkeyHex, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
@@ -444,8 +445,8 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	port := startServer(t, service)
 
-	req := &moneytx.Bills{
-		Bills: []*moneytx.Bill{
+	req := &bp.Bills{
+		Bills: []*bp.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
@@ -493,8 +494,8 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	port := startServer(t, service)
 
 	pubkey := make([]byte, 33)
-	req := &moneytx.Bills{
-		Bills: []*moneytx.Bill{
+	req := &bp.Bills{
+		Bills: []*bp.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
@@ -532,8 +533,8 @@ func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	port := startServer(t, service)
 
-	req := &moneytx.Bills{
-		Bills: []*moneytx.Bill{
+	req := &bp.Bills{
+		Bills: []*bp.Bill{
 			{
 				Id:     tx.UnitId,
 				Value:  txValue,
@@ -570,8 +571,8 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	_ = service.AddKey(pubkey)
 	port := startServer(t, service)
 
-	req := &moneytx.Bills{
-		Bills: []*moneytx.Bill{
+	req := &bp.Bills{
+		Bills: []*bp.Bill{
 			{
 				Id:       tx.UnitId,
 				Value:    txValue,

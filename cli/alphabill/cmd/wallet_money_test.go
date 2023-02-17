@@ -310,9 +310,10 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
-			crypto.SHA256,
-			initialBill,
-			[]*genesis.SystemDescriptionRecord{
+			defaultABMoneySystemIdentifier,
+			moneytx.WithHashAlgorithm(crypto.SHA256),
+			moneytx.WithInitialBill(initialBill),
+			moneytx.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 				{
 					SystemIdentifier: defaultABMoneySystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
@@ -321,9 +322,9 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 						OwnerPredicate: script.PredicateAlwaysTrue(),
 					},
 				},
-			},
-			10000,
-			moneytx.SchemeOpts.TrustBase(tb),
+			}),
+			moneytx.WithDCMoneyAmount(10000),
+			moneytx.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system

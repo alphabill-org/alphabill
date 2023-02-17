@@ -2,7 +2,7 @@ package proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/. transaction.proto
 
-//go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/fc/. fee_credit_txs.proto
+//go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/fc/transactions/. fee_credit_txs.proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/money/. money_tx.proto
 
@@ -16,7 +16,7 @@ package proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/block/. block_proof.proto
 
-//go:generate protoc -I=. --go_out=paths=source_relative:../internal/txsystem/money/. bills.proto
+//go:generate protoc -I=. --go_out=paths=source_relative:../internal/pkg/wallet/backend/bp/. bills.proto
 
 //go:generate protoc -I=. --go_out=paths=source_relative:../internal/network/protocol/certification/. certification.proto
 

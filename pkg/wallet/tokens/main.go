@@ -326,7 +326,36 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 }
 
 func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) error {
-	panic("not implemented")
+	if accountNumber < 1 {
+		return fmt.Errorf("invalid account number: %d", accountNumber)
+	}
+	acc, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return err
+	}
+	t, err := w.GetToken(ctx, acc.PubKey, tokenId)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
+	}
+
+	attrs := &tokens.UpdateNonFungibleTokenAttributes{
+		Data:                 data,
+		Backlink:             t.TxHash,
+		DataUpdateSignatures: nil,
+	}
+
+	_, err = w.sendTx(ctx, tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, gtx)
+		if err != nil {
+			return err
+		}
+		attrs.DataUpdateSignatures = signatures
+		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+	})
+	return err
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

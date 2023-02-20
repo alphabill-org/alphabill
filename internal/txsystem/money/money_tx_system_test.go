@@ -63,8 +63,6 @@ func TestNewMoneyScheme(t *testing.T) {
 
 	require.Equal(t, rma.Uint64SummaryValue(dcMoneyAmount), d.Data.Value())
 	require.Equal(t, rma.Predicate(dustCollectorPredicate), d.Bearer)
-	// TODO
-	//require.Equal(t, sdrs[0], txSystem.sdrs[string(systemID)])
 }
 
 func TestNewMoneyScheme_InitialBillIsNil(t *testing.T) {
@@ -411,11 +409,6 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	moneyFCUnit, err = rmaTree.GetUnit(moneyFCUnitID)
 	require.NoError(t, err)
 	require.EqualValues(t, 3, moneyFCUnit.Data.Value())
-
-	// verfy that fee credit tx recorder is nil
-	// TODO
-	//require.Len(t, txSystem.feeCreditTxRecorder.reclaimFeeCredits, 0)
-	//require.Len(t, txSystem.feeCreditTxRecorder.transferFeeCredits, 0)
 }
 
 func TestValidateSwap_InsufficientDcMoneySupply(t *testing.T) {

@@ -18,7 +18,6 @@ var (
 )
 
 func TestTxRecording(t *testing.T) {
-	// TODO args
 	f := newFeeCreditTxRecorder(nil, nil, nil)
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 

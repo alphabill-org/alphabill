@@ -29,13 +29,12 @@ func NewMoneyTxSystem(systemIdentifier []byte, opts ...Option) (*txsystem.Generi
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
 
-	return txsystem.NewModularTxSystem(
+	return txsystem.NewGenericTxSystem(
 		[]txsystem.Module{money, feeCredit},
 		txsystem.WithEndBlockFunctions(money.EndBlockFuncs()),
 		txsystem.WithBeginBlockFunctions(money.BeginBlockFuncs()),
 		txsystem.WithSystemIdentifier(systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
-		txsystem.WithTrustBase(options.trustBase),
 		txsystem.WithState(options.state),
 	)
 }

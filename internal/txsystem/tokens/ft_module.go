@@ -14,7 +14,6 @@ type FungibleTokensModule struct {
 func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
 	return &FungibleTokensModule{
 		txExecutors: []txsystem.TxExecutor{
-			// Fungible Token transaction executors
 			handleCreateFungibleTokenTypeTx(options),
 			handleMintFungibleTokenTx(options),
 			handleTransferFungibleTokenTx(options),

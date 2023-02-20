@@ -58,11 +58,10 @@ func New(opts ...Option) (*txsystem.GenericTxSystem, error) {
 		return nil, fmt.Errorf("failed to load fee credit module: %w", err)
 	}
 	modules := []txsystem.Module{nft, fungible, fee}
-	return txsystem.NewModularTxSystem(
+	return txsystem.NewGenericTxSystem(
 		modules,
 		txsystem.WithSystemIdentifier(options.systemIdentifier),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
-		txsystem.WithTrustBase(options.trustBase),
 		txsystem.WithState(options.state),
 	)
 }

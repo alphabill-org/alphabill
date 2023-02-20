@@ -5,16 +5,18 @@ import (
 	"reflect"
 )
 
-type TxExecutors map[reflect.Type]ExecuteFunc
+type (
+	TxExecutors map[reflect.Type]ExecuteFunc
 
-type TxExecutor interface {
-	Type() reflect.Type
-	ExecuteFunc() ExecuteFunc
-}
+	TxExecutor interface {
+		Type() reflect.Type
+		ExecuteFunc() ExecuteFunc
+	}
 
-type ExecuteFunc func(tx GenericTransaction, currentBlockNr uint64) error
+	ExecuteFunc func(tx GenericTransaction, currentBlockNr uint64) error
 
-type GenericExecuteFunc[T GenericTransaction] func(t T, currentBlockNr uint64) error
+	GenericExecuteFunc[T GenericTransaction] func(t T, currentBlockNr uint64) error
+)
 
 func (g GenericExecuteFunc[T]) Type() reflect.Type {
 	return reflect.TypeOf(*new(T))

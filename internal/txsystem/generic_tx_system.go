@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
 )
@@ -28,8 +27,6 @@ type Module interface {
 type GenericTxSystem struct {
 	systemIdentifier   []byte
 	hashAlgorithm      crypto.Hash
-	trustBase          map[string]abcrypto.Verifier
-	systemDescriptions SystemDescriptions
 	state              *rma.Tree
 	currentBlockNumber uint64
 
@@ -40,7 +37,7 @@ type GenericTxSystem struct {
 	endBlockFunctions   []func(blockNumber uint64) error
 }
 
-func NewModularTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
+func NewGenericTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)
@@ -48,8 +45,6 @@ func NewModularTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, err
 	txs := &GenericTxSystem{
 		systemIdentifier:    options.systemIdentifier,
 		hashAlgorithm:       options.hashAlgorithm,
-		trustBase:           options.trustBase,
-		systemDescriptions:  options.systemDescriptions,
 		state:               options.state,
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,

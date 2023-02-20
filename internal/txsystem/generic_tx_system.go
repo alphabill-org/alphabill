@@ -124,7 +124,7 @@ func (m *GenericTxSystem) ConvertTx(tx *Transaction) (GenericTransaction, error)
 	}
 	transaction, err := c(tx)
 	if err != nil {
-		fmt.Errorf("failed to convert tx with attributres type url '%s': %w", tx.TransactionAttributes.TypeUrl, err)
+		return nil, fmt.Errorf("failed to convert tx with attributres type url '%s': %w", tx.TransactionAttributes.TypeUrl, err)
 	}
 	return transaction, nil
 }

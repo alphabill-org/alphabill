@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/legacywallet"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
@@ -478,71 +479,71 @@ func TestListTokensCommandInputs(t *testing.T) {
 		name          string
 		args          []string
 		accountNumber int
-		expectedKind  legacywallet.TokenKind
+		expectedKind  twb.Kind
 		expectedPass  string
 	}{
 		{
 			name:          "list all tokens",
 			args:          []string{},
 			accountNumber: -1, // all tokens
-			expectedKind:  legacywallet.Any,
+			expectedKind:  twb.Any,
 		},
 		{
 			name:          "list all tokens, encrypted wallet",
 			args:          []string{"--pn", "some pass phrase"},
 			accountNumber: -1, // all tokens
-			expectedKind:  legacywallet.Any,
+			expectedKind:  twb.Any,
 			expectedPass:  "some pass phrase",
 		},
 		{
 			name:          "list account tokens",
 			args:          []string{"--key", "3"},
 			accountNumber: 3,
-			expectedKind:  legacywallet.Any,
+			expectedKind:  twb.Any,
 		},
 		{
 			name:          "list all fungible tokens",
 			args:          []string{"fungible"},
 			accountNumber: -1,
-			expectedKind:  legacywallet.FungibleToken,
+			expectedKind:  twb.Fungible,
 		},
 		{
 			name:          "list account fungible tokens",
 			args:          []string{"fungible", "--key", "4"},
 			accountNumber: 4,
-			expectedKind:  legacywallet.FungibleToken,
+			expectedKind:  twb.Fungible,
 		},
 		{
 			name:          "list account fungible tokens, encrypted wallet",
 			args:          []string{"fungible", "--key", "4", "--pn", "some pass phrase"},
 			accountNumber: 4,
-			expectedKind:  legacywallet.FungibleToken,
+			expectedKind:  twb.Fungible,
 			expectedPass:  "some pass phrase",
 		},
 		{
 			name:          "list all non-fungible tokens",
 			args:          []string{"non-fungible"},
 			accountNumber: -1,
-			expectedKind:  legacywallet.NonFungibleToken,
+			expectedKind:  twb.NonFungible,
 		},
 		{
 			name:          "list account non-fungible tokens",
 			args:          []string{"non-fungible", "--key", "5"},
 			accountNumber: 5,
-			expectedKind:  legacywallet.NonFungibleToken,
+			expectedKind:  twb.NonFungible,
 		},
 		{
 			name:          "list account non-fungible tokens, encrypted walled",
 			args:          []string{"non-fungible", "--key", "5", "--pn", "some pass phrase"},
 			accountNumber: 5,
-			expectedKind:  legacywallet.NonFungibleToken,
+			expectedKind:  twb.NonFungible,
 			expectedPass:  "some pass phrase",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenLegacyCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind, accountNumber *int) error {
+			cmd := tokenCmdList(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind twb.Kind, accountNumber *uint64) error {
 				require.Equal(t, tt.accountNumber, *accountNumber)
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) > 0 {
@@ -641,47 +642,47 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 	tests := []struct {
 		name         string
 		args         []string
-		expectedKind legacywallet.TokenKind
+		expectedKind twb.Kind
 		expectedPass string
 	}{
 		{
 			name:         "list all tokens",
 			args:         []string{},
-			expectedKind: legacywallet.Any,
+			expectedKind: twb.Any,
 		},
 		{
 			name:         "list all tokens, encrypted wallet",
 			args:         []string{"--pn", "test pass phrase"},
-			expectedKind: legacywallet.Any,
+			expectedKind: twb.Any,
 			expectedPass: "test pass phrase",
 		},
 		{
 			name:         "list all fungible tokens",
 			args:         []string{"fungible"},
-			expectedKind: legacywallet.FungibleTokenType,
+			expectedKind: twb.Fungible,
 		},
 		{
 			name:         "list all fungible tokens, encrypted wallet",
 			args:         []string{"fungible", "--pn", "test pass phrase"},
-			expectedKind: legacywallet.FungibleTokenType,
+			expectedKind: twb.Fungible,
 			expectedPass: "test pass phrase",
 		},
 		{
 			name:         "list all non-fungible tokens",
 			args:         []string{"non-fungible"},
-			expectedKind: legacywallet.NonFungibleTokenType,
+			expectedKind: twb.NonFungible,
 		},
 		{
 			name:         "list all non-fungible tokens, encrypted wallet",
 			args:         []string{"non-fungible", "--pn", "test pass phrase"},
-			expectedKind: legacywallet.NonFungibleTokenType,
+			expectedKind: twb.NonFungible,
 			expectedPass: "test pass phrase",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exec := false
-			cmd := tokenLegacyCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind legacywallet.TokenKind) error {
+			cmd := tokenCmdListTypes(&walletConfig{}, func(cmd *cobra.Command, config *walletConfig, kind twb.Kind) error {
 				require.Equal(t, tt.expectedKind, kind)
 				if len(tt.expectedPass) != 0 {
 					passwordFromArg, err := cmd.Flags().GetString(passwordArgCmdName)

@@ -80,7 +80,6 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	walletCmd.AddCommand(sendCmd(ctx, config))
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
-	walletCmd.AddCommand(legacyTokenCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)

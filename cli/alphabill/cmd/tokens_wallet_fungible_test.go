@@ -18,7 +18,7 @@ import (
 func TestWalletCreateFungibleTokenTypeCmd_SymbolFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	// missing symbol parameter
-	_, err := execCommand(homedir, "token-legacy new-type fungible --decimals 3")
+	_, err := execCommand(homedir, "token new-type fungible --decimals 3")
 	require.ErrorContains(t, err, "required flag(s) \"symbol\" not set")
 	// symbol parameter not set
 	_, err = execCommand(homedir, "flag needs an argument: --symbol")
@@ -28,11 +28,11 @@ func TestWalletCreateFungibleTokenTypeCmd_SymbolFlag(t *testing.T) {
 func TestWalletCreateFungibleTokenTypeCmd_TypeIdlFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	// hidden parameter type (not a mandatory parameter)
-	_, err := execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --type")
+	_, err := execCommand(homedir, "token new-type fungible --symbol \"@1\" --type")
 	require.ErrorContains(t, err, "flag needs an argument: --type")
-	_, err = execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --type 011")
+	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --type 011")
 	require.ErrorContains(t, err, "invalid argument \"011\" for \"--type\" flag: encoding/hex: odd length hex string")
-	_, err = execCommand(homedir, "token-legacy new-type fungible --symbol \"@1\" --type foo")
+	_, err = execCommand(homedir, "token new-type fungible --symbol \"@1\" --type foo")
 	require.ErrorContains(t, err, "invalid argument \"foo\" for \"--type\" flag")
 	// there currently are no restrictions on type length on CLI side
 }

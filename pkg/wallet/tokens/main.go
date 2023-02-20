@@ -37,7 +37,7 @@ type (
 		txs       block.TxConverter
 		am        account.Manager
 		backend   TokenBackend
-		confirmTx bool // TODO: ?
+		confirmTx bool
 	}
 
 	TokenBackend interface {
@@ -229,7 +229,7 @@ func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, tokenId twb.Tok
 	var err error
 	for {
 		var tokens []twb.TokenUnit
-		// TODO: allow passing type id to filter specific unit on the backend
+		// TODO: allow passing token id to filter specific unit on the backend
 		tokens, offsetKey, err = w.backend.GetTokens(ctx, twb.Any, owner, offsetKey, 0)
 		if err != nil {
 			return nil, err

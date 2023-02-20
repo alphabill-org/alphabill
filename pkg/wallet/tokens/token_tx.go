@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -23,6 +24,7 @@ import (
 type (
 	submittedTx struct {
 		id      twb.TokenID
+		txHash  []byte
 		timeout uint64
 	}
 
@@ -150,6 +152,7 @@ func (w *Wallet) sendTx(ctx context.Context, unitId twb.TokenID, attrs proto.Mes
 		return txSub, err
 	}
 	txSub.timeout = tx.Timeout
+	txSub.txHash = gtx.Hash(crypto.SHA256)
 	return txSub, nil
 }
 
@@ -271,4 +274,38 @@ func createTx(systemID []byte, unitId []byte, timeout uint64) *txsystem.Transact
 		Timeout:               timeout,
 		// OwnerProof is added after whole transaction is built
 	}
+}
+
+func (w *Wallet) confirmUnitTx(ctx context.Context, sub *submittedTx, timeout uint64) error {
+	submissions := make(map[string]*submittedTx, 1)
+	submissions[sub.id.String()] = sub
+	return w.confirmUnitsTx(ctx, submissions, timeout)
+}
+
+func (w *Wallet) confirmUnitsTx(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
+	// ...or don't
+	if !w.confirmTx {
+		return nil
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	for _, sub := range subs {
+		log.Info(fmt.Sprintf("Waiting for UnitID=%X", sub.id))
+		// TODO: Get token's tx proof from the backend
+	}
+
+	rn, err := w.getRoundNumber(ctx)
+	if err != nil {
+		return err
+	}
+	if rn >= maxTimeout {
+		log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", rn))
+		for _, sub := range subs {
+			log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
+		}
+		return errors.New("confirmation timeout")
+	}
+
+	panic("not implemented")
 }

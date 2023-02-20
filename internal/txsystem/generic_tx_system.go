@@ -9,7 +9,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rma"
-	"github.com/holiman/uint256"
 )
 
 var _ TransactionSystem = &GenericTxSystem{}
@@ -139,12 +138,9 @@ func (m *GenericTxSystem) Execute(tx GenericTransaction) error {
 	u, _ := m.state.GetUnit(tx.UnitID())
 	ctx := &TxValidationContext{
 		Tx:               tx,
-		Bd:               u,
+		Unit:             u,
 		SystemIdentifier: m.systemIdentifier,
 		BlockNumber:      m.currentBlockNumber,
-
-		FeeCreditRecord: m.getFCR(tx.ToProtoBuf().ClientMetadata),
-		TxFee:           1, // TODO revisit: add fee function
 	}
 	for _, validator := range m.genericTxValidators {
 		if err := validator(ctx); err != nil {
@@ -170,13 +166,4 @@ func (m *GenericTxSystem) Revert() {
 
 func (m *GenericTxSystem) Commit() {
 	m.state.Commit()
-}
-
-// TODO move
-func (m *GenericTxSystem) getFCR(clientMD *ClientMetadata) *rma.Unit {
-	var fcr *rma.Unit
-	if len(clientMD.FeeCreditRecordId) > 0 {
-		fcr, _ = m.state.GetUnit(uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId))
-	}
-	return fcr
 }

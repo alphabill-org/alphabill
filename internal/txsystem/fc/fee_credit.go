@@ -68,7 +68,7 @@ func (f *FeeCredit) TxExecutors() []txsystem.TxExecutor {
 }
 
 func (f *FeeCredit) GenericTransactionValidator() txsystem.GenericTransactionValidator {
-	return BalanceValidator
+	return checkFeeCreditBalance(f.state, f.feeCalculator)
 }
 
 func (f *FeeCredit) TxConverter() txsystem.TxConverters {

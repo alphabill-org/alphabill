@@ -18,11 +18,9 @@ type GenericTransactionValidator func(ctx *TxValidationContext) error
 
 type TxValidationContext struct {
 	Tx               GenericTransaction
-	Bd               *rma.Unit
-	FeeCreditRecord  *rma.Unit
+	Unit             *rma.Unit
 	SystemIdentifier []byte
 	BlockNumber      uint64
-	TxFee            uint64
 }
 
 func ValidateGenericTransaction(ctx *TxValidationContext) error {
@@ -40,8 +38,8 @@ func ValidateGenericTransaction(ctx *TxValidationContext) error {
 	}
 
 	// 4. owner proof verifies correctly
-	if ctx.Bd != nil {
-		err := script.RunScript(ctx.Tx.OwnerProof(), ctx.Bd.Bearer, ctx.Tx.SigBytes())
+	if ctx.Unit != nil {
+		err := script.RunScript(ctx.Tx.OwnerProof(), ctx.Unit.Bearer, ctx.Tx.SigBytes())
 		if err != nil {
 			return fmt.Errorf("invalid owner proof: %w", err)
 		}

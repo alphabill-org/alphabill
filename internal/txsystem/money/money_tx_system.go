@@ -14,7 +14,6 @@ func NewMoneyTxSystem(systemIdentifier []byte, opts ...Option) (*txsystem.Generi
 	}
 	money, err := NewMoneyModule(systemIdentifier, options)
 	if err != nil {
-		// TODO test
 		return nil, fmt.Errorf("failed to load money module: %w", err)
 	}
 

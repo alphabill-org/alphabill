@@ -11,6 +11,8 @@ import (
 	"github.com/holiman/uint256"
 )
 
+var ErrStrUnitIDIsZero = "unit ID cannot be zero"
+
 func handleCreateFungibleTokenTypeTx(options *Options) txsystem.GenericExecuteFunc[*createFungibleTokenTypeWrapper] {
 	return func(tx *createFungibleTokenTypeWrapper, currentBlockNr uint64) error {
 		logger.Debug("Processing Create Fungible Token Type tx: %v", tx)

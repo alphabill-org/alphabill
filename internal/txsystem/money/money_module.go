@@ -18,6 +18,14 @@ import (
 
 var _ txsystem.Module = &Module{}
 
+var (
+	ErrInitialBillIsNil                  = errors.New("initial bill may not be nil")
+	ErrInvalidInitialBillID              = errors.New("initial bill ID may not be equal to the DC money supply ID")
+	ErrUndefinedSystemDescriptionRecords = errors.New("undefined system description records")
+	ErrNilFeeCreditBill                  = errors.New("fee credit bill is nil in system description record")
+	ErrInvalidFeeCreditBillID            = errors.New("fee credit bill may not be equal to the DC money supply ID and initial bill ID")
+)
+
 type (
 	Module struct {
 		state               *rma.Tree

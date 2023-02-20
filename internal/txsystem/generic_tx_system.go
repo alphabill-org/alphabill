@@ -12,7 +12,7 @@ import (
 	"github.com/holiman/uint256"
 )
 
-var _ TransactionSystem = &ModularTxSystem{}
+var _ TransactionSystem = &GenericTxSystem{}
 
 // SystemDescriptions is map of system description records indexed by System Identifiers
 type SystemDescriptions map[string]*genesis.SystemDescriptionRecord
@@ -26,7 +26,7 @@ type Module interface {
 	TxConverter() TxConverters
 }
 
-type ModularTxSystem struct {
+type GenericTxSystem struct {
 	systemIdentifier   []byte
 	hashAlgorithm      crypto.Hash
 	trustBase          map[string]abcrypto.Verifier
@@ -41,12 +41,12 @@ type ModularTxSystem struct {
 	endBlockFunctions   []func(blockNumber uint64) error
 }
 
-func NewModularTxSystem(modules []Module, opts ...Option) (*ModularTxSystem, error) {
+func NewModularTxSystem(modules []Module, opts ...Option) (*GenericTxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)
 	}
-	txs := &ModularTxSystem{
+	txs := &GenericTxSystem{
 		systemIdentifier:    options.systemIdentifier,
 		hashAlgorithm:       options.hashAlgorithm,
 		trustBase:           options.trustBase,
@@ -85,30 +85,22 @@ func NewModularTxSystem(modules []Module, opts ...Option) (*ModularTxSystem, err
 	return txs, nil
 }
 
-func (m *ModularTxSystem) GetState() *rma.Tree {
+func (m *GenericTxSystem) GetState() *rma.Tree {
 	return m.state
 }
 
-func (m *ModularTxSystem) CurrentBlockNumber() uint64 {
+func (m *GenericTxSystem) CurrentBlockNumber() uint64 {
 	return m.currentBlockNumber
 }
 
-func (m *ModularTxSystem) HashAlgorithm() crypto.Hash {
-	return m.hashAlgorithm
-}
-
-func (m *ModularTxSystem) SystemIdentifier() []byte {
-	return m.systemIdentifier
-}
-
-func (m *ModularTxSystem) State() (State, error) {
+func (m *GenericTxSystem) State() (State, error) {
 	if m.state.ContainsUncommittedChanges() {
 		return nil, ErrStateContainsUncommittedChanges
 	}
 	return m.getState()
 }
 
-func (m *ModularTxSystem) getState() (State, error) {
+func (m *GenericTxSystem) getState() (State, error) {
 	sv := m.state.TotalValue()
 	if sv == nil {
 		sv = rma.Uint64SummaryValue(0)
@@ -120,14 +112,14 @@ func (m *ModularTxSystem) getState() (State, error) {
 	return NewStateSummary(hash, sv.Bytes()), nil
 }
 
-func (m *ModularTxSystem) BeginBlock(blockNr uint64) {
+func (m *GenericTxSystem) BeginBlock(blockNr uint64) {
 	for _, function := range m.beginBlockFunctions {
 		function(blockNr)
 	}
 	m.currentBlockNumber = blockNr
 }
 
-func (m *ModularTxSystem) ConvertTx(tx *Transaction) (GenericTransaction, error) {
+func (m *GenericTxSystem) ConvertTx(tx *Transaction) (GenericTransaction, error) {
 	if tx == nil || tx.TransactionAttributes == nil {
 		return nil, errors.New("tx or tx attributes missing")
 	}
@@ -143,7 +135,7 @@ func (m *ModularTxSystem) ConvertTx(tx *Transaction) (GenericTransaction, error)
 	return transaction, nil
 }
 
-func (m *ModularTxSystem) Execute(tx GenericTransaction) error {
+func (m *GenericTxSystem) Execute(tx GenericTransaction) error {
 	u, _ := m.state.GetUnit(tx.UnitID())
 	ctx := &TxValidationContext{
 		Tx:               tx,
@@ -163,7 +155,7 @@ func (m *ModularTxSystem) Execute(tx GenericTransaction) error {
 	return m.executors.Execute(tx, m.currentBlockNumber)
 }
 
-func (m *ModularTxSystem) EndBlock() (State, error) {
+func (m *GenericTxSystem) EndBlock() (State, error) {
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentBlockNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
@@ -172,16 +164,16 @@ func (m *ModularTxSystem) EndBlock() (State, error) {
 	return m.getState()
 }
 
-func (m *ModularTxSystem) Revert() {
+func (m *GenericTxSystem) Revert() {
 	m.state.Revert()
 }
 
-func (m *ModularTxSystem) Commit() {
+func (m *GenericTxSystem) Commit() {
 	m.state.Commit()
 }
 
 // TODO move
-func (m *ModularTxSystem) getFCR(clientMD *ClientMetadata) *rma.Unit {
+func (m *GenericTxSystem) getFCR(clientMD *ClientMetadata) *rma.Unit {
 	var fcr *rma.Unit
 	if len(clientMD.FeeCreditRecordId) > 0 {
 		fcr, _ = m.state.GetUnit(uint256.NewInt(0).SetBytes(clientMD.FeeCreditRecordId))

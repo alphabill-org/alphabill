@@ -18,11 +18,9 @@ const (
 
 	ErrStrSystemIdentifierIsNil = "system identifier is nil"
 	ErrStrStateIsNil            = "state is nil"
-	ErrStrUnitIDIsZero          = "unit ID cannot be zero"
-	ErrStrInvalidSymbolName     = "symbol name exceeds the allowed maximum length of 64 bytes"
 )
 
-func New(opts ...Option) (*txsystem.ModularTxSystem, error) {
+func New(opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, err

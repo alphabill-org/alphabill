@@ -1,25 +1,13 @@
 package money
 
 import (
-	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 )
 
-var (
-	log = logger.CreateForPackage()
-
-	ErrInitialBillIsNil                  = errors.New("initial bill may not be nil")
-	ErrInvalidInitialBillID              = errors.New("initial bill ID may not be equal to the DC money supply ID")
-	ErrUndefinedSystemDescriptionRecords = errors.New("undefined system description records")
-	ErrNilFeeCreditBill                  = errors.New("fee credit bill is nil in system description record")
-	ErrInvalidFeeCreditBillID            = errors.New("fee credit bill may not be equal to the DC money supply ID and initial bill ID")
-)
-
-func NewMoneyTxSystem(systemIdentifier []byte, opts ...Option) (*txsystem.ModularTxSystem, error) {
+func NewMoneyTxSystem(systemIdentifier []byte, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options := DefaultOptions()
 	for _, option := range opts {
 		option(options)

@@ -11,6 +11,8 @@ import (
 	"github.com/holiman/uint256"
 )
 
+var ErrStrInvalidSymbolName = "symbol name exceeds the allowed maximum length of 64 bytes"
+
 func handleCreateNoneFungibleTokenTx(options *Options) txsystem.GenericExecuteFunc[*createNonFungibleTokenTypeWrapper] {
 	return func(tx *createNonFungibleTokenTypeWrapper, _ uint64) error {
 		logger.Debug("Processing Create Non-Fungible Token Type tx: %v", tx)

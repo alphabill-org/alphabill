@@ -733,7 +733,7 @@ func createNonMoneyTx() *txsystem.Transaction {
 	}
 }
 
-func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *txsystem.ModularTxSystem, abcrypto.Signer) {
+func createRMATreeAndTxSystem(t *testing.T) (*rma.Tree, *txsystem.GenericTxSystem, abcrypto.Signer) {
 	rmaTree := rma.NewWithSHA256()
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := map[string]abcrypto.Verifier{"test": verifier}

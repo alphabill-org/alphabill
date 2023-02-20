@@ -44,25 +44,6 @@ func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
 	require.Nil(t, txs)
 }
 
-func TestNewTokenTxSystem_OverrideDefaultOptions(t *testing.T) {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	systemIdentifier := []byte{0, 0, 0, 7}
-	txs, err := New(
-		WithSystemIdentifier(systemIdentifier),
-		WithHashAlgorithm(gocrypto.SHA512),
-		WithTrustBase(map[string]crypto.Verifier{"test2": verifier}),
-	)
-	require.NoError(t, err)
-	require.Equal(t, gocrypto.SHA512, txs.HashAlgorithm())
-	require.Equal(t, systemIdentifier, txs.SystemIdentifier())
-
-	require.NotNil(t, txs.GetState())
-	state, err := txs.State()
-	require.NoError(t, err)
-	require.Equal(t, make([]byte, gocrypto.SHA512.Size()), state.Root())
-	require.Equal(t, zeroSummaryValue.Bytes(), state.Summary())
-}
-
 func TestExecuteCreateNFTType_WithoutParentID(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	tx := testtransaction.NewGenericTransaction(
@@ -1051,7 +1032,7 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
 }
 
-func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.ModularTxSystem, nftTypeID []byte, nftID []byte) txsystem.GenericTransaction {
+func createNFTTypeAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeID []byte, nftID []byte) txsystem.GenericTransaction {
 	// create NFT type
 	tx := testtransaction.NewGenericTransaction(
 		t,
@@ -1119,7 +1100,7 @@ func createSigner(t *testing.T) (crypto.Signer, []byte) {
 	return signer, pubKey
 }
 
-func signTx(t *testing.T, txs *txsystem.ModularTxSystem, tx *txsystem.Transaction, signer crypto.Signer, pubKey []byte) ([]byte, []byte) {
+func signTx(t *testing.T, txs *txsystem.GenericTxSystem, tx *txsystem.Transaction, signer crypto.Signer, pubKey []byte) ([]byte, []byte) {
 	gtx, err := txs.ConvertTx(tx)
 	require.NoError(t, err)
 
@@ -1131,7 +1112,7 @@ func signTx(t *testing.T, txs *txsystem.ModularTxSystem, tx *txsystem.Transactio
 	return signature, script.PredicateArgumentPayToPublicKeyHashDefault(signature, pubKey)
 }
 
-func newTokenTxSystem(t *testing.T) *txsystem.ModularTxSystem {
+func newTokenTxSystem(t *testing.T) *txsystem.GenericTxSystem {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	state := rma.NewWithSHA256()
 	require.NoError(t, state.AtomicUpdate(rma.AddItem(feeCreditID, script.PredicateAlwaysTrue(), &fc.FeeCreditRecord{

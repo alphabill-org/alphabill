@@ -26,6 +26,7 @@ import (
 
 type dataSource interface {
 	GetBlockNumber() (uint64, error)
+	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
@@ -54,6 +55,7 @@ func (api *restAPI) endpoints() http.Handler {
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
+	apiV1.HandleFunc("/types/{typeId}/ancestors", api.typeAncestors).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/owners/{owner}/tokens", api.listTokens).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
@@ -147,6 +149,27 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 	}
 	setLinkHeader(r.URL, w, encodeTokenTypeID(next))
 	api.writeResponse(w, data)
+}
+
+func (api *restAPI) typeAncestors(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	typeId, err := parseTokenTypeID(vars["typeId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "typeId", err)
+		return
+	}
+
+	var rsp []*TokenUnitType
+	for len(typeId) > 0 {
+		tokTyp, err := api.db.GetTokenType(typeId)
+		if err != nil {
+			api.writeErrorResponse(w, fmt.Errorf("failed to load ancestor type with id %x: %w", typeId, err))
+			return
+		}
+		rsp = append(rsp, tokTyp)
+		typeId = tokTyp.ParentTypeID
+	}
+	api.writeResponse(w, rsp)
 }
 
 func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {

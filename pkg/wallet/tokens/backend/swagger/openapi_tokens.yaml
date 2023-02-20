@@ -5,6 +5,7 @@ info:
     So called Indexing backend for token partition. Meant as a back-end for wallet.
   version: 0.0.1
 servers:
+  - url: /api/v1
   - url: https://dev-ab-tokens-backend.abdev1.guardtime.com/api/v1
   - url: http://localhost:{port}/api/v1
     variables:

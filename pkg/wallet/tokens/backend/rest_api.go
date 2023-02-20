@@ -49,9 +49,8 @@ func (api *restAPI) endpoints() http.Handler {
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
 	// Link header is needed for pagination support.
-	// api_key and Authorization headers are used by swagger-ui.
 	// OPTIONS method needs to be explicitly defined for each handler func
-	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{"Content-Type", "Link", "api_key", "Authorization"})))
+	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{"Content-Type", "Link"})))
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()

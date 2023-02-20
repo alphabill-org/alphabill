@@ -3,7 +3,6 @@ window.onload = function() {
 
   // the following lines will be replaced by docker/configurator, when it runs in a docker-container
   window.ui = SwaggerUIBundle({
-    url: "/api/swagger/openapi_tokens.yaml",
     urls: [
       {name:"token wallet backend", url:"/api/v1/swagger/openapi_tokens.yaml"},
       {name:"money wallet backend", url:"https://dev-ab-money-backend.abdev1.guardtime.com/swagger/doc.json"}

@@ -4,9 +4,6 @@ info:
   description: |-
     So called Indexing backend for token partition. Meant as a back-end for wallet.
   version: 0.0.1
-externalDocs:
-  description: Documentation in Confluence
-  url: https://guardtime.atlassian.net/wiki/spaces/AB/pages/3806036029/UTP+indexing+backend+API+for+light+client+wallet
 servers:
   - url: https://dev-ab-tokens-backend.abdev1.guardtime.com/api/v1
   - url: http://localhost:{port}/api/v1

@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	gocrypto "crypto"
+	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,13 +13,14 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
-	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/legacywallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -478,20 +482,20 @@ func TestListTokensCommandInputs(t *testing.T) {
 	tests := []struct {
 		name          string
 		args          []string
-		accountNumber int
+		accountNumber uint64
 		expectedKind  twb.Kind
 		expectedPass  string
 	}{
 		{
 			name:          "list all tokens",
 			args:          []string{},
-			accountNumber: -1, // all tokens
+			accountNumber: 0, // all tokens
 			expectedKind:  twb.Any,
 		},
 		{
 			name:          "list all tokens, encrypted wallet",
 			args:          []string{"--pn", "some pass phrase"},
-			accountNumber: -1, // all tokens
+			accountNumber: 0, // all tokens
 			expectedKind:  twb.Any,
 			expectedPass:  "some pass phrase",
 		},
@@ -504,7 +508,7 @@ func TestListTokensCommandInputs(t *testing.T) {
 		{
 			name:          "list all fungible tokens",
 			args:          []string{"fungible"},
-			accountNumber: -1,
+			accountNumber: 0,
 			expectedKind:  twb.Fungible,
 		},
 		{
@@ -523,7 +527,7 @@ func TestListTokensCommandInputs(t *testing.T) {
 		{
 			name:          "list all non-fungible tokens",
 			args:          []string{"non-fungible"},
-			accountNumber: -1,
+			accountNumber: 0,
 			expectedKind:  twb.NonFungible,
 		},
 		{
@@ -567,10 +571,63 @@ func ensureUnitBytes(t *testing.T, state tokens.TokenState, id []byte) *rma.Unit
 }
 
 func ensureUnit(t *testing.T, state tokens.TokenState, id *uint256.Int) *rma.Unit {
-	unit, err := state.GetUnit(id)
-	require.NoError(t, err)
-	require.NotNil(t, unit)
+	var unit *rma.Unit
+	require.Eventually(t, func() bool {
+		unit, err := state.GetUnit(id)
+		require.NoError(t, err)
+		require.NotNil(t, unit)
+		return true
+	}, test.WaitDuration, test.WaitTick)
+
 	return unit
+}
+
+func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, ownerPubKey []byte, tokenID twb.TokenID) *twb.TokenUnit {
+	var res *twb.TokenUnit
+	require.Eventually(t, func() bool {
+		offsetKey := ""
+		var tokens []twb.TokenUnit
+		var err error
+		for {
+			tokens, offsetKey, err = api.GetTokens(ctx, twb.Any, ownerPubKey, offsetKey, 0)
+			require.NoError(t, err)
+			for _, token := range tokens {
+				if bytes.Equal(token.ID, tokenID) {
+					res = &token
+					return true
+				}
+			}
+			if offsetKey == "" {
+				break
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+	return res
+}
+
+func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, creatorPubKey []byte, typeID twb.TokenTypeID) *twb.TokenUnitType {
+	var res *twb.TokenUnitType
+	require.Eventually(t, func() bool {
+		offsetKey := ""
+		var types []twb.TokenUnitType
+		var err error
+		for {
+			types, offsetKey, err = api.GetTokenTypes(ctx, twb.Any, creatorPubKey, offsetKey, 0)
+			require.NoError(t, err)
+			for _, t := range types {
+				if bytes.Equal(t.ID, typeID) {
+					res = &t
+					return true
+				}
+			}
+			if offsetKey == "" {
+				break
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+	return res
 }
 
 func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, tokens.TokenState) {
@@ -593,16 +650,39 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, toke
 	return network, tokensState
 }
 
-func createNewTokenWallet(t *testing.T, addr string) (*legacywallet.Wallet, string) {
+func startTokensBackend(t *testing.T) (srvUri string, restApi *client.TokenBackend, ctx context.Context) {
+	srvUri = defaultTokensBackendUri
+	cfg := twb.NewConfig(defaultTokensBackendHost, dialAddr, filepath.Join(t.TempDir(), "backend.db"), func(a ...any) { fmt.Println(a...) })
+	addr, err := url.Parse(srvUri)
+	require.NoError(t, err)
+	restApi = client.New(*addr)
+
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithCancel(context.Background())
+
+	t.Cleanup(cancel)
+
+	go func() {
+		_ = twb.Run(ctx, cfg)
+	}()
+
+	require.Eventually(t, func() bool {
+		rn, err := restApi.GetRoundNumber(ctx)
+		require.NoError(t, err)
+		return rn > 0
+	}, test.WaitDuration, test.WaitTick)
+
+	return
+}
+
+func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
 	homeDir := t.TempDir()
 	walletDir := filepath.Join(homeDir, "wallet")
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
-	w, err := legacywallet.Load(walletDir, client.AlphabillClientConfig{
-		Uri:          addr,
-		WaitForReady: false,
-	}, am, false)
+
+	w, err := tw.Load(addr, am)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 
@@ -626,14 +706,14 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet token-legacy --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
+	args := "wallet token --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())
 }
 
-func randomID(t *testing.T) legacywallet.TokenID {
-	id, err := legacywallet.RandomID()
+func randomID(t *testing.T) []byte {
+	id, err := tw.RandomID()
 	require.NoError(t, err)
 	return id
 }

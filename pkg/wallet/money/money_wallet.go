@@ -120,7 +120,7 @@ func (w *Wallet) SystemID() []byte {
 }
 
 func (w *Wallet) ProcessBlock(b *block.Block) error {
-	log.Info("processing block: ", b.UnicityCertificate.InputRecord.RoundNumber)
+	log.Info("processing block: ", b.GetRoundNumber())
 	if !bytes.Equal(w.SystemID(), b.GetSystemIdentifier()) {
 		return ErrInvalidBlockSystemID
 	}
@@ -130,7 +130,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 		if err != nil {
 			return err
 		}
-		err = validateBlockNumber(b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
+		err = validateBlockNumber(b.GetRoundNumber(), lastBlockNumber)
 		if err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 				return err
 			}
 			for _, pbTx := range b.Transactions {
-				err = w.collectBills(dbTx, pbTx, b, getFCBlockNumber(fcb), &acc)
+				err = w.collectBills(dbTx, pbTx, b, fcb.getFCBlockNumber(), &acc)
 				if err != nil {
 					return err
 				}
@@ -151,7 +151,7 @@ func (w *Wallet) ProcessBlock(b *block.Block) error {
 }
 
 func (w *Wallet) endBlock(dbTx TxContext, b *block.Block) error {
-	blockNumber := b.UnicityCertificate.InputRecord.RoundNumber
+	blockNumber := b.GetRoundNumber()
 	err := dbTx.SetBlockNumber(blockNumber)
 	if err != nil {
 		return err
@@ -453,7 +453,7 @@ func (w *Wallet) AddFeeCredit(ctx context.Context, cmd AddFeeCmd) ([]*BlockProof
 	}
 
 	log.Info("sending transfer fee credit transaction")
-	tx, err := createTransferFCTx(cmd.Amount, k.PrivKeyHash, getTxHash(fcb), k, w.SystemID(), billToTransfer, lastRoundNo, timeout)
+	tx, err := createTransferFCTx(cmd.Amount, k.PrivKeyHash, fcb.getTxHash(), k, w.SystemID(), billToTransfer, lastRoundNo, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -612,7 +612,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				IsDcBill:            true,
 				DcTimeout:           tx.Timeout(),
 				DcNonce:             tx.Nonce(),
-				DcExpirationTimeout: b.UnicityCertificate.InputRecord.RoundNumber + dustBillDeletionTimeout,
+				DcExpirationTimeout: b.GetRoundNumber() + dustBillDeletionTimeout,
 			}, acc.AccountIndex)
 		} else {
 			return dbTx.RemoveBill(acc.AccountIndex, tx.UnitID())
@@ -730,7 +730,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			log.Info("received addFC order")
 			err = w.saveFCBWithProof(dbTx, b, txPb, &Bill{
 				Id:            tx.UnitID(),
-				Value:         getValue(fcb) + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
+				Value:         fcb.getValue() + tx.TransferFC.TransferFC.Amount - tx.Transaction.ServerMetadata.Fee,
 				TxHash:        tx.Hash(crypto.SHA256),
 				FCBlockNumber: currentBlockNumber,
 			}, acc.AccountIndex)
@@ -749,7 +749,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 			log.Info("received closeFC order")
 			err = w.saveFCBWithProof(dbTx, b, txPb, &Bill{
 				Id:            tx.UnitID(),
-				Value:         getValue(fcb) - tx.CloseFC.Amount,
+				Value:         fcb.getValue() - tx.CloseFC.Amount,
 				TxHash:        tx.Hash(crypto.SHA256),
 				FCBlockNumber: currentBlockNumber,
 			}, acc.AccountIndex)
@@ -1109,7 +1109,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 					if err != nil {
 						return err
 					}
-					return w.collectBills(dbTx, tx, b, getFCBlockNumber(fcb), &w.am.GetAll()[accountIndex])
+					return w.collectBills(dbTx, tx, b, fcb.getFCBlockNumber(), &w.am.GetAll()[accountIndex])
 				})
 				if err != nil {
 					return nil, err

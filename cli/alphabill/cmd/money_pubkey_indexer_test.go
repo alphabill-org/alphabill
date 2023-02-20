@@ -23,7 +23,7 @@ import (
 )
 
 func TestWalletBackendCli(t *testing.T) {
-	t.SkipNow() // TODO AB-697 add fee handling to money backend
+	t.SkipNow() // TODO AB-723 remove pubkey indexing backend
 	// create ab network
 	_ = wlog.InitStdoutLogger(wlog.DEBUG)
 	initialBill := &moneytx.InitialBill{
@@ -104,7 +104,7 @@ Test case:
 7) import downloaded proof to a new wallet
 */
 func TestFlowBillImportExportDownloadUpload(t *testing.T) {
-	t.SkipNow() // TODO AB-697 add fee handling to money backend
+	t.SkipNow() // TODO AB-723 remove pubkey indexing backend
 	// create ab network
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),

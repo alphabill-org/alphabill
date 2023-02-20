@@ -197,7 +197,7 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 	return homedir, network
 }
 
-func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) {
+func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) uint64 {
 	pubkey := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	pubkeyHash := hash.Sum256(pubkeyBytes)
@@ -233,12 +233,16 @@ func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, i
 	// create transfer tx
 	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
 	require.NoError(t, err)
-	tx, err := createTransferTx(pubkeyBytes, unitID, initialBill.Value-feeAmount-txFee, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
+	remainingValue := initialBill.Value - feeAmount - txFee
+	tx, err := createTransferTx(pubkeyBytes, unitID, remainingValue, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
 	require.NoError(t, err)
+
 	// send transfer tx
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+
+	return remainingValue
 }
 
 func createTransferTx(pubKey []byte, billId []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {

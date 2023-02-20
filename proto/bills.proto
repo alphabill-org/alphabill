@@ -16,4 +16,6 @@ message Bill {
   bytes tx_hash = 3;
   bool is_dc_bill = 4;
   TxProof tx_proof = 5;
+  // block number when fee credit bill balance was last updated
+  uint64 fc_block_number = 6;
 }

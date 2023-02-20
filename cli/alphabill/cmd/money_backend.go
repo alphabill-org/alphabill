@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/util"
 	indexer "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +25,8 @@ type moneyBackendConfig struct {
 	LogLevel           string
 	LogFile            string
 	ListBillsPageLimit int
+	InitialBillID      uint64
+	InitialBillValue   uint64
 }
 
 func (c *moneyBackendConfig) GetDbFile() (string, error) {
@@ -73,6 +78,8 @@ func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobr
 	cmd.Flags().StringVarP(&config.ServerAddr, serverAddrCmdName, "s", "localhost:9654", "server address")
 	cmd.Flags().StringVarP(&config.DbFile, dbFileCmdName, "f", "", "path to the database file (default: $AB_HOME/"+moneyBackendHomeDir+"/"+indexer.BoltBillStoreFileName+")")
 	cmd.Flags().IntVarP(&config.ListBillsPageLimit, listBillsPageLimit, "l", 100, "GET /list-bills request default/max limit size")
+	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", 100000000, "initial bill value (needed for initial startup only)")
+	cmd.Flags().Uint64Var(&config.InitialBillID, "initial-bill-id", 1, "initial bill id hex string with 0x prefix (needed for initial startup only)")
 	return cmd
 }
 
@@ -87,5 +94,10 @@ func execMoneyBackendStartCmd(ctx context.Context, _ *cobra.Command, config *mon
 		ServerAddr:              config.ServerAddr,
 		DbFile:                  dbFile,
 		ListBillsPageLimit:      config.ListBillsPageLimit,
+		InitialBill: indexer.InitialBill{
+			Id:        util.Uint256ToBytes(uint256.NewInt(config.InitialBillID)),
+			Value:     config.InitialBillValue,
+			Predicate: script.PredicateAlwaysTrue(),
+		},
 	})
 }

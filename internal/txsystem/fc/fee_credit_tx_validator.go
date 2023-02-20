@@ -20,7 +20,6 @@ var (
 	ErrInvalidProofType     = errors.New("invalid proof type")
 
 	// add fee credit errors
-	ErrAddFCInvalidCloseFCType    = errors.New("addFC: invalid nested transferFC tx type")
 	ErrAddFCInvalidOwnerCondition = errors.New("addFC: invalid owner condition")
 	ErrAddFCInvalidSystemID       = errors.New("addFC: invalid transferFC system identifier")
 	ErrAddFCInvalidTargetSystemID = errors.New("addFC: invalid transferFC target system identifier")

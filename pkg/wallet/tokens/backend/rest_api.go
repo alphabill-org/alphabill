@@ -1,7 +1,9 @@
 package twb
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -38,13 +40,18 @@ type restAPI struct {
 
 const maxResponseItems = 100
 
+//go:embed swagger/*
+var swaggerFiles embed.FS
+
 func (api *restAPI) endpoints() http.Handler {
 	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
 
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
+	// Link header is needed for pagination support.
+	// api_key and Authorization headers are used by swagger-ui.
 	// OPTIONS method needs to be explicitly defined for each handler func
-	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{"Content-Type", "Link"})))
+	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{"Content-Type", "Link", "api_key", "Authorization"})))
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
@@ -52,6 +59,17 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := swaggerFiles.ReadFile("swagger/index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)
+			return
+		}
+		http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
 
 	return apiRouter
 }

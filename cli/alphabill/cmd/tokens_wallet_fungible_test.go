@@ -51,7 +51,7 @@ func TestWalletCreateFungibleTokenTypeCmd_DecimalsFlag(t *testing.T) {
 }
 
 func TestFungibleToken_Subtyping_Integration(t *testing.T) {
-	partition, _ := startTokensPartition(t)
+	partition := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
@@ -103,7 +103,7 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 }
 
 func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
-	partition, _ := startTokensPartition(t)
+	partition := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
@@ -144,7 +144,7 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 }
 
 func TestFungibleTokens_Sending_Integration(t *testing.T) {
-	partition, _ := startTokensPartition(t)
+	partition := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
@@ -223,7 +223,7 @@ func TestWalletCreateFungibleTokenCmd_AmountFlag(t *testing.T) {
 	require.ErrorContains(t, err, "required flag(s) \"amount\" not set")
 }
 
-func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_DataFileFlagIntegrationTest(t *testing.T) {
+func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *testing.T) {
 	const decimals = 3
 	// mint tokens
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
@@ -237,7 +237,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_DataFileFlagIntegration
 		}
 	}
 
-	partition, _ := startTokensPartition(t)
+	partition := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	backendUrl, client, ctx := startTokensBackend(t)

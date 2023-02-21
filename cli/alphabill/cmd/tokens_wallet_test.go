@@ -635,7 +635,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 	return res
 }
 
-func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, tokens.TokenState) {
+func startTokensPartition(t *testing.T) *testpartition.AlphabillPartition {
 	tokensState, err := rma.New(&rma.Config{
 		HashAlgorithm: gocrypto.SHA256,
 	})
@@ -652,7 +652,7 @@ func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, toke
 		_ = network.Close()
 	})
 	startRPCServer(t, network, listenAddr)
-	return network, tokensState
+	return network
 }
 
 func startTokensBackend(t *testing.T) (srvUri string, restApi *client.TokenBackend, ctx context.Context) {

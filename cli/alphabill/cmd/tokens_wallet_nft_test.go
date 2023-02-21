@@ -165,7 +165,7 @@ func TestWalletUpdateNonFungibleTokenDataCmd_Flags(t *testing.T) {
 }
 
 func TestNFTs_Integration(t *testing.T) {
-	partition, _ := startTokensPartition(t)
+	partition := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
@@ -212,7 +212,7 @@ func TestNFTs_Integration(t *testing.T) {
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
-	partition, _ := startTokensPartition(t)
+	partition := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
 	backendUrl, client, ctx := startTokensBackend(t)
@@ -283,7 +283,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {
-	partition, _ := startTokensPartition(t)
+	partition := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 

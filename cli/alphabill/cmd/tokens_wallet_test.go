@@ -582,6 +582,7 @@ func ensureUnit(t *testing.T, state tokens.TokenState, id *uint256.Int) *rma.Uni
 	return unit
 }
 
+// tokenID == nil means first token will be considered as success
 func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBackend, ownerPubKey []byte, tokenID twb.TokenID) *twb.TokenUnit {
 	var res *twb.TokenUnit
 	require.Eventually(t, func() bool {
@@ -592,6 +593,10 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 			tokens, offsetKey, err = api.GetTokens(ctx, twb.Any, ownerPubKey, offsetKey, 0)
 			require.NoError(t, err)
 			for _, token := range tokens {
+				if tokenID == nil {
+					res = &token
+					return true
+				}
 				if bytes.Equal(token.ID, tokenID) {
 					res = &token
 					return true
@@ -778,4 +783,15 @@ func TestListTokensTypesCommandInputs(t *testing.T) {
 			require.True(t, exec)
 		})
 	}
+}
+
+func verifyStdoutEventually(t *testing.T, exec func() *testConsoleWriter, expectedLines ...string) {
+	require.Eventually(t, func() bool {
+		joined := strings.Join(exec().lines, "\n")
+		res := true
+		for _, expectedLine := range expectedLines {
+			res = res && strings.Contains(joined, expectedLine)
+		}
+		return res
+	}, test.WaitDuration, test.WaitTick)
 }

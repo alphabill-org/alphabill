@@ -137,6 +137,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
+				Type:                         fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  splitValue1,
 				Nonce:                        test.RandomBytes(32),
@@ -173,6 +174,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&SplitFungibleTokenAttributes{
+				Type:                         fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				TargetValue:                  splitValue2,
 				Nonce:                        nil,
@@ -210,6 +212,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithUnitId(fungibleTokenID1),
 		testtransaction.WithAttributes(
 			&TransferFungibleTokenAttributes{
+				Type:                         fungibleTokenTypeID,
 				NewBearer:                    script.PredicateAlwaysTrue(),
 				Value:                        totalValue - splitValue1 - splitValue2,
 				Nonce:                        nil,

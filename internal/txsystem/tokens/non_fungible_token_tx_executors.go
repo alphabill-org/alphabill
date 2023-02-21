@@ -195,6 +195,10 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	if !bytes.Equal(data.backlink, tx.attributes.Backlink) {
 		return errors.New("invalid backlink")
 	}
+	tokenTypeID := util.Uint256ToBytes(data.nftType)
+	if !bytes.Equal(tx.NFTTypeID(), tokenTypeID) {
+		return errors.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.NFTTypeID())
+	}
 	// signature given in the transaction request satisfies the predicate obtained by concatenating all the token
 	// invariant clauses along the type inheritance chain.
 	predicates, err := t.getChainedPredicates(

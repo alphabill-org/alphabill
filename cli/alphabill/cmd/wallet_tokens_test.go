@@ -605,7 +605,7 @@ func createNewTokenWallet(t *testing.T, addr string) (*legacywallet.Wallet, stri
 	require.NoError(t, err)
 	require.NotNil(t, w)
 
-	return w, homeDir
+	return w, walletDir
 }
 
 func execTokensCmdWithError(t *testing.T, homedir string, command string, expectedError string) {
@@ -625,7 +625,7 @@ func doExecTokensCmd(homedir string, command string) (*testConsoleWriter, error)
 	consoleWriter = outputWriter
 
 	cmd := New()
-	args := "wallet token-legacy --log-level DEBUG --home " + homedir + " " + command // + " -l " + homedir + " "
+	args := "wallet token-legacy --log-level DEBUG --home " + homedir + " " + command + " -l " + homedir + " "
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 	return outputWriter, cmd.addAndExecuteCommand(context.Background())

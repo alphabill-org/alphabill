@@ -37,6 +37,32 @@ paths:
                     example: 265
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /types/{typeId}/hierarchy:
+    get:
+      tags:
+        - token type
+      summary: returns token type and all it's ancestors
+      description: |-
+        Returns token type whose id was sent in as a parameter and all it's ancestors if any.
+      parameters:
+        - name: typeId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/TokenTypeIDParam'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenType'          
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
   /kinds/{kind}/types:
     get:
       tags:
@@ -202,6 +228,14 @@ components:
       format: byte
       nullable: false
       example: I+v1+3MrmBCoSuk1zlff0loozI9BHc8fqVb3WGeQrC4=
+    TokenTypeIDParam:
+      type: string
+      description: |-
+        Hex encoded string of the token type ID which starts with `0x`.
+        Must be 66 characters long (including 0x prefix).
+      minLength: 66
+      maxLength: 66
+      default: 0x
     TxHash:
       type: string
       format: byte

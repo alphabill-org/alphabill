@@ -522,6 +522,83 @@ func Test_restAPI_listTypes(t *testing.T) {
 	})
 }
 
+func Test_restAPI_typeHierarchy(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, typeId string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/types/%s/hierarchy", typeId), nil)
+		req = mux.SetURLVars(req, map[string]string{"typeId": typeId})
+		w := httptest.NewRecorder()
+		api.typeHierarchy(w, req)
+		return w.Result()
+	}
+
+	t.Run("invalid input params", func(t *testing.T) {
+		rsp := makeRequest(&restAPI{}, "foobar")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "typeId": hex string without 0x prefix`)
+	})
+
+	t.Run("no type with given id", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					return nil, fmt.Errorf("no such type: %w", errRecordNotFound)
+				},
+			},
+		}
+		typeId := "0x0001"
+		rsp := makeRequest(api, typeId)
+		expectErrorResponse(t, rsp, http.StatusInternalServerError, fmt.Sprintf(`failed to load type with id %s: no such type: not found`, typeId[2:]))
+	})
+
+	t.Run("type is root", func(t *testing.T) {
+		tokTyp := randomTokenType(NonFungible)
+		tokTyp.ParentTypeID = nil
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					if bytes.Equal(id, tokTyp.ID) {
+						return tokTyp, nil
+					}
+					return nil, fmt.Errorf("unexpected type id %x", id)
+				},
+			},
+		}
+
+		rsp := makeRequest(api, encodeTokenTypeID(tokTyp.ID))
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
+	})
+
+	t.Run("type has one parent", func(t *testing.T) {
+		tokTypA := randomTokenType(NonFungible)
+		tokTypA.ParentTypeID = nil
+
+		tokTypB := randomTokenType(NonFungible)
+		tokTypB.ParentTypeID = tokTypA.ID
+
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					switch {
+					case bytes.Equal(id, tokTypA.ID):
+						return tokTypA, nil
+					case bytes.Equal(id, tokTypB.ID):
+						return tokTypB, nil
+					}
+					return nil, fmt.Errorf("unexpected type id %x", id)
+				},
+			},
+		}
+
+		rsp := makeRequest(api, encodeTokenTypeID(tokTypB.ID))
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTypA, tokTypB})
+	})
+}
+
 func Test_restAPI_getRoundNumber(t *testing.T) {
 	t.Parallel()
 

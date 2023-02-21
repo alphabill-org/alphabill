@@ -150,20 +150,6 @@ func testBlockNumber(t *testing.T, db *storage) {
 func Test_storage_QueryTokenType(t *testing.T) {
 	t.Parallel()
 
-	randomTokenType := func(kind Kind) *TokenUnitType {
-		return &TokenUnitType{
-			ID:                       test.RandomBytes(32),
-			ParentTypeID:             test.RandomBytes(32),
-			Symbol:                   "AB",
-			SubTypeCreationPredicate: test.RandomBytes(32),
-			TokenCreationPredicate:   test.RandomBytes(32),
-			InvariantPredicate:       test.RandomBytes(32),
-			DecimalPlaces:            8,
-			NftDataUpdatePredicate:   test.RandomBytes(32),
-			Kind:                     kind,
-			TxHash:                   test.RandomBytes(32),
-		}
-	}
 	proof := &Proof{BlockNumber: 1}
 	ctorA := test.RandomBytes(32)
 
@@ -331,6 +317,21 @@ func Test_storage_QueryTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, next)
 	require.Nil(t, data)
+}
+
+func randomTokenType(kind Kind) *TokenUnitType {
+	return &TokenUnitType{
+		ID:                       test.RandomBytes(32),
+		ParentTypeID:             test.RandomBytes(32),
+		Symbol:                   "AB",
+		SubTypeCreationPredicate: test.RandomBytes(32),
+		TokenCreationPredicate:   test.RandomBytes(32),
+		InvariantPredicate:       test.RandomBytes(32),
+		DecimalPlaces:            8,
+		NftDataUpdatePredicate:   test.RandomBytes(32),
+		Kind:                     kind,
+		TxHash:                   test.RandomBytes(32),
+	}
 }
 
 func randomToken(owner Predicate, kind Kind) *TokenUnit {

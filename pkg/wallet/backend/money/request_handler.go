@@ -102,6 +102,8 @@ func (s *RequestHandler) Router() *mux.Router {
 // @Param limit query int false "limits how many bills are returned in response" default(100)
 // @Param offset query int false "response will include bills starting after offset" default(0)
 // @Success 200 {object} ListBillsResponse
+// @Failure 400 {object} money.ErrorResponse
+// @Failure 500
 // @Router /list-bills [get]
 func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
@@ -134,6 +136,8 @@ func (s *RequestHandler) listBillsFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param pubkey query string true "Public key prefixed with 0x"
 // @Success 200 {object} BalanceResponse
+// @Failure 400 {object} money.ErrorResponse
+// @Failure 500
 // @Router /balance [get]
 func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 	pk, err := parsePubKeyQueryParam(r)
@@ -170,6 +174,9 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
 // @Success 200 {object} block.Bills
+// @Failure 400 {object} money.ErrorResponse
+// @Failure 404 {object} money.ErrorResponse
+// @Failure 500
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billID, err := parseBillID(r)

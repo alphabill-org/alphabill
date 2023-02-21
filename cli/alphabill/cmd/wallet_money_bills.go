@@ -2,9 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"os"
 	"path"
 
@@ -12,19 +9,17 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
 
 const (
-	billIdCmdName          = "bill-id"
-	billOrderNumberCmdName = "bill-order-number"
-	outputPathCmdName      = "output-path"
-	trustBaseFileCmdName   = "trust-base-file"
-)
-
-var (
-	errBillOrderNumberOutOfBounds = errors.New("bill order number out of bounds")
+	billIdCmdName        = "bill-id"
+	outputPathCmdName    = "output-path"
+	trustBaseFileCmdName = "trust-base-file"
 )
 
 type (
@@ -56,14 +51,14 @@ func listCmd(config *walletConfig) *cobra.Command {
 			return execListCmd(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillAPIUriCmdName, "u", defaultAlphabillAPIUri, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account bills to list (default: all accounts)")
 	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "includes unswapped dust bills in output")
 	return cmd
 }
 
 func execListCmd(cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillAPIUriCmdName)
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
@@ -134,16 +129,15 @@ func exportCmd(config *walletConfig) *cobra.Command {
 		},
 		Hidden: true,
 	}
-	cmd.Flags().StringP(alphabillAPIUriCmdName, "u", defaultAlphabillAPIUri, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to export")
 	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
-	cmd.Flags().IntP(billOrderNumberCmdName, "n", 0, "bill order number (from list command output)")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "output directory for bills, directory is created if it does not exist (default: CWD)")
 	return cmd
 }
 
 func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillAPIUriCmdName)
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
@@ -157,10 +151,6 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 	billId, err := cmd.Flags().GetBytesHex(billIdCmdName)
-	if err != nil {
-		return err
-	}
-	billOrderNumber, err := cmd.Flags().GetInt(billOrderNumberCmdName)
 	if err != nil {
 		return err
 	}
@@ -193,29 +183,6 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	// export bill using --bill-id if present
 	if len(billId) > 0 {
 		proof, err := restClient.GetProof(billId)
-		if err != nil {
-			return err
-		}
-		outputFile, err := writeBillsToFile(outputPath, proof.Bills...)
-		if err != nil {
-			return err
-		}
-		consoleWriter.Println("Exported bill(s) to: " + outputFile)
-		return nil
-	}
-	// export bill using --bill-order-number if present
-	if billOrderNumber > 0 {
-		bills, err := restClient.ListBills(pk)
-		if err != nil {
-			return err
-		}
-		filterDcBills(bills)
-		billIndex := billOrderNumber - 1
-		if billIndex >= len(bills.Bills) {
-			return errBillOrderNumberOutOfBounds
-		}
-		b := bills.Bills[billIndex]
-		proof, err := restClient.GetProof(b.Id)
 		if err != nil {
 			return err
 		}

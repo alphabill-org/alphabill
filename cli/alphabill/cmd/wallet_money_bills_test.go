@@ -102,18 +102,6 @@ func TestWalletBillsExportCmd_Error(t *testing.T) {
 	require.ErrorContains(t, err, "bill does not exist")
 }
 
-func TestWalletBillsExportCmd_OrderNumberFlag(t *testing.T) {
-	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: uint256.NewInt(1), billValue: 1, customPath: "/" + client.ProofPath, customResponse: fmt.Sprintf(`{"bills": [{"id":"%s","value":%d,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","is_dc_bill":false}]}`, toBillId(uint256.NewInt(uint64(1))), 1)})
-	defer mockServer.Close()
-
-	// verify export with --bill-order-number flag
-	billFilePath := path.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
-	stdout, err := execBillsCommand(homedir, "export --bill-order-number 1 --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
-	require.NoError(t, err)
-	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
-}
-
 func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{customPath: "/" + client.ProofPath, customResponse: fmt.Sprintf(`{"bills": [{"id":"%s","value":%d,"txHash":"MHgwMzgwMDNlMjE4ZWVhMzYwY2JmNTgwZWJiOTBjYzhjOGNhZjBjY2VmNGJmNjYwZWE5YWI0ZmMwNmI1YzM2N2IwMzg=","is_dc_bill":false}]}`, toBillId(uint256.NewInt(uint64(1))), 1)})

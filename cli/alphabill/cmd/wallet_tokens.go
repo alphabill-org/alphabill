@@ -72,7 +72,7 @@ func legacyTokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
 	cmd.AddCommand(tokenCmdSync(config))
-	cmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	cmd.PersistentFlags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.PersistentFlags().StringP(cmdFlagSync, "s", "true", "ensures wallet is up to date with the blockchain")
 	return cmd
 }
@@ -881,7 +881,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind legacy
 }
 
 func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*legacywallet.Wallet, error) {
-	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
+	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return nil, err
 	}

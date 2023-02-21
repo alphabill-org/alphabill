@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,7 +54,7 @@ func TestWalletCreateCmd(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "account", "accounts.db")))
+	require.True(t, util.FileExists(filepath.Join(homeDir, "account", "accounts.db")))
 	verifyStdout(t, outputWriter,
 		"The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 }
@@ -70,7 +69,7 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" create --pn "+pw, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-	require.True(t, util.FileExists(filepath.Join(os.TempDir(), "wallet-test", "account", "accounts.db")))
+	require.True(t, util.FileExists(filepath.Join(homeDir, "account", "accounts.db")))
 	verifyStdout(t, outputWriter,
 		"The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 
@@ -492,8 +491,6 @@ func execCommand(homeDir, command string) (*testConsoleWriter, error) {
 func execWalletCmd(t *testing.T, homedir string, command string) *testConsoleWriter {
 	outputWriter := &testConsoleWriter{}
 	consoleWriter = outputWriter
-
-	//homeDir := path.Join(os.TempDir(), walletName)
 
 	cmd := New()
 	args := "wallet --home " + homedir + " " + command

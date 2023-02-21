@@ -4,13 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"golang.org/x/term"
 	"io"
 	"os"
@@ -20,9 +13,15 @@ import (
 	"syscall"
 	"time"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -35,29 +34,29 @@ type walletConfig struct {
 }
 
 const (
-	defaultAlphabillUri    = "localhost:9543"
-	defaultAlphabillAPIUri = "localhost:9654"
-	passwordPromptUsage    = "password (interactive from prompt)"
-	passwordArgUsage       = "password (non-interactive from args)"
+	defaultAlphabillNodeURL = "localhost:9543"
+	defaultAlphabillApiURL  = "localhost:9654"
+	passwordPromptUsage     = "password (interactive from prompt)"
+	passwordArgUsage        = "password (non-interactive from args)"
 
-	alphabillUriCmdName    = "alphabill-uri"
-	alphabillAPIUriCmdName = "alphabill-api-uri"
-	seedCmdName            = "seed"
-	addressCmdName         = "address"
-	amountCmdName          = "amount"
-	passwordPromptCmdName  = "password"
-	passwordArgCmdName     = "pn"
-	logFileCmdName         = "log-file"
-	logLevelCmdName        = "log-level"
-	walletLocationCmdName  = "wallet-location"
-	keyCmdName             = "key"
-	waitForConfCmdName     = "wait-for-confirmation"
-	totalCmdName           = "total"
-	quietCmdName           = "quiet"
-	showUnswappedCmdName   = "show-unswapped"
-	txTimeoutBlockCount    = 100
-	maxTxFailedTries       = 3
-	txBufferFullErrMsg     = "tx buffer is full"
+	alphabillNodeURLCmdName = "alphabill-uri"
+	alphabillApiURLCmdName  = "alphabill-api-uri"
+	seedCmdName             = "seed"
+	addressCmdName          = "address"
+	amountCmdName           = "amount"
+	passwordPromptCmdName   = "password"
+	passwordArgCmdName      = "pn"
+	logFileCmdName          = "log-file"
+	logLevelCmdName         = "log-level"
+	walletLocationCmdName   = "wallet-location"
+	keyCmdName              = "key"
+	waitForConfCmdName      = "wait-for-confirmation"
+	totalCmdName            = "total"
+	quietCmdName            = "quiet"
+	showUnswappedCmdName    = "show-unswapped"
+	txTimeoutBlockCount     = 100
+	maxTxFailedTries        = 3
+	txBufferFullErrMsg      = "tx buffer is full"
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
@@ -150,8 +149,8 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
 	cmd.Flags().Uint64P(amountCmdName, "v", 0, "the amount to send to the receiver")
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
-	cmd.Flags().StringP(alphabillAPIUriCmdName, "r", defaultAlphabillAPIUri, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
@@ -168,11 +167,11 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 }
 
 func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
+	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
-	apiUri, err := cmd.Flags().GetString(alphabillAPIUriCmdName)
+	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
@@ -230,12 +229,6 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 
 	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
 		return money.ErrInvalidPubKey
-	}
-	if amount < 0 {
-		return money.ErrInvalidAmount
-	}
-	if accountIndex < 0 {
-		return money.ErrInvalidAccountIndex
 	}
 	balance, err := restClient.GetBalance(pubKey, false)
 	if amount > balance {
@@ -332,7 +325,7 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 			return execGetBalanceCmd(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillAPIUriCmdName, "u", defaultAlphabillAPIUri, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which key balance to query "+
 		"(by default returns all key balances including total balance over all keys)")
 	cmd.Flags().BoolP(totalCmdName, "t", false,
@@ -344,7 +337,7 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 }
 
 func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillAPIUriCmdName)
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
@@ -458,7 +451,7 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 			return execCollectDust(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillAPIUriCmdName, "u", defaultAlphabillAPIUri, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	return cmd
 }
 

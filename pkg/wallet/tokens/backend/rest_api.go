@@ -55,7 +55,7 @@ func (api *restAPI) endpoints() http.Handler {
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
-	apiV1.HandleFunc("/types/{typeId}/ancestors", api.typeAncestors).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/types/{typeId}/hierarchy", api.typeHierarchy).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/owners/{owner}/tokens", api.listTokens).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
@@ -151,7 +151,7 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 	api.writeResponse(w, data)
 }
 
-func (api *restAPI) typeAncestors(w http.ResponseWriter, r *http.Request) {
+func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	typeId, err := parseTokenTypeID(vars["typeId"], true)
 	if err != nil {
@@ -163,7 +163,7 @@ func (api *restAPI) typeAncestors(w http.ResponseWriter, r *http.Request) {
 	for len(typeId) > 0 {
 		tokTyp, err := api.db.GetTokenType(typeId)
 		if err != nil {
-			api.writeErrorResponse(w, fmt.Errorf("failed to load ancestor type with id %x: %w", typeId, err))
+			api.writeErrorResponse(w, fmt.Errorf("failed to load type with id %x: %w", typeId, err))
 			return
 		}
 		rsp = append(rsp, tokTyp)

@@ -522,14 +522,14 @@ func Test_restAPI_listTypes(t *testing.T) {
 	})
 }
 
-func Test_restAPI_typeAncestors(t *testing.T) {
+func Test_restAPI_typeHierarchy(t *testing.T) {
 	t.Parallel()
 
 	makeRequest := func(api *restAPI, typeId string) *http.Response {
-		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1//types/%s/ancestors", typeId), nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/types/%s/hierarchy", typeId), nil)
 		req = mux.SetURLVars(req, map[string]string{"typeId": typeId})
 		w := httptest.NewRecorder()
-		api.typeAncestors(w, req)
+		api.typeHierarchy(w, req)
 		return w.Result()
 	}
 
@@ -548,10 +548,10 @@ func Test_restAPI_typeAncestors(t *testing.T) {
 		}
 		typeId := "0x0001"
 		rsp := makeRequest(api, typeId)
-		expectErrorResponse(t, rsp, http.StatusInternalServerError, fmt.Sprintf(`failed to load ancestor type with id %s: no such type: not found`, typeId[2:]))
+		expectErrorResponse(t, rsp, http.StatusInternalServerError, fmt.Sprintf(`failed to load type with id %s: no such type: not found`, typeId[2:]))
 	})
 
-	t.Run("one ancestor", func(t *testing.T) {
+	t.Run("type is root", func(t *testing.T) {
 		tokTyp := randomTokenType(NonFungible)
 		tokTyp.ParentTypeID = nil
 		api := &restAPI{
@@ -571,7 +571,7 @@ func Test_restAPI_typeAncestors(t *testing.T) {
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
 	})
 
-	t.Run("two ancestors", func(t *testing.T) {
+	t.Run("type has one parent", func(t *testing.T) {
 		tokTypA := randomTokenType(NonFungible)
 		tokTypA.ParentTypeID = nil
 

@@ -37,13 +37,13 @@ paths:
                     example: 265
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /types/{typeId}/ancestors:
+  /types/{typeId}/hierarchy:
     get:
       tags:
         - token type
-      summary: get anchestors of token type
-      description: Returns list of token types which are anchestors of given type.
-      operationId: tokenTypeAnchestors
+      summary: returns token type and all it's ancestors
+      description: |-
+        Returns token type whose id was sent in as a parameter and all it's ancestors if any.
       parameters:
         - name: typeId
           in: path

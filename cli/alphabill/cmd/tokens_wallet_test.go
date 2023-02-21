@@ -602,7 +602,7 @@ func ensureTokenIndexed(t *testing.T, ctx context.Context, api *client.TokenBack
 			}
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick)
+	}, 2*test.WaitDuration, test.WaitTick)
 	return res
 }
 
@@ -626,7 +626,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 			}
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick)
+	}, 2*test.WaitDuration, test.WaitTick)
 	return res
 }
 

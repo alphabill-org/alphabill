@@ -247,16 +247,6 @@ func getOutputFile(outputDir string, bills []*block.Bill) (string, error) {
 	}
 }
 
-func filterDcBills(bills *backendmoney.ListBillsResponse) {
-	var normalBills []*backendmoney.ListBillVM
-	for _, b := range bills.Bills {
-		if !b.IsDCBill {
-			normalBills = append(normalBills, b)
-		}
-	}
-	bills.Bills = normalBills
-}
-
 func newBillsDTO(bills ...*money.Bill) *block.Bills {
 	var billsDTO []*block.Bill
 	for _, b := range bills {

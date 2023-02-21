@@ -293,8 +293,8 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 	// verify bill is received by wallet account 1
 	waitForBalance(t, homedir, initialBill.Value, 0)
 
-	txHash, blockNumber := getLastTransactionProps(network, pubKey1)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
+	gb, bp, _ := network.GetBlockProof(transferInitialBillTx, txConverter)
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: gb.BlockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: base64.StdEncoding.EncodeToString(bp.TransactionsHash)})
 	defer mockServer.Close()
 
 	// verify transaction is broadcasted immediately

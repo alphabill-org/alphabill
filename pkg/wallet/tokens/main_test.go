@@ -356,6 +356,129 @@ func TestMintFungibleToken(t *testing.T) {
 	}
 }
 
+func TestMintNFT_InvalidInputs(t *testing.T) {
+	tokenID := test.RandomBytes(32)
+	accNr := uint64(1)
+	tests := []struct {
+		name       string
+		attrs      *ttxs.MintNonFungibleTokenAttributes
+		wantErrStr string
+	}{
+		{
+			name:       "attributes missing",
+			attrs:      nil,
+			wantErrStr: "attributes missing",
+		},
+		{
+			name: "invalid URI",
+			attrs: &ttxs.MintNonFungibleTokenAttributes{
+				Uri: "invalid_uri",
+			},
+			wantErrStr: "URI 'invalid_uri' is invalid",
+		},
+		{
+			name: "URI exceeds maximum allowed length",
+			attrs: &ttxs.MintNonFungibleTokenAttributes{
+				Uri: string(test.RandomBytes(4097)),
+			},
+			wantErrStr: "URI exceeds the maximum allowed size of 4096 bytes",
+		},
+		{
+			name: "data exceeds maximum allowed length",
+			attrs: &ttxs.MintNonFungibleTokenAttributes{
+				Data: test.RandomBytes(65537),
+			},
+			wantErrStr: "data exceeds the maximum allowed size of 65536 bytes",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wallet := &Wallet{}
+			got, err := wallet.NewNFT(context.Background(), accNr, tt.attrs, tokenID, nil)
+			require.ErrorContains(t, err, tt.wantErrStr)
+			require.Nil(t, got)
+		})
+	}
+
+}
+
+func TestMintNFT(t *testing.T) {
+	recTxs := make([]*txsystem.Transaction, 0)
+	be := &mockTokenBackend{
+		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+			recTxs = append(recTxs, txs.Transactions...)
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+	_, _, err := tw.am.AddAccount()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		accNr         uint64
+		tokenID       twb.TokenID
+		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes)
+	}{
+		{
+			name:  "pub key bearer predicate, account 1",
+			accNr: uint64(1),
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
+				key, err := tw.am.GetAccountKey(accNr - 1)
+				require.NoError(t, err)
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+			},
+		},
+		{
+			name:    "pub key bearer predicate, account 1, predefined token ID",
+			accNr:   uint64(1),
+			tokenID: test.RandomBytes(32),
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
+				key, err := tw.am.GetAccountKey(accNr - 1)
+				require.NoError(t, err)
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+			},
+		},
+		{
+			name:  "pub key bearer predicate, account 2",
+			accNr: uint64(2),
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
+				key, err := tw.am.GetAccountKey(accNr - 1)
+				require.NoError(t, err)
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typeId := []byte{1}
+			a := &ttxs.MintNonFungibleTokenAttributes{
+				NftType:                          typeId,
+				Uri:                              "https://alphabill.org",
+				Data:                             nil,
+				DataUpdatePredicate:              script.PredicateAlwaysTrue(),
+				TokenCreationPredicateSignatures: nil,
+			}
+			_, err := tw.NewNFT(context.Background(), tt.accNr, a, tt.tokenID, nil)
+			require.NoError(t, err)
+			tx := recTxs[len(recTxs)-1]
+			newToken := &ttxs.MintNonFungibleTokenAttributes{}
+			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newToken))
+			require.NotEqual(t, []byte{0}, tx.UnitId)
+			require.Len(t, tx.UnitId, 32)
+			if tt.tokenID != nil {
+				require.EqualValues(t, tt.tokenID, tx.UnitId)
+			}
+			require.Equal(t, typeId, newToken.NftType)
+			tt.validateOwner(t, tt.accNr, newToken)
+		})
+	}
+}
+
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	t.Helper()
 	txs, err := ttxs.New()

@@ -73,7 +73,7 @@ func (w *Wallet) GetAccountManager() account.Manager {
 
 func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new fungible token type")
-	// TODO check if parent type's decimal places match
+	// TODO check if parent type's decimal places match (AB-744)
 	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
 }
 

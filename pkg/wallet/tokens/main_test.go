@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -214,6 +215,56 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 		dereferencedTypes[i] = *types[i]
 	}
 	require.Equal(t, allTypes, dereferencedTypes)
+}
+
+func TestNewFungibleType(t *testing.T) {
+	recTxs := make([]*txsystem.Transaction, 0)
+	be := &mockTokenBackend{
+		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+			recTxs = append(recTxs, txs.Transactions...)
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+
+	typeId := test.RandomBytes(32)
+	a := &ttxs.CreateFungibleTokenTypeAttributes{
+		Symbol:                             "AB",
+		DecimalPlaces:                      0,
+		ParentTypeId:                       nil,
+		SubTypeCreationPredicateSignatures: nil,
+		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		InvariantPredicate:                 script.PredicateAlwaysTrue(),
+	}
+	_, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
+	require.NoError(t, err)
+	require.Len(t, recTxs, 1)
+	tx := recTxs[0]
+	newFungibleTx := &ttxs.CreateFungibleTokenTypeAttributes{}
+	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newFungibleTx))
+	require.Equal(t, typeId, tx.UnitId)
+	require.Equal(t, a.Symbol, newFungibleTx.Symbol)
+	require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
+	require.EqualValues(t, tx.Timeout, 101)
+
+	// new subtype
+	// TODO: uncomment after AB-744
+	//b := &ttxs.CreateFungibleTokenTypeAttributes{
+	//	Symbol:                             "AB",
+	//	DecimalPlaces:                      2,
+	//	ParentTypeId:                       typeId,
+	//	SubTypeCreationPredicateSignatures: nil,
+	//	SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+	//	TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+	//	InvariantPredicate:                 script.PredicateAlwaysTrue(),
+	//}
+	////check decimal places are validated against the parent type
+	//_, err = tw.NewFungibleType(context.Background(), b, []byte{2}, nil)
+	//require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
 }
 
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {

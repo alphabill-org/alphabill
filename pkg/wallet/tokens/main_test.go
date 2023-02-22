@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -354,6 +355,100 @@ func TestMintFungibleToken(t *testing.T) {
 			require.Equal(t, typeId, newToken.Type)
 			require.Equal(t, amount, newToken.Value)
 			tt.validateOwner(t, tt.accNr, newToken)
+		})
+	}
+}
+
+func TestSendFungible(t *testing.T) {
+	recTxs := make([]*txsystem.Transaction, 0)
+	typeId := test.RandomBytes(32)
+	be := &mockTokenBackend{
+		getTokens: func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+			return []twb.TokenUnit{
+				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 3},
+				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 5},
+				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 7},
+				{ID: test.RandomBytes(32), Kind: twb.Fungible, Symbol: "AB", TypeID: typeId, Amount: 18},
+			}, "", nil
+		},
+		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+			recTxs = append(recTxs, txs.Transactions...)
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+	_, _, err := tw.am.AddAccount()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name               string
+		targetAmount       uint64
+		expectedErrorMsg   string
+		verifyTransactions func(t *testing.T)
+	}{
+		{
+			name:         "one bill is transferred",
+			targetAmount: 3,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newTransfer := &ttxs.TransferFungibleTokenAttributes{}
+				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+				require.Equal(t, uint64(3), newTransfer.Value)
+			},
+		},
+		{
+			name:         "one bill is split",
+			targetAmount: 4,
+			verifyTransactions: func(t *testing.T) {
+				require.Equal(t, 1, len(recTxs))
+				tx := recTxs[0]
+				newSplit := &ttxs.SplitFungibleTokenAttributes{}
+				require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newSplit))
+				require.Equal(t, uint64(4), newSplit.TargetValue)
+			},
+		},
+		{
+			name:         "both split and transfer are submitted",
+			targetAmount: 26,
+			verifyTransactions: func(t *testing.T) {
+				var total = uint64(0)
+				for _, tx := range recTxs {
+					gtx, err := tw.txs.ConvertTx(tx)
+					require.NoError(t, err)
+					switch ctx := gtx.(type) {
+					case ttxs.TransferFungibleToken:
+						total += ctx.Value()
+					case ttxs.SplitFungibleToken:
+						total += ctx.TargetValue()
+					default:
+						t.Errorf("unexpected tx type: %s", reflect.TypeOf(ctx))
+					}
+				}
+				require.Equal(t, uint64(26), total)
+			},
+		},
+		{
+			name:             "insufficient balance",
+			targetAmount:     60,
+			expectedErrorMsg: "insufficient value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recTxs = make([]*txsystem.Transaction, 0)
+			err := tw.SendFungible(context.Background(), 1, typeId, tt.targetAmount, nil, nil)
+			if tt.expectedErrorMsg != "" {
+				require.ErrorContains(t, err, tt.expectedErrorMsg)
+				return
+			} else {
+				require.NoError(t, err)
+			}
+			tt.verifyTransactions(t)
 		})
 	}
 }

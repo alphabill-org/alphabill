@@ -200,10 +200,11 @@ func bearerPredicateFromHash(receiverPubKeyHash []byte) ttxs.Predicate {
 }
 
 func bearerPredicateFromPubKey(receiverPubKey twb.PubKey) ttxs.Predicate {
-	if receiverPubKey == nil {
-		return bearerPredicateFromHash(nil)
+	var h []byte
+	if receiverPubKey != nil {
+		h = hash.Sum256(receiverPubKey)
 	}
-	return bearerPredicateFromHash(hash.Sum256(receiverPubKey))
+	return bearerPredicateFromHash(h)
 }
 
 func newSplitTxAttrs(token *twb.TokenUnit, amount uint64, receiverPubKey []byte) *ttxs.SplitFungibleTokenAttributes {

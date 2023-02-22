@@ -293,6 +293,69 @@ func TestNewTypes(t *testing.T) {
 	})
 }
 
+func TestMintFungibleToken(t *testing.T) {
+	recTxs := make([]*txsystem.Transaction, 0)
+	be := &mockTokenBackend{
+		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+			recTxs = append(recTxs, txs.Transactions...)
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+	_, _, err := tw.am.AddAccount()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		accNr         uint64
+		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes)
+	}{
+		{
+			name:  "pub key bearer predicate, account 1",
+			accNr: uint64(1),
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
+				key, err := tw.am.GetAccountKey(accNr - 1)
+				require.NoError(t, err)
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+			},
+		},
+		{
+			name:  "pub key bearer predicate, account 2",
+			accNr: uint64(2),
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
+				key, err := tw.am.GetAccountKey(accNr - 1)
+				require.NoError(t, err)
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			typeId := test.RandomBytes(32)
+			amount := uint64(100)
+			a := &ttxs.MintFungibleTokenAttributes{
+				Type:                             typeId,
+				Value:                            amount,
+				TokenCreationPredicateSignatures: nil,
+			}
+			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a, nil)
+			require.NoError(t, err)
+			tx := recTxs[len(recTxs)-1]
+			newToken := &ttxs.MintFungibleTokenAttributes{}
+			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newToken))
+			require.NotEqual(t, []byte{0}, tx.UnitId)
+			require.Len(t, tx.UnitId, 32)
+			require.Equal(t, typeId, newToken.Type)
+			require.Equal(t, amount, newToken.Value)
+			tt.validateOwner(t, tt.accNr, newToken)
+		})
+	}
+}
+
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {
 	t.Helper()
 	txs, err := ttxs.New()

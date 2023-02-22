@@ -224,13 +224,13 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 	return allTokensByAccountNumber, nil
 }
 
-func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, tokenId twb.TokenID) (*twb.TokenUnit, error) {
+func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, kind twb.Kind, tokenId twb.TokenID) (*twb.TokenUnit, error) {
 	offsetKey := ""
 	var err error
 	for {
 		var tokens []twb.TokenUnit
 		// TODO: allow passing token id to filter specific unit on the backend
-		tokens, offsetKey, err = w.backend.GetTokens(ctx, twb.Any, owner, offsetKey, 0)
+		tokens, offsetKey, err = w.backend.GetTokens(ctx, kind, owner, offsetKey, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +252,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 
-	token, err := w.GetToken(ctx, key.PubKey, tokenId)
+	token, err := w.GetToken(ctx, key.PubKey, twb.NonFungible, tokenId)
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	if err != nil {
 		return err
 	}
-	t, err := w.GetToken(ctx, acc.PubKey, tokenId)
+	t, err := w.GetToken(ctx, acc.PubKey, twb.NonFungible, tokenId)
 	if err != nil {
 		return err
 	}

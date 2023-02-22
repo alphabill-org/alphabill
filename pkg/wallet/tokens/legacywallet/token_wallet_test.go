@@ -272,7 +272,7 @@ func TestTransferNFT(t *testing.T) {
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
-			require.NotEqual(t, tt.tokenId, tx.UnitId)
+			require.EqualValues(t, tt.tokenId, tx.UnitId)
 			newTransfer := parseNFTTransfer(t, tx)
 			tt.validateOwner(t, 1, tt.key, newTransfer)
 		})

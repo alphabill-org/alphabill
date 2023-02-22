@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -15,6 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -477,6 +479,134 @@ func TestMintNFT(t *testing.T) {
 			tt.validateOwner(t, tt.accNr, newToken)
 		})
 	}
+}
+
+func TestTransferNFT(t *testing.T) {
+	tokens := make(map[string]*twb.TokenUnit)
+
+	recTxs := make(map[string]*txsystem.Transaction, 0)
+	be := &mockTokenBackend{
+		getTokens: func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+			var res []twb.TokenUnit
+			for _, tok := range tokens {
+				if tok.Kind == kind {
+					res = append(res, *tok)
+				}
+			}
+			return res, "", nil
+		},
+		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recTxs[string(tx.UnitId)] = tx
+			}
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+
+	first := func(s twb.PubKey, e error) twb.PubKey {
+		require.NoError(t, e)
+		return s
+	}
+	tests := []struct {
+		name          string
+		token         *twb.TokenUnit
+		key           twb.PubKey
+		validateOwner func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes)
+	}{
+		{
+			name:  "to 'always true' predicate",
+			token: &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
+			key:   nil,
+			validateOwner: func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
+			},
+		},
+		{
+			name:  "to public key hash predicate",
+			token: &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32)},
+			key:   first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
+			validateOwner: func(t *testing.T, accNr uint64, key twb.PubKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
+				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokens[string(tt.token.ID)] = tt.token
+			err := tw.TransferNFT(context.Background(), 1, tt.token.ID, tt.key, nil)
+			require.NoError(t, err)
+			tx, found := recTxs[string(tt.token.ID)]
+			require.True(t, found)
+			require.EqualValues(t, tt.token.ID, tx.UnitId)
+			newTransfer := &ttxs.TransferNonFungibleTokenAttributes{}
+			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+			tt.validateOwner(t, 1, tt.key, newTransfer)
+		})
+	}
+}
+
+func TestUpdateNFTData(t *testing.T) {
+	tokens := make(map[string]*twb.TokenUnit)
+
+	recTxs := make(map[string]*txsystem.Transaction, 0)
+	be := &mockTokenBackend{
+		getTokens: func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
+			var res []twb.TokenUnit
+			for _, tok := range tokens {
+				if tok.Kind == kind {
+					res = append(res, *tok)
+				}
+			}
+			return res, "", nil
+		},
+		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
+			for _, tx := range txs.Transactions {
+				recTxs[string(tx.UnitId)] = tx
+			}
+			return nil
+		},
+		getRoundNumber: func(ctx context.Context) (uint64, error) {
+			return 1, nil
+		},
+	}
+	tw := initTestWallet(t, be)
+
+	parseNFTDataUpdate := func(t *testing.T, tx *txsystem.Transaction) *ttxs.UpdateNonFungibleTokenAttributes {
+		t.Helper()
+		newTransfer := &ttxs.UpdateNonFungibleTokenAttributes{}
+		require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
+		return newTransfer
+	}
+
+	tok := &twb.TokenUnit{ID: test.RandomBytes(32), Kind: twb.NonFungible, Symbol: "AB", TypeID: test.RandomBytes(32), TxHash: test.RandomBytes(32)}
+	tokens[string(tok.ID)] = tok
+
+	// test data, backlink and predicate inputs are submitted correctly
+	data := test.RandomBytes(64)
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}}))
+	tx, found := recTxs[string(tok.ID)]
+	require.True(t, found)
+
+	dataUpdate := parseNFTDataUpdate(t, tx)
+	require.Equal(t, data, dataUpdate.Data)
+	require.Equal(t, tok.TxHash, dataUpdate.Backlink)
+	require.Equal(t, [][]byte{{script.StartByte}}, dataUpdate.DataUpdateSignatures)
+
+	// test that wallet not only sends the tx, but also reads it correctly
+	data2 := test.RandomBytes(64)
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}}))
+	tx, found = recTxs[string(tok.ID)]
+	require.True(t, found)
+	dataUpdate = parseNFTDataUpdate(t, tx)
+	require.NotEqual(t, data, dataUpdate.Data)
+	require.Equal(t, data2, dataUpdate.Data)
+	require.Len(t, dataUpdate.DataUpdateSignatures, 2)
+	require.Equal(t, []byte{script.StartByte}, dataUpdate.DataUpdateSignatures[0])
+	require.Len(t, dataUpdate.DataUpdateSignatures[1], 103)
 }
 
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {

@@ -217,11 +217,15 @@ func Test_ListTokenTypes_offset(t *testing.T) {
 	require.Equal(t, allTypes, dereferencedTypes)
 }
 
-func TestNewFungibleType(t *testing.T) {
-	recTxs := make([]*txsystem.Transaction, 0)
+func TestNewTypes(t *testing.T) {
+	t.Parallel()
+
+	recTxs := make(map[string]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
 		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
-			recTxs = append(recTxs, txs.Transactions...)
+			for _, tx := range txs.Transactions {
+				recTxs[string(tx.UnitId)] = tx
+			}
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
@@ -230,41 +234,63 @@ func TestNewFungibleType(t *testing.T) {
 	}
 	tw := initTestWallet(t, be)
 
-	typeId := test.RandomBytes(32)
-	a := &ttxs.CreateFungibleTokenTypeAttributes{
-		Symbol:                             "AB",
-		DecimalPlaces:                      0,
-		ParentTypeId:                       nil,
-		SubTypeCreationPredicateSignatures: nil,
-		SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-		TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-		InvariantPredicate:                 script.PredicateAlwaysTrue(),
-	}
-	_, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
-	require.NoError(t, err)
-	require.Len(t, recTxs, 1)
-	tx := recTxs[0]
-	newFungibleTx := &ttxs.CreateFungibleTokenTypeAttributes{}
-	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newFungibleTx))
-	require.Equal(t, typeId, tx.UnitId)
-	require.Equal(t, a.Symbol, newFungibleTx.Symbol)
-	require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
-	require.EqualValues(t, tx.Timeout, 101)
+	t.Run("fungible type", func(t *testing.T) {
+		typeId := test.RandomBytes(32)
+		a := &ttxs.CreateFungibleTokenTypeAttributes{
+			Symbol:                             "AB",
+			DecimalPlaces:                      0,
+			ParentTypeId:                       nil,
+			SubTypeCreationPredicateSignatures: nil,
+			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		}
+		_, err := tw.NewFungibleType(context.Background(), 1, a, typeId, nil)
+		require.NoError(t, err)
+		tx, found := recTxs[string(typeId)]
+		require.True(t, found)
+		newFungibleTx := &ttxs.CreateFungibleTokenTypeAttributes{}
+		require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newFungibleTx))
+		require.Equal(t, typeId, tx.UnitId)
+		require.Equal(t, a.Symbol, newFungibleTx.Symbol)
+		require.Equal(t, a.DecimalPlaces, newFungibleTx.DecimalPlaces)
+		require.EqualValues(t, tx.Timeout, 101)
 
-	// new subtype
-	// TODO: uncomment after AB-744
-	//b := &ttxs.CreateFungibleTokenTypeAttributes{
-	//	Symbol:                             "AB",
-	//	DecimalPlaces:                      2,
-	//	ParentTypeId:                       typeId,
-	//	SubTypeCreationPredicateSignatures: nil,
-	//	SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-	//	TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-	//	InvariantPredicate:                 script.PredicateAlwaysTrue(),
-	//}
-	////check decimal places are validated against the parent type
-	//_, err = tw.NewFungibleType(context.Background(), b, []byte{2}, nil)
-	//require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
+		// new subtype
+		// TODO: uncomment after AB-744
+		//b := &ttxs.CreateFungibleTokenTypeAttributes{
+		//	Symbol:                             "AB",
+		//	DecimalPlaces:                      2,
+		//	ParentTypeId:                       typeId,
+		//	SubTypeCreationPredicateSignatures: nil,
+		//	SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+		//	TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+		//	InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		//}
+		////check decimal places are validated against the parent type
+		//_, err = tw.NewFungibleType(context.Background(), b, []byte{2}, nil)
+		//require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
+	})
+
+	t.Run("non-fungible type", func(t *testing.T) {
+		typeId := test.RandomBytes(32)
+		a := &ttxs.CreateNonFungibleTokenTypeAttributes{
+			Symbol:                             "ABNFT",
+			ParentTypeId:                       nil,
+			SubTypeCreationPredicateSignatures: nil,
+			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		}
+		_, err := tw.NewNonFungibleType(context.Background(), 1, a, typeId, nil)
+		require.NoError(t, err)
+		tx, found := recTxs[string(typeId)]
+		require.True(t, found)
+		newNFTTx := &ttxs.CreateNonFungibleTokenTypeAttributes{}
+		require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newNFTTx))
+		require.Equal(t, typeId, tx.UnitId)
+		require.Equal(t, a.Symbol, newNFTTx.Symbol)
+	})
 }
 
 func initTestWallet(t *testing.T, backend TokenBackend) *Wallet {

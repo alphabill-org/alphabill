@@ -146,7 +146,7 @@ func createTransaction(id [32]byte) *txsystem.Transaction {
 		ClientMetadata:        &txsystem.ClientMetadata{Timeout: 0},
 		OwnerProof:            []byte{1},
 	}
-	bt := &money.TransferOrder{
+	bt := &money.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: 1,
 		Backlink:    nil,

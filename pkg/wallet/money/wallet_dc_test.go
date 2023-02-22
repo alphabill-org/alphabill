@@ -465,22 +465,22 @@ func verifyTotalBalance(t *testing.T, w *Wallet, balance uint64) {
 	require.EqualValues(t, balance, actualBalance)
 }
 
-func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferOrder {
-	btTx := &billtx.TransferOrder{}
+func parseBillTransferTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferAttributes {
+	btTx := &billtx.TransferAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(btTx)
 	require.NoError(t, err)
 	return btTx
 }
 
-func parseDcTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferDCOrder {
-	dcTx := &billtx.TransferDCOrder{}
+func parseDcTx(t *testing.T, tx *txsystem.Transaction) *billtx.TransferDCAttributes {
+	dcTx := &billtx.TransferDCAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(dcTx)
 	require.NoError(t, err)
 	return dcTx
 }
 
-func parseSwapTx(t *testing.T, tx *txsystem.Transaction) *billtx.SwapOrder {
-	txSwap := &billtx.SwapOrder{}
+func parseSwapTx(t *testing.T, tx *txsystem.Transaction) *billtx.SwapDCAttributes {
+	txSwap := &billtx.SwapDCAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(txSwap)
 	require.NoError(t, err)
 	return txSwap

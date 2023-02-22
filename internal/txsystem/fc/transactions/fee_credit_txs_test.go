@@ -252,8 +252,8 @@ func TestReclaimFC_HashIsCalculatedCorrectly(t *testing.T) {
 	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
 }
 
-func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFeeCreditOrder {
-	return &TransferFeeCreditOrder{
+func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFeeCreditAttributes {
+	return &TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: sysID,
 		TargetRecordId:         recID,
@@ -264,24 +264,24 @@ func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte
 	}
 }
 
-func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof) *AddFeeCreditOrder {
-	return &AddFeeCreditOrder{
+func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof) *AddFeeCreditAttributes {
+	return &AddFeeCreditAttributes{
 		FeeCreditOwnerCondition: owner,
 		FeeCreditTransfer:       tx,
 		FeeCreditTransferProof:  proof,
 	}
 }
 
-func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFeeCreditOrder {
-	return &CloseFeeCreditOrder{
+func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFeeCreditAttributes {
+	return &CloseFeeCreditAttributes{
 		Amount:       amount,
 		TargetUnitId: targetUnitId,
 		Nonce:        nonce,
 	}
 }
 
-func newPBReclaimFC(backlink []byte, tx *txsystem.Transaction, proof *block.BlockProof) *ReclaimFeeCreditOrder {
-	return &ReclaimFeeCreditOrder{
+func newPBReclaimFC(backlink []byte, tx *txsystem.Transaction, proof *block.BlockProof) *ReclaimFeeCreditAttributes {
+	return &ReclaimFeeCreditAttributes{
 		CloseFeeCreditTransfer: tx,
 		CloseFeeCreditProof:    proof,
 		Backlink:               backlink,

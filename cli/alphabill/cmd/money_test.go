@@ -383,7 +383,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, txClient alphabill
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0, 0, 0, 0},
 	}
-	bt := &billtx.TransferOrder{
+	bt := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,
@@ -406,7 +406,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, txClient alphabill.Al
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		SystemId:              []byte{0},
 	}
-	bt := &billtx.TransferOrder{
+	bt := &billtx.TransferAttributes{
 		NewBearer:   script.PredicateAlwaysTrue(),
 		TargetValue: defaultInitialBillValue,
 		Backlink:    nil,

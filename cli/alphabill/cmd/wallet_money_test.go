@@ -553,7 +553,7 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 			FeeCreditRecordId: util.Uint256ToBytes(testmoney.FCRID),
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,

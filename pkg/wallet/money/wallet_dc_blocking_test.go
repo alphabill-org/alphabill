@@ -227,7 +227,7 @@ func waitForExpectedSwap(w *Wallet) {
 }
 
 func createSwapTxFromDcTxs(pubKeyHash []byte, dcTxs []*txsystem.Transaction) *anypb.Any {
-	tx, _ := anypb.New(&billtx.SwapOrder{
+	tx, _ := anypb.New(&billtx.SwapDCAttributes{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     dcTxs,

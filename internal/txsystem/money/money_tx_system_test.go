@@ -601,7 +601,7 @@ func getBill(t *testing.T, rmaTree *rma.Tree, billID *uint256.Int) (*rma.Unit, *
 
 func createBillTransfer(fromID *uint256.Int, value uint64, bearer []byte, backlink []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
-	bt := &TransferOrder{
+	bt := &TransferAttributes{
 		NewBearer: bearer,
 		// #nosec G404
 		TargetValue: value,
@@ -656,7 +656,7 @@ func createDCTransferAndSwapTxs(
 		},
 	}
 
-	bt := &SwapOrder{
+	bt := &SwapDCAttributes{
 		OwnerCondition:  script.PredicateAlwaysTrue(),
 		BillIdentifiers: idsByteArray,
 		DcTransfers:     dcTransfers,
@@ -670,7 +670,7 @@ func createDCTransferAndSwapTxs(
 
 func createDCTransfer(fromID *uint256.Int, targetValue uint64, backlink []byte, nonce []byte, targetBearer []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
-	bt := &TransferDCOrder{
+	bt := &TransferDCAttributes{
 		Nonce:        nonce,
 		TargetBearer: targetBearer,
 		TargetValue:  targetValue,
@@ -683,7 +683,7 @@ func createDCTransfer(fromID *uint256.Int, targetValue uint64, backlink []byte, 
 
 func createSplit(fromID *uint256.Int, amount uint64, remainingValue uint64, targetBearer, backlink []byte) *txsystem.Transaction {
 	tx := createTx(fromID)
-	bt := &SplitOrder{
+	bt := &SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   targetBearer,
 		RemainingValue: remainingValue,

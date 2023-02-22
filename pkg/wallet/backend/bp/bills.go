@@ -81,7 +81,7 @@ func (x *Bill) parseTx(gtx txsystem.GenericTransaction) (uint64, bool, error) {
 			return tx.RemainingValue(), false, nil
 		}
 		return tx.Amount(), false, nil // proof is for the "new" bill
-	case money.Swap:
+	case money.SwapDC:
 		return tx.TargetValue(), false, nil
 	default:
 		return 0, false, ErrInvalidTxType

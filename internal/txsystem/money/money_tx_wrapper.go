@@ -15,16 +15,16 @@ import (
 )
 
 const (
-	TypeTransferOrder   = "TransferOrder"
-	TypeTransferDCOrder = "TransferDCOrder"
-	TypeSplitOrder      = "SplitOrder"
-	TypeSwapOrder       = "SwapOrder"
+	TypeTransferOrder   = "TransferAttributes"
+	TypeTransferDCOrder = "TransferDCAttributes"
+	TypeSplitOrder      = "SplitAttributes"
+	TypeSwapDCOrder     = "SwapDCAttributes"
 
 	protobufTypeUrlPrefix  = "type.googleapis.com/rpc."
 	typeURLTransferOrder   = protobufTypeUrlPrefix + TypeTransferOrder
 	typeURLTransferDCOrder = protobufTypeUrlPrefix + TypeTransferDCOrder
 	typeURLSplitOrder      = protobufTypeUrlPrefix + TypeSplitOrder
-	typeURLSwapOrder       = protobufTypeUrlPrefix + TypeSwapOrder
+	typeURLSwapOrder       = protobufTypeUrlPrefix + TypeSwapDCOrder
 )
 
 type (
@@ -52,7 +52,7 @@ type (
 		HashForIdCalculation(hashFunc crypto.Hash) []byte // Returns hash value for the sameShardId function
 	}
 
-	Swap interface {
+	SwapDC interface {
 		txsystem.GenericTransaction
 		OwnerCondition() []byte
 		BillIdentifiers() []*uint256.Int
@@ -71,28 +71,26 @@ type (
 
 	transferWrapper struct {
 		wrapper
-		transfer *TransferOrder
+		transfer *TransferAttributes
 	}
 
 	transferDCWrapper struct {
 		wrapper
-		transferDC *TransferDCOrder
+		transferDC *TransferDCAttributes
 	}
 
 	billSplitWrapper struct {
 		wrapper
-		billSplit *SplitOrder
+		billSplit *SplitAttributes
 	}
 
-	swapWrapper struct {
+	swapDCWrapper struct {
 		wrapper
-		swap *SwapOrder
+		swap *SwapDCAttributes
 		// The dust collector transfers, that also exist inside swap as generic Transaction
 		dcTransfers []*transferDCWrapper
 	}
 )
-
-var _ Swap = &swapWrapper{}
 
 // NewMoneyTx creates a new wrapper, returns an error if unknown transaction type is given as argument.
 func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
@@ -121,12 +119,12 @@ func NewMoneyTx(systemID []byte, tx *txsystem.Transaction) (txsystem.GenericTran
 }
 
 func convertSwapDCTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &SwapOrder{}
+	pb := &SwapDCAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
 		return nil, err
 	}
-	swapWr := &swapWrapper{
+	swapWr := &swapDCWrapper{
 		wrapper: wrapper{transaction: tx},
 		swap:    pb,
 	}
@@ -149,7 +147,7 @@ func convertSwapDCTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, err
 }
 
 func convertSplitTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &SplitOrder{}
+	pb := &SplitAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
 		return nil, err
@@ -161,7 +159,7 @@ func convertSplitTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 }
 
 func convertTransferDCTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &TransferDCOrder{}
+	pb := &TransferDCAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
 		return nil, err
@@ -173,7 +171,7 @@ func convertTransferDCTx(tx *txsystem.Transaction) (txsystem.GenericTransaction,
 }
 
 func convertTransferTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &TransferOrder{}
+	pb := &TransferAttributes{}
 	// This is slow operation, involves reflection. Would be good to do this only once.
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
@@ -246,7 +244,7 @@ func (w *billSplitWrapper) addAttributesToHasher(hasher hash.Hash) {
 	hasher.Write(w.billSplit.Backlink)
 }
 
-func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
+func (w *swapDCWrapper) Hash(hashFunc crypto.Hash) []byte {
 	if w.wrapper.hashComputed(hashFunc) {
 		return w.wrapper.hashValue
 	}
@@ -258,7 +256,7 @@ func (w *swapWrapper) Hash(hashFunc crypto.Hash) []byte {
 	return w.wrapper.hashValue
 }
 
-func (w *swapWrapper) AddToHasher(hasher hash.Hash) {
+func (w *swapDCWrapper) AddToHasher(hasher hash.Hash) {
 	w.wrapper.addTransactionFieldsToHasher(hasher)
 	hasher.Write(w.swap.OwnerCondition)
 	for _, bi := range w.swap.BillIdentifiers {
@@ -302,7 +300,7 @@ func (w *billSplitWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
-func (w *swapWrapper) SigBytes() []byte {
+func (w *swapDCWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.wrapper.sigBytes(&b)
 	b.Write(w.OwnerCondition())
@@ -321,7 +319,7 @@ func (w *swapWrapper) SigBytes() []byte {
 	return b.Bytes()
 }
 
-func (x *TransferDCOrder) addFieldsToHasher(hasher hash.Hash) {
+func (x *TransferDCAttributes) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
 	hasher.Write(x.TargetBearer)
 	hasher.Write(util.Uint64ToBytes(x.TargetValue))
@@ -361,24 +359,24 @@ func (w *billSplitWrapper) TargetUnits(hashFunc crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{w.UnitID(), txutil.SameShardID(w.UnitID(), w.HashForIdCalculation(hashFunc))}
 }
 
-func (w *swapWrapper) OwnerCondition() []byte      { return w.swap.OwnerCondition }
-func (w *swapWrapper) Proofs() []*block.BlockProof { return w.swap.Proofs }
-func (w *swapWrapper) TargetValue() uint64         { return w.swap.TargetValue }
-func (w *swapWrapper) DCTransfers() []*transferDCWrapper {
+func (w *swapDCWrapper) OwnerCondition() []byte      { return w.swap.OwnerCondition }
+func (w *swapDCWrapper) Proofs() []*block.BlockProof { return w.swap.Proofs }
+func (w *swapDCWrapper) TargetValue() uint64         { return w.swap.TargetValue }
+func (w *swapDCWrapper) DCTransfers() []*transferDCWrapper {
 	var sdt []*transferDCWrapper
 	for _, dt := range w.dcTransfers {
 		sdt = append(sdt, dt)
 	}
 	return sdt
 }
-func (w *swapWrapper) BillIdentifiers() []*uint256.Int {
+func (w *swapDCWrapper) BillIdentifiers() []*uint256.Int {
 	var billIds []*uint256.Int
 	for _, biBytes := range w.swap.BillIdentifiers {
 		billIds = append(billIds, uint256.NewInt(0).SetBytes(biBytes))
 	}
 	return billIds
 }
-func (w *swapWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
+func (w *swapDCWrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{w.UnitID()}
 }
 

@@ -13,9 +13,9 @@ var (
 	timeout = uint64(10)
 )
 
-type TransferFCOption func(order *transactions.TransferFeeCreditOrder) TransferFCOption
+type TransferFCOption func(Attributes *transactions.TransferFeeCreditAttributes) TransferFCOption
 
-func NewTransferFC(t *testing.T, attr *transactions.TransferFeeCreditOrder, opts ...testtransaction.Option) *transactions.TransferFeeCreditWrapper {
+func NewTransferFC(t *testing.T, attr *transactions.TransferFeeCreditAttributes, opts ...testtransaction.Option) *transactions.TransferFeeCreditWrapper {
 	if attr == nil {
 		attr = NewTransferFCAttr()
 	}
@@ -36,8 +36,8 @@ func NewTransferFC(t *testing.T, attr *transactions.TransferFeeCreditOrder, opts
 	return tx.(*transactions.TransferFeeCreditWrapper)
 }
 
-func NewDefaultTransferFCAttr() *transactions.TransferFeeCreditOrder {
-	return &transactions.TransferFeeCreditOrder{
+func NewDefaultTransferFCAttr() *transactions.TransferFeeCreditAttributes {
+	return &transactions.TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: systemID,
 		TargetRecordId:         unitID,
@@ -47,7 +47,7 @@ func NewDefaultTransferFCAttr() *transactions.TransferFeeCreditOrder {
 	}
 }
 
-func NewTransferFCAttr(opts ...TransferFCOption) *transactions.TransferFeeCreditOrder {
+func NewTransferFCAttr(opts ...TransferFCOption) *transactions.TransferFeeCreditAttributes {
 	defaultTx := NewDefaultTransferFCAttr()
 	for _, opt := range opts {
 		opt(defaultTx)
@@ -56,49 +56,49 @@ func NewTransferFCAttr(opts ...TransferFCOption) *transactions.TransferFeeCredit
 }
 
 func WithAmount(amount uint64) TransferFCOption {
-	return func(tx *transactions.TransferFeeCreditOrder) TransferFCOption {
+	return func(tx *transactions.TransferFeeCreditAttributes) TransferFCOption {
 		tx.Amount = amount
 		return nil
 	}
 }
 
 func WithBacklink(backlink []byte) TransferFCOption {
-	return func(tx *transactions.TransferFeeCreditOrder) TransferFCOption {
+	return func(tx *transactions.TransferFeeCreditAttributes) TransferFCOption {
 		tx.Backlink = backlink
 		return nil
 	}
 }
 
 func WithTargetSystemID(systemID []byte) TransferFCOption {
-	return func(tx *transactions.TransferFeeCreditOrder) TransferFCOption {
+	return func(tx *transactions.TransferFeeCreditAttributes) TransferFCOption {
 		tx.TargetSystemIdentifier = systemID
 		return nil
 	}
 }
 
 func WithTargetRecordID(recordID []byte) TransferFCOption {
-	return func(tx *transactions.TransferFeeCreditOrder) TransferFCOption {
+	return func(tx *transactions.TransferFeeCreditAttributes) TransferFCOption {
 		tx.TargetRecordId = recordID
 		return nil
 	}
 }
 
 func WithNonce(nonce []byte) TransferFCOption {
-	return func(tx *transactions.TransferFeeCreditOrder) TransferFCOption {
+	return func(tx *transactions.TransferFeeCreditAttributes) TransferFCOption {
 		tx.Nonce = nonce
 		return nil
 	}
 }
 
 func WithEarliestAdditionTime(earliestAdditionTime uint64) TransferFCOption {
-	return func(tx *transactions.TransferFeeCreditOrder) TransferFCOption {
+	return func(tx *transactions.TransferFeeCreditAttributes) TransferFCOption {
 		tx.EarliestAdditionTime = earliestAdditionTime
 		return nil
 	}
 }
 
 func WithLatestAdditionTime(latestAdditionTime uint64) TransferFCOption {
-	return func(tx *transactions.TransferFeeCreditOrder) TransferFCOption {
+	return func(tx *transactions.TransferFeeCreditAttributes) TransferFCOption {
 		tx.LatestAdditionTime = latestAdditionTime
 		return nil
 	}

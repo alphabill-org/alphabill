@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditOrder, opts ...testtransaction.Option) *transactions.CloseFeeCreditWrapper {
+func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditAttributes, opts ...testtransaction.Option) *transactions.CloseFeeCreditWrapper {
 	if attr == nil {
 		attr = NewCloseFCAttr()
 	}
@@ -25,9 +25,9 @@ func NewCloseFC(t *testing.T, attr *transactions.CloseFeeCreditOrder, opts ...te
 	return tx.(*transactions.CloseFeeCreditWrapper)
 }
 
-type CloseFCOption func(*transactions.CloseFeeCreditOrder) CloseFCOption
+type CloseFCOption func(*transactions.CloseFeeCreditAttributes) CloseFCOption
 
-func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditOrder {
+func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditAttributes {
 	defaultTx := NewDefaultCloseFCAttr()
 	for _, opt := range opts {
 		opt(defaultTx)
@@ -35,8 +35,8 @@ func NewCloseFCAttr(opts ...CloseFCOption) *transactions.CloseFeeCreditOrder {
 	return defaultTx
 }
 
-func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditOrder {
-	return &transactions.CloseFeeCreditOrder{
+func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditAttributes {
+	return &transactions.CloseFeeCreditAttributes{
 		Amount:       amount,
 		TargetUnitId: unitID,
 		Nonce:        nonce,
@@ -44,21 +44,21 @@ func NewDefaultCloseFCAttr() *transactions.CloseFeeCreditOrder {
 }
 
 func WithCloseFCAmount(amount uint64) CloseFCOption {
-	return func(tx *transactions.CloseFeeCreditOrder) CloseFCOption {
+	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
 		tx.Amount = amount
 		return nil
 	}
 }
 
 func WithCloseFCTargetUnitID(targetUnitID []byte) CloseFCOption {
-	return func(tx *transactions.CloseFeeCreditOrder) CloseFCOption {
+	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
 		tx.TargetUnitId = targetUnitID
 		return nil
 	}
 }
 
 func WithCloseFCNonce(nonce []byte) CloseFCOption {
-	return func(tx *transactions.CloseFeeCreditOrder) CloseFCOption {
+	return func(tx *transactions.CloseFeeCreditAttributes) CloseFCOption {
 		tx.Nonce = nonce
 		return nil
 	}

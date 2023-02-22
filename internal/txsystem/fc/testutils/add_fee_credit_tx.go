@@ -27,7 +27,7 @@ var (
 	latestAdditionTime   = uint64(10)
 )
 
-func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *transactions.AddFeeCreditOrder, opts ...testtransaction.Option) *transactions.AddFeeCreditWrapper {
+func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *transactions.AddFeeCreditAttributes, opts ...testtransaction.Option) *transactions.AddFeeCreditWrapper {
 	if attr == nil {
 		attr = NewAddFCAttr(t, signer)
 	}
@@ -44,10 +44,10 @@ func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *transactions.AddFeeCre
 	return tx.(*transactions.AddFeeCreditWrapper)
 }
 
-type AddFCOption func(*transactions.AddFeeCreditOrder) AddFCOption
+type AddFCOption func(*transactions.AddFeeCreditAttributes) AddFCOption
 
-func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFCOption) *transactions.AddFeeCreditOrder {
-	defaultFCTx := &transactions.AddFeeCreditOrder{}
+func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFCOption) *transactions.AddFeeCreditAttributes {
+	defaultFCTx := &transactions.AddFeeCreditAttributes{}
 	for _, opt := range opts {
 		opt(defaultFCTx)
 	}
@@ -62,21 +62,21 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFCOption) *tr
 }
 
 func WithFCOwnerCondition(ownerCondition []byte) AddFCOption {
-	return func(tx *transactions.AddFeeCreditOrder) AddFCOption {
+	return func(tx *transactions.AddFeeCreditAttributes) AddFCOption {
 		tx.FeeCreditOwnerCondition = ownerCondition
 		return nil
 	}
 }
 
 func WithTransferFCProof(proof *block.BlockProof) AddFCOption {
-	return func(tx *transactions.AddFeeCreditOrder) AddFCOption {
+	return func(tx *transactions.AddFeeCreditAttributes) AddFCOption {
 		tx.FeeCreditTransferProof = proof
 		return nil
 	}
 }
 
 func WithTransferFCTx(ttx *txsystem.Transaction) AddFCOption {
-	return func(tx *transactions.AddFeeCreditOrder) AddFCOption {
+	return func(tx *transactions.AddFeeCreditAttributes) AddFCOption {
 		tx.FeeCreditTransfer = ttx
 		return nil
 	}

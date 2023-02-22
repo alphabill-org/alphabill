@@ -82,7 +82,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Never(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }
 
-func TestPartition_SwapOk(t *testing.T) {
+func TestPartition_SwapDCOk(t *testing.T) {
 	const moneyInvariant = uint64(10000)
 	const nofDustToSwap = 3
 
@@ -177,7 +177,7 @@ func TestPartition_SwapOk(t *testing.T) {
 	}
 
 	// create swap order
-	swapOrder, err := anypb.New(&SwapOrder{
+	swapAttrbiutes, err := anypb.New(&SwapDCAttributes{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)),
 		BillIdentifiers: billIDs,
 		DcTransfers:     dcTxs,
@@ -190,7 +190,7 @@ func TestPartition_SwapOk(t *testing.T) {
 	swapTx := &txsystem.Transaction{
 		SystemId:              systemIdentifier,
 		UnitId:                newBillID,
-		TransactionAttributes: swapOrder,
+		TransactionAttributes: swapAttrbiutes,
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		FeeProof:              script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{

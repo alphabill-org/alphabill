@@ -87,7 +87,7 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 func TestSetBill_OK(t *testing.T) {
 	txValue := uint64(100)
 	pubkey := make([]byte, 32)
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
@@ -137,7 +137,7 @@ func TestSetBill_OK(t *testing.T) {
 
 func TestSetBill_InvalidProof_NOK(t *testing.T) {
 	txValue := uint64(100)
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 	}))
 	txConverter := backend.NewTxConverter(moneySystemID)

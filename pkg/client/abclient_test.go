@@ -89,7 +89,7 @@ func TestTimeout(t *testing.T) {
 }
 
 func createRandomTransfer() *anypb.Any {
-	tx, _ := anypb.New(&billtx.TransferOrder{
+	tx, _ := anypb.New(&billtx.TransferAttributes{
 		TargetValue: 100,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(sha256.New().Sum([]byte{0})),
 		Backlink:    hash.Sum256([]byte{}),

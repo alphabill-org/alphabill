@@ -134,8 +134,8 @@ func (w *WalletBackend) GetBill(pubkey []byte, unitID []byte) (*Bill, error) {
 	return w.store.GetBill(pubkey, unitID)
 }
 
-// SetBill adds new bill to the index.
-// Bill most have a valid block proof.
+// SetBills adds new bill to the index.
+// Bill must have a valid block proof.
 // Overwrites existing bill, if one exists.
 // Returns error if given pubkey is not indexed.
 func (w *WalletBackend) SetBills(pubkey []byte, bills *block.Bills) error {

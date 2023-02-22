@@ -194,7 +194,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
-	txHash, blockNumber := getLastTransactionProps(network, w1PubKey)
+	txHash, blockNumber := getLastTransactionProps(network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
 	defer mockServer.Close()
 
@@ -250,7 +250,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// verify bill is received by wallet account 1
 	waitForBalance(t, homedir, initialBill.Value, 0)
 
-	txHash, blockNumber := getLastTransactionProps(network, pubKey1)
+	txHash, blockNumber := getLastTransactionProps(network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
 	defer mockServer.Close()
 
@@ -330,7 +330,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	// verify bill is received by wallet account 1
 	waitForBalance(t, homedir, initialBill.Value, 0)
 
-	txHash, blockNumber := getLastTransactionProps(network, pubKey1)
+	txHash, blockNumber := getLastTransactionProps(network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
 	defer mockServer.Close()
 
@@ -553,7 +553,7 @@ func txConverter(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) 
 	return moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, tx)
 }
 
-func getLastTransactionProps(network *testpartition.AlphabillPartition, pubKey []byte) (string, uint64) {
+func getLastTransactionProps(network *testpartition.AlphabillPartition) (string, uint64) {
 	gb, bp, _ := network.GetBlockProof(network.Nodes[0].GetLatestBlock().Transactions[0], txConverter)
 	txHash := base64.StdEncoding.EncodeToString(bp.GetTransactionsHash())
 	return txHash, gb.BlockNumber

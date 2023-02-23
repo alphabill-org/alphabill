@@ -39,7 +39,6 @@ const (
 	cmdFlagTokenURI                   = "token-uri"
 	cmdFlagTokenData                  = "data"
 	cmdFlagTokenDataFile              = "data-file"
-	cmdFlagSync                       = "sync"
 
 	predicateEmpty    = "empty"
 	predicateTrue     = "true"
@@ -597,7 +596,7 @@ func tokenCmdDC(config *walletConfig) *cobra.Command {
 }
 
 func execTokenCmdDC(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
+	// TODO: AB-751
 	return nil
 }
 

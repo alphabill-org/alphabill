@@ -260,7 +260,7 @@ func TestNewTypes(t *testing.T) {
 		require.EqualValues(t, tx.Timeout, 101)
 
 		// new subtype
-		// TODO: uncomment after AB-744
+		// TODO: uncomment after AB-752
 		//b := &ttxs.CreateFungibleTokenTypeAttributes{
 		//	Symbol:                             "AB",
 		//	DecimalPlaces:                      2,

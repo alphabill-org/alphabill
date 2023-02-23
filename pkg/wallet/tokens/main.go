@@ -37,7 +37,7 @@ type (
 		txs       block.TxConverter
 		am        account.Manager
 		backend   TokenBackend
-		confirmTx bool
+		confirmTx bool // TODO: AB-755
 	}
 
 	TokenBackend interface {
@@ -73,7 +73,7 @@ func (w *Wallet) GetAccountManager() account.Manager {
 
 func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new fungible token type")
-	// TODO check if parent type's decimal places match (AB-744)
+	// TODO check if parent type's decimal places match (AB-744,AB-752)
 	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
 }
 
@@ -147,7 +147,7 @@ func (w *Wallet) GetTokenType(ctx context.Context, typeId twb.TokenTypeID) (*twb
 	var err error
 	for {
 		var types []twb.TokenUnitType
-		// TODO: allow passing type id to filter specific unit on the backend
+		// TODO: allow passing type id to filter specific unit on the backend (AB-744)
 		types, offsetKey, err = w.backend.GetTokenTypes(ctx, twb.Any, nil, offsetKey, 0)
 		if err != nil {
 			return nil, err
@@ -229,7 +229,7 @@ func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, kind twb.Kind, 
 	var err error
 	for {
 		var tokens []twb.TokenUnit
-		// TODO: allow passing token id to filter specific unit on the backend
+		// TODO: allow passing token id to filter specific unit on the backend (AB-753)
 		tokens, offsetKey, err = w.backend.GetTokens(ctx, kind, owner, offsetKey, 0)
 		if err != nil {
 			return nil, err

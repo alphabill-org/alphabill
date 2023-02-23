@@ -229,7 +229,7 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*tw
 	submissions := make(map[string]*submittedTx, 2)
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
-		// TODO: prepare transactions and then send them all at once
+		// TODO: prepare transactions and then send them all at once (AB-754)
 		sub, err := w.sendSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
 		if sub.timeout > maxTimeout {
 			maxTimeout = sub.timeout
@@ -293,7 +293,7 @@ func (w *Wallet) confirmUnitsTx(ctx context.Context, subs map[string]*submittedT
 
 	for _, sub := range subs {
 		log.Info(fmt.Sprintf("Waiting for UnitID=%X", sub.id))
-		// TODO: Get token's tx proof from the backend
+		// TODO: Get token's tx proof from the backend (AB-755)
 	}
 
 	rn, err := w.getRoundNumber(ctx)

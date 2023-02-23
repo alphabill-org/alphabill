@@ -314,7 +314,7 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 
 	res := &ErrorResponse{}
 	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), res)
-	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, http.StatusNotFound, httpRes.StatusCode)
 	require.Equal(t, "bill does not exist", res.Message)
 }
 

@@ -15,19 +15,19 @@ type txLog struct {
 	txsMap map[string]*Bill
 }
 
-func newTxLog(pendingTxs []*txsystem.Transaction) *txLog {
+func NewTxLog(pendingTxs []*txsystem.Transaction) *txLog {
 	txsMap := make(map[string]*Bill, len(pendingTxs))
 	for _, tx := range pendingTxs {
 		txsMap[tx.String()] = nil
 	}
 	return &txLog{txsMap: txsMap}
 }
-func (t *txLog) contains(tx *txsystem.Transaction) bool {
+func (t *txLog) Contains(tx *txsystem.Transaction) bool {
 	_, exists := t.txsMap[tx.String()]
 	return exists
 }
 
-func (t *txLog) recordTx(tx *txsystem.Transaction, b *block.Block) error {
+func (t *txLog) RecordTx(tx *txsystem.Transaction, b *block.Block) error {
 	bill, err := t.extractBill(tx, b)
 	if err != nil {
 		return err
@@ -81,7 +81,7 @@ func (t *txLog) extractBill(txPb *txsystem.Transaction, b *block.Block) (*Bill, 
 	return bill, nil
 }
 
-func (t *txLog) isAllTxsConfirmed() bool {
+func (t *txLog) IsAllTxsConfirmed() bool {
 	for _, v := range t.txsMap {
 		if v == nil {
 			return false
@@ -90,7 +90,7 @@ func (t *txLog) isAllTxsConfirmed() bool {
 	return true
 }
 
-func (t *txLog) getAllRecordedBills() []*Bill {
+func (t *txLog) GetAllRecordedBills() []*Bill {
 	var bills []*Bill
 	for _, v := range t.txsMap {
 		if v != nil {

@@ -39,16 +39,16 @@ func startTokenWalletBackendCmd(ctx context.Context, config *baseConfiguration) 
 			return execTokenWalletBackendStartCmd(ctx, cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill node url")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
 	cmd.Flags().StringP(serverAddrCmdName, "s", "localhost:9735", "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
 	return cmd
 }
 
 func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, config *baseConfiguration) error {
-	abURL, err := cmd.Flags().GetString(alphabillUriCmdName)
+	abURL, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
-		return fmt.Errorf("failed to get %q flag value: %w", alphabillUriCmdName, err)
+		return fmt.Errorf("failed to get %q flag value: %w", alphabillNodeURLCmdName, err)
 	}
 	srvAddr, err := cmd.Flags().GetString(serverAddrCmdName)
 	if err != nil {

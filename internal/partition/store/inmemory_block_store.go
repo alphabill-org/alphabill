@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 // InMemoryBlockStore is an in-memory implementation of BlockStore interface.
@@ -44,7 +43,7 @@ func (bs *InMemoryBlockStore) LatestBlock() *block.Block {
 	return bs.blocks[uint64(len(bs.blocks))]
 }
 
-func (bs *InMemoryBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {
+func (bs *InMemoryBlockStore) SetPendingProposal(proposal *block.PendingBlockProposal) error {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
 	bs.pendingBlockProposal = proposal
@@ -54,8 +53,5 @@ func (bs *InMemoryBlockStore) AddPendingProposal(proposal *block.PendingBlockPro
 func (bs *InMemoryBlockStore) GetPendingProposal() (*block.PendingBlockProposal, error) {
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
-	if bs.pendingBlockProposal == nil {
-		return nil, errors.New(ErrStrPendingBlockProposalNotFound)
-	}
 	return bs.pendingBlockProposal, nil
 }

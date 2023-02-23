@@ -3,6 +3,9 @@ package tokens
 import (
 	"bytes"
 	goerrors "errors"
+	"fmt"
+
+	"github.com/holiman/uint256"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -12,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 )
 
 type (
@@ -251,11 +253,16 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	}
 	u, err := m.state.GetUnit(unitID)
 	if u != nil {
-		return errors.Errorf("unit %v exists", unitID)
+		return errors.Errorf("unit with id %v already exists", unitID)
 	}
 	if !goerrors.Is(err, rma.ErrUnitNotFound) {
-		return err
+		return fmt.Errorf("failed to check does the unit with this ID already exists: %w", err)
 	}
+
+	if tx.Value() == 0 {
+		return goerrors.New("token must have value greater than zero")
+	}
+
 	// existence of the parent type is checked by the getChainedPredicates
 	predicates, err := m.getChainedPredicates(
 		tx.TypeIDInt(),
@@ -310,9 +317,14 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
+
+	if tx.attributes.TargetValue == 0 || tx.attributes.TargetValue == d.value {
+		return errors.Errorf("when splitting token both halves must have value greater than zero")
+	}
 	if d.value < tx.attributes.TargetValue {
 		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
 	}
+
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}

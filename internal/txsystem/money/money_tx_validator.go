@@ -4,17 +4,19 @@ import (
 	"bytes"
 	"crypto"
 
+	"github.com/holiman/uint256"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 )
 
 var (
-	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
+	ErrInvalidBillValue     = errors.New("transaction value must be equal to bill value")
+	ErrSplitBillHalvesValue = errors.New("when splitting an bill both halves must have value greater than zero")
 
 	// swap tx specific validity conditions
 	ErrSwapInvalidTargetValue        = errors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
@@ -58,6 +60,11 @@ func validateSplit(data rma.UnitData, tx Split) error {
 	if !bytes.Equal(tx.Backlink(), bd.Backlink) {
 		return txsystem.ErrInvalidBacklink
 	}
+
+	if tx.Amount() == 0 || bd.V == tx.Amount() {
+		return ErrSplitBillHalvesValue
+	}
+
 	// amount does not exceed value of the bill
 	if tx.Amount() >= bd.V {
 		return ErrInvalidBillValue
@@ -66,6 +73,7 @@ func validateSplit(data rma.UnitData, tx Split) error {
 	if tx.RemainingValue() != bd.V-tx.Amount() {
 		return ErrInvalidBillValue
 	}
+
 	return nil
 }
 

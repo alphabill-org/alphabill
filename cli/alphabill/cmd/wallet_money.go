@@ -10,37 +10,21 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
+	"golang.org/x/term"
+
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/term"
-)
-
-const (
-	defaultAlphabillUri = "localhost:9543"
-	passwordPromptUsage = "password (interactive from prompt)"
-	passwordArgUsage    = "password (non-interactive from args)"
-
-	alphabillUriCmdName   = "alphabill-uri"
-	seedCmdName           = "seed"
-	addressCmdName        = "address"
-	amountCmdName         = "amount"
-	passwordPromptCmdName = "password"
-	passwordArgCmdName    = "pn"
-	logFileCmdName        = "log-file"
-	logLevelCmdName       = "log-level"
-	walletLocationCmdName = "wallet-location"
-	keyCmdName            = "key"
-	waitForConfCmdName    = "wait-for-confirmation"
-	totalCmdName          = "total"
-	quietCmdName          = "quiet"
-	showUnswappedCmdName  = "show-unswapped"
 )
 
 type walletConfig struct {
@@ -49,6 +33,32 @@ type walletConfig struct {
 	LogLevel      string
 	LogFile       string
 }
+
+const (
+	defaultAlphabillNodeURL = "localhost:9543"
+	defaultAlphabillApiURL  = "localhost:9654"
+	passwordPromptUsage     = "password (interactive from prompt)"
+	passwordArgUsage        = "password (non-interactive from args)"
+
+	alphabillNodeURLCmdName = "alphabill-uri"
+	alphabillApiURLCmdName  = "alphabill-api-uri"
+	seedCmdName             = "seed"
+	addressCmdName          = "address"
+	amountCmdName           = "amount"
+	passwordPromptCmdName   = "password"
+	passwordArgCmdName      = "pn"
+	logFileCmdName          = "log-file"
+	logLevelCmdName         = "log-level"
+	walletLocationCmdName   = "wallet-location"
+	keyCmdName              = "key"
+	waitForConfCmdName      = "wait-for-confirmation"
+	totalCmdName            = "total"
+	quietCmdName            = "quiet"
+	showUnswappedCmdName    = "show-unswapped"
+	txTimeoutBlockCount     = 100
+	maxTxFailedTries        = 3
+	txBufferFullErrMsg      = "tx buffer is full"
+)
 
 // newWalletCmd creates a new cobra command for the wallet component.
 func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
@@ -74,10 +84,9 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
 	walletCmd.AddCommand(createCmd(config))
-	walletCmd.AddCommand(syncCmd(config))
-	walletCmd.AddCommand(getBalanceCmd(config))
-	walletCmd.AddCommand(getPubKeysCmd(config))
 	walletCmd.AddCommand(sendCmd(ctx, config))
+	walletCmd.AddCommand(getPubKeysCmd(config))
+	walletCmd.AddCommand(getBalanceCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
 	walletCmd.AddCommand(tokenCmd(config))
@@ -114,60 +123,21 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	c := money.WalletConfig{DbPath: config.WalletHomeDir}
-	var w *money.Wallet
-	consoleWriter.Println("Creating new wallet...")
-	w, err = money.CreateNewWallet(am, mnemonic, c)
+	defer am.Close()
+
+	err = am.CreateKeys(mnemonic)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
-	consoleWriter.Println("Wallet created successfully.")
 
-	// print mnemonic if new wallet was created
 	if mnemonic == "" {
-		mnemonicSeed, err := w.GetAccountManager().GetMnemonic()
+		mnemonicSeed, err := am.GetMnemonic()
 		if err != nil {
 			return err
 		}
 		consoleWriter.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 		consoleWriter.Println("mnemonic key: " + mnemonicSeed)
 	}
-	return nil
-}
-
-func syncCmd(config *walletConfig) *cobra.Command {
-	cmd := &cobra.Command{
-		Use: "sync",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSyncCmd(cmd, config)
-		},
-	}
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
-	return cmd
-}
-
-func execSyncCmd(cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
-	if err != nil {
-		return err
-	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
-	if err != nil {
-		return err
-	}
-	defer w.Shutdown()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	consoleWriter.Println("Starting wallet synchronization...")
-	err = w.SyncToMaxBlockNumber(ctx)
-	if err != nil {
-		consoleWriter.Println("Failed to synchronize wallet: " + err.Error())
-		return err
-	}
-	consoleWriter.Println("Wallet synchronized successfully.")
 	return nil
 }
 
@@ -180,7 +150,8 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
 	cmd.Flags().Uint64P(amountCmdName, "v", 0, "the amount to send to the receiver")
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
 	// use string instead of boolean as boolean requires equals sign between name and value e.g. w=[true|false]
 	cmd.Flags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
@@ -197,15 +168,23 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 }
 
 func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
+	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
+	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	restClient, err := moneyclient.NewClient(apiUri)
+	if err != nil {
+		return err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer am.Close()
 	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
 		return err
@@ -246,14 +225,89 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 			outputPath = filepath.Join(cwd, outputPath)
 		}
 	}
-	bills, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: pubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
+
+	accountIndex := accountNumber - 1
+
+	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+		return money.ErrInvalidPubKey
+	}
+	balance, err := restClient.GetBalance(pubKey, false)
+	if amount > balance {
+		return money.ErrInsufficientBalance
+	}
+	maxBlockNo, err := restClient.GetBlockHeight()
 	if err != nil {
 		return err
 	}
+	timeout := maxBlockNo + txTimeoutBlockCount
+	if err != nil {
+		return err
+	}
+	k, err := am.GetAccountKey(accountIndex)
+	if err != nil {
+		return err
+	}
+	billResponse, err := restClient.ListBills(pubKey)
+	if err != nil {
+		return err
+	}
+
+	var bills []*money.Bill
+	for _, b := range billResponse.Bills {
+		bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
+		bills = append(bills, bill)
+	}
+
+	txs, err := money.CreateTransactions(pubKey, amount, bills, k, timeout)
+	if err != nil {
+		return err
+	}
+	rpcClientConf := client.AlphabillClientConfig{Uri: uri}
+	rpcClient := client.New(rpcClientConf)
+
+	for _, tx := range txs {
+		failedTries := 0
+		for {
+			res, err := rpcClient.SendTransaction(tx)
+			if res == nil && err == nil {
+				return errors.New("send transaction returned nil response with nil error")
+			}
+			if res != nil {
+				if !res.Ok {
+					if res.Message == txBufferFullErrMsg {
+						failedTries += 1
+						if failedTries >= maxTxFailedTries {
+							return wallet.ErrFailedToBroadcastTx
+						}
+						log.Debug("tx buffer full, waiting 1s to retry...")
+						timer := time.NewTimer(time.Second)
+						select {
+						case <-timer.C:
+							continue
+						case <-ctx.Done():
+							timer.Stop()
+							return wallet.ErrTxRetryCanceled
+						}
+					}
+					return errors.New("transaction returned error code: " + res.Message)
+				} else {
+					log.Debug("successfully sent transaction")
+					break
+				}
+			}
+			if err != nil {
+				return err
+			}
+		}
+	}
 	if waitForConf {
+		bills, err = waitForConfirmation(ctx, txs, rpcClient, maxBlockNo, timeout)
+		if err != nil {
+			return err
+		}
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			outputFile, err := writeBillsToFile(outputPath, bills...)
+			outputFile, err := writeBillsToFile(outputPath, newBillsDTO(bills...).Bills...)
 			if err != nil {
 				return err
 			}
@@ -272,6 +326,7 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 			return execGetBalanceCmd(cmd, config)
 		},
 	}
+	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which key balance to query "+
 		"(by default returns all key balances including total balance over all keys)")
 	cmd.Flags().BoolP(totalCmdName, "t", false,
@@ -283,11 +338,19 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 }
 
 func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	restClient, err := moneyclient.NewClient(uri)
+	if err != nil {
+		return err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer am.Close()
 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
@@ -310,14 +373,18 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	if accountNumber == 0 {
 		sum := uint64(0)
-		balances, err := w.GetBalances(money.GetBalanceCmd{CountDCBills: showUnswapped})
+		pubKeys, err := am.GetPublicKeys()
 		if err != nil {
 			return err
 		}
-		for accountIndex, accountBalance := range balances {
-			sum += accountBalance
+		for accountIndex, pubKey := range pubKeys {
+			balance, err := restClient.GetBalance(pubKey, showUnswapped)
+			if err != nil {
+				return err
+			}
+			sum += balance
 			if !total {
-				consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, accountBalance))
+				consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, balance))
 			}
 		}
 		if quiet {
@@ -326,7 +393,11 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Total %d", sum))
 		}
 	} else {
-		balance, err := w.GetBalance(money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
+		pubKey, err := am.GetPublicKey(accountNumber - 1)
+		if err != nil {
+			return err
+		}
+		balance, err := restClient.GetBalance(pubKey, showUnswapped)
 		if err != nil {
 			return err
 		}
@@ -351,13 +422,13 @@ func getPubKeysCmd(config *walletConfig) *cobra.Command {
 }
 
 func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer am.Close()
 
-	pubKeys, err := w.GetAccountManager().GetPublicKeys()
+	pubKeys, err := am.GetPublicKeys()
 	if err != nil {
 		return err
 	}
@@ -381,46 +452,12 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 			return execCollectDust(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	return cmd
 }
 
 func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
-	if err != nil {
-		return err
-	}
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, uri)
-	if err != nil {
-		return err
-	}
-	defer w.Shutdown()
-
-	consoleWriter.Println("Starting dust collection, this may take a while...")
-	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
-	// any error from CollectDust or Sync causes either goroutine to terminate
-	// if collect dust returns without error we signal Sync to cancel manually
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	group, ctx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		err := w.CollectDust(ctx)
-		if err == nil {
-			defer cancel() // signal Sync to cancel
-		}
-		return err
-	})
-	group.Go(func() error {
-		return w.Sync(ctx)
-	})
-	err = group.Wait()
-	if err != nil {
-		consoleWriter.Println("Failed to collect dust: " + err.Error())
-		return err
-	}
-	consoleWriter.Println("Dust collection finished successfully.")
+	// TODO
 	return nil
 }
 
@@ -436,13 +473,13 @@ func addKeyCmd(config *walletConfig) *cobra.Command {
 }
 
 func execAddKeyCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer am.Close()
 
-	accIdx, accPubKey, err := w.AddAccount()
+	accIdx, accPubKey, err := am.AddAccount()
 	if err != nil {
 		return err
 	}
@@ -450,16 +487,42 @@ func execAddKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func loadExistingWallet(cmd *cobra.Command, walletDir string, uri string) (*money.Wallet, error) {
-	config := money.WalletConfig{
-		DbPath:                walletDir,
-		AlphabillClientConfig: client.AlphabillClientConfig{Uri: uri},
+func waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, rpcClient *client.AlphabillClient, maxBlockNumber, timeout uint64) ([]*money.Bill, error) {
+	log.Info("waiting for confirmation(s)...")
+	blockNumber := maxBlockNumber
+	txsLog := money.NewTxLog(pendingTxs)
+	for blockNumber <= timeout {
+		b, err := rpcClient.GetBlock(blockNumber)
+		if err != nil {
+			return nil, err
+		}
+		if b == nil {
+			// wait for some time before retrying to fetch new block
+			timer := time.NewTimer(100 * time.Millisecond)
+			select {
+			case <-timer.C:
+				continue
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, nil
+			}
+		}
+		for _, tx := range b.Transactions {
+			if txsLog.Contains(tx) {
+				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
+				err = txsLog.RecordTx(tx, b)
+				if err != nil {
+					return nil, err
+				}
+				if txsLog.IsAllTxsConfirmed() {
+					log.Info("transaction(s) confirmed")
+					return txsLog.GetAllRecordedBills(), nil
+				}
+			}
+		}
+		blockNumber += 1
 	}
-	am, err := loadExistingAccountManager(cmd, walletDir)
-	if err != nil {
-		return nil, err
-	}
-	return money.LoadExistingWallet(config, am)
+	return nil, money.ErrTxFailedToConfirm
 }
 
 func loadExistingAccountManager(cmd *cobra.Command, walletDir string) (account.Manager, error) {
@@ -482,7 +545,7 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 	if walletLocation != "" {
 		config.WalletHomeDir = walletLocation
 	} else {
-		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "wallet")
+		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "account")
 	}
 	return nil
 }

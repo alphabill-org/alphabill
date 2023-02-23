@@ -3,13 +3,11 @@ package block
 import (
 	"bytes"
 	"crypto"
-	"io/ioutil"
-	"path/filepath"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"google.golang.org/protobuf/encoding/protojson"
+	"io/ioutil"
 )
 
 // Verify validates struct and verifies proofs.
@@ -37,19 +35,6 @@ func (x *Bill) Verify(unitID []byte, txConverter TxConverter, verifiers map[stri
 
 func (x *TxProof) Verify(unitID []byte, gtx txsystem.GenericTransaction, verifiers map[string]abcrypto.Verifier, hashAlgo crypto.Hash) error {
 	return x.Proof.Verify(unitID, gtx, verifiers, hashAlgo)
-}
-
-func ReadBillsFile(path string) (*Bills, error) {
-	b, err := ioutil.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return nil, err
-	}
-	res := &Bills{}
-	err = protojson.Unmarshal(b, res)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
 }
 
 func WriteBillsFile(path string, res *Bills) error {

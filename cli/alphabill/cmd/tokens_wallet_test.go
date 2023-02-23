@@ -877,7 +877,7 @@ func startTokensBackend(t *testing.T) (srvUri string, restApi *client.TokenBacke
 
 func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "wallet")
+	walletDir := filepath.Join(homeDir, "account")
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))

@@ -120,7 +120,7 @@ func TestCreateTransactions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			txs, err := createTransactions(receiverPubKey, tt.amount, tt.bills, accountKey.AccountKey, 100)
+			txs, err := CreateTransactions(receiverPubKey, tt.amount, tt.bills, accountKey.AccountKey, 100)
 			if tt.expectedErr != nil {
 				require.ErrorIs(t, err, tt.expectedErr)
 				require.Nil(t, txs)

@@ -1,7 +1,9 @@
 package twb
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,6 +26,7 @@ import (
 
 type dataSource interface {
 	GetBlockNumber() (uint64, error)
+	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
@@ -38,20 +41,36 @@ type restAPI struct {
 
 const maxResponseItems = 100
 
+//go:embed swagger/*
+var swaggerFiles embed.FS
+
 func (api *restAPI) endpoints() http.Handler {
 	apiRouter := mux.NewRouter().StrictSlash(true).PathPrefix("/api").Subrouter()
 
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
+	// Link header is needed for pagination support.
 	// OPTIONS method needs to be explicitly defined for each handler func
 	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{"Content-Type", "Link"})))
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
+	apiV1.HandleFunc("/types/{typeId}/hierarchy", api.typeHierarchy).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/owners/{owner}/tokens", api.listTokens).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+
+	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
+	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := swaggerFiles.ReadFile("swagger/index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to read swagger/index.html file: %v", err)
+			return
+		}
+		http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(f))
+	})).Methods("GET", "OPTIONS")
 
 	return apiRouter
 }
@@ -130,6 +149,27 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 	}
 	setLinkHeader(r.URL, w, encodeTokenTypeID(next))
 	api.writeResponse(w, data)
+}
+
+func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	typeId, err := parseTokenTypeID(vars["typeId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "typeId", err)
+		return
+	}
+
+	var rsp []*TokenUnitType
+	for len(typeId) > 0 {
+		tokTyp, err := api.db.GetTokenType(typeId)
+		if err != nil {
+			api.writeErrorResponse(w, fmt.Errorf("failed to load type with id %x: %w", typeId, err))
+			return
+		}
+		rsp = append(rsp, tokTyp)
+		typeId = tokTyp.ParentTypeID
+	}
+	api.writeResponse(w, rsp)
 }
 
 func (api *restAPI) getRoundNumber(w http.ResponseWriter, r *http.Request) {

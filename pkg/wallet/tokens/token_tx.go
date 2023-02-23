@@ -122,7 +122,7 @@ func (w *Wallet) sendTx(ctx context.Context, unitId twb.TokenID, attrs proto.Mes
 	}
 	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", txSub.id, reflect.TypeOf(attrs)))
 
-	roundNumber, err := w.getRoundNumber(context.Background()) // TODO: use context from caller
+	roundNumber, err := w.getRoundNumber(ctx)
 	if err != nil {
 		return txSub, err
 	}

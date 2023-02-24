@@ -32,7 +32,7 @@ type dataSource interface {
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
-	GetTxProof(unitID []byte, txHash TxHash) (*Proof, error)
+	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
 }
 
 type restAPI struct {

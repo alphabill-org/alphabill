@@ -159,7 +159,7 @@ type mockStorage struct {
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
 	queryTTypes      func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator PubKey) error
-	getTxProof       func(unitID []byte, txHash TxHash) (*Proof, error)
+	getTxProof       func(unitID UnitID, txHash TxHash) (*Proof, error)
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -227,7 +227,7 @@ func (ms *mockStorage) QueryTokens(kind Kind, owner Predicate, startKey TokenID,
 	return nil, nil, fmt.Errorf("unexpected QueryTokens call")
 }
 
-func (ms *mockStorage) GetTxProof(unitID []byte, txHash TxHash) (*Proof, error) {
+func (ms *mockStorage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
 	if ms.getTxProof != nil {
 		return ms.getTxProof(unitID, txHash)
 	}

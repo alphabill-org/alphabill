@@ -114,7 +114,7 @@ func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *Proof) error {
 		if err != nil {
 			return fmt.Errorf("failed to save token type data: %w", err)
 		}
-		if err := s.storeUnitBlockProof(tx, tokenType.ID, tokenType.TxHash, proof); err != nil {
+		if err := s.storeUnitBlockProof(tx, UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
 			return fmt.Errorf("failed to store unit block proof: %w", err)
 		}
 		return nil
@@ -170,7 +170,7 @@ func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
 		if err = tx.Bucket(bucketTokenUnit).Put(token.ID, tokenData); err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, token.ID, token.TxHash, proof)
+		return s.storeUnitBlockProof(tx, UnitID(token.ID), token.TxHash, proof)
 	})
 }
 
@@ -233,7 +233,7 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
-func (s *storage) GetTxProof(unitID []byte, txHash TxHash) (*Proof, error) {
+func (s *storage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
 	var proof *Proof
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
@@ -267,7 +267,7 @@ func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	return token, nil
 }
 
-func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID []byte, txHash []byte, proof *Proof) error {
+func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID UnitID, txHash TxHash, proof *Proof) error {
 	proofData, err := json.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)

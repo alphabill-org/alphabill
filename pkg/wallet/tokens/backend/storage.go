@@ -15,6 +15,6 @@ type (
 		GetToken(id TokenID) (*TokenUnit, error)
 		QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 
-		GetTxProof(unitID []byte, txHash TxHash) (*Proof, error)
+		GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
 	}
 )

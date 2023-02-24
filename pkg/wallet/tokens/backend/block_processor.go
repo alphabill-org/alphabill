@@ -194,7 +194,7 @@ func (p *blockProcessor) saveToken(unit *TokenUnit, proof *Proof) error {
 	return nil
 }
 
-func (p *blockProcessor) createProof(unitID []byte, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
+func (p *blockProcessor) createProof(unitID UnitID, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
 	if b == nil {
 		return nil, nil
 	}

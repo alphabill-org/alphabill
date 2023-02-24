@@ -719,7 +719,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("error fetching proof", func(t *testing.T) {
 		api := &restAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID []byte, txHash TxHash) (*Proof, error) {
+				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
 					return nil, errors.New("error fetching proof")
 				},
 			},
@@ -731,7 +731,7 @@ func Test_restAPI_txProof(t *testing.T) {
 	t.Run("no proof with given inputs", func(t *testing.T) {
 		api := &restAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID []byte, txHash TxHash) (*Proof, error) {
+				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
 					return nil, nil
 				},
 			},
@@ -747,7 +747,7 @@ func Test_restAPI_txProof(t *testing.T) {
 		proof := &Proof{1, &txsystem.Transaction{UnitId: unitID}, &block.BlockProof{TransactionsHash: txHash}}
 		api := &restAPI{
 			db: &mockStorage{
-				getTxProof: func(unitID []byte, txHash TxHash) (*Proof, error) {
+				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
 					return proof, nil
 				},
 			},

@@ -3,13 +3,13 @@ package tokens
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
 	"sort"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -22,24 +22,32 @@ import (
 )
 
 type (
-	submittedTx struct {
-		id      twb.TokenID
-		txHash  []byte
-		timeout uint64
+	txSubmission struct {
+		id     twb.UnitID
+		txHash twb.TxHash
+		tx     *txsystem.Transaction
+	}
+
+	txSubmissionBatch struct {
+		sender      twb.PubKey
+		submissions []*txSubmission
+		submit      postTransactions
 	}
 
 	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
+
+	postTransactions func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
 )
 
-func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTypeCreationInputs, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
+func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTypeCreationInputs, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenTypeID, error) {
 	if accNr < 1 {
-		return nil, errors.Errorf("invalid account number: %d", accNr)
+		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
 	acc, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
 		return nil, err
 	}
-	sub, err := w.sendTx(ctx, twb.TokenID(typeId), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTx(ctx, twb.UnitID(typeId), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, subtypePredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -50,7 +58,11 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTyp
 	if err != nil {
 		return nil, err
 	}
-	return sub.id, nil
+	err = sub.toBatch(w.backend.PostTransactions, acc.PubKey).sendTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return twb.TokenTypeID(sub.id), nil
 }
 
 func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx txsystem.GenericTransaction) ([][]byte, error) {
@@ -69,7 +81,7 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx 
 			}
 			signatures = append(signatures, sig)
 		} else {
-			return nil, errors.Errorf("invalid account for creation input: %v", input.AccountNumber)
+			return nil, fmt.Errorf("invalid account for creation input: %v", input.AccountNumber)
 		}
 	}
 	return signatures, nil
@@ -78,7 +90,7 @@ func preparePredicateSignatures(am account.Manager, args []*PredicateInput, gtx 
 func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	var keyHash []byte
 	if accNr < 1 {
-		return nil, errors.Errorf("invalid account number: %d", accNr)
+		return nil, fmt.Errorf("invalid account number: %d", accNr)
 	}
 	key, err := w.am.GetAccountKey(accNr - 1)
 	if err != nil {
@@ -87,7 +99,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	keyHash = key.PubKeyHash.Sha256
 	attrs.SetBearer(bearerPredicateFromHash(keyHash))
 
-	sub, err := w.sendTx(ctx, tokenId, attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTx(ctx, twb.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, mintPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -98,11 +110,14 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	if err != nil {
 		return nil, err
 	}
-
-	return sub.id, nil
+	err = sub.toBatch(w.backend.PostTransactions, key.PubKey).sendTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return twb.TokenID(sub.id), nil
 }
 
-func RandomID() (twb.TokenID, error) {
+func RandomID() (twb.UnitID, error) {
 	id := make([]byte, 32)
 	_, err := rand.Read(id)
 	if err != nil {
@@ -111,49 +126,78 @@ func RandomID() (twb.TokenID, error) {
 	return id, nil
 }
 
-func (w *Wallet) sendTx(ctx context.Context, unitId twb.TokenID, attrs proto.Message, ac *account.AccountKey, txps txPreprocessor) (*submittedTx, error) {
-	txSub := &submittedTx{id: unitId}
+func (w *Wallet) prepareTx(ctx context.Context, unitId twb.UnitID, attrs proto.Message, ac *account.AccountKey, txps txPreprocessor) (*txSubmission, error) {
+	var err error
 	if unitId == nil {
-		id, err := RandomID()
+		unitId, err = RandomID()
 		if err != nil {
-			return txSub, err
+			return nil, err
 		}
-		txSub.id = id
 	}
-	log.Info(fmt.Sprintf("Sending token tx, UnitID=%X, attributes: %v", txSub.id, reflect.TypeOf(attrs)))
+	log.Info(fmt.Sprintf("Preparing to send token tx, UnitID=%X, attributes: %v", unitId, reflect.TypeOf(attrs)))
 
 	roundNumber, err := w.getRoundNumber(ctx)
 	if err != nil {
-		return txSub, err
+		return nil, err
 	}
-	tx := createTx(w.systemID, txSub.id, roundNumber+txTimeoutRoundCount)
+	tx := createTx(w.systemID, unitId, roundNumber+txTimeoutRoundCount)
 	err = anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	if err != nil {
-		return txSub, err
+		return nil, err
 	}
 	gtx, err := ttxs.NewGenericTx(tx)
 	if err != nil {
-		return txSub, err
+		return nil, err
 	}
 	if txps != nil {
 		// set fields before tx is signed
 		err = txps(tx, gtx)
 		if err != nil {
-			return txSub, err
+			return nil, err
 		}
 	}
 	sig, err := signTx(gtx, ac)
 	if err != nil {
-		return txSub, err
+		return nil, err
 	}
 	tx.OwnerProof = sig
-	err = w.backend.PostTransactions(ctx, ac.PubKey, &txsystem.Transactions{Transactions: []*txsystem.Transaction{tx}})
-	if err != nil {
-		return txSub, err
+	txSub := &txSubmission{
+		id:     unitId,
+		tx:     tx,
+		txHash: gtx.Hash(crypto.SHA256),
 	}
-	txSub.timeout = tx.Timeout
-	txSub.txHash = gtx.Hash(crypto.SHA256)
 	return txSub, nil
+}
+
+func (s *txSubmission) toBatch(sendFunc postTransactions, sender twb.PubKey) *txSubmissionBatch {
+	return &txSubmissionBatch{
+		sender:      sender,
+		submit:      sendFunc,
+		submissions: []*txSubmission{s},
+	}
+}
+
+func (t *txSubmissionBatch) add(sub *txSubmission) {
+	t.submissions = append(t.submissions, sub)
+}
+
+func (t *txSubmissionBatch) transactions() []*txsystem.Transaction {
+	txs := make([]*txsystem.Transaction, 0, len(t.submissions))
+	for _, sub := range t.submissions {
+		txs = append(txs, sub.tx)
+	}
+	return txs
+}
+
+func (t *txSubmissionBatch) sendTx(ctx context.Context) error {
+	if len(t.submissions) == 0 {
+		return errors.New("no transactions to send")
+	}
+	err := t.submit(ctx, t.sender, &txsystem.Transactions{Transactions: t.transactions()})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func signTx(gtx txsystem.GenericTransaction, ac *account.AccountKey) (ttxs.Predicate, error) {
@@ -220,40 +264,39 @@ func newSplitTxAttrs(token *twb.TokenUnit, amount uint64, receiverPubKey []byte)
 }
 
 // assumes there's sufficient balance for the given amount, sends transactions immediately
-func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*twb.TokenUnit, acc *account.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (map[string]*submittedTx, uint64, error) {
+func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*twb.TokenUnit, acc *account.AccountKey, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
 	var accumulatedSum uint64
 	sort.Slice(tokens, func(i, j int) bool {
 		return tokens[i].Amount > tokens[j].Amount
 	})
-	var maxTimeout uint64 = 0
-	submissions := make(map[string]*submittedTx, 2)
+
+	batch := &txSubmissionBatch{
+		sender: acc.PubKey,
+		submit: w.backend.PostTransactions,
+	}
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
-		// TODO: prepare transactions and then send them all at once (AB-754)
-		sub, err := w.sendSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
-		if sub.timeout > maxTimeout {
-			maxTimeout = sub.timeout
-		}
+		sub, err := w.prepareSplitOrTransferTx(ctx, acc, remainingAmount, t, receiverPubKey, invariantPredicateArgs)
 		if err != nil {
-			return submissions, maxTimeout, err
+			return err
 		}
-		submissions[sub.id.String()] = sub
+		batch.add(sub)
 		accumulatedSum += t.Amount
 		if accumulatedSum >= amount {
 			break
 		}
 	}
-	return submissions, maxTimeout, nil
+	return batch.sendTx(ctx)
 }
 
-func (w *Wallet) sendSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *twb.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*submittedTx, error) {
+func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *twb.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*txSubmission, error) {
 	var attrs AttrWithInvariantPredicateInputs
 	if amount >= token.Amount {
 		attrs = newFungibleTransferTxAttrs(token, receiverPubKey)
 	} else {
 		attrs = newSplitTxAttrs(token, amount, receiverPubKey)
 	}
-	sub, err := w.sendTx(ctx, token.ID, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTx(ctx, twb.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -262,7 +305,7 @@ func (w *Wallet) sendSplitOrTransferTx(ctx context.Context, acc *account.Account
 		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	})
 	if err != nil {
-		return sub, err
+		return nil, err
 	}
 	return sub, nil
 }
@@ -277,13 +320,13 @@ func createTx(systemID []byte, unitId []byte, timeout uint64) *txsystem.Transact
 	}
 }
 
-func (w *Wallet) confirmUnitTx(ctx context.Context, sub *submittedTx, timeout uint64) error {
-	submissions := make(map[string]*submittedTx, 1)
+func (w *Wallet) confirmUnitTx(ctx context.Context, sub *txSubmission, timeout uint64) error {
+	submissions := make(map[string]*txSubmission, 1)
 	submissions[sub.id.String()] = sub
 	return w.confirmUnitsTx(ctx, submissions, timeout)
 }
 
-func (w *Wallet) confirmUnitsTx(ctx context.Context, subs map[string]*submittedTx, maxTimeout uint64) error {
+func (w *Wallet) confirmUnitsTx(ctx context.Context, subs map[string]*txSubmission, maxTimeout uint64) error {
 	// ...or don't
 	if !w.confirmTx {
 		return nil

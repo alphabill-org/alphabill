@@ -71,13 +71,13 @@ func (w *Wallet) GetAccountManager() account.Manager {
 	return w.am
 }
 
-func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
+func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenTypeID, error) {
 	log.Info("Creating new fungible token type")
 	// TODO check if parent type's decimal places match (AB-744,AB-752)
 	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenID, error) {
+func (w *Wallet) NewNonFungibleType(ctx context.Context, accNr uint64, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId twb.TokenTypeID, subtypePredicateArgs []*PredicateInput) (twb.TokenTypeID, error) {
 	log.Info("Creating new NFT type")
 	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)
 }
@@ -257,7 +257,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		return err
 	}
 	attrs := newNonFungibleTransferTxAttrs(token, receiverPubKey)
-	_, err = w.sendTx(ctx, tokenId, attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTx(ctx, twb.UnitID(tokenId), attrs, key, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, invariantPredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -265,8 +265,10 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 		attrs.InvariantPredicateSignatures = signatures
 		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	})
-
-	return err
+	if err != nil {
+		return err
+	}
+	return sub.toBatch(w.backend.PostTransactions, key.PubKey).sendTx(ctx)
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId twb.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
@@ -311,18 +313,16 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	if targetAmount > totalBalance {
 		return fmt.Errorf("insufficient value: got %v, need %v", totalBalance, targetAmount)
 	}
-	var submissions map[string]*submittedTx
 	// optimization: first try to make a single operation instead of iterating through all tokens in doSendMultiple
 	if closestMatch.Amount >= targetAmount {
-		var sub *submittedTx
-		sub, err = w.sendSplitOrTransferTx(ctx, acc, targetAmount, closestMatch, receiverPubKey, invariantPredicateArgs)
-		submissions = make(map[string]*submittedTx, 1)
-		submissions[sub.id.String()] = sub
+		sub, err := w.prepareSplitOrTransferTx(ctx, acc, targetAmount, closestMatch, receiverPubKey, invariantPredicateArgs)
+		if err != nil {
+			return err
+		}
+		return sub.toBatch(w.backend.PostTransactions, acc.PubKey).sendTx(ctx)
 	} else {
-		submissions, _, err = w.doSendMultiple(ctx, targetAmount, matchingTokens, acc, receiverPubKey, invariantPredicateArgs)
+		return w.doSendMultiple(ctx, targetAmount, matchingTokens, acc, receiverPubKey, invariantPredicateArgs)
 	}
-
-	return err
 }
 
 func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) error {
@@ -347,7 +347,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		DataUpdateSignatures: nil,
 	}
 
-	_, err = w.sendTx(ctx, tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+	sub, err := w.prepareTx(ctx, tokenId, attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
 		signatures, err := preparePredicateSignatures(w.am, updatePredicateArgs, gtx)
 		if err != nil {
 			return err
@@ -355,7 +355,10 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		attrs.DataUpdateSignatures = signatures
 		return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	return sub.toBatch(w.backend.PostTransactions, acc.PubKey).sendTx(ctx)
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

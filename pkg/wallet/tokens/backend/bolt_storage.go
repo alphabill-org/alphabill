@@ -233,6 +233,16 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
+func (s *storage) GetTxProof(unitID []byte, txHash TxHash) (*Proof, error) {
+	var proof *Proof
+	err := s.db.View(func(tx *bolt.Tx) error {
+		var err error
+		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
+		return err
+	})
+	return proof, err
+}
+
 func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
@@ -306,6 +316,25 @@ func (s *storage) initMetaData() error {
 		}
 		return nil
 	})
+}
+
+func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash TxHash) (*Proof, error) {
+	b, err := s.ensureSubBucket(dbTx, bucketTxHistory, id, true)
+	if err != nil {
+		return nil, err
+	}
+	if b == nil {
+		return nil, nil
+	}
+	proofData := b.Get(txHash)
+	if proofData == nil {
+		return nil, nil
+	}
+	proof := &Proof{}
+	if err := json.Unmarshal(proofData, proof); err != nil {
+		return nil, fmt.Errorf("failed to deserialize proof data: %w", err)
+	}
+	return proof, nil
 }
 
 func setPosition(c *bolt.Cursor, key []byte) (k, v []byte) {

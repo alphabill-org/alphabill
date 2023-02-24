@@ -3,6 +3,7 @@ package twb
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
@@ -336,7 +338,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := encodeTokenID(data[len(data)-1].ID)
+			exp := encodeHex[TokenID](data[len(data)-1].ID)
 			if s := u.Query().Get("offsetKey"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
@@ -472,7 +474,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 				return nil, nil, nil
 			},
 		}
-		resp := makeRequest(&restAPI{db: ds}, Any, "offsetKey="+encodeTokenTypeID(currentID))
+		resp := makeRequest(&restAPI{db: ds}, Any, "offsetKey="+encodeHex[TokenTypeID](currentID))
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("unexpected status %d", resp.StatusCode)
 		}
@@ -567,7 +569,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := encodeTokenTypeID(data[len(data)-1].ID)
+			exp := encodeHex[TokenTypeID](data[len(data)-1].ID)
 			if s := u.Query().Get("offsetKey"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
@@ -618,7 +620,7 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 			},
 		}
 
-		rsp := makeRequest(api, encodeTokenTypeID(tokTyp.ID))
+		rsp := makeRequest(api, encodeHex[TokenTypeID](tokTyp.ID))
 		var rspData []*TokenUnitType
 		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
@@ -645,7 +647,7 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 			},
 		}
 
-		rsp := makeRequest(api, encodeTokenTypeID(tokTypB.ID))
+		rsp := makeRequest(api, encodeHex[TokenTypeID](tokTypB.ID))
 		var rspData []*TokenUnitType
 		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTypA, tokTypB})
@@ -690,5 +692,76 @@ func Test_restAPI_getRoundNumber(t *testing.T) {
 		if rnr.RoundNumber != 42 {
 			t.Errorf("expected response to be 42, got %d", rnr.RoundNumber)
 		}
+	})
+}
+
+func Test_restAPI_txProof(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, unitID, txHash string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/units/%s/transactions/%s/proof", unitID, txHash), nil)
+		req = mux.SetURLVars(req, map[string]string{"unitId": unitID, "txHash": txHash})
+		w := httptest.NewRecorder()
+		api.getTxProof(w, req)
+		return w.Result()
+	}
+
+	t.Run("invalid 'unitId' input params", func(t *testing.T) {
+		rsp := makeRequest(&restAPI{}, "foo", "bar")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "unitId": hex string without 0x prefix`)
+	})
+
+	t.Run("invalid 'txHash' input params", func(t *testing.T) {
+		rsp := makeRequest(&restAPI{}, "0x01", "bar")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "txHash": hex string without 0x prefix`)
+	})
+
+	t.Run("error fetching proof", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getTxProof: func(unitID []byte, txHash TxHash) (*Proof, error) {
+					return nil, errors.New("error fetching proof")
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01", "0xFF")
+		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load proof of tx 0xFF (unit 0x01): error fetching proof")
+	})
+
+	t.Run("no proof with given inputs", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getTxProof: func(unitID []byte, txHash TxHash) (*Proof, error) {
+					return nil, nil
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01", "0xFF")
+		expectErrorResponse(t, rsp, http.StatusNotFound, "no proof found for tx 0xFF (unit 0x01)")
+	})
+
+	t.Run("proof is fetched", func(t *testing.T) {
+		unitID := []byte{0x01}
+		txHash := []byte{0xFF}
+
+		proof := &Proof{1, &txsystem.Transaction{UnitId: unitID}, &block.BlockProof{TransactionsHash: txHash}}
+		api := &restAPI{
+			db: &mockStorage{
+				getTxProof: func(unitID []byte, txHash TxHash) (*Proof, error) {
+					return proof, nil
+				},
+			},
+		}
+		rsp := makeRequest(api, encodeHex[UnitID](unitID), encodeHex[TxHash](txHash))
+		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
+
+		defer rsp.Body.Close()
+
+		proofFromApi := &Proof{}
+		if err := json.NewDecoder(rsp.Body).Decode(proofFromApi); err != nil {
+			t.Fatalf("failed to decode response body: %v", err)
+		}
+
+		require.Equal(t, proof, proofFromApi)
 	})
 }

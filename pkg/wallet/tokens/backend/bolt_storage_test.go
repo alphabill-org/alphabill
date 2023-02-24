@@ -99,6 +99,10 @@ func testTokenType(t *testing.T, db *storage) {
 	typeFromDB, err = db.GetTokenType(typeUnit.ID)
 	require.NoError(t, err)
 	require.Equal(t, typeUnit, typeFromDB)
+
+	proofFromDB, err := db.GetTxProof(typeUnit.ID, typeUnit.TxHash)
+	require.NoError(t, err)
+	require.Equal(t, proof, proofFromDB)
 }
 
 func testSaveToken(t *testing.T, db *storage) {
@@ -130,6 +134,10 @@ func testSaveToken(t *testing.T, db *storage) {
 	tokenFromDB, err = db.GetToken(token.ID)
 	require.NoError(t, err)
 	require.Equal(t, token, tokenFromDB)
+
+	proofFromDB, err := db.GetTxProof(token.ID, token.TxHash)
+	require.NoError(t, err)
+	require.Equal(t, proof, proofFromDB)
 }
 
 func testBlockNumber(t *testing.T, db *storage) {

@@ -37,7 +37,7 @@ func decodePubKeyHex(pubKey string) (PubKey, error) {
 	return bytes, nil
 }
 
-func parseTokenID(value string, required bool) (TokenID, error) {
+func parseHex[T UnitID | TokenTypeID | TokenID | TxHash](value string, required bool) (T, error) {
 	if value == "" {
 		if required {
 			return nil, fmt.Errorf("parameter is required")
@@ -52,29 +52,7 @@ func parseTokenID(value string, required bool) (TokenID, error) {
 	return bytes, nil
 }
 
-func encodeTokenID(value TokenID) string {
-	if len(value) == 0 {
-		return ""
-	}
-	return hexutil.Encode(value)
-}
-
-func parseTokenTypeID(value string, required bool) (TokenTypeID, error) {
-	if value == "" {
-		if required {
-			return nil, fmt.Errorf("parameter is required")
-		}
-		return nil, nil
-	}
-
-	bytes, err := hexutil.Decode(value)
-	if err != nil {
-		return nil, err
-	}
-	return bytes, nil
-}
-
-func encodeTokenTypeID(value TokenTypeID) string {
+func encodeHex[T UnitID | TokenTypeID | TokenID | TxHash](value T) string {
 	if len(value) == 0 {
 		return ""
 	}

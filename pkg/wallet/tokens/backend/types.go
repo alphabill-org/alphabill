@@ -23,7 +23,7 @@ type (
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
 		Kind   Kind   `json:"kind"`
-		TxHash []byte `json:"txHash"`
+		TxHash TxHash `json:"txHash"`
 	}
 
 	TokenUnit struct {
@@ -41,11 +41,11 @@ type (
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
 		Kind   Kind   `json:"kind"`
-		TxHash []byte `json:"txHash"`
+		TxHash TxHash `json:"txHash"`
 	}
 
-	TokenID     []byte
-	TokenTypeID []byte
+	TokenID     UnitID
+	TokenTypeID UnitID
 	TxHash      []byte
 	UnitID      []byte
 	Kind        byte

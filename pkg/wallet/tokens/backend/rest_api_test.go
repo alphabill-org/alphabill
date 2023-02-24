@@ -737,7 +737,14 @@ func Test_restAPI_txProof(t *testing.T) {
 			},
 		}
 		rsp := makeRequest(api, "0x01", "0xFF")
-		expectErrorResponse(t, rsp, http.StatusNotFound, "no proof found for tx 0xFF (unit 0x01)")
+		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
+
+		proofFromApi := &Proof{}
+		if err := json.NewDecoder(rsp.Body).Decode(proofFromApi); err != nil {
+			t.Fatalf("failed to decode response body: %v", err)
+		}
+		require.Nil(t, proofFromApi.Proof)
+		require.Nil(t, proofFromApi.Tx)
 	})
 
 	t.Run("proof is fetched", func(t *testing.T) {

@@ -764,14 +764,30 @@ func createMoneyWallet(config WalletConfig, db Db, mnemonic string, am account.M
 		}
 	}()
 
-	err = am.CreateKeys(mnemonic)
+	// load accounts from account manager
+	accountKeys, err := am.GetAccountKeys()
 	if err != nil {
 		return
 	}
-
-	err = mw.db.Do().AddAccount(0)
-	if err != nil {
-		return
+	// create keys in account manager if not exists
+	if len(accountKeys) == 0 {
+		// creating keys also adds the first account
+		err = am.CreateKeys(mnemonic)
+		if err != nil {
+			return
+		}
+		// reload accounts after adding the first account
+		accountKeys, err = am.GetAccountKeys()
+		if err != nil {
+			return
+		}
+	}
+	// sync account.db accounts with wallet.db accounts
+	for accountIndex := range accountKeys {
+		err = mw.db.Do().AddAccount(uint64(accountIndex))
+		if err != nil {
+			return
+		}
 	}
 
 	mw.Wallet = wallet.New().

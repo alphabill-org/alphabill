@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	TypeTransferFeeCreditOrder = "TransferFeeCreditOrder"
-	TypeAddFeeCreditOrder      = "AddFeeCreditOrder" // #nosec G101
-	TypeCloseFeeCreditOrder    = "CloseFeeCreditOrder"
-	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditOrder"
+	TypeTransferFeeCreditOrder = "TransferFeeCreditAttributes"
+	TypeAddFeeCreditOrder      = "AddFeeCreditAttributes" // #nosec G101
+	TypeCloseFeeCreditOrder    = "CloseFeeCreditAttributes"
+	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditAttributes"
 
 	protobufTypeUrlPrefix         = "type.googleapis.com/"
 	TypeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
@@ -34,12 +34,12 @@ type (
 
 	TransferFeeCreditWrapper struct {
 		Wrapper
-		TransferFC *TransferFeeCreditOrder
+		TransferFC *TransferFeeCreditAttributes
 	}
 
 	AddFeeCreditWrapper struct {
 		Wrapper
-		AddFC *AddFeeCreditOrder
+		AddFC *AddFeeCreditAttributes
 
 		// TransferFC the "fee credit transfer" that also exist inside AddFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
@@ -48,12 +48,12 @@ type (
 
 	CloseFeeCreditWrapper struct {
 		Wrapper
-		CloseFC *CloseFeeCreditOrder
+		CloseFC *CloseFeeCreditAttributes
 	}
 
 	ReclaimFeeCreditWrapper struct {
 		Wrapper
-		ReclaimFC *ReclaimFeeCreditOrder
+		ReclaimFC *ReclaimFeeCreditAttributes
 
 		// CloseFCTransfer the "close fee credit" transfer that also exist inside ReclaimFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
@@ -80,7 +80,7 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 }
 
 func ConvertReclaimFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &ReclaimFeeCreditOrder{}
+	pb := &ReclaimFeeCreditAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func ConvertReclaimFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransa
 }
 
 func ConvertTransferFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &TransferFeeCreditOrder{}
+	pb := &TransferFeeCreditAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func ConvertTransferFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTrans
 }
 
 func ConvertCloseFeeCredit(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &CloseFeeCreditOrder{}
+	pb := &CloseFeeCreditAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func ConvertCloseFeeCredit(tx *txsystem.Transaction) (txsystem.GenericTransactio
 }
 
 func ConvertAddFeeCredit(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
-	pb := &AddFeeCreditOrder{}
+	pb := &AddFeeCreditAttributes{}
 	err := tx.TransactionAttributes.UnmarshalTo(pb)
 	if err != nil {
 		return nil, err
@@ -309,7 +309,7 @@ func (w *ReclaimFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 }
 
 // Protobuf transaction struct methods
-func (x *TransferFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
+func (x *TransferFeeCreditAttributes) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(x.Amount))
 	hasher.Write(x.TargetSystemIdentifier)
 	hasher.Write(x.TargetRecordId)
@@ -318,7 +318,7 @@ func (x *TransferFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
 	hasher.Write(x.Backlink)
 }
-func (x *TransferFeeCreditOrder) sigBytes(b *bytes.Buffer) {
+func (x *TransferFeeCreditAttributes) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetSystemIdentifier)
 	b.Write(x.TargetRecordId)
@@ -328,12 +328,12 @@ func (x *TransferFeeCreditOrder) sigBytes(b *bytes.Buffer) {
 	b.Write(x.Backlink)
 }
 
-func (x *CloseFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
+func (x *CloseFeeCreditAttributes) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(x.Amount))
 	hasher.Write(x.TargetUnitId)
 	hasher.Write(x.Nonce)
 }
-func (x *CloseFeeCreditOrder) sigBytes(b *bytes.Buffer) {
+func (x *CloseFeeCreditAttributes) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetUnitId)
 	b.Write(x.Nonce)

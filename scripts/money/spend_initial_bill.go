@@ -171,7 +171,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 			FeeCreditRecordId: fcrID,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
@@ -193,7 +193,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 			MaxFee:  1,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditAttributes{
 		Amount:                 feeAmount,
 		TargetSystemIdentifier: []byte{0, 0, 0, 0},
 		TargetRecordId:         targetUnitID,
@@ -217,7 +217,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Tran
 			MaxFee:  maxFee,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
 		FeeCreditTransfer:       transferFC,
 		FeeCreditTransferProof:  transferFCProof,
 		FeeCreditOwnerCondition: ownerCondition,

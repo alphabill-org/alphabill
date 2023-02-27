@@ -64,22 +64,22 @@ func TestRestServer_SubmitTransaction(t *testing.T) {
 		{
 			name:            "transfer",
 			givenAttributes: moneytesttx.RandomTransferAttributes(),
-			expectedType:    &money.TransferOrder{},
+			expectedType:    &money.TransferAttributes{},
 		},
 		{
 			name:            "split",
 			givenAttributes: moneytesttx.RandomSplitAttributes(),
-			expectedType:    &money.SplitOrder{},
+			expectedType:    &money.SplitAttributes{},
 		},
 		{
 			name:            "transferDC",
 			givenAttributes: moneytesttx.RandomTransferDCAttributes(),
-			expectedType:    &money.TransferDCOrder{},
+			expectedType:    &money.TransferDCAttributes{},
 		},
 		{
 			name:            "swap",
-			givenAttributes: moneytesttx.CreateRandomSwapAttributes(t, 2),
-			expectedType:    &money.SwapOrder{},
+			givenAttributes: moneytesttx.CreateRandomSwapDCAttributes(t, 2),
+			expectedType:    &money.SwapDCAttributes{},
 		},
 	}
 	for _, tt := range tests {

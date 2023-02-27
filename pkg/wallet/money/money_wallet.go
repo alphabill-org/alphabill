@@ -662,7 +662,7 @@ func (w *Wallet) collectBills(dbTx TxContext, txPb *txsystem.Transaction, b *blo
 				TxHash: tx.Hash(crypto.SHA256),
 			}, acc.AccountIndex)
 		}
-	case money.Swap:
+	case money.SwapDC:
 		err := w.updateFCB(dbTx, txPb, acc, fcBlockNumber, currentBlockNumber)
 		if err != nil {
 			return err

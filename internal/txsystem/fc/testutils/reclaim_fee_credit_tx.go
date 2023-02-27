@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *transactions.ReclaimFeeCreditOrder, opts ...testtransaction.Option) *transactions.ReclaimFeeCreditWrapper {
+func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *transactions.ReclaimFeeCreditAttributes, opts ...testtransaction.Option) *transactions.ReclaimFeeCreditWrapper {
 	if reclaimFCAttr == nil {
 		reclaimFCAttr = NewReclaimFCAttr(t, signer)
 	}
@@ -29,7 +29,7 @@ func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *transacti
 	return tx.(*transactions.ReclaimFeeCreditWrapper)
 }
 
-func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOption) *transactions.ReclaimFeeCreditOrder {
+func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOption) *transactions.ReclaimFeeCreditAttributes {
 	defaultReclaimFC := NewDefaultReclaimFCAttr(t, signer)
 	for _, opt := range opts {
 		opt(defaultReclaimFC)
@@ -37,34 +37,34 @@ func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOpt
 	return defaultReclaimFC
 }
 
-func NewDefaultReclaimFCAttr(t *testing.T, signer abcrypto.Signer) *transactions.ReclaimFeeCreditOrder {
+func NewDefaultReclaimFCAttr(t *testing.T, signer abcrypto.Signer) *transactions.ReclaimFeeCreditAttributes {
 	closeFC := newCloseFC(t)
 	closeFCProof := testblock.CreateProof(t, closeFC, signer, closeFC.Transaction.UnitId)
-	return &transactions.ReclaimFeeCreditOrder{
+	return &transactions.ReclaimFeeCreditAttributes{
 		CloseFeeCreditTransfer: closeFC.Transaction,
 		CloseFeeCreditProof:    closeFCProof,
 		Backlink:               backlink,
 	}
 }
 
-type ReclaimFCOption func(*transactions.ReclaimFeeCreditOrder) ReclaimFCOption
+type ReclaimFCOption func(*transactions.ReclaimFeeCreditAttributes) ReclaimFCOption
 
 func WithReclaimFCBacklink(backlink []byte) ReclaimFCOption {
-	return func(tx *transactions.ReclaimFeeCreditOrder) ReclaimFCOption {
+	return func(tx *transactions.ReclaimFeeCreditAttributes) ReclaimFCOption {
 		tx.Backlink = backlink
 		return nil
 	}
 }
 
 func WithReclaimFCClosureProof(proof *block.BlockProof) ReclaimFCOption {
-	return func(tx *transactions.ReclaimFeeCreditOrder) ReclaimFCOption {
+	return func(tx *transactions.ReclaimFeeCreditAttributes) ReclaimFCOption {
 		tx.CloseFeeCreditProof = proof
 		return nil
 	}
 }
 
 func WithReclaimFCClosureTx(closeFCTx *txsystem.Transaction) ReclaimFCOption {
-	return func(tx *transactions.ReclaimFeeCreditOrder) ReclaimFCOption {
+	return func(tx *transactions.ReclaimFeeCreditAttributes) ReclaimFCOption {
 		tx.CloseFeeCreditTransfer = closeFCTx
 		return nil
 	}
@@ -74,7 +74,7 @@ func newCloseFC(t *testing.T) *transactions.CloseFeeCreditWrapper {
 	to := testtransaction.NewTransaction(t,
 		testtransaction.WithUnitId(unitID),
 	)
-	attr := &transactions.CloseFeeCreditOrder{
+	attr := &transactions.CloseFeeCreditAttributes{
 		Amount:       amount,
 		TargetUnitId: unitID,
 		Nonce:        backlink,

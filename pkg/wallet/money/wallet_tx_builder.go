@@ -51,7 +51,7 @@ func createTransaction(pubKey []byte, k *account.AccountKey, amount uint64, syst
 
 func createTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, bill.GetID(), timeout, fcrID)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: bill.Value,
 		Backlink:    bill.TxHash,
@@ -68,7 +68,7 @@ func createTransferTx(pubKey []byte, k *account.AccountKey, systemId []byte, bil
 
 func createTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *account.AccountKey, systemId []byte, unit *Bill, t1, t2 uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, unit.GetID(), t2, nil)
-	transferFC := &transactions.TransferFeeCreditOrder{
+	transferFC := &transactions.TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: systemId,
 		TargetRecordId:         targetRecordID,
@@ -90,7 +90,7 @@ func createTransferFCTx(amount uint64, targetRecordID []byte, nonce []byte, k *a
 
 func createAddFCTx(unitID []byte, fcProof *BlockProof, k *account.AccountKey, systemId []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, unitID, timeout, nil)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
 		FeeCreditOwnerCondition: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		FeeCreditTransfer:       fcProof.Tx,
 		FeeCreditTransferProof:  fcProof.Proof,
@@ -107,7 +107,7 @@ func createAddFCTx(unitID []byte, fcProof *BlockProof, k *account.AccountKey, sy
 
 func createCloseFCTx(systemId []byte, unitID []byte, timeout uint64, amount uint64, targetUnitID, nonce []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, unitID, timeout, nil)
-	closeFC := &transactions.CloseFeeCreditOrder{
+	closeFC := &transactions.CloseFeeCreditAttributes{
 		Amount:       amount,
 		TargetUnitId: targetUnitID,
 		Nonce:        nonce,
@@ -125,7 +125,7 @@ func createCloseFCTx(systemId []byte, unitID []byte, timeout uint64, amount uint
 
 func createReclaimFCTx(systemID []byte, unitID []byte, timeout uint64, fcProof *BlockProof, backlink []byte, k *account.AccountKey) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemID, unitID, timeout, nil)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.ReclaimFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.ReclaimFeeCreditAttributes{
 		CloseFeeCreditTransfer: fcProof.Tx,
 		CloseFeeCreditProof:    fcProof.Proof,
 		Backlink:               backlink,
@@ -156,7 +156,7 @@ func createGenericTx(systemId, unitId []byte, timeout uint64, fcrID []byte) *txs
 
 func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId []byte, bill *Bill, timeout uint64, fcrID []byte) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, bill.GetID(), timeout, fcrID)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		RemainingValue: bill.Value - amount,
@@ -174,7 +174,7 @@ func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, systemId
 
 func createDustTx(k *account.AccountKey, systemId []byte, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(systemId, bill.GetID(), timeout, k.PrivKeyHash)
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCAttributes{
 		TargetValue:  bill.Value,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		Backlink:     bill.TxHash,
@@ -212,7 +212,7 @@ func createSwapTx(k *account.AccountKey, systemId []byte, dcBills []*Bill, dcNon
 	}
 
 	swapTx := createGenericTx(systemId, dcNonce, timeout, k.PrivKeyHash)
-	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &money.SwapOrder{
+	err := anypb.MarshalFrom(swapTx.TransactionAttributes, &money.SwapDCAttributes{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(k.PubKeyHash.Sha256),
 		BillIdentifiers: billIds,
 		DcTransfers:     dustTransferOrders,

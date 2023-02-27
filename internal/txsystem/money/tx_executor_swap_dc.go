@@ -29,8 +29,8 @@ var (
 	ErrSwapOwnerProofFailed          = errors.New("owner proof does not satisfy the bearer condition of the swapped bill")
 )
 
-func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*swapWrapper] {
-	return func(tx *swapWrapper, currentBlockNumber uint64) error {
+func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier, feeCalc fc.FeeCalculator) txsystem.GenericExecuteFunc[*swapDCWrapper] {
+	return func(tx *swapDCWrapper, currentBlockNumber uint64) error {
 		log.Debug("Processing swap %v", tx)
 
 		if err := validateSwapTx(tx, state, hashAlgorithm, trustBase); err != nil {
@@ -64,7 +64,7 @@ func handleSwapDCTx(state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[st
 	}
 }
 
-func validateSwapTx(tx *swapWrapper, state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+func validateSwapTx(tx *swapDCWrapper, state *rma.Tree, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
 	// 3. there is sufficient DC-money supply
 	dcMoneySupply, err := state.GetUnit(dustCollectorMoneySupplyID)
 	if err != nil {
@@ -84,7 +84,7 @@ func validateSwapTx(tx *swapWrapper, state *rma.Tree, hashAlgorithm crypto.Hash,
 	return validateSwap(tx, hashAlgorithm, trustBase)
 }
 
-func validateSwap(tx *swapWrapper, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
+func validateSwap(tx *swapDCWrapper, hashAlgorithm crypto.Hash, trustBase map[string]abcrypto.Verifier) error {
 	// 1. ExtrType(ι) = bill - target unit is a bill
 	// TODO: AB-421
 	// 2. target value of the bill is the sum of the target values of succeeded payments in P
@@ -163,7 +163,7 @@ func validateDustTransfer(dcTx *transferDCWrapper, proof *block.BlockProof, unit
 	return nil
 }
 
-func hashBillIds(tx *swapWrapper, hashAlgorithm crypto.Hash) []byte {
+func hashBillIds(tx *swapDCWrapper, hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	for _, billId := range tx.BillIdentifiers() {
 		bytes32 := billId.Bytes32()
@@ -181,7 +181,7 @@ func billIdInList(billId *uint256.Int, billIds []*uint256.Int) bool {
 	return false
 }
 
-func sumDcTransferValues(tx *swapWrapper) uint64 {
+func sumDcTransferValues(tx *swapDCWrapper) uint64 {
 	sum := uint64(0)
 	for _, dcTx := range tx.DCTransfers() {
 		sum += dcTx.TargetValue()

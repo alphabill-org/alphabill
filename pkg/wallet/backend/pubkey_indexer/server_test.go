@@ -434,7 +434,7 @@ func TestAddProofRequest_Ok(t *testing.T) {
 	_ = log.InitStdoutLogger(log.INFO)
 	pubkey := make([]byte, 33)
 	txValue := uint64(100)
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))
@@ -484,7 +484,7 @@ func TestAddProofRequest_Ok(t *testing.T) {
 func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 	_ = log.InitStdoutLogger(log.INFO)
 	txValue := uint64(100)
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 	}))
 	txConverter := backend.NewTxConverter(moneySystemID)
@@ -522,7 +522,7 @@ func TestAddProofRequest_UnindexedKey_NOK(t *testing.T) {
 func TestAddProofRequest_InvalidPredicate_NOK(t *testing.T) {
 	_ = log.InitStdoutLogger(log.INFO)
 	txValue := uint64(100)
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferAttributes{
 		TargetValue: txValue,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256([]byte("invalid pub key"))),
 	}))
@@ -563,7 +563,7 @@ func TestAddDCBillProofRequest_Ok(t *testing.T) {
 	_ = log.InitStdoutLogger(log.INFO)
 	pubkey := make([]byte, 33)
 	txValue := uint64(100)
-	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferDCOrder{
+	tx := testtransaction.NewTransaction(t, testtransaction.WithAttributes(&moneytx.TransferDCAttributes{
 		TargetValue:  txValue,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey)),
 	}))

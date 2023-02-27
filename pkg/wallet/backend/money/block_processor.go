@@ -121,7 +121,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, d
 		if err != nil {
 			return err
 		}
-	case moneytx.Swap:
+	case moneytx.SwapDC:
 		wlog.Info(fmt.Sprintf("received swap order (UnitID=%x)", txPb.UnitId))
 		err = p.saveBillWithProof(b, txPb, dbTx, &Bill{
 			Id:             txPb.UnitId,

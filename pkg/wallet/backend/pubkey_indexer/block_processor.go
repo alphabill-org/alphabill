@@ -133,7 +133,7 @@ func (p *BlockProcessor) processTx(txPb *txsystem.Transaction, b *block.Block, p
 				return err
 			}
 		}
-	case moneytx.Swap:
+	case moneytx.SwapDC:
 		if account.VerifyP2PKHOwner(pubKey.PubkeyHash, tx.OwnerCondition()) {
 			wlog.Info(fmt.Sprintf("received swap order (UnitID=%x) for pubkey=%x", tx.UnitID(), pubKey.Pubkey))
 			err = p.saveBillWithProof(pubKey.Pubkey, b, txPb, &Bill{

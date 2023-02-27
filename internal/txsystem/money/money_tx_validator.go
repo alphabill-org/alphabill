@@ -15,8 +15,10 @@ import (
 )
 
 var (
-	ErrInvalidBillValue     = errors.New("transaction value must be equal to bill value")
-	ErrSplitBillHalvesValue = errors.New("when splitting an bill both halves must have value greater than zero")
+	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
+
+	ErrSplitBillZeroAmount    = errors.New("when splitting an bill the value assigned to the new bill must be greater than zero")
+	ErrSplitBillZeroRemainder = errors.New("when splitting an bill the remaining value of the bill must be greater than zero")
 
 	// swap tx specific validity conditions
 	ErrSwapInvalidTargetValue        = errors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
@@ -61,8 +63,11 @@ func validateSplit(data rma.UnitData, tx Split) error {
 		return txsystem.ErrInvalidBacklink
 	}
 
-	if tx.Amount() == 0 || bd.V == tx.Amount() {
-		return ErrSplitBillHalvesValue
+	if tx.Amount() == 0 {
+		return ErrSplitBillZeroAmount
+	}
+	if tx.RemainingValue() == 0 {
+		return ErrSplitBillZeroRemainder
 	}
 
 	// amount does not exceed value of the bill

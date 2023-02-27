@@ -318,11 +318,18 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 		return err
 	}
 
-	if tx.attributes.TargetValue == 0 || tx.attributes.TargetValue == d.value {
-		return errors.Errorf("when splitting token both halves must have value greater than zero")
+	if tx.TargetValue() == 0 {
+		return errors.Errorf("when splitting a token the value assigned to the new token must be greater than zero")
 	}
+	if tx.RemainingValue() == 0 {
+		return errors.Errorf("when splitting a token the remaining value of the token must be greater than zero")
+	}
+
 	if d.value < tx.attributes.TargetValue {
 		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
+	}
+	if rm := d.value - tx.TargetValue(); tx.RemainingValue() != rm {
+		return goerrors.New("remaining value must equal to the original value minus target value")
 	}
 
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {

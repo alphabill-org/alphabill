@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/term"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,8 +21,10 @@ import (
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 type walletConfig struct {
@@ -544,7 +545,7 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 	if walletLocation != "" {
 		config.WalletHomeDir = walletLocation
 	} else {
-		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "account")
+		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "wallet")
 	}
 	return nil
 }

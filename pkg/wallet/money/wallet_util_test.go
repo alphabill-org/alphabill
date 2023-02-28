@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ func CreateTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 	})
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
+	mockClient := clientmock.NewMockAlphabillClient()
 	w.AlphabillClient = mockClient
 	return w, mockClient
 }

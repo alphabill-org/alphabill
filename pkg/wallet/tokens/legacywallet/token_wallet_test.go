@@ -632,7 +632,7 @@ func createTestWallet(t *testing.T) (*Wallet, *clientmock.MockAlphabillClient) {
 	})
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
+	mockClient := clientmock.NewMockAlphabillClient()
 	tw.sdk.AlphabillClient = mockClient
 	return tw, mockClient
 }

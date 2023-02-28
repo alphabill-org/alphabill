@@ -50,7 +50,8 @@ type (
 	}
 
 	BlockHeightResponse struct {
-		BlockHeight uint64 `json:"blockHeight"`
+		BlockHeight     uint64 `json:"blockHeight"`
+		LastRoundNumber uint64 `json:"lastRoundNumber"`
 	}
 
 	EmptyResponse struct{}
@@ -169,7 +170,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @version 1.0
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} block.Bills
+// @Success 200 {object} money.Bills
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billID, err := parseBillID(r)
@@ -233,12 +234,12 @@ func (s *RequestHandler) readBillsProto(r *http.Request) (*moneytx.Bills, error)
 // @Success 200 {object} BlockHeightResponse
 // @Router /block-height [get]
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request) {
-	maxBlockNumber, _, err := s.Service.GetMaxBlockNumber()
+	maxBlockNumber, lastRoundNumber, err := s.Service.GetMaxBlockNumber()
 	if err != nil {
 		log.Error("GET /block-height error fetching max block number", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber})
+		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber, LastRoundNumber: lastRoundNumber})
 	}
 }
 

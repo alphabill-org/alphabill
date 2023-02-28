@@ -183,7 +183,7 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetBill(unitID)
 }
 
-// GetMaxBlockNumber returns max block number known to the connected AB node.
+// GetMaxBlockNumber returns latest persisted block number and latest round number.
 func (w *WalletBackend) GetMaxBlockNumber() (uint64, uint64, error) {
 	return w.genericWallet.GetMaxBlockNumber()
 }

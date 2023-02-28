@@ -119,7 +119,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/block.Bills"
+                            "$ref": "#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills"
                         }
                     }
                 }
@@ -139,43 +139,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "integer"
-                    }
-                }
-            }
-        },
-        "block.Bill": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "is_dc_bill": {
-                    "type": "boolean"
-                },
-                "tx_hash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "tx_proof": {
-                    "$ref": "#/definitions/block.TxProof"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "block.Bills": {
-            "type": "object",
-            "properties": {
-                "bills": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/block.Bill"
                     }
                 }
             }
@@ -288,20 +251,6 @@ const docTemplate = `{
                 }
             }
         },
-        "block.TxProof": {
-            "type": "object",
-            "properties": {
-                "block_number": {
-                    "type": "integer"
-                },
-                "proof": {
-                    "$ref": "#/definitions/block.BlockProof"
-                },
-                "tx": {
-                    "$ref": "#/definitions/txsystem.Transaction"
-                }
-            }
-        },
         "certificates.InputRecord": {
             "type": "object",
             "properties": {
@@ -313,18 +262,22 @@ const docTemplate = `{
                     }
                 },
                 "hash": {
-                    "description": "hash to be certified",
+                    "description": "state hash to be certified",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
                 "previous_hash": {
-                    "description": "previously certified root hash",
+                    "description": "previously certified state hash",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
+                },
+                "round_number": {
+                    "description": "transaction system's round number",
+                    "type": "integer"
                 },
                 "summary_value": {
                     "description": "summary value to certified",
@@ -404,6 +357,53 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill": {
+            "type": "object",
+            "properties": {
+                "OwnerPredicate": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "id": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "isDcBill": {
+                    "type": "boolean"
+                },
+                "orderNumber": {
+                    "description": "OrderNumber insertion order of given bill in pubkey =\u003e list of bills bucket, needed for determistic paging",
+                    "type": "integer"
+                },
+                "txHash": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "txProof": {
+                    "$ref": "#/definitions/money.TxProof"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills": {
+            "type": "object",
+            "properties": {
+                "bills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill"
+                    }
+                }
+            }
+        },
         "money.BalanceResponse": {
             "type": "object",
             "properties": {
@@ -416,6 +416,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "blockHeight": {
+                    "type": "integer"
+                },
+                "lastRoundNumber": {
                     "type": "integer"
                 }
             }
@@ -455,6 +458,20 @@ const docTemplate = `{
                 "total": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "money.TxProof": {
+            "type": "object",
+            "properties": {
+                "blockNumber": {
+                    "type": "integer"
+                },
+                "proof": {
+                    "$ref": "#/definitions/block.BlockProof"
+                },
+                "tx": {
+                    "$ref": "#/definitions/txsystem.Transaction"
                 }
             }
         },

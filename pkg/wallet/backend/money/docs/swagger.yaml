@@ -39,30 +39,6 @@ definitions:
           type: integer
         type: array
     type: object
-  block.Bill:
-    properties:
-      id:
-        items:
-          type: integer
-        type: array
-      is_dc_bill:
-        type: boolean
-      tx_hash:
-        items:
-          type: integer
-        type: array
-      tx_proof:
-        $ref: '#/definitions/block.TxProof'
-      value:
-        type: integer
-    type: object
-  block.Bills:
-    properties:
-      bills:
-        items:
-          $ref: '#/definitions/block.Bill'
-        type: array
-    type: object
   block.BlockProof:
     properties:
       block_header_hash:
@@ -138,15 +114,6 @@ definitions:
           $ref: '#/definitions/block.MerklePathItem'
         type: array
     type: object
-  block.TxProof:
-    properties:
-      block_number:
-        type: integer
-      proof:
-        $ref: '#/definitions/block.BlockProof'
-      tx:
-        $ref: '#/definitions/txsystem.Transaction'
-    type: object
   certificates.InputRecord:
     properties:
       block_hash:
@@ -155,15 +122,18 @@ definitions:
           type: integer
         type: array
       hash:
-        description: hash to be certified
+        description: state hash to be certified
         items:
           type: integer
         type: array
       previous_hash:
-        description: previously certified root hash
+        description: previously certified state hash
         items:
           type: integer
         type: array
+      round_number:
+        description: transaction system's round number
+        type: integer
       summary_value:
         description: summary value to certified
         items:
@@ -215,6 +185,38 @@ definitions:
           type: integer
         type: array
     type: object
+  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill:
+    properties:
+      OwnerPredicate:
+        items:
+          type: integer
+        type: array
+      id:
+        items:
+          type: integer
+        type: array
+      isDcBill:
+        type: boolean
+      orderNumber:
+        description: OrderNumber insertion order of given bill in pubkey => list of
+          bills bucket, needed for determistic paging
+        type: integer
+      txHash:
+        items:
+          type: integer
+        type: array
+      txProof:
+        $ref: '#/definitions/money.TxProof'
+      value:
+        type: integer
+    type: object
+  github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills:
+    properties:
+      bills:
+        items:
+          $ref: '#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill'
+        type: array
+    type: object
   money.BalanceResponse:
     properties:
       balance:
@@ -223,6 +225,8 @@ definitions:
   money.BlockHeightResponse:
     properties:
       blockHeight:
+        type: integer
+      lastRoundNumber:
         type: integer
     type: object
   money.ListBillVM:
@@ -251,6 +255,15 @@ definitions:
       total:
         example: 1
         type: integer
+    type: object
+  money.TxProof:
+    properties:
+      blockNumber:
+        type: integer
+      proof:
+        $ref: '#/definitions/block.BlockProof'
+      tx:
+        $ref: '#/definitions/txsystem.Transaction'
     type: object
   txsystem.Transaction:
     properties:
@@ -349,6 +362,6 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/block.Bills'
+            $ref: '#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills'
       summary: Get proof
 swagger: "2.0"

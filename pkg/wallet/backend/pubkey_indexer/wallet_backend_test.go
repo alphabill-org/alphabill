@@ -33,24 +33,26 @@ func TestWalletBackend_BillsCanBeIndexedByPubkeys(t *testing.T) {
 	billId2 := newUnitID(2)
 	pubkey2, _ := hexutil.Decode("0x02c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3")
 
-	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{
-		1: {
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
-			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId1,
-				SystemId:              moneySystemID,
-				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubKey1)),
-			}},
-		},
-		2: {
-			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
-			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId2,
-				SystemId:              moneySystemID,
-				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
-			}},
-		},
-	})
+	abclient := clientmock.NewMockAlphabillClient(
+		clientmock.WithMaxBlockNumber(1),
+		clientmock.WithBlocks(map[uint64]*block.Block{
+			1: {
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
+				Transactions: []*txsystem.Transaction{{
+					UnitId:                billId1,
+					SystemId:              moneySystemID,
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubKey1)),
+				}},
+			},
+			2: {
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
+				Transactions: []*txsystem.Transaction{{
+					UnitId:                billId2,
+					SystemId:              moneySystemID,
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
+				}},
+			},
+		}))
 	w := createWalletBackend(t, abclient)
 	err := w.AddKey(pubKey1)
 	require.NoError(t, err)

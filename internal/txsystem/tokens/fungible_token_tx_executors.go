@@ -319,10 +319,10 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	}
 
 	if tx.TargetValue() == 0 {
-		return errors.Errorf("when splitting a token the value assigned to the new token must be greater than zero")
+		return goerrors.New("when splitting a token the value assigned to the new token must be greater than zero")
 	}
 	if tx.RemainingValue() == 0 {
-		return errors.Errorf("when splitting a token the remaining value of the token must be greater than zero")
+		return goerrors.New("when splitting a token the remaining value of the token must be greater than zero")
 	}
 
 	if d.value < tx.attributes.TargetValue {

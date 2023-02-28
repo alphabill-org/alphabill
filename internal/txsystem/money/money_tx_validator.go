@@ -3,6 +3,7 @@ package money
 import (
 	"bytes"
 	"crypto"
+	goerrors "errors"
 
 	"github.com/holiman/uint256"
 
@@ -15,21 +16,21 @@ import (
 )
 
 var (
-	ErrInvalidBillValue = errors.New("transaction value must be equal to bill value")
+	ErrInvalidBillValue = goerrors.New("transaction value must be equal to bill value")
 
-	ErrSplitBillZeroAmount    = errors.New("when splitting an bill the value assigned to the new bill must be greater than zero")
-	ErrSplitBillZeroRemainder = errors.New("when splitting an bill the remaining value of the bill must be greater than zero")
+	ErrSplitBillZeroAmount    = goerrors.New("when splitting an bill the value assigned to the new bill must be greater than zero")
+	ErrSplitBillZeroRemainder = goerrors.New("when splitting an bill the remaining value of the bill must be greater than zero")
 
 	// swap tx specific validity conditions
-	ErrSwapInvalidTargetValue        = errors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
-	ErrSwapInsufficientDCMoneySupply = errors.New("insufficient DC-money supply")
-	ErrSwapBillAlreadyExists         = errors.New("swapped bill id already exists")
-	ErrSwapInvalidBillIdentifiers    = errors.New("all bill identifiers in dust transfer orders must exist in transaction bill identifiers")
-	ErrSwapInvalidBillId             = errors.New("bill id is not properly computed")
-	ErrSwapDustTransfersInvalidOrder = errors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
-	ErrSwapInvalidNonce              = errors.New("dust transfer orders do not contain proper nonce")
-	ErrSwapInvalidTargetBearer       = errors.New("dust transfer orders do not contain proper target bearer")
-	ErrInvalidProofType              = errors.New("invalid proof type")
+	ErrSwapInvalidTargetValue        = goerrors.New("target value of the bill must be equal to the sum of the target values of succeeded payments in swap transaction")
+	ErrSwapInsufficientDCMoneySupply = goerrors.New("insufficient DC-money supply")
+	ErrSwapBillAlreadyExists         = goerrors.New("swapped bill id already exists")
+	ErrSwapInvalidBillIdentifiers    = goerrors.New("all bill identifiers in dust transfer orders must exist in transaction bill identifiers")
+	ErrSwapInvalidBillId             = goerrors.New("bill id is not properly computed")
+	ErrSwapDustTransfersInvalidOrder = goerrors.New("transfer orders are not listed in strictly increasing order of bill identifiers")
+	ErrSwapInvalidNonce              = goerrors.New("dust transfer orders do not contain proper nonce")
+	ErrSwapInvalidTargetBearer       = goerrors.New("dust transfer orders do not contain proper target bearer")
+	ErrInvalidProofType              = goerrors.New("invalid proof type")
 )
 
 func validateTransfer(data rma.UnitData, tx Transfer) error {

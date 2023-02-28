@@ -24,6 +24,7 @@ type (
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
 		GetMaxBlockNumber() (uint64, uint64, error)
+		GetFeeCreditBill(unitID []byte) (*Bill, error)
 	}
 
 	GenericWalletBackendHttpServer struct {

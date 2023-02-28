@@ -85,6 +85,13 @@ func (x *GenericBlock) ToProtobuf() *Block {
 	}
 }
 
+func (x *GenericBlock) GetRoundNumber() uint64 {
+	if x != nil {
+		return x.UnicityCertificate.GetRoundNumber()
+	}
+	return 0
+}
+
 func (x *GenericBlock) hashTransactions(hashAlgorithm crypto.Hash) []byte {
 	hasher := hashAlgorithm.New()
 	x.addTransactionsToHasher(hasher)

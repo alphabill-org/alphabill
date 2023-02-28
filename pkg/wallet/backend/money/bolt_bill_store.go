@@ -16,6 +16,7 @@ var (
 	predicatesBucket   = []byte("predicatesBucket")   // predicate => bucket[unitID]nil
 	metaBucket         = []byte("metaBucket")         // block_number_key => block_number_val
 	expiredBillsBucket = []byte("expiredBillsBucket") // block_number => list of expired bill ids
+	feeUnitsBucket     = []byte("feeUnitsBucket")     // unitID => unit_bytes (for free credit units)
 )
 
 var (
@@ -218,6 +219,31 @@ func (s *BoltBillStoreTx) SetBlockNumber(blockNumber uint64) error {
 	}, true)
 }
 
+func (s *BoltBillStoreTx) GetFeeCreditBill(unitID []byte) (*Bill, error) {
+	var b *Bill
+	err := s.withTx(s.tx, func(tx *bolt.Tx) error {
+		fcbBytes := tx.Bucket(feeUnitsBucket).Get(unitID)
+		if fcbBytes == nil {
+			return nil
+		}
+		return json.Unmarshal(fcbBytes, &b)
+	}, false)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (s *BoltBillStoreTx) SetFeeCreditBill(fcb *Bill) error {
+	return s.withTx(s.tx, func(tx *bolt.Tx) error {
+		fcbBytes, err := json.Marshal(fcb)
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(feeUnitsBucket).Put(fcb.Id, fcbBytes)
+	}, true)
+}
+
 func (s *BoltBillStoreTx) removeUnit(tx *bolt.Tx, unitID []byte) error {
 	unit, err := s.getUnit(tx, unitID)
 	if err != nil {
@@ -286,6 +312,10 @@ func (s *BoltBillStoreTx) withTx(dbTx *bolt.Tx, myFunc func(tx *bolt.Tx) error, 
 func (s *BoltBillStore) createBuckets() error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(unitsBucket)
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(feeUnitsBucket)
 		if err != nil {
 			return err
 		}

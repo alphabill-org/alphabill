@@ -8,14 +8,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -29,7 +28,7 @@ import (
 
 /*
 Example usage
-go run scripts/money/spend_initial_bill.go --pubkey 0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 100
+go run scripts/money/spend_initial_bill.go --pubkey 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 10
 */
 func main() {
 	// parse command line parameters
@@ -111,6 +110,7 @@ func main() {
 	}
 
 	// create addFC
+	transferFC.ServerMetadata = &txsystem.ServerMetadata{Fee: txFee} // add server metadata so that hash is correct
 	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
 	if err != nil {
 		log.Fatal(err)

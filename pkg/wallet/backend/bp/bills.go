@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"errors"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -89,7 +89,7 @@ func (x *Bill) parseTx(gtx txsystem.GenericTransaction) (uint64, bool, error) {
 }
 
 func ReadBillsFile(path string) (*Bills, error) {
-	b, err := ioutil.ReadFile(filepath.Clean(path))
+	b, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}
@@ -106,5 +106,5 @@ func WriteBillsFile(path string, res *Bills) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, b, 0600) // -rw-------
+	return os.WriteFile(path, b, 0600) // -rw-------
 }

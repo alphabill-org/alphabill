@@ -4,8 +4,6 @@ import (
 	gocrypto "crypto"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/util"
-
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/rma"
@@ -14,15 +12,18 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
+var feeCreditID = uint256.NewInt(420)
+
 func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
-	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	network, err := testpartition.NewNetwork(3, func(trustBase map[string]crypto.Verifier) txsystem.TransactionSystem {
-		system, err := New(WithTrustBase(trustBase))
+		system, err := New(WithTrustBase(trustBase), WithState(newStateWithFeeCredit(t, feeCreditID)))
 		require.NoError(t, err)
 		return system
 	}, DefaultTokenTxSystemIdentifier)
@@ -41,16 +42,21 @@ func TestInitPartitionAndCreateNFTType_Ok(t *testing.T) {
 				DataUpdatePredicate:      script.PredicateAlwaysTrue(),
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(tx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
 }
 
 func TestFungibleTokenTransactions_Ok(t *testing.T) {
-	t.SkipNow() // TODO AB-695 Add Fee Handling to UT Partition
 	var (
 		hashAlgorithm       = gocrypto.SHA256
-		states              []TokenState
+		states              []*rma.Tree
 		zeroID                     = util.Uint256ToBytes(uint256.NewInt(0))
 		fungibleTokenTypeID        = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 		fungibleTokenID1           = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
@@ -64,10 +70,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// setup network
 	network, err := testpartition.NewNetwork(3, func(tb map[string]crypto.Verifier) txsystem.TransactionSystem {
 		trustBase = tb
-		state, err := rma.New(&rma.Config{
-			HashAlgorithm: hashAlgorithm,
-		})
-		require.NoError(t, err)
+		state := newStateWithFeeCredit(t, feeCreditID)
 		system, err := New(WithState(state), WithTrustBase(tb))
 		require.NoError(t, err)
 		states = append(states, state)
@@ -91,6 +94,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				InvariantPredicate:       script.PredicateAlwaysTrue(),
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(createTypeTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(createTypeTx, network), test.WaitDuration*4, test.WaitTick)
@@ -118,6 +127,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				TokenCreationPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(mintTx))
 	gtx, err := txConverter.ConvertTx(mintTx)
@@ -146,6 +161,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(splitTx1))
 	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx1, network), test.WaitDuration, test.WaitTick)
@@ -182,6 +203,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(splitTx2))
 	require.Eventually(t, testpartition.BlockchainContainsTx(splitTx2, network), test.WaitDuration, test.WaitTick)
@@ -219,6 +246,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(transferTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferTx, network), test.WaitDuration, test.WaitTick)
@@ -247,6 +280,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(burnTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(burnTx, network), test.WaitDuration, test.WaitTick)
@@ -266,6 +305,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(burnTx2))
 	require.Eventually(t, testpartition.BlockchainContainsTx(burnTx2, network), test.WaitDuration, test.WaitTick)
@@ -293,6 +338,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 			},
 		),
+		testtransaction.WithFeeProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{
+			Timeout:           20,
+			MaxFee:            10,
+			FeeCreditRecordId: util.Uint256ToBytes(feeCreditID),
+		}),
 	)
 	require.NoError(t, network.BroadcastTx(joinTx))
 	require.Eventually(t, testpartition.BlockchainContainsTx(joinTx, network), test.WaitDuration, test.WaitTick)
@@ -313,6 +364,10 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		bearer:     script.PredicateAlwaysTrue(),
 		tokenValue: totalValue,
 	})
+
+	unit, err := state.GetUnit(feeCreditID)
+	require.NoError(t, err)
+	require.Equal(t, uint64(92), unit.Data.(*fc.FeeCreditRecord).Balance)
 }
 
 func verifyProof(t *testing.T, tx *txsystem.Transaction, network *testpartition.AlphabillPartition, trustBase map[string]crypto.Verifier, hashAlgorithm gocrypto.Hash) {
@@ -335,7 +390,7 @@ type fungibleTokenTypeUnitData struct {
 	tokenCreationPredicate, subTypeCreationPredicate, invariantPredicate []byte
 }
 
-func RequireFungibleTokenTypeState(t *testing.T, state TokenState, e fungibleTokenTypeUnitData) {
+func RequireFungibleTokenTypeState(t *testing.T, state *rma.Tree, e fungibleTokenTypeUnitData) {
 	t.Helper()
 	u, err := state.GetUnit(uint256.NewInt(0).SetBytes(e.unitID))
 	require.NoError(t, err)
@@ -351,7 +406,7 @@ func RequireFungibleTokenTypeState(t *testing.T, state TokenState, e fungibleTok
 	require.Equal(t, e.decimalPlaces, d.decimalPlaces)
 }
 
-func RequireFungibleTokenState(t *testing.T, state TokenState, e fungibleTokenUnitData) {
+func RequireFungibleTokenState(t *testing.T, state *rma.Tree, e fungibleTokenUnitData) {
 	t.Helper()
 	u, err := state.GetUnit(uint256.NewInt(0).SetBytes(e.unitID))
 	require.NoError(t, err)
@@ -362,4 +417,17 @@ func RequireFungibleTokenState(t *testing.T, state TokenState, e fungibleTokenUn
 	require.Equal(t, e.tokenValue, d.value)
 	require.Equal(t, e.backlink, d.backlink)
 	require.Equal(t, uint256.NewInt(0).SetBytes(e.typeUnitID), d.tokenType)
+}
+
+func newStateWithFeeCredit(t *testing.T, feeCreditID *uint256.Int) *rma.Tree {
+	state := rma.NewWithSHA256()
+	require.NoError(t, state.AtomicUpdate(
+		fc.AddCredit(feeCreditID, script.PredicateAlwaysTrue(), &fc.FeeCreditRecord{
+			Balance: 100,
+			Hash:    make([]byte, 32),
+			Timeout: 1000,
+		}, make([]byte, 32)),
+	))
+	state.Commit()
+	return state
 }

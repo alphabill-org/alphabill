@@ -1,4 +1,4 @@
-package validator
+package fc
 
 import (
 	"crypto"
@@ -11,8 +11,8 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +32,7 @@ func TestAddFC(t *testing.T) {
 	tests := []struct {
 		name        string
 		unit        *rma.Unit
-		tx          *fc.AddFeeCreditWrapper
+		tx          *transactions.AddFeeCreditWrapper
 		roundNumber uint64
 		wantErr     error
 		wantErrMsg  string
@@ -187,7 +187,7 @@ func TestAddFC(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateAddFC(&AddFCValidationContext{
+			err := validator.ValidateAddFeeCredit(&AddFCValidationContext{
 				Tx:                 tt.tx,
 				Unit:               tt.unit,
 				CurrentRoundNumber: tt.roundNumber,
@@ -213,19 +213,25 @@ func TestCloseFC(t *testing.T) {
 	tests := []struct {
 		name       string
 		unit       *rma.Unit
-		tx         *fc.CloseFeeCreditWrapper
+		tx         *transactions.CloseFeeCreditWrapper
 		wantErr    error
 		wantErrMsg string
 	}{
 		{
 			name:    "Ok",
-			unit:    &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			unit:    &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx:      testfc.NewCloseFC(t, nil),
 			wantErr: nil,
 		},
 		{
+			name:    "tx is nil",
+			unit:    &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
+			tx:      nil,
+			wantErr: ErrTxIsNil,
+		},
+		{
 			name: "RecordID exists",
-			unit: &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{FeeCreditRecordId: recordID}),
 			),
@@ -233,7 +239,7 @@ func TestCloseFC(t *testing.T) {
 		},
 		{
 			name: "Fee proof exists",
-			unit: &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithFeeProof(feeProof),
 			),
@@ -253,13 +259,13 @@ func TestCloseFC(t *testing.T) {
 		},
 		{
 			name:    "Invalid amount",
-			unit:    &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			unit:    &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx:      testfc.NewCloseFC(t, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51))),
 			wantErr: ErrCloseFCInvalidAmount,
 		},
 		{
 			name: "Invalid fee",
-			unit: &rma.Unit{Data: &txsystem.FeeCreditRecord{Balance: 50}},
+			unit: &rma.Unit{Data: &FeeCreditRecord{Balance: 50}},
 			tx: testfc.NewCloseFC(t, nil,
 				testtransaction.WithClientMetadata(&txsystem.ClientMetadata{MaxFee: 51}),
 			),

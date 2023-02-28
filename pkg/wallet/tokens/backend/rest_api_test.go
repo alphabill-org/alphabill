@@ -128,14 +128,9 @@ func Test_restAPI_postTransaction(t *testing.T) {
 	})
 
 	t.Run("one valid type-creation transaction is sent", func(t *testing.T) {
-		txsys, err := tokens.New()
-		if err != nil {
-			t.Fatalf("failed to create token tx system: %v", err)
-		}
-
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
-			convertTx: txsys.ConvertTx,
+			convertTx: tokens.NewGenericTx,
 			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return &txsystem.TransactionResponse{Ok: true}, nil
@@ -166,14 +161,9 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		message, err := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(txs)
 		require.NoError(t, err)
 
-		txsys, err := tokens.New()
-		if err != nil {
-			t.Fatalf("failed to create token tx system: %v", err)
-		}
-
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
-			convertTx: txsys.ConvertTx,
+			convertTx: tokens.NewGenericTx,
 			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return &txsystem.TransactionResponse{Ok: true}, nil

@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	moneytx "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 

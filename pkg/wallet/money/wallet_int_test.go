@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -282,7 +284,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	_, _, _ = w.AddAccount()
 
 	// create fee credit for initial bill transfer
-	txFee := moneytx.TxFeeFunc()
+	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
@@ -388,11 +390,11 @@ func sendToAccount(t *testing.T, w *Wallet, amount, fromAccount, toAccount uint6
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
-			crypto.SHA256,
-			initialBill,
-			createSDRs(2),
-			10000,
-			moneytx.SchemeOpts.TrustBase(tb),
+			[]byte{0, 0, 0, 0},
+			moneytx.WithInitialBill(initialBill),
+			moneytx.WithSystemDescriptionRecords(createSDRs(2)),
+			moneytx.WithDCMoneyAmount(10000),
+			moneytx.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
@@ -439,11 +441,11 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout:           timeout,
-			MaxFee:            moneytx.TxFeeFunc(),
+			MaxFee:            1,
 			FeeCreditRecordId: util.Uint256ToBytes(testmoney.FCRID),
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,

@@ -17,6 +17,7 @@ import (
 	testmoney "github.com/alphabill-org/alphabill/internal/testutils/money"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -170,7 +171,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	w2.Shutdown()
 
 	// create fee credit for initial bill transfer
-	txFee := moneytx.TxFeeFunc()
+	txFee := uint64(1)
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
@@ -264,7 +265,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	pubKey3Hex := addAccount(t, homedir)
 
 	// create fee credit for initial bill transfer
-	txFee := moneytx.TxFeeFunc()
+	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
@@ -352,7 +353,7 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 	w.Shutdown()
 
 	// create fee credit for initial bill transfer
-	txFee := moneytx.TxFeeFunc()
+	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
@@ -398,7 +399,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	pubKey2Hex := addAccount(t, homedir)
 
 	// create fee credit for initial bill transfer
-	txFee := moneytx.TxFeeFunc()
+	txFee := fc.FixedFee(1)()
 	fcrAmount := testmoney.FCRAmount
 	transferFC := testmoney.CreateFeeCredit(t, util.Uint256ToBytes(initialBill.ID), network)
 	initialBillBacklink := transferFC.Hash(crypto.SHA256)
@@ -455,9 +456,10 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(
-			crypto.SHA256,
-			initialBill,
-			[]*genesis.SystemDescriptionRecord{
+			defaultABMoneySystemIdentifier,
+			moneytx.WithHashAlgorithm(crypto.SHA256),
+			moneytx.WithInitialBill(initialBill),
+			moneytx.WithSystemDescriptionRecords([]*genesis.SystemDescriptionRecord{
 				{
 					SystemIdentifier: defaultABMoneySystemIdentifier,
 					T2Timeout:        defaultT2Timeout,
@@ -466,9 +468,10 @@ func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *te
 						OwnerPredicate: script.PredicateAlwaysTrue(),
 					},
 				},
-			},
-			10000,
-			moneytx.SchemeOpts.TrustBase(tb),
+			}),
+			moneytx.WithFeeCalculator(fc.FixedFee(1)),
+			moneytx.WithDCMoneyAmount(10000),
+			moneytx.WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
@@ -546,11 +549,11 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout:           timeout,
-			MaxFee:            moneytx.TxFeeFunc(),
+			MaxFee:            1,
 			FeeCreditRecordId: util.Uint256ToBytes(testmoney.FCRID),
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,

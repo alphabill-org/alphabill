@@ -18,7 +18,7 @@ var (
 )
 
 func TestTxRecording(t *testing.T) {
-	f := newFeeCreditTxRecorder()
+	f := newFeeCreditTxRecorder(nil, nil, nil)
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
 
 	transferFCAmount := uint64(10)

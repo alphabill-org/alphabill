@@ -8,9 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	moneytx "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	txverifier "github.com/alphabill-org/alphabill/pkg/wallet/money/tx_verifier"
 )

@@ -7,8 +7,8 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/util"
+	moneytx "github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/holiman/uint256"
 )
 
@@ -104,21 +104,21 @@ func createProof(unitID []byte, tx *txsystem.Transaction, b *block.Block, txc *T
 	return NewBlockProof(tx, proof, b.UnicityCertificate.InputRecord.RoundNumber)
 }
 
-func getTxHash(b *Bill) []byte {
+func (b *Bill) getTxHash() []byte {
 	if b != nil {
 		return b.TxHash
 	}
 	return nil
 }
 
-func getValue(b *Bill) uint64 {
+func (b *Bill) getValue() uint64 {
 	if b != nil {
 		return b.Value
 	}
 	return 0
 }
 
-func getFCBlockNumber(b *Bill) uint64 {
+func (b *Bill) getFCBlockNumber() uint64 {
 	if b != nil {
 		return b.FCBlockNumber
 	}

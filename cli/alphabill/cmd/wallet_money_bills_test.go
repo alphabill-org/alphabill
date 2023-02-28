@@ -14,9 +14,11 @@ import (
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -133,10 +135,10 @@ func TestWalletBillsImportCmd(t *testing.T) {
 	require.ErrorContains(t, err, "required flag(s) \"bill-file\", \"trust-base-file\" not set")
 
 	// test invalid block proof cannot be imported
-	billsFile, _ := moneytx.ReadBillsFile(billsFilePath)
+	billsFile, _ := bp.ReadBillsFile(billsFilePath)
 	billsFile.Bills[0].TxProof.Proof.BlockHeaderHash = make([]byte, 32)
 	invalidBillsFilePath := path.Join(homedir, "invalid-bills.json")
-	_ = moneytx.WriteBillsFile(invalidBillsFilePath, billsFile)
+	_ = bp.WriteBillsFile(invalidBillsFilePath, billsFile)
 
 	_, err = execBillsCommand(homedir, fmt.Sprintf("import --bill-file=%s --trust-base-file=%s", invalidBillsFilePath, trustBaseFilePath))
 	require.ErrorContains(t, err, "proof verification failed")
@@ -195,7 +197,7 @@ func setupInfra(t *testing.T) (string, *testpartition.AlphabillPartition) {
 	return homedir, network
 }
 
-func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) {
+func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, initialBill *moneytx.InitialBill) uint64 {
 	pubkey := "0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3"
 	pubkeyBytes, _ := hexutil.Decode(pubkey)
 	pubkeyHash := hash.Sum256(pubkeyBytes)
@@ -215,6 +217,11 @@ func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, i
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferFC, network), test.WaitDuration, test.WaitTick)
 	transferFCProof := getBlockProof(t, transferFC, network)
 
+	// verify proof
+	gtx, err := moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, transferFC)
+	require.NoError(t, err)
+	require.NoError(t, transferFCProof.Verify(unitID, gtx, network.TrustBase, crypto.SHA256))
+
 	// create addFC
 	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
 	require.NoError(t, err)
@@ -224,14 +231,18 @@ func spendInitialBill(t *testing.T, network *testpartition.AlphabillPartition, i
 	require.Eventually(t, testpartition.BlockchainContainsTx(addFC, network), test.WaitDuration, test.WaitTick)
 
 	// create transfer tx
-	transferFCWrapper, err := fc.NewFeeCreditTx(transferFC)
+	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
 	require.NoError(t, err)
-	tx, err := createTransferTx(pubkeyBytes, unitID, initialBill.Value-feeAmount-txFee, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
+	remainingValue := initialBill.Value - feeAmount - txFee
+	tx, err := createTransferTx(pubkeyBytes, unitID, remainingValue, fcrID, absoluteTimeout, transferFCWrapper.Hash(crypto.SHA256))
 	require.NoError(t, err)
+
 	// send transfer tx
 	err = network.SubmitTx(tx)
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(tx, network), test.WaitDuration, test.WaitTick)
+
+	return remainingValue
 }
 
 func createTransferTx(pubKey []byte, billId []byte, billValue uint64, fcrID []byte, timeout uint64, backlink []byte) (*txsystem.Transaction, error) {
@@ -246,7 +257,7 @@ func createTransferTx(pubKey []byte, billId []byte, billValue uint64, fcrID []by
 			FeeCreditRecordId: fcrID,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &moneytx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
@@ -265,10 +276,10 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 		OwnerProof:            script.PredicateArgumentEmpty(),
 		ClientMetadata: &txsystem.ClientMetadata{
 			Timeout: t2,
-			MaxFee:  1,
+			MaxFee:  fc.FixedFee(1)(),
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &fc.TransferFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditAttributes{
 		Amount:                 feeAmount,
 		TargetSystemIdentifier: []byte{0, 0, 0, 0},
 		TargetRecordId:         targetUnitID,
@@ -292,7 +303,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Tran
 			MaxFee:  maxFee,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &fc.AddFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
 		FeeCreditTransfer:       transferFC,
 		FeeCreditTransferProof:  transferFCProof,
 		FeeCreditOwnerCondition: ownerCondition,

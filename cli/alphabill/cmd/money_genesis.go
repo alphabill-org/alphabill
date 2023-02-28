@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
@@ -110,11 +111,12 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return err
 	}
 	txSystem, err := money.NewMoneyTxSystem(
-		crypto.SHA256,
-		ib,
-		sdrs,
-		config.DCMoneySupplyValue,
-		money.SchemeOpts.SystemIdentifier(config.SystemIdentifier),
+		config.SystemIdentifier,
+		money.WithHashAlgorithm(crypto.SHA256),
+		money.WithInitialBill(ib),
+		money.WithSystemDescriptionRecords(sdrs),
+		money.WithDCMoneyAmount(config.DCMoneySupplyValue),
+		money.WithTrustBase(map[string]abcrypto.Verifier{"genesis": nil}),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create money tx system: %w", err)

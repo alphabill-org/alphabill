@@ -9,7 +9,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	utiltx "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -56,14 +56,14 @@ func TestWrapper_InterfaceAssertion(t *testing.T) {
 	// If a transfer with exactly same fields would be added, then the switch will find the first one.
 	// Not a problem at the moment.
 	switch w := genericTx.(type) {
-	case Transfer:
+	case *transferWrapper:
 		assert.Equal(t, pbTransaction.Timeout(), w.Timeout())
 		assert.Equal(t, pbBillTransfer.NewBearer, w.NewBearer())
 		assert.Equal(t, pbBillTransfer.Backlink, w.Backlink())
 		assert.Equal(t, pbBillTransfer.TargetValue, w.TargetValue())
 		hashValue2 := w.Hash(crypto.SHA256)
 		assert.Equal(t, hashValue1, hashValue2)
-	case TransferDC:
+	case *transferDCWrapper:
 		require.Fail(t, "Should not be transferDC")
 	default:
 		require.Fail(t, "Should find the correct type")
@@ -77,7 +77,7 @@ func TestWrapper_Transfer(t *testing.T) {
 	)
 	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
-	transfer, ok := genericTx.(Transfer)
+	transfer, ok := genericTx.(*transferWrapper)
 	require.True(t, ok)
 
 	assert.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitID())
@@ -100,7 +100,7 @@ func TestWrapper_TransferDC(t *testing.T) {
 	)
 	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
-	transfer, ok := genericTx.(TransferDC)
+	transfer, ok := genericTx.(*transferDCWrapper)
 	require.True(t, ok)
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
 
@@ -116,7 +116,7 @@ func TestWrapper_Split(t *testing.T) {
 	)
 	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
-	split, ok := genericTx.(Split)
+	split, ok := genericTx.(*billSplitWrapper)
 	require.True(t, ok)
 
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
@@ -169,7 +169,7 @@ func TestWrapper_Swap(t *testing.T) {
 	)
 	genericTx, err := NewMoneyTx(systemIdentifier, pbTransaction)
 	require.NoError(t, err)
-	swap, ok := genericTx.(Swap)
+	swap, ok := genericTx.(*swapDCWrapper)
 	require.True(t, ok)
 
 	assert.NotNil(t, genericTx.Hash(crypto.SHA256))
@@ -194,7 +194,7 @@ func TestWrapper_Swap(t *testing.T) {
 }
 
 func TestWrapper_TransferFC(t *testing.T) {
-	transferFCOrder := &fc.TransferFeeCreditOrder{
+	transferFCAttributes := &transactions.TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: systemID,
 		TargetRecordId:         recordID,
@@ -203,12 +203,12 @@ func TestWrapper_TransferFC(t *testing.T) {
 		Nonce:                  nonce,
 		Backlink:               backlink,
 	}
-	transferFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, transferFCOrder)
+	transferFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, transferFCAttributes)
 	genericTransferFC, err := NewMoneyTx(systemID, transferFCTx)
 	require.NoError(t, err)
 	require.NotNil(t, genericTransferFC)
 
-	transferFCWrapper, ok := genericTransferFC.(*fc.TransferFeeCreditWrapper)
+	transferFCWrapper, ok := genericTransferFC.(*transactions.TransferFeeCreditWrapper)
 	require.True(t, ok)
 
 	assert.Equal(t, toUint256(transferFCTx.UnitId), transferFCWrapper.UnitID())
@@ -216,52 +216,52 @@ func TestWrapper_TransferFC(t *testing.T) {
 	assert.Equal(t, transferFCTx.OwnerProof, transferFCWrapper.OwnerProof())
 	assert.Equal(t, transferFCTx.Timeout(), transferFCWrapper.Timeout())
 
-	assert.Equal(t, transferFCOrder.Amount, transferFCWrapper.TransferFC.Amount)
-	assert.Equal(t, transferFCOrder.TargetSystemIdentifier, transferFCWrapper.TransferFC.TargetSystemIdentifier)
-	assert.Equal(t, transferFCOrder.TargetRecordId, transferFCWrapper.TransferFC.TargetRecordId)
-	assert.Equal(t, transferFCOrder.EarliestAdditionTime, transferFCWrapper.TransferFC.EarliestAdditionTime)
-	assert.Equal(t, transferFCOrder.LatestAdditionTime, transferFCWrapper.TransferFC.LatestAdditionTime)
-	assert.Equal(t, transferFCOrder.Nonce, transferFCWrapper.TransferFC.Nonce)
-	assert.Equal(t, transferFCOrder.Backlink, transferFCWrapper.TransferFC.Backlink)
+	assert.Equal(t, transferFCAttributes.Amount, transferFCWrapper.TransferFC.Amount)
+	assert.Equal(t, transferFCAttributes.TargetSystemIdentifier, transferFCWrapper.TransferFC.TargetSystemIdentifier)
+	assert.Equal(t, transferFCAttributes.TargetRecordId, transferFCWrapper.TransferFC.TargetRecordId)
+	assert.Equal(t, transferFCAttributes.EarliestAdditionTime, transferFCWrapper.TransferFC.EarliestAdditionTime)
+	assert.Equal(t, transferFCAttributes.LatestAdditionTime, transferFCWrapper.TransferFC.LatestAdditionTime)
+	assert.Equal(t, transferFCAttributes.Nonce, transferFCWrapper.TransferFC.Nonce)
+	assert.Equal(t, transferFCAttributes.Backlink, transferFCWrapper.TransferFC.Backlink)
 }
 
 func TestWrapper_AddFC(t *testing.T) {
-	transferFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, &fc.TransferFeeCreditOrder{})
-	addFCOrder := &fc.AddFeeCreditOrder{FeeCreditOwnerCondition: ownerCondition, FeeCreditTransfer: transferFCTx}
+	transferFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, &transactions.TransferFeeCreditAttributes{})
+	addFCOrder := &transactions.AddFeeCreditAttributes{FeeCreditOwnerCondition: ownerCondition, FeeCreditTransfer: transferFCTx}
 	addFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, addFCOrder)
 	genericAddFC, err := NewMoneyTx(systemID, addFCTx)
 	require.NoError(t, err)
 	require.NotNil(t, genericAddFC)
 
-	addFCWrapper, ok := genericAddFC.(*fc.AddFeeCreditWrapper)
+	addFCWrapper, ok := genericAddFC.(*transactions.AddFeeCreditWrapper)
 	require.True(t, ok)
 	require.NotNil(t, addFCWrapper)
 	require.Equal(t, ownerCondition, addFCWrapper.AddFC.FeeCreditOwnerCondition)
 }
 
 func TestWrapper_CloseFC(t *testing.T) {
-	closeFCOrder := &fc.CloseFeeCreditOrder{Amount: amount}
+	closeFCOrder := &transactions.CloseFeeCreditAttributes{Amount: amount}
 	closeFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, closeFCOrder)
 	genericCloseFC, err := NewMoneyTx(systemID, closeFCTx)
 	require.NoError(t, err)
 	require.NotNil(t, genericCloseFC)
 
-	closeFCWrapper, ok := genericCloseFC.(*fc.CloseFeeCreditWrapper)
+	closeFCWrapper, ok := genericCloseFC.(*transactions.CloseFeeCreditWrapper)
 	require.True(t, ok)
 	require.NotNil(t, closeFCWrapper)
 	require.Equal(t, amount, closeFCWrapper.CloseFC.Amount)
 }
 
 func TestWrapper_ReclaimFC(t *testing.T) {
-	closeFCOrder := &fc.CloseFeeCreditOrder{}
+	closeFCOrder := &transactions.CloseFeeCreditAttributes{}
 	closeFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, closeFCOrder)
-	reclaimFCOrder := &fc.ReclaimFeeCreditOrder{Backlink: backlink, CloseFeeCreditTransfer: closeFCTx}
+	reclaimFCOrder := &transactions.ReclaimFeeCreditAttributes{Backlink: backlink, CloseFeeCreditTransfer: closeFCTx}
 	reclaimFCTx := newPBTransactionOrder(test.RandomBytes(32), []byte{1}, 500, reclaimFCOrder)
 	genericReclaimFC, err := NewMoneyTx(systemID, reclaimFCTx)
 	require.NoError(t, err)
 	require.NotNil(t, genericReclaimFC)
 
-	reclaimFCWrapper, ok := genericReclaimFC.(*fc.ReclaimFeeCreditWrapper)
+	reclaimFCWrapper, ok := genericReclaimFC.(*transactions.ReclaimFeeCreditWrapper)
 	require.True(t, ok)
 	require.NotNil(t, reclaimFCWrapper)
 	require.Equal(t, backlink, reclaimFCWrapper.ReclaimFC.Backlink)
@@ -379,7 +379,7 @@ func TestSwapTx_SigBytesIsCalculatedCorrectly(t *testing.T) {
 }
 
 // requireTransferDCEquals compares protobuf object fields and the state.TransferDC corresponding getters to be equal.
-func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDCOrder, pbTransaction *txsystem.Transaction, transfer TransferDC) {
+func requireTransferDCEquals(t *testing.T, pbTransferDC *TransferDCAttributes, pbTransaction *txsystem.Transaction, transfer *transferDCWrapper) {
 	assert.Equal(t, pbTransaction.SystemId, transfer.SystemID())
 	require.Equal(t, toUint256(pbTransaction.UnitId), transfer.UnitID())
 	require.Equal(t, pbTransaction.OwnerProof, transfer.OwnerProof())
@@ -408,16 +408,16 @@ func newPBTransactionOrder(id, ownerProof []byte, timeout uint64, attr proto.Mes
 	return to
 }
 
-func newPBBillTransfer(newBearer []byte, targetValue uint64, backlink []byte) *TransferOrder {
-	return &TransferOrder{
+func newPBBillTransfer(newBearer []byte, targetValue uint64, backlink []byte) *TransferAttributes {
+	return &TransferAttributes{
 		NewBearer:   newBearer,
 		TargetValue: targetValue,
 		Backlink:    backlink,
 	}
 }
 
-func newPBTransferDC(nonce, targetBearer []byte, targetValue uint64, backlink []byte) *TransferDCOrder {
-	return &TransferDCOrder{
+func newPBTransferDC(nonce, targetBearer []byte, targetValue uint64, backlink []byte) *TransferDCAttributes {
+	return &TransferDCAttributes{
 		Nonce:        nonce,
 		TargetBearer: targetBearer,
 		TargetValue:  targetValue,
@@ -425,8 +425,8 @@ func newPBTransferDC(nonce, targetBearer []byte, targetValue uint64, backlink []
 	}
 }
 
-func newPBBillSplit(amount uint64, targetBearer []byte, remainingValue uint64, backlink []byte) *SplitOrder {
-	return &SplitOrder{
+func newPBBillSplit(amount uint64, targetBearer []byte, remainingValue uint64, backlink []byte) *SplitAttributes {
+	return &SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   targetBearer,
 		RemainingValue: remainingValue,
@@ -434,8 +434,8 @@ func newPBBillSplit(amount uint64, targetBearer []byte, remainingValue uint64, b
 	}
 }
 
-func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*txsystem.Transaction, proofs []*block.BlockProof, targetValue uint64) *SwapOrder {
-	return &SwapOrder{
+func newPBSwap(ownerCondition []byte, billIdentifiers [][]byte, dcTransfers []*txsystem.Transaction, proofs []*block.BlockProof, targetValue uint64) *SwapDCAttributes {
+	return &SwapDCAttributes{
 		OwnerCondition:  ownerCondition,
 		BillIdentifiers: billIdentifiers,
 		DcTransfers:     dcTransfers,
@@ -454,7 +454,7 @@ func createTransferTxOrder(t *testing.T) txsystem.GenericTransaction {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
-		testtransaction.WithAttributes(&TransferOrder{
+		testtransaction.WithAttributes(&TransferAttributes{
 			NewBearer:   newBearer,
 			TargetValue: targetValue,
 			Backlink:    backlink,
@@ -468,7 +468,7 @@ func createTransferDCTxOrder(t *testing.T) txsystem.GenericTransaction {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
-		testtransaction.WithAttributes(&TransferDCOrder{
+		testtransaction.WithAttributes(&TransferDCAttributes{
 			Nonce:        nonce,
 			TargetBearer: targetBearer,
 			TargetValue:  targetValue,
@@ -483,7 +483,7 @@ func createSplitTxOrder(t *testing.T) txsystem.GenericTransaction {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
 		testtransaction.WithOwnerProof(ownerProof),
-		testtransaction.WithAttributes(&SplitOrder{
+		testtransaction.WithAttributes(&SplitAttributes{
 			Amount:         amount,
 			TargetBearer:   targetBearer,
 			RemainingValue: remainingValue,
@@ -497,7 +497,7 @@ func createSwapTxOrder(t *testing.T, dcTransfers []*txsystem.Transaction, dcTran
 		testtransaction.WithSystemID(systemID),
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithClientMetadata(&txsystem.ClientMetadata{Timeout: timeout}),
-		testtransaction.WithAttributes(&SwapOrder{
+		testtransaction.WithAttributes(&SwapDCAttributes{
 			OwnerCondition:  ownerCondition,
 			BillIdentifiers: billIdentifiers,
 			DcTransfers:     dcTransfers,

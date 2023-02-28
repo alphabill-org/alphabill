@@ -7,8 +7,8 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
 	testfc "github.com/alphabill-org/alphabill/internal/txsystem/fc/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ var (
 )
 
 // CreateFeeCredit creates fee credit to be able to spend initial bill
-func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.AlphabillPartition) *fc.TransferFeeCreditWrapper {
+func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.AlphabillPartition) *transactions.TransferFeeCreditWrapper {
 	// send transferFC
 	fcrIDBytes := FCRID.Bytes32()
 	transferFC := testfc.NewTransferFC(t,
@@ -36,7 +36,7 @@ func CreateFeeCredit(t *testing.T, initialBillID []byte, network *testpartition.
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferFC.Transaction, network), test.WaitDuration, test.WaitTick)
 
 	// send addFC
-	_, transferFCProof, err := network.GetBlockProof(transferFC.Transaction, fc.NewFeeCreditTx)
+	_, transferFCProof, err := network.GetBlockProof(transferFC.Transaction, transactions.NewFeeCreditTx)
 	require.NoError(t, err)
 	addFC := testfc.NewAddFC(t, network.RootSigner,
 		testfc.NewAddFCAttr(t, network.RootSigner,

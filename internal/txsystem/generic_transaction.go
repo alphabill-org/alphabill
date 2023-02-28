@@ -3,10 +3,10 @@ package txsystem
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"hash"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
 )

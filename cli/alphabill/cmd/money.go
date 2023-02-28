@@ -82,12 +82,12 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	}
 
 	txs, err := money.NewMoneyTxSystem(
-		crypto.SHA256,
-		ib,
-		params.SystemDescriptionRecords,
-		params.DcMoneySupplyValue,
-		money.SchemeOpts.SystemIdentifier(pg.GetSystemDescriptionRecord().GetSystemIdentifier()),
-		money.SchemeOpts.TrustBase(trustBase),
+		pg.GetSystemDescriptionRecord().GetSystemIdentifier(),
+		money.WithHashAlgorithm(crypto.SHA256),
+		money.WithInitialBill(ib),
+		money.WithSystemDescriptionRecords(params.SystemDescriptionRecords),
+		money.WithDCMoneyAmount(params.DcMoneySupplyValue),
+		money.WithTrustBase(trustBase),
 	)
 	if err != nil {
 		return errors.Wrapf(err, "failed to start money transaction system")

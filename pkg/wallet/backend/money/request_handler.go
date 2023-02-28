@@ -8,7 +8,8 @@ import (
 	"sort"
 	"strconv"
 
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -90,6 +91,7 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
+	apiV1.HandleFunc("/fee-credit-bill", s.getFeeCreditBillFunc).Methods("GET", "OPTIONS")
 
 	return router
 }
@@ -169,7 +171,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @version 1.0
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} block.Bills
+// @Success 200 {object} bp.Bills
 // @Router /proof [get]
 func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	billID, err := parseBillID(r)
@@ -213,12 +215,12 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 	}
 }
 
-func (s *RequestHandler) readBillsProto(r *http.Request) (*moneytx.Bills, error) {
+func (s *RequestHandler) readBillsProto(r *http.Request) (*bp.Bills, error) {
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
-	req := &moneytx.Bills{}
+	req := &bp.Bills{}
 	err = protojson.Unmarshal(b, req)
 	if err != nil {
 		return nil, err
@@ -240,6 +242,40 @@ func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request)
 	} else {
 		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber})
 	}
+}
+
+// @Summary Get Fee Credit Bill
+// @Id 5
+// @version 1.0
+// @produce application/json
+// @Param bill_id query string true "ID of the bill (hex)"
+// @Success 200 {object} bp.Bill
+// @Router /fee-credit-bill [get]
+func (s *RequestHandler) getFeeCreditBillFunc(w http.ResponseWriter, r *http.Request) {
+	billID, err := parseBillID(r)
+	if err != nil {
+		log.Debug("error parsing GET /fee-credit-bill request: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		if errors.Is(err, errMissingBillIDQueryParam) || errors.Is(err, errInvalidBillIDLength) {
+			writeAsJson(w, ErrorResponse{Message: err.Error()})
+		} else {
+			writeAsJson(w, ErrorResponse{Message: "invalid bill_id format"})
+		}
+		return
+	}
+	fcb, err := s.Service.GetFeeCreditBill(billID)
+	if err != nil {
+		log.Error("error on GET /fee-credit-bill: ", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if fcb == nil {
+		log.Debug("error on GET /fee-credit-bill: ", err)
+		w.WriteHeader(http.StatusBadRequest)
+		writeAsJson(w, ErrorResponse{Message: "fee credit bill does not exist"})
+		return
+	}
+	writeAsProtoJson(w, fcb.toProto())
 }
 
 func (s *RequestHandler) parsePagingParams(r *http.Request) (int, int) {

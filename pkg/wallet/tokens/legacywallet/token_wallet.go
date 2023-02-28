@@ -46,11 +46,7 @@ func Load(dir string, abConf client.AlphabillClientConfig, am account.Manager, s
 	if err != nil {
 		return nil, err
 	}
-	txs, err := tokens.New()
-	if err != nil {
-		return nil, err
-	}
-	w := &Wallet{am: am, db: db, txs: txs, sync: sync, blockListener: nil}
+	w := &Wallet{am: am, db: db, txs: block.TxConverterFunc(tokens.NewGenericTx), sync: sync, blockListener: nil}
 	w.sdk = wallet.New().
 		SetBlockProcessor(w).
 		SetABClientConf(abConf).

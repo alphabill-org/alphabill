@@ -18,11 +18,19 @@ import (
 )
 
 func RandomGenericBillTransfer(t *testing.T) txsystem.GenericTransaction {
-	return testtransaction.NewGenericTransaction(t, ConvertNewGenericMoneyTx, testtransaction.WithAttributes(&moneytx.TransferOrder{
-		NewBearer: testtransaction.RandomBytes(3),
+	return NewTransferTx(t,
 		// #nosec G404
-		TargetValue: rand.Uint64(),
-		Backlink:    testtransaction.RandomBytes(3),
+		rand.Uint64(),
+		testtransaction.RandomBytes(3),
+		testtransaction.RandomBytes(3),
+	)
+}
+
+func NewTransferTx(t *testing.T, targetValue uint64, bearer, backlink []byte) txsystem.GenericTransaction {
+	return testtransaction.NewGenericTransaction(t, ConvertNewGenericMoneyTx, testtransaction.WithAttributes(&moneytx.TransferAttributes{
+		NewBearer:   bearer,
+		TargetValue: targetValue,
+		Backlink:    backlink,
 	}))
 }
 
@@ -39,7 +47,7 @@ func RandomBillSplit(t *testing.T) *txsystem.Transaction {
 }
 
 func CreateBillTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&moneytx.TransferOrder{
+	tx, _ := anypb.New(&moneytx.TransferAttributes{
 		TargetValue: 100,
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		Backlink:    hash.Sum256([]byte{}),
@@ -48,7 +56,7 @@ func CreateBillTransferTx(pubKeyHash []byte) *anypb.Any {
 }
 
 func CreateDustTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&moneytx.TransferDCOrder{
+	tx, _ := anypb.New(&moneytx.TransferDCAttributes{
 		TargetValue:  100,
 		TargetBearer: script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		Backlink:     hash.Sum256([]byte{}),
@@ -57,7 +65,7 @@ func CreateDustTransferTx(pubKeyHash []byte) *anypb.Any {
 }
 
 func CreateBillSplitTx(pubKeyHash []byte, amount uint64, remainingValue uint64) *anypb.Any {
-	tx, _ := anypb.New(&moneytx.SplitOrder{
+	tx, _ := anypb.New(&moneytx.SplitAttributes{
 		Amount:         amount,
 		TargetBearer:   script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		RemainingValue: remainingValue,
@@ -82,7 +90,7 @@ func CreateRandomDustTransferTx() *anypb.Any {
 }
 
 func CreateRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
-	tx, _ := anypb.New(&moneytx.SwapOrder{
+	tx, _ := anypb.New(&moneytx.SwapDCAttributes{
 		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(pubKeyHash),
 		BillIdentifiers: [][]byte{},
 		DcTransfers:     []*txsystem.Transaction{},
@@ -92,8 +100,8 @@ func CreateRandomSwapTransferTx(pubKeyHash []byte) *anypb.Any {
 	return tx
 }
 
-func RandomTransferDCAttributes() *moneytx.TransferDCOrder {
-	return &moneytx.TransferDCOrder{
+func RandomTransferDCAttributes() *moneytx.TransferDCAttributes {
+	return &moneytx.TransferDCAttributes{
 		TargetBearer: script.PredicateAlwaysTrue(),
 		Backlink:     hash.Sum256([]byte{}),
 		Nonce:        hash.Sum256([]byte{}),
@@ -101,8 +109,8 @@ func RandomTransferDCAttributes() *moneytx.TransferDCOrder {
 	}
 }
 
-func RandomSplitAttributes() *moneytx.SplitOrder {
-	return &moneytx.SplitOrder{
+func RandomSplitAttributes() *moneytx.SplitAttributes {
+	return &moneytx.SplitAttributes{
 		// #nosec G404
 		Amount:       rand.Uint64(),
 		TargetBearer: testtransaction.RandomBytes(3),
@@ -112,8 +120,8 @@ func RandomSplitAttributes() *moneytx.SplitOrder {
 	}
 }
 
-func RandomTransferAttributes() *moneytx.TransferOrder {
-	return &moneytx.TransferOrder{
+func RandomTransferAttributes() *moneytx.TransferAttributes {
+	return &moneytx.TransferAttributes{
 		NewBearer: testtransaction.RandomBytes(3),
 		// #nosec G404
 		TargetValue: rand.Uint64(),
@@ -121,9 +129,9 @@ func RandomTransferAttributes() *moneytx.TransferOrder {
 	}
 }
 
-func CreateRandomSwapAttributes(t *testing.T, txCount int) *moneytx.SwapOrder {
+func CreateRandomSwapDCAttributes(t *testing.T, txCount int) *moneytx.SwapDCAttributes {
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	swap := &moneytx.SwapOrder{
+	swap := &moneytx.SwapDCAttributes{
 		OwnerCondition: script.PredicatePayToPublicKeyHashDefault(test.RandomBytes(32)),
 		TargetValue:    100,
 	}

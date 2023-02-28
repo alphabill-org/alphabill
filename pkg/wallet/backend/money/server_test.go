@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/bp"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/stretchr/testify/require"
@@ -20,40 +21,6 @@ const (
 	pubkeyHex = "0x000000000000000000000000000000000000000000000000000000000000000000"
 	billId    = "0x0000000000000000000000000000000000000000000000000000000000000001"
 )
-
-type (
-	option func(service *WalletBackend) error
-)
-
-func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
-	service := createWalletBackend(t, &clientmock.MockAlphabillClient{})
-	for _, o := range options {
-		err := o(service)
-		require.NoError(t, err)
-	}
-	return service
-}
-
-func withBills(bills ...*Bill) option {
-	return func(s *WalletBackend) error {
-		return s.store.WithTransaction(func(tx BillStoreTx) error {
-			for _, bill := range bills {
-				err := tx.SetBill(bill)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-	}
-}
-
-func withABClient(client client.ABClient) option {
-	return func(s *WalletBackend) error {
-		s.genericWallet.AlphabillClient = client
-		return nil
-	}
-}
 
 func TestListBillsRequest_Ok(t *testing.T) {
 	expectedBill := &Bill{
@@ -276,7 +243,7 @@ func TestProofRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t, withBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &moneytx.Bills{}
+	response := &bp.Bills{}
 	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
@@ -363,6 +330,138 @@ func TestInvalidUrl_NotFound(t *testing.T) {
 	httpRes, err = http.Get(fmt.Sprintf("http://localhost:%d/api/v5/list-bills", port))
 	require.NoError(t, err)
 	require.Equal(t, 404, httpRes.StatusCode)
+}
+
+func TestGetFeeCreditBillRequest_Ok(t *testing.T) {
+	b := &Bill{
+		Id:             newUnitID(1),
+		Value:          1,
+		TxHash:         []byte{0},
+		OwnerPredicate: getOwnerPredicate(pubkeyHex),
+		FCBlockNumber:  1,
+		TxProof: &TxProof{
+			BlockNumber: 1,
+			Tx:          testtransaction.NewTransaction(t),
+			Proof: &block.BlockProof{
+				BlockHeaderHash: []byte{0},
+				BlockTreeHashChain: &block.BlockTreeHashChain{
+					Items: []*block.ChainItem{{Val: []byte{0}, Hash: []byte{0}}},
+				},
+			},
+		},
+	}
+	walletBackend := newWalletBackend(t, withFeeCreditBills(b))
+	port := startServer(t, walletBackend)
+
+	response := &bp.Bill{}
+	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), response)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, httpRes.StatusCode)
+	require.Equal(t, b.Id, response.Id)
+	require.Equal(t, b.Value, response.Value)
+	require.Equal(t, b.TxHash, response.TxHash)
+	require.Equal(t, b.IsDCBill, response.IsDcBill)
+	require.Equal(t, b.FCBlockNumber, response.FcBlockNumber)
+
+	ep := b.TxProof
+	ap := response.TxProof
+	require.Equal(t, ep.BlockNumber, ap.BlockNumber)
+	require.EqualValues(t, ep.Tx.UnitId, ap.Tx.UnitId)
+	require.EqualValues(t, ep.Proof.BlockHeaderHash, ap.Proof.BlockHeaderHash)
+}
+
+func TestGetFeeCreditBillRequest_MissingBillId(t *testing.T) {
+	port := startServer(t, newWalletBackend(t))
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill", port), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, "missing required bill_id query parameter", res.Message)
+}
+
+func TestGetFeeCreditBillRequest_InvalidBillIdLength(t *testing.T) {
+	port := startServer(t, newWalletBackend(t))
+
+	// verify bill id larger than 32 bytes returns error
+	res := &ErrorResponse{}
+	billId := "0x000000000000000000000000000000000000000000000000000000000000000001"
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+
+	// verify bill id smaller than 32 bytes returns error
+	res = &ErrorResponse{}
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=0x01", port), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+
+	// verify bill id with correct length but missing prefix returns error
+	res = &ErrorResponse{}
+	httpRes, err = testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, errInvalidBillIDLength.Error(), res.Message)
+}
+
+func TestGetFeeCreditBillRequest_BillDoesNotExist(t *testing.T) {
+	port := startServer(t, newWalletBackend(t))
+
+	res := &ErrorResponse{}
+	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://localhost:%d/api/v1/fee-credit-bill?bill_id=%s", port, billId), res)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, httpRes.StatusCode)
+	require.Equal(t, "fee credit bill does not exist", res.Message)
+}
+
+type (
+	option func(service *WalletBackend) error
+)
+
+func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
+	service := createWalletBackend(t, &clientmock.MockAlphabillClient{})
+	for _, o := range options {
+		err := o(service)
+		require.NoError(t, err)
+	}
+	return service
+}
+
+func withBills(bills ...*Bill) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			for _, bill := range bills {
+				err := tx.SetBill(bill)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+}
+
+func withFeeCreditBills(bills ...*Bill) option {
+	return func(s *WalletBackend) error {
+		return s.store.WithTransaction(func(tx BillStoreTx) error {
+			for _, bill := range bills {
+				err := tx.SetFeeCreditBill(bill)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+}
+
+func withABClient(client client.ABClient) option {
+	return func(s *WalletBackend) error {
+		s.genericWallet.AlphabillClient = client
+		return nil
+	}
 }
 
 func startServer(t *testing.T, service WalletBackendService) int {

@@ -14,7 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/fc"
+	"github.com/alphabill-org/alphabill/internal/txsystem/fc/transactions"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -28,7 +28,7 @@ import (
 
 /*
 Example usage
-go run scripts/money/spend_initial_bill.go --pubkey 0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 100
+go run scripts/money/spend_initial_bill.go --pubkey 0x03c30573dc0c7fd43fcb801289a6a96cb78c27f4ba398b89da91ece23e9a99aca3 --alphabill-uri localhost:9543 --bill-id 1 --bill-value 1000000 --timeout 10
 */
 func main() {
 	// parse command line parameters
@@ -110,6 +110,7 @@ func main() {
 	}
 
 	// create addFC
+	transferFC.ServerMetadata = &txsystem.ServerMetadata{Fee: txFee} // add server metadata so that hash is correct
 	addFC, err := createAddFC(fcrID, script.PredicateAlwaysTrue(), transferFC, transferFCProof, absoluteTimeout, feeAmount)
 	if err != nil {
 		log.Fatal(err)
@@ -138,7 +139,7 @@ func main() {
 	}
 
 	// create transfer tx
-	transferFCWrapper, err := fc.NewFeeCreditTx(transferFC)
+	transferFCWrapper, err := transactions.NewFeeCreditTx(transferFC)
 	if err != nil {
 		log.Fatalf("failed to wrap transferFC %v", err)
 	}
@@ -170,7 +171,7 @@ func createTransferTx(pubKey []byte, unitID []byte, billValue uint64, fcrID []by
 			FeeCreditRecordId: fcrID,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &billtx.TransferAttributes{
 		NewBearer:   script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubKey)),
 		TargetValue: billValue,
 		Backlink:    backlink,
@@ -192,7 +193,7 @@ func createTransferFC(feeAmount uint64, unitID []byte, targetUnitID []byte, t1, 
 			MaxFee:  1,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &fc.TransferFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.TransferFeeCreditAttributes{
 		Amount:                 feeAmount,
 		TargetSystemIdentifier: []byte{0, 0, 0, 0},
 		TargetRecordId:         targetUnitID,
@@ -216,7 +217,7 @@ func createAddFC(unitID []byte, ownerCondition []byte, transferFC *txsystem.Tran
 			MaxFee:  maxFee,
 		},
 	}
-	err := anypb.MarshalFrom(tx.TransactionAttributes, &fc.AddFeeCreditOrder{
+	err := anypb.MarshalFrom(tx.TransactionAttributes, &transactions.AddFeeCreditAttributes{
 		FeeCreditTransfer:       transferFC,
 		FeeCreditTransferProof:  transferFCProof,
 		FeeCreditOwnerCondition: ownerCondition,

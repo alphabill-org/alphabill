@@ -1,4 +1,4 @@
-package fc
+package transactions
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ var (
 	backlink        = []byte{3}
 	nonce           = []byte{4}
 	recordID        = []byte{5}
-	owner           = []byte{6}
+	ownerBytes      = []byte{6}
 	blockHeaderHash = []byte{7}
 	targetUnitId    = []byte{8}
 	timeout         = uint64(100)
@@ -142,7 +142,7 @@ func TestAddFC_SigBytesIsCalculatedCorrectly(t *testing.T) {
 	b.Write(util.Uint64ToBytes(timeout))
 	b.Write(util.Uint64ToBytes(0)) // max fee
 	b.Write(nil)                   // fee credit record id
-	b.Write(owner)
+	b.Write(ownerBytes)
 	b.Write(transferFC.SigBytes())
 	b.Write(transferFC.OwnerProof())
 	b.Write(transferFCProof.Bytes())
@@ -213,7 +213,7 @@ func TestAddFC_HashIsCalculatedCorrectly(t *testing.T) {
 	h.Write(util.Uint64ToBytes(timeout))
 	h.Write(util.Uint64ToBytes(0)) // max fee
 	h.Write(nil)                   // fee credit record id
-	h.Write(owner)
+	h.Write(ownerBytes)
 	transferFC.AddToHasher(h)
 	h.Write(transferFCProof.Bytes())
 	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
@@ -252,8 +252,8 @@ func TestReclaimFC_HashIsCalculatedCorrectly(t *testing.T) {
 	require.Equal(t, h.Sum(nil), tx.Hash(crypto.SHA256))
 }
 
-func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFeeCreditOrder {
-	return &TransferFeeCreditOrder{
+func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte) *TransferFeeCreditAttributes {
+	return &TransferFeeCreditAttributes{
 		Amount:                 amount,
 		TargetSystemIdentifier: sysID,
 		TargetRecordId:         recID,
@@ -264,24 +264,24 @@ func newPBTransferFC(amount, t1, t2 uint64, sysID, recID, nonce, backlink []byte
 	}
 }
 
-func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof) *AddFeeCreditOrder {
-	return &AddFeeCreditOrder{
+func newPBAddFC(owner []byte, tx *txsystem.Transaction, proof *block.BlockProof) *AddFeeCreditAttributes {
+	return &AddFeeCreditAttributes{
 		FeeCreditOwnerCondition: owner,
 		FeeCreditTransfer:       tx,
 		FeeCreditTransferProof:  proof,
 	}
 }
 
-func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFeeCreditOrder {
-	return &CloseFeeCreditOrder{
+func newPBCloseFC(amount uint64, targetUnitId []byte, nonce []byte) *CloseFeeCreditAttributes {
+	return &CloseFeeCreditAttributes{
 		Amount:       amount,
 		TargetUnitId: targetUnitId,
 		Nonce:        nonce,
 	}
 }
 
-func newPBReclaimFC(backlink []byte, tx *txsystem.Transaction, proof *block.BlockProof) *ReclaimFeeCreditOrder {
-	return &ReclaimFeeCreditOrder{
+func newPBReclaimFC(backlink []byte, tx *txsystem.Transaction, proof *block.BlockProof) *ReclaimFeeCreditAttributes {
+	return &ReclaimFeeCreditAttributes{
 		CloseFeeCreditTransfer: tx,
 		CloseFeeCreditProof:    proof,
 		Backlink:               backlink,
@@ -309,7 +309,7 @@ func createAddFCTxOrder(t *testing.T, transferFC *txsystem.Transaction, proof *b
 		ClientMetadata:        &txsystem.ClientMetadata{Timeout: timeout},
 		OwnerProof:            ownerProof,
 	}
-	err := tx.TransactionAttributes.MarshalFrom(newPBAddFC(owner, transferFC, proof))
+	err := tx.TransactionAttributes.MarshalFrom(newPBAddFC(ownerBytes, transferFC, proof))
 	require.NoError(t, err)
 	gtx, err := NewFeeCreditTx(tx)
 	require.NoError(t, err)

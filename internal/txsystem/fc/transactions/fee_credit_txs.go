@@ -1,4 +1,4 @@
-package fc
+package transactions
 
 import (
 	"bytes"
@@ -12,6 +12,19 @@ import (
 	"github.com/holiman/uint256"
 )
 
+const (
+	TypeTransferFeeCreditOrder = "TransferFeeCreditAttributes"
+	TypeAddFeeCreditOrder      = "AddFeeCreditAttributes" // #nosec G101
+	TypeCloseFeeCreditOrder    = "CloseFeeCreditAttributes"
+	TypeReclaimFeeCreditOrder  = "ReclaimFeeCreditAttributes"
+
+	protobufTypeUrlPrefix         = "type.googleapis.com/"
+	TypeURLTransferFeeCreditOrder = protobufTypeUrlPrefix + TypeTransferFeeCreditOrder
+	TypeURLAddFeeCreditOrder      = protobufTypeUrlPrefix + TypeAddFeeCreditOrder
+	TypeURLCloseFeeCreditOrder    = protobufTypeUrlPrefix + TypeCloseFeeCreditOrder
+	TypeURLReclaimFeeCreditOrder  = protobufTypeUrlPrefix + TypeReclaimFeeCreditOrder
+)
+
 type (
 	Wrapper struct {
 		Transaction *txsystem.Transaction
@@ -21,12 +34,12 @@ type (
 
 	TransferFeeCreditWrapper struct {
 		Wrapper
-		TransferFC *TransferFeeCreditOrder
+		TransferFC *TransferFeeCreditAttributes
 	}
 
 	AddFeeCreditWrapper struct {
 		Wrapper
-		AddFC *AddFeeCreditOrder
+		AddFC *AddFeeCreditAttributes
 
 		// TransferFC the "fee credit transfer" that also exist inside AddFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
@@ -35,12 +48,12 @@ type (
 
 	CloseFeeCreditWrapper struct {
 		Wrapper
-		CloseFC *CloseFeeCreditOrder
+		CloseFC *CloseFeeCreditAttributes
 	}
 
 	ReclaimFeeCreditWrapper struct {
 		Wrapper
-		ReclaimFC *ReclaimFeeCreditOrder
+		ReclaimFC *ReclaimFeeCreditAttributes
 
 		// CloseFCTransfer the "close fee credit" transfer that also exist inside ReclaimFeeCreditOrder as *txsystem.Transaction
 		// needed to correctly serialize bytes
@@ -53,67 +66,83 @@ func NewFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, erro
 		return nil, errors.New("cannot create fee credit tx wrapper: tx is nil")
 	}
 	switch tx.TransactionAttributes.TypeUrl {
-	case txsystem.TypeURLTransferFeeCreditOrder:
-		pb := &TransferFeeCreditOrder{}
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		return &TransferFeeCreditWrapper{
-			Wrapper:    Wrapper{Transaction: tx},
-			TransferFC: pb,
-		}, nil
-	case txsystem.TypeURLAddFeeCreditOrder:
-		pb := &AddFeeCreditOrder{}
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		fcGen, err := NewFeeCreditTx(pb.FeeCreditTransfer)
-		if err != nil {
-			return nil, fmt.Errorf("add fee credit wrapping failed: %w", err)
-		}
-		fcWrapper, ok := fcGen.(*TransferFeeCreditWrapper)
-		if !ok {
-			return nil, fmt.Errorf("transfer FC wrapper is invalid type: %T", fcWrapper)
-		}
-		return &AddFeeCreditWrapper{
-			Wrapper:    Wrapper{Transaction: tx},
-			AddFC:      pb,
-			TransferFC: fcWrapper,
-		}, nil
-	case txsystem.TypeURLCloseFeeCreditOrder:
-		pb := &CloseFeeCreditOrder{}
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		return &CloseFeeCreditWrapper{
-			Wrapper: Wrapper{Transaction: tx},
-			CloseFC: pb,
-		}, nil
-	case txsystem.TypeURLReclaimFeeCreditOrder:
-		pb := &ReclaimFeeCreditOrder{}
-		err := tx.TransactionAttributes.UnmarshalTo(pb)
-		if err != nil {
-			return nil, err
-		}
-		fcGen, err := NewFeeCreditTx(pb.CloseFeeCreditTransfer)
-		if err != nil {
-			return nil, fmt.Errorf("reclaim fee credit wrapping failed: %w", err)
-		}
-		fcWrapper, ok := fcGen.(*CloseFeeCreditWrapper)
-		if !ok {
-			return nil, fmt.Errorf("close fee credit wrapper is invalid type: %T", fcWrapper)
-		}
-		return &ReclaimFeeCreditWrapper{
-			Wrapper:         Wrapper{Transaction: tx},
-			ReclaimFC:       pb,
-			CloseFCTransfer: fcWrapper,
-		}, nil
+	case TypeURLTransferFeeCreditOrder:
+		return ConvertTransferFeeCreditTx(tx)
+	case TypeURLAddFeeCreditOrder:
+		return ConvertAddFeeCredit(tx)
+	case TypeURLCloseFeeCreditOrder:
+		return ConvertCloseFeeCredit(tx)
+	case TypeURLReclaimFeeCreditOrder:
+		return ConvertReclaimFeeCreditTx(tx)
 	default:
 		return nil, nil
 	}
+}
+
+func ConvertReclaimFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &ReclaimFeeCreditAttributes{}
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	fcGen, err := NewFeeCreditTx(pb.CloseFeeCreditTransfer)
+	if err != nil {
+		return nil, fmt.Errorf("reclaim fee credit wrapping failed: %w", err)
+	}
+	fcWrapper, ok := fcGen.(*CloseFeeCreditWrapper)
+	if !ok {
+		return nil, fmt.Errorf("close fee credit wrapper is invalid type: %T", fcWrapper)
+	}
+	return &ReclaimFeeCreditWrapper{
+		Wrapper:         Wrapper{Transaction: tx},
+		ReclaimFC:       pb,
+		CloseFCTransfer: fcWrapper,
+	}, nil
+}
+
+func ConvertTransferFeeCreditTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &TransferFeeCreditAttributes{}
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	return &TransferFeeCreditWrapper{
+		Wrapper:    Wrapper{Transaction: tx},
+		TransferFC: pb,
+	}, nil
+}
+
+func ConvertCloseFeeCredit(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &CloseFeeCreditAttributes{}
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	return &CloseFeeCreditWrapper{
+		Wrapper: Wrapper{Transaction: tx},
+		CloseFC: pb,
+	}, nil
+}
+
+func ConvertAddFeeCredit(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+	pb := &AddFeeCreditAttributes{}
+	err := tx.TransactionAttributes.UnmarshalTo(pb)
+	if err != nil {
+		return nil, err
+	}
+	fcGen, err := NewFeeCreditTx(pb.FeeCreditTransfer)
+	if err != nil {
+		return nil, fmt.Errorf("add fee credit wrapping failed: %w", err)
+	}
+	fcWrapper, ok := fcGen.(*TransferFeeCreditWrapper)
+	if !ok {
+		return nil, fmt.Errorf("transfer FC wrapper is invalid type: %T", fcWrapper)
+	}
+	return &AddFeeCreditWrapper{
+		Wrapper:    Wrapper{Transaction: tx},
+		AddFC:      pb,
+		TransferFC: fcWrapper,
+	}, nil
 }
 
 // GenericTransaction methods
@@ -280,7 +309,7 @@ func (w *ReclaimFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 }
 
 // Protobuf transaction struct methods
-func (x *TransferFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
+func (x *TransferFeeCreditAttributes) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(x.Amount))
 	hasher.Write(x.TargetSystemIdentifier)
 	hasher.Write(x.TargetRecordId)
@@ -289,7 +318,7 @@ func (x *TransferFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
 	hasher.Write(x.Backlink)
 }
-func (x *TransferFeeCreditOrder) sigBytes(b *bytes.Buffer) {
+func (x *TransferFeeCreditAttributes) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetSystemIdentifier)
 	b.Write(x.TargetRecordId)
@@ -299,12 +328,12 @@ func (x *TransferFeeCreditOrder) sigBytes(b *bytes.Buffer) {
 	b.Write(x.Backlink)
 }
 
-func (x *CloseFeeCreditOrder) addFieldsToHasher(hasher hash.Hash) {
+func (x *CloseFeeCreditAttributes) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(util.Uint64ToBytes(x.Amount))
 	hasher.Write(x.TargetUnitId)
 	hasher.Write(x.Nonce)
 }
-func (x *CloseFeeCreditOrder) sigBytes(b *bytes.Buffer) {
+func (x *CloseFeeCreditAttributes) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetUnitId)
 	b.Write(x.Nonce)

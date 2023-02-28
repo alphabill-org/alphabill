@@ -40,7 +40,7 @@ func TestSplitTransactionAmount(t *testing.T) {
 	require.EqualValues(t, timeout, tx.Timeout())
 	require.NotNil(t, tx.OwnerProof)
 
-	so := &moneytx.SplitOrder{}
+	so := &moneytx.SplitAttributes{}
 	err = tx.TransactionAttributes.UnmarshalTo(so)
 	require.NoError(t, err)
 	require.Equal(t, amount, so.Amount)

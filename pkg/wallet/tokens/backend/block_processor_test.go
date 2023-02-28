@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/crypto"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -42,7 +44,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {
-		txs, err := tokens.New()
+		txs, err := tokens.New(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
 		require.NoError(t, err)
 
 		createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
@@ -82,7 +84,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 func Test_blockProcessor_processTx(t *testing.T) {
 	t.Parallel()
 
-	txs, err := tokens.New()
+	txs, err := tokens.New(tokens.WithTrustBase(map[string]crypto.Verifier{"test": nil}))
 	require.NoError(t, err)
 	require.NotNil(t, txs)
 

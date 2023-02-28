@@ -171,7 +171,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 			},
 		),
 	)
-	signature, p2pkhPredicate := signTx(t, txs, unsignedCreateParent2Tx, parent2Signer, parent2PubKey)
+	_, p2pkhPredicate := signTx(t, txs, unsignedCreateParent2Tx, parent2Signer, parent2PubKey)
 
 	signedCreateParent2Tx := testtransaction.NewTransaction(
 		t,
@@ -209,7 +209,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	gtx, err = txs.ConvertTx(createChildTx)
 	require.NoError(t, err)
 
-	signature, err = childSigner.SignBytes(gtx.SigBytes())
+	signature, err := childSigner.SignBytes(gtx.SigBytes())
 	require.NoError(t, err)
 	signature2, err := parent2Signer.SignBytes(gtx.SigBytes())
 	require.NoError(t, err)
@@ -576,10 +576,10 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 
 func TestTransferNFT_InvalidBacklink(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+	createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
 
 	// transfer NFT
-	tx = testtransaction.NewGenericTransaction(
+	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
@@ -777,9 +777,9 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 
 func TestUpdateNFT_InvalidBacklink(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+	createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
 
-	tx = testtransaction.NewGenericTransaction(
+	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
@@ -930,7 +930,5 @@ func signTx(t *testing.T, txs *tokensTxSystem, tx *txsystem.Transaction, signer 
 	signature, err := signer.SignBytes(gtx.SigBytes())
 	require.NoError(t, err)
 
-	gtx, err = txs.ConvertTx(tx)
-	require.NoError(t, err)
 	return signature, script.PredicateArgumentPayToPublicKeyHashDefault(signature, pubKey)
 }

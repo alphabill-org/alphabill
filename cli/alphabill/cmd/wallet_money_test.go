@@ -94,7 +94,7 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 
 func TestWalletGetBalanceCmd(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
 	stdout, _ := execCommand(homedir, "get-balance --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15", "Total 15")
@@ -102,7 +102,7 @@ func TestWalletGetBalanceCmd(t *testing.T) {
 
 func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
 	addAccount(t, homedir)
 	stdout, _ := execCommand(homedir, "get-balance --key 2 --alphabill-api-uri "+addr.Host)
@@ -112,7 +112,7 @@ func TestWalletGetBalanceKeyCmdKeyFlag(t *testing.T) {
 
 func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
 	stdout, _ := execCommand(homedir, "get-balance --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Total 15")
@@ -121,7 +121,7 @@ func TestWalletGetBalanceCmdTotalFlag(t *testing.T) {
 
 func TestWalletGetBalanceCmdTotalWithKeyFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
 	stdout, _ := execCommand(homedir, "get-balance --key 1 --total --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "#1 15")
@@ -130,7 +130,7 @@ func TestWalletGetBalanceCmdTotalWithKeyFlag(t *testing.T) {
 
 func TestWalletGetBalanceCmdQuietFlag(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 15 * 1e8})
 	defer mockServer.Close()
 
 	// verify quiet flag does nothing if no key or total flag is not provided
@@ -170,7 +170,7 @@ wallet-1 sends two transactions to wallet-2
 func TestSendingMoneyBetweenWallets(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
@@ -225,7 +225,7 @@ wallet account 1 sends two transactions to wallet account 2
 func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
@@ -272,7 +272,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
@@ -306,7 +306,7 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 func TestSendCmdOutputPathFlag(t *testing.T) {
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
@@ -391,7 +391,8 @@ func waitForBalance(t *testing.T, homedir string, expectedBalance uint64, accoun
 
 		stdout := execWalletCmd(t, homedir, "get-balance --alphabill-api-uri "+mockAddress.Host)
 		for _, line := range stdout.lines {
-			if line == fmt.Sprintf("#%d %d", accountIndex+1, expectedBalance) {
+			expectedBalanceStr := amountToString(expectedBalance, 8)
+			if line == fmt.Sprintf("#%d %s", accountIndex+1, expectedBalanceStr) {
 				return true
 			}
 		}
@@ -403,14 +404,16 @@ func verifyTotalBalance(t *testing.T, walletName string, expectedBalance uint64)
 	mockServer, mockAddress := mockBackendCalls(&backendMockReturnConf{balance: expectedBalance})
 	defer mockServer.Close()
 	stdout := execWalletCmd(t, walletName, "get-balance --alphabill-api-uri "+mockAddress.Host)
-	verifyStdout(t, stdout, fmt.Sprintf("Total %d", expectedBalance))
+	expectedBalanceStr := amountToString(expectedBalance, 8)
+	verifyStdout(t, stdout, fmt.Sprintf("Total %s", expectedBalanceStr))
 }
 
 func verifyAccountBalance(t *testing.T, walletName string, expectedBalance, accountIndex uint64) {
 	mockServer, mockAddress := mockBackendCalls(&backendMockReturnConf{balance: expectedBalance})
 	defer mockServer.Close()
 	stdout := execWalletCmd(t, walletName, "get-balance --alphabill-api-uri "+mockAddress.Host)
-	verifyStdout(t, stdout, fmt.Sprintf("#%d %d", accountIndex+1, expectedBalance))
+	expectedBalanceStr := amountToString(expectedBalance, 8)
+	verifyStdout(t, stdout, fmt.Sprintf("#%d %s", accountIndex+1, expectedBalanceStr))
 }
 
 // addAccount calls "add-key" cli function on given wallet and returns the added pubkey hex

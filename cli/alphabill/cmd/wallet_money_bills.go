@@ -114,7 +114,8 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Account #%d", group.accountIndex+1))
 		}
 		for j, bill := range group.bills.Bills {
-			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", j+1, bill.Id, bill.Value))
+			billValueStr := amountToString(bill.Value, 8)
+			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s", j+1, bill.Id, billValueStr))
 		}
 	}
 	return nil

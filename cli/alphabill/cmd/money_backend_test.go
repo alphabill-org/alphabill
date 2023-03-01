@@ -27,7 +27,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	initialBillBytes32 := initialBill.ID.Bytes32()

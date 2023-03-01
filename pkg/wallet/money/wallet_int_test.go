@@ -259,7 +259,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// start network
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)

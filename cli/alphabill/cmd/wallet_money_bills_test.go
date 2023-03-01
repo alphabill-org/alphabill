@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"path"
 	"strings"
 	"testing"
@@ -10,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func TestWalletBillsListCmd_EmptyWallet(t *testing.T) {
 
 func TestWalletBillsListCmd_Single(t *testing.T) {
 	homedir := createNewTestWallet(t)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: uint256.NewInt(1), billValue: 1})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: uint256.NewInt(1), billValue: 1e8})
 	defer mockServer.Close()
 
 	// verify bill in list command
@@ -48,10 +48,10 @@ func TestWalletBillsListCmd_Multiple(t *testing.T) {
 	stdout, err := execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
-	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1")
-	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 2")
-	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 3")
-	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 4")
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 0.00000001")
+	verifyStdout(t, stdout, "#2 0x0000000000000000000000000000000000000000000000000000000000000002 0.00000002")
+	verifyStdout(t, stdout, "#3 0x0000000000000000000000000000000000000000000000000000000000000003 0.00000003")
+	verifyStdout(t, stdout, "#4 0x0000000000000000000000000000000000000000000000000000000000000004 0.00000004")
 	require.Len(t, stdout.lines, 5)
 }
 
@@ -81,14 +81,14 @@ func TestWalletBillsListCmd_ExtraAccountTotal(t *testing.T) {
 	require.NoError(t, err)
 	pubKey2 := strings.Split(stdout.lines[0], " ")[3]
 
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: uint256.NewInt(1), billValue: 1, customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey2, customResponse: `{"total": 0, "bills": []}`})
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{billId: uint256.NewInt(1), billValue: 1e9, customFullPath: "/" + client.ListBillsPath + "?pubkey=" + pubKey2, customResponse: `{"total": 0, "bills": []}`})
 	defer mockServer.Close()
 
 	// verify both accounts are listed
 	stdout, err = execBillsCommand(homedir, "list --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
 	verifyStdout(t, stdout, "Account #1")
-	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 1")
+	verifyStdout(t, stdout, "#1 0x0000000000000000000000000000000000000000000000000000000000000001 10")
 	verifyStdout(t, stdout, "Account #2 - empty")
 }
 

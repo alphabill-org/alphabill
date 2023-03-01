@@ -14,12 +14,12 @@ type dcMetadata struct {
 	SwapTimeout uint64   `json:"swapTimeout"`
 }
 
-// dcBillGroup helper struct for grouped dc bills and their aggregate data
-type dcBillGroup struct {
-	dcBills   []*Bill
-	valueSum  uint64
-	dcNonce   []byte
-	dcTimeout uint64
+// DcBillGroup helper struct for grouped dc bills and their aggregate data
+type DcBillGroup struct {
+	DcBills   []*Bill
+	ValueSum  uint64
+	DcNonce   []byte
+	DcTimeout uint64
 }
 
 // dcWaitGroup helper struct to support blocking collect dust feature.
@@ -36,10 +36,10 @@ type dcWaitGroup struct {
 	swaps map[uint256.Int]uint64
 }
 
-// expectedSwap helper struct to support blocking collect dust feature
-type expectedSwap struct {
-	dcNonce []byte
-	timeout uint64
+// ExpectedSwap helper struct to support blocking collect dust feature
+type ExpectedSwap struct {
+	DcNonce []byte
+	Timeout uint64
 }
 
 func newDcWaitGroup() *dcWaitGroup {
@@ -59,7 +59,7 @@ func (m *dcMetadata) timeoutReached(blockHeight uint64) bool {
 }
 
 // AddExpectedSwaps increments wg and records expected swap data for each expected swap.
-func (wg *dcWaitGroup) AddExpectedSwaps(swaps []expectedSwap) {
+func (wg *dcWaitGroup) AddExpectedSwaps(swaps []ExpectedSwap) {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 	for _, swap := range swaps {
@@ -113,7 +113,7 @@ func (wg *dcWaitGroup) ResetWaitGroup() {
 }
 
 // addExpectedSwap increments wg and records expected swap data
-func (wg *dcWaitGroup) addExpectedSwap(swap expectedSwap) {
+func (wg *dcWaitGroup) addExpectedSwap(swap ExpectedSwap) {
 	wg.wg.Add(1)
-	wg.swaps[*uint256.NewInt(0).SetBytes(swap.dcNonce)] = swap.timeout
+	wg.swaps[*uint256.NewInt(0).SetBytes(swap.DcNonce)] = swap.Timeout
 }

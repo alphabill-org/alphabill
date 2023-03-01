@@ -93,7 +93,7 @@ func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, bill *Bi
 	return tx, nil
 }
 
-func createDustTx(k *account.AccountKey, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
+func CreateDustTx(k *account.AccountKey, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
 		TargetValue:  bill.Value,
@@ -111,7 +111,7 @@ func createDustTx(k *account.AccountKey, bill *Bill, nonce []byte, timeout uint6
 	return tx, nil
 }
 
-func createSwapTx(k *account.AccountKey, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
+func CreateSwapTx(k *account.AccountKey, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}

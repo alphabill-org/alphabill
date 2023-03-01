@@ -1,27 +1,33 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
-	"golang.org/x/term"
-	"io"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
-
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+	"github.com/holiman/uint256"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -39,24 +45,26 @@ const (
 	passwordPromptUsage     = "password (interactive from prompt)"
 	passwordArgUsage        = "password (non-interactive from args)"
 
-	alphabillNodeURLCmdName = "alphabill-uri"
-	alphabillApiURLCmdName  = "alphabill-api-uri"
-	seedCmdName             = "seed"
-	addressCmdName          = "address"
-	amountCmdName           = "amount"
-	passwordPromptCmdName   = "password"
-	passwordArgCmdName      = "pn"
-	logFileCmdName          = "log-file"
-	logLevelCmdName         = "log-level"
-	walletLocationCmdName   = "wallet-location"
-	keyCmdName              = "key"
-	waitForConfCmdName      = "wait-for-confirmation"
-	totalCmdName            = "total"
-	quietCmdName            = "quiet"
-	showUnswappedCmdName    = "show-unswapped"
-	txTimeoutBlockCount     = 100
-	maxTxFailedTries        = 3
-	txBufferFullErrMsg      = "tx buffer is full"
+	alphabillNodeURLCmdName    = "alphabill-uri"
+	alphabillApiURLCmdName = "alphabill-api-uri"
+	seedCmdName            = "seed"
+	addressCmdName         = "address"
+	amountCmdName          = "amount"
+	passwordPromptCmdName  = "password"
+	passwordArgCmdName     = "pn"
+	logFileCmdName         = "log-file"
+	logLevelCmdName        = "log-level"
+	walletLocationCmdName  = "wallet-location"
+	keyCmdName             = "key"
+	waitForConfCmdName     = "wait-for-confirmation"
+	totalCmdName           = "total"
+	quietCmdName           = "quiet"
+	showUnswappedCmdName   = "show-unswapped"
+	maxTxFailedTries       = 3
+	txBufferFullErrMsg     = "tx buffer is full"
+	dcTimeoutBlockCount    = 10
+	swapTimeoutBlockCount  = 60
+	txTimeoutBlockCount    = 100
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
@@ -451,12 +459,69 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 			return execCollectDust(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	return cmd
 }
 
 func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
+	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	if err != nil {
+		return err
+	}
+	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+	rpcClientConf := client.AlphabillClientConfig{Uri: uri}
+	rpcClient := client.New(rpcClientConf)
+	restClient, err := moneyclient.NewClient(apiUri)
+	if err != nil {
+		return err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer am.Close()
+
+	consoleWriter.Println("Starting dust collection, this may take a while...")
+	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
+	// any error from CollectDust or Sync causes either goroutine to terminate
+	// if collect dust returns without error we signal Sync to cancel manually
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		accounts := am.GetAll()
+		for _, acc := range accounts {
+			pubKey, _ := am.GetPublicKey(acc.AccountIndex)
+			billResponse, err := restClient.ListBills(pubKey)
+			if err != nil {
+				return err
+			}
+
+			accountKey, _ := am.GetAccountKey(acc.AccountIndex)
+			var bills []*money.Bill
+			for _, b := range billResponse.Bills {
+				bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
+				bills = append(bills, bill)
+			}
+			err = collectDust(ctx, true, acc.AccountIndex, accountKey, bills, restClient, rpcClient)
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	})
+	err = group.Wait()
+	if err != nil {
+		consoleWriter.Println("Failed to collect dust: " + err.Error())
+		return err
+	}
+	consoleWriter.Println("Dust collection finished successfully.")
 	return nil
 }
 
@@ -522,6 +587,179 @@ func waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction
 		blockNumber += 1
 	}
 	return nil, money.ErrTxFailedToConfirm
+}
+
+// CollectDust sends dust transfer for every bill for given account in wallet and records metadata.
+// Returns immediately without error if there's already 1 or 0 bills.
+// Once the dust transfers get confirmed on the ledger then swap transfer is broadcast and metadata cleared.
+// If blocking is true then the function blocks until swap has been completed or timed out,
+// if blocking is false then the function returns after sending the dc transfers.
+func collectDust(ctx context.Context, blocking bool, accountIndex uint64, accountKey *account.AccountKey, bills []*money.Bill, restClient *moneyclient.MoneyBackendClient, rpcClient *client.AlphabillClient) error {
+	log.Info("starting dust collection for account=", accountIndex, " blocking=", blocking)
+	blockHeight, err := restClient.GetBlockHeight()
+	if err != nil {
+		return err
+	}
+	if len(bills) < 2 {
+		log.Info("Account ", accountIndex, " has less than 2 bills, skipping dust collection")
+		return nil
+	}
+	var expectedSwaps []money.ExpectedSwap
+	dcBillGroups := groupDcBills(bills)
+	if len(dcBillGroups) > 0 {
+		for _, v := range dcBillGroups {
+			if blockHeight >= v.DcTimeout {
+				swapTimeout := blockHeight + swapTimeoutBlockCount
+				billIds := getBillIds(v)
+				if err != nil {
+					return err
+				}
+				err = swapDcBills(ctx, accountKey, v.DcBills, v.DcNonce, billIds, swapTimeout, rpcClient)
+				if err != nil {
+					return err
+				}
+				expectedSwaps = append(expectedSwaps, money.ExpectedSwap{DcNonce: v.DcNonce, Timeout: swapTimeout})
+			} else {
+				// expecting to receive swap during dcTimeout
+				expectedSwaps = append(expectedSwaps, money.ExpectedSwap{DcNonce: v.DcNonce, Timeout: v.DcTimeout})
+			}
+		}
+	} else {
+		dcNonce := calculateDcNonce(bills)
+		dcTimeout := blockHeight + dcTimeoutBlockCount
+		var dcValueSum uint64
+		var billIds [][]byte
+		for _, b := range bills {
+			dcValueSum += b.Value
+			billIds = append(billIds, b.GetID())
+			tx, err := money.CreateDustTx(accountKey, b, dcNonce, dcTimeout)
+			if err != nil {
+				return err
+			}
+			log.Info("sending dust transfer tx for bill=", b.Id, " account=", accountIndex)
+			err = sendTx(ctx, tx, maxTxFailedTries, rpcClient)
+			if err != nil {
+				return err
+			}
+		}
+		expectedSwaps = append(expectedSwaps, money.ExpectedSwap{DcNonce: dcNonce, Timeout: dcTimeout})
+		if err != nil {
+			return err
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+	if blocking {
+		log.Info("waiting for blocking collect dust on account=", accountIndex, " (wallet needs to be synchronizing to finish this process)")
+
+		// wrap wg.Wait() as channel
+		done := make(chan struct{})
+		go func() {
+			//w.dcWg.wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-ctx.Done():
+			// context canceled externally
+		case <-done:
+			// dust collection finished (swap received or timed out)
+		}
+		log.Info("finished waiting for blocking collect dust on account=", accountIndex)
+	}
+	return nil
+}
+
+func swapDcBills(ctx context.Context, k *account.AccountKey, dcBills []*money.Bill, dcNonce []byte, billIds [][]byte, timeout uint64, rpcClient *client.AlphabillClient) error {
+	swap, err := money.CreateSwapTx(k, dcBills, dcNonce, billIds, timeout)
+	if err != nil {
+		return err
+	}
+	log.Info(fmt.Sprintf("sending swap tx: nonce=%s timeout=%d", hexutil.Encode(dcNonce), timeout))
+	return sendTx(ctx, swap, maxTxFailedTries, rpcClient)
+}
+
+func sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetries int, rpcClient *client.AlphabillClient) error {
+	failedTries := 0
+	for {
+		res, err := rpcClient.SendTransaction(tx)
+		if res == nil && err == nil {
+			return errors.New("send transaction returned nil response with nil error")
+		}
+		if res != nil {
+			if res.Ok {
+				log.Debug("successfully sent transaction")
+				return nil
+			}
+			if res.Message == txBufferFullErrMsg {
+				failedTries += 1
+				if failedTries >= maxRetries {
+					return wallet.ErrFailedToBroadcastTx
+				}
+				log.Debug("tx buffer full, waiting 1s to retry...")
+				timer := time.NewTimer(time.Second)
+				select {
+				case <-timer.C:
+					continue
+				case <-ctx.Done():
+					timer.Stop()
+					return wallet.ErrTxRetryCanceled
+				}
+			}
+			return errors.New("transaction returned error code: " + res.Message)
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func getBillIds(v *money.DcBillGroup) [][]byte {
+	var billIds [][]byte
+	for _, dcBill := range v.DcBills {
+		billIds = append(billIds, dcBill.GetID())
+	}
+	return billIds
+}
+
+func calculateDcNonce(bills []*money.Bill) []byte {
+	var billIds [][]byte
+	for _, b := range bills {
+		billIds = append(billIds, b.GetID())
+	}
+
+	// sort billIds in ascending order
+	sort.Slice(billIds, func(i, j int) bool {
+		return bytes.Compare(billIds[i], billIds[j]) < 0
+	})
+
+	hasher := crypto.Hash.New(crypto.SHA256)
+	for _, billId := range billIds {
+		hasher.Write(billId)
+	}
+	return hasher.Sum(nil)
+}
+
+// groupDcBills groups bills together by dc nonce
+func groupDcBills(bills []*money.Bill) map[uint256.Int]*money.DcBillGroup {
+	m := map[uint256.Int]*money.DcBillGroup{}
+	for _, b := range bills {
+		if b.IsDcBill {
+			k := *uint256.NewInt(0).SetBytes(b.DcNonce)
+			billContainer, exists := m[k]
+			if !exists {
+				billContainer = &money.DcBillGroup{}
+				m[k] = billContainer
+			}
+			billContainer.ValueSum += b.Value
+			billContainer.DcBills = append(billContainer.DcBills, b)
+			billContainer.DcNonce = b.DcNonce
+			billContainer.DcTimeout = b.DcTimeout
+		}
+	}
+	return m
 }
 
 func loadExistingAccountManager(cmd *cobra.Command, walletDir string) (account.Manager, error) {

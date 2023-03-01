@@ -248,7 +248,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
+	tx, err := CreateSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
 	require.NoError(t, err)
 	swapTx := parseSwapTx(t, tx)
 
@@ -399,7 +399,7 @@ func addDcBill(t *testing.T, w *Wallet, nonce *uint256.Int, value uint64, timeou
 	}
 	k, _ := w.am.GetAccountKey(0)
 
-	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
+	tx, err := CreateDustTx(k, &b, nonceB32[:], timeout)
 	require.NoError(t, err)
 	b.BlockProof = &BlockProof{Tx: tx}
 

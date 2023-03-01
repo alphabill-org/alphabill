@@ -49,7 +49,7 @@ type (
 		TypeID TokenTypeID `json:"typeId"`
 		Owner  Predicate   `json:"owner"`
 		// fungible only
-		Amount   uint64 `json:"amount,omitempty"`
+		Amount   uint64 `json:"amount,omitempty,string"`
 		Decimals uint32 `json:"decimals,omitempty"`
 		// nft only
 		NftURI                 string    `json:"nftUri,omitempty"`
@@ -65,7 +65,7 @@ type (
 	Kind        byte
 
 	Proof struct {
-		BlockNumber uint64                `json:"blockNumber"`
+		BlockNumber uint64                `json:"blockNumber,string"`
 		Tx          *txsystem.Transaction `json:"tx"`
 		Proof       *block.BlockProof     `json:"proof"`
 	}

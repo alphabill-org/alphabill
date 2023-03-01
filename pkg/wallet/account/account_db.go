@@ -7,9 +7,9 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	bolt "go.etcd.io/bbolt"
@@ -253,10 +253,10 @@ func (a *adbtx) VerifyPassword() (bool, error) {
 	if encrypted {
 		_, err := a.GetAccountKeys()
 		if err != nil {
-			if errors.Is(err, abcrypto.ErrEmptyPassphrase) {
+			if errors.Is(err, crypto.ErrEmptyPassphrase) {
 				return false, nil
 			}
-			if strings.Contains(err.Error(), abcrypto.ErrMsgDecryptingValue) {
+			if strings.Contains(err.Error(), crypto.ErrMsgDecryptingValue) {
 				return false, nil
 			}
 			return false, err
@@ -311,7 +311,7 @@ func openDb(dbFilePath string, pw string, create bool) (*adb, error) {
 		return nil, errAccountDbDoesNotExists
 	}
 
-	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFilePath, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +18,22 @@ func Test_storage(t *testing.T) {
 
 	// testing things in one bucket only ie can (re)use the same db
 	db := initTestStorage(t)
+
+	t.Run("trying to open the same DB doesn't hang", func(t *testing.T) {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			storage, err := newBoltStore(db.db.Path())
+			require.EqualError(t, err, `failed to open bolt DB: timeout`)
+			require.Nil(t, storage)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("test didn't complete within timeout")
+		}
+	})
 
 	t.Run("block number", func(t *testing.T) {
 		testBlockNumber(t, db)

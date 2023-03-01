@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -432,7 +433,7 @@ func doOpenDb(dbFilePath string, create bool) (*wdb, error) {
 		return nil, errWalletDbDoesNotExists
 	}
 
-	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFilePath, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, err
 	}

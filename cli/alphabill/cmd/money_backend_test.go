@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -66,7 +67,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 		// verify balance
 		res := &backend.BalanceResponse{}
 		httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
-		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
+		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == strconv.FormatUint(initialBill.Value, 10)
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify /list-bills
@@ -76,7 +77,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
-	require.Equal(t, initialBill.Value, b.Value)
+	require.Equal(t, strconv.FormatUint(initialBill.Value, 10), b.Value)
 	require.Equal(t, initialBillBytes32[:], b.Id)
 	require.NotNil(t, b.TxHash)
 

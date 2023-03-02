@@ -528,16 +528,16 @@ func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
 			switch r.URL.Path {
 			case "/" + testclient.BalancePath:
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(fmt.Sprintf(`{"balance": %d}`, br.balance)))
+				w.Write([]byte(fmt.Sprintf(`{"balance": "%d"}`, br.balance)))
 			case "/" + testclient.BlockHeightPath:
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(fmt.Sprintf(`{"blockHeight": %d}`, br.blockHeight)))
+				w.Write([]byte(fmt.Sprintf(`{"blockHeight": "%d"}`, br.blockHeight)))
 			case "/" + testclient.ListBillsPath:
 				w.WriteHeader(http.StatusOK)
 				if br.customBillList != "" {
 					w.Write([]byte(br.customBillList))
 				} else {
-					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":%d,"txHash":"%s","isDCBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
+					w.Write([]byte(fmt.Sprintf(`{"total": 1, "bills": [{"id":"%s","value":"%d","txHash":"%s","isDcBill":false}]}`, toBillId(br.billId), br.billValue, br.billTxHash)))
 				}
 			default:
 				w.WriteHeader(http.StatusNotFound)

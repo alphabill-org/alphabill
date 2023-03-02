@@ -3,6 +3,7 @@ package pubkey_indexer
 import (
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/util"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -40,7 +41,7 @@ type (
 // NewBoltBillStore creates new on-disk persistent storage for bills and proofs using bolt db.
 // If the file does not exist then it will be created, however, parent directories must exist beforehand.
 func NewBoltBillStore(dbFile string) (*BoltBillStore, error) {
-	db, err := bolt.Open(dbFile, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, err
 	}

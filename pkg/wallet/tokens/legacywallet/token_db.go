@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -295,7 +296,7 @@ func openTokensDb(walletDir string) (*tokensDb, error) {
 	}
 	dbFilePath := path.Join(walletDir, tokensFileName)
 
-	db, err := bolt.Open(dbFilePath, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFilePath, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, err
 	}

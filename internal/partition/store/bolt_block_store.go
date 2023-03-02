@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -32,7 +33,7 @@ type BoltBlockStore struct {
 // NewBoltBlockStore creates new on-disk persistent block store using bolt db.
 // If the file does not exist then it will be created, however, parent directories must exist beforehand.
 func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
-	db, err := bolt.Open(dbFile, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, err
 	}

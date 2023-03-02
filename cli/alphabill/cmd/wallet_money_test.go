@@ -5,6 +5,14 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"path/filepath"
+	"strings"
+	"testing"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -21,13 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"path/filepath"
-	"strings"
-	"testing"
 )
 
 type (
@@ -54,7 +55,7 @@ func TestWalletCreateCmd(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-	require.True(t, util.FileExists(filepath.Join(homeDir, "account", "accounts.db")))
+	require.True(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
 	verifyStdout(t, outputWriter,
 		"The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 }
@@ -69,7 +70,7 @@ func TestWalletCreateCmd_encrypt(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split("wallet --home "+homeDir+" create --pn "+pw, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
-	require.True(t, util.FileExists(filepath.Join(homeDir, "account", "accounts.db")))
+	require.True(t, util.FileExists(filepath.Join(homeDir, "wallet", "accounts.db")))
 	verifyStdout(t, outputWriter,
 		"The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 
@@ -445,7 +446,7 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 
 func createNewWallet(t *testing.T) (account.Manager, string) {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "account")
+	walletDir := filepath.Join(homeDir, "wallet")
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	err = am.CreateKeys("")
@@ -455,7 +456,7 @@ func createNewWallet(t *testing.T) (account.Manager, string) {
 
 func createNewTestWallet(t *testing.T) string {
 	homeDir := t.TempDir()
-	walletDir := filepath.Join(homeDir, "account")
+	walletDir := filepath.Join(homeDir, "wallet")
 	am, err := account.NewManager(walletDir, "", true)
 	require.NoError(t, err)
 	defer am.Close()

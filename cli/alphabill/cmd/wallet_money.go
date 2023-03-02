@@ -45,26 +45,26 @@ const (
 	passwordPromptUsage     = "password (interactive from prompt)"
 	passwordArgUsage        = "password (non-interactive from args)"
 
-	alphabillNodeURLCmdName    = "alphabill-uri"
-	alphabillApiURLCmdName = "alphabill-api-uri"
-	seedCmdName            = "seed"
-	addressCmdName         = "address"
-	amountCmdName          = "amount"
-	passwordPromptCmdName  = "password"
-	passwordArgCmdName     = "pn"
-	logFileCmdName         = "log-file"
-	logLevelCmdName        = "log-level"
-	walletLocationCmdName  = "wallet-location"
-	keyCmdName             = "key"
-	waitForConfCmdName     = "wait-for-confirmation"
-	totalCmdName           = "total"
-	quietCmdName           = "quiet"
-	showUnswappedCmdName   = "show-unswapped"
-	maxTxFailedTries       = 3
-	txBufferFullErrMsg     = "tx buffer is full"
-	dcTimeoutBlockCount    = 10
-	swapTimeoutBlockCount  = 60
-	txTimeoutBlockCount    = 100
+	alphabillNodeURLCmdName = "alphabill-uri"
+	alphabillApiURLCmdName  = "alphabill-api-uri"
+	seedCmdName             = "seed"
+	addressCmdName          = "address"
+	amountCmdName           = "amount"
+	passwordPromptCmdName   = "password"
+	passwordArgCmdName      = "pn"
+	logFileCmdName          = "log-file"
+	logLevelCmdName         = "log-level"
+	walletLocationCmdName   = "wallet-location"
+	keyCmdName              = "key"
+	waitForConfCmdName      = "wait-for-confirmation"
+	totalCmdName            = "total"
+	quietCmdName            = "quiet"
+	showUnswappedCmdName    = "show-unswapped"
+	maxTxFailedTries        = 3
+	txBufferFullErrMsg      = "tx buffer is full"
+	dcTimeoutBlockCount     = 10
+	swapTimeoutBlockCount   = 60
+	txTimeoutBlockCount     = 100
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
@@ -782,7 +782,7 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 	if walletLocation != "" {
 		config.WalletHomeDir = walletLocation
 	} else {
-		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "account")
+		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "wallet")
 	}
 	return nil
 }

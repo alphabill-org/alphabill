@@ -22,8 +22,12 @@ import (
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
-// ErrInvalidRequest is returned when backend responded with 4nn status code, use errors.Is to check for it.
-var ErrInvalidRequest = errors.New("invalid request")
+var (
+	// ErrInvalidRequest is returned when backend responded with 4nn status code, use errors.Is to check for it.
+	ErrInvalidRequest = errors.New("invalid request")
+	// ErrNotFound is returned when backend responded with 404 status code, use errors.Is to check for it.
+	ErrNotFound = errors.New("not found")
+)
 
 const (
 	clientUserAgent = "Token Wallet Backend API Client/0.1"
@@ -44,6 +48,15 @@ func New(abAddr url.URL) *TokenBackend {
 		addr: abAddr,
 		hc:   &http.Client{Timeout: 10 * time.Second},
 	}
+}
+
+func (tb *TokenBackend) GetToken(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
+	var rspData twb.TokenUnit
+	_, err := tb.get(ctx, tb.getURL(apiPathPrefix, "tokens", hexutil.Encode(id)), &rspData, true)
+	if err != nil {
+		return nil, fmt.Errorf("get token request failed: %w", err)
+	}
+	return &rspData, nil
 }
 
 /*
@@ -210,7 +223,10 @@ func decodeResponse(rsp *http.Response, successStatus int, data any, allowEmptyR
 	}
 
 	msg := fmt.Sprintf("backend responded %s: %s", rsp.Status, er.Message)
-	if 400 <= rsp.StatusCode && rsp.StatusCode < 500 {
+	switch {
+	case rsp.StatusCode == http.StatusNotFound:
+		return fmt.Errorf("%s: %w", er.Message, ErrNotFound)
+	case 400 <= rsp.StatusCode && rsp.StatusCode < 500:
 		return fmt.Errorf("%s: %w", msg, ErrInvalidRequest)
 	}
 	return errors.New(msg)

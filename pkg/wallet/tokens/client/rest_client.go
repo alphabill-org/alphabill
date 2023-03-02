@@ -97,6 +97,15 @@ func (tb *TokenBackend) GetTokenTypes(ctx context.Context, kind twb.Kind, creato
 	return rspData, pm, nil
 }
 
+func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error) {
+	var rspData []twb.TokenUnitType
+	_, err := tb.get(ctx, tb.getURL(apiPathPrefix, "types", hexutil.Encode(id), "hierarchy"), &rspData, true)
+	if err != nil {
+		return nil, fmt.Errorf("get token type hierarchy request failed: %w", err)
+	}
+	return rspData, nil
+}
+
 func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	var rn twb.RoundNumberResponse
 	if _, err := tb.get(ctx, tb.getURL(apiPathPrefix, "round-number"), &rn, false); err != nil {

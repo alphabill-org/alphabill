@@ -22,8 +22,8 @@ import (
 const (
 	moneyPartitionDir         = "money"
 	defaultInitialBillId      = 1
-	defaultInitialBillValue   = 1000000
-	defaultDCMoneySupplyValue = 1000000
+	defaultInitialBillValue   = 1000000000000000000
+	defaultDCMoneySupplyValue = 1000000000000000000
 	defaultT2Timeout          = 2500
 )
 

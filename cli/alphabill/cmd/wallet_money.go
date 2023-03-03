@@ -270,7 +270,11 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 
 	var bills []*money.Bill
 	for _, b := range billResponse.Bills {
-		bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
+		billValueUint, err := strconv.ParseUint(b.Value, 10, 64)
+		if err != nil {
+			return err
+		}
+		bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: billValueUint, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
 		bills = append(bills, bill)
 	}
 

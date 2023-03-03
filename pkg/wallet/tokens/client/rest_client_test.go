@@ -387,6 +387,69 @@ func Test_GetTokenTypes(t *testing.T) {
 	})
 }
 
+func Test_GetTypeHierarchy(t *testing.T) {
+	t.Parallel()
+
+	typeID := test.RandomBytes(32)
+
+	t.Run("valid request is built", func(t *testing.T) {
+		cli := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "127.0.0.1:4321"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					typeIDStr := hexutil.Encode(typeID)
+					expURL := fmt.Sprintf("http://127.0.0.1:4321/api/v1/types/%s/hierarchy", typeIDStr)
+					if r.URL.String() != expURL {
+						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
+					}
+					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusOK)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.NoError(t, err)
+		require.Empty(t, data)
+	})
+
+	createClient := func(t *testing.T, respBody []twb.TokenUnitType) *TokenBackend {
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if err := json.NewEncoder(w).Encode(respBody); err != nil {
+							return nil, fmt.Errorf("failed to write response body: %v", err)
+						}
+						return w.Result(), nil
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("no type with given id", func(t *testing.T) {
+		cli := createClient(t, nil)
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.NoError(t, err)
+		require.Empty(t, data)
+	})
+
+	t.Run("type with given id exists", func(t *testing.T) {
+		expData := []twb.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		cli := createClient(t, expData)
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, data, expData)
+	})
+}
+
 func Test_PostTransactions(t *testing.T) {
 	t.Parallel()
 

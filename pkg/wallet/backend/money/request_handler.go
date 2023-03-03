@@ -36,13 +36,13 @@ type (
 
 	ListBillVM struct {
 		Id       []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value    uint64 `json:"value" example:"1000"`
+		Value    string `json:"value" example:"1000"`
 		TxHash   []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
-		IsDCBill bool   `json:"isDCBill" example:"false"`
+		IsDCBill bool   `json:"isDcBill" example:"false"`
 	}
 
 	BalanceResponse struct {
-		Balance uint64 `json:"balance"`
+		Balance string `json:"balance"`
 	}
 
 	AddKeyRequest struct {
@@ -50,7 +50,7 @@ type (
 	}
 
 	BlockHeightResponse struct {
-		BlockHeight uint64 `json:"blockHeight"`
+		BlockHeight string `json:"blockHeight"`
 	}
 
 	EmptyResponse struct{}
@@ -164,7 +164,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 			sum += b.Value
 		}
 	}
-	res := &BalanceResponse{Balance: sum}
+	res := &BalanceResponse{Balance: strconv.FormatUint(sum, 10)}
 	writeAsJson(w, res)
 }
 
@@ -245,7 +245,7 @@ func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request)
 		log.Error("GET /block-height error fetching max block number", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber})
+		writeAsJson(w, &BlockHeightResponse{BlockHeight: strconv.FormatUint(maxBlockNumber, 10)})
 	}
 }
 
@@ -356,7 +356,7 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	for i, b := range bills {
 		billVMs[i] = &ListBillVM{
 			Id:       b.Id,
-			Value:    b.Value,
+			Value:    strconv.FormatUint(b.Value, 10),
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDCBill,
 		}

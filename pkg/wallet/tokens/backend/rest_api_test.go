@@ -21,6 +21,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
@@ -192,6 +193,58 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		}
 		require.EqualValues(t, 0, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
 		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+}
+
+func Test_restAPI_getToken(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, tokenId string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/tokens/%s", tokenId), nil)
+		req = mux.SetURLVars(req, map[string]string{"tokenId": tokenId})
+		w := httptest.NewRecorder()
+		api.getToken(w, req)
+		return w.Result()
+	}
+
+	t.Run("invalid id parameter", func(t *testing.T) {
+		api := &restAPI{db: &mockStorage{}}
+		rsp := makeRequest(api, "FOOBAR")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "tokenId": hex string without 0x prefix`)
+	})
+
+	t.Run("no token with given id", func(t *testing.T) {
+		tokenId := test.RandomBytes(32)
+		api := &restAPI{db: &mockStorage{
+			getToken: func(id TokenID) (*TokenUnit, error) {
+				if !bytes.Equal(id, tokenId) {
+					return nil, fmt.Errorf("expected token ID %x got %x", tokenId, id)
+				}
+				return nil, fmt.Errorf("no token with this id: %w", errRecordNotFound)
+			},
+		}}
+		rsp := makeRequest(api, hexutil.Encode(tokenId))
+		expectErrorResponse(t, rsp, http.StatusNotFound, `no token with this id: not found`)
+	})
+
+	t.Run("token found", func(t *testing.T) {
+		token := &TokenUnit{
+			ID:     test.RandomBytes(32),
+			Kind:   NonFungible,
+			Amount: 42,
+		}
+		api := &restAPI{db: &mockStorage{
+			getToken: func(id TokenID) (*TokenUnit, error) {
+				if !bytes.Equal(id, token.ID) {
+					return nil, fmt.Errorf("expected token ID %x got %x", token.ID, id)
+				}
+				return token, nil
+			},
+		}}
+		rsp := makeRequest(api, hexutil.Encode(token.ID))
+		var rspData *TokenUnit
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.Equal(t, token, rspData)
 	})
 }
 
@@ -548,7 +601,7 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 		}
 		typeId := "0x0001"
 		rsp := makeRequest(api, typeId)
-		expectErrorResponse(t, rsp, http.StatusInternalServerError, fmt.Sprintf(`failed to load type with id %s: no such type: not found`, typeId[2:]))
+		expectErrorResponse(t, rsp, http.StatusNotFound, fmt.Sprintf(`failed to load type with id %s: no such type: not found`, typeId[2:]))
 	})
 
 	t.Run("type is root", func(t *testing.T) {

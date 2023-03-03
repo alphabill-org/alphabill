@@ -52,16 +52,20 @@ paths:
             $ref: '#/components/schemas/TokenTypeIDParam'
       responses:
         '200':
-          description: successful operation
+          description: token type with given ID was found.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/TokenType'          
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
+                  $ref: '#/components/schemas/TokenType'
+        '404':
+          description: either no token type with given id or failed to load one of the ancestors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
           $ref: '#/components/responses/ErrorResponse'
   /kinds/{kind}/types:
     get:
@@ -111,6 +115,39 @@ paths:
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /tokens/{tokenId}:
+    get:
+      tags:
+        - token
+      summary: Get token by ID
+      description: Allows to get one token by it's ID
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          description: |-
+            Hex encoded string of the token ID which starts with `0x`.
+            Must be 66 characters long (including 0x prefix).
+          schema:
+            type: string
+            minLength: 66
+            maxLength: 66
+            default: 0x
+      responses:
+        '200':
+          description: Token with given ID was found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: no token with given id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
           $ref: '#/components/responses/ErrorResponse'
   /kinds/{kind}/owners/{owner}/tokens:
     get:
@@ -753,7 +790,9 @@ components:
             $ref: '#/components/schemas/transaction.Transactions'
   responses:
     ErrorResponse:
-      description: when something went wrong
+      description: |-
+        Either invalid input parameter (response status 4nn) or something went
+        wrong while processing the request (response status 5nn).
       content:
         application/json:
           schema:

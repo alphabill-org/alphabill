@@ -122,14 +122,14 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID
 func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
 	var proof *twb.Proof
 	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
-	_, err := tb.get(ctx, addr, &proof, true)
+	_, err := tb.get(ctx, addr, &proof, false)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("get tx proof request failed: %w", err)
 	}
 
-	if proof == nil || proof.Proof == nil {
-		return nil, nil
-	}
 	return proof, nil
 }
 

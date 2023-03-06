@@ -549,10 +549,15 @@ func Test_GetTxProof(t *testing.T) {
 					}
 
 					w := httptest.NewRecorder()
-					if err := json.NewEncoder(w).Encode(proof); err != nil {
-						return nil, fmt.Errorf("failed to write response body: %v", err)
+					if proof == nil {
+						w.WriteHeader(http.StatusNotFound)
+						w.WriteString(`{"message":"no proof found"}`)
+					} else {
+						if err := json.NewEncoder(w).Encode(proof); err != nil {
+							return nil, fmt.Errorf("failed to write response body: %v", err)
+						}
+						w.WriteHeader(http.StatusOK)
 					}
-					w.WriteHeader(http.StatusOK)
 					return w.Result(), nil
 				},
 			}},

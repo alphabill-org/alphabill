@@ -91,6 +91,11 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		if count := getMaxHashCount(hashCnt); count < partitionInfo.GetQuorum() {
 			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X not enough requests to prove quorum", x.SystemIdentifier)
 		}
+		newIR := x.Requests[0].InputRecord
+		// there change request must extend previous state
+		if !bytes.Equal(newIR.PreviousHash, luc.InputRecord.Hash) {
+			return nil, fmt.Errorf("ir change request extends unknown state")
+		}
 		// NB! there was at least one request, otherwise we would not be here
 		return x.Requests[0].InputRecord, nil
 	case IRChangeReqMsg_QUORUM_NOT_POSSIBLE:

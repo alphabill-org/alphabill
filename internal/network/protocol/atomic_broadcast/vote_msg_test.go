@@ -188,7 +188,7 @@ func TestVoteMsg_Verify(t *testing.T) {
 				Signature:        nil,
 			},
 			args:       args{quorum: quorum, rootTrust: rootTrust},
-			wantErrStr: "signature verification failed",
+			wantErrStr: "vote message signature verification error",
 		},
 	}
 	for _, tt := range tests {

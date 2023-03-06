@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 var (
@@ -14,12 +14,30 @@ var (
 	ErrVerifierIsNil = errors.New("verifier is nil")
 )
 
+func (x *ProposalMsg) getLastTcRound() uint64 {
+	if x.LastRoundTc == nil {
+		return 0
+	}
+	return x.LastRoundTc.Timeout.Round
+}
+
 func (x *ProposalMsg) IsValid() error {
 	if x.Block == nil {
 		return fmt.Errorf("proposal msg not valid, block is nil")
 	}
 	if err := x.Block.IsValid(); err != nil {
 		return fmt.Errorf("proposal msg not valid, block error: %w", err)
+	}
+	previousRound := x.Block.Round - 1
+	higestCertifiedRound := util.Max(x.Block.Qc.VoteInfo.RoundNumber, x.getLastTcRound())
+	// proposal round must follow last round Qc or Tc
+	if previousRound != higestCertifiedRound {
+		return fmt.Errorf("proposal round %v does not follow certified round %v", x.Block.Round, higestCertifiedRound)
+	}
+	// if previous round was timeout, then new proposal Block QC must be the same as TC high QC
+	// this is the common round from where we will extend the blockchain
+	if x.LastRoundTc != nil {
+
 	}
 	return nil
 }
@@ -54,20 +72,20 @@ func (x *ProposalMsg) Verify(quorum uint32, rootTrust map[string]crypto.Verifier
 	if !f {
 		return fmt.Errorf("proposal msg error, failed to find public key for root validator %v", x.Block.Author)
 	}
-	if err := v.VerifyHash(x.Signature, hash); err != nil {
-		return aberrors.Wrap(err, "proposal msg signature verification failed")
+	if err = v.VerifyHash(x.Signature, hash); err != nil {
+		return fmt.Errorf("proposal msg signature verification error, %w", err)
 	}
-	if err := x.IsValid(); err != nil {
-		return fmt.Errorf("proposal msg not valid: %w", err)
+	if err = x.IsValid(); err != nil {
+		return fmt.Errorf("proposal msg not valid, %w", err)
 	}
 	// Optional timeout certificate
 	if x.LastRoundTc != nil {
-		if err := x.LastRoundTc.Verify(quorum, rootTrust); err != nil {
-			return aberrors.Wrap(err, "proposal msg tc verification failed")
+		if err = x.LastRoundTc.Verify(quorum, rootTrust); err != nil {
+			return fmt.Errorf("proposal msg tc verification failed, %w", err)
 		}
 	}
-	if err := x.Block.Verify(quorum, rootTrust); err != nil {
-		return aberrors.Wrap(err, "proposal msg block verification failed")
+	if err = x.Block.Verify(quorum, rootTrust); err != nil {
+		return fmt.Errorf("proposal msg block verification failed, %w", err)
 	}
 	return nil
 }

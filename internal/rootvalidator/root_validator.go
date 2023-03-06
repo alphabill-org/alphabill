@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -21,11 +20,6 @@ type (
 	PartitionNet interface {
 		Send(msg network.OutputMessage, receivers []peer.ID) error
 		ReceivedChannel() <-chan network.ReceivedMessage
-	}
-
-	StateStore interface {
-		Save(state *store.RootState) error
-		Get() (*store.RootState, error)
 	}
 
 	PartitionStore interface {

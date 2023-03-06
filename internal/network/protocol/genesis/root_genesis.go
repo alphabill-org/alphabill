@@ -6,6 +6,11 @@ import (
 	"fmt"
 )
 
+const (
+	RootRound uint64 = 1
+	Timestamp        = 1668208271000 // 11.11.2022 @ 11:11:11
+)
+
 var (
 	ErrRootGenesisIsNil       = errors.New("root genesis is nil")
 	ErrRootGenesisRecordIsNil = errors.New("root genesis record is nil")

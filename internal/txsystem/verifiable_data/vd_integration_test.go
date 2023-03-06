@@ -42,7 +42,7 @@ func TestVDPartition_OnePartitionNodeIsDown(t *testing.T) {
 	}, systemIdentifier)
 	require.NoError(t, err)
 	// TODO Killing Node[2] fails the test as #3 is a deterministic leader
-	network.Nodes[2].Close() // shut down the node
+	network.Nodes[1].Close() // shut down the node
 
 	tx := createVDTransaction()
 	fmt.Printf("Submitting tx: %v, UnitId=%x\n", tx, tx.UnitId)

@@ -181,49 +181,16 @@ func TestRoundState_RegisterVote(t *testing.T) {
 func TestRoundState_OddRoundCalcTimeTilFirstProposal(t *testing.T) {
 	const lastCommittedRound = uint64(0)
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	timeout := pacemaker.CalcTimeTilNextProposal()
+	require.Equal(t, uint64(1), pacemaker.GetCurrentRound())
+	timeout := pacemaker.CalcTimeTilNextProposal(2)
 	// subtract some small amount of time to reduce race
-	require.Greater(t, timeout, testBlockRate-(time.Duration(5)*time.Millisecond))
+	require.Equal(t, timeout, time.Duration(0))
 }
 
 func TestRoundState_EvenRoundCalcTimeTilFirstProposal(t *testing.T) {
 	const lastCommittedRound = uint64(1)
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	timeout := pacemaker.CalcTimeTilNextProposal()
-	require.Equal(t, timeout, time.Duration(0))
-}
-
-func Test_min(t *testing.T) {
-	type args struct {
-		x uint64
-		y uint64
-	}
-	tests := []struct {
-		name string
-		args args
-		want uint64
-	}{
-		{
-			name: "min is x",
-			args: args{x: 1, y: 2},
-			want: 1,
-		},
-		{
-			name: "min is y",
-			args: args{x: 2, y: 1},
-			want: 1,
-		},
-		{
-			name: "equal",
-			args: args{x: 1, y: 1},
-			want: 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := min(tt.args.x, tt.args.y); got != tt.want {
-				t.Errorf("min() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	require.Equal(t, uint64(2), pacemaker.GetCurrentRound())
+	timeout := pacemaker.CalcTimeTilNextProposal(3)
+	require.Greater(t, timeout, testBlockRate-(time.Duration(5)*time.Millisecond))
 }

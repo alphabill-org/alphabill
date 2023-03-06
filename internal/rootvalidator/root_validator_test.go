@@ -15,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -36,21 +35,21 @@ type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
 	certResultCh chan certificates.UnicityCertificate
 	partitions   PartitionStore
-	stateStore   StateStore
+	certs        map[p.SystemIdentifier]*certificates.UnicityCertificate
 }
 
 func NewMockConsensus(rg *genesis.RootGenesis, partitionStore PartitionStore) (*MockConsensusManager, error) {
-	storage := store.New()
-	err := storage.Save(store.NewRootStateFromGenesis(rg))
-	if err != nil {
-		return nil, fmt.Errorf("failed to initiate state store, %w", err)
+	var c = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
+	for _, partition := range rg.Partitions {
+		c[partition.GetSystemIdentifierString()] = partition.Certificate
 	}
+
 	return &MockConsensusManager{
 		// use buffered channels here, we just want to know if a tlg is received
 		certReqCh:    make(chan consensus.IRChangeRequest, 1),
 		certResultCh: make(chan certificates.UnicityCertificate, 1),
 		partitions:   partitionStore,
-		stateStore:   storage,
+		certs:        c,
 	}, nil
 }
 
@@ -67,11 +66,7 @@ func (m *MockConsensusManager) Stop() {
 }
 
 func (m *MockConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
-	state, err := m.stateStore.Get()
-	if err != nil {
-		return nil, err
-	}
-	luc, f := state.Certificates[id]
+	luc, f := m.certs[id]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %X", id)
 	}

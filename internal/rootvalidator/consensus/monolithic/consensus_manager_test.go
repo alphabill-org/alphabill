@@ -14,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
@@ -79,7 +78,7 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		changes: map[p.SystemIdentifier]*certificates.InputRecord{},
 	}
 	// store mock state
-	lastState := store.RootState{Round: 4, RootHash: []byte{0, 1}, Certificates: map[p.SystemIdentifier]*certificates.UnicityCertificate{
+	lastState := RootState{Round: 4, RootHash: []byte{0, 1}, Certificates: map[p.SystemIdentifier]*certificates.UnicityCertificate{
 		p.SystemIdentifier(sysID0): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
@@ -125,8 +124,8 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), 1000*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.PreviousHash)
-	require.Equal(t, uint64(3), result.UnicitySeal.RootRoundInfo.RoundNumber)
-	require.Equal(t, uint64(2), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)
+	require.Equal(t, uint64(2), result.UnicitySeal.RootRoundInfo.RoundNumber)
+	require.Equal(t, uint64(1), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)
 	require.NotNil(t, result.UnicitySeal.CommitInfo.RootHash)
 	require.Equal(t, result.UnicitySeal.CommitInfo.RootHash, result.UnicitySeal.RootRoundInfo.CurrentRootHash)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}
@@ -144,8 +143,8 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	result, err := readResult(cm.CertificationResult(), 3000*time.Millisecond)
 	require.NoError(t, err)
 	require.Equal(t, partitionInputRecord, result.InputRecord)
-	require.Equal(t, uint64(5), result.UnicitySeal.RootRoundInfo.RoundNumber)
-	require.Equal(t, uint64(4), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)
+	require.Equal(t, uint64(4), result.UnicitySeal.RootRoundInfo.RoundNumber)
+	require.Equal(t, uint64(3), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)
 	require.NotNil(t, result.UnicitySeal.CommitInfo.RootHash)
 	require.Equal(t, result.UnicitySeal.CommitInfo.RootHash, result.UnicitySeal.RootRoundInfo.CurrentRootHash)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}

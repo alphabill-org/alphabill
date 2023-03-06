@@ -18,7 +18,8 @@ func (x *QuorumCert) addSignatureToQc(t *testing.T, author string, signer crypto
 
 func TestProposalMsg_IsValid(t *testing.T) {
 	type fields struct {
-		Block *BlockData
+		Block  *BlockData
+		LastTc *TimeoutCert
 	}
 	tests := []struct {
 		name       string
@@ -46,13 +47,56 @@ func TestProposalMsg_IsValid(t *testing.T) {
 			},
 			wantErrStr: "proposal msg not valid, block error: invalid round number",
 		},
+		{
+			name: "Invalid block round, does not follow QC",
+			fields: fields{
+				Block: &BlockData{
+					Author:    "test",
+					Round:     9,
+					Epoch:     0,
+					Timestamp: 1670314583525,
+					Payload:   &Payload{},
+					Qc: &QuorumCert{
+						VoteInfo:         NewDummyVoteInfo(7),
+						LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(7)),
+						Signatures:       map[string][]byte{"test": {0, 1, 2, 3}},
+					},
+				},
+			},
+			wantErrStr: "proposal round 9 does not follow certified round 7",
+		},
+		{
+			name: "Invalid block round, does not follow QC nor TC",
+			fields: fields{
+				Block: &BlockData{
+					Author:    "test",
+					Round:     9,
+					Epoch:     0,
+					Timestamp: 1670314583525,
+					Payload:   &Payload{},
+					Qc: &QuorumCert{
+						VoteInfo:         NewDummyVoteInfo(5),
+						LedgerCommitInfo: NewDummyCommitInfo(gocrypto.SHA256, NewDummyVoteInfo(5)),
+						Signatures:       map[string][]byte{"test": {0, 1, 2, 3}},
+					},
+				},
+				LastTc: &TimeoutCert{
+					Timeout: &Timeout{
+						Epoch:  0,
+						Round:  7,
+						HighQc: nil,
+					},
+				},
+			},
+			wantErrStr: "proposal round 9 does not follow certified round 7",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &ProposalMsg{
 				Block:       tt.fields.Block,
-				LastRoundTc: nil, // timeout certificate is optional
-				Signature:   nil, // IsValid does not check signatures
+				LastRoundTc: tt.fields.LastTc, // timeout certificate is optional
+				Signature:   nil,              // IsValid does not check signatures
 			}
 			err := x.IsValid()
 			if tt.wantErrStr != "" {
@@ -180,7 +224,7 @@ func TestProposalMsg_Verify_ErrorInBlockHash(t *testing.T) {
 	require.NoError(t, proposeMsg.Sign(s1))
 	// change block after signing
 	proposeMsg.Block.Timestamp = 0x11111111
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg signature verification failed")
+	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg signature verification error")
 }
 
 func TestProposalMsg_Verify_BlockQcNoQuorum(t *testing.T) {
@@ -238,7 +282,7 @@ func TestProposalMsg_Verify_InvalidSignature(t *testing.T) {
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	proposeMsg.Signature = []byte{0, 1, 2, 3, 4}
-	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg signature verification failed")
+	require.ErrorContains(t, proposeMsg.Verify(3, rootTrust), "proposal msg signature verification error")
 }
 
 func TestProposalMsg_Verify_OK(t *testing.T) {

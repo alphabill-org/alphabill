@@ -22,11 +22,6 @@ type (
 		Stop()
 	}
 
-	// KeyValueStorage persistent storage interface
-	KeyValueStorage interface {
-		Read(k string, v any) error
-		Write(k string, v any) error
-	}
 	// Parameters are basic consensus parameters that need to be the same in all root validators.
 	// Extracted from root genesis where all validators in the root cluster must have signed them to signal agreement
 	Parameters struct {
@@ -37,7 +32,7 @@ type (
 	}
 	// Optional are common optional parameters for consensus managers
 	Optional struct {
-		Storage KeyValueStorage
+		StoragePath string
 	}
 
 	Option func(c *Optional)
@@ -53,15 +48,15 @@ func NewConsensusParams(genesisRoot *genesis.GenesisRootRecord) *Parameters {
 	}
 }
 
-func WithPersistentStorage(s KeyValueStorage) Option {
+func WithPersistentStoragePath(s string) Option {
 	return func(c *Optional) {
-		c.Storage = s
+		c.StoragePath = s
 	}
 }
 
 func LoadConf(opts []Option) *Optional {
 	conf := &Optional{
-		Storage: nil,
+		StoragePath: "",
 	}
 	for _, opt := range opts {
 		if opt == nil {

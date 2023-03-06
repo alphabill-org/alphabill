@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
+	"github.com/alphabill-org/alphabill/internal/util"
 )
 
 type (
@@ -34,7 +35,7 @@ type (
 		// a previous deadline expires.
 		roundTimeout time.Time
 		// Time last proposal was received
-		lastProposalTime time.Time
+		lastViewChange time.Time
 		// timeout calculator
 		timeoutCalculator TimeoutCalculator
 		// Collection of votes (when node is the next leader)
@@ -51,15 +52,8 @@ func (x *Pacemaker) LastRoundTC() *atomic_broadcast.TimeoutCert {
 	return x.lastRoundTC
 }
 
-func min(x, y uint64) uint64 {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 func (x ExponentialTimeInterval) GetNextTimeout(roundsAfterLastCommit uint64) time.Duration {
-	exp := min(uint64(x.maxExponent), roundsAfterLastCommit)
+	exp := util.Min(uint64(x.maxExponent), roundsAfterLastCommit)
 	mul := math.Pow(x.exponentBase, float64(exp))
 	return time.Duration(float64(x.baseMs) * mul)
 }
@@ -71,7 +65,7 @@ func NewPacemaker(lastRound uint64, localTimeout time.Duration, bRate time.Durat
 		lastQcToCommitRound: lastRound,
 		currentRound:        lastRound + 1,
 		roundTimeout:        time.Now().Add(localTimeout),
-		lastProposalTime:    time.Now(),
+		lastViewChange:      time.Now(),
 		timeoutCalculator:   ExponentialTimeInterval{baseMs: localTimeout, exponentBase: 1.2, maxExponent: 0},
 		pendingVotes:        NewVoteRegister(),
 		lastRoundTC:         nil,
@@ -127,17 +121,13 @@ func (x *Pacemaker) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumIn
 	return qc
 }
 
-func (x *Pacemaker) RegisterProposal() {
-	x.lastProposalTime = time.Now()
-}
-
-func (x *Pacemaker) CalcTimeTilNextProposal() time.Duration {
+func (x *Pacemaker) CalcTimeTilNextProposal(round uint64) time.Duration {
 	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
 	now := time.Now()
-	if now.Sub(x.lastProposalTime) >= time.Duration(x.currentRound%2)*x.blockRate {
+	if now.Sub(x.lastViewChange) >= time.Duration(round%2)*x.blockRate {
 		return 0
 	}
-	return x.lastProposalTime.Add(x.blockRate).Sub(now)
+	return x.lastViewChange.Add(x.blockRate).Sub(now)
 }
 
 func (x *Pacemaker) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quorum QuorumInfo) *atomic_broadcast.TimeoutCert {
@@ -177,6 +167,7 @@ func (x *Pacemaker) AdvanceRoundTC(tc *atomic_broadcast.TimeoutCert) {
 
 func (x *Pacemaker) startNewRound(round uint64) {
 	x.clear()
+	x.lastViewChange = time.Now()
 	x.currentRound = round
 	x.pendingVotes.Reset()
 	x.roundTimeout = time.Now().Add(x.timeoutCalculator.GetNextTimeout(x.currentRound - x.lastQcToCommitRound - 1))

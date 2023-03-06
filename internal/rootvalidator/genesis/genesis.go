@@ -15,10 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
-const (
-	Timestamp = 1668208271000 // 11.11.2022 @ 11:11:11
-)
-
 var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
 
@@ -221,10 +217,10 @@ func NewRootGenesis(id string, s crypto.Signer, encPubKey []byte, partitions []*
 	// if all requests match then consensus is present
 	sealFn := func(rootHash []byte) (*certificates.UnicitySeal, error) {
 		roundMeta := &certificates.RootRoundInfo{
-			RoundNumber:       2,
+			RoundNumber:       genesis.RootRound,
 			Epoch:             0,
-			Timestamp:         Timestamp,
-			ParentRoundNumber: 1,
+			Timestamp:         genesis.Timestamp,
+			ParentRoundNumber: 0,
 			CurrentRootHash:   rootHash,
 		}
 		uSeal := &certificates.UnicitySeal{

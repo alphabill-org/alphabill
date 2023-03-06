@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -15,8 +14,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/storage"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -45,11 +44,6 @@ type (
 		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
-	StateStore interface {
-		Save(state *store.RootState) error
-		Get() (*store.RootState, error)
-	}
-
 	ConsensusManager struct {
 		ctx            context.Context
 		ctxCancel      context.CancelFunc
@@ -64,9 +58,11 @@ type (
 		trustBase      *RootTrustBase
 		irReqBuffer    *IrReqBuffer
 		safety         *SafetyModule
-		roundPipeline  *RoundPipeline
+		datastore      *storage.Storage
+		blockStore     *storage.BlockStore
 		partitions     PartitionStore
-		stateStore     StateStore
+		irReqVerifier  *IRChangeReqVerifier
+		t2Timeouts     *PartitionTimeoutGenerator
 		waitPropose    bool
 		voteBuffer     []*atomic_broadcast.VoteMsg
 	}
@@ -84,38 +80,21 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 	}
 	// load options
 	optional := consensus.LoadConf(opts)
-	// load configuration
+	// load consensus configuration from genesis
 	cParams := consensus.NewConsensusParams(rg.Root)
-	// Initiate store
-	storage := store.New(store.WithDBStore(optional.Storage))
-	lastState, err := storage.Get()
-	if err != nil && err != store.ErrValueEmpty {
-		return nil, fmt.Errorf("conensus manager cannot start, root state store corrupted error, %e", err)
+	// init storage
+	dataStore, err := storage.New(optional.StoragePath)
+	bStore, err := storage.NewBlockStore(cParams.HashAlgorithm, rg.Partitions, dataStore)
+	if err != nil {
+		return nil, fmt.Errorf("consensus block storage init failed, %w", err)
 	}
-	var pipeline *RoundPipeline = nil
-	// Starting from genesis
-	if err == store.ErrValueEmpty {
-		logger.Info("%v consensus manager starting from genesis state", host.LogID())
-		gState := store.NewRootStateFromGenesis(rg)
-		if err = storage.Save(gState); err != nil {
-			return nil, fmt.Errorf("conensus manager cannot start, unable to persist genesis state, %e", err)
-		}
-		pipeline, err = NewRoundPipelineFromRootState(cParams.HashAlgorithm, gState, WithPipelineStore(optional.Storage))
-		if err != nil {
-			return nil, fmt.Errorf("consensus round pipeline init failed, %w", err)
-		}
-	} else {
-		if optional.Storage == nil {
-			return nil, fmt.Errorf("unexpected error, static soragis is missing")
-		}
-		// recover state from store
-		pipeline, err = NewRoundPipeline(cParams.HashAlgorithm, lastState, optional.Storage)
-		if err != nil {
-			return nil, fmt.Errorf("consensus round pipeline init failed, %w", err)
-		}
+	reqVerifier, err := NewIRChangeReqVerifier(cParams, partitionStore, bStore)
+	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(cParams, partitionStore, bStore)
+	if err != nil {
+		return nil, fmt.Errorf("block verifier construct error, %w", err)
 	}
-	hqcRound := pipeline.GetHighQc().VoteInfo.RoundNumber
-	safetyModule, err := NewSafetyModule(host.ID().String(), signer, WithSafetyStore(optional.Storage))
+	hqcRound := bStore.GetHighQc().VoteInfo.RoundNumber
+	safetyModule, err := NewSafetyModule(host.ID().String(), signer, dataStore.GetRootDB())
 	if err != nil {
 		return nil, err
 	}
@@ -139,9 +118,10 @@ func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesi
 		trustBase:      tb,
 		irReqBuffer:    NewIrReqBuffer(),
 		safety:         safetyModule,
-		roundPipeline:  pipeline,
+		blockStore:     bStore,
 		partitions:     partitionStore,
-		stateStore:     storage,
+		irReqVerifier:  reqVerifier,
+		t2Timeouts:     t2TimeoutGen,
 		waitPropose:    false,
 		voteBuffer:     []*atomic_broadcast.VoteMsg{},
 	}
@@ -160,11 +140,8 @@ func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCert
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
-	state, err := x.stateStore.Get()
-	if err != nil {
-		return nil, err
-	}
-	luc, f := state.Certificates[id]
+	ucs := x.blockStore.GetCertificates()
+	luc, f := ucs[id]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %X", id)
 	}
@@ -338,7 +315,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 	if timeoutVoteMsg == nil {
 		// create timeout vote
 		timeoutVoteMsg = atomic_broadcast.NewTimeoutMsg(atomic_broadcast.NewTimeout(
-			x.pacemaker.GetCurrentRound(), 0, x.roundPipeline.GetHighQc()), x.peer.ID().String())
+			x.pacemaker.GetCurrentRound(), 0, x.blockStore.GetHighQc()), x.peer.ID().String())
 		// sign
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
 			logger.Warning("%v local timeout error, %v", x.peer.LogID(), err)
@@ -368,9 +345,9 @@ func (x *ConsensusManager) onLocalTimeout() {
 // onIRChange handles IR change request from other root nodes
 func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
 	// Am I the next leader or current leader and have not yet proposed? If not, ignore.
-	// todo: AB-549 what if this is received out of order?
-	// todo: AB-547 I am leader now, but have not yet proposed -> should still accept requests (throttling)
+	// todo: AB-549 what if I am no longer the leader, should this be forwarded again to the next leader?
 	if x.waitPropose == false {
+		// forward to the next round leader
 		nextRound := x.pacemaker.GetCurrentRound() + 1
 		if x.leaderSelector.GetLeaderForRound(nextRound) != x.peer.ID() {
 			logger.Warning("%v is not leader in next round %v, IR change req ignored",
@@ -379,40 +356,9 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 		}
 	}
 	logger.Info("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
-	// validate incoming request
-	sysID := p.SystemIdentifier(irChange.SystemIdentifier)
-	partitionInfo, err := x.partitions.Info(sysID)
-	if err != nil {
-		logger.Warning("%v IR change error, failed to get total nods for partition %X, error: %v",
-			x.peer.LogID(), sysID.Bytes(), err)
-		return
-	}
-	state, err := x.stateStore.Get()
-	if err != nil {
-		logger.Warning("%v IR change request ignored, failed to read current state: %w", x.peer.LogID(), err)
-		return
-	}
-	luc, f := state.Certificates[sysID]
-	if !f {
-		logger.Warning("%v IR change request ignored, no last state for system id %X", x.peer.LogID(), sysID.Bytes())
-		return
-	}
-	// calculate LUC age using rounds and min block rate
-	lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.params.BlockRateMs
-	inputRecord, err := irChange.Verify(partitionInfo, luc, lucAgeInRounds)
-	if err != nil {
-		logger.Warning("%v invalid IR change request error: %v", x.peer.LogID(), err)
-		return
-	}
-	// Check partition change already in pipeline
-	if x.roundPipeline.IsChangeInPipeline(sysID) {
-		logger.Warning("%v invalid IR change request partition %X: change in pipeline",
-			x.peer.LogID(), sysID.Bytes())
-		return
-	}
-	// Buffer and wait for opportunity to make the next proposal
-	if err = x.irReqBuffer.Add(IRChange{InputRecord: inputRecord, Reason: irChange.CertReason, Msg: irChange}); err != nil {
-		logger.Warning("%v IR change request from partition %X error: %w", x.peer.LogID(), sysID.Bytes(), err)
+	// Verify and buffer and wait for opportunity to make the next proposal
+	if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {
+		logger.Warning("%v IR change request from partition %X error: %v", x.peer.LogID(), irChange.SystemIdentifier, err)
 		return
 	}
 }
@@ -423,6 +369,11 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
 		logger.Warning("%v vote verify failed: %v", x.peer.LogID(), err)
+	}
+	if vote.VoteInfo.RoundNumber < x.pacemaker.GetCurrentRound() {
+		logger.Warning("%v round %v stale vote, validator %v is behind vote for round %v, ignored",
+			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Author, vote.VoteInfo.RoundNumber)
+		return
 	}
 	logger.Info("%v round %v received vote for round %v from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber, vote.Author)
@@ -449,7 +400,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		return
 	}
 	// SyncState, compare last handled QC
-	if x.checkRecoveryNeeded(vote.HighQc, x.roundPipeline.GetHighQc().VoteInfo.CurrentRootHash) {
+	if x.checkRecoveryNeeded(vote.HighQc) {
 		logger.Error("%v vote handling, recovery not yet implemented", x.peer.LogID())
 		// todo: AB-320 try to recover
 		return
@@ -462,11 +413,11 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 		return
 	}
 	logger.Info("%v round %v quorum achieved", x.peer.LogID(), vote.VoteInfo.RoundNumber)
-	// advance view/round on QC
-	x.processCertificateQC(qc)
 	// since the root chain must not run faster than block-rate, calculate
 	// time from last proposal and see if we need to wait
-	slowDownTime := x.pacemaker.CalcTimeTilNextProposal()
+	slowDownTime := x.pacemaker.CalcTimeTilNextProposal(x.pacemaker.GetCurrentRound() + 1)
+	// advance view/round on QC
+	x.processCertificateQC(qc)
 	if slowDownTime > 0 {
 		logger.Info("%v round %v node %v wait %v before proposing",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
@@ -484,11 +435,17 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	if err != nil {
 		logger.Warning("%v timeout vote verify failed: %v", x.peer.LogID(), err)
 	}
+	// stale drop
+	if vote.Timeout.Round < x.pacemaker.GetCurrentRound() {
+		logger.Debug("%v round %v stale timeout vote, validator %v voted for timeout in round %v, ignored",
+			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Author, vote.Timeout.Round)
+		return
+	}
 	// Author voted timeout, proceed
 	logger.Info("%v round %v received timout vote for round %v from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round, vote.Author)
 	// SyncState, compare last handled QC
-	if x.checkRecoveryNeeded(vote.Timeout.HighQc, x.roundPipeline.GetHighQc().VoteInfo.CurrentRootHash) {
+	if x.checkRecoveryNeeded(vote.Timeout.HighQc) {
 		logger.Error("%v timeout vote, recovery not yet implemented", x.peer.LogID())
 		// todo: AB-320 try to recover
 	}
@@ -511,47 +468,19 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	}
 }
 
-func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert, stateHash []byte) bool {
-	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, stateHash) {
+func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) bool {
+	// Get block and check if we have the same state
+	rootHash, err := x.blockStore.GetBlockRootHash(qc.VoteInfo.RoundNumber)
+	if err != nil {
+		logger.Warning("%v round %v unknown block in round %v, recover",
+			x.peer.LogID(), qc.VoteInfo.RoundNumber)
+	}
+	if !bytes.Equal(qc.VoteInfo.CurrentRootHash, rootHash) {
 		logger.Warning("%v round %v state is different expected %X, local %X, recover state",
-			x.peer.LogID(), qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, stateHash)
+			x.peer.LogID(), qc.VoteInfo.RoundNumber, qc.VoteInfo.CurrentRootHash, rootHash)
 		return true
 	}
 	return false
-}
-
-func (x *ConsensusManager) VerifyProposalPayload(payload *atomic_broadcast.Payload) (map[p.SystemIdentifier]*InputData, error) {
-	if payload == nil {
-		return nil, fmt.Errorf("payload is nil")
-	}
-	committedState, err := x.stateStore.Get()
-	if err != nil {
-		return nil, err
-	}
-	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
-	// Remember all partitions that have changes in the current proposal and apply changes
-	changes := make(map[p.SystemIdentifier]*InputData)
-	for _, irChReq := range payload.Requests {
-		systemID := p.SystemIdentifier(irChReq.SystemIdentifier)
-		// verify certification Request
-		luc, found := committedState.Certificates[systemID]
-		if !found {
-			return nil, errors.Errorf("invalid payload: partition %X state is missing", systemID)
-		}
-		// Find if the SystemIdentifier is known by partition store
-		partitionInfo, err := x.partitions.Info(systemID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid payload: unknown partition %X", systemID.Bytes())
-		}
-		lucAgeInRounds := time.Duration(x.pacemaker.GetCurrentRound()-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.params.BlockRateMs
-		// verify request
-		inputRecord, err := irChReq.Verify(partitionInfo, luc, lucAgeInRounds)
-		if err != nil {
-			return nil, fmt.Errorf("invalid payload: partition %X certification request verifiaction failed %w", systemID.Bytes(), err)
-		}
-		changes[systemID] = &InputData{ir: inputRecord, sdrh: partitionInfo.SystemDescription.Hash(x.params.HashAlgorithm)}
-	}
-	return changes, nil
 }
 
 func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
@@ -559,6 +488,12 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
 	if err != nil {
 		logger.Warning("%v invalid Proposal message, verify failed: %v", x.peer.LogID(), err)
+	}
+	// stale drop
+	if proposal.Block.Round < x.pacemaker.GetCurrentRound() {
+		logger.Debug("%v round %v stale proposal, validator %v is behind and proposed round %v, ignored",
+			x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author, proposal.Block.Round)
+		return
 	}
 	logger.Info("%v round %v received proposal message from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author)
@@ -568,15 +503,8 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 			x.peer.LogID(), proposal.Block.Author, proposal.Block.Round)
 		return
 	}
-	if proposal.Block.Round < x.pacemaker.GetCurrentRound() {
-		logger.Warning("%v round %v stale proposal, proposed round %v, ignore",
-			x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Round)
-		return
-	}
-	// timestamp proposal received, used to make sure root chain is not running faster than block time
-	x.pacemaker.RegisterProposal()
 	// Check current state against new QC
-	if x.checkRecoveryNeeded(proposal.Block.Qc, x.roundPipeline.GetExecStateId()) {
+	if x.checkRecoveryNeeded(proposal.Block.Qc) {
 		logger.Error("%v Proposal handling, recovery not yet implemented", x.peer.LogID())
 		// todo: AB-320 try to recover
 		return
@@ -586,14 +514,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	x.processCertificateQC(proposal.Block.Qc)
 	x.processTC(proposal.LastRoundTc)
 	// execute proposed payload
-	changes, err := x.VerifyProposalPayload(proposal.Block.Payload)
-	if err != nil {
-		// wait for timeout, if others make progress this node will need to recover
-		logger.Warning("%v round %v, proposal ignored payload verification failed, %w", x.peer.LogID(), err)
-		return
-	}
-	// execute proposal
-	execStateId, err := x.roundPipeline.Add(x.pacemaker.GetCurrentRound(), changes)
+	execStateId, err := x.blockStore.Add(proposal.Block, x.irReqVerifier)
 	if err != nil {
 		// wait for timeout, if others make progress this node will need to recover
 		logger.Warning("%v failed to execute proposal: %v", x.peer.LogID(), err.Error())
@@ -601,7 +522,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 		return
 	}
 	// make vote
-	voteMsg, err := x.safety.MakeVote(proposal.Block, execStateId, x.roundPipeline.GetHighQc(), x.pacemaker.LastRoundTC())
+	voteMsg, err := x.safety.MakeVote(proposal.Block, execStateId, x.blockStore.GetHighQc(), x.pacemaker.LastRoundTC())
 	if err != nil {
 		// wait for timeout, if others make progress this node will need to recover
 		logger.Warning("%v failed to sign vote, vote not sent: %v", x.peer.LogID(), err.Error())
@@ -635,14 +556,14 @@ func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert)
 	if qc == nil {
 		return
 	}
-	committedState := x.roundPipeline.Update(qc)
-	if committedState != nil {
-		if err := x.stateStore.Save(committedState); err != nil {
-			logger.Warning("%v failed persist new root chain state: %w", x.peer.LogID(), err)
-		}
-		for _, cert := range committedState.Certificates {
-			x.certResultCh <- *cert
-		}
+	certs, err := x.blockStore.ProcessQc(qc)
+	if err != nil {
+		// todo: recovery
+		logger.Warning("%v round %v process qc error %v, try to  recover", x.peer.LogID(), x.pacemaker.GetCurrentRound(), err)
+		return
+	}
+	for _, uc := range certs {
+		x.certResultCh <- *uc
 	}
 	x.pacemaker.AdvanceRoundQC(qc)
 	// progress is made, restart timeout (move to pacemaker)
@@ -653,46 +574,10 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 	if tc == nil {
 		return
 	}
-	// restore state pipeline to last persisted state
-	lastState, err := x.stateStore.Get()
-	if err != nil {
-		logger.Error("Unable to restore last persisted state, %w", err)
-		// todo: this will probably never happen, but find a way to improve this
-		// keep a local copy of last persisted state at hand all the time?
-		return
+	if err := x.blockStore.ProcessTc(tc); err != nil {
+		logger.Warning("%v failed to handle timeout certificate: %v", x.peer.LogID(), err)
 	}
-	x.roundPipeline.Reset(lastState)
 	x.pacemaker.AdvanceRoundTC(tc)
-}
-
-func (x *ConsensusManager) generateTimeoutRequests() ([]*atomic_broadcast.IRChangeReqMsg, error) {
-	// get latest committed state
-	state, err := x.stateStore.Get()
-	if err != nil {
-		return nil, err
-	}
-	timeoutRequests := make([]*atomic_broadcast.IRChangeReqMsg, 0, len(state.Certificates))
-	for id, cert := range state.Certificates {
-		// if there is a change in progress or in request buffer (prefer progress to timeout) then skip
-		if x.roundPipeline.IsChangeInPipeline(id) || x.irReqBuffer.IsChangeInBuffer(id) {
-			continue
-		}
-		partInfo, err := x.partitions.Info(id)
-		if err != nil {
-			return nil, err
-		}
-		if time.Duration(x.pacemaker.GetCurrentRound()-cert.UnicitySeal.RootRoundInfo.RoundNumber)*x.params.BlockRateMs >=
-			time.Duration(partInfo.SystemDescription.T2Timeout)*time.Millisecond {
-			logger.Info("%v round %v request partition %X T2 timeout",
-				x.peer.LogID(), x.pacemaker.GetCurrentRound(), id.Bytes())
-			timeoutReq := &atomic_broadcast.IRChangeReqMsg{
-				SystemIdentifier: id.Bytes(),
-				CertReason:       atomic_broadcast.IRChangeReqMsg_T2_TIMEOUT,
-			}
-			timeoutRequests = append(timeoutRequests, timeoutReq)
-		}
-	}
-	return timeoutRequests, nil
 }
 
 func (x *ConsensusManager) processNewRoundEvent() {
@@ -701,30 +586,23 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	x.timers.Restart(localTimeoutID)
 	round := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(round) != x.peer.ID() {
-		logger.Warning("%v round %v current node is not the leader, await proposal", x.peer.LogID(), round)
+		logger.Info("%v round %v current node is not the leader, await proposal", x.peer.LogID(), round)
 		return
 	}
 	logger.Info("%v round %v start, node is leader in round", x.peer.LogID(), x.pacemaker.GetCurrentRound())
-	// create proposal message, generate payload of IR change requests
-	timeoutReqs, err := x.generateTimeoutRequests()
-	if err != nil {
-		logger.Error("%v round %v unable to generate timeout requests: %v", x.peer.LogID(), err)
-	}
-	payload := x.irReqBuffer.GeneratePayload()
-	payload.Requests = append(payload.GetRequests(), timeoutReqs...)
 	proposalMsg := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{
 			Author:    x.peer.ID().String(),
 			Round:     round,
 			Epoch:     0,
 			Timestamp: util.MakeTimestamp(),
-			Payload:   payload,
-			Qc:        x.roundPipeline.GetHighQc(),
+			Payload:   x.irReqBuffer.GeneratePayload(x.pacemaker.GetCurrentRound(), x.t2Timeouts),
+			Qc:        x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
 	}
 	// safety makes simple sanity checks and signs if everything is ok
-	if err = x.safety.SignProposal(proposalMsg); err != nil {
+	if err := x.safety.SignProposal(proposalMsg); err != nil {
 		logger.Warning("%v failed to send proposal message, message signing failed: %v", x.peer.LogID(), err)
 	}
 	// broadcast proposal message (also to self)
@@ -734,12 +612,10 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		receivers[i] = id
 	}
 	logger.Info("%v broadcasting proposal msg", x.peer.LogID())
-	err = x.net.Send(
+	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootProposal,
-			Message:  proposalMsg,
-		}, receivers)
-	if err != nil {
+			Message:  proposalMsg}, receivers); err != nil {
 		logger.Warning("%v failed to send proposal message, network error: %v", x.peer.LogID(), err)
 	}
 }

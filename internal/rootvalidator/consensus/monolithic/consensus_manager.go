@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -28,9 +27,9 @@ type (
 		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
 	}
 
-	StateStore interface {
-		Save(*store.RootState) error
-		Get() (*store.RootState, error)
+	Store interface {
+		Save(*RootState) error
+		Get() (*RootState, error)
 	}
 
 	ConsensusManager struct {
@@ -42,7 +41,7 @@ type (
 		timers       *timer.Timers
 		selfID       string // node identifier
 		partitions   PartitionStore
-		stateStore   StateStore
+		stateStore   *StateStore
 		ir           map[p.SystemIdentifier]*certificates.InputRecord
 		changes      map[p.SystemIdentifier]*certificates.InputRecord
 		signer       crypto.Signer // private key of the root chain
@@ -56,7 +55,7 @@ func trackExecutionTime(start time.Time, name string) {
 	logger.Debug(fmt.Sprintf("%v took %v", name, time.Since(start)))
 }
 
-func loadInputRecords(state *store.RootState) map[p.SystemIdentifier]*certificates.InputRecord {
+func loadInputRecords(state *RootState) map[p.SystemIdentifier]*certificates.InputRecord {
 	ir := make(map[p.SystemIdentifier]*certificates.InputRecord)
 	for id, uc := range state.Certificates {
 		ir[id] = uc.InputRecord
@@ -74,27 +73,11 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	// load optional parameters
 	optional := consensus.LoadConf(opts)
 	// Initiate store
-	storage := store.New(store.WithDBStore(optional.Storage))
-	lastState, err := storage.Get()
-	if err != nil && err != store.ErrValueEmpty {
-		return nil, fmt.Errorf("conensus manager cannot start, root state store corrupted error, %e", err)
-	}
-	// Starting from genesis
-	if err == store.ErrValueEmpty {
-		logger.Info("Consensus manager starting from genesis state")
-		lastState = store.NewRootStateFromGenesis(rg)
-		if err = storage.Save(lastState); err != nil {
-			return nil, fmt.Errorf("conensus manager cannot start, unable to persist genesis state, %e", err)
-		}
-	}
+	storage, err := NewStateStore(rg, optional.StoragePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initiate state store, %w", err)
+		return nil, fmt.Errorf("consneus manager storage init failed, %w", err)
 	}
-	// verify that we can read the persisted state from store
-	state, err := storage.Get()
-	if err != nil {
-		return nil, err
-	}
+	lastState := storage.Get()
 	consensusManager := &ConsensusManager{
 		certReqCh:    make(chan consensus.IRChangeRequest),
 		certResultCh: make(chan certificates.UnicityCertificate),
@@ -103,7 +86,7 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		selfID:       selfStr,
 		partitions:   partitionStore,
 		stateStore:   storage,
-		ir:           loadInputRecords(state),
+		ir:           loadInputRecords(lastState),
 		changes:      make(map[p.SystemIdentifier]*certificates.InputRecord),
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
@@ -133,10 +116,7 @@ func (x *ConsensusManager) Stop() {
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
-	state, err := x.stateStore.Get()
-	if err != nil {
-		return nil, err
-	}
+	state := x.stateStore.Get()
 	luc, f := state.Certificates[id]
 	if !f {
 		return nil, fmt.Errorf("no certificate found for system id %X", id)
@@ -193,10 +173,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		newInputRecord = req.Requests[0].InputRecord
 		break
 	case consensus.QuorumNotPossible:
-		state, err := x.stateStore.Get()
-		if err != nil {
-			return fmt.Errorf("ir change request ignored, failed to read current state: %w", err)
-		}
+		state := x.stateStore.Get()
 		luc, f := state.Certificates[req.SystemIdentifier]
 		if !f {
 			return fmt.Errorf("ir change request ignored, no last state for system id %X", req.SystemIdentifier.Bytes())
@@ -224,11 +201,7 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 
 func (x *ConsensusManager) onT3Timeout() {
 	defer trackExecutionTime(time.Now(), "t3 timeout handling")
-	lastState, err := x.stateStore.Get()
-	if err != nil {
-		logger.Warning("T3 timeout, failed to read last state from storage: %v", err.Error())
-		return
-	}
+	lastState := x.stateStore.Get()
 	newRound := lastState.Round + 1
 	// evaluate timeouts and add repeat UC requests if timeout
 	if err := x.checkT2Timeout(newRound, lastState); err != nil {
@@ -238,7 +211,7 @@ func (x *ConsensusManager) onT3Timeout() {
 	if len(x.changes) == 0 {
 		logger.Info("Round %v, no IR changes", newRound)
 		// persist new round
-		newState := &store.RootState{
+		newState := &RootState{
 			Round:    newRound,
 			RootHash: lastState.RootHash,
 		}
@@ -256,7 +229,7 @@ func (x *ConsensusManager) onT3Timeout() {
 		return
 	}
 	// persist new state
-	if err := x.stateStore.Save(newState); err != nil {
+	if err = x.stateStore.Save(newState); err != nil {
 		logger.Warning("Round %d failed to persist new root state, %v", newState.Round, err)
 		return
 	}
@@ -267,7 +240,7 @@ func (x *ConsensusManager) onT3Timeout() {
 	}
 }
 
-func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) error {
+func (x *ConsensusManager) checkT2Timeout(round uint64, state *RootState) error {
 	// evaluate timeouts
 	for id, cert := range state.Certificates {
 		// if new input was this partition id was not received for this round
@@ -287,7 +260,7 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *store.RootState) 
 	return nil
 }
 
-func (x *ConsensusManager) generateUnicityCertificates(round uint64) (*store.RootState, error) {
+func (x *ConsensusManager) generateUnicityCertificates(round uint64) (*RootState, error) {
 	// log all changes for this round
 	logger.Info("Round %v, certify changes for partitions %X", round, maps.Keys(x.changes))
 	// apply changes
@@ -357,11 +330,11 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (*store.Roo
 			// should never happen.
 			return nil, fmt.Errorf("error invalid generated unicity certificate: %w", err)
 		}
-		util.WriteDebugJsonLog(logger, fmt.Sprintf("New unicity certificate for partition %X is", sysID.Bytes()), uc)
+		util.WriteDebugJsonLog(logger, fmt.Sprintf("NewStateStore unicity certificate for partition %X is", sysID.Bytes()), uc)
 		certs[sysID] = uc
 	}
 	// Persist all changes
-	newState := store.RootState{Round: round, Certificates: certs, RootHash: rootHash}
+	newState := RootState{Round: round, Certificates: certs, RootHash: rootHash}
 	// clear changed and return new certificates
 	x.changes = make(map[p.SystemIdentifier]*certificates.InputRecord)
 	return &newState, nil

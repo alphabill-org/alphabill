@@ -2,9 +2,9 @@ package rootvalidator
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"

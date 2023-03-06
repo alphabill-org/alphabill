@@ -6,7 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/async/future"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var log = logger.CreateForPackage()

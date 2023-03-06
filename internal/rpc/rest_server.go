@@ -79,6 +79,7 @@ func NewRESTServer(node partitionNode, addr string, maxBodySize int64, self *net
 	r.HandleFunc(pathTransactions, handler).Methods(http.MethodPost)
 	r.HandleFunc(pathTransactions, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", headerContentType)
 	}).Methods(http.MethodOptions)
 	r.Use(mux.CORSMethodMiddleware(r))
 	rs.Handler = r

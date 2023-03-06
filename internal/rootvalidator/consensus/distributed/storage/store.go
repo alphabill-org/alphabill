@@ -10,11 +10,9 @@ import (
 )
 
 const (
-	RootFile        = "root.db"
-	BlockFile       = "blocks.db"
-	CertFile        = "certificates.db"
-	certificatesKey = "certificates"
-	highQCKey       = "highQC"
+	RootFile  = "root.db"
+	BlockFile = "blocks.db"
+	CertFile  = "certificates.db"
 )
 
 type (

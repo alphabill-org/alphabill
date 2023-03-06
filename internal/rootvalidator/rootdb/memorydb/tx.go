@@ -9,17 +9,20 @@ type writeTx struct {
 }
 
 type Tx struct {
-	db  map[string][]byte
+	mem *MemoryDB
 	txs []*writeTx
 	enc EncodeFn
 }
 
-func NewMapTx(db map[string][]byte, e EncodeFn) (*Tx, error) {
-	if db == nil {
+func NewMapTx(m *MemoryDB, e EncodeFn) (*Tx, error) {
+	if m == nil {
+		return nil, fmt.Errorf("momory db is nil")
+	}
+	if m.db == nil {
 		return nil, fmt.Errorf("db is nil")
 	}
 	return &Tx{
-		db:  db,
+		mem: m,
 		txs: []*writeTx{},
 		enc: e,
 	}, nil
@@ -44,11 +47,13 @@ func (t *Tx) Rollback() error {
 }
 
 func (t *Tx) Commit() error {
+	t.mem.lock.Lock()
+	defer t.mem.lock.Unlock()
 	for _, tx := range t.txs {
 		if tx.delete == true {
-			delete(t.db, tx.key)
+			delete(t.mem.db, tx.key)
 		} else {
-			t.db[tx.key] = tx.value
+			t.mem.db[tx.key] = tx.value
 		}
 	}
 	return nil

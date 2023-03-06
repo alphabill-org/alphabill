@@ -114,6 +114,8 @@ func (db *MemoryDB) Delete(key []byte) error {
 
 // First returns forward iterator to the first element in DB
 func (db *MemoryDB) First() rootdb.Iterator {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
 	it := NewIterator(db.db, db.decoder)
 	it.first()
 	return it
@@ -121,6 +123,8 @@ func (db *MemoryDB) First() rootdb.Iterator {
 
 // Last returns reverse iterator from the last element in DB
 func (db *MemoryDB) Last() rootdb.ReverseIterator {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
 	it := NewIterator(db.db, db.decoder)
 	it.last()
 	return it
@@ -128,13 +132,17 @@ func (db *MemoryDB) Last() rootdb.ReverseIterator {
 
 // Find returns the closest binary search match
 func (db *MemoryDB) Find(key []byte) rootdb.Iterator {
+	db.lock.RLock()
+	defer db.lock.RUnlock()
 	it := NewIterator(db.db, db.decoder)
 	it.seek(key)
 	return it
 }
 
 func (db *MemoryDB) StartTx() (rootdb.DBTransaction, error) {
-	tx, err := NewMapTx(db.db, db.encoder)
+	db.lock.RLock()
+	defer db.lock.RUnlock()
+	tx, err := NewMapTx(db, db.encoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Bolt tx, %w", err)
 	}

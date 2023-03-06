@@ -315,6 +315,10 @@ func (api *restAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%X): %w", txHash, unitID, err))
 		return
 	}
+	if proof == nil {
+		api.errorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
+		return
+	}
 
 	api.writeResponse(w, proof)
 }

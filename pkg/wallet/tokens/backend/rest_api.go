@@ -125,7 +125,7 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 
 func (api *restAPI) getToken(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	tokenId, err := parseTokenID(vars["tokenId"], true)
+	tokenId, err := parseHex[TokenID](vars["tokenId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "tokenId", err)
 		return

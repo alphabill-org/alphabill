@@ -17,6 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/blocksync"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type Configuration interface {
@@ -25,7 +26,7 @@ type Configuration interface {
 	BatchSize() int
 	HttpServer(http.Handler) http.Server
 	Listener() net.Listener
-	ErrLogger() func(a ...any)
+	Logger() log.Logger
 }
 
 type ABClient interface {
@@ -55,14 +56,13 @@ func Run(ctx context.Context, cfg Configuration) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		bp := &blockProcessor{store: db, txs: txs, logErr: cfg.ErrLogger()}
-		errLog := cfg.ErrLogger()
+		bp := &blockProcessor{store: db, txs: txs, log: cfg.Logger()}
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
 			err := runBlockSync(ctx, abc.GetBlocks, db.GetBlockNumber, cfg.BatchSize(), bp.ProcessBlock)
 			if err != nil {
-				errLog("synchronizing blocks returned error:", err)
+				cfg.Logger().Error("synchronizing blocks returned error: ", err)
 			}
 			select {
 			case <-ctx.Done():
@@ -77,7 +77,7 @@ func Run(ctx context.Context, cfg Configuration) error {
 			db:              db,
 			convertTx:       txs.ConvertTx,
 			sendTransaction: abc.SendTransaction,
-			logErr:          cfg.ErrLogger(),
+			logErr:          cfg.Logger().Error,
 		}
 		return httpsrv.Run(ctx, cfg.HttpServer(api.endpoints()), httpsrv.Listener(cfg.Listener()), httpsrv.ShutdownTimeout(5*time.Second))
 	})
@@ -99,7 +99,7 @@ type cfg struct {
 	abc     client.AlphabillClientConfig
 	boltDB  string
 	apiAddr string
-	errLog  func(a ...any)
+	log     log.Logger
 }
 
 /*
@@ -107,21 +107,21 @@ NewConfig returns Configuration suitable for using as Run parameter.
   - apiAddr: address on which to expose REST API;
   - abURL: AlphaBill backend from where to sync blocks;
   - boltDB: filename (with full path) of the bolt db to use as storage;
-  - errLog: func to use to log errors.
+  - logger: logger implementation.
 */
-func NewConfig(apiAddr, abURL, boltDB string, errLog func(a ...any)) Configuration {
+func NewConfig(apiAddr, abURL, boltDB string, logger log.Logger) Configuration {
 	return &cfg{
 		abc:     client.AlphabillClientConfig{Uri: abURL},
 		boltDB:  boltDB,
 		apiAddr: apiAddr,
-		errLog:  errLog,
+		log:     logger,
 	}
 }
 
 func (c *cfg) Client() ABClient          { return client.New(c.abc) }
 func (c *cfg) Storage() (Storage, error) { return newBoltStore(c.boltDB) }
 func (c *cfg) BatchSize() int            { return 100 }
-func (c *cfg) ErrLogger() func(a ...any) { return c.errLog }
+func (c *cfg) Logger() log.Logger        { return c.log }
 func (c *cfg) Listener() net.Listener    { return nil } // we do set Addr in HttpServer
 
 func (c *cfg) HttpServer(endpoints http.Handler) http.Server {

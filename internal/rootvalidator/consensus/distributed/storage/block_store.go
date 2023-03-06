@@ -3,6 +3,7 @@ package storage
 import (
 	gocrypto "crypto"
 	"fmt"
+	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -17,6 +18,7 @@ type (
 		blockTree    *BlockTree
 		storage      *Storage
 		Certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate // cashed
+		lock         sync.RWMutex
 	}
 )
 
@@ -144,11 +146,7 @@ func (x *BlockStore) ProcessQc(qc *atomic_broadcast.QuorumCert) (map[protocol.Sy
 		return nil, fmt.Errorf("commit block %v error, %w", committedBlock.BlockData.Round, err)
 	}
 	// update current certificates
-	for id, uc := range ucs {
-		x.Certificates[id] = uc
-		// persist changes
-		x.storage.GetCertificatesDB().Write(id.Bytes(), uc)
-	}
+	x.updateCertificateCache(ucs)
 	// commit blocks, the newly committed block becomes the new root in chain
 	return ucs, nil
 }
@@ -179,7 +177,19 @@ func (x *BlockStore) GetHighQc() *atomic_broadcast.QuorumCert {
 	return x.blockTree.HighQc()
 }
 
+func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]*certificates.UnicityCertificate) {
+	x.lock.Lock()
+	defer x.lock.Unlock()
+	for id, uc := range certs {
+		x.Certificates[id] = uc
+		// and persist changes
+		x.storage.GetCertificatesDB().Write(id.Bytes(), uc)
+	}
+}
+
 func (x *BlockStore) GetCertificates() map[protocol.SystemIdentifier]*certificates.UnicityCertificate {
+	x.lock.RLock()
+	defer x.lock.RUnlock()
 	return x.Certificates
 }
 

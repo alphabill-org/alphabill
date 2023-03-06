@@ -149,7 +149,7 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
-	cmd.Flags().Uint64P(amountCmdName, "v", 0, "the amount to send to the receiver")
+	cmd.Flags().StringP(amountCmdName, "v", "", "the amount to send to the receiver")
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "which key to use for sending the transaction")
@@ -185,17 +185,29 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		return err
 	}
 	defer am.Close()
-	pubKeyHex, err := cmd.Flags().GetString(addressCmdName)
+
+	receiverPubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
 		return err
 	}
-	pubKey, ok := pubKeyHexToBytes(pubKeyHex)
+	receiverPubKey, ok := pubKeyHexToBytes(receiverPubKeyHex)
 	if !ok {
 		return errors.New("address in not in valid format")
 	}
-	amount, err := cmd.Flags().GetUint64(amountCmdName)
+	if len(receiverPubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
+		return money.ErrInvalidPubKey
+	}
+
+	amountStr, err := cmd.Flags().GetString(amountCmdName)
 	if err != nil {
 		return err
+	}
+	amount, err := stringToAmount(amountStr, 8)
+	if err != nil {
+		return err
+	}
+	if amount == 0 {
+		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\":0 is not valid amount", amountStr)
 	}
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
@@ -227,12 +239,13 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	}
 
 	accountIndex := accountNumber - 1
-
-	if len(pubKey) != abcrypto.CompressedSecp256K1PublicKeySize {
-		return money.ErrInvalidPubKey
+	k, err := am.GetAccountKey(accountIndex)
+	if err != nil {
+		return err
 	}
-	balance, err := restClient.GetBalance(pubKey, false)
+	balance, err := restClient.GetBalance(k.PubKey, false)
 	if amount > balance {
+		fmt.Printf("amount: %d balance: %d\n", amount, balance)
 		return money.ErrInsufficientBalance
 	}
 	maxBlockNo, err := restClient.GetBlockHeight()
@@ -243,22 +256,22 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	k, err := am.GetAccountKey(accountIndex)
-	if err != nil {
-		return err
-	}
-	billResponse, err := restClient.ListBills(pubKey)
+	billResponse, err := restClient.ListBills(k.PubKey)
 	if err != nil {
 		return err
 	}
 
 	var bills []*money.Bill
 	for _, b := range billResponse.Bills {
-		bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
+		billValueUint, err := strconv.ParseUint(b.Value, 10, 64)
+		if err != nil {
+			return err
+		}
+		bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: billValueUint, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
 		bills = append(bills, bill)
 	}
 
-	txs, err := money.CreateTransactions(pubKey, amount, bills, k, timeout)
+	txs, err := money.CreateTransactions(receiverPubKey, amount, bills, k, timeout)
 	if err != nil {
 		return err
 	}
@@ -384,13 +397,15 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			}
 			sum += balance
 			if !total {
-				consoleWriter.Println(fmt.Sprintf("#%d %d", accountIndex+1, balance))
+				balanceStr := amountToString(balance, 8)
+				consoleWriter.Println(fmt.Sprintf("#%d %s", accountIndex+1, balanceStr))
 			}
 		}
+		sumStr := amountToString(sum, 8)
 		if quiet {
-			consoleWriter.Println(sum)
+			consoleWriter.Println(sumStr)
 		} else {
-			consoleWriter.Println(fmt.Sprintf("Total %d", sum))
+			consoleWriter.Println(fmt.Sprintf("Total %s", sumStr))
 		}
 	} else {
 		pubKey, err := am.GetPublicKey(accountNumber - 1)
@@ -401,10 +416,11 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		if err != nil {
 			return err
 		}
+		balanceStr := amountToString(balance, 8)
 		if quiet {
-			consoleWriter.Println(balance)
+			consoleWriter.Println(balanceStr)
 		} else {
-			consoleWriter.Println(fmt.Sprintf("#%d %d", accountNumber, balance))
+			consoleWriter.Println(fmt.Sprintf("#%d %s", accountNumber, balanceStr))
 		}
 	}
 	return nil
@@ -545,7 +561,7 @@ func initWalletConfig(cmd *cobra.Command, config *walletConfig) error {
 	if walletLocation != "" {
 		config.WalletHomeDir = walletLocation
 	} else {
-		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "account")
+		config.WalletHomeDir = filepath.Join(config.Base.HomeDir, "wallet")
 	}
 	return nil
 }

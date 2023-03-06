@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -114,7 +115,12 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Account #%d", group.accountIndex+1))
 		}
 		for j, bill := range group.bills.Bills {
-			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", j+1, bill.Id, bill.Value))
+			billValueUint, err := strconv.ParseUint(bill.Value, 10, 64)
+			if err != nil {
+				return err
+			}
+			billValueStr := amountToString(billValueUint, 8)
+			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s", j+1, bill.Id, billValueStr))
 		}
 	}
 	return nil

@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,7 @@ type dataSource interface {
 	GetBlockNumber() (uint64, error)
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
 }
@@ -51,10 +53,14 @@ func (api *restAPI) endpoints() http.Handler {
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
 	// Link header is needed for pagination support.
 	// OPTIONS method needs to be explicitly defined for each handler func
-	apiRouter.Use(handlers.CORS(handlers.AllowedHeaders([]string{"Content-Type", "Link"})))
+	apiRouter.Use(handlers.CORS(
+		handlers.AllowedHeaders([]string{"Content-Type"}),
+		handlers.ExposedHeaders([]string{"Link"}),
+	))
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
+	apiV1.HandleFunc("/tokens/{tokenId}", api.getToken).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/types/{typeId}/hierarchy", api.typeHierarchy).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/owners/{owner}/tokens", api.listTokens).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
@@ -113,6 +119,22 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 	setLinkHeader(r.URL, w, encodeTokenID(next))
 	api.writeResponse(w, data)
+}
+
+func (api *restAPI) getToken(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tokenId, err := parseTokenID(vars["tokenId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "tokenId", err)
+		return
+	}
+
+	token, err := api.db.GetToken(tokenId)
+	if err != nil {
+		api.writeErrorResponse(w, err)
+		return
+	}
+	api.writeResponse(w, token)
 }
 
 func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
@@ -281,6 +303,11 @@ func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {
 }
 
 func (api *restAPI) writeErrorResponse(w http.ResponseWriter, err error) {
+	if errors.Is(err, errRecordNotFound) {
+		api.errorResponse(w, http.StatusNotFound, err)
+		return
+	}
+
 	api.errorResponse(w, http.StatusInternalServerError, err)
 	api.logError(err)
 }

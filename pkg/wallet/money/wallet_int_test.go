@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	nettest "github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
@@ -258,11 +259,13 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// start network
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	network := startAlphabillPartition(t, initialBill)
-	addr := "localhost:9544"
+	port, err := nettest.GetFreePort()
+	require.NoError(t, err)
+	addr := fmt.Sprintf("localhost:%d", port)
 	startRPCServer(t, network, addr)
 
 	// setup wallet with multiple keys

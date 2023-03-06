@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -32,7 +33,7 @@ type BoltBlockStore struct {
 // NewBoltBlockStore creates new on-disk persistent block store using bolt db.
 // If the file does not exist then it will be created, however, parent directories must exist beforehand.
 func NewBoltBlockStore(dbFile string) (*BoltBlockStore, error) {
-	db, err := bolt.Open(dbFile, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +117,11 @@ func (bs *BoltBlockStore) LatestBlock() *block.Block {
 	return res
 }
 
-func (bs *BoltBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {
+func (bs *BoltBlockStore) SetPendingProposal(proposal *block.PendingBlockProposal) error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
+		if proposal == nil {
+			return tx.Bucket(blockProposalBucket).Delete(blockProposalBucketKey)
+		}
 		val, err := json.Marshal(proposal)
 		if err != nil {
 			return err
@@ -131,7 +135,7 @@ func (bs *BoltBlockStore) GetPendingProposal() (*block.PendingBlockProposal, err
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		blockJson := tx.Bucket(blockProposalBucket).Get(blockProposalBucketKey)
 		if blockJson == nil {
-			return errors.New(ErrStrPendingBlockProposalNotFound)
+			return nil
 		}
 		return json.Unmarshal(blockJson, &bp)
 	})

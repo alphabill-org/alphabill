@@ -257,6 +257,77 @@ func Test_GetRoundNumber(t *testing.T) {
 	})
 }
 
+func Test_GetToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid request is built", func(t *testing.T) {
+		tokenID := test.RandomBytes(32)
+		cli := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					tokenIdStr := hexutil.Encode(tokenID)
+					expURL := fmt.Sprintf("http://localhost/api/v1/tokens/%s", tokenIdStr)
+					if r.URL.String() != expURL {
+						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
+					}
+					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusOK)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		data, err := cli.GetToken(context.Background(), tokenID)
+		require.NoError(t, err)
+		require.Empty(t, data)
+	})
+
+	createClient := func(t *testing.T, respBody *twb.TokenUnit) *TokenBackend {
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if respBody == nil {
+							w.WriteHeader(http.StatusNotFound)
+							w.WriteString(`{"message":"no token with this id"}`)
+							return w.Result(), nil
+						}
+
+						err := json.NewEncoder(w).Encode(respBody)
+						return w.Result(), err
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("no token with given id", func(t *testing.T) {
+		cli := createClient(t, nil)
+		data, err := cli.GetToken(context.Background(), test.RandomBytes(32))
+		require.EqualError(t, err, `get token request failed: no token with this id: not found`)
+		require.ErrorIs(t, err, ErrNotFound)
+		require.Empty(t, data)
+	})
+
+	t.Run("token found", func(t *testing.T) {
+		token := &twb.TokenUnit{
+			ID:     test.RandomBytes(32),
+			Symbol: "OUCH!",
+			Amount: 10000,
+		}
+		cli := createClient(t, token)
+		data, err := cli.GetToken(context.Background(), token.ID)
+		require.NoError(t, err)
+		require.Equal(t, token, data)
+	})
+}
+
 func Test_GetTokens(t *testing.T) {
 	t.Parallel()
 
@@ -384,6 +455,74 @@ func Test_GetTokenTypes(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, data, expData)
 		require.Empty(t, offset)
+	})
+}
+
+func Test_GetTypeHierarchy(t *testing.T) {
+	t.Parallel()
+
+	typeID := test.RandomBytes(32)
+
+	t.Run("valid request is built", func(t *testing.T) {
+		cli := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "127.0.0.1:4321"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					typeIDStr := hexutil.Encode(typeID)
+					expURL := fmt.Sprintf("http://127.0.0.1:4321/api/v1/types/%s/hierarchy", typeIDStr)
+					if r.URL.String() != expURL {
+						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
+					}
+					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusOK)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.NoError(t, err)
+		require.Empty(t, data)
+	})
+
+	createClient := func(t *testing.T, respBody []twb.TokenUnitType) *TokenBackend {
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if respBody == nil {
+							w.WriteHeader(http.StatusNotFound)
+							w.WriteString(`{"message":"no type with this id"}`)
+							return w.Result(), nil
+						}
+
+						err := json.NewEncoder(w).Encode(respBody)
+						return w.Result(), err
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("no type with given id", func(t *testing.T) {
+		cli := createClient(t, nil)
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.EqualError(t, err, `get token type hierarchy request failed: no type with this id: not found`)
+		require.ErrorIs(t, err, ErrNotFound)
+		require.Empty(t, data)
+	})
+
+	t.Run("type with given id exists", func(t *testing.T) {
+		expData := []twb.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		cli := createClient(t, expData)
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, data, expData)
 	})
 }
 

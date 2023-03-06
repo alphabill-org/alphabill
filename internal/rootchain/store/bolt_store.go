@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -29,7 +30,7 @@ type BoltStore struct {
 }
 
 func NewBoltStore(dbFile string) (*BoltStore, error) {
-	db, err := bolt.Open(dbFile, 0600, nil)
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second})
 	if err != nil {
 		return nil, err
 	}

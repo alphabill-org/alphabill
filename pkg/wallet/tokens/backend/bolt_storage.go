@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 
@@ -315,7 +316,7 @@ func setPosition(c *bolt.Cursor, key []byte) (k, v []byte) {
 }
 
 func newBoltStore(dbFile string) (*storage, error) {
-	db, err := bolt.Open(dbFile, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, fmt.Errorf("failed to open bolt DB: %w", err)
 	}

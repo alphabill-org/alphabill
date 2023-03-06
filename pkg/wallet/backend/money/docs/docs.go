@@ -37,6 +37,15 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/money.BalanceResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/money.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
                     }
                 }
             }
@@ -95,6 +104,15 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/money.ListBillsResponse"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/money.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
                     }
                 }
             }
@@ -121,6 +139,21 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/block.Bills"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/money.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/money.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
                     }
                 }
             }
@@ -408,7 +441,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "balance": {
-                    "type": "integer"
+                    "type": "string"
                 }
             }
         },
@@ -416,7 +449,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "blockHeight": {
-                    "type": "integer"
+                    "type": "string"
+                }
+            }
+        },
+        "money.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
                 }
             }
         },
@@ -428,7 +469,7 @@ const docTemplate = `{
                     "format": "base64",
                     "example": "AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="
                 },
-                "isDCBill": {
+                "isDcBill": {
                     "type": "boolean",
                     "example": false
                 },
@@ -438,8 +479,8 @@ const docTemplate = `{
                     "example": "Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="
                 },
                 "value": {
-                    "type": "integer",
-                    "example": 1000
+                    "type": "string",
+                    "example": "1000"
                 }
             }
         },

@@ -154,12 +154,12 @@ func (x *ConsensusManager) start() {
 	// Am I the leader?
 	currentRound := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(currentRound) == x.peer.ID() {
-		logger.Info("%v round %v, current node is leader, waiting to propose", x.peer.LogID(), currentRound)
+		logger.Info("%v round %v root node started as leader, waiting to propose", x.peer.LogID(), currentRound)
 		// on start wait a bit before making a proposal
 		x.waitPropose = true
 		x.timers.Start(blockRateID, x.params.BlockRateMs)
 	} else {
-		logger.Info("%v round %v, current node is not leader, wait for proposal from leader %v",
+		logger.Info("%v round %v root node started, waiting for proposal from leader %v",
 			x.peer.LogID(), currentRound, x.leaderSelector.GetLeaderForRound(currentRound).String())
 	}
 	go x.loop()
@@ -291,7 +291,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 		return
 	}
 	// route the IR change to the next root chain leader
-	logger.Info("%v round %v forwarding IR change request to next leader in round %v - %v",
+	logger.Debug("%v round %v forwarding IR change request to next leader in round %v - %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), nextRound, nextLeader.String())
 	err := x.net.Send(
 		network.OutputMessage{
@@ -331,7 +331,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 		id, _ := validator.GetID()
 		receivers[i] = id
 	}
-	logger.Info("%v round %v broadcasting timeout vote", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Debug("%v round %v broadcasting timeout vote", x.peer.LogID(), x.pacemaker.GetCurrentRound())
 	err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootTimeout,
@@ -355,7 +355,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 			return
 		}
 	}
-	logger.Info("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Debug("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
 	// Verify and buffer and wait for opportunity to make the next proposal
 	if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {
 		logger.Warning("%v IR change request from partition %X error: %v", x.peer.LogID(), irChange.SystemIdentifier, err)
@@ -375,14 +375,14 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Author, vote.VoteInfo.RoundNumber)
 		return
 	}
-	logger.Info("%v round %v received vote for round %v from %v",
+	logger.Debug("%v round %v received vote for round %v from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber, vote.Author)
 	// if a vote is received for the next round and this node is going to be the leader in
 	// the round after this, then buffer vote, it was just received before the proposal
 	if vote.VoteInfo.RoundNumber == x.pacemaker.GetCurrentRound()+1 &&
 		x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()+2) == x.peer.ID() {
 		// vote received before proposal, buffer
-		logger.Info("%v round %v received vote for round %v before proposal, buffering vote",
+		logger.Debug("%v round %v received vote for round %v before proposal, buffering vote",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
 		x.voteBuffer = append(x.voteBuffer, vote)
 		return
@@ -412,14 +412,14 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
 		return
 	}
-	logger.Info("%v round %v quorum achieved", x.peer.LogID(), vote.VoteInfo.RoundNumber)
+	logger.Debug("%v round %v quorum achieved", x.peer.LogID(), vote.VoteInfo.RoundNumber)
 	// since the root chain must not run faster than block-rate, calculate
 	// time from last proposal and see if we need to wait
 	slowDownTime := x.pacemaker.CalcTimeTilNextProposal(x.pacemaker.GetCurrentRound() + 1)
 	// advance view/round on QC
 	x.processCertificateQC(qc)
 	if slowDownTime > 0 {
-		logger.Info("%v round %v node %v wait %v before proposing",
+		logger.Debug("%v round %v node %v wait %v before proposing",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
 		x.waitPropose = true
 		x.timers.Start(blockRateID, slowDownTime)
@@ -442,7 +442,7 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 		return
 	}
 	// Author voted timeout, proceed
-	logger.Info("%v round %v received timout vote for round %v from %v",
+	logger.Debug("%v round %v received timout vote for round %v from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round, vote.Author)
 	// SyncState, compare last handled QC
 	if x.checkRecoveryNeeded(vote.Timeout.HighQc) {
@@ -455,7 +455,7 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round)
 		return
 	}
-	logger.Info("%v round %v timeout quorum achieved", x.peer.LogID(), vote.Timeout.Round)
+	logger.Debug("%v round %v timeout quorum achieved", x.peer.LogID(), vote.Timeout.Round)
 	// process timeout certificate to advance to next the view/round
 	x.processTC(tc)
 	// if this node is the leader in this round then issue a proposal
@@ -495,7 +495,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author, proposal.Block.Round)
 		return
 	}
-	logger.Info("%v round %v received proposal message from %v",
+	logger.Debug("%v round %v received proposal message from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author)
 	// Is from valid leader
 	if x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String() != proposal.Block.Author {
@@ -532,7 +532,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
-	logger.Info("%v sending vote to next leader %v", x.peer.LogID(), nextLeader.String())
+	logger.Debug("%v sending vote to next leader %v", x.peer.LogID(), nextLeader.String())
 	err = x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
@@ -586,10 +586,10 @@ func (x *ConsensusManager) processNewRoundEvent() {
 	x.timers.Restart(localTimeoutID)
 	round := x.pacemaker.GetCurrentRound()
 	if x.leaderSelector.GetLeaderForRound(round) != x.peer.ID() {
-		logger.Info("%v round %v current node is not the leader, await proposal", x.peer.LogID(), round)
+		logger.Info("%v round %v new round start, not leader awaiting proposal", x.peer.LogID(), round)
 		return
 	}
-	logger.Info("%v round %v start, node is leader in round", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Info("%v round %v new round start, node is leader", x.peer.LogID(), x.pacemaker.GetCurrentRound())
 	proposalMsg := &atomic_broadcast.ProposalMsg{
 		Block: &atomic_broadcast.BlockData{
 			Author:    x.peer.ID().String(),
@@ -611,7 +611,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		id, _ := validator.GetID()
 		receivers[i] = id
 	}
-	logger.Info("%v broadcasting proposal msg", x.peer.LogID())
+	logger.Debug("%v broadcasting proposal msg", x.peer.LogID())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootProposal,

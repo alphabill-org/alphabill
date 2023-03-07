@@ -25,10 +25,9 @@ const (
 )
 
 var (
-	ErrInvalidBlockSystemID = goerrors.New("invalid system identifier")
-	ErrAttributesMissing    = goerrors.New("attributes missing")
-	ErrInvalidURILength     = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
-	ErrInvalidDataLength    = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
+	errAttributesMissing = goerrors.New("attributes missing")
+	errInvalidURILength  = fmt.Errorf("URI exceeds the maximum allowed size of %v bytes", uriMaxSize)
+	errInvalidDataLength = fmt.Errorf("data exceeds the maximum allowed size of %v bytes", dataMaxSize)
 )
 
 type (
@@ -48,12 +47,11 @@ type (
 	}
 )
 
-func Load(backendUrl string, am account.Manager) (*Wallet, error) {
+func New(systemID []byte, backendUrl string, am account.Manager) (*Wallet, error) {
 	addr, err := url.Parse(backendUrl)
 	if err != nil {
 		return nil, err
 	}
-	systemID := tokens.DefaultTokenTxSystemIdentifier
 	txs, err := tokens.New(tokens.WithSystemIdentifier(systemID))
 	if err != nil {
 		return nil, err
@@ -90,16 +88,16 @@ func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *toke
 func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId twb.TokenID, mintPredicateArgs []*PredicateInput) (twb.TokenID, error) {
 	log.Info("Creating new NFT")
 	if attrs == nil {
-		return nil, ErrAttributesMissing
+		return nil, errAttributesMissing
 	}
 	if len(attrs.Uri) > uriMaxSize {
-		return nil, ErrInvalidURILength
+		return nil, errInvalidURILength
 	}
 	if attrs.Uri != "" && !util.IsValidURI(attrs.Uri) {
 		return nil, fmt.Errorf("URI '%s' is invalid", attrs.Uri)
 	}
 	if len(attrs.Data) > dataMaxSize {
-		return nil, ErrInvalidDataLength
+		return nil, errInvalidDataLength
 	}
 	return w.newToken(ctx, accNr, attrs, tokenId, mintPredicateArgs)
 }

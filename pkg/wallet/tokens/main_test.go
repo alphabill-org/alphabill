@@ -32,7 +32,7 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := Load(srv.URL, nil)
+	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil)
 	require.NoError(t, err)
 
 	rn, err := w.getRoundNumber(context.Background())

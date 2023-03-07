@@ -670,7 +670,7 @@ func createNewTokenWallet(t *testing.T, addr string) (*tw.Wallet, string) {
 	require.NoError(t, err)
 	require.NoError(t, am.CreateKeys(""))
 
-	w, err := tw.Load(addr, am)
+	w, err := tw.New(tokens.DefaultTokenTxSystemIdentifier, addr, am)
 	require.NoError(t, err)
 	require.NotNil(t, w)
 

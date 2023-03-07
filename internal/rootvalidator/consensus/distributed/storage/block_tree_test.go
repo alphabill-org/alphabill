@@ -7,12 +7,15 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/rootdb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
 	"github.com/stretchr/testify/require"
 )
 
 var sysID1 = []byte{0, 0, 0, 1}
 var sysID2 = []byte{0, 0, 0, 2}
+
+var zeroHash = make([]byte, gocrypto.SHA256.Size())
+
 var inputRecord1 = &certificates.InputRecord{
 	PreviousHash: []byte{1, 1, 1},
 	Hash:         []byte{2, 2, 2},

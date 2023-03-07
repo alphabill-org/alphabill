@@ -8,9 +8,9 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/rootdb"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/rootdb/boltdb"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/rootdb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/boltdb"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
 )
 
 const (
@@ -27,7 +27,7 @@ type (
 
 	StateStore struct {
 		state *RootState
-		db    rootdb.KeyValueDB
+		db    database.KeyValueDB
 		mu    sync.Mutex
 	}
 )

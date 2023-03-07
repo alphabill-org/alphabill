@@ -1,4 +1,4 @@
-package rootdb
+package database
 
 // Reader interface for DB
 type Reader interface {

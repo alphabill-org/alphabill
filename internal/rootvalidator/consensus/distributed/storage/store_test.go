@@ -1,46 +1,41 @@
 package storage
 
 import (
-	gocrypto "crypto"
+	"os"
+	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/network/protocol"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	roundCreationTime = 100000
-)
-
-var zeroHash = make([]byte, gocrypto.SHA256.Size())
-var sysID = protocol.SystemIdentifier([]byte{0, 0, 0, 0})
-var mockUc = &certificates.UnicityCertificate{
-	UnicityTreeCertificate: &certificates.UnicityTreeCertificate{
-		SystemIdentifier:      []byte(sysID),
-		SiblingHashes:         nil,
-		SystemDescriptionHash: nil,
-	},
-	UnicitySeal: &certificates.UnicitySeal{
-		RootRoundInfo: &certificates.RootRoundInfo{
-			RoundNumber:     1,
-			Timestamp:       roundCreationTime,
-			CurrentRootHash: make([]byte, gocrypto.SHA256.Size()),
-		},
-		CommitInfo: &certificates.CommitInfo{
-			RootRoundInfoHash: make([]byte, gocrypto.SHA256.Size()),
-			RootHash:          make([]byte, gocrypto.SHA256.Size()),
-		},
-	},
+func TestNewInMemoryDB(t *testing.T) {
+	// creates an in memory db
+	db, err := New("")
+	require.NoError(t, err)
+	require.NotNil(t, db)
+	require.NotNil(t, db.GetCertificatesDB())
+	require.NotNil(t, db.GetBlocksDB())
+	require.NotNil(t, db.GetRootDB())
 }
-var testGenesis = &genesis.RootGenesis{
-	Partitions: []*genesis.GenesisPartitionRecord{
-		{
-			Nodes:       nil,
-			Certificate: mockUc,
-			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
-				SystemIdentifier: sysID.Bytes(),
-				T2Timeout:        2500,
-			},
-		},
-	},
+
+func TestNewInPersistentDBPathNotDir(t *testing.T) {
+	file, err := os.CreateTemp("", "bolt-*.db")
+	require.NoError(t, err)
+	defer os.Remove(file.Name())
+	// creates a bolt DB
+	db, err := New(file.Name())
+	require.ErrorContains(t, err, "not a directory")
+	require.Nil(t, db)
+}
+
+func TestNewInPersistentDB(t *testing.T) {
+	dir, err := os.MkdirTemp("", "bolt*")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	// creates a bolt DB
+	db, err := New(dir)
+	require.NoError(t, err)
+	require.NotNil(t, db)
+	require.NotNil(t, db.GetCertificatesDB())
+	require.NotNil(t, db.GetBlocksDB())
+	require.NotNil(t, db.GetRootDB())
 }

@@ -71,10 +71,8 @@ func TestInMemState_GetAndSave(t *testing.T) {
 
 func TestPersistentRootState_GetAndSave(t *testing.T) {
 	// creates and initiates the bolt store backend, and saves initial state
-	dir, err := os.MkdirTemp("", "bolt")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir, err := os.MkdirTemp("", "bolt*")
+	require.NoError(t, err)
 	stateStore, err := NewStateStore(testGenesis, dir)
 	defer os.RemoveAll(dir)
 	require.NoError(t, err)

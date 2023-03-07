@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/rootdb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
 	"github.com/stretchr/testify/require"
 )
 

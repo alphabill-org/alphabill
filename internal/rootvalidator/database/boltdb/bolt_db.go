@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/rootdb"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -136,25 +136,25 @@ func (db *BoltDB) Delete(key []byte) error {
 	return nil
 }
 
-func (db *BoltDB) First() rootdb.Iterator {
+func (db *BoltDB) First() database.Iterator {
 	it := NewIterator(db.db, db.bucket, db.decoder)
 	it.first()
 	return it
 }
 
-func (db *BoltDB) Last() rootdb.ReverseIterator {
+func (db *BoltDB) Last() database.ReverseIterator {
 	it := NewIterator(db.db, db.bucket, db.decoder)
 	it.last()
 	return it
 }
 
-func (db *BoltDB) Find(key []byte) rootdb.Iterator {
+func (db *BoltDB) Find(key []byte) database.Iterator {
 	it := NewIterator(db.db, db.bucket, db.decoder)
 	it.seek(key)
 	return it
 }
 
-func (db *BoltDB) StartTx() (rootdb.DBTransaction, error) {
+func (db *BoltDB) StartTx() (database.DBTransaction, error) {
 	tx, err := NewBoltTx(db.db, db.bucket, db.encoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Bolt tx, %w", err)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/rootdb"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -20,7 +20,7 @@ type (
 		root        *node
 		roundToNode map[uint64]*node
 		highQc      *atomic_broadcast.QuorumCert
-		blocksDB    rootdb.KeyValueDB
+		blocksDB    database.KeyValueDB
 	}
 )
 
@@ -40,14 +40,14 @@ func (l *node) removeChild() {
 	l.child = nil
 }
 
-func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks rootdb.KeyValueDB) error {
+func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks database.KeyValueDB) error {
 	if err := blocks.Write(util.Uint64ToBytes(genesisBlock.BlockData.Round), genesisBlock); err != nil {
 		return fmt.Errorf("genesis block write failed, %w", err)
 	}
 	return nil
 }
 
-func NewBlockTree(bDB rootdb.KeyValueDB) (*BlockTree, error) {
+func NewBlockTree(bDB database.KeyValueDB) (*BlockTree, error) {
 	itr := bDB.Last()
 	var blocks []*ExecutedBlock
 	var lastRoot *ExecutedBlock = nil
@@ -96,7 +96,7 @@ func NewBlockTree(bDB rootdb.KeyValueDB) (*BlockTree, error) {
 	}, nil
 }
 
-func (bt *BlockTree) InsertQc(qc *atomic_broadcast.QuorumCert, bockDB rootdb.KeyValueDB) error {
+func (bt *BlockTree) InsertQc(qc *atomic_broadcast.QuorumCert, bockDB database.KeyValueDB) error {
 	// find block, if it does not exist, return error we need to recover missing info
 	b, err := bt.FindBlock(qc.VoteInfo.RoundNumber)
 	if err != nil {

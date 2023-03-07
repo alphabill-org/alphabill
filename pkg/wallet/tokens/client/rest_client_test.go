@@ -205,7 +205,7 @@ func Test_GetRoundNumber(t *testing.T) {
 
 					w := httptest.NewRecorder()
 					w.WriteHeader(http.StatusOK)
-					if _, err := w.WriteString(`{"roundNumber": 0}`); err != nil {
+					if _, err := w.WriteString(`{"roundNumber": "0"}`); err != nil {
 						t.Errorf("failed to write response body: %v", err)
 					}
 					return w.Result(), nil
@@ -243,14 +243,14 @@ func Test_GetRoundNumber(t *testing.T) {
 	})
 
 	t.Run("invalid response: negative value", func(t *testing.T) {
-		cli := createClient(t, `{"roundNumber": -8}`)
+		cli := createClient(t, `{"roundNumber": "-8"}`)
 		rn, err := cli.GetRoundNumber(context.Background())
 		require.EqualError(t, err, `get round-number request failed: failed to decode response body: json: cannot unmarshal number -8 into Go struct field RoundNumberResponse.roundNumber of type uint64`)
 		require.Zero(t, rn)
 	})
 
 	t.Run("success", func(t *testing.T) {
-		cli := createClient(t, `{"roundNumber": 3}`)
+		cli := createClient(t, `{"roundNumber": "3"}`)
 		rn, err := cli.GetRoundNumber(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 3, rn)
@@ -635,7 +635,7 @@ func Test_New(t *testing.T) {
 			t.Errorf("expected request %q, got: %q", rp, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"roundNumber": 900}`)
+		fmt.Fprint(w, `{"roundNumber": "900"}`)
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(h))

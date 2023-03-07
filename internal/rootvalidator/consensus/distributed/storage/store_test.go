@@ -20,7 +20,9 @@ func TestNewInMemoryDB(t *testing.T) {
 func TestNewInPersistentDBPathNotDir(t *testing.T) {
 	file, err := os.CreateTemp("", "bolt-*.db")
 	require.NoError(t, err)
-	defer os.Remove(file.Name())
+	defer func() {
+		require.NoError(t, os.Remove(file.Name()))
+	}()
 	// creates a bolt DB
 	db, err := New(file.Name())
 	require.ErrorContains(t, err, "not a directory")
@@ -30,7 +32,9 @@ func TestNewInPersistentDBPathNotDir(t *testing.T) {
 func TestNewInPersistentDB(t *testing.T) {
 	dir, err := os.MkdirTemp("", "bolt*")
 	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	defer func() {
+		require.NoError(t, os.RemoveAll(dir))
+	}()
 	// creates a bolt DB
 	db, err := New(dir)
 	require.NoError(t, err)

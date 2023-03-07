@@ -41,9 +41,7 @@ var unicityMap = map[p.SystemIdentifier]*certificates.UnicityCertificate{
 func initBoltDB(t *testing.T) *BoltDB {
 	t.Helper()
 	f, err := os.CreateTemp("", "bolt-*.db")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	boltDB, err := New(f.Name())
 	require.NoError(t, err)
 	require.NotNil(t, boltDB)
@@ -59,7 +57,9 @@ func TestBoltDB_InvalidPath(t *testing.T) {
 
 func TestBoltDB_TestEmptyValue(t *testing.T) {
 	db := initBoltDB(t)
-	defer os.Remove(db.Path())
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	var uc certificates.UnicityCertificate
 	found, err := db.Read([]byte("certificate"), &uc)
 	require.NoError(t, err)
@@ -74,7 +74,9 @@ func TestBoltDB_TestEmptyValue(t *testing.T) {
 
 func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
 	db := initBoltDB(t)
-	defer os.Remove(db.Path())
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.NotNil(t, db)
 	var uc *certificates.UnicityCertificate = nil
 	require.Error(t, db.Write([]byte("certificate"), uc))
@@ -99,7 +101,9 @@ func TestBoltDB_TestInvalidReadWrite(t *testing.T) {
 
 func TestBoltDB_TestReadAndWrite(t *testing.T) {
 	db := initBoltDB(t)
-	defer os.Remove(db.Path())
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.NotNil(t, db)
 	require.True(t, db.Empty())
 	var value uint64 = 1
@@ -125,7 +129,9 @@ func TestBoltDB_TestReadAndWrite(t *testing.T) {
 
 func TestBoltDB_TestSerializeError(t *testing.T) {
 	db := initBoltDB(t)
-	defer os.Remove(db.Path())
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.NotNil(t, db)
 	// use custom type that has got marshal implementation
 	c := make(chan int)
@@ -134,7 +140,9 @@ func TestBoltDB_TestSerializeError(t *testing.T) {
 
 func TestBoltDB_Delete(t *testing.T) {
 	db := initBoltDB(t)
-	defer os.Remove(db.Path())
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.NotNil(t, db)
 	require.True(t, db.Empty())
 	var value uint64 = 1
@@ -150,7 +158,9 @@ func TestBoltDB_Delete(t *testing.T) {
 
 func TestBoltDB_WriteReadComplexStruct(t *testing.T) {
 	db := initBoltDB(t)
-	defer os.Remove(db.Path())
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	// write a complex struct
 	require.NoError(t, db.Write([]byte("certificates"), unicityMap))
 	ucs := make(map[p.SystemIdentifier]*certificates.UnicityCertificate)

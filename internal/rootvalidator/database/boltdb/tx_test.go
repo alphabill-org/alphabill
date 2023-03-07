@@ -2,6 +2,7 @@ package boltdb
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,9 @@ func TestBoltTx_Nil(t *testing.T) {
 
 func TestBoltTx_StartAndCommit(t *testing.T) {
 	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.True(t, db.Empty())
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -26,6 +30,9 @@ func TestBoltTx_StartAndCommit(t *testing.T) {
 
 func TestBoltTx_StartAndRollback(t *testing.T) {
 	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.True(t, db.Empty())
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -37,6 +44,9 @@ func TestBoltTx_StartAndRollback(t *testing.T) {
 
 func TestBoltTx_SimpleCommit(t *testing.T) {
 	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.True(t, db.Empty())
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -64,6 +74,9 @@ func TestBoltTx_SimpleCommit(t *testing.T) {
 
 func TestBoltTx_SimpleRollback(t *testing.T) {
 	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.True(t, db.Empty())
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -81,6 +94,9 @@ func TestBoltTx_SimpleRollback(t *testing.T) {
 
 func TestBoltTx_Delete(t *testing.T) {
 	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.True(t, db.Empty())
 	tx, err := db.StartTx()
 	require.NoError(t, err)
@@ -111,6 +127,9 @@ func TestBoltTx_Delete(t *testing.T) {
 
 func TestBoltTx_WriteEncodeError(t *testing.T) {
 	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
 	require.True(t, db.Empty())
 	tx, err := db.StartTx()
 	require.NoError(t, err)

@@ -74,7 +74,9 @@ func TestPersistentRootState_GetAndSave(t *testing.T) {
 	dir, err := os.MkdirTemp("", "bolt*")
 	require.NoError(t, err)
 	stateStore, err := NewStateStore(testGenesis, dir)
-	defer os.RemoveAll(dir)
+	defer func() {
+		require.NoError(t, os.RemoveAll(dir))
+	}()
 	require.NoError(t, err)
 	require.NotNil(t, stateStore)
 	s := stateStore.Get()

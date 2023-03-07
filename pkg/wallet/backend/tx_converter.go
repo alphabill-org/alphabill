@@ -7,12 +7,12 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 )
 
-func NewTxConverter(systemId []byte) *TxConverter {
-	return &TxConverter{systemId: systemId}
-}
-
 type TxConverter struct {
 	systemId []byte
+}
+
+func NewTxConverter(systemId []byte) *TxConverter {
+	return &TxConverter{systemId: systemId}
 }
 
 func (t *TxConverter) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {

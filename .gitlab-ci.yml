@@ -22,7 +22,9 @@ test:
   artifacts:
     expire_in: 1 month
     reports:
-      cobertura: test-coverage-cobertura.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: test-coverage-cobertura.xml
     paths:
       - test-coverage.out
     when: always

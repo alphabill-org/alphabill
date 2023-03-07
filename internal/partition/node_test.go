@@ -122,7 +122,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 
 	block1 := tp.GetLatestBlock(t)
 	require.True(t, ContainsTransaction(block1, transfer))
@@ -151,7 +151,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 		return false
 	}, test.WaitDuration, test.WaitTick)
 	tp.eh.Reset()
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 
 	block3 := tp.GetLatestBlock(t)
 	require.True(t, ContainsTransaction(block3, tx1))
@@ -167,13 +167,13 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	tp.partition.startNewRound(tp.partition.luc)
 	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	block1 := tp.GetLatestBlock(t)
 	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.RoundNumber, block1.UnicityCertificate.InputRecord.RoundNumber)
 	require.NotEqual(t, genesis.UnicityCertificate.InputRecord.BlockHash, block1.UnicityCertificate.InputRecord.BlockHash)
 
 	// next block (empty)
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	block2 := tp.GetLatestBlock(t) // this returns same block1 since empty block is not persisted
 	require.Equal(t, block1, block2)
 	// latest UC certifies empty block
@@ -185,7 +185,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	require.Equal(t, block2.UnicityCertificate.InputRecord.Hash, uc2.InputRecord.Hash)
 
 	// next block (empty)
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Equal(t, block1, tp.GetLatestBlock(t))
 	uc3 := tp.partition.luc
 	require.Less(t, uc2.InputRecord.RoundNumber, uc3.InputRecord.RoundNumber)
@@ -195,7 +195,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	// next block (non-empty)
 	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	block4 := tp.GetLatestBlock(t)
 	require.NotEqual(t, block1, block4)
 	require.NotEqual(t, block4.UnicityCertificate.InputRecord.BlockHash, zeroHash)
@@ -220,7 +220,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitUnicityCertificate(block.UnicityCertificate)
@@ -259,7 +259,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	defer tp.Close()
 	block := tp.GetLatestBlock(t) // genesis block
 	txSystem.Revert()             // revert the state of the tx system
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
 	//genericBlock, _ := block.ToGenericBlock(txSystem)
@@ -286,7 +286,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	block := tp.GetLatestBlock(t)
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 	block = tp.GetLatestBlock(t)
 	require.NotNil(t, block)
@@ -308,7 +308,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	defer tp.Close()
 	block := tp.GetLatestBlock(t)
 	txs.ExecuteCountDelta++ // so that the block is not considered empty
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
 	latestUC := tp.partition.luc
@@ -334,7 +334,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	tp.partition.startNewRound(genesisUC)
 	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 
 	latestUC := tp.partition.luc
 	require.NotEqual(t, genesisUC, latestUC)
@@ -424,7 +424,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "1", UnicityCertificate: block.UnicityCertificate})
 	ContainsError(t, tp, "public key with node id 1 not found")
@@ -437,7 +437,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 	ver, err := tp.rootSigner.Verifier()
 	require.NoError(t, err)
@@ -457,7 +457,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	transfer := moneytesttx.RandomBillTransfer(t)
 
 	require.NoError(t, tp.SubmitTx(transfer))
-	require.NoError(t, tp.CreateBlock(t))
+	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})

@@ -24,6 +24,10 @@ tools:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	go install github.com/swaggo/swag/cmd/swag@latest
+
+swagger:
+	swag init --dir pkg/wallet/backend/money,internal/block,internal/txsystem --generalInfo server.go --parseInternal --parseDepth 1 --parseDependency --output pkg/wallet/backend/money/docs
 
 .PHONY: \
 	all \

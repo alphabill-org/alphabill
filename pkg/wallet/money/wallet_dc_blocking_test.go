@@ -14,7 +14,7 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	billtx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -26,7 +26,7 @@ func TestBlockingDcWithNormalBills(t *testing.T) {
 	w, mockClient := CreateTestWallet(t)
 	addBills(t, w)
 
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -66,7 +66,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	w, _ := CreateTestWallet(t)
 	dcNonce := uint256.NewInt(1337)
 	addDcBills(t, w, dcNonce, 10)
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -110,7 +110,7 @@ func TestBlockingDcWithDifferentDcBills(t *testing.T) {
 	b22 := addDcBill(t, w, dcNonce2, 4, 10)
 	b23 := addDcBill(t, w, dcNonce2, 5, 10)
 
-	k, _ := w.db.Do().GetAccountKey(0)
+	k, _ := w.am.GetAccountKey(0)
 
 	// when blocking dust collector runs
 	wg := runBlockingDc(t, w)
@@ -180,7 +180,7 @@ func runBlockingDc(t *testing.T, w *Wallet) *sync.WaitGroup {
 	return &wg
 }
 
-func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey, systemId []byte, bills ...*Bill) *alphabill.GetBlockResponse {
+func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *account.AccountKey, systemId []byte, bills ...*Bill) *alphabill.GetBlockResponse {
 	var dcTxs []*txsystem.Transaction
 	for _, b := range bills {
 		dcTxs = append(dcTxs, &txsystem.Transaction{
@@ -195,7 +195,7 @@ func createBlockWithSwapTxFromDcBills(dcNonce *uint256.Int, k *wallet.AccountKey
 	return createBlockWithSwapTx(systemId, dcNonce32[:], k, dcTxs)
 }
 
-func createBlockWithSwapTx(systemId, dcNonce []byte, k *wallet.AccountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
+func createBlockWithSwapTx(systemId, dcNonce []byte, k *account.AccountKey, dcTxs []*txsystem.Transaction) *alphabill.GetBlockResponse {
 	return &alphabill.GetBlockResponse{
 		Block: &block.Block{
 			SystemIdentifier:  systemId,

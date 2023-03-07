@@ -42,10 +42,20 @@ type SingleNodePartition struct {
 	nodeConf   *configuration
 	store      store.BlockStore
 	partition  *Node
+	nodeDeps   *partitionStartupDependencies
 	rootState  rstore.RootState
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
+}
+
+type partitionStartupDependencies struct {
+	peer        *network.Peer
+	txSystem    txsystem.TransactionSystem
+	nodeSigner  crypto.Signer
+	genesis     *genesis.PartitionGenesis
+	net         Net
+	nodeOptions []NodeOption
 }
 
 func (t *AlwaysValidTransactionValidator) Validate(txsystem.GenericTransaction, uint64) error {
@@ -105,13 +115,39 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	*/
 	net := testnetwork.NewMockNetwork()
 	eh := &testevent.TestEventHandler{}
-	// partition
+
+	// allows restarting the node
+	deps := &partitionStartupDependencies{
+		peer:        peer,
+		txSystem:    txSystem,
+		nodeSigner:  nodeSigner,
+		genesis:     partitionGenesis[0],
+		net:         net,
+		nodeOptions: nodeOptions,
+	}
+
+	partition := &SingleNodePartition{
+		nodeDeps:   deps,
+		rootState:  rootState,
+		rootSigner: rootSigner,
+		mockNet:    net,
+		eh:         eh,
+	}
+
+	// partition node
+	err = partition.StartNode()
+	require.NoError(t, err)
+
+	return partition
+}
+
+func (sn *SingleNodePartition) StartNode() error {
 	n, err := New(
-		peer,
-		nodeSigner,
-		txSystem,
-		partitionGenesis[0],
-		net,
+		sn.nodeDeps.peer,
+		sn.nodeDeps.nodeSigner,
+		sn.nodeDeps.txSystem,
+		sn.nodeDeps.genesis,
+		sn.nodeDeps.net,
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),
 			WithLeaderSelector(&TestLeaderSelector{
@@ -119,22 +155,23 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 				currentNode: "1",
 			}),
 			WithTxValidator(&AlwaysValidTransactionValidator{}),
-			WithEventHandler(eh.HandleEvent, 100),
+			WithEventHandler(sn.eh.HandleEvent, 100),
 			WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
-		}, nodeOptions...)...,
+		}, sn.nodeDeps.nodeOptions...)...,
 	)
-	require.NoError(t, err)
-
-	partition := &SingleNodePartition{
-		partition:  n,
-		rootState:  rootState,
-		nodeConf:   n.configuration,
-		store:      n.blockStore,
-		rootSigner: rootSigner,
-		mockNet:    net,
-		eh:         eh,
+	if err != nil {
+		return err
 	}
-	return partition
+	sn.partition = n
+	sn.nodeConf = n.configuration
+	sn.store = n.blockStore
+	return nil
+}
+
+func (sn *SingleNodePartition) Restart(t *testing.T) {
+	sn.partition.Close()
+	fmt.Println("Restarting node...")
+	require.NoError(t, sn.StartNode())
 }
 
 func (sn *SingleNodePartition) Close() {
@@ -227,25 +264,12 @@ func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *block.Block {
 	return bl
 }
 
-func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
+func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 	sn.SubmitT1Timeout(t)
-	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
-	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)]
-	if !found {
-		return fmt.Errorf("unknown system identifier")
-	}
-	if err := consensus.CheckBlockCertificationRequest(req, luc); err != nil {
-		return err
-	}
-	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.Round+1)
-	if err != nil {
-		return err
-	}
-	// update state
-	sn.rootState.Round = uc.UnicitySeal.RootRoundInfo.RoundNumber
-	sn.rootState.RootHash = uc.UnicitySeal.CommitInfo.RootHash
-	sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)] = uc
+	sn.SubmitUC(t, sn.IssueBlockUC(t))
+}
+
+func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *certificates.UnicityCertificate) {
 	sn.eh.Reset()
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
@@ -253,9 +277,22 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) error {
 		Message:  uc,
 	})
 	testevent.ContainsEvent(t, sn.eh, event.BlockFinalized)
+}
 
-	sn.eh.Reset()
-	return nil
+func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityCertificate {
+	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
+	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
+	luc, found := sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)]
+	require.True(t, found)
+	err := consensus.CheckBlockCertificationRequest(req, luc)
+	require.NoError(t, err)
+	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.Round+1)
+	require.NoError(t, err)
+	// update state
+	sn.rootState.Round = uc.UnicitySeal.RootRoundInfo.RoundNumber
+	sn.rootState.RootHash = uc.UnicitySeal.CommitInfo.RootHash
+	sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)] = uc
+	return uc
 }
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {

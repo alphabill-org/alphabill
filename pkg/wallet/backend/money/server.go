@@ -28,7 +28,6 @@ type (
 
 	GenericWalletBackendHttpServer struct {
 		Handler RequestHandler
-		server  *http.Server
 	}
 )
 

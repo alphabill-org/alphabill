@@ -149,31 +149,40 @@ func ConvertAddFeeCredit(tx *txsystem.Transaction) (txsystem.GenericTransaction,
 func (w *Wrapper) SystemID() []byte {
 	return w.Transaction.SystemId
 }
+
 func (w *Wrapper) UnitID() *uint256.Int {
 	return uint256.NewInt(0).SetBytes(w.Transaction.UnitId)
 }
+
 func (w *Wrapper) Timeout() uint64 {
 	return w.Transaction.Timeout()
 }
+
 func (w *Wrapper) OwnerProof() []byte {
 	return w.Transaction.OwnerProof
 }
+
 func (w *Wrapper) ToProtoBuf() *txsystem.Transaction {
 	return w.Transaction
 }
+
 func (w *Wrapper) IsPrimary() bool {
 	return true
 }
+
 func (w *Wrapper) TargetUnits(_ crypto.Hash) []*uint256.Int {
 	return []*uint256.Int{w.UnitID()}
 }
+
 func (w *Wrapper) SetServerMetadata(sm *txsystem.ServerMetadata) {
 	w.ToProtoBuf().ServerMetadata = sm
 	w.resetHasher()
 }
+
 func (w *Wrapper) resetHasher() {
 	w.hashValue = nil
 }
+
 func (w *Wrapper) transactionSigBytes(b *bytes.Buffer) {
 	b.Write(w.Transaction.SystemId)
 	b.Write(w.Transaction.UnitId)
@@ -181,6 +190,7 @@ func (w *Wrapper) transactionSigBytes(b *bytes.Buffer) {
 		b.Write(w.Transaction.ClientMetadata.Bytes())
 	}
 }
+
 func (w *Wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(w.Transaction.SystemId)
 	hasher.Write(w.Transaction.UnitId)
@@ -193,6 +203,7 @@ func (w *Wrapper) addTransactionFieldsToHasher(hasher hash.Hash) {
 		hasher.Write(w.Transaction.ServerMetadata.Bytes())
 	}
 }
+
 func (w *Wrapper) hashComputed(hashFunc crypto.Hash) bool {
 	return w.hashFunc == hashFunc && w.hashValue != nil
 }
@@ -209,10 +220,12 @@ func (w *TransferFeeCreditWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.hashFunc = hashFunc
 	return w.hashValue
 }
+
 func (w *TransferFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.TransferFC.addFieldsToHasher(hasher)
 }
+
 func (w *TransferFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
@@ -235,17 +248,20 @@ func (w *AddFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.addFieldsToHasher(hasher)
 }
+
 func (w *AddFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
 	w.sigBytes(&b)
 	return b.Bytes()
 }
+
 func (w *AddFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(w.AddFC.FeeCreditOwnerCondition)
 	w.TransferFC.AddToHasher(hasher)
 	w.AddFC.FeeCreditTransferProof.AddToHasher(hasher)
 }
+
 func (w *AddFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.AddFC.FeeCreditOwnerCondition)
 	b.Write(w.TransferFC.SigBytes())
@@ -264,10 +280,12 @@ func (w *CloseFeeCreditWrapper) Hash(hashFunc crypto.Hash) []byte {
 	w.hashFunc = hashFunc
 	return w.hashValue
 }
+
 func (w *CloseFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.CloseFC.addFieldsToHasher(hasher)
 }
+
 func (w *CloseFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
@@ -290,17 +308,20 @@ func (w *ReclaimFeeCreditWrapper) AddToHasher(hasher hash.Hash) {
 	w.Wrapper.addTransactionFieldsToHasher(hasher)
 	w.addFieldsToHasher(hasher)
 }
+
 func (w *ReclaimFeeCreditWrapper) SigBytes() []byte {
 	var b bytes.Buffer
 	w.transactionSigBytes(&b)
 	w.sigBytes(&b)
 	return b.Bytes()
 }
+
 func (w *ReclaimFeeCreditWrapper) addFieldsToHasher(hasher hash.Hash) {
 	w.CloseFCTransfer.AddToHasher(hasher)
 	w.ReclaimFC.CloseFeeCreditProof.AddToHasher(hasher)
 	hasher.Write(w.ReclaimFC.Backlink)
 }
+
 func (w *ReclaimFeeCreditWrapper) sigBytes(b *bytes.Buffer) {
 	b.Write(w.CloseFCTransfer.SigBytes())
 	b.Write(w.CloseFCTransfer.OwnerProof())
@@ -318,6 +339,7 @@ func (x *TransferFeeCreditAttributes) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.Nonce)
 	hasher.Write(x.Backlink)
 }
+
 func (x *TransferFeeCreditAttributes) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetSystemIdentifier)
@@ -333,6 +355,7 @@ func (x *CloseFeeCreditAttributes) addFieldsToHasher(hasher hash.Hash) {
 	hasher.Write(x.TargetUnitId)
 	hasher.Write(x.Nonce)
 }
+
 func (x *CloseFeeCreditAttributes) sigBytes(b *bytes.Buffer) {
 	b.Write(util.Uint64ToBytes(x.Amount))
 	b.Write(x.TargetUnitId)

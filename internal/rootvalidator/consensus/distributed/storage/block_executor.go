@@ -131,12 +131,12 @@ func NewExecutedBlock(hash gocrypto.Hash, newBlock *atomic_broadcast.BlockData, 
 	irState := make(InputRecords, len(parent.CurrentIR))
 	copy(irState, parent.CurrentIR)
 	if len(changed) == 0 {
-		logger.Debug("Round %v executing proposal, no changes to input records", newBlock.Round)
+		logger.Trace("Round %v executing proposal, no changes to input records", newBlock.Round)
 	} else {
 		// apply changes
-		logger.Debug("Round %v executing proposal, changed input records are:", newBlock.Round)
+		logger.Trace("Round %v executing proposal, changed input records are:", newBlock.Round)
 		for _, d := range changed {
-			util.WriteDebugJsonLog(logger, fmt.Sprintf("partition %X IR:", d.SysID), d.IR)
+			util.WriteTraceJsonLog(logger, fmt.Sprintf("partition %X IR:", d.SysID), d.IR)
 			if err := irState.Update(d); err != nil {
 				return nil, fmt.Errorf("block execution failed, system id %X was not found in input records", d.SysID)
 			}

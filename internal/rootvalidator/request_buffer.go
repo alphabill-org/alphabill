@@ -71,7 +71,7 @@ func (c *CertRequestBuffer) Reset() {
 // Clear clears requests in one partition
 func (c *CertRequestBuffer) Clear(id p.SystemIdentifier) {
 	rs := c.get(id)
-	logger.Debug("Resetting request store for partition '%X'", id)
+	logger.Trace("Resetting request store for partition '%X'", id)
 	rs.reset()
 }
 
@@ -92,7 +92,7 @@ func (rs *requestBuffer) add(req *certification.BlockCertificationRequest) error
 			logger.Warning("Equivocating request with different hash: %v", req)
 			return errors.New("equivocating request with different hash")
 		} else {
-			logger.Debug("Duplicated request: %v", req)
+			logger.Trace("Duplicated request: %v", req)
 			return errors.New("duplicated request")
 		}
 	}
@@ -101,7 +101,7 @@ func (rs *requestBuffer) add(req *certification.BlockCertificationRequest) error
 	rs.requests[req.NodeIdentifier] = req
 	count := rs.hashCounts[hashString]
 	rs.hashCounts[hashString] = count + 1
-	logger.Debug("Added new IR hash: %X, block hash: %X, total hash count: %v", req.InputRecord.Hash, req.InputRecord.BlockHash, rs.hashCounts[hashString])
+	logger.Trace("Added new IR hash: %X, block hash: %X, total hash count: %v", req.InputRecord.Hash, req.InputRecord.BlockHash, rs.hashCounts[hashString])
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (rs *requestBuffer) isConsensusReceived(partition partition_store.Partition
 	}
 	if h == nil {
 		// consensus possible in the future
-		logger.Debug("Consensus possible in the future, no hashes received yet")
+		logger.Trace("Consensus possible in the future, no hashes received yet")
 		return nil, true
 	}
 	quorum := partition.GetQuorum()
@@ -129,17 +129,17 @@ func (rs *requestBuffer) isConsensusReceived(partition partition_store.Partition
 		// consensus received
 		for _, req := range rs.requests {
 			if bytes.Equal(h, req.InputRecord.Hash) {
-				logger.Debug("Consensus achieved, returning IR (hash: %X, block hash: %X)", req.InputRecord.Hash, req.InputRecord.BlockHash)
+				logger.Trace("Consensus achieved, returning IR (hash: %X, block hash: %X)", req.InputRecord.Hash, req.InputRecord.BlockHash)
 				return req.InputRecord, true
 			}
 		}
 	} else if len(partition.TrustBase)-len(rs.requests)+int(c) < int(quorum) {
-		logger.Debug("Consensus not possible, hash count: %v, needed count: %v, missing: %v", c, quorum, len(partition.TrustBase)-len(rs.requests))
+		logger.Trace("Consensus not possible, hash count: %v, needed count: %v, missing: %v", c, quorum, len(partition.TrustBase)-len(rs.requests))
 		// consensus not possible
 		return nil, false
 	}
 	// consensus possible in the future
-	logger.Debug("Consensus possible in the future, hash count: %v, needed count: %v, hash:%X", c, quorum, h)
+	logger.Trace("Consensus possible in the future, hash count: %v, needed count: %v, hash:%X", c, quorum, h)
 	return nil, true
 }
 
@@ -150,6 +150,6 @@ func (rs *requestBuffer) remove(nodeID string) {
 	}
 	hashString := string(oldReq.InputRecord.Hash)
 	rs.hashCounts[hashString] = rs.hashCounts[hashString] - 1
-	logger.Debug("Removing old IR hash: %X, block hash: %X, new hash count: %v", oldReq.InputRecord.Hash, oldReq.InputRecord.BlockHash, rs.hashCounts[hashString])
+	logger.Trace("Removing old IR hash: %X, block hash: %X, new hash count: %v", oldReq.InputRecord.Hash, oldReq.InputRecord.BlockHash, rs.hashCounts[hashString])
 	delete(rs.requests, nodeID)
 }

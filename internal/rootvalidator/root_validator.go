@@ -92,7 +92,7 @@ func (v *Node) loop() {
 					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
 					return
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Certification Request from %s", msg.From), req)
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Certification Request from %s", msg.From), req)
 				v.onBlockCertificationRequest(req)
 				break
 			case network.ProtocolHandshake:
@@ -101,7 +101,7 @@ func (v *Node) loop() {
 					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
 					return
 				}
-				logger.Debug("%v handshake: system id %v, node %v", v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
+				logger.Trace("%v handshake: system id %v, node %v", v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
 				break
 			default:
 				logger.Warning("%v protocol %s not supported.", v.peer.LogID(), msg.Protocol)
@@ -123,7 +123,7 @@ func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) 
 		logger.Warning("%v invalid node identifier: '%s'", nodeID)
 		return
 	}
-	logger.Info("%v sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
+	logger.Debug("%v sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
 		v.peer.LogID(), uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
 	err = v.net.Send(
 		network.OutputMessage{
@@ -183,7 +183,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(info)
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
-		logger.Info("%v partition %X reached consensus, new InputHash: %X",
+		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
 			v.peer.LogID(), systemIdentifier.Bytes(), ir.Hash)
 		requests := v.incomingRequests.GetRequests(systemIdentifier)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
@@ -191,7 +191,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			Reason:           consensus.Quorum,
 			Requests:         requests}
 	} else if !consensusPossible {
-		logger.Info("%v partition %X consensus not possible, repeat UC",
+		logger.Debug("%v partition %X consensus not possible, repeat UC",
 			v.peer.LogID(), systemIdentifier.Bytes())
 		// add all requests to prove that no consensus is possible
 		requests := v.incomingRequests.GetRequests(systemIdentifier)
@@ -210,7 +210,7 @@ func (v *Node) onCertificationResult(certificate *certificates.UnicityCertificat
 
 	info, err := v.partitionStore.Info(sysID)
 	if err != nil {
-		logger.Info("%v unable to send response to partition nodes: %v", v.peer.LogID(), err)
+		logger.Warning("%v unable to send response to partition nodes: %v", v.peer.LogID(), err)
 		return
 	}
 	// send response to all registered nodes

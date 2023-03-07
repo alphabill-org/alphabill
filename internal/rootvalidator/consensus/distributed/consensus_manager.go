@@ -193,7 +193,7 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
 					continue
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), req)
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("IR Change Request from %v", msg.From), req)
 				x.onIRChange(req)
 			case network.ProtocolRootProposal:
 				req, correctType := msg.Message.(*atomic_broadcast.ProposalMsg)
@@ -201,7 +201,7 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
 					continue
 				}
-				//util.WriteDebugJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), req)
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), req)
 				x.onProposalMsg(req)
 			case network.ProtocolRootVote:
 				req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
@@ -209,7 +209,7 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
 					continue
 				}
-				//util.WriteDebugJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), req)
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), req)
 				x.onVoteMsg(req)
 			case network.ProtocolRootTimeout:
 				req, correctType := msg.Message.(*atomic_broadcast.TimeoutMsg)
@@ -217,7 +217,7 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
 					continue
 				}
-				//util.WriteDebugJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
 				x.onTimeoutMsg(req)
 				// Todo: AB-320 add handling
 				/*
@@ -272,7 +272,7 @@ func (x *ConsensusManager) loop() {
 }
 
 func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
-	logger.Debug("%v round %v, IR change request from partition",
+	logger.Trace("%v round %v, IR change request from partition",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound())
 	reason := atomic_broadcast.IRChangeReqMsg_QUORUM
 	if req.Reason == consensus.QuorumNotPossible {
@@ -291,7 +291,7 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 		return
 	}
 	// route the IR change to the next root chain leader
-	logger.Debug("%v round %v forwarding IR change request to next leader in round %v - %v",
+	logger.Trace("%v round %v forwarding IR change request to next leader in round %v - %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), nextRound, nextLeader.String())
 	err := x.net.Send(
 		network.OutputMessage{
@@ -331,7 +331,7 @@ func (x *ConsensusManager) onLocalTimeout() {
 		id, _ := validator.GetID()
 		receivers[i] = id
 	}
-	logger.Debug("%v round %v broadcasting timeout vote", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Trace("%v round %v broadcasting timeout vote", x.peer.LogID(), x.pacemaker.GetCurrentRound())
 	err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootTimeout,
@@ -355,7 +355,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 			return
 		}
 	}
-	logger.Debug("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	logger.Trace("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
 	// Verify and buffer and wait for opportunity to make the next proposal
 	if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {
 		logger.Warning("%v IR change request from partition %X error: %v", x.peer.LogID(), irChange.SystemIdentifier, err)
@@ -375,7 +375,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Author, vote.VoteInfo.RoundNumber)
 		return
 	}
-	logger.Debug("%v round %v received vote for round %v from %v",
+	logger.Trace("%v round %v received vote for round %v from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber, vote.Author)
 	// if a vote is received for the next round and this node is going to be the leader in
 	// the round after this, then buffer vote, it was just received before the proposal
@@ -408,7 +408,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// Store vote, check for QC
 	qc := x.pacemaker.RegisterVote(vote, x.trustBase)
 	if qc == nil {
-		logger.Debug("%v round %v processed vote for round %v, no quorum yet",
+		logger.Trace("%v round %v processed vote for round %v, no quorum yet",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.VoteInfo.RoundNumber)
 		return
 	}
@@ -419,7 +419,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// advance view/round on QC
 	x.processCertificateQC(qc)
 	if slowDownTime > 0 {
-		logger.Debug("%v round %v node %v wait %v before proposing",
+		logger.Trace("%v round %v node %v wait %v before proposing",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
 		x.waitPropose = true
 		x.timers.Start(blockRateID, slowDownTime)
@@ -437,12 +437,12 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	}
 	// stale drop
 	if vote.Timeout.Round < x.pacemaker.GetCurrentRound() {
-		logger.Debug("%v round %v stale timeout vote, validator %v voted for timeout in round %v, ignored",
+		logger.Trace("%v round %v stale timeout vote, validator %v voted for timeout in round %v, ignored",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Author, vote.Timeout.Round)
 		return
 	}
-	// Author voted timeout, proceed
-	logger.Debug("%v round %v received timout vote for round %v from %v",
+	// Node voted timeout, proceed
+	logger.Trace("%v round %v received timout vote for round %v from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round, vote.Author)
 	// SyncState, compare last handled QC
 	if x.checkRecoveryNeeded(vote.Timeout.HighQc) {
@@ -451,7 +451,7 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	}
 	tc := x.pacemaker.RegisterTimeoutVote(vote, x.trustBase)
 	if tc == nil {
-		logger.Debug("%v round %v processed timeout vote for round %v, no quorum yet",
+		logger.Trace("%v round %v processed timeout vote for round %v, no quorum yet",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), vote.Timeout.Round)
 		return
 	}
@@ -463,7 +463,7 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	if l == x.peer.ID() {
 		x.processNewRoundEvent()
 	} else {
-		logger.Debug("%v round %v, new leader is %v, waiting for proposal",
+		logger.Trace("%v round %v, new leader is %v, waiting for proposal",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), l.String())
 	}
 }
@@ -495,7 +495,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author, proposal.Block.Round)
 		return
 	}
-	logger.Debug("%v round %v received proposal message from %v",
+	logger.Trace("%v round %v received proposal message from %v",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound(), proposal.Block.Author)
 	// Is from valid leader
 	if x.leaderSelector.GetLeaderForRound(proposal.Block.Round).String() != proposal.Block.Author {
@@ -532,7 +532,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	x.pacemaker.SetVoted(voteMsg)
 	// send vote to the next leader
 	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
-	logger.Debug("%v sending vote to next leader %v", x.peer.LogID(), nextLeader.String())
+	logger.Trace("%v sending vote to next leader %v", x.peer.LogID(), nextLeader.String())
 	err = x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootVote,
@@ -611,7 +611,7 @@ func (x *ConsensusManager) processNewRoundEvent() {
 		id, _ := validator.GetID()
 		receivers[i] = id
 	}
-	logger.Debug("%v broadcasting proposal msg", x.peer.LogID())
+	logger.Trace("%v broadcasting proposal msg", x.peer.LogID())
 	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootProposal,

@@ -319,37 +319,3 @@ func createTx(systemID []byte, unitId []byte, timeout uint64) *txsystem.Transact
 		// OwnerProof is added after whole transaction is built
 	}
 }
-
-func (w *Wallet) confirmUnitTx(ctx context.Context, sub *txSubmission, timeout uint64) error {
-	submissions := make(map[string]*txSubmission, 1)
-	submissions[sub.id.String()] = sub
-	return w.confirmUnitsTx(ctx, submissions, timeout)
-}
-
-func (w *Wallet) confirmUnitsTx(ctx context.Context, subs map[string]*txSubmission, maxTimeout uint64) error {
-	// ...or don't
-	if !w.confirmTx {
-		return nil
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	for _, sub := range subs {
-		log.Info(fmt.Sprintf("Waiting for UnitID=%X", sub.id))
-		// TODO: Get token's tx proof from the backend (AB-755)
-	}
-
-	rn, err := w.getRoundNumber(ctx)
-	if err != nil {
-		return err
-	}
-	if rn >= maxTimeout {
-		log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", rn))
-		for _, sub := range subs {
-			log.Info(fmt.Sprintf("Tx not found for UnitID=%X", sub.id))
-		}
-		return errors.New("confirmation timeout")
-	}
-
-	panic("not implemented")
-}

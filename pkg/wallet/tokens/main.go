@@ -285,10 +285,10 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 	if !found {
 		return fmt.Errorf("account %d has no tokens", accountNumber)
 	}
-	matchingTokens := make([]*twb.TokenUnit, 0)
-	var totalBalance uint64 = 0
+	var matchingTokens []*twb.TokenUnit
+	var totalBalance uint64
 	// find the best unit candidate for transfer or split, value must be equal or larger than the target amount
-	var closestMatch *twb.TokenUnit = nil
+	var closestMatch *twb.TokenUnit
 	for _, token := range tokens {
 		if token.Kind != twb.Fungible {
 			return fmt.Errorf("expected fungible token, got %v, token %X", token.Kind.String(), token.ID)

@@ -353,7 +353,7 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 	require.Equal(t, uint64(5), lastVoteMsg.VoteInfo.RoundNumber)
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootVote, lastVoteMsg)
 	// triggers timeout certificates for in round 4 to be committed
-	result, err := readResult(cm.CertificationResult(), 1000000*time.Second)
+	result, err := readResult(cm.CertificationResult(), time.Second)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, uint64(5), result.UnicitySeal.RootRoundInfo.RoundNumber)

@@ -201,7 +201,7 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
 					continue
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), req)
+				//util.WriteDebugJsonLog(logger, fmt.Sprintf("Proposal from %v", msg.From), req)
 				x.onProposalMsg(req)
 			case network.ProtocolRootVote:
 				req, correctType := msg.Message.(*atomic_broadcast.VoteMsg)
@@ -209,7 +209,7 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
 					continue
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), req)
+				//util.WriteDebugJsonLog(logger, fmt.Sprintf("Vote from %v", msg.From), req)
 				x.onVoteMsg(req)
 			case network.ProtocolRootTimeout:
 				req, correctType := msg.Message.(*atomic_broadcast.TimeoutMsg)
@@ -217,7 +217,7 @@ func (x *ConsensusManager) loop() {
 					logger.Warning("%v type %T not supported", x.peer.LogID(), msg.Message)
 					continue
 				}
-				util.WriteDebugJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
+				//util.WriteDebugJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
 				x.onTimeoutMsg(req)
 				// Todo: AB-320 add handling
 				/*

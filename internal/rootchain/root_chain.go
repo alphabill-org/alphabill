@@ -8,10 +8,8 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
@@ -20,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain/store"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
+	log "github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 

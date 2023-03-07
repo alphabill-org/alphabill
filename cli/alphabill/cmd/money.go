@@ -5,10 +5,10 @@ import (
 	"crypto"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )

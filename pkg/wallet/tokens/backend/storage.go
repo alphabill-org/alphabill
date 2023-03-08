@@ -14,5 +14,7 @@ type (
 		SaveToken(data *TokenUnit, proof *Proof) error
 		GetToken(id TokenID) (*TokenUnit, error)
 		QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
+
+		GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
 	}
 )

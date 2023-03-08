@@ -688,7 +688,7 @@ func TestUpdateNFTData(t *testing.T) {
 
 	dataUpdate := parseNFTDataUpdate(t, tx)
 	require.Equal(t, data, dataUpdate.Data)
-	require.Equal(t, tok.TxHash, dataUpdate.Backlink)
+	require.EqualValues(t, tok.TxHash, dataUpdate.Backlink)
 	require.Equal(t, [][]byte{{script.StartByte}}, dataUpdate.DataUpdateSignatures)
 
 	// test that wallet not only sends the tx, but also reads it correctly

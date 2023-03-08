@@ -20,9 +20,11 @@ func TestGetBalance(t *testing.T) {
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
-	restClient, _ := NewClient(mockAddress.Host)
-	balance, err := restClient.GetBalance(pubKey, true)
+	require.NoError(t, err)
+	restClient, err := NewClient(mockAddress.Host)
+	require.NoError(t, err)
 
+	balance, err := restClient.GetBalance(pubKey, true)
 	require.NoError(t, err)
 	require.EqualValues(t, 15, balance)
 }
@@ -32,9 +34,11 @@ func TestListBills(t *testing.T) {
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
-	restClient, _ := NewClient(mockAddress.Host)
-	billsResponse, err := restClient.ListBills(pubKey)
+	require.NoError(t, err)
+	restClient, err := NewClient(mockAddress.Host)
+	require.NoError(t, err)
 
+	billsResponse, err := restClient.ListBills(pubKey)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 8)
 	require.EqualValues(t, 8, billsResponse.Total)
@@ -47,9 +51,11 @@ func TestListBillsWithPaging(t *testing.T) {
 	defer mockServer.Close()
 
 	pubKey, err := hexutil.Decode(pubKeyHex)
-	restClient, _ := NewClient(mockAddress.Host)
-	billsResponse, err := restClient.ListBills(pubKey)
+	require.NoError(t, err)
+	restClient, err := NewClient(mockAddress.Host)
+	require.NoError(t, err)
 
+	billsResponse, err := restClient.ListBills(pubKey)
 	require.NoError(t, err)
 	require.Len(t, billsResponse.Bills, 13)
 	require.EqualValues(t, 13, billsResponse.Total)
@@ -81,9 +87,38 @@ func TestBlockHeight(t *testing.T) {
 	require.EqualValues(t, 1000, blockHeight)
 }
 
-func TestInvalidBaseUrl(t *testing.T) {
-	_, err := NewClient("x:y:z")
-	require.ErrorContains(t, err, "error parsing Money Backend Client base URL")
+func Test_NewClient(t *testing.T) {
+
+	t.Run("invalid URL", func(t *testing.T) {
+		mbc, err := NewClient("x:y:z")
+		require.ErrorContains(t, err, "error parsing Money Backend Client base URL")
+		require.Nil(t, mbc)
+	})
+
+	t.Run("valid URL", func(t *testing.T) {
+		cases := []struct{ param, url string }{
+			{param: "127.0.0.1", url: "http://127.0.0.1"},
+			{param: "127.0.0.1:8000", url: "http://127.0.0.1:8000"},
+			{param: "http://127.0.0.1", url: "http://127.0.0.1"},
+			{param: "http://127.0.0.1:8080", url: "http://127.0.0.1:8080"},
+			{param: "https://127.0.0.1", url: "https://127.0.0.1"},
+			{param: "https://127.0.0.1:8080", url: "https://127.0.0.1:8080"},
+			{param: "ab-dev.guardtime.com", url: "http://ab-dev.guardtime.com"},
+			{param: "https://ab-dev.guardtime.com", url: "https://ab-dev.guardtime.com"},
+			{param: "ab-dev.guardtime.com:7777", url: "http://ab-dev.guardtime.com:7777"},
+			{param: "https://ab-dev.guardtime.com:8888", url: "https://ab-dev.guardtime.com:8888"},
+		}
+
+		for _, tc := range cases {
+			mbc, err := NewClient(tc.param)
+			if err != nil {
+				t.Errorf("unexpected error for parameter %q: %v", tc.param, err)
+			}
+			if mbc.baseUrl != tc.url {
+				t.Errorf("expected URL for %q to be %q, got %q", tc.param, tc.url, mbc.baseUrl)
+			}
+		}
+	})
 }
 
 func mockGetBalanceCall(t *testing.T) (*httptest.Server, *url.URL) {

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -172,9 +171,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 		TokenCreationPredicate:             mintTokenPredicate,
 		InvariantPredicate:                 invariantPredicate,
 	}
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	id, err := tw.NewFungibleType(ctx, accountNumber, a, typeId, creationInputs)
+	id, err := tw.NewFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
@@ -245,9 +242,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 		InvariantPredicate:                 invariantPredicate,
 		DataUpdatePredicate:                dataUpdatePredicate,
 	}
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	id, err := tw.NewNonFungibleType(ctx, accountNumber, a, typeId, creationInputs)
+	id, err := tw.NewNonFungibleType(cmd.Context(), accountNumber, a, typeId, creationInputs)
 	if err != nil {
 		return err
 	}
@@ -313,9 +308,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	tt, err := tw.GetTokenType(ctx, typeId)
+	tt, err := tw.GetTokenType(cmd.Context(), typeId)
 	if err != nil {
 		return err
 	}
@@ -335,7 +328,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		TokenCreationPredicateSignatures: nil, // will be filled by the wallet
 	}
 
-	id, err := tw.NewFungibleToken(ctx, accountNumber, a, ci)
+	id, err := tw.NewFungibleToken(cmd.Context(), accountNumber, a, ci)
 	if err != nil {
 		return err
 	}
@@ -412,9 +405,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		DataUpdatePredicate:              dataUpdatePredicate,
 		TokenCreationPredicateSignatures: nil, // will be set in the wallet
 	}
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	id, err := tw.NewNFT(ctx, accountNumber, a, tokenId, ci)
+	id, err := tw.NewNFT(cmd.Context(), accountNumber, a, tokenId, ci)
 	if err != nil {
 		return err
 	}
@@ -513,10 +504,8 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
 	// get token type and convert amount string
-	tt, err := tw.GetTokenType(ctx, typeId)
+	tt, err := tw.GetTokenType(cmd.Context(), typeId)
 	if err != nil {
 		return err
 	}
@@ -528,7 +517,7 @@ func execTokenCmdSendFungible(cmd *cobra.Command, config *walletConfig) error {
 	if targetValue == 0 {
 		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
-	return tw.SendFungible(ctx, accountNumber, typeId, targetValue, pubKey, ib)
+	return tw.SendFungible(cmd.Context(), accountNumber, typeId, targetValue, pubKey, ib)
 }
 
 func tokenCmdSendNonFungible(config *walletConfig) *cobra.Command {
@@ -579,9 +568,7 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	return tw.TransferNFT(ctx, accountNumber, tokenId, pubKey, ib)
+	return tw.TransferNFT(cmd.Context(), accountNumber, tokenId, pubKey, ib)
 }
 
 func tokenCmdDC(config *walletConfig) *cobra.Command {
@@ -647,10 +634,7 @@ func execTokenCmdUpdateNFTData(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-
-	return tw.UpdateNFTData(ctx, accountNumber, tokenId, data, du)
+	return tw.UpdateNFTData(cmd.Context(), accountNumber, tokenId, data, du)
 }
 
 func tokenCmdList(config *walletConfig, runner runTokenListCmd) *cobra.Command {
@@ -701,9 +685,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind twb.Kind, a
 	}
 	defer tw.Shutdown()
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	res, err := tw.ListTokens(ctx, kind, *accountNumber)
+	res, err := tw.ListTokens(cmd.Context(), kind, *accountNumber)
 	if err != nil {
 		return err
 	}
@@ -782,9 +764,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind twb.Ki
 	}
 	defer tw.Shutdown()
 
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	res, err := tw.ListTokenTypes(ctx, kind)
+	res, err := tw.ListTokenTypes(cmd.Context(), kind)
 	if err != nil {
 		return err
 	}

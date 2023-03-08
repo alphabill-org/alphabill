@@ -640,7 +640,7 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 			},
 		}
 
-		rsp := makeRequest(api, encodeTokenTypeID(tokTyp.ID))
+		rsp := makeRequest(api, encodeHex[TokenTypeID](tokTyp.ID))
 		var rspData []*TokenUnitType
 		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})

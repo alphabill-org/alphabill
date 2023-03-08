@@ -19,6 +19,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 func decodeResponse(t *testing.T, rsp *http.Response, code int, data any) error {
@@ -98,13 +99,13 @@ type mockCfg struct {
 	db     Storage
 	abc    ABClient
 	srvL   net.Listener
-	errLog func(a ...any)
+	log    log.Logger
 }
 
 func (c *mockCfg) BatchSize() int   { return 50 }
 func (c *mockCfg) Client() ABClient { return c.abc }
 
-func (c *mockCfg) ErrLogger() func(a ...any) { return c.errLog }
+func (c *mockCfg) Logger() log.Logger { return c.log }
 
 func (c *mockCfg) Storage() (Storage, error) {
 	if c.db != nil {

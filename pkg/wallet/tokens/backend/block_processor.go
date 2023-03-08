@@ -11,12 +11,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
-	store  Storage
-	txs    txsystem.TransactionSystem
-	logErr func(a ...any)
+	store Storage
+	txs   txsystem.TransactionSystem
+	log   log.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error {
@@ -38,6 +39,8 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 }
 
 func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) error {
+	p.log.Debug("processTx:", inTx.String())
+
 	gtx, err := p.txs.ConvertTx(inTx)
 	if err != nil {
 		return err
@@ -173,9 +176,7 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 		token.TxHash = txHash
 		return p.saveToken(token, proof)
 	default:
-		if p.logErr != nil {
-			p.logErr("received unknown token transaction type, skipped processing:", tx)
-		}
+		p.log.Error("received unknown token transaction type, skipped processing:", tx)
 		return nil
 	}
 }

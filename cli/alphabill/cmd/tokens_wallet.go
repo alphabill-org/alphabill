@@ -733,12 +733,7 @@ func execTokenCmdList(cmd *cobra.Command, config *walletConfig, kind twb.Kind, a
 		for _, tok := range toks {
 			atLeastOneFound = true
 			if tok.Kind == twb.Fungible {
-				tokUnit, err := tw.GetTokenType(ctx, tok.TypeID)
-				if err != nil {
-					return err
-				}
-				// format amount
-				amount := amountToString(tok.Amount, tokUnit.DecimalPlaces)
+				amount := amountToString(tok.Amount, tok.Decimals)
 				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', amount='%v', token-type='%X' (%v)", tok.ID, tok.Symbol, amount, tok.TypeID, tok.Kind))
 			} else {
 				consoleWriter.Println(fmt.Sprintf("ID='%X', Symbol='%s', token-type='%X', URI='%s' (%v)", tok.ID, tok.Symbol, tok.TypeID, tok.NftURI, tok.Kind))
@@ -815,7 +810,7 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet,
 	return tw, nil
 }
 
-func readParentTypeInfo(cmd *cobra.Command, am account.Manager) (ttxs.Predicate, []*tokens.PredicateInput, error) {
+func readParentTypeInfo(cmd *cobra.Command, am account.Manager) (twb.TokenTypeID, []*tokens.PredicateInput, error) {
 	parentType, err := getHexFlag(cmd, cmdFlagParentType)
 	if err != nil {
 		return nil, nil, err

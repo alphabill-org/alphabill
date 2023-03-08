@@ -42,6 +42,7 @@ type (
 	TokenBackend interface {
 		GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
 		GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
+		GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
 	}
@@ -141,25 +142,16 @@ func (w *Wallet) ListTokenTypes(ctx context.Context, kind twb.Kind) ([]*twb.Toke
 
 // GetTokenType returns non-nil TokenUnitType or error if not found or other issues
 func (w *Wallet) GetTokenType(ctx context.Context, typeId twb.TokenTypeID) (*twb.TokenUnitType, error) {
-	offsetKey := ""
-	var err error
-	for {
-		var types []twb.TokenUnitType
-		// TODO: allow passing type id to filter specific unit on the backend (AB-744)
-		types, offsetKey, err = w.backend.GetTokenTypes(ctx, twb.Any, nil, offsetKey, 0)
-		if err != nil {
-			return nil, err
-		}
-		for _, tokenType := range types {
-			if bytes.Equal(tokenType.ID, typeId) {
-				return &tokenType, nil
-			}
-		}
-		if offsetKey == "" {
-			break
+	types, err := w.backend.GetTypeHierarchy(ctx, typeId)
+	if err != nil {
+		return nil, err
+	}
+	for i := range types {
+		if bytes.Equal(types[i].ID, typeId) {
+			return &types[i], nil
 		}
 	}
-	return nil, fmt.Errorf("error token type %X not found", typeId)
+	return nil, fmt.Errorf("token type %X not found", typeId)
 }
 
 // ListTokens specify accountNumber=0 to list tokens from all accounts

@@ -729,6 +729,7 @@ type mockTokenBackend struct {
 	getTokenTypes    func(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
 	getRoundNumber   func(ctx context.Context) (uint64, error)
 	postTransactions func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
+	getTypeHierarchy func(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
 }
 
 func (m *mockTokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
@@ -757,6 +758,13 @@ func (m *mockTokenBackend) PostTransactions(ctx context.Context, pubKey twb.PubK
 		return m.postTransactions(ctx, pubKey, txs)
 	}
 	return fmt.Errorf("PostTransactions not implemented")
+}
+
+func (m *mockTokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error) {
+	if m.getTypeHierarchy != nil {
+		return m.getTypeHierarchy(ctx, id)
+	}
+	return nil, fmt.Errorf("GetTypeHierarchy not implemented")
 }
 
 func getSubarray[T interface{}](array []T, offsetKey string) ([]T, string, error) {

@@ -29,16 +29,39 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	})
 
 	t.Run("blocks are not in correct order", func(t *testing.T) {
-		t.SkipNow() // TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+		// block numbers must not be sequential, gaps might appear as empty block are
+		// not stored and sent but the block number must increase, not decrease
 		bp := &blockProcessor{
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 5, nil },
 			},
 		}
 		err := bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+		})
+		require.EqualError(t, err, `invalid block order: last processed block is 5, received block 4 as next to process`)
+	})
+
+	t.Run("missing block", func(t *testing.T) {
+		// block numbers must not be sequential, gaps might appear as empty block are not stored and sent
+		callCnt := 0
+		bp := &blockProcessor{
+			store: &mockStorage{
+				getBlockNumber: func() (uint64, error) { return 5, nil },
+				setBlockNumber: func(blockNumber uint64) error {
+					callCnt++
+					if blockNumber != 8 {
+						t.Errorf("expected blockNumber = 8, got %d", blockNumber)
+					}
+					return nil
+				},
+			},
+		}
+		err := bp.ProcessBlock(context.Background(), &block.Block{
 			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 8}},
 		})
-		require.EqualError(t, err, `invalid block order: current wallet blockNumber is 5, received 8 as next block`)
+		require.NoError(t, err)
+		require.Equal(t, 1, callCnt, "expected that setBlockNumber is called once")
 	})
 
 	t.Run("failure to process tx", func(t *testing.T) {

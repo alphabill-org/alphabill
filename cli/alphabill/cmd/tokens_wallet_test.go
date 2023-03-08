@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rma"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
@@ -639,8 +640,11 @@ func startTokensPartition(t *testing.T) *testpartition.AlphabillPartition {
 }
 
 func startTokensBackend(t *testing.T) (srvUri string, restApi *client.TokenBackend, ctx context.Context) {
-	srvUri = defaultTokensBackendUri
-	cfg := twb.NewConfig(defaultTokensBackendHost, dialAddr, filepath.Join(t.TempDir(), "backend.db"), func(a ...any) { fmt.Println(a...) })
+	port, err := net.GetFreePort()
+	require.NoError(t, err)
+	host := fmt.Sprintf("localhost:%v", port)
+	srvUri = "http://" + host
+	cfg := twb.NewConfig(host, dialAddr, filepath.Join(t.TempDir(), "backend.db"), func(a ...any) { fmt.Println(a...) })
 	addr, err := url.Parse(srvUri)
 	require.NoError(t, err)
 	restApi = client.New(*addr)

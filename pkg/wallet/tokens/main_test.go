@@ -581,14 +581,8 @@ func TestTransferNFT(t *testing.T) {
 
 	recTxs := make(map[string]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
-			var res []twb.TokenUnit
-			for _, tok := range tokens {
-				if tok.Kind == kind {
-					res = append(res, *tok)
-				}
-			}
-			return res, "", nil
+		getToken: func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
+			return tokens[string(id)], nil
 		},
 		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -649,14 +643,8 @@ func TestUpdateNFTData(t *testing.T) {
 
 	recTxs := make(map[string]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
-		getTokens: func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {
-			var res []twb.TokenUnit
-			for _, tok := range tokens {
-				if tok.Kind == kind {
-					res = append(res, *tok)
-				}
-			}
-			return res, "", nil
+		getToken: func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
+			return tokens[string(id)], nil
 		},
 		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
@@ -725,11 +713,19 @@ func initAccountManager(t *testing.T) account.Manager {
 }
 
 type mockTokenBackend struct {
+	getToken         func(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error)
 	getTokens        func(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
 	getTokenTypes    func(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
 	getRoundNumber   func(ctx context.Context) (uint64, error)
 	postTransactions func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
+}
+
+func (m *mockTokenBackend) GetToken(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
+	if m.getToken != nil {
+		return m.getToken(ctx, id)
+	}
+	return nil, fmt.Errorf("GetToken not implemented")
 }
 
 func (m *mockTokenBackend) GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error) {

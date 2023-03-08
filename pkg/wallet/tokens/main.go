@@ -40,6 +40,7 @@ type (
 	}
 
 	TokenBackend interface {
+		GetToken(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error)
 		GetTokens(ctx context.Context, kind twb.Kind, owner twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnit, string, error)
 		GetTokenTypes(ctx context.Context, kind twb.Kind, creator twb.PubKey, offsetKey string, limit int) ([]twb.TokenUnitType, string, error)
 		GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
@@ -215,25 +216,11 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 }
 
 func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, kind twb.Kind, tokenId twb.TokenID) (*twb.TokenUnit, error) {
-	offsetKey := ""
-	var err error
-	for {
-		var tokens []twb.TokenUnit
-		// TODO: allow passing token id to filter specific unit on the backend (AB-753)
-		tokens, offsetKey, err = w.backend.GetTokens(ctx, kind, owner, offsetKey, 0)
-		if err != nil {
-			return nil, err
-		}
-		for _, token := range tokens {
-			if bytes.Equal(token.ID, tokenId) {
-				return &token, nil
-			}
-		}
-		if offsetKey == "" {
-			break
-		}
+	token, err := w.backend.GetToken(ctx, tokenId)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching token %X: %w", tokenId, err)
 	}
-	return nil, fmt.Errorf("error token %X not found", tokenId)
+	return token, nil
 }
 
 func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId twb.TokenID, receiverPubKey twb.PubKey, invariantPredicateArgs []*PredicateInput) error {

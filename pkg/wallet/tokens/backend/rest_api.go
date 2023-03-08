@@ -182,7 +182,7 @@ func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rsp []*TokenUnitType
-	for len(typeId) > 0 {
+	for len(typeId) > 0 && !bytes.Equal(typeId, NoParent) {
 		tokTyp, err := api.db.GetTokenType(typeId)
 		if err != nil {
 			api.writeErrorResponse(w, fmt.Errorf("failed to load type with id %x: %w", typeId, err))

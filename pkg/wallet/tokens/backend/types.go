@@ -66,6 +66,10 @@ const (
 	NonFungible
 )
 
+var (
+	NoParent = TokenTypeID{0x00}
+)
+
 func (t TokenTypeID) Equal(to TokenTypeID) bool {
 	return bytes.Equal(t, to)
 }

@@ -624,6 +624,26 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
 	})
 
+	t.Run("type is root, parent typeID == 0x00", func(t *testing.T) {
+		tokTyp := randomTokenType(NonFungible)
+		tokTyp.ParentTypeID = NoParent
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					if bytes.Equal(id, tokTyp.ID) {
+						return tokTyp, nil
+					}
+					return nil, fmt.Errorf("unexpected type id %x", id)
+				},
+			},
+		}
+
+		rsp := makeRequest(api, encodeTokenTypeID(tokTyp.ID))
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
+	})
+
 	t.Run("type has one parent", func(t *testing.T) {
 		tokTypA := randomTokenType(NonFungible)
 		tokTypA.ParentTypeID = nil

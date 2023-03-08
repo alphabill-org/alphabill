@@ -208,7 +208,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	// non-existing id
 	nonExistingTypeId := util.Uint256ToBytes(uint256.NewInt(uint64(0x11)))
 	// verify error
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -u %s --type %X --amount 3", backendUrl, nonExistingTypeId), fmt.Sprintf("error token type %X not found", nonExistingTypeId))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -u %s --type %X --amount 3", backendUrl, nonExistingTypeId), fmt.Sprintf("failed to load type with id %X", nonExistingTypeId))
 	// new token creation fails
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -u %s --type %X --amount 0", backendUrl, typeID), fmt.Sprintf("0 is not valid amount"))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("new fungible  -u %s --type %X --amount 00.000", backendUrl, typeID), fmt.Sprintf("0 is not valid amount"))
@@ -230,7 +230,7 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 	require.Eventually(t, testpartition.BlockchainContains(partition, crit(1111)), test.WaitDuration, test.WaitTick)
 
 	// test send fails
-	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 2 --address 0x%X -k 1", backendUrl, nonExistingTypeId, w2key.PubKey), fmt.Sprintf("error token type %X not found", nonExistingTypeId))
+	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 2 --address 0x%X -k 1", backendUrl, nonExistingTypeId, w2key.PubKey), fmt.Sprintf("failed to load type with id %X", nonExistingTypeId))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 0 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("0 is not valid amount"))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 000.000 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("0 is not valid amount"))
 	execTokensCmdWithError(t, homedir, fmt.Sprintf("send fungible -u %s --type %X --amount 00.0.00 --address 0x%X -k 1", backendUrl, typeID, w2key.PubKey), fmt.Sprintf("more than one comma"))

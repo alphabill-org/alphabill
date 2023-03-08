@@ -5,7 +5,7 @@ window.onload = function() {
   window.ui = SwaggerUIBundle({
     urls: [
       {name:"token wallet backend", url:"/api/v1/swagger/openapi_tokens.yaml"},
-      {name:"money wallet backend", url:"https://dev-ab-money-backend.abdev1.guardtime.com/swagger/doc.json"}
+      {name:"money wallet backend", url:"https://dev-ab-money-backend.abdev1.guardtime.com/api/v1/swagger/doc.json"}
     ],
     dom_id: '#swagger-ui',
     deepLinking: true,

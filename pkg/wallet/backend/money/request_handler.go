@@ -3,12 +3,10 @@ package money
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"sort"
 	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	_ "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/docs"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -71,13 +69,6 @@ func (s *RequestHandler) Router() *mux.Router {
 	// TODO add request/response headers middleware
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
-		httpSwagger.URL("/swagger/doc.json"), //The url pointing to API definition
-		httpSwagger.DeepLinking(true),
-		httpSwagger.DocExpansion("list"),
-		httpSwagger.DomID("swagger-ui"),
-	)).Methods(http.MethodGet)
-
 	apiRouter := router.PathPrefix("/api").Subrouter()
 	// add cors middleware
 	// content-type needs to be explicitly defined without this content-type header is not allowed and cors filter is not applied
@@ -90,6 +81,13 @@ func (s *RequestHandler) Router() *mux.Router {
 	apiV1.HandleFunc("/balance", s.balanceFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/proof", s.getProofFunc).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/block-height", s.blockHeightFunc).Methods("GET", "OPTIONS")
+
+	apiV1.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
+		httpSwagger.URL("/api/v1/swagger/doc.json"), //The url pointing to API definition
+		httpSwagger.DeepLinking(true),
+		httpSwagger.DocExpansion("list"),
+		httpSwagger.DomID("swagger-ui"),
+	)).Methods(http.MethodGet)
 
 	return router
 }
@@ -205,12 +203,6 @@ func (s *RequestHandler) getProofFunc(w http.ResponseWriter, r *http.Request) {
 	writeAsProtoJson(w, bill.toProtoBills())
 }
 
-func (s *RequestHandler) parsePubkeyURLParam(r *http.Request) ([]byte, error) {
-	vars := mux.Vars(r)
-	pubkeyParam := vars["pubkey"]
-	return parsePubKey(pubkeyParam)
-}
-
 func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
 	if errors.Is(err, errMissingPubKeyQueryParam) || errors.Is(err, errInvalidPubKeyLength) {
@@ -218,19 +210,6 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 	} else {
 		writeAsJson(w, ErrorResponse{Message: "invalid pubkey format"})
 	}
-}
-
-func (s *RequestHandler) readBillsProto(r *http.Request) (*block.Bills, error) {
-	b, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	req := &block.Bills{}
-	err = protojson.Unmarshal(b, req)
-	if err != nil {
-		return nil, err
-	}
-	return req, nil
 }
 
 // @Summary Money partition's latest block number

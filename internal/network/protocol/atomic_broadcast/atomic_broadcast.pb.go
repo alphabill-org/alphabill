@@ -71,54 +71,6 @@ func (IRChangeReqMsg_CERT_REASON) EnumDescriptor() ([]byte, []int) {
 	return file_atomic_broadcast_proto_rawDescGZIP(), []int{0, 0}
 }
 
-type StateReplyMsg_Status int32
-
-const (
-	// All ok, latest included in reply
-	StateReplyMsg_OK StateReplyMsg_Status = 0
-	// invalid state hash (in the future)
-	StateReplyMsg_UNKNOWN_STATE StateReplyMsg_Status = 1
-)
-
-// Enum value maps for StateReplyMsg_Status.
-var (
-	StateReplyMsg_Status_name = map[int32]string{
-		0: "OK",
-		1: "UNKNOWN_STATE",
-	}
-	StateReplyMsg_Status_value = map[string]int32{
-		"OK":            0,
-		"UNKNOWN_STATE": 1,
-	}
-)
-
-func (x StateReplyMsg_Status) Enum() *StateReplyMsg_Status {
-	p := new(StateReplyMsg_Status)
-	*p = x
-	return p
-}
-
-func (x StateReplyMsg_Status) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (StateReplyMsg_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_atomic_broadcast_proto_enumTypes[1].Descriptor()
-}
-
-func (StateReplyMsg_Status) Type() protoreflect.EnumType {
-	return &file_atomic_broadcast_proto_enumTypes[1]
-}
-
-func (x StateReplyMsg_Status) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use StateReplyMsg_Status.Descriptor instead.
-func (StateReplyMsg_Status) EnumDescriptor() ([]byte, []int) {
-	return file_atomic_broadcast_proto_rawDescGZIP(), []int{11, 0}
-}
-
 type IRChangeReqMsg struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -788,16 +740,16 @@ func (x *TimeoutMsg) GetSignature() []byte {
 }
 
 // Recover state
-type StateRequestMsg struct {
+type GetCertificates struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Round uint64 `protobuf:"varint,1,opt,name=round,proto3" json:"round,omitempty"`
+	NodeId string `protobuf:"bytes,1,opt,name=nodeId,proto3" json:"nodeId,omitempty"`
 }
 
-func (x *StateRequestMsg) Reset() {
-	*x = StateRequestMsg{}
+func (x *GetCertificates) Reset() {
+	*x = GetCertificates{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_atomic_broadcast_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -805,13 +757,13 @@ func (x *StateRequestMsg) Reset() {
 	}
 }
 
-func (x *StateRequestMsg) String() string {
+func (x *GetCertificates) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StateRequestMsg) ProtoMessage() {}
+func (*GetCertificates) ProtoMessage() {}
 
-func (x *StateRequestMsg) ProtoReflect() protoreflect.Message {
+func (x *GetCertificates) ProtoReflect() protoreflect.Message {
 	mi := &file_atomic_broadcast_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -823,30 +775,28 @@ func (x *StateRequestMsg) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StateRequestMsg.ProtoReflect.Descriptor instead.
-func (*StateRequestMsg) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetCertificates.ProtoReflect.Descriptor instead.
+func (*GetCertificates) Descriptor() ([]byte, []int) {
 	return file_atomic_broadcast_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *StateRequestMsg) GetRound() uint64 {
+func (x *GetCertificates) GetNodeId() string {
 	if x != nil {
-		return x.Round
+		return x.NodeId
 	}
-	return 0
+	return ""
 }
 
-type StateReplyMsg struct {
+type CertificatesMsg struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Status StateReplyMsg_Status        `protobuf:"varint,1,opt,name=status,proto3,enum=StateReplyMsg_Status" json:"status,omitempty"`
-	Ir     []*certificates.InputRecord `protobuf:"bytes,2,rep,name=ir,proto3" json:"ir,omitempty"`
-	Seal   *certificates.UnicitySeal   `protobuf:"bytes,3,opt,name=seal,proto3" json:"seal,omitempty"`
+	Cert []*certificates.UnicityCertificate `protobuf:"bytes,1,rep,name=cert,proto3" json:"cert,omitempty"`
 }
 
-func (x *StateReplyMsg) Reset() {
-	*x = StateReplyMsg{}
+func (x *CertificatesMsg) Reset() {
+	*x = CertificatesMsg{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_atomic_broadcast_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -854,13 +804,13 @@ func (x *StateReplyMsg) Reset() {
 	}
 }
 
-func (x *StateReplyMsg) String() string {
+func (x *CertificatesMsg) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StateReplyMsg) ProtoMessage() {}
+func (*CertificatesMsg) ProtoMessage() {}
 
-func (x *StateReplyMsg) ProtoReflect() protoreflect.Message {
+func (x *CertificatesMsg) ProtoReflect() protoreflect.Message {
 	mi := &file_atomic_broadcast_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -872,28 +822,180 @@ func (x *StateReplyMsg) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StateReplyMsg.ProtoReflect.Descriptor instead.
-func (*StateReplyMsg) Descriptor() ([]byte, []int) {
+// Deprecated: Use CertificatesMsg.ProtoReflect.Descriptor instead.
+func (*CertificatesMsg) Descriptor() ([]byte, []int) {
 	return file_atomic_broadcast_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *StateReplyMsg) GetStatus() StateReplyMsg_Status {
+func (x *CertificatesMsg) GetCert() []*certificates.UnicityCertificate {
 	if x != nil {
-		return x.Status
-	}
-	return StateReplyMsg_OK
-}
-
-func (x *StateReplyMsg) GetIr() []*certificates.InputRecord {
-	if x != nil {
-		return x.Ir
+		return x.Cert
 	}
 	return nil
 }
 
-func (x *StateReplyMsg) GetSeal() *certificates.UnicitySeal {
+type ExecutedBlock struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Block *BlockData `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
+	// block qc
+	Qc       *QuorumCert `protobuf:"bytes,2,opt,name=qc,proto3,oneof" json:"qc,omitempty"`
+	CommitQc *QuorumCert `protobuf:"bytes,3,opt,name=commitQc,proto3,oneof" json:"commitQc,omitempty"`
+}
+
+func (x *ExecutedBlock) Reset() {
+	*x = ExecutedBlock{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_atomic_broadcast_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ExecutedBlock) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecutedBlock) ProtoMessage() {}
+
+func (x *ExecutedBlock) ProtoReflect() protoreflect.Message {
+	mi := &file_atomic_broadcast_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecutedBlock.ProtoReflect.Descriptor instead.
+func (*ExecutedBlock) Descriptor() ([]byte, []int) {
+	return file_atomic_broadcast_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ExecutedBlock) GetBlock() *BlockData {
 	if x != nil {
-		return x.Seal
+		return x.Block
+	}
+	return nil
+}
+
+func (x *ExecutedBlock) GetQc() *QuorumCert {
+	if x != nil {
+		return x.Qc
+	}
+	return nil
+}
+
+func (x *ExecutedBlock) GetCommitQc() *QuorumCert {
+	if x != nil {
+		return x.CommitQc
+	}
+	return nil
+}
+
+type GetStateMsg struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeId string `protobuf:"bytes,1,opt,name=nodeId,proto3" json:"nodeId,omitempty"`
+}
+
+func (x *GetStateMsg) Reset() {
+	*x = GetStateMsg{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_atomic_broadcast_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetStateMsg) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetStateMsg) ProtoMessage() {}
+
+func (x *GetStateMsg) ProtoReflect() protoreflect.Message {
+	mi := &file_atomic_broadcast_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetStateMsg.ProtoReflect.Descriptor instead.
+func (*GetStateMsg) Descriptor() ([]byte, []int) {
+	return file_atomic_broadcast_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetStateMsg) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+type StateMsg struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	CommittedHead *ExecutedBlock   `protobuf:"bytes,1,opt,name=committedHead,proto3" json:"committedHead,omitempty"`
+	BlockNode     []*ExecutedBlock `protobuf:"bytes,2,rep,name=blockNode,proto3" json:"blockNode,omitempty"`
+}
+
+func (x *StateMsg) Reset() {
+	*x = StateMsg{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_atomic_broadcast_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StateMsg) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StateMsg) ProtoMessage() {}
+
+func (x *StateMsg) ProtoReflect() protoreflect.Message {
+	mi := &file_atomic_broadcast_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StateMsg.ProtoReflect.Descriptor instead.
+func (*StateMsg) Descriptor() ([]byte, []int) {
+	return file_atomic_broadcast_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *StateMsg) GetCommittedHead() *ExecutedBlock {
+	if x != nil {
+		return x.CommittedHead
+	}
+	return nil
+}
+
+func (x *StateMsg) GetBlockNode() []*ExecutedBlock {
+	if x != nil {
+		return x.BlockNode
 	}
 	return nil
 }
@@ -1003,26 +1105,38 @@ var file_atomic_broadcast_proto_rawDesc = []byte{
 	0x74, 0x68, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x61, 0x75, 0x74, 0x68,
 	0x6f, 0x72, 0x12, 0x1c, 0x0a, 0x09, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x74, 0x75, 0x72, 0x65, 0x18,
 	0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x09, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x74, 0x75, 0x72, 0x65,
-	0x22, 0x27, 0x0a, 0x0f, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x4d, 0x73, 0x67, 0x12, 0x14, 0x0a, 0x05, 0x72, 0x6f, 0x75, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x04, 0x52, 0x05, 0x72, 0x6f, 0x75, 0x6e, 0x64, 0x22, 0xa3, 0x01, 0x0a, 0x0d, 0x53, 0x74,
-	0x61, 0x74, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x4d, 0x73, 0x67, 0x12, 0x2d, 0x0a, 0x06, 0x73,
-	0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x15, 0x2e, 0x53, 0x74,
-	0x61, 0x74, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x4d, 0x73, 0x67, 0x2e, 0x53, 0x74, 0x61, 0x74,
-	0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x1c, 0x0a, 0x02, 0x69, 0x72,
-	0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x52, 0x65,
-	0x63, 0x6f, 0x72, 0x64, 0x52, 0x02, 0x69, 0x72, 0x12, 0x20, 0x0a, 0x04, 0x73, 0x65, 0x61, 0x6c,
-	0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x55, 0x6e, 0x69, 0x63, 0x69, 0x74, 0x79,
-	0x53, 0x65, 0x61, 0x6c, 0x52, 0x04, 0x73, 0x65, 0x61, 0x6c, 0x22, 0x23, 0x0a, 0x06, 0x53, 0x74,
-	0x61, 0x74, 0x75, 0x73, 0x12, 0x06, 0x0a, 0x02, 0x4f, 0x4b, 0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d,
-	0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x10, 0x01, 0x42,
-	0x60, 0x5a, 0x5e, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x6c,
-	0x70, 0x68, 0x61, 0x62, 0x69, 0x6c, 0x6c, 0x2d, 0x6f, 0x72, 0x67, 0x2f, 0x61, 0x6c, 0x70, 0x68,
-	0x61, 0x62, 0x69, 0x6c, 0x6c, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6e,
-	0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2f,
-	0x61, 0x74, 0x6f, 0x6d, 0x69, 0x63, 0x5f, 0x62, 0x72, 0x6f, 0x61, 0x64, 0x63, 0x61, 0x73, 0x74,
-	0x3b, 0x61, 0x74, 0x6f, 0x6d, 0x69, 0x63, 0x5f, 0x62, 0x72, 0x6f, 0x61, 0x64, 0x63, 0x61, 0x73,
-	0x74, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x22, 0x29, 0x0a, 0x0f, 0x47, 0x65, 0x74, 0x43, 0x65, 0x72, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61,
+	0x74, 0x65, 0x73, 0x12, 0x16, 0x0a, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x22, 0x3a, 0x0a, 0x0f, 0x43,
+	0x65, 0x72, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x65, 0x73, 0x4d, 0x73, 0x67, 0x12, 0x27,
+	0x0a, 0x04, 0x63, 0x65, 0x72, 0x74, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x55,
+	0x6e, 0x69, 0x63, 0x69, 0x74, 0x79, 0x43, 0x65, 0x72, 0x74, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74,
+	0x65, 0x52, 0x04, 0x63, 0x65, 0x72, 0x74, 0x22, 0x95, 0x01, 0x0a, 0x0d, 0x45, 0x78, 0x65, 0x63,
+	0x75, 0x74, 0x65, 0x64, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x12, 0x20, 0x0a, 0x05, 0x62, 0x6c, 0x6f,
+	0x63, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0a, 0x2e, 0x42, 0x6c, 0x6f, 0x63, 0x6b,
+	0x44, 0x61, 0x74, 0x61, 0x52, 0x05, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x12, 0x20, 0x0a, 0x02, 0x71,
+	0x63, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x51, 0x75, 0x6f, 0x72, 0x75, 0x6d,
+	0x43, 0x65, 0x72, 0x74, 0x48, 0x00, 0x52, 0x02, 0x71, 0x63, 0x88, 0x01, 0x01, 0x12, 0x2c, 0x0a,
+	0x08, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x51, 0x63, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x0b, 0x2e, 0x51, 0x75, 0x6f, 0x72, 0x75, 0x6d, 0x43, 0x65, 0x72, 0x74, 0x48, 0x01, 0x52, 0x08,
+	0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x51, 0x63, 0x88, 0x01, 0x01, 0x42, 0x05, 0x0a, 0x03, 0x5f,
+	0x71, 0x63, 0x42, 0x0b, 0x0a, 0x09, 0x5f, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x51, 0x63, 0x22,
+	0x25, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x4d, 0x73, 0x67, 0x12, 0x16,
+	0x0a, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
+	0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x22, 0x6e, 0x0a, 0x08, 0x53, 0x74, 0x61, 0x74, 0x65, 0x4d,
+	0x73, 0x67, 0x12, 0x34, 0x0a, 0x0d, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x48,
+	0x65, 0x61, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x45, 0x78, 0x65, 0x63,
+	0x75, 0x74, 0x65, 0x64, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x52, 0x0d, 0x63, 0x6f, 0x6d, 0x6d, 0x69,
+	0x74, 0x74, 0x65, 0x64, 0x48, 0x65, 0x61, 0x64, 0x12, 0x2c, 0x0a, 0x09, 0x62, 0x6c, 0x6f, 0x63,
+	0x6b, 0x4e, 0x6f, 0x64, 0x65, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x45, 0x78,
+	0x65, 0x63, 0x75, 0x74, 0x65, 0x64, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x52, 0x09, 0x62, 0x6c, 0x6f,
+	0x63, 0x6b, 0x4e, 0x6f, 0x64, 0x65, 0x42, 0x60, 0x5a, 0x5e, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
+	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x62, 0x69, 0x6c, 0x6c, 0x2d, 0x6f,
+	0x72, 0x67, 0x2f, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x62, 0x69, 0x6c, 0x6c, 0x2f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x2f, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2f, 0x61, 0x74, 0x6f, 0x6d, 0x69, 0x63, 0x5f, 0x62, 0x72,
+	0x6f, 0x61, 0x64, 0x63, 0x61, 0x73, 0x74, 0x3b, 0x61, 0x74, 0x6f, 0x6d, 0x69, 0x63, 0x5f, 0x62,
+	0x72, 0x6f, 0x61, 0x64, 0x63, 0x61, 0x73, 0x74, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1037,58 +1151,62 @@ func file_atomic_broadcast_proto_rawDescGZIP() []byte {
 	return file_atomic_broadcast_proto_rawDescData
 }
 
-var file_atomic_broadcast_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_atomic_broadcast_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_atomic_broadcast_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_atomic_broadcast_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_atomic_broadcast_proto_goTypes = []interface{}{
 	(IRChangeReqMsg_CERT_REASON)(0), // 0: IRChangeReqMsg.CERT_REASON
-	(StateReplyMsg_Status)(0),       // 1: StateReplyMsg.Status
-	(*IRChangeReqMsg)(nil),          // 2: IRChangeReqMsg
-	(*Payload)(nil),                 // 3: Payload
-	(*QuorumCert)(nil),              // 4: QuorumCert
-	(*BlockData)(nil),               // 5: BlockData
-	(*Timeout)(nil),                 // 6: Timeout
-	(*TimeoutVote)(nil),             // 7: TimeoutVote
-	(*TimeoutCert)(nil),             // 8: TimeoutCert
-	(*ProposalMsg)(nil),             // 9: ProposalMsg
-	(*VoteMsg)(nil),                 // 10: VoteMsg
-	(*TimeoutMsg)(nil),              // 11: TimeoutMsg
-	(*StateRequestMsg)(nil),         // 12: StateRequestMsg
-	(*StateReplyMsg)(nil),           // 13: StateReplyMsg
-	nil,                             // 14: QuorumCert.SignaturesEntry
-	nil,                             // 15: TimeoutCert.SignaturesEntry
-	(*certification.BlockCertificationRequest)(nil), // 16: BlockCertificationRequest
-	(*certificates.RootRoundInfo)(nil),              // 17: RootRoundInfo
-	(*certificates.CommitInfo)(nil),                 // 18: CommitInfo
-	(*certificates.InputRecord)(nil),                // 19: InputRecord
-	(*certificates.UnicitySeal)(nil),                // 20: UnicitySeal
+	(*IRChangeReqMsg)(nil),          // 1: IRChangeReqMsg
+	(*Payload)(nil),                 // 2: Payload
+	(*QuorumCert)(nil),              // 3: QuorumCert
+	(*BlockData)(nil),               // 4: BlockData
+	(*Timeout)(nil),                 // 5: Timeout
+	(*TimeoutVote)(nil),             // 6: TimeoutVote
+	(*TimeoutCert)(nil),             // 7: TimeoutCert
+	(*ProposalMsg)(nil),             // 8: ProposalMsg
+	(*VoteMsg)(nil),                 // 9: VoteMsg
+	(*TimeoutMsg)(nil),              // 10: TimeoutMsg
+	(*GetCertificates)(nil),         // 11: GetCertificates
+	(*CertificatesMsg)(nil),         // 12: CertificatesMsg
+	(*ExecutedBlock)(nil),           // 13: ExecutedBlock
+	(*GetStateMsg)(nil),             // 14: GetStateMsg
+	(*StateMsg)(nil),                // 15: StateMsg
+	nil,                             // 16: QuorumCert.SignaturesEntry
+	nil,                             // 17: TimeoutCert.SignaturesEntry
+	(*certification.BlockCertificationRequest)(nil), // 18: BlockCertificationRequest
+	(*certificates.RootRoundInfo)(nil),              // 19: RootRoundInfo
+	(*certificates.CommitInfo)(nil),                 // 20: CommitInfo
+	(*certificates.UnicityCertificate)(nil),         // 21: UnicityCertificate
 }
 var file_atomic_broadcast_proto_depIdxs = []int32{
 	0,  // 0: IRChangeReqMsg.certReason:type_name -> IRChangeReqMsg.CERT_REASON
-	16, // 1: IRChangeReqMsg.requests:type_name -> BlockCertificationRequest
-	2,  // 2: Payload.requests:type_name -> IRChangeReqMsg
-	17, // 3: QuorumCert.vote_info:type_name -> RootRoundInfo
-	18, // 4: QuorumCert.ledger_commit_info:type_name -> CommitInfo
-	14, // 5: QuorumCert.signatures:type_name -> QuorumCert.SignaturesEntry
-	3,  // 6: BlockData.payload:type_name -> Payload
-	4,  // 7: BlockData.qc:type_name -> QuorumCert
-	4,  // 8: Timeout.high_qc:type_name -> QuorumCert
-	6,  // 9: TimeoutCert.timeout:type_name -> Timeout
-	15, // 10: TimeoutCert.signatures:type_name -> TimeoutCert.SignaturesEntry
-	5,  // 11: ProposalMsg.block:type_name -> BlockData
-	8,  // 12: ProposalMsg.last_round_tc:type_name -> TimeoutCert
-	17, // 13: VoteMsg.vote_info:type_name -> RootRoundInfo
-	18, // 14: VoteMsg.ledger_commit_info:type_name -> CommitInfo
-	4,  // 15: VoteMsg.high_qc:type_name -> QuorumCert
-	6,  // 16: TimeoutMsg.timeout:type_name -> Timeout
-	1,  // 17: StateReplyMsg.status:type_name -> StateReplyMsg.Status
-	19, // 18: StateReplyMsg.ir:type_name -> InputRecord
-	20, // 19: StateReplyMsg.seal:type_name -> UnicitySeal
-	7,  // 20: TimeoutCert.SignaturesEntry.value:type_name -> TimeoutVote
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	18, // 1: IRChangeReqMsg.requests:type_name -> BlockCertificationRequest
+	1,  // 2: Payload.requests:type_name -> IRChangeReqMsg
+	19, // 3: QuorumCert.vote_info:type_name -> RootRoundInfo
+	20, // 4: QuorumCert.ledger_commit_info:type_name -> CommitInfo
+	16, // 5: QuorumCert.signatures:type_name -> QuorumCert.SignaturesEntry
+	2,  // 6: BlockData.payload:type_name -> Payload
+	3,  // 7: BlockData.qc:type_name -> QuorumCert
+	3,  // 8: Timeout.high_qc:type_name -> QuorumCert
+	5,  // 9: TimeoutCert.timeout:type_name -> Timeout
+	17, // 10: TimeoutCert.signatures:type_name -> TimeoutCert.SignaturesEntry
+	4,  // 11: ProposalMsg.block:type_name -> BlockData
+	7,  // 12: ProposalMsg.last_round_tc:type_name -> TimeoutCert
+	19, // 13: VoteMsg.vote_info:type_name -> RootRoundInfo
+	20, // 14: VoteMsg.ledger_commit_info:type_name -> CommitInfo
+	3,  // 15: VoteMsg.high_qc:type_name -> QuorumCert
+	5,  // 16: TimeoutMsg.timeout:type_name -> Timeout
+	21, // 17: CertificatesMsg.cert:type_name -> UnicityCertificate
+	4,  // 18: ExecutedBlock.block:type_name -> BlockData
+	3,  // 19: ExecutedBlock.qc:type_name -> QuorumCert
+	3,  // 20: ExecutedBlock.commitQc:type_name -> QuorumCert
+	13, // 21: StateMsg.committedHead:type_name -> ExecutedBlock
+	13, // 22: StateMsg.blockNode:type_name -> ExecutedBlock
+	6,  // 23: TimeoutCert.SignaturesEntry.value:type_name -> TimeoutVote
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_atomic_broadcast_proto_init() }
@@ -1218,7 +1336,7 @@ func file_atomic_broadcast_proto_init() {
 			}
 		}
 		file_atomic_broadcast_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StateRequestMsg); i {
+			switch v := v.(*GetCertificates); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1230,7 +1348,43 @@ func file_atomic_broadcast_proto_init() {
 			}
 		}
 		file_atomic_broadcast_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StateReplyMsg); i {
+			switch v := v.(*CertificatesMsg); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_atomic_broadcast_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ExecutedBlock); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_atomic_broadcast_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetStateMsg); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_atomic_broadcast_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*StateMsg); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1243,13 +1397,14 @@ func file_atomic_broadcast_proto_init() {
 		}
 	}
 	file_atomic_broadcast_proto_msgTypes[7].OneofWrappers = []interface{}{}
+	file_atomic_broadcast_proto_msgTypes[12].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_atomic_broadcast_proto_rawDesc,
-			NumEnums:      2,
-			NumMessages:   14,
+			NumEnums:      1,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

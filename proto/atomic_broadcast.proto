@@ -102,18 +102,26 @@ message TimeoutMsg {
 }
 
 // Recover state
-message StateRequestMsg {
-  uint64 round = 1;
+message GetCertificates {
+  string nodeId = 1;
 }
 
-message StateReplyMsg {
-  enum Status {
-    // All ok, latest included in reply
-    OK = 0;
-    // invalid state hash (in the future)
-    UNKNOWN_STATE = 1;
-  }
-  Status status = 1;
-  repeated InputRecord ir = 2;
-  UnicitySeal seal = 3;
+message CertificatesMsg {
+  repeated UnicityCertificate cert = 1;
+}
+
+message ExecutedBlock{
+  BlockData block = 1;
+  // block qc
+  optional QuorumCert qc = 2;
+  optional QuorumCert commitQc = 3;
+}
+
+message GetStateMsg {
+  string nodeId = 1;
+}
+
+message StateMsg {
+  ExecutedBlock committedHead = 1;
+  repeated ExecutedBlock blockNode = 2;
 }

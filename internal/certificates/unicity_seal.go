@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -154,7 +153,7 @@ func (x *UnicitySeal) verify(verifiers map[string]crypto.Verifier) error {
 		}
 		err := ver.VerifyBytes(sig, x.CommitInfo.Bytes())
 		if err != nil {
-			return aberrors.Wrap(err, "invalid unicity seal signature")
+			return fmt.Errorf("unicity seal signature verification failed, %w", err)
 		}
 	}
 	return nil

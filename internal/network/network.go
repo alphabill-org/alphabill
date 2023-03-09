@@ -173,6 +173,8 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 		{protocolID: ProtocolRootTimeout, timeout: sendTimeout},
 		{protocolID: ProtocolRootStateReq, timeout: sendTimeout},
 		{protocolID: ProtocolRootStateResp, timeout: sendTimeout},
+		{protocolID: ProtocolRootCertReq, timeout: sendTimeout},
+		{protocolID: ProtocolRootCertResp, timeout: sendTimeout},
 	}
 	err = initSendProtocols(self, sendProtocolDescriptions, n)
 	if err != nil {
@@ -197,11 +199,19 @@ func NewLibP2RootConsensusNetwork(self *Peer, capacity uint, sendTimeout time.Du
 		},
 		{
 			protocolID: ProtocolRootStateReq,
-			typeFn:     func() proto.Message { return &atomic_broadcast.StateRequestMsg{} },
+			typeFn:     func() proto.Message { return &atomic_broadcast.GetStateMsg{} },
 		},
 		{
 			protocolID: ProtocolRootStateResp,
-			typeFn:     func() proto.Message { return &atomic_broadcast.StateReplyMsg{} },
+			typeFn:     func() proto.Message { return &atomic_broadcast.StateMsg{} },
+		},
+		{
+			protocolID: ProtocolRootCertReq,
+			typeFn:     func() proto.Message { return &atomic_broadcast.GetCertificates{} },
+		},
+		{
+			protocolID: ProtocolRootCertResp,
+			typeFn:     func() proto.Message { return &atomic_broadcast.CertificatesMsg{} },
 		},
 	}
 	err = initReceiveProtocols(self, n, receiveProtocolDescriptions)

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -33,13 +34,16 @@ const (
 	proofUrlFormat       = "%v/%v?bill_id=%v"
 	blockHeightUrlFormat = "%v/%v"
 
-	scheme          = "http://"
+	defaultScheme   = "http://"
 	contentType     = "Content-Type"
 	applicationJson = "application/json"
 )
 
 func NewClient(baseUrl string) (*MoneyBackendClient, error) {
-	u, err := url.Parse(scheme + baseUrl)
+	if !strings.HasPrefix(baseUrl, "http://") && !strings.HasPrefix(baseUrl, "https://") {
+		baseUrl = defaultScheme + baseUrl
+	}
+	u, err := url.Parse(baseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing Money Backend Client base URL (%s): %w", baseUrl, err)
 	}
@@ -48,6 +52,9 @@ func NewClient(baseUrl string) (*MoneyBackendClient, error) {
 
 func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uint64, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(balanceUrlFormat, c.baseUrl, BalancePath, hexutil.Encode(pubKey), includeDCBills), nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build get balance request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
@@ -90,6 +97,9 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse,
 
 func (c *MoneyBackendClient) GetProof(billId []byte) (*block.Bills, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.baseUrl, ProofPath, hexutil.Encode(billId)), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get proof request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
@@ -116,6 +126,9 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*block.Bills, error) {
 
 func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(blockHeightUrlFormat, c.baseUrl, BlockHeightPath), nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build get block height request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {
@@ -143,6 +156,9 @@ func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.Li
 		reqUrl = fmt.Sprintf("%v&offset=%v", reqUrl, offset)
 	}
 	req, err := http.NewRequest(http.MethodGet, reqUrl, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build get bills request: %w", err)
+	}
 	req.Header.Set(contentType, applicationJson)
 	response, err := c.httpClient.Do(req)
 	if err != nil {

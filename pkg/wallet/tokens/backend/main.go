@@ -56,13 +56,15 @@ func Run(ctx context.Context, cfg Configuration) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		bp := &blockProcessor{store: db, txs: txs, log: cfg.Logger()}
+		logger := cfg.Logger()
+		bp := &blockProcessor{store: db, txs: txs, log: logger}
 		// we act as if all errors returned by block sync are recoverable ie we
 		// just retry in a loop until ctx is cancelled
 		for {
+			logger.Debug("starting block sync")
 			err := runBlockSync(ctx, abc.GetBlocks, db.GetBlockNumber, cfg.BatchSize(), bp.ProcessBlock)
 			if err != nil {
-				cfg.Logger().Error("synchronizing blocks returned error: ", err)
+				logger.Error("synchronizing blocks returned error: ", err)
 			}
 			select {
 			case <-ctx.Done():

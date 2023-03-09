@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -39,8 +40,6 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 }
 
 func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) error {
-	p.log.Debug("processTx:", inTx.String())
-
 	gtx, err := p.txs.ConvertTx(inTx)
 	if err != nil {
 		return err
@@ -52,6 +51,8 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	if err != nil {
 		return fmt.Errorf("failed to create proof for tx with id=%X: %w", txHash, err)
 	}
+
+	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, strings.TrimPrefix(inTx.GetTransactionAttributes().TypeUrl, "type.googleapis.com/alphabill.tokens.v1.")))
 
 	switch tx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:

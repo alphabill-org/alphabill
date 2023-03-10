@@ -292,7 +292,7 @@ func TestNewTypes(t *testing.T) {
 		}
 		//check decimal places are validated against the parent type
 		_, err = tw.NewFungibleType(context.Background(), 1, b, []byte{2}, nil)
-		require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
+		require.ErrorContains(t, err, "parent type requires 0 decimal places, got 2")
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {

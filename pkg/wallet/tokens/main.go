@@ -78,8 +78,8 @@ func (w *Wallet) NewFungibleType(ctx context.Context, accNr uint64, attrs *token
 		if err != nil {
 			return nil, fmt.Errorf("failed to get parent type: %w", err)
 		}
-		if parentType != nil && parentType.DecimalPlaces != attrs.DecimalPlaces {
-			return nil, fmt.Errorf("invalid decimal places. allowed %v, got %v", parentType.DecimalPlaces, attrs.DecimalPlaces)
+		if parentType.DecimalPlaces != attrs.DecimalPlaces {
+			return nil, fmt.Errorf("parent type requires %d decimal places, got %d", parentType.DecimalPlaces, attrs.DecimalPlaces)
 		}
 	}
 	return w.newType(ctx, accNr, attrs, typeId, subtypePredicateArgs)

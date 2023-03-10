@@ -34,12 +34,21 @@ type Logger interface {
 }
 
 var logger Logger
+var noOp = &noOpLogger{}
 
 // SetLogger initialize a global logger.
 // In order to disable logging set the parameter l to nil.
 // Deprecated: Use pkg/logger instead.
 func SetLogger(l Logger) {
 	logger = l
+}
+
+// Deprecated: Use pkg/logger instead.
+func GetLogger() Logger {
+	if logger == nil {
+		return noOp
+	}
+	return logger
 }
 
 // Deprecated: Use pkg/logger instead.
@@ -103,3 +112,11 @@ func Error(v ...interface{}) {
 	}
 	logger.Error(v...)
 }
+
+type noOpLogger struct{}
+
+func (l *noOpLogger) Debug(...interface{})   {}
+func (l *noOpLogger) Info(...interface{})    {}
+func (l *noOpLogger) Notice(...interface{})  {}
+func (l *noOpLogger) Warning(...interface{}) {}
+func (l *noOpLogger) Error(...interface{})   {}

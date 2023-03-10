@@ -20,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	tw "github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens/client"
@@ -647,7 +648,7 @@ func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *
 	require.NoError(t, err)
 	host := fmt.Sprintf("localhost:%v", port)
 	srvUri = "http://" + host
-	cfg := twb.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), func(a ...any) { fmt.Println(a...) })
+	cfg := twb.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), wlog.GetLogger())
 	addr, err := url.Parse(srvUri)
 	require.NoError(t, err)
 	restApi = client.New(*addr)

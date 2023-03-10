@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -225,6 +226,26 @@ func TestNewTypes(t *testing.T) {
 
 	recTxs := make(map[string]*txsystem.Transaction, 0)
 	be := &mockTokenBackend{
+		getTypeHierarchy: func(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error) {
+			tx, found := recTxs[string(id)]
+			if found {
+				tokenType := twb.TokenUnitType{ID: tx.UnitId}
+				if strings.Contains(tx.TransactionAttributes.TypeUrl, "CreateFungibleTokenTypeAttributes") {
+					tokenType.Kind = twb.Fungible
+					attrs := &ttxs.CreateFungibleTokenTypeAttributes{}
+					require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+					tokenType.ParentTypeID = attrs.ParentTypeId
+					tokenType.DecimalPlaces = attrs.DecimalPlaces
+				} else {
+					tokenType.Kind = twb.NonFungible
+					attrs := &ttxs.CreateNonFungibleTokenTypeAttributes{}
+					require.NoError(t, tx.TransactionAttributes.UnmarshalTo(attrs))
+					tokenType.ParentTypeID = attrs.ParentTypeId
+				}
+				return []twb.TokenUnitType{tokenType}, nil
+			}
+			return nil, fmt.Errorf("not found")
+		},
 		postTransactions: func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error {
 			for _, tx := range txs.Transactions {
 				recTxs[string(tx.UnitId)] = tx
@@ -260,19 +281,18 @@ func TestNewTypes(t *testing.T) {
 		require.EqualValues(t, tx.Timeout, 101)
 
 		// new subtype
-		// TODO: uncomment after AB-752
-		//b := &ttxs.CreateFungibleTokenTypeAttributes{
-		//	Symbol:                             "AB",
-		//	DecimalPlaces:                      2,
-		//	ParentTypeId:                       typeId,
-		//	SubTypeCreationPredicateSignatures: nil,
-		//	SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
-		//	TokenCreationPredicate:             script.PredicateAlwaysTrue(),
-		//	InvariantPredicate:                 script.PredicateAlwaysTrue(),
-		//}
-		////check decimal places are validated against the parent type
-		//_, err = tw.NewFungibleType(context.Background(), b, []byte{2}, nil)
-		//require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
+		b := &ttxs.CreateFungibleTokenTypeAttributes{
+			Symbol:                             "AB",
+			DecimalPlaces:                      2,
+			ParentTypeId:                       typeId,
+			SubTypeCreationPredicateSignatures: nil,
+			SubTypeCreationPredicate:           script.PredicateAlwaysFalse(),
+			TokenCreationPredicate:             script.PredicateAlwaysTrue(),
+			InvariantPredicate:                 script.PredicateAlwaysTrue(),
+		}
+		//check decimal places are validated against the parent type
+		_, err = tw.NewFungibleType(context.Background(), 1, b, []byte{2}, nil)
+		require.ErrorContains(t, err, "invalid decimal places. allowed 0, got 2")
 	})
 
 	t.Run("non-fungible type", func(t *testing.T) {

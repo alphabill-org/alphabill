@@ -619,7 +619,7 @@ func ensureTokenTypeIndexed(t *testing.T, ctx context.Context, api *client.Token
 	return res
 }
 
-func startTokensPartition(t *testing.T) *testpartition.AlphabillPartition {
+func startTokensPartition(t *testing.T) (*testpartition.AlphabillPartition, string) {
 	tokensState, err := rma.New(&rma.Config{
 		HashAlgorithm: gocrypto.SHA256,
 	})
@@ -635,16 +635,19 @@ func startTokensPartition(t *testing.T) *testpartition.AlphabillPartition {
 	t.Cleanup(func() {
 		_ = network.Close()
 	})
+
+	listenAddr := fmt.Sprintf(":%d", net.GetFreeRandomPort(t))
 	startRPCServer(t, network, listenAddr)
-	return network
+	dialAddr := "localhost" + listenAddr
+	return network, dialAddr
 }
 
-func startTokensBackend(t *testing.T) (srvUri string, restApi *client.TokenBackend, ctx context.Context) {
+func startTokensBackend(t *testing.T, nodeAddr string) (srvUri string, restApi *client.TokenBackend, ctx context.Context) {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
 	host := fmt.Sprintf("localhost:%v", port)
 	srvUri = "http://" + host
-	cfg := twb.NewConfig(host, dialAddr, filepath.Join(t.TempDir(), "backend.db"), func(a ...any) { fmt.Println(a...) })
+	cfg := twb.NewConfig(host, nodeAddr, filepath.Join(t.TempDir(), "backend.db"), func(a ...any) { fmt.Println(a...) })
 	addr, err := url.Parse(srvUri)
 	require.NoError(t, err)
 	restApi = client.New(*addr)

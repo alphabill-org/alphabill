@@ -18,11 +18,11 @@ import (
 )
 
 func TestNFTs_Integration(t *testing.T) {
-	partition := startTokensPartition(t)
+	partition, nodeDialUrl := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t)
+	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedirW1 := createNewTokenWallet(t, backendUrl)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
@@ -65,10 +65,10 @@ func TestNFTs_Integration(t *testing.T) {
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {
-	partition := startTokensPartition(t)
+	partition, nodeDialUrl := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t)
+	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedir := createNewTokenWallet(t, backendUrl)
 	require.NotNil(t, w1)
@@ -136,11 +136,11 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 }
 
 func TestNFT_InvariantPredicate_Integration(t *testing.T) {
-	partition := startTokensPartition(t)
+	partition, nodeDialUrl := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t)
+	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedirW1 := createNewTokenWallet(t, backendUrl)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)

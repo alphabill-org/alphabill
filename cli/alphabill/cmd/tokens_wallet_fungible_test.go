@@ -16,11 +16,11 @@ import (
 )
 
 func TestFungibleToken_Subtyping_Integration(t *testing.T) {
-	partition := startTokensPartition(t)
+	partition, nodeDialUrl := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t)
+	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedirW1 := createNewTokenWallet(t, backendUrl)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
@@ -68,18 +68,18 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 }
 
 func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
-	partition := startTokensPartition(t)
+	partition, nodeDialUrl := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t)
+	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedirW1 := createNewTokenWallet(t, backendUrl)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w1.Shutdown()
 
-	w2, homedirW2 := createNewTokenWallet(t, dialAddr)
+	w2, homedirW2 := createNewTokenWallet(t, backendUrl)
 	w2key, err := w2.GetAccountManager().GetAccountKey(0)
 	require.NoError(t, err)
 	w2.Shutdown()
@@ -109,11 +109,11 @@ func TestFungibleToken_InvariantPredicate_Integration(t *testing.T) {
 }
 
 func TestFungibleTokens_Sending_Integration(t *testing.T) {
-	partition := startTokensPartition(t)
+	partition, nodeDialUrl := startTokensPartition(t)
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t)
+	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedirW1 := createNewTokenWallet(t, backendUrl)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
@@ -186,10 +186,10 @@ func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *test
 		}
 	}
 
-	partition := startTokensPartition(t)
+	partition, nodeDialUrl := startTokensPartition(t)
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t)
+	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedir := createNewTokenWallet(t, backendUrl)
 	require.NotNil(t, w1)

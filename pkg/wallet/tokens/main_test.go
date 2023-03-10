@@ -26,7 +26,7 @@ func Test_Load(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/api/v1/round-number", r.URL.Path)
-		_, err := fmt.Fprint(w, `{"roundNumber": 42}`)
+		_, err := fmt.Fprint(w, `{"roundNumber": "42"}`)
 		require.NoError(t, err)
 		w.WriteHeader(http.StatusOK)
 	}))

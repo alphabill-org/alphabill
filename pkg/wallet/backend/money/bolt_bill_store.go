@@ -47,16 +47,16 @@ type (
 func NewBoltBillStore(dbFile string) (*BoltBillStore, error) {
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open bolt DB: %w", err)
 	}
 	s := &BoltBillStore{db: db}
 	err = s.createBuckets()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create db buckets: %w", err)
 	}
 	err = s.initMetaData()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to init db metadata: %w", err)
 	}
 	return s, nil
 }

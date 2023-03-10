@@ -5,18 +5,20 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 type blockProcessor struct {
-	store  Storage
-	txs    txsystem.TransactionSystem
-	logErr func(a ...any)
+	store Storage
+	txs   txsystem.TransactionSystem
+	log   log.Logger
 }
 
 func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error {
@@ -49,6 +51,8 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 	if err != nil {
 		return fmt.Errorf("failed to create proof for tx with id=%X: %w", txHash, err)
 	}
+
+	p.log.Debug(fmt.Sprintf("processTx: UnitID=%x type: %s", id, strings.TrimPrefix(inTx.GetTransactionAttributes().TypeUrl, "type.googleapis.com/alphabill.tokens.v1.")))
 
 	switch tx := gtx.(type) {
 	case tokens.CreateFungibleTokenType:
@@ -173,9 +177,7 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 		token.TxHash = txHash
 		return p.saveToken(token, proof)
 	default:
-		if p.logErr != nil {
-			p.logErr("received unknown token transaction type, skipped processing:", tx)
-		}
+		p.log.Error("received unknown token transaction type, skipped processing:", tx)
 		return nil
 	}
 }

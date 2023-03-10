@@ -33,8 +33,9 @@ paths:
                 type: object
                 properties:
                   roundNumber:
-                    type: integer
-                    example: 265
+                    type: string
+                    description: value is uint64 encoded as string
+                    example: "265"
         '500':
           $ref: '#/components/responses/ErrorResponse'
   /types/{typeId}/hierarchy:
@@ -204,7 +205,7 @@ paths:
         - name: pubkey
           in: path
           required: true
-          description: idendifies the sender of the transactions.
+          description: identifies the sender of the transactions.
           schema:
             $ref: '#/components/schemas/PublicKey'
       requestBody:
@@ -329,8 +330,9 @@ components:
         kind:
           $ref: '#/components/schemas/KindInt'
         amount:
-          type: integer
-          format: uint64
+          type: string
+          description: uint64 value encoded as string
+          example: "1000"
         decimals:
           type: integer
           format: int32

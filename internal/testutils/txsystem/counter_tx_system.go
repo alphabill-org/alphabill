@@ -3,10 +3,9 @@ package testtxsystem
 import (
 	"encoding/binary"
 
-	log "github.com/alphabill-org/alphabill/internal/logger"
-
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
+	log "github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 var logger = log.CreateForPackage()

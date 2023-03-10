@@ -371,7 +371,7 @@ func setLinkHeader(u *url.URL, w http.ResponseWriter, next string) {
 
 type (
 	RoundNumberResponse struct {
-		RoundNumber uint64 `json:"roundNumber"`
+		RoundNumber uint64 `json:"roundNumber,string"`
 	}
 
 	ErrorResponse struct {

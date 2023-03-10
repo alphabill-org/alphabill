@@ -15,7 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -51,7 +51,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	id := rootNode.Peer.ID()
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	cm, err := NewDistributedAbConsensusManager(rootNode.Peer, rootGenesis, partitions, net, rootNode.Signer)
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis

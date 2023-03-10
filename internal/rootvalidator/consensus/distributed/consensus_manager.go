@@ -15,7 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/storage"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -40,10 +40,6 @@ type (
 		GetRootNodes() []*network.PeerInfo
 	}
 
-	PartitionStore interface {
-		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
-	}
-
 	ConsensusManager struct {
 		ctx            context.Context
 		ctxCancel      context.CancelFunc
@@ -60,7 +56,7 @@ type (
 		safety         *SafetyModule
 		datastore      *storage.Storage
 		blockStore     *storage.BlockStore
-		partitions     PartitionStore
+		partitions     partitions.PartitionConfiguration
 		irReqVerifier  *IRChangeReqVerifier
 		t2Timeouts     *PartitionTimeoutGenerator
 		waitPropose    bool
@@ -70,7 +66,7 @@ type (
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesis,
-	partitionStore PartitionStore, net RootNet, signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
+	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
 	// Sanity checks
 	if rg == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")

@@ -5,10 +5,10 @@ import (
 	gocrypto "crypto"
 	"fmt"
 	"hash"
-	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 
@@ -33,13 +33,15 @@ func (x *IRChangeReqMsg) IsValid() error {
 	return nil
 }
 
-func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc *certificates.UnicityCertificate, lucAge time.Duration) (*certificates.InputRecord, error) {
+func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certificates.UnicityCertificate, round, t2InRounds uint64) (*certificates.InputRecord, error) {
+	if tb == nil {
+		return nil, errors.New("partition info is nil")
+	}
 	if err := x.IsValid(); err != nil {
 		return nil, err
 	}
-	nofNodes := len(partitionInfo.TrustBase)
 	// quick sanity check, there cannot be more requests than known partition nodes
-	if len(x.Requests) > len(partitionInfo.TrustBase) {
+	if len(x.Requests) > int(tb.GetTotalNodes()) {
 		return nil, fmt.Errorf("invalid ir change request, proof contains more requests than registered partition nodes")
 	}
 	// verify IR change proof
@@ -48,11 +50,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 	// duplicate requests
 	nodeIDs := make(map[string]struct{})
 	for _, req := range x.Requests {
-		v, f := partitionInfo.TrustBase[req.NodeIdentifier]
-		if !f {
-			return nil, fmt.Errorf("invalid ir change request, unknown node %v for partition %X", req.NodeIdentifier, x.SystemIdentifier)
-		}
-		if err := req.IsValid(v); err != nil {
+		if err := tb.Verify(req.NodeIdentifier, req); err != nil {
 			return nil, fmt.Errorf("invalid ir change request, proof from system id %X node %v is not valid: %w",
 				req.SystemIdentifier, req.NodeIdentifier, err)
 		}
@@ -88,7 +86,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X contains proofs for no quorum", x.SystemIdentifier)
 		}
 		// 2. more than 50% of the nodes must have voted for the same IR
-		if count := getMaxHashCount(hashCnt); count < partitionInfo.GetQuorum() {
+		if count := getMaxHashCount(hashCnt); count < tb.GetQuorum() {
 			return nil, fmt.Errorf("invalid ir change request quorum proof, partition %X not enough requests to prove quorum", x.SystemIdentifier)
 		}
 		newIR := x.Requests[0].InputRecord
@@ -102,7 +100,7 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 		// Verify that enough partition nodes have voted for different IR change
 		// a) find how many votes are missing (nof nodes - requests)
 		// b) if the missing votes would also vote for the most popular hash, it must be still not enough to come to a quorum
-		if nofNodes-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(partitionInfo.GetQuorum()) {
+		if int(tb.GetTotalNodes())-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(tb.GetQuorum()) {
 			return nil, fmt.Errorf("invalid ir change request no quorum proof for %X, not enough requests to prove no quorum is possible", x.SystemIdentifier)
 		}
 		// initiate repeat UC
@@ -114,9 +112,10 @@ func (x *IRChangeReqMsg) Verify(partitionInfo partition_store.PartitionInfo, luc
 			return nil, fmt.Errorf("invalid ir change request timeout proof, proof contains requests")
 		}
 		// validate timeout against LUC age
-		if lucAge < time.Duration(partitionInfo.SystemDescription.T2Timeout)*time.Millisecond {
-			return nil, fmt.Errorf("invalid ir change request timeout proof, partition %X time from latest UC %v, timeout %v",
-				x.SystemIdentifier, lucAge, partitionInfo.SystemDescription.T2Timeout)
+		lucAge := round - luc.UnicitySeal.RootRoundInfo.RoundNumber
+		if lucAge < t2InRounds {
+			return nil, fmt.Errorf("invalid ir change request timeout proof, partition %X time from latest UC %v, timeout in rounds %v",
+				x.SystemIdentifier, lucAge, t2InRounds)
 		}
 		// initiate repeat UC
 		return luc.InputRecord, nil

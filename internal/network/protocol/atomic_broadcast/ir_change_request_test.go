@@ -4,13 +4,11 @@ import (
 	gocrypto "crypto"
 	"hash"
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	certification "github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
@@ -198,13 +196,14 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 		Requests         []*certification.BlockCertificationRequest
 	}
 	type args struct {
-		partitionInfo partition_store.PartitionInfo
-		luc           *certificates.UnicityCertificate
+		tb  partitions.PartitionTrustBase
+		luc *certificates.UnicityCertificate
 	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 
-	trustBase := map[string]crypto.Verifier{"1": v1, "2": v2}
+	trustBase := &partitions.TrustBase{
+		PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2}}
 	reqS1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysId1,
 		NodeIdentifier:   "1",
@@ -250,12 +249,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				Requests:         nil,
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: trustBase,
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -270,12 +264,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1InvalidSysId, reqS2},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: trustBase,
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -290,12 +279,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{invalidReq},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: trustBase,
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -310,12 +294,9 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: map[string]crypto.Verifier{"1": v1}},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -330,17 +311,14 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: map[string]crypto.Verifier{"1": v1, "3": v2}},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "3": v2},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
 			},
-			wantErrStr: "invalid ir change request, unknown node 2 for partition 00000001",
+			wantErrStr: "invalid ir change request, proof from system id 00000001 node 2 is not valid: verification failed, unknown node id 2",
 		},
 		{
 			name: "Proof contains duplicate node",
@@ -350,12 +328,9 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS1},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: map[string]crypto.Verifier{"1": v1, "2": v2}},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -370,12 +345,9 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 1}},
 				},
@@ -390,7 +362,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 				CertReason:       tt.fields.CertReason,
 				Requests:         tt.fields.Requests,
 			}
-			ir, err := x.Verify(tt.args.partitionInfo, tt.args.luc, 0)
+			ir, err := x.Verify(tt.args.tb, tt.args.luc, 0, 0)
 			if tt.wantErrStr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tt.fields.Requests[0].InputRecord, ir)
@@ -409,12 +381,12 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 		Requests         []*certification.BlockCertificationRequest
 	}
 	type args struct {
-		partitionInfo partition_store.PartitionInfo
-		luc           *certificates.UnicityCertificate
-		lucAge        time.Duration
+		tb         partitions.PartitionTrustBase
+		luc        *certificates.UnicityCertificate
+		t2InRounds uint64
+		round      uint64
 	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
-	trustBase := map[string]crypto.Verifier{"1": v1}
 	reqS1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysId1,
 		NodeIdentifier:   "1",
@@ -429,23 +401,22 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name: "IR change request timeout is not valid",
+			name: "IR change request in timeout proof contains requests, not valid",
 			fields: fields{
 				SystemIdentifier: sysId1,
 				CertReason:       IRChangeReqMsg_T2_TIMEOUT,
 				Requests:         []*certification.BlockCertificationRequest{reqS1},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
+					UnicitySeal: &certificates.UnicitySeal{
+						RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 1},
+					},
 				},
-				lucAge: 0,
 			},
 			wantErrStr: "invalid ir change request timeout proof, proof contains requests",
 		},
@@ -457,18 +428,19 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 				Requests:         nil,
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
+					UnicitySeal: &certificates.UnicitySeal{
+						RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 1},
+					},
 				},
-				lucAge: time.Duration(2499) * time.Millisecond,
+				t2InRounds: 5,
+				round:      5,
 			},
-			wantErrStr: "invalid ir change request timeout proof, partition 00000001 time from latest UC 2.499s",
+			wantErrStr: "invalid ir change request timeout proof, partition 00000001 time from latest UC 4, timeout in rounds 5",
 		},
 		{
 			name: "OK",
@@ -478,16 +450,17 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 				Requests:         nil,
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
+					UnicitySeal: &certificates.UnicitySeal{
+						RootRoundInfo: &certificates.RootRoundInfo{RoundNumber: 1},
+					},
 				},
-				lucAge: time.Duration(2500) * time.Millisecond,
+				t2InRounds: 5,
+				round:      6,
 			},
 		},
 	}
@@ -498,7 +471,7 @@ func TestIRChangeReqMsg_VerifyTimeoutReq(t *testing.T) {
 				CertReason:       tt.fields.CertReason,
 				Requests:         tt.fields.Requests,
 			}
-			ir, err := x.Verify(tt.args.partitionInfo, tt.args.luc, tt.args.lucAge)
+			ir, err := x.Verify(tt.args.tb, tt.args.luc, tt.args.round, tt.args.t2InRounds)
 			if tt.wantErrStr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tt.args.luc.InputRecord, ir)
@@ -517,14 +490,13 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 		Requests         []*certification.BlockCertificationRequest
 	}
 	type args struct {
-		partitionInfo partition_store.PartitionInfo
-		luc           *certificates.UnicityCertificate
+		tb  partitions.PartitionTrustBase
+		luc *certificates.UnicityCertificate
 	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 
-	trustBase := map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3}
 	reqS1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysId1,
 		NodeIdentifier:   "1",
@@ -561,12 +533,9 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -581,12 +550,9 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 1}},
 				},
@@ -601,12 +567,9 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2, reqS3NotMatchingIR},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -621,12 +584,9 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -640,7 +600,7 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 				CertReason:       tt.fields.CertReason,
 				Requests:         tt.fields.Requests,
 			}
-			ir, err := x.Verify(tt.args.partitionInfo, tt.args.luc, 0)
+			ir, err := x.Verify(tt.args.tb, tt.args.luc, 0, 0)
 			if tt.wantErrStr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tt.fields.Requests[0].InputRecord, ir)
@@ -659,13 +619,12 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 		Requests         []*certification.BlockCertificationRequest
 	}
 	type args struct {
-		partitionInfo partition_store.PartitionInfo
-		luc           *certificates.UnicityCertificate
+		tb  partitions.PartitionTrustBase
+		luc *certificates.UnicityCertificate
 	}
 	s1, v1 := testsig.CreateSignerAndVerifier(t)
 	s2, v2 := testsig.CreateSignerAndVerifier(t)
 
-	trustBase := map[string]crypto.Verifier{"1": v1, "2": v2}
 	reqS1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysId1,
 		NodeIdentifier:   "1",
@@ -695,12 +654,9 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -715,12 +671,9 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 				Requests:         []*certification.BlockCertificationRequest{reqS1, reqS2},
 			},
 			args: args{
-				partitionInfo: partition_store.PartitionInfo{
-					SystemDescription: &genesis.SystemDescriptionRecord{
-						SystemIdentifier: sysId1,
-						T2Timeout:        2500,
-					},
-					TrustBase: trustBase},
+				tb: &partitions.TrustBase{
+					PartitionTrustBase: map[string]crypto.Verifier{"1": v1, "2": v2},
+				},
 				luc: &certificates.UnicityCertificate{
 					InputRecord: &certificates.InputRecord{Hash: prevHash},
 				},
@@ -734,7 +687,7 @@ func TestIRChangeReqMsg_VerifyQuorumNotPossible(t *testing.T) {
 				CertReason:       tt.fields.CertReason,
 				Requests:         tt.fields.Requests,
 			}
-			ir, err := x.Verify(tt.args.partitionInfo, tt.args.luc, 0)
+			ir, err := x.Verify(tt.args.tb, tt.args.luc, 0, 0)
 			if tt.wantErrStr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tt.args.luc.InputRecord, ir)

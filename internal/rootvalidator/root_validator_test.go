@@ -14,7 +14,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -34,11 +34,11 @@ var partitionInputRecord = &certificates.InputRecord{
 type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
 	certResultCh chan certificates.UnicityCertificate
-	partitions   PartitionStore
+	partitions   partitions.PartitionConfiguration
 	certs        map[p.SystemIdentifier]*certificates.UnicityCertificate
 }
 
-func NewMockConsensus(rg *genesis.RootGenesis, partitionStore PartitionStore) (*MockConsensusManager, error) {
+func NewMockConsensus(rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration) (*MockConsensusManager, error) {
 	var c = make(map[p.SystemIdentifier]*certificates.UnicityCertificate)
 	for _, partition := range rg.Partitions {
 		c[partition.GetSystemIdentifierString()] = partition.Certificate
@@ -83,7 +83,7 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	id := node.Peer.ID()
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	cm, err := NewMockConsensus(rootGenesis, partitionStore)
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	mockNet := testnetwork.NewMockNetwork()
-	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	cm, err := monolithic.NewMonolithicConsensusManager(node.Peer.ID().String(),
 		rootGenesis,
@@ -128,7 +128,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	partitionNetMock := testnetwork.NewMockNetwork()
 	rootHost := testutils.NewTestNode(t)
 	rootNetMock := testnetwork.NewMockNetwork()
-	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	require.NoError(t, err)
 	cm, err := distributed.NewDistributedAbConsensusManager(rootHost.Peer,
 		rootGenesis,
@@ -358,11 +358,14 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		},
 		UnicitySeal: &certificates.UnicitySeal{},
 	}
+	// simulate 2x subscriptions
+	rootValidator.subscription.Subscribe(p.SystemIdentifier(rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier), rg.Partitions[0].Nodes[0].NodeIdentifier)
+	rootValidator.subscription.Subscribe(p.SystemIdentifier(rg.Partitions[0].SystemDescriptionRecord.SystemIdentifier), rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager
 	rootValidator.onCertificationResult(uc)
 	// UC's are sent to all partition nodes
-	certs := testutils.MockNetAwaitMultiple[*certificates.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates, 3)
-	require.Len(t, certs, 3)
+	certs := testutils.MockNetAwaitMultiple[*certificates.UnicityCertificate](t, mockNet, network.ProtocolUnicityCertificates, 2)
+	require.Len(t, certs, 2)
 	for _, cert := range certs {
 		require.Equal(t, partitionID, cert.UnicityTreeCertificate.SystemIdentifier)
 		require.Equal(t, newIR, cert.InputRecord)

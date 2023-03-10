@@ -11,6 +11,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -523,6 +524,94 @@ func Test_GetTypeHierarchy(t *testing.T) {
 		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
 		require.NoError(t, err)
 		require.ElementsMatch(t, data, expData)
+	})
+}
+
+func Test_GetTxProof(t *testing.T) {
+	t.Parallel()
+
+	unitID := test.RandomBytes(32)
+	txHash := test.RandomBytes(32)
+
+	createClient := func(t *testing.T, proof *twb.Proof) *TokenBackend {
+		return &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					unitIDHex := hexutil.Encode(unitID)
+					txHashHex := hexutil.Encode(txHash)
+
+					if r.URL.String() != fmt.Sprintf("http://localhost/api/v1/units/%s/transactions/%s/proof", unitIDHex, txHashHex) {
+						t.Errorf("unexpected request URL: %s", r.URL.String())
+					}
+					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+
+					w := httptest.NewRecorder()
+					if proof == nil {
+						w.WriteHeader(http.StatusNotFound)
+						w.WriteString(`{"message":"no proof found"}`)
+					} else {
+						if err := json.NewEncoder(w).Encode(proof); err != nil {
+							return nil, fmt.Errorf("failed to write response body: %v", err)
+						}
+						w.WriteHeader(http.StatusOK)
+					}
+					return w.Result(), nil
+				},
+			}},
+		}
+	}
+
+	t.Run("valid proof returned", func(t *testing.T) {
+		proof := &twb.Proof{
+			BlockNumber: 1,
+			Tx:          &txsystem.Transaction{UnitId: unitID},
+			Proof:       &block.BlockProof{TransactionsHash: txHash},
+		}
+
+		proofFromClient, err := createClient(t, proof).GetTxProof(context.Background(), unitID, txHash)
+		require.NoError(t, err)
+		require.Equal(t, proof, proofFromClient)
+	})
+
+	t.Run("nil proof returned", func(t *testing.T) {
+		proofFromClient, err := createClient(t, nil).GetTxProof(context.Background(), unitID, txHash)
+		require.NoError(t, err)
+		require.Nil(t, proofFromClient)
+	})
+
+	t.Run("404 returned", func(t *testing.T) {
+		api := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusNotFound)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		_, err := api.GetTxProof(context.Background(), unitID, txHash)
+		require.ErrorContains(t, err, "get tx proof request failed")
+	})
+
+	t.Run("500 returned", func(t *testing.T) {
+		api := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusInternalServerError)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		_, err := api.GetTxProof(context.Background(), unitID, txHash)
+		require.ErrorContains(t, err, "get tx proof request failed")
 	})
 }
 

@@ -13,10 +13,11 @@ import (
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,7 @@ import (
 func TestNewFungibleType(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	typeId := []byte{1}
-	a := &tokens.CreateFungibleTokenTypeAttributes{
+	a := &ttxs.CreateFungibleTokenTypeAttributes{
 		Symbol:                             "AB",
 		DecimalPlaces:                      0,
 		ParentTypeId:                       nil,
@@ -38,7 +39,7 @@ func TestNewFungibleType(t *testing.T) {
 	txs := abClient.GetRecordedTransactions()
 	require.Len(t, txs, 1)
 	tx := txs[0]
-	newFungibleTx := &tokens.CreateFungibleTokenTypeAttributes{}
+	newFungibleTx := &ttxs.CreateFungibleTokenTypeAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newFungibleTx))
 	require.Equal(t, typeId, tx.UnitId)
 	require.Equal(t, a.Symbol, newFungibleTx.Symbol)
@@ -52,7 +53,7 @@ func TestNewFungibleType(t *testing.T) {
 		Symbol:        a.Symbol,
 	})
 	// new subtype
-	b := &tokens.CreateFungibleTokenTypeAttributes{
+	b := &ttxs.CreateFungibleTokenTypeAttributes{
 		Symbol:                             "AB",
 		DecimalPlaces:                      2,
 		ParentTypeId:                       typeId,
@@ -69,7 +70,7 @@ func TestNewFungibleType(t *testing.T) {
 func TestNewNonFungibleType(t *testing.T) {
 	tw, abClient := createTestWallet(t)
 	typeId := []byte{2}
-	a := &tokens.CreateNonFungibleTokenTypeAttributes{
+	a := &ttxs.CreateNonFungibleTokenTypeAttributes{
 		Symbol:                             "ABNFT",
 		ParentTypeId:                       nil,
 		SubTypeCreationPredicateSignatures: nil,
@@ -82,7 +83,7 @@ func TestNewNonFungibleType(t *testing.T) {
 	txs := abClient.GetRecordedTransactions()
 	require.Len(t, txs, 1)
 	tx := txs[0]
-	newNFTTx := &tokens.CreateNonFungibleTokenTypeAttributes{}
+	newNFTTx := &ttxs.CreateNonFungibleTokenTypeAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newNFTTx))
 	require.Equal(t, typeId, tx.UnitId)
 	require.Equal(t, a.Symbol, newNFTTx.Symbol)
@@ -93,19 +94,19 @@ func TestNewFungibleToken(t *testing.T) {
 	tests := []struct {
 		name          string
 		accNr         uint64
-		validateOwner func(t *testing.T, accNr uint64, tok *tokens.MintFungibleTokenAttributes)
+		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes)
 	}{
 		{
 			name:  "always true bearer predicate",
 			accNr: uint64(0),
-			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
 				require.Equal(t, script.PredicateAlwaysTrue(), tok.Bearer)
 			},
 		},
 		{
 			name:  "pub key bearer predicate",
 			accNr: uint64(1),
-			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
 				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
@@ -117,7 +118,7 @@ func TestNewFungibleToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := []byte{1}
 			amount := uint64(100)
-			a := &tokens.MintFungibleTokenAttributes{
+			a := &ttxs.MintFungibleTokenAttributes{
 				Type:                             typeId,
 				Value:                            amount,
 				TokenCreationPredicateSignatures: nil,
@@ -126,7 +127,7 @@ func TestNewFungibleToken(t *testing.T) {
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
-			newToken := &tokens.MintFungibleTokenAttributes{}
+			newToken := &ttxs.MintFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitId)
 			require.Equal(t, typeId, newToken.Type)
@@ -141,7 +142,7 @@ func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
 	accNr := uint64(1)
 	tests := []struct {
 		name       string
-		attrs      *tokens.MintNonFungibleTokenAttributes
+		attrs      *ttxs.MintNonFungibleTokenAttributes
 		wantErrStr string
 	}{
 		{
@@ -151,21 +152,21 @@ func TestMintNonFungibleToken_InvalidInputs(t *testing.T) {
 		},
 		{
 			name: "invalid URI",
-			attrs: &tokens.MintNonFungibleTokenAttributes{
+			attrs: &ttxs.MintNonFungibleTokenAttributes{
 				Uri: "invalid_uri",
 			},
 			wantErrStr: "URI 'invalid_uri' is invalid",
 		},
 		{
 			name: "URI exceeds maximum allowed length",
-			attrs: &tokens.MintNonFungibleTokenAttributes{
+			attrs: &ttxs.MintNonFungibleTokenAttributes{
 				Uri: string(test.RandomBytes(4097)),
 			},
 			wantErrStr: "URI exceeds the maximum allowed size of 4096 bytes",
 		},
 		{
 			name: "data exceeds maximum allowed length",
-			attrs: &tokens.MintNonFungibleTokenAttributes{
+			attrs: &ttxs.MintNonFungibleTokenAttributes{
 				Data: test.RandomBytes(65537),
 			},
 			wantErrStr: "data exceeds the maximum allowed size of 65536 bytes",
@@ -187,19 +188,19 @@ func TestNewNFT(t *testing.T) {
 	tests := []struct {
 		name          string
 		accNr         uint64
-		validateOwner func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes)
+		validateOwner func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes)
 	}{
 		{
 			name:  "always true bearer predicate",
 			accNr: uint64(0),
-			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
 				require.Equal(t, script.PredicateAlwaysTrue(), tok.Bearer)
 			},
 		},
 		{
 			name:  "pub key bearer predicate",
 			accNr: uint64(1),
-			validateOwner: func(t *testing.T, accNr uint64, tok *tokens.MintNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, tok *ttxs.MintNonFungibleTokenAttributes) {
 				key, err := tw.am.GetAccountKey(accNr - 1)
 				require.NoError(t, err)
 				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(key.PubKeyHash.Sha256), tok.Bearer)
@@ -210,7 +211,7 @@ func TestNewNFT(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := []byte{1}
-			a := &tokens.MintNonFungibleTokenAttributes{
+			a := &ttxs.MintNonFungibleTokenAttributes{
 				NftType:                          typeId,
 				Uri:                              "",
 				Data:                             nil,
@@ -221,7 +222,7 @@ func TestNewNFT(t *testing.T) {
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
-			newToken := &tokens.MintNonFungibleTokenAttributes{}
+			newToken := &ttxs.MintNonFungibleTokenAttributes{}
 			require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newToken))
 			require.NotEqual(t, []byte{0}, tx.UnitId)
 			require.Equal(t, typeId, newToken.NftType)
@@ -246,13 +247,13 @@ func TestTransferNFT(t *testing.T) {
 		name          string
 		tokenId       TokenID
 		key           PublicKey
-		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferNonFungibleTokenAttributes)
+		validateOwner func(t *testing.T, accNr uint64, key PublicKey, tok *ttxs.TransferNonFungibleTokenAttributes)
 	}{
 		{
 			name:    "to 'always true' predicate",
 			tokenId: []byte{11},
 			key:     nil,
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
 				require.Equal(t, script.PredicateAlwaysTrue(), tok.NewBearer)
 			},
 		},
@@ -260,7 +261,7 @@ func TestTransferNFT(t *testing.T) {
 			name:    "to public key hash predicate",
 			tokenId: []byte{12},
 			key:     first(hexutil.Decode("0x0290a43bc454babf1ea8b0b76fcbb01a8f27a989047cf6d6d76397cc4756321e64")),
-			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *tokens.TransferNonFungibleTokenAttributes) {
+			validateOwner: func(t *testing.T, accNr uint64, key PublicKey, tok *ttxs.TransferNonFungibleTokenAttributes) {
 				require.Equal(t, script.PredicatePayToPublicKeyHashDefault(hash.Sum256(key)), tok.NewBearer)
 			},
 		},
@@ -271,7 +272,7 @@ func TestTransferNFT(t *testing.T) {
 			require.NoError(t, err)
 			txs := abClient.GetRecordedTransactions()
 			tx := txs[len(txs)-1]
-			require.NotEqual(t, tt.tokenId, tx.UnitId)
+			require.EqualValues(t, tt.tokenId, tx.UnitId)
 			newTransfer := parseNFTTransfer(t, tx)
 			tt.validateOwner(t, 1, tt.key, newTransfer)
 		})
@@ -288,7 +289,7 @@ func TestUpdateNFTData(t *testing.T) {
 
 	// test data, backlink and predicate inputs are submitted correctly
 	data := randomBytes(t)
-	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}}))
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data, []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}))
 	txs := abClient.GetRecordedTransactions()
 	tx := txs[len(txs)-1]
 	dataUpdate := parseNFTDataUpdate(t, tx)
@@ -298,7 +299,7 @@ func TestUpdateNFTData(t *testing.T) {
 
 	// test that wallet not only sends the tx, but also reads it correctly
 	data2 := randomBytes(t)
-	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}}))
+	require.NoError(t, tw.UpdateNFTData(context.Background(), 1, tok.ID, data2, []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}, {AccountNumber: 1}}))
 	txs = abClient.GetRecordedTransactions()
 	tx = txs[len(txs)-1]
 	dataUpdate = parseNFTDataUpdate(t, tx)
@@ -317,26 +318,26 @@ func TestUpdateNFTData(t *testing.T) {
 	require.NotEqual(t, tok.Backlink, updatedTok.Backlink)
 }
 
-func parseFungibleTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferFungibleTokenAttributes) {
-	newTransfer = &tokens.TransferFungibleTokenAttributes{}
+func parseFungibleTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *ttxs.TransferFungibleTokenAttributes) {
+	newTransfer = &ttxs.TransferFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 	return
 }
 
-func parseNFTTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.TransferNonFungibleTokenAttributes) {
-	newTransfer = &tokens.TransferNonFungibleTokenAttributes{}
+func parseNFTTransfer(t *testing.T, tx *txsystem.Transaction) (newTransfer *ttxs.TransferNonFungibleTokenAttributes) {
+	newTransfer = &ttxs.TransferNonFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 	return
 }
 
-func parseNFTDataUpdate(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.UpdateNonFungibleTokenAttributes) {
-	newTransfer = &tokens.UpdateNonFungibleTokenAttributes{}
+func parseNFTDataUpdate(t *testing.T, tx *txsystem.Transaction) (newTransfer *ttxs.UpdateNonFungibleTokenAttributes) {
+	newTransfer = &ttxs.UpdateNonFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 	return
 }
 
-func parseSplit(t *testing.T, tx *txsystem.Transaction) (newTransfer *tokens.SplitFungibleTokenAttributes) {
-	newTransfer = &tokens.SplitFungibleTokenAttributes{}
+func parseSplit(t *testing.T, tx *txsystem.Transaction) (newTransfer *ttxs.SplitFungibleTokenAttributes) {
+	newTransfer = &ttxs.SplitFungibleTokenAttributes{}
 	require.NoError(t, tx.TransactionAttributes.UnmarshalTo(newTransfer))
 	return
 }
@@ -388,9 +389,9 @@ func TestSendFungible(t *testing.T) {
 					gtx, err := tw.txs.ConvertTx(tx)
 					require.NoError(t, err)
 					switch ctx := gtx.(type) {
-					case tokens.TransferFungibleToken:
+					case ttxs.TransferFungibleToken:
 						total += ctx.Value()
-					case tokens.SplitFungibleToken:
+					case ttxs.SplitFungibleToken:
 						total += ctx.TargetValue()
 					default:
 						t.Errorf("unexpected tx type: %s", reflect.TypeOf(ctx))

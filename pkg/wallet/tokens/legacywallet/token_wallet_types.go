@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -47,13 +46,6 @@ type (
 	}
 
 	PublicKey []byte
-
-	PredicateInput struct {
-		// first priority
-		Argument tokens.Predicate
-		// if Argument empty, check AccountNumber
-		AccountNumber uint64
-	}
 
 	MintAttr interface {
 		proto.Message

@@ -129,8 +129,8 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			Owner:    tx.NewBearer(),
 		}
 		return p.saveToken(newToken, splitProof)
-	//case tokens.BurnFungibleToken: // TODO in 0.2.0
-	//case tokens.JoinFungibleToken: // TODO in 0.2.0
+	//case tokens.BurnFungibleToken: // TODO in 0.2.0 (AB-751)
+	//case tokens.JoinFungibleToken: // TODO in 0.2.0 (AB-751)
 	case tokens.CreateNonFungibleTokenType:
 		return p.saveTokenType(&TokenUnitType{
 			Kind:                     NonFungible,
@@ -196,7 +196,7 @@ func (p *blockProcessor) saveToken(unit *TokenUnit, proof *Proof) error {
 	return nil
 }
 
-func (p *blockProcessor) createProof(unitID []byte, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
+func (p *blockProcessor) createProof(unitID UnitID, b *block.Block, tx *txsystem.Transaction) (*Proof, error) {
 	if b == nil {
 		return nil, nil
 	}

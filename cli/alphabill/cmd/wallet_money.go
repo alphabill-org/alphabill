@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/term"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -21,10 +23,8 @@ import (
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 type walletConfig struct {
@@ -89,7 +89,7 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	walletCmd.AddCommand(getBalanceCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
-	walletCmd.AddCommand(legacyTokenCmd(config))
+	walletCmd.AddCommand(tokenCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)

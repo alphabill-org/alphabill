@@ -119,6 +119,20 @@ func (tb *TokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID
 	return rspData, nil
 }
 
+func (tb *TokenBackend) GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
+	var proof *twb.Proof
+	addr := tb.getURL(apiPathPrefix, "units", hexutil.Encode(unitID), "transactions", hexutil.Encode(txHash), "proof")
+	_, err := tb.get(ctx, addr, &proof, false)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get tx proof request failed: %w", err)
+	}
+
+	return proof, nil
+}
+
 func (tb *TokenBackend) GetRoundNumber(ctx context.Context) (uint64, error) {
 	var rn twb.RoundNumberResponse
 	if _, err := tb.get(ctx, tb.getURL(apiPathPrefix, "round-number"), &rn, false); err != nil {

@@ -32,6 +32,7 @@ type dataSource interface {
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
+	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
 }
 
 type restAPI struct {
@@ -66,6 +67,7 @@ func (api *restAPI) endpoints() http.Handler {
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +98,7 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	qp := r.URL.Query()
-	startKey, err := parseTokenID(qp.Get("offsetKey"), false)
+	startKey, err := parseHex[TokenID](qp.Get("offsetKey"), false)
 	if err != nil {
 		api.invalidParamResponse(w, "offsetKey", err)
 		return
@@ -117,13 +119,13 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeTokenID(next))
+	setLinkHeader(r.URL, w, encodeHex[TokenID](next))
 	api.writeResponse(w, data)
 }
 
 func (api *restAPI) getToken(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	tokenId, err := parseTokenID(vars["tokenId"], true)
+	tokenId, err := parseHex[TokenID](vars["tokenId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "tokenId", err)
 		return
@@ -152,7 +154,7 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startKey, err := parseTokenTypeID(qp.Get("offsetKey"), false)
+	startKey, err := parseHex[TokenTypeID](qp.Get("offsetKey"), false)
 	if err != nil {
 		api.invalidParamResponse(w, "offsetKey", err)
 		return
@@ -169,20 +171,20 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeTokenTypeID(next))
+	setLinkHeader(r.URL, w, encodeHex[TokenTypeID](next))
 	api.writeResponse(w, data)
 }
 
 func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	typeId, err := parseTokenTypeID(vars["typeId"], true)
+	typeId, err := parseHex[TokenTypeID](vars["typeId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "typeId", err)
 		return
 	}
 
 	var rsp []*TokenUnitType
-	for len(typeId) > 0 {
+	for len(typeId) > 0 && !bytes.Equal(typeId, NoParent) {
 		tokTyp, err := api.db.GetTokenType(typeId)
 		if err != nil {
 			api.writeErrorResponse(w, fmt.Errorf("failed to load type with id %x: %w", typeId, err))
@@ -293,6 +295,32 @@ func (api *restAPI) saveTx(tx *txsystem.Transaction, owner []byte) error {
 		return fmt.Errorf("transaction was not accepted: %s", rsp.GetMessage())
 	}
 	return nil
+}
+
+func (api *restAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "unitId", err)
+		return
+	}
+	txHash, err := parseHex[TxHash](vars["txHash"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "txHash", err)
+		return
+	}
+
+	proof, err := api.db.GetTxProof(unitID, txHash)
+	if err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%X): %w", txHash, unitID, err))
+		return
+	}
+	if proof == nil {
+		api.errorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
+		return
+	}
+
+	api.writeResponse(w, proof)
 }
 
 func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {

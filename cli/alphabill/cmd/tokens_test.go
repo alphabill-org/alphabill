@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/script"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -24,12 +26,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/anypb"
-)
-
-var (
-	port       = "9543"
-	listenAddr = ":" + port // listen is on all devices, so it would work in CI inside docker too.
-	dialAddr   = "localhost:" + port
 )
 
 func TestRunTokensNode(t *testing.T) {
@@ -67,6 +63,8 @@ func TestRunTokensNode(t *testing.T) {
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)
 
+		listenAddr := fmt.Sprintf(":%d", net.GetFreeRandomPort(t))
+
 		// start the node in background
 		appStoppedWg.Add(1)
 		go func() {
@@ -80,7 +78,7 @@ func TestRunTokensNode(t *testing.T) {
 		}()
 
 		// Create the gRPC client
-		conn, err := grpc.DialContext(ctx, dialAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.DialContext(ctx, "localhost"+listenAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
 		defer conn.Close()
 		rpcClient := alphabill.NewAlphabillServiceClient(conn)

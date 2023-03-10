@@ -17,7 +17,7 @@ type (
 		// CertificationResult read the channel to receive certification results
 		CertificationResult() <-chan certificates.UnicityCertificate
 		// GetLatestUnicityCertificate get the latest certification for partition (maybe should/can be removed)
-		GetLatestUnicityCertificate(p protocol.SystemIdentifier) (*certificates.UnicityCertificate, error)
+		GetLatestUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error)
 		// Stop consensus manager, stop manager go routines and clean-up
 		Stop()
 	}

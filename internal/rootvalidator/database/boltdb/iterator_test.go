@@ -146,3 +146,54 @@ func TestBoltIterator_FindClosestMatch(t *testing.T) {
 	require.True(t, it.Valid())
 	require.Equal(t, []byte("1"), it.Key())
 }
+
+func TestBoltIterator_DoubleClose(t *testing.T) {
+	db := initDB(t, defaultsDBKeys)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
+	// seek past end
+	it := db.Find([]byte("0"))
+	require.NoError(t, it.Close())
+	require.NoError(t, it.Close())
+}
+
+func TestBoltIterator_IteratePastEndAndAfterClose(t *testing.T) {
+	db := initDB(t, defaultsDBKeys)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
+	it := db.First()
+	iterations := 0
+	for ; it.Valid(); it.Next() {
+		iterations++
+	}
+	require.Equal(t, len(defaultsDBKeys), iterations)
+	// no panic
+	it.Next()
+	// still not valid
+	require.False(t, it.Valid())
+	require.NoError(t, it.Close())
+	it.Next()
+	require.False(t, it.Valid())
+}
+
+func TestBoltIterator_IteratePastBegin(t *testing.T) {
+	db := initDB(t, defaultsDBKeys)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
+	it := db.Last()
+	iterations := 0
+	for ; it.Valid(); it.Prev() {
+		iterations++
+	}
+	require.Equal(t, len(defaultsDBKeys), iterations)
+	// no panic
+	it.Prev()
+	// still not valid
+	require.False(t, it.Valid())
+	require.NoError(t, it.Close())
+	it.Prev()
+	require.False(t, it.Valid())
+}

@@ -18,7 +18,13 @@ type (
 
 func (it *Itr) Close() error {
 	if it.tx != nil {
-		return it.tx.Rollback()
+		// it seems error is only returned if already closed
+		err := it.tx.Rollback()
+		// release iterator, so it cannot be closed twice - hence this should never return error
+		it.tx = nil
+		it.key = nil
+		it.value = nil
+		return err
 	} else {
 		return nil
 	}
@@ -33,9 +39,15 @@ func NewIterator(db *bolt.DB, bucket []byte, d DecodeFn) *Itr {
 }
 
 func (it *Itr) Next() {
+	if !it.Valid() {
+		return
+	}
 	it.key, it.value = it.it.Next()
 }
 func (it *Itr) Prev() {
+	if !it.Valid() {
+		return
+	}
 	it.key, it.value = it.it.Prev()
 }
 
@@ -47,6 +59,9 @@ func (it *Itr) Key() []byte {
 	return it.key
 }
 func (it *Itr) Value(v any) error {
+	if !it.Valid() {
+		fmt.Errorf("iterator invalid")
+	}
 	return it.decoder(it.value, v)
 }
 

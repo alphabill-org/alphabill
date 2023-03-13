@@ -2,22 +2,18 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sort"
-	"strconv"
-	"strings"
 
-	aberrors "github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/spf13/cobra"
+
 	"github.com/alphabill-org/alphabill/internal/script"
 	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -39,11 +35,9 @@ const (
 	cmdFlagTokenData                  = "data"
 	cmdFlagTokenDataFile              = "data-file"
 
-	predicateEmpty    = "empty"
-	predicateTrue     = "true"
-	predicateFalse    = "false"
-	predicatePtpkh    = "ptpkh"
-	hexPrefix         = "0x"
+	predicateTrue  = "true"
+	predicatePtpkh = "ptpkh"
+
 	maxBinaryFile64Kb = 64 * 1024
 	maxDecimalPlaces  = 8
 )
@@ -321,14 +315,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		return fmt.Errorf("invalid parameter \"%s\" for \"--amount\": 0 is not valid amount", amountStr)
 	}
 
-	a := &ttxs.MintFungibleTokenAttributes{
-		Bearer:                           nil, // will be set in the wallet
-		Type:                             typeId,
-		Value:                            amount,
-		TokenCreationPredicateSignatures: nil, // will be filled by the wallet
-	}
-
-	id, err := tw.NewFungibleToken(cmd.Context(), accountNumber, a, ci)
+	id, err := tw.NewFungibleToken(cmd.Context(), accountNumber, typeId, amount, ci)
 	if err != nil {
 		return err
 	}
@@ -797,7 +784,6 @@ func readParentTypeInfo(cmd *cobra.Command, am account.Manager) (twb.TokenTypeID
 	}
 
 	if len(parentType) == 0 || bytes.Equal(parentType, NoParent) {
-		parentType = NoParent
 		return NoParent, []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
 
@@ -817,7 +803,7 @@ func readPredicateInput(cmd *cobra.Command, flag string, am account.Manager) ([]
 	if len(creationInputStrs) == 0 {
 		return []*tokens.PredicateInput{{Argument: script.PredicateArgumentEmpty()}}, nil
 	}
-	creationInputs, err := parsePredicateArguments(creationInputStrs, am)
+	creationInputs, err := tokens.ParsePredicates(creationInputStrs, am)
 	if err != nil {
 		return nil, err
 	}
@@ -836,108 +822,7 @@ func parsePredicateClauseCmd(cmd *cobra.Command, flag string, am account.Manager
 	if err != nil {
 		return nil, err
 	}
-	return parsePredicateClause(clause, am)
-}
-
-func parsePredicateClause(clause string, am account.Manager) ([]byte, error) {
-	if len(clause) == 0 || clause == predicateTrue {
-		return script.PredicateAlwaysTrue(), nil
-	}
-	if clause == predicateFalse {
-		return script.PredicateAlwaysFalse(), nil
-	}
-
-	keyNr := 1
-	var err error
-	if strings.HasPrefix(clause, predicatePtpkh) {
-		if split := strings.Split(clause, ":"); len(split) == 2 {
-			keyStr := split[1]
-			if strings.HasPrefix(strings.ToLower(keyStr), hexPrefix) {
-				if len(keyStr) < 3 {
-					return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
-				}
-				keyHash, err := hexutil.Decode(keyStr)
-				if err != nil {
-					return nil, err
-				}
-				return script.PredicatePayToPublicKeyHashDefault(keyHash), nil
-			} else {
-				keyNr, err = strconv.Atoi(keyStr)
-				if err != nil {
-					return nil, aberrors.Wrapf(err, "invalid predicate clause: '%s'", clause)
-				}
-			}
-		}
-		if keyNr < 1 {
-			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, clause)
-		}
-		accountKey, err := am.GetAccountKey(uint64(keyNr - 1))
-		if err != nil {
-			return nil, err
-		}
-		return script.PredicatePayToPublicKeyHashDefault(accountKey.PubKeyHash.Sha256), nil
-
-	}
-	if strings.HasPrefix(clause, hexPrefix) {
-		return decodeHexOrEmpty(clause)
-	}
-	return nil, fmt.Errorf("invalid predicate clause: '%s'", clause)
-}
-
-func parsePredicateArguments(arguments []string, am account.Manager) ([]*tokens.PredicateInput, error) {
-	creationInputs := make([]*tokens.PredicateInput, 0, len(arguments))
-	for _, argument := range arguments {
-		input, err := parsePredicateArgument(argument, am)
-		if err != nil {
-			return nil, err
-		}
-		creationInputs = append(creationInputs, input)
-	}
-	return creationInputs, nil
-}
-
-// parsePredicateArguments uses the following format:
-// empty|true|false|empty produce an empty predicate argument
-// ptpkh (key 1) or ptpkh:n (n > 0) produce an argument with the signed transaction by the given key
-func parsePredicateArgument(argument string, am account.Manager) (*tokens.PredicateInput, error) {
-	if len(argument) == 0 || argument == predicateEmpty || argument == predicateTrue || argument == predicateFalse {
-		return &tokens.PredicateInput{Argument: script.PredicateArgumentEmpty()}, nil
-	}
-	keyNr := 1
-	var err error
-	if strings.HasPrefix(argument, predicatePtpkh) {
-		if split := strings.Split(argument, ":"); len(split) == 2 {
-			keyStr := split[1]
-			if strings.HasPrefix(strings.ToLower(keyStr), hexPrefix) {
-				return nil, fmt.Errorf("invalid creation input: '%s'", argument)
-			} else {
-				keyNr, err = strconv.Atoi(keyStr)
-				if err != nil {
-					return nil, aberrors.Wrapf(err, "invalid creation input: '%s'", argument)
-				}
-			}
-		}
-		if keyNr < 1 {
-			return nil, fmt.Errorf("invalid key number: %v in '%s'", keyNr, argument)
-		}
-		_, err := am.GetAccountKey(uint64(keyNr - 1))
-		if err != nil {
-			return nil, err
-		}
-		return &tokens.PredicateInput{AccountNumber: uint64(keyNr)}, nil
-
-	}
-	if strings.HasPrefix(argument, hexPrefix) {
-		decoded, err := decodeHexOrEmpty(argument)
-		if err != nil {
-			return nil, err
-		}
-		if len(decoded) == 0 {
-			decoded = script.PredicateArgumentEmpty()
-		}
-		return &tokens.PredicateInput{Argument: decoded}, nil
-	}
-	return nil, fmt.Errorf("invalid creation input: '%s'", argument)
+	return tokens.ParsePredicateClause(clause, am)
 }
 
 func readNFTData(cmd *cobra.Command, required bool) ([]byte, error) {
@@ -973,17 +858,6 @@ func getHexFlag(cmd *cobra.Command, flag string) ([]byte, error) {
 	return res, err
 }
 
-func decodeHexOrEmpty(input string) ([]byte, error) {
-	if len(input) == 0 || input == predicateEmpty {
-		return []byte{}, nil
-	}
-	decoded, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(input), hexPrefix))
-	if err != nil {
-		return nil, err
-	}
-	return decoded, nil
-}
-
 func readDataFile(path string) ([]byte, error) {
 	size, err := util.GetFileSize(path)
 	if err != nil {
@@ -993,7 +867,7 @@ func readDataFile(path string) ([]byte, error) {
 	if size > maxBinaryFile64Kb {
 		return nil, fmt.Errorf("data-file read error: file size over 64Kb limit")
 	}
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("data-file read error: %w", err)
 	}

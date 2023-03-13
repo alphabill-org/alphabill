@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,8 +29,10 @@ type dataSource interface {
 	GetBlockNumber() (uint64, error)
 	GetTokenType(id TokenTypeID) (*TokenUnitType, error)
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
+	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 	SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
+	GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error)
 }
 
 type restAPI struct {
@@ -58,11 +61,13 @@ func (api *restAPI) endpoints() http.Handler {
 
 	// version v1 router
 	apiV1 := apiRouter.PathPrefix("/v1").Subrouter()
+	apiV1.HandleFunc("/tokens/{tokenId}", api.getToken).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/types/{typeId}/hierarchy", api.typeHierarchy).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/owners/{owner}/tokens", api.listTokens).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/kinds/{kind}/types", api.listTypes).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/round-number", api.getRoundNumber).Methods("GET", "OPTIONS")
 	apiV1.HandleFunc("/transactions/{pubkey}", api.postTransactions).Methods("POST", "OPTIONS")
+	apiV1.HandleFunc("/units/{unitId}/transactions/{txHash}/proof", api.getTxProof).Methods("GET", "OPTIONS")
 
 	apiV1.Handle("/swagger/{.*}", http.StripPrefix("/api/v1/", http.FileServer(http.FS(swaggerFiles)))).Methods("GET", "OPTIONS")
 	apiV1.Handle("/swagger/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +98,7 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	qp := r.URL.Query()
-	startKey, err := parseTokenID(qp.Get("offsetKey"), false)
+	startKey, err := parseHex[TokenID](qp.Get("offsetKey"), false)
 	if err != nil {
 		api.invalidParamResponse(w, "offsetKey", err)
 		return
@@ -114,8 +119,24 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeTokenID(next))
+	setLinkHeader(r.URL, w, encodeHex[TokenID](next))
 	api.writeResponse(w, data)
+}
+
+func (api *restAPI) getToken(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	tokenId, err := parseHex[TokenID](vars["tokenId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "tokenId", err)
+		return
+	}
+
+	token, err := api.db.GetToken(tokenId)
+	if err != nil {
+		api.writeErrorResponse(w, err)
+		return
+	}
+	api.writeResponse(w, token)
 }
 
 func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +154,7 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startKey, err := parseTokenTypeID(qp.Get("offsetKey"), false)
+	startKey, err := parseHex[TokenTypeID](qp.Get("offsetKey"), false)
 	if err != nil {
 		api.invalidParamResponse(w, "offsetKey", err)
 		return
@@ -150,20 +171,20 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeTokenTypeID(next))
+	setLinkHeader(r.URL, w, encodeHex[TokenTypeID](next))
 	api.writeResponse(w, data)
 }
 
 func (api *restAPI) typeHierarchy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	typeId, err := parseTokenTypeID(vars["typeId"], true)
+	typeId, err := parseHex[TokenTypeID](vars["typeId"], true)
 	if err != nil {
 		api.invalidParamResponse(w, "typeId", err)
 		return
 	}
 
 	var rsp []*TokenUnitType
-	for len(typeId) > 0 {
+	for len(typeId) > 0 && !bytes.Equal(typeId, NoParent) {
 		tokTyp, err := api.db.GetTokenType(typeId)
 		if err != nil {
 			api.writeErrorResponse(w, fmt.Errorf("failed to load type with id %x: %w", typeId, err))
@@ -276,6 +297,32 @@ func (api *restAPI) saveTx(tx *txsystem.Transaction, owner []byte) error {
 	return nil
 }
 
+func (api *restAPI) getTxProof(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	unitID, err := parseHex[UnitID](vars["unitId"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "unitId", err)
+		return
+	}
+	txHash, err := parseHex[TxHash](vars["txHash"], true)
+	if err != nil {
+		api.invalidParamResponse(w, "txHash", err)
+		return
+	}
+
+	proof, err := api.db.GetTxProof(unitID, txHash)
+	if err != nil {
+		api.writeErrorResponse(w, fmt.Errorf("failed to load proof of tx 0x%X (unit 0x%X): %w", txHash, unitID, err))
+		return
+	}
+	if proof == nil {
+		api.errorResponse(w, http.StatusNotFound, fmt.Errorf("no proof found for tx 0x%X (unit 0x%X)", txHash, unitID))
+		return
+	}
+
+	api.writeResponse(w, proof)
+}
+
 func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {
@@ -284,6 +331,11 @@ func (api *restAPI) writeResponse(w http.ResponseWriter, data any) {
 }
 
 func (api *restAPI) writeErrorResponse(w http.ResponseWriter, err error) {
+	if errors.Is(err, errRecordNotFound) {
+		api.errorResponse(w, http.StatusNotFound, err)
+		return
+	}
+
 	api.errorResponse(w, http.StatusInternalServerError, err)
 	api.logError(err)
 }
@@ -319,7 +371,7 @@ func setLinkHeader(u *url.URL, w http.ResponseWriter, next string) {
 
 type (
 	RoundNumberResponse struct {
-		RoundNumber uint64 `json:"roundNumber"`
+		RoundNumber uint64 `json:"roundNumber,string"`
 	}
 
 	ErrorResponse struct {

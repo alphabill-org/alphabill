@@ -28,11 +28,11 @@ func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration
 	}
 	cmd.PersistentFlags().String(logFileCmdName, "", "log file path (default output to stderr)")
 	cmd.PersistentFlags().String(logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
-	cmd.AddCommand(startTokenWalletBackendCmd(ctx, baseConfig))
+	cmd.AddCommand(buildCmdStartTokenWalletBackend(ctx, baseConfig))
 	return cmd
 }
 
-func startTokenWalletBackendCmd(ctx context.Context, config *baseConfiguration) *cobra.Command {
+func buildCmdStartTokenWalletBackend(ctx context.Context, config *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -40,7 +40,7 @@ func startTokenWalletBackendCmd(ctx context.Context, config *baseConfiguration) 
 		},
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
-	cmd.Flags().StringP(serverAddrCmdName, "s", "localhost:9735", "server address")
+	cmd.Flags().StringP(serverAddrCmdName, "s", "http://localhost:9735", "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
 	return cmd
 }
@@ -78,7 +78,7 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 		stop()
 	}()
 
-	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger.Error))
+	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
 }
 
 /*

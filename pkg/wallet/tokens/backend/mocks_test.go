@@ -19,6 +19,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 func decodeResponse(t *testing.T, rsp *http.Response, code int, data any) error {
@@ -98,13 +99,13 @@ type mockCfg struct {
 	db     Storage
 	abc    ABClient
 	srvL   net.Listener
-	errLog func(a ...any)
+	log    log.Logger
 }
 
 func (c *mockCfg) BatchSize() int   { return 50 }
 func (c *mockCfg) Client() ABClient { return c.abc }
 
-func (c *mockCfg) ErrLogger() func(a ...any) { return c.errLog }
+func (c *mockCfg) Logger() log.Logger { return c.log }
 
 func (c *mockCfg) Storage() (Storage, error) {
 	if c.db != nil {
@@ -159,6 +160,7 @@ type mockStorage struct {
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
 	queryTTypes      func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator PubKey) error
+	getTxProof       func(unitID UnitID, txHash TxHash) (*Proof, error)
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -224,4 +226,11 @@ func (ms *mockStorage) QueryTokens(kind Kind, owner Predicate, startKey TokenID,
 		return ms.queryTokens(kind, owner, startKey, count)
 	}
 	return nil, nil, fmt.Errorf("unexpected QueryTokens call")
+}
+
+func (ms *mockStorage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
+	if ms.getTxProof != nil {
+		return ms.getTxProof(unitID, txHash)
+	}
+	return nil, fmt.Errorf("unexpected GetTxProof call")
 }

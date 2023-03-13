@@ -2,6 +2,7 @@ package money
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -87,7 +88,7 @@ type (
 func CreateAndRun(ctx context.Context, config *Config) error {
 	store, err := NewBoltBillStore(config.DbFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get storage: %w", err)
 	}
 
 	bp := NewBlockProcessor(store, backend.NewTxConverter(config.ABMoneySystemIdentifier))

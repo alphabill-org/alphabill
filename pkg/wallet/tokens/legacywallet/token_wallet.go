@@ -8,12 +8,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	ttxs "github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/tokens"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -46,7 +47,7 @@ func Load(dir string, abConf client.AlphabillClientConfig, am account.Manager, s
 	if err != nil {
 		return nil, err
 	}
-	txs, err := tokens.New()
+	txs, err := ttxs.New()
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func (w *Wallet) GetAccountManager() account.Manager {
 	return w.am
 }
 
-func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) NewFungibleType(ctx context.Context, attrs *ttxs.CreateFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*tokens.PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token type")
 	parentType, err := w.db.Do().GetTokenType(attrs.ParentTypeId)
 	if err != nil {
@@ -82,17 +83,17 @@ func (w *Wallet) NewFungibleType(ctx context.Context, attrs *tokens.CreateFungib
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *tokens.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) NewNonFungibleType(ctx context.Context, attrs *ttxs.CreateNonFungibleTokenTypeAttributes, typeId TokenTypeID, subtypePredicateArgs []*tokens.PredicateInput) (TokenID, error) {
 	log.Info("Creating new NFT type")
 	return w.newType(ctx, attrs, typeId, subtypePredicateArgs)
 }
 
-func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *tokens.MintFungibleTokenAttributes, mintPredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) NewFungibleToken(ctx context.Context, accNr uint64, attrs *ttxs.MintFungibleTokenAttributes, mintPredicateArgs []*tokens.PredicateInput) (TokenID, error) {
 	log.Info("Creating new fungible token")
 	return w.newToken(ctx, accNr, attrs, nil, mintPredicateArgs)
 }
 
-func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *tokens.MintNonFungibleTokenAttributes, tokenId TokenID, mintPredicateArgs []*PredicateInput) (TokenID, error) {
+func (w *Wallet) NewNFT(ctx context.Context, accNr uint64, attrs *ttxs.MintNonFungibleTokenAttributes, tokenId TokenID, mintPredicateArgs []*tokens.PredicateInput) (TokenID, error) {
 	log.Info("Creating new NFT")
 	if attrs == nil {
 		return nil, ErrAttributesMissing
@@ -205,7 +206,7 @@ func (w *Wallet) ListTokens(ctx context.Context, kind TokenKind, accountNumber i
 	return res, nil
 }
 
-func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey, invariantPredicateArgs []*PredicateInput) error {
+func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId TokenID, receiverPubKey PublicKey, invariantPredicateArgs []*tokens.PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -234,7 +235,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 	return w.syncToUnit(ctx, tokenId, sub.timeout)
 }
 
-func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
+func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*tokens.PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -295,7 +296,7 @@ func (w *Wallet) getAccountKey(accountNumber uint64) (*account.AccountKey, error
 	return nil, nil
 }
 
-func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*PredicateInput) error {
+func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenId []byte, data []byte, updatePredicateArgs []*tokens.PredicateInput) error {
 	acc, err := w.getAccountKey(accountNumber)
 	if err != nil {
 		return err
@@ -308,7 +309,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		return fmt.Errorf("token with id=%X not found under account #%v", tokenId, accountNumber)
 	}
 
-	attrs := &tokens.UpdateNonFungibleTokenAttributes{
+	attrs := &ttxs.UpdateNonFungibleTokenAttributes{
 		Data:                 data,
 		Backlink:             t.Backlink,
 		DataUpdateSignatures: nil,

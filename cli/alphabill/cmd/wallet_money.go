@@ -6,16 +6,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"github.com/holiman/uint256"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/term"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,11 +15,21 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"golang.org/x/term"
 
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 type walletConfig struct {
@@ -96,13 +96,13 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	walletCmd.AddCommand(getBalanceCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
 	walletCmd.AddCommand(addKeyCmd(config))
-	walletCmd.AddCommand(legacyTokenCmd(config))
+	walletCmd.AddCommand(tokenCmd(config))
 	// add passwords flags for (encrypted)wallet
 	walletCmd.PersistentFlags().BoolP(passwordPromptCmdName, "p", false, passwordPromptUsage)
 	walletCmd.PersistentFlags().String(passwordArgCmdName, "", passwordArgUsage)
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
-	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", fmt.Sprintf("wallet home directory (default $AB_HOME/wallet)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
+	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
+	walletCmd.PersistentFlags().StringVarP(&config.WalletHomeDir, walletLocationCmdName, "l", "", "wallet home directory (default $AB_HOME/wallet)")
 	return walletCmd
 }
 
@@ -250,11 +250,16 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
+
 	balance, err := restClient.GetBalance(k.PubKey, false)
+	if err != nil {
+		return fmt.Errorf("failed to read current balance: %w", err)
+	}
 	if amount > balance {
 		fmt.Printf("amount: %d balance: %d\n", amount, balance)
 		return money.ErrInsufficientBalance
 	}
+
 	maxBlockNo, err := restClient.GetBlockHeight()
 	if err != nil {
 		return err
@@ -299,7 +304,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 						if failedTries >= maxTxFailedTries {
 							return wallet.ErrFailedToBroadcastTx
 						}
-						log.Debug("tx buffer full, waiting 1s to retry...")
+						wlog.Debug("tx buffer full, waiting 1s to retry...")
 						timer := time.NewTimer(time.Second)
 						select {
 						case <-timer.C:
@@ -311,7 +316,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 					}
 					return errors.New("transaction returned error code: " + res.Message)
 				} else {
-					log.Debug("successfully sent transaction")
+					wlog.Debug("successfully sent transaction")
 					break
 				}
 			}
@@ -458,7 +463,7 @@ func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
 	hideKeyNumber, _ := cmd.Flags().GetBool(quietCmdName)
 	for accIdx, accPubKey := range pubKeys {
 		if hideKeyNumber {
-			consoleWriter.Println(fmt.Sprintf("%s", hexutil.Encode(accPubKey)))
+			consoleWriter.Println(hexutil.Encode(accPubKey))
 		} else {
 			consoleWriter.Println(fmt.Sprintf("#%d %s", accIdx+1, hexutil.Encode(accPubKey)))
 		}
@@ -522,7 +527,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 			accountKey, _ := am.GetAccountKey(acc.AccountIndex)
 			var bills []*money.Bill
 			for _, b := range billResponse.Bills {
-				bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
+				bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: 1, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
 				bills = append(bills, bill)
 			}
 			err = collectDust(ctx, true, acc.AccountIndex, accountKey, bills, restClient, rpcClient)
@@ -568,7 +573,7 @@ func execAddKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 }
 
 func waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, rpcClient *client.AlphabillClient, maxBlockNumber, timeout uint64) ([]*money.Bill, error) {
-	log.Info("waiting for confirmation(s)...")
+	wlog.Info("waiting for confirmation(s)...")
 	blockNumber := maxBlockNumber
 	txsLog := money.NewTxLog(pendingTxs)
 	for blockNumber <= timeout {
@@ -589,13 +594,13 @@ func waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction
 		}
 		for _, tx := range b.Transactions {
 			if txsLog.Contains(tx) {
-				log.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
+				wlog.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
 				err = txsLog.RecordTx(tx, b)
 				if err != nil {
 					return nil, err
 				}
 				if txsLog.IsAllTxsConfirmed() {
-					log.Info("transaction(s) confirmed")
+					wlog.Info("transaction(s) confirmed")
 					return txsLog.GetAllRecordedBills(), nil
 				}
 			}

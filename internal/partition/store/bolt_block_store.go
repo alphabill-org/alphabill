@@ -117,8 +117,11 @@ func (bs *BoltBlockStore) LatestBlock() *block.Block {
 	return res
 }
 
-func (bs *BoltBlockStore) AddPendingProposal(proposal *block.PendingBlockProposal) error {
+func (bs *BoltBlockStore) SetPendingProposal(proposal *block.PendingBlockProposal) error {
 	return bs.db.Update(func(tx *bolt.Tx) error {
+		if proposal == nil {
+			return tx.Bucket(blockProposalBucket).Delete(blockProposalBucketKey)
+		}
 		val, err := json.Marshal(proposal)
 		if err != nil {
 			return err
@@ -132,7 +135,7 @@ func (bs *BoltBlockStore) GetPendingProposal() (*block.PendingBlockProposal, err
 	err := bs.db.View(func(tx *bolt.Tx) error {
 		blockJson := tx.Bucket(blockProposalBucket).Get(blockProposalBucketKey)
 		if blockJson == nil {
-			return errors.New(ErrStrPendingBlockProposalNotFound)
+			return nil
 		}
 		return json.Unmarshal(blockJson, &bp)
 	})

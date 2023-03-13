@@ -1,27 +1,11 @@
 package twb
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
-)
-
-type (
-	Storage interface {
-		Close() error
-		GetBlockNumber() (uint64, error)
-		SetBlockNumber(blockNumber uint64) error
-
-		SaveTokenTypeCreator(id TokenTypeID, kind Kind, creator PubKey) error
-		SaveTokenType(data *TokenUnitType, proof *Proof) error
-		GetTokenType(id TokenTypeID) (*TokenUnitType, error)
-		QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
-
-		SaveToken(data *TokenUnit, proof *Proof) error
-		GetToken(id TokenID) (*TokenUnit, error)
-		QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
-	}
 )
 
 type (
@@ -39,7 +23,7 @@ type (
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
 		Kind   Kind   `json:"kind"`
-		TxHash []byte `json:"txHash"`
+		TxHash TxHash `json:"txHash"`
 	}
 
 	TokenUnit struct {
@@ -57,11 +41,13 @@ type (
 		NftDataUpdatePredicate Predicate `json:"nftDataUpdatePredicate,omitempty"`
 		// meta
 		Kind   Kind   `json:"kind"`
-		TxHash []byte `json:"txHash"`
+		TxHash TxHash `json:"txHash"`
 	}
 
-	TokenID     []byte
-	TokenTypeID []byte
+	TokenID     UnitID
+	TokenTypeID UnitID
+	TxHash      []byte
+	UnitID      []byte
 	Kind        byte
 
 	Proof struct {
@@ -79,6 +65,14 @@ const (
 	Fungible
 	NonFungible
 )
+
+var (
+	NoParent = TokenTypeID{0x00}
+)
+
+func (t TokenTypeID) Equal(to TokenTypeID) bool {
+	return bytes.Equal(t, to)
+}
 
 func (kind Kind) String() string {
 	switch kind {

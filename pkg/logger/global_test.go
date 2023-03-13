@@ -63,15 +63,15 @@ func (s *GlobalLoggerTestSuite) TestPackageLogger() {
 	log.Debug(msg)
 	s.assertLastLogMessage(msg)
 
-	sameLog1 := Create("internal/logger")
+	sameLog1 := Create("pkg/logger")
 	sameLog1.Debug(msg)
 	s.assertLastLogMessage(msg)
 
-	sameLog2 := Create("internal.logger")
+	sameLog2 := Create("pkg.logger")
 	sameLog2.Debug(msg)
 	s.assertLastLogMessage(msg)
 
-	sameLog3 := Create("internal_logger")
+	sameLog3 := Create("pkg_logger")
 	sameLog3.Debug(msg)
 	s.assertLastLogMessage(msg)
 

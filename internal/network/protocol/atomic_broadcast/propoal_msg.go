@@ -35,10 +35,7 @@ func (x *ProposalMsg) IsValid() error {
 		return fmt.Errorf("proposal round %v does not follow certified round %v", x.Block.Round, higestCertifiedRound)
 	}
 	// if previous round was timeout, then new proposal Block QC must be the same as TC high QC
-	// this is the common round from where we will extend the blockchain
-	if x.LastRoundTc != nil {
-
-	}
+	// this is the common round from where we will extend the blockchain. verify this too?
 	return nil
 }
 

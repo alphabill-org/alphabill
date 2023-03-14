@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/boltdb"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
 	"github.com/stretchr/testify/require"
 )
@@ -123,6 +124,30 @@ func TestNewBlockTree(t *testing.T) {
 	require.Error(t, err)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 0)
 	require.Equal(t, b.CommitQc, bTree.HighQc())
+}
+
+func TestNewBlockTreeFromDb(t *testing.T) {
+	boltDb, err := boltdb.New("test_data/blocks.db")
+	require.NoError(t, err)
+	bTree, err := NewBlockTree(boltDb)
+	require.NoError(t, err)
+	require.NotNil(t, bTree)
+	require.Len(t, bTree.roundToNode, 2)
+	hQc := bTree.HighQc()
+	require.NotNil(t, hQc)
+	require.Equal(t, uint64(34), hQc.VoteInfo.RoundNumber)
+}
+
+func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
+	boltDb, err := boltdb.New("test_data/blocks3.db")
+	require.NoError(t, err)
+	bTree, err := NewBlockTree(boltDb)
+	require.NoError(t, err)
+	require.NotNil(t, bTree)
+	require.Len(t, bTree.roundToNode, 3)
+	hQc := bTree.HighQc()
+	require.NotNil(t, hQc)
+	require.Equal(t, uint64(33), hQc.VoteInfo.RoundNumber)
 }
 
 func TestAddErrorCases(t *testing.T) {

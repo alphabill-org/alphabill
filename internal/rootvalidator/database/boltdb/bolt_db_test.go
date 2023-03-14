@@ -198,3 +198,30 @@ func TestBoltDB_StartTxNil(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, tx)
 }
+
+func TestBoltDB_TestReadAndWriteIterate(t *testing.T) {
+	db := initBoltDB(t)
+	defer func() {
+		require.NoError(t, os.Remove(db.Path()))
+	}()
+	require.NotNil(t, db)
+	require.True(t, db.Empty())
+	var value uint64 = 1
+	require.NoError(t, db.Write([]byte("integer"), value))
+	require.NoError(t, db.Write([]byte("test"), "d1"))
+	require.NoError(t, db.Write([]byte("test2"), "d2"))
+	require.False(t, db.Empty())
+	var back uint64
+	found, err := db.Read([]byte("integer"), &back)
+	require.NoError(t, err)
+	require.True(t, found)
+	itr := db.First()
+	require.True(t, itr.Valid())
+	require.Equal(t, []byte("integer"), itr.Key())
+	require.NoError(t, itr.Close())
+	require.NoError(t, db.Write([]byte("test3"), "d3"))
+	var data string
+	found, err = db.Read([]byte("test3"), &data)
+	require.NoError(t, err)
+	require.True(t, found)
+}

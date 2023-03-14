@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"sort"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
@@ -24,7 +25,7 @@ type (
 	}
 )
 
-func NewNode(b *ExecutedBlock) *node {
+func newNode(b *ExecutedBlock) *node {
 	return &node{data: b, child: nil}
 }
 
@@ -47,8 +48,46 @@ func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks database.KeyValue
 	return nil
 }
 
+func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB database.KeyValueDB) (*BlockTree, error) {
+	rootNode := newNode(cBlock)
+	hQC := rootNode.data.Qc
+	// make sure that nodes are sorted by round
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].BlockData.Round < nodes[j].BlockData.Round
+	})
+	treeNodes := map[uint64]*node{rootNode.data.BlockData.Round: rootNode}
+	for _, next := range nodes {
+		// if parent round does not exist then reject, parent must be recovered
+		parent, found := treeNodes[next.BlockData.Qc.VoteInfo.RoundNumber]
+		if found == false {
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block %v not found", next.BlockData.Round,
+				next.BlockData.Qc.VoteInfo.RoundNumber)
+		}
+		// append block and add a child to parent
+		n := newNode(next)
+		treeNodes[next.BlockData.Round] = n
+		if err := parent.addChild(n); err != nil {
+			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", next.BlockData.Round, err)
+		}
+		if n.data.Qc != nil {
+			hQC = n.data.Qc
+		}
+	}
+	return &BlockTree{
+		roundToNode: treeNodes,
+		root:        rootNode,
+		highQc:      hQC,
+		blocksDB:    bDB,
+	}, nil
+}
+
 func NewBlockTree(bDB database.KeyValueDB) (*BlockTree, error) {
 	itr := bDB.Last()
+	defer func() {
+		if err := itr.Close(); err != nil {
+			logger.Warning("Unexpected error, db iterator close %v", err)
+		}
+	}()
 	var blocks []*ExecutedBlock
 	var lastRoot *ExecutedBlock = nil
 	var hQC *atomic_broadcast.QuorumCert = nil
@@ -59,7 +98,7 @@ func NewBlockTree(bDB database.KeyValueDB) (*BlockTree, error) {
 			return nil, fmt.Errorf("read block %v from db failed, %w", round, err)
 		}
 		// read until latest committed block is found
-		if b.CommitQc.LedgerCommitInfo != nil {
+		if b.CommitQc != nil && b.CommitQc.LedgerCommitInfo != nil {
 			lastRoot = &b
 			break
 		}
@@ -68,11 +107,14 @@ func NewBlockTree(bDB database.KeyValueDB) (*BlockTree, error) {
 	if lastRoot == nil {
 		return nil, fmt.Errorf("block tree init failed to recover latest committed block")
 	}
-	rootNode := NewNode(lastRoot)
+	// make sure that nodes are sorted by round
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].BlockData.Round < blocks[j].BlockData.Round
+	})
+	rootNode := newNode(lastRoot)
 	hQC = rootNode.data.Qc
 	treeNodes := map[uint64]*node{lastRoot.BlockData.Round: rootNode}
-	for i := len(blocks) - 1; i >= 0; i-- {
-		next := blocks[i]
+	for _, next := range blocks {
 		// if parent round does not exist then reject, parent must be recovered
 		parent, found := treeNodes[next.BlockData.Qc.VoteInfo.RoundNumber]
 		if found == false {
@@ -80,7 +122,8 @@ func NewBlockTree(bDB database.KeyValueDB) (*BlockTree, error) {
 				next.BlockData.Qc.VoteInfo.RoundNumber)
 		}
 		// append block and add a child to parent
-		n := NewNode(next)
+		n := newNode(next)
+		treeNodes[next.BlockData.Round] = n
 		if err := parent.addChild(n); err != nil {
 			return nil, fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", next.BlockData.Round, err)
 		}
@@ -111,7 +154,6 @@ func (bt *BlockTree) InsertQc(qc *atomic_broadcast.QuorumCert, bockDB database.K
 		return fmt.Errorf("failed to persist block for round %v, %w", b.BlockData.Round, err)
 	}
 	bt.highQc = qc
-
 	return nil
 }
 
@@ -133,7 +175,7 @@ func (bt *BlockTree) Add(block *ExecutedBlock) error {
 			block.BlockData.Qc.VoteInfo.RoundNumber)
 	}
 	// append block and add a child to parent
-	n := NewNode(block)
+	n := newNode(block)
 	if err := parent.addChild(n); err != nil {
 		return fmt.Errorf("error cannot add block for round %v, parent block add child error, %w", block.BlockData.Round, err)
 	}

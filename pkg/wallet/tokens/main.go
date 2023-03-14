@@ -36,7 +36,7 @@ type (
 		txs       block.TxConverter
 		am        account.Manager
 		backend   TokenBackend
-		confirmTx bool // TODO: AB-755
+		confirmTx bool
 	}
 
 	TokenBackend interface {
@@ -46,10 +46,11 @@ type (
 		GetTypeHierarchy(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
 		GetRoundNumber(ctx context.Context) (uint64, error)
 		PostTransactions(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
+		GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error)
 	}
 )
 
-func New(systemID []byte, backendUrl string, am account.Manager) (*Wallet, error) {
+func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool) (*Wallet, error) {
 	addr, err := url.Parse(backendUrl)
 	if err != nil {
 		return nil, err
@@ -58,7 +59,7 @@ func New(systemID []byte, backendUrl string, am account.Manager) (*Wallet, error
 	if err != nil {
 		return nil, err
 	}
-	w := &Wallet{systemID: systemID, am: am, txs: txs, backend: client.New(*addr)}
+	w := &Wallet{systemID: systemID, am: am, txs: txs, backend: client.New(*addr), confirmTx: confirmTx}
 
 	return w, nil
 }
@@ -259,7 +260,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 	if err != nil {
 		return err
 	}
-	return sub.toBatch(w.backend.PostTransactions, key.PubKey).sendTx(ctx)
+	return sub.toBatch(w.backend, key.PubKey).sendTx(ctx)
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId twb.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
@@ -310,7 +311,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		if err != nil {
 			return err
 		}
-		return sub.toBatch(w.backend.PostTransactions, acc.PubKey).sendTx(ctx)
+		return sub.toBatch(w.backend, acc.PubKey).sendTx(ctx)
 	} else {
 		return w.doSendMultiple(ctx, targetAmount, matchingTokens, acc, receiverPubKey, invariantPredicateArgs)
 	}
@@ -349,7 +350,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	if err != nil {
 		return err
 	}
-	return sub.toBatch(w.backend.PostTransactions, acc.PubKey).sendTx(ctx)
+	return sub.toBatch(w.backend, acc.PubKey).sendTx(ctx)
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

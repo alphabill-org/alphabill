@@ -1,13 +1,65 @@
 package money
 
+import (
+	"context"
+	"crypto"
+	"fmt"
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
+	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	"github.com/alphabill-org/alphabill/internal/partition"
+	"github.com/alphabill-org/alphabill/internal/rpc"
+	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
+	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
+	testserver "github.com/alphabill-org/alphabill/internal/testutils/server"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/pkg/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
+	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"net"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+)
+
 const port = 9111
 
-/*
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// start server
+	initialBill := &moneytx.InitialBill{
+		ID:    uint256.NewInt(1),
+		Value: 10000,
+		Owner: script.PredicateAlwaysTrue(),
+	}
+	network := startAlphabillPartition(t, initialBill)
+	addr := "localhost:9544"
+	startRPCServer(t, network, addr)
 	serverService := testserver.NewTestAlphabillServiceServer()
 	server := testserver.StartServer(port, serverService)
 	t.Cleanup(server.GracefulStop)
+	restAddr, wb, _ := startRestServer(t, addr)
+	// start wallet backend
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
+	go func() {
+		err := wb.Start(ctx)
+		require.NoError(t, err)
+	}()
 
 	// setup wallet
 	_ = log.InitStdoutLogger(log.DEBUG)
@@ -16,13 +68,23 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	require.NoError(t, err)
 	err = CreateNewWallet(am, "")
 	require.NoError(t, err)
-	bills := []*Bill{addBill(100), addBill(200)}
-	billsList := createBillListJsonResponse(bills)
-	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
-	restServer, serverAddr := mockBackendCalls(&backendMockReturnConf{balance: 300, customBillList: billsList, proofList: proofList})
-	restClient, err := testclient.NewClient(serverAddr.Host)
-	w, err := LoadExistingWallet(&WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: fmt.Sprintf(":%d", port)}}, am, restClient)
+	restClient, err := testclient.NewClient(restAddr)
+	w, err := LoadExistingWallet(&WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: addr}}, am, restClient)
 	require.NoError(t, err)
+	pubKeys, err := am.GetPublicKeys()
+	require.NoError(t, err)
+
+	transferInitialBillTx, err := createInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBill.Value, 10000)
+	require.NoError(t, err)
+	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
+	require.NoError(t, err)
+	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
+
+	// verify initial bill tx is received by wallet
+	require.Eventually(t, func() bool {
+		balance, _ := w.GetBalance(GetBalanceCmd{})
+		return balance == initialBill.Value
+	}, test.WaitDuration*2, time.Second)
 
 	// when CollectDust is called
 	wg := sync.WaitGroup{}
@@ -37,13 +99,6 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	// then dc transactions are sent
 	waitForExpectedSwap(w)
-	require.Len(t, serverService.GetProcessedTransactions(), 2)
-	require.NoError(t, err)
-
-	// and dc wg metadata is saved
-	require.Len(t, w.dcWg.swaps, 1)
-	dcNonce := calculateDcNonce(bills)
-	require.EqualValues(t, w.dcWg.swaps[*uint256.NewInt(0).SetBytes(dcNonce)], dcTimeoutBlockCount)
 
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &block.Block{
@@ -58,15 +113,6 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	// when dc timeout is reached
 	serverService.SetMaxBlockNumber(dcTimeoutBlockCount)
 
-	restServer.Close()
-	k, _ := am.GetAccountKey(0)
-	dcBills := []*Bill{addDcBill(t, k, uint256.NewInt(1), 100, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(1), 200, dcTimeoutBlockCount)}
-	dcBillsList := createBillListJsonResponse(dcBills)
-	dcProofList := createBlockProofJsonResponse(t, dcBills, nil, 0, dcTimeoutBlockCount)
-	_, serverAddr = mockBackendCalls(&backendMockReturnConf{balance: 300, customBillList: dcBillsList, proofList: dcProofList})
-	restClient, err = testclient.NewClient(serverAddr.Host)
-	w, _ = LoadExistingWallet(&WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: fmt.Sprintf(":%d", port)}}, am, restClient)
-
 	err = w.CollectDust(context.Background())
 
 	// and dc wg is cleared
@@ -79,7 +125,7 @@ wallet account 1 sends two bills to wallet accounts 2 and 3
 wallet runs dust collection
 wallet account 2 and 3 should have only single bill
 */
-/*func TestCollectDustInMultiAccountWallet(t *testing.T) {
+func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	// start network
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
@@ -89,11 +135,17 @@ wallet account 2 and 3 should have only single bill
 	network := startAlphabillPartition(t, initialBill)
 	addr := "localhost:9544"
 	startRPCServer(t, network, addr)
-	restAddr := startRestServer(t, addr)
+	restAddr, wb, _ := startRestServer(t, addr)
+	// start wallet backend
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
+	go func() {
+		err := wb.Start(ctx)
+		require.NoError(t, err)
+	}()
 
 	// setup wallet with multiple keys
 	_ = log.InitStdoutLogger(log.DEBUG)
-	_ = DeleteWalletDbs(os.TempDir())
 	dir := t.TempDir()
 	am, err := account.NewManager(dir, "", true)
 	require.NoError(t, err)
@@ -102,26 +154,25 @@ wallet account 2 and 3 should have only single bill
 	restClient, err := testclient.NewClient(restAddr)
 	w, err := LoadExistingWallet(&WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: addr}}, am, restClient)
 	require.NoError(t, err)
-	require.NoError(t, err)
 
 	_, _, _ = am.AddAccount()
 	_, _, _ = am.AddAccount()
 
 	// transfer initial bill to wallet 1
-	pubkeys, err := am.GetPublicKeys()
+	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
 
-	transferInitialBillTx, err := createInitialBillTransferTx(pubkeys[0], initialBill.ID, initialBill.Value, 10000)
+	transferInitialBillTx, err := createInitialBillTransferTx(pubKeys[0], initialBill.ID, initialBill.Value, 10000)
 	require.NoError(t, err)
-	err = network.SubmitTx(transferInitialBillTx)
+	err = w.SendTransaction(ctx, transferInitialBillTx, &wallet.SendOpts{RetryOnFullTxBuffer: true})
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
 	// verify initial bill tx is received by wallet
-	require.NoError(t, err)
-	balance, err := w.GetBalance(GetBalanceCmd{})
-	require.NoError(t, err)
-	require.EqualValues(t, initialBill.Value, balance)
+	require.Eventually(t, func() bool {
+		balance, _ := w.GetBalance(GetBalanceCmd{})
+		return balance == initialBill.Value
+	}, test.WaitDuration, time.Second)
 
 	// send two bills to account number 2 and 3
 	sendToAccount(t, w, 1)
@@ -141,10 +192,6 @@ wallet account 2 and 3 should have only single bill
 		}
 		return err
 	})
-
-	// wait for dust collection to finish
-	err = group.Wait()
-	require.NoError(t, err)
 }
 
 func sendToAccount(t *testing.T, w *Wallet, accountIndexTo uint64) {
@@ -197,15 +244,16 @@ func startRPCServer(t *testing.T, network *testpartition.AlphabillPartition, add
 	}()
 }
 
-func startRestServer(t *testing.T, rpcAddr string) string {
+func startRestServer(t *testing.T, rpcAddr string) (string, *money.WalletBackend, *money.BoltBillStore) {
 	addr := "localhost:9545"
-	server := money.NewHttpServer(addr, 100, createWalletBackend(t, rpcAddr))
+	w, s := createWalletBackend(t, rpcAddr)
+	server := money.NewHttpServer(addr, 100, w)
 	err := server.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = server.Shutdown(context.Background())
 	})
-	return addr
+	return addr, w, s
 }
 
 func initRPCServer(node *partition.Node) (*grpc.Server, error) {
@@ -238,10 +286,10 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 	return tx, nil
 }
 
-func createWalletBackend(t *testing.T, addr string) *money.WalletBackend {
+func createWalletBackend(t *testing.T, addr string) (*money.WalletBackend, *money.BoltBillStore) {
 	dbFile := filepath.Join(t.TempDir(), money.BoltBillStoreFileName)
 	storage, _ := money.NewBoltBillStore(dbFile)
 	bp := money.NewBlockProcessor(storage, backend.NewTxConverter([]byte{0, 0, 0, 0}))
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(client.New(client.AlphabillClientConfig{Uri: addr})).Build()
-	return money.New(genericWallet, storage)
-}*/
+	return money.New(genericWallet, storage), storage
+}

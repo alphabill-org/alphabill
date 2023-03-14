@@ -280,6 +280,8 @@ func (x *ConsensusManager) loop() {
 	}
 }
 
+// onPartitionIRChangeReq handle partition change requests. Received from go routine handling
+// partition communication when either partition reaches consensus or cannot reach consensus.
 func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
 	logger.Trace("%v round %v, IR change request from partition",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound())
@@ -312,7 +314,8 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 	}
 }
 
-// onLocalTimeout handle timeouts
+// onLocalTimeout handle local timeout, either no proposal is received or voting does not
+// reach consensus. Triggers timeout voting.
 func (x *ConsensusManager) onLocalTimeout() {
 	// always restart timer, time might be adjusted in case a new round is started
 	// to account for throttling
@@ -372,7 +375,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 	}
 }
 
-// onVoteMsg handle votes and timeout votes
+// onVoteMsg handle votes messages from other root validators
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
@@ -426,7 +429,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// time from last proposal and see if we need to wait
 	slowDownTime := x.pacemaker.CalcTimeTilNextProposal(x.pacemaker.GetCurrentRound() + 1)
 	// advance view/round on QC
-	x.processCertificateQC(qc)
+	x.processQC(qc)
 	if slowDownTime > 0 {
 		logger.Trace("%v round %v node %v wait %v before proposing",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
@@ -438,6 +441,9 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	x.processNewRoundEvent()
 }
 
+// onTimeoutMsg handles timeout vote messages from other root validators
+// Timeout votes are broadcast to all nodes on local timeout and all validators try to assemble
+// timeout certificate independently.
 func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
@@ -477,6 +483,8 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	}
 }
 
+// checkRecoveryNeeded verify current state against received state and determine if the validator needs to
+// recover or not. Basically either the state is different or validator is behind (has skipped some views/rounds)
 func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) bool {
 	// Get block and check if we have the same state
 	rootHash, err := x.blockStore.GetBlockRootHash(qc.VoteInfo.RoundNumber)
@@ -492,6 +500,8 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) 
 	return false
 }
 
+// onProposalMsg handles block proposal messages from other validators.
+// Only a proposal made by the leader of this view/round shall be accepted and processed
 func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	// verify signature on proposal (does not verify partition request signatures)
 	err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
@@ -520,7 +530,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	}
 	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
-	x.processCertificateQC(proposal.Block.Qc)
+	x.processQC(proposal.Block.Qc)
 	x.processTC(proposal.LastRoundTc)
 	// execute proposed payload
 	execStateId, err := x.blockStore.Add(proposal.Block, x.irReqVerifier)
@@ -561,7 +571,8 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	}
 }
 
-func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
+// processQC - handles timeout certificate
+func (x *ConsensusManager) processQC(qc *atomic_broadcast.QuorumCert) {
 	if qc == nil {
 		return
 	}
@@ -579,6 +590,7 @@ func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert)
 	x.timers.Restart(localTimeoutID)
 }
 
+// processTC - handles timeout certificate
 func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 	if tc == nil {
 		return
@@ -589,6 +601,9 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 	x.pacemaker.AdvanceRoundTC(tc)
 }
 
+// processNewRoundEvent handled new view event, is called when either QC or TC is reached locally and
+// triggers a new round. If this node is the leader in the new view/round, then make a proposal otherwise
+// wait for a proposal from a leader in this round/view
 func (x *ConsensusManager) processNewRoundEvent() {
 	// to counteract throttling (find a better solution)
 	x.waitPropose = false

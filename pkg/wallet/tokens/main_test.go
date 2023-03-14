@@ -360,12 +360,7 @@ func TestMintFungibleToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeId := test.RandomBytes(32)
 			amount := uint64(100)
-			a := &ttxs.MintFungibleTokenAttributes{
-				Type:                             typeId,
-				Value:                            amount,
-				TokenCreationPredicateSignatures: nil,
-			}
-			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, a, nil)
+			_, err := tw.NewFungibleToken(context.Background(), tt.accNr, typeId, amount, nil)
 			require.NoError(t, err)
 			tx := recTxs[len(recTxs)-1]
 			newToken := &ttxs.MintFungibleTokenAttributes{}

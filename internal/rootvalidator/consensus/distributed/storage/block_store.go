@@ -74,13 +74,13 @@ func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *
 		id := protocol.SystemIdentifier(itr.Key())
 		var uc certificates.UnicityCertificate
 		if err := itr.Value(&uc); err != nil {
-			return nil, fmt.Errorf("read certificated from db failed, %w", err)
+			return nil, fmt.Errorf("block store init failed, read certificated from db error, %w", err)
 		}
 		ucs[id] = &uc
 	}
 	blTree, err := NewBlockTree(s.GetBlocksDB())
 	if err != nil {
-		return nil, fmt.Errorf("block tree init failed, %w", err)
+		return nil, fmt.Errorf("block store init failed, %w", err)
 	}
 	return &BlockStore{
 		hash:         hash,

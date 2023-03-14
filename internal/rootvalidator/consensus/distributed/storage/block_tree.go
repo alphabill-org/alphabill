@@ -82,6 +82,9 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 }
 
 func NewBlockTree(bDB database.KeyValueDB) (*BlockTree, error) {
+	if bDB == nil {
+		return nil, fmt.Errorf("block tree init failed, databes is nil")
+	}
 	itr := bDB.Last()
 	defer func() {
 		if err := itr.Close(); err != nil {

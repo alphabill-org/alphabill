@@ -22,12 +22,10 @@ echo "$addresses"
 }
 
 function generate_log_configuration() {
-  # to iterate over all directories with key files
-  for key_file_path in testab/*/*/keys.json
-  do
-    node_path=${key_file_path%/*}
+  # to iterate over all home directories
+  for homedir in testab/*; do
     # generate log file itself
-    cat <<EOT >> "$node_path/logger-config.yaml"
+    cat <<EOT >> "$homedir/logger-config.yaml"
 # File name to log to. If not set, logs to stdout.
 outputPath:
 # Set to true to log in console optimized way. If false, uses JSON format.

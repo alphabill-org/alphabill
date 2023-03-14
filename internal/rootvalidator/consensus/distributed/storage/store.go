@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/boltdb"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
+	"github.com/alphabill-org/alphabill/internal/database"
+	"github.com/alphabill-org/alphabill/internal/database/boltdb"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 )
 
 const (

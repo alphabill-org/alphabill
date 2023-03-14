@@ -6,11 +6,11 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/database"
+	"github.com/alphabill-org/alphabill/internal/database/boltdb"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/boltdb"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
 )
 
 const (

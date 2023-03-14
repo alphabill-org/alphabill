@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/alphabill-org/alphabill/internal/database"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
 

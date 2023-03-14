@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/database/boltdb"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/boltdb"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
 	"github.com/stretchr/testify/require"
 )
 

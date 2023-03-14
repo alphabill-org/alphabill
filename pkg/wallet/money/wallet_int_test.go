@@ -57,8 +57,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := wb.Start(ctx)
-		require.NoError(t, err)
+		wb.StartProcess(ctx)
 	}()
 
 	// setup wallet
@@ -140,8 +139,7 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	go func() {
-		err := wb.Start(ctx)
-		require.NoError(t, err)
+		wb.StartProcess(ctx)
 	}()
 
 	// setup wallet with multiple keys

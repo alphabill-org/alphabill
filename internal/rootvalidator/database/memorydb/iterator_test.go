@@ -2,7 +2,9 @@ package memorydb
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -140,4 +142,25 @@ func TestBoltIterator_IteratePastBegin(t *testing.T) {
 	require.NoError(t, it.Close())
 	it.Prev()
 	require.False(t, it.Valid())
+}
+
+func TestBoltIterator_IterateWithPrefix(t *testing.T) {
+	db := initDB(t, defaultsDBKeys)
+	require.NoError(t, db.Write([]byte("cert-001"), "cert1"))
+	require.NoError(t, db.Write([]byte("cert-002"), "cert2"))
+	require.NoError(t, db.Write([]byte("cert-003"), "cert3"))
+	require.NoError(t, db.Write([]byte("cert-004"), "cert4"))
+	it := db.Find([]byte("cert-"))
+	defer func() {
+		require.NoError(t, it.Close())
+	}()
+	iterations := 0
+	for ; it.Valid() && strings.HasPrefix(string(it.Key()), "cert-"); it.Next() {
+		iterations++
+		var value string
+		require.NoError(t, it.Value(&value))
+		require.Equal(t, fmt.Sprintf("cert-00%v", iterations), string(it.Key()))
+		require.Equal(t, fmt.Sprintf("cert%v", iterations), value)
+	}
+	require.Equal(t, iterations, 4)
 }

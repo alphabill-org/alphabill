@@ -36,9 +36,8 @@ while getopts "chd:m:t:r:" o; do
 done
 
 if [ "$reset_db_only" == true ]; then
-  echo "deleting all blocks.db and rootchain.db files"
-  find testab/*/* -name blocks.db -type f -delete
-  find testab/*/* -name rootchain.db -type f -delete
+  echo "deleting all *.db files"
+  find testab/*/* -name *.db -type f -delete
   exit 0
 fi
 

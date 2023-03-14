@@ -2,6 +2,7 @@ package storage
 
 import (
 	gocrypto "crypto"
+	"os"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -126,8 +127,25 @@ func TestNewBlockTree(t *testing.T) {
 	require.Equal(t, b.CommitQc, bTree.HighQc())
 }
 
+func copyFile(src string, dst string) error {
+	srcBytes, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(dst, srcBytes, 0700)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func TestNewBlockTreeFromDb(t *testing.T) {
-	boltDb, err := boltdb.New("test_data/blocks.db")
+	f, err := os.CreateTemp("", "bolt-*.db")
+	defer func() {
+		require.NoError(t, os.Remove(f.Name()))
+	}()
+	require.NoError(t, copyFile("test_data/blocks.db", f.Name()))
+	boltDb, err := boltdb.New(f.Name())
 	require.NoError(t, err)
 	bTree, err := NewBlockTree(boltDb)
 	require.NoError(t, err)
@@ -139,7 +157,12 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 }
 
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
-	boltDb, err := boltdb.New("test_data/blocks3.db")
+	f, err := os.CreateTemp("", "bolt-*.db")
+	defer func() {
+		require.NoError(t, os.Remove(f.Name()))
+	}()
+	require.NoError(t, copyFile("test_data/blocks3.db", f.Name()))
+	boltDb, err := boltdb.New(f.Name())
 	require.NoError(t, err)
 	bTree, err := NewBlockTree(boltDb)
 	require.NoError(t, err)

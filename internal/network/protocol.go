@@ -20,6 +20,8 @@ const (
 	ProtocolRootTimeout           = "/ab/root-timeout/0.0.1"
 	ProtocolRootStateReq          = "/ab/root-state-req/0.0.1"
 	ProtocolRootStateResp         = "/ab/root-state-resp/0.0.1"
+	ProtocolRootCertReq           = "/ab/root-cert-req/0.0.1"
+	ProtocolRootCertResp          = "/ab/root-cert-resp/0.0.1"
 
 	ErrStrPeerIsNil       = "peer is nil"
 	ErrStrProtocolIDEmpty = "protocol ID is empty"

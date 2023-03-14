@@ -283,6 +283,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	joinTx := testtransaction.NewTransaction(t,
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithUnitId(fungibleTokenID1),
+		testtransaction.WithTimeout(20),
 		testtransaction.WithAttributes(
 			&JoinFungibleTokenAttributes{
 				BurnTransactions:             []*txsystem.Transaction{burnTx, burnTx2},

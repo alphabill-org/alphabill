@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
@@ -28,6 +28,7 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+	RoundNumber:  1,
 }
 
 func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
@@ -51,14 +52,14 @@ func initConsensusManager(t *testing.T) (*ConsensusManager, *testutils.TestNode,
 	id := rootNode.Peer.ID()
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer)
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
-	partitions, err := partition_store.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
+	partitions, err := partitions.NewPartitionStoreFromGenesis([]*genesis.GenesisPartitionRecord{
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID0, T2Timeout: 2500}},
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID1, T2Timeout: 2500}},
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
@@ -142,9 +143,10 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 3 * 900)
 	result, err := readResult(cm.CertificationResult(), 3000*time.Millisecond)
 	require.NoError(t, err)
-	require.Equal(t, partitionInputRecord, result.InputRecord)
-	require.Equal(t, uint64(4), result.UnicitySeal.RootRoundInfo.RoundNumber)
-	require.Equal(t, uint64(3), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)
+	require.Equal(t, uint64(2), result.InputRecord.RoundNumber)
+	require.Equal(t, []byte{0, 0, 0, 0}, result.InputRecord.BlockHash)
+	require.Equal(t, result.InputRecord.Hash, result.InputRecord.PreviousHash)
+	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.Hash)
 	require.NotNil(t, result.UnicitySeal.CommitInfo.RootHash)
 	require.Equal(t, result.UnicitySeal.CommitInfo.RootHash, result.UnicitySeal.RootRoundInfo.CurrentRootHash)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}

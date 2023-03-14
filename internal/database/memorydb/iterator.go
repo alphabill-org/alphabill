@@ -28,12 +28,18 @@ func NewIterator(db map[string][]byte, d DecodeFn) *Itr {
 }
 
 func (it *Itr) Next() {
+	if !it.Valid() {
+		return
+	}
 	it.index++
 	if it.index >= len(it.keys) {
 		it.index = -1
 	}
 }
 func (it *Itr) Prev() {
+	if !it.Valid() {
+		return
+	}
 	it.index--
 }
 
@@ -48,10 +54,10 @@ func (it *Itr) Key() []byte {
 	return it.keys[it.index]
 }
 func (it *Itr) Value(v any) error {
-	if it.Valid() {
-		return it.decoder(it.values[it.index], v)
+	if !it.Valid() {
+		return fmt.Errorf("iterator invalid")
 	}
-	return fmt.Errorf("iterator invalid")
+	return it.decoder(it.values[it.index], v)
 }
 
 func newIterator(db map[string][]byte, d DecodeFn) (*Itr, error) {

@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/storage"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 )
 
 type (
@@ -19,19 +20,23 @@ type (
 	}
 
 	IRChangeReqVerifier struct {
-		params        *consensus.Parameters
-		state         State
-		partitionInfo PartitionStore
+		params     *consensus.Parameters
+		state      State
+		partitions partitions.PartitionConfiguration
 	}
 
 	PartitionTimeoutGenerator struct {
-		params        *consensus.Parameters
-		state         State
-		partitionInfo PartitionStore
+		params     *consensus.Parameters
+		state      State
+		partitions partitions.PartitionConfiguration
 	}
 )
 
-func NewIRChangeReqVerifier(c *consensus.Parameters, pInfo PartitionStore, sMonitor State) (*IRChangeReqVerifier, error) {
+func t2TimeoutToRootRounds(t2Timeout uint32, blockRate time.Duration) uint64 {
+	return uint64((time.Duration(t2Timeout)*time.Millisecond)/blockRate) + 1
+}
+
+func NewIRChangeReqVerifier(c *consensus.Parameters, pInfo partitions.PartitionConfiguration, sMonitor State) (*IRChangeReqVerifier, error) {
 	if sMonitor == nil {
 		return nil, errors.New("error state monitor is nil")
 	}
@@ -42,19 +47,10 @@ func NewIRChangeReqVerifier(c *consensus.Parameters, pInfo PartitionStore, sMoni
 		return nil, errors.New("error consensus params is nil")
 	}
 	return &IRChangeReqVerifier{
-		params:        c,
-		partitionInfo: pInfo,
-		state:         sMonitor,
+		params:     c,
+		partitions: pInfo,
+		state:      sMonitor,
 	}, nil
-}
-
-func (x *IRChangeReqVerifier) getLastUnicityCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {
-	ucs := x.state.GetCertificates()
-	// verify certification Request
-	if luc, found := ucs[id]; found == true {
-		return luc, nil
-	}
-	return nil, errors.Errorf("partition %X last certificate not found", id)
 }
 
 func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *atomic_broadcast.IRChangeReqMsg) (*storage.InputData, error) {
@@ -68,29 +64,30 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *atomic_br
 	if x.state.IsChangeInProgress(sysID) {
 		return nil, fmt.Errorf("add state failed: partition %X has pending changes in pipeline", sysID.Bytes())
 	}
-	luc, err := x.getLastUnicityCertificate(sysID)
-	if err != nil {
-		return nil, fmt.Errorf("ir change request verification error, %w", err)
+	ucs := x.state.GetCertificates()
+	// verify certification Request
+	luc, found := ucs[sysID]
+	if found == false {
+		return nil, errors.Errorf("ir change request verification error, partition %X last certificate not found", sysID)
 	}
 	if round < luc.UnicitySeal.RootRoundInfo.RoundNumber {
 		return nil, fmt.Errorf("error, current round %v is in the past, luc round %v", round, luc.UnicitySeal.RootRoundInfo.RoundNumber)
 	}
 
 	// Find if the SystemIdentifier is known by partition store
-	partitionInfo, err := x.partitionInfo.Info(sysID)
+	sysDesRecord, tb, err := x.partitions.GetInfo(sysID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid payload: unknown partition %X", sysID.Bytes())
 	}
-	lucAgeInRounds := time.Duration(round-luc.UnicitySeal.RootRoundInfo.RoundNumber) * x.params.BlockRateMs
 	// verify request
-	inputRecord, err := irChReq.Verify(partitionInfo, luc, lucAgeInRounds)
+	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRateMs))
 	if err != nil {
 		return nil, fmt.Errorf("invalid payload: partition %X certification request verifiaction failed %w", sysID.Bytes(), err)
 	}
-	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: inputRecord, Sdrh: partitionInfo.SystemDescription.Hash(x.params.HashAlgorithm)}, nil
+	return &storage.InputData{SysID: irChReq.SystemIdentifier, IR: inputRecord, Sdrh: sysDesRecord.Hash(x.params.HashAlgorithm)}, nil
 }
 
-func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo PartitionStore, sMonitor State) (*PartitionTimeoutGenerator, error) {
+func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo partitions.PartitionConfiguration, sMonitor State) (*PartitionTimeoutGenerator, error) {
 	if sMonitor == nil {
 		return nil, errors.New("error state monitor is nil")
 	}
@@ -101,9 +98,9 @@ func NewLucBasedT2TimeoutGenerator(c *consensus.Parameters, pInfo PartitionStore
 		return nil, errors.New("error consensus params is nil")
 	}
 	return &PartitionTimeoutGenerator{
-		params:        c,
-		partitionInfo: pInfo,
-		state:         sMonitor,
+		params:     c,
+		partitions: pInfo,
+		state:      sMonitor,
 	}, nil
 }
 
@@ -114,14 +111,13 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currenRound uint64) []protocol
 		if x.state.IsChangeInProgress(id) {
 			continue
 		}
-		partInfo, err := x.partitionInfo.Info(id)
+		sysDesc, _, err := x.partitions.GetInfo(id)
 		if err != nil {
 			logger.Error("round %v failed to generate timeout request for partition %v, %w", id.Bytes(), err)
 			// still try to compose a payload, better than nothing
 			continue
 		}
-		if time.Duration(currenRound-cert.UnicitySeal.RootRoundInfo.RoundNumber)*x.params.BlockRateMs >=
-			time.Duration(partInfo.SystemDescription.T2Timeout)*time.Millisecond {
+		if currenRound-cert.UnicitySeal.RootRoundInfo.RoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRateMs) {
 			timeoutIds = append(timeoutIds, id)
 		}
 	}

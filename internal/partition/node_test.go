@@ -42,6 +42,9 @@ func TestNode_StartNewRoundCallsRInit(t *testing.T) {
 		CurrentRootHash: zeroHash,
 	}
 	ucr := &certificates.UnicityCertificate{
+		InputRecord: &certificates.InputRecord{
+			RoundNumber: 2,
+		},
 		UnicitySeal: &certificates.UnicitySeal{
 			RootRoundInfo: roundInfo,
 			CommitInfo: &certificates.CommitInfo{
@@ -210,7 +213,7 @@ func TestNode_HandleNilUnicityCertificate(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
 	tp.SubmitUnicityCertificate(nil)
-	ContainsError(t, tp, "invalid unicity certificate: unicity certificate is nil")
+	ContainsError(t, tp, "unicity certificate is nil")
 }
 
 func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
@@ -224,7 +227,7 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitUnicityCertificate(block.UnicityCertificate)
-	ContainsError(t, tp, "received UC is older than LUC. uc round 1, luc round 2")
+	ContainsError(t, tp, "new certificate is from older root round 1 than previous certificate 2")
 }
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
@@ -294,20 +297,26 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 
 	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)
 	ir.Hash = test.RandomBytes(32)
+	ir.BlockHash = test.RandomBytes(32)
 
 	equivocatingUC, err := tp.CreateUnicityCertificate(ir, latestUC.UnicitySeal.RootRoundInfo.RoundNumber)
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificates: round number")
+	ContainsError(t, tp, "equivocating certificates, different input records for same partition round")
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
 	txs := &testtxsystem.CounterTxSystem{}
 	tp := NewSingleNodePartition(t, txs)
 	defer tp.Close()
+	genesisUC := tp.partition.luc
+	tp.partition.startNewRound(genesisUC)
 	block := tp.GetLatestBlock(t)
 	txs.ExecuteCountDelta++ // so that the block is not considered empty
+	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
+
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
@@ -322,7 +331,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificates. previous IR hash ")
+	ContainsError(t, tp, "equivocating certificates, different input records for same partition round 2")
 }
 
 // state does not change in case of no transactions in money partition
@@ -340,13 +349,15 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.NotEqual(t, genesisUC, latestUC)
 	tp.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
 	tp.partition.startNewRound(tp.partition.luc)
+	// create a new transaction
+	require.NoError(t, tp.SubmitTx(moneytesttx.RandomBillTransfer(t)))
+	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	// create block proposal
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), txs.RevertCount)
 
-	// create UC which certifies 'latestFinalizedBlock', not the current block proposal
-	ir := proto.Clone(latestUC.InputRecord).(*certificates.InputRecord)
-
+	// simulate receiving repeat UC
+	ir, _ := certificates.NewRepeatInputRecord(latestUC.InputRecord)
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
 		latestUC.UnicitySeal.RootRoundInfo.RoundNumber+1,
@@ -354,7 +365,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(uc)
-	ContainsError(t, tp, ErrStateReverted.Error())
+	ContainsEventType(t, tp, event.StateReverted)
 	require.Equal(t, uint64(1), txs.RevertCount)
 }
 
@@ -367,6 +378,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 	txSystem.EndBlockCount = 10000
 
 	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	ir.RoundNumber++
 	uc, err := tp.CreateUnicityCertificate(
 		ir,
 		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
@@ -399,6 +411,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 
 	// send repeat UC
 	ir := proto.Clone(block.UnicityCertificate.InputRecord).(*certificates.InputRecord)
+	ir.RoundNumber = ir.RoundNumber + 1
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
 		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
@@ -406,7 +419,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(repeatUC)
-	ContainsError(t, tp, ErrStateReverted.Error())
+	ContainsEventType(t, tp, event.StateReverted)
 	require.Equal(t, uint64(1), system.RevertCount)
 }
 
@@ -462,7 +475,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
 
-	ContainsError(t, tp, "received UC is older than LUC. uc round 1, luc round 2")
+	ContainsError(t, tp, "received UC is older, uc round 1, luc round 2")
 }
 
 func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
@@ -539,8 +552,16 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	tp := NewSingleNodePartition(t, system)
 	defer tp.Close()
 	block := tp.GetLatestBlock(t)
+	// create a UC for a new round
+	ir := &certificates.InputRecord{
+		Hash:         block.UnicityCertificate.InputRecord.Hash,
+		PreviousHash: block.UnicityCertificate.InputRecord.PreviousHash,
+		BlockHash:    block.UnicityCertificate.InputRecord.BlockHash,
+		SummaryValue: block.UnicityCertificate.InputRecord.SummaryValue,
+		RoundNumber:  block.UnicityCertificate.InputRecord.RoundNumber + 1,
+	}
 	uc, err := tp.CreateUnicityCertificate(
-		block.UnicityCertificate.InputRecord,
+		ir,
 		block.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)

@@ -2,8 +2,9 @@ package money
 
 import (
 	"crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/script"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -202,7 +203,7 @@ func TestSwap(t *testing.T) {
 		{
 			name: "InvalidDcProofInvalid",
 			tx:   newInvalidDcProofsSwap(t),
-			err:  "invalid unicity seal signature",
+			err:  "unicity seal signature verification failed",
 		},
 		{
 			name: "InvalidSwapOwnerProof",

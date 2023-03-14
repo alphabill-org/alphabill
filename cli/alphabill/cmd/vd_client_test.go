@@ -24,7 +24,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
 	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 20*time.Second, func() {
-		port := "9544"
+		port := "9744"
 		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
 		dialAddr := "localhost:" + port
 

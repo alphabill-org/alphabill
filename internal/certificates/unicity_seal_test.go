@@ -169,7 +169,7 @@ func TestIsValid_InvalidSignature(t *testing.T) {
 	verifiers := map[string]crypto.Verifier{"test": verifier}
 
 	err := seal.IsValid(verifiers)
-	require.True(t, strings.Contains(err.Error(), "invalid unicity seal signature"))
+	require.True(t, strings.Contains(err.Error(), "unicity seal signature verification failed"))
 }
 
 func TestSignAndVerify_Ok(t *testing.T) {

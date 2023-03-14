@@ -803,7 +803,7 @@ func calculateDcNonce(bills []*Bill) []byte {
 		return bytes.Compare(billIds[i], billIds[j]) < 0
 	})
 
-	hasher := crypto.Hash.New(crypto.SHA256)
+	hasher := crypto.SHA256.New()
 	for _, billId := range billIds {
 		hasher.Write(billId)
 	}

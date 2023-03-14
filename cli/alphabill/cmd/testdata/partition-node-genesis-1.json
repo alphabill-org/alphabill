@@ -5,15 +5,14 @@
   "block_certification_request": {
     "system_identifier": "AAAAAQ==",
     "node_identifier": "16Uiu2HAmGJRSYgrPS5pim41T8dGd6pNzhWm37xQLXJKJyugaoUDt",
-    "root_round_number": 1,
     "input_record": {
       "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       "hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      "block_hash": "xqjuNvL8qOMC88Okh5rSN6pcKqwQ3l0Qz8JraiLqLeY=",
+      "block_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       "summary_value": "AAAAAAAAAAA=",
       "round_number": 1
     },
-    "signature": "BXmUKNhDxvuCdkx7GgMqu4N6t8meDZnn1VlNTqYp3f5X/nv08XKaneNBXhmOpdgJymaKSbF5hk2t7Jzr0Vyz8wA="
+    "signature": "slVlmPHmFA8pcjI1ea5S82malhLDKDKSMzZvg8F6lBcs+C+rgLbQ0qoBC18kcAAkMNmYJI9HI5UiRX3Vo0BYSgE="
   },
   "t2timeout": 2500
 }

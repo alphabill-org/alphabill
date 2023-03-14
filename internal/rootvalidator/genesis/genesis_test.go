@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	pg "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/require"
 )
@@ -68,12 +69,12 @@ func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, pa
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: systemIdentifier,
 		NodeIdentifier:   nodeID,
-		RootRoundNumber:  0,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
 			SummaryValue: []byte{1, 0, 0},
+			RoundNumber:  pg.GenesisRoundNumber,
 		},
 	}
 
@@ -281,6 +282,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 
 	req := createInputRequest(t, id, "2", partitionSigner2)
 	req.InputRecord.Hash = []byte{1, 1, 1, 1}
+	req.InputRecord.BlockHash = []byte{2, 2, 2, 2}
 	require.NoError(t, req.Sign(partitionSigner2))
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)

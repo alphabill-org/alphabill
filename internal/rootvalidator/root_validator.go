@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
-	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	proto "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -22,16 +22,17 @@ type (
 		ReceivedChannel() <-chan network.ReceivedMessage
 	}
 
-	PartitionStore interface {
-		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
+	MsgVerification interface {
+		IsValid(v crypto.Verifier) error
 	}
 
 	Node struct {
 		ctx              context.Context
 		ctxCancel        context.CancelFunc
 		peer             *network.Peer // p2p network host for partition
-		partitionStore   PartitionStore
+		partitions       partitions.PartitionConfiguration
 		incomingRequests *CertRequestBuffer
+		subscription     Subscriptions
 		net              PartitionNet
 		consensusManager consensus.Manager
 	}
@@ -41,7 +42,7 @@ type (
 func NewRootValidatorNode(
 	host *network.Peer,
 	pNet PartitionNet,
-	ps PartitionStore,
+	ps partitions.PartitionConfiguration,
 	cm consensus.Manager,
 ) (*Node, error) {
 	if host == nil {
@@ -53,8 +54,9 @@ func NewRootValidatorNode(
 	logger.Info("Starting root validator. PeerId=%v; Addresses=%v", host.LogID(), host.MultiAddresses())
 	node := &Node{
 		peer:             host,
-		partitionStore:   ps,
+		partitions:       ps,
 		incomingRequests: NewCertificationRequestBuffer(),
+		subscription:     NewSubscriptions(),
 		net:              pNet,
 		consensusManager: cm,
 	}
@@ -101,6 +103,7 @@ func (v *Node) loop() {
 					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
 					return
 				}
+				v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
 				logger.Trace("%v handshake: system id %v, node %v", v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
 				break
 			default:
@@ -117,47 +120,36 @@ func (v *Node) loop() {
 	}
 }
 
-func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) {
+func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) error {
 	peerID, err := peer.Decode(nodeID)
 	if err != nil {
 		logger.Warning("%v invalid node identifier: '%s'", nodeID)
-		return
+		return err
 	}
 	logger.Debug("%v sending unicity certificate to partition %X node '%s', IR Hash: %X, Block Hash: %X",
 		v.peer.LogID(), uc.UnicityTreeCertificate.SystemIdentifier, nodeID, uc.InputRecord.Hash, uc.InputRecord.BlockHash)
-	err = v.net.Send(
+	return v.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolUnicityCertificates,
 			Message:  uc,
 		},
 		[]peer.ID{peerID},
 	)
-	if err != nil {
-		logger.Warning("%v failed to send unicity certificate: %v", v.peer.LogID(), err)
-	}
 }
 
 // OnBlockCertificationRequest handle certification requests from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
-	info, err := v.partitionStore.Info(sysID)
+	_, ver, err := v.partitions.GetInfo(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected: %v",
 			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
-	// find node verifier
-	ver, found := info.TrustBase[req.NodeIdentifier]
-	if !found {
-		logger.Warning("%v block certification request from %X node %v rejected: unknown node",
-			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
-		return
-	}
-	err = req.IsValid(ver)
-	if err != nil {
-		logger.Warning("%v block certification request from %X node %v rejected: signature verification failed",
-			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
+	if err = ver.Verify(req.NodeIdentifier, req); err != nil {
+		logger.Warning("%v block certification request from %X node %v rejected: %v",
+			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
 	systemIdentifier := proto.SystemIdentifier(req.SystemIdentifier)
@@ -167,11 +159,14 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
+	v.subscription.Subscribe(systemIdentifier, req.NodeIdentifier)
 	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v invalid, %v",
 			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
-		v.sendResponse(req.NodeIdentifier, latestUnicityCertificate)
+		if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
+			logger.Warning("%v send failed, %v", v.peer.LogID(), err)
+		}
 		return
 	}
 	if err = v.incomingRequests.Add(req); err != nil {
@@ -180,7 +175,7 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		return
 	}
 	// There has to be at least one node in the partition, otherwise we could not have verified the request
-	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(info)
+	ir, consensusPossible := v.incomingRequests.IsConsensusReceived(sysID, ver)
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
 		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
@@ -189,8 +184,11 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
 			Reason:           consensus.Quorum,
-			Requests:         requests}
-	} else if !consensusPossible {
+			Requests:         requests,
+		}
+		return
+	}
+	if !consensusPossible {
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
 			v.peer.LogID(), systemIdentifier.Bytes())
 		// add all requests to prove that no consensus is possible
@@ -198,7 +196,9 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
 			SystemIdentifier: systemIdentifier,
 			Reason:           consensus.QuorumNotPossible,
-			Requests:         requests}
+			Requests:         requests,
+		}
+		return
 	}
 }
 
@@ -206,15 +206,16 @@ func (v *Node) onCertificationResult(certificate *certificates.UnicityCertificat
 	sysID := proto.SystemIdentifier(certificate.UnicityTreeCertificate.SystemIdentifier)
 	// remember to clear the incoming buffer to accept new requests
 	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
-	defer v.incomingRequests.Clear(sysID)
-
-	info, err := v.partitionStore.Info(sysID)
-	if err != nil {
-		logger.Warning("%v unable to send response to partition nodes: %v", v.peer.LogID(), err)
-		return
-	}
+	defer func() {
+		v.incomingRequests.Clear(sysID)
+		logger.Trace("Resetting request store for partition '%X'", sysID.Bytes())
+	}()
+	subscribed := v.subscription.Get(sysID)
 	// send response to all registered nodes
-	for node := range info.TrustBase {
-		v.sendResponse(node, certificate)
+	for _, node := range subscribed {
+		if err := v.sendResponse(node, certificate); err != nil {
+			logger.Warning("%v send failed, %v", v.peer.LogID(), err)
+		}
+		v.subscription.SubscriberError(sysID, node)
 	}
 }

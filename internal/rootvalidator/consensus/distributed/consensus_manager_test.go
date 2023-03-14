@@ -15,7 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/testutils"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -28,6 +28,7 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+	RoundNumber:  1,
 }
 
 func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
@@ -51,7 +52,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	id := rootNode.Peer.ID()
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
-	partitions, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	cm, err := NewDistributedAbConsensusManager(rootNode.Peer, rootGenesis, partitions, net, rootNode.Signer)
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
@@ -77,7 +78,7 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  1,
+		RoundNumber:  2,
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
@@ -153,7 +154,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  1,
+		RoundNumber:  2,
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
@@ -255,7 +256,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  1,
+		RoundNumber:  2,
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])

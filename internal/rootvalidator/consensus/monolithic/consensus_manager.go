@@ -11,7 +11,7 @@ import (
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -23,10 +23,6 @@ const (
 )
 
 type (
-	PartitionStore interface {
-		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
-	}
-
 	Store interface {
 		Save(*RootState) error
 		Get() (*RootState, error)
@@ -40,7 +36,7 @@ type (
 		params       *consensus.Parameters
 		timers       *timer.Timers
 		selfID       string // node identifier
-		partitions   PartitionStore
+		partitions   partitions.PartitionConfiguration
 		stateStore   *StateStore
 		ir           map[p.SystemIdentifier]*certificates.InputRecord
 		changes      map[p.SystemIdentifier]*certificates.InputRecord
@@ -64,7 +60,7 @@ func loadInputRecords(state *RootState) map[p.SystemIdentifier]*certificates.Inp
 }
 
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
-func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, partitionStore PartitionStore,
+func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration,
 	signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
 	verifier, err := signer.Verifier()
 	if err != nil {
@@ -178,9 +174,8 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		if !f {
 			return fmt.Errorf("ir change request ignored, no last state for system id %X", req.SystemIdentifier.Bytes())
 		}
-		// repeat UC
-		// todo: AB-505 add partition round number increment and 'nullhash' for block, epoch check
-		newInputRecord = luc.InputRecord
+		// repeat UC, ignore error here as we found the luc, and it cannot be nil
+		newInputRecord, _ = certificates.NewRepeatInputRecord(luc.InputRecord)
 		break
 
 	default:
@@ -245,15 +240,16 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *RootState) error 
 	for id, cert := range state.Certificates {
 		// if new input was this partition id was not received for this round
 		if _, found := x.changes[id]; !found {
-			partInfo, err := x.partitions.Info(id)
+			partInfo, _, err := x.partitions.GetInfo(id)
 			if err != nil {
 				return err
 			}
 			if time.Duration(round-cert.UnicitySeal.RootRoundInfo.RoundNumber)*x.params.BlockRateMs >
-				time.Duration(partInfo.SystemDescription.T2Timeout)*time.Millisecond {
+				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
-				x.changes[id] = cert.InputRecord
+				repeatIR, _ := certificates.NewRepeatInputRecord(cert.InputRecord)
+				x.changes[id] = repeatIR
 			}
 		}
 	}
@@ -272,15 +268,15 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (*RootState
 	}
 	utData := make([]*unicitytree.Data, 0, len(x.ir))
 	for id, ir := range x.ir {
-		partInfo, err := x.partitions.Info(id)
+		sysDesc, _, err := x.partitions.GetInfo(id)
 		if err != nil {
 			return nil, err
 		}
-		sdrh := partInfo.SystemDescription.Hash(x.params.HashAlgorithm)
+		sdrh := sysDesc.Hash(x.params.HashAlgorithm)
 		// if it is valid it must have at least one validator with a valid certification request
 		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
-			SystemIdentifier:            partInfo.SystemDescription.SystemIdentifier,
+			SystemIdentifier:            sysDesc.SystemIdentifier,
 			InputRecord:                 ir,
 			SystemDescriptionRecordHash: sdrh,
 		})

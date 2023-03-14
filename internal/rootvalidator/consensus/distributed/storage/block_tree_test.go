@@ -2,12 +2,14 @@ package storage
 
 import (
 	gocrypto "crypto"
+	"os"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/database/boltdb"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database/memorydb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -123,6 +125,52 @@ func TestNewBlockTree(t *testing.T) {
 	require.Error(t, err)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 0)
 	require.Equal(t, b.CommitQc, bTree.HighQc())
+}
+
+func copyFile(src string, dst string) error {
+	srcBytes, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(dst, srcBytes, 0700)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func TestNewBlockTreeFromDb(t *testing.T) {
+	f, err := os.CreateTemp("", "bolt-*.db")
+	defer func() {
+		require.NoError(t, os.Remove(f.Name()))
+	}()
+	require.NoError(t, copyFile("test_data/blocks.db", f.Name()))
+	boltDb, err := boltdb.New(f.Name())
+	require.NoError(t, err)
+	bTree, err := NewBlockTree(boltDb)
+	require.NoError(t, err)
+	require.NotNil(t, bTree)
+	require.Len(t, bTree.roundToNode, 2)
+	hQc := bTree.HighQc()
+	require.NotNil(t, hQc)
+	require.Equal(t, uint64(34), hQc.VoteInfo.RoundNumber)
+}
+
+func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
+	f, err := os.CreateTemp("", "bolt-*.db")
+	defer func() {
+		require.NoError(t, os.Remove(f.Name()))
+	}()
+	require.NoError(t, copyFile("test_data/blocks3.db", f.Name()))
+	boltDb, err := boltdb.New(f.Name())
+	require.NoError(t, err)
+	bTree, err := NewBlockTree(boltDb)
+	require.NoError(t, err)
+	require.NotNil(t, bTree)
+	require.Len(t, bTree.roundToNode, 3)
+	hQc := bTree.HighQc()
+	require.NotNil(t, hQc)
+	require.Equal(t, uint64(33), hQc.VoteInfo.RoundNumber)
 }
 
 func TestAddErrorCases(t *testing.T) {

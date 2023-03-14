@@ -63,12 +63,24 @@ func TestInputRecord_IsValid(t *testing.T) {
 			wantErr: ErrSummaryValueIsNil,
 		},
 		{
+			name: "partition round is 0",
+			inputRecord: &InputRecord{
+				PreviousHash: zeroHash,
+				Hash:         zeroHash,
+				BlockHash:    zeroHash,
+				SummaryValue: []byte{1, 2, 3},
+				RoundNumber:  0,
+			},
+			wantErr: ErrInvalidPartitionRound,
+		},
+		{
 			name: "valid input record",
 			inputRecord: &InputRecord{
 				PreviousHash: zeroHash,
 				Hash:         zeroHash,
 				BlockHash:    zeroHash,
 				SummaryValue: zeroHash,
+				RoundNumber:  1,
 			},
 			wantErr: nil,
 		},

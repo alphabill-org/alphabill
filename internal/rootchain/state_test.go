@@ -25,6 +25,7 @@ var partition1IR = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 1, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+	RoundNumber:  1,
 }
 
 var partition2IR = &certificates.InputRecord{
@@ -32,6 +33,7 @@ var partition2IR = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 2, 1},
 	BlockHash:    []byte{0, 0, 2, 2},
 	SummaryValue: []byte{0, 0, 2, 3},
+	RoundNumber:  1,
 }
 
 const TestTime = GenesisTime
@@ -177,16 +179,14 @@ func TestHandleInputRequestEvent_OlderUnicityCertificate(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 1, signers[0])
 	s.CopyOldInputRecords(p.SystemIdentifier(partition1ID))
 	_, err := s.CreateUnicityCertificates(TestTime)
 	require.NoError(t, err)
 
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
-	require.ErrorContains(t, err, "old request")
+	require.ErrorContains(t, err, "partition out of sync: request round 1, latest certified round: 1")
 	require.NotNil(t, receivedUc)
-	require.Greater(t, receivedUc.UnicitySeal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
-
 }
 
 func TestHandleInputRequestEvent_ExtendingUnknownState(t *testing.T) {
@@ -194,7 +194,7 @@ func TestHandleInputRequestEvent_ExtendingUnknownState(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	req.InputRecord.PreviousHash = []byte{1, 1, 1}
 	err := req.Sign(signers[0])
 	require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestHandleInputRequestEvent_Duplicated(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
 	require.Nil(t, receivedUc)
 	require.Nil(t, err)
@@ -224,7 +224,7 @@ func TestHandleInputRequestEvent_UnknownSystemIdentifier(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	req.SystemIdentifier = []byte{0, 0, 0xAA, 0xAA}
 
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
@@ -237,13 +237,11 @@ func TestHandleInputRequestEvent_PartitionHasNewerUC(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
-	req.RootRoundNumber = 101
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 1, signers[0])
 	require.NoError(t, req.Sign(signers[0]))
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
 	require.NotNil(t, receivedUc)
-	require.ErrorContains(t, err, "partition has never unicity certificate")
-	require.Less(t, receivedUc.UnicitySeal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
+	require.ErrorContains(t, err, "partition out of sync")
 }
 
 func TestHandleInputRequestEvent_UnknownNodeID(t *testing.T) {
@@ -251,7 +249,7 @@ func TestHandleInputRequestEvent_UnknownNodeID(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	req.NodeIdentifier = "unknown"
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
 	require.Nil(t, receivedUc)
@@ -273,7 +271,7 @@ func TestHandleInputRequestEvent_InvalidSignature(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	invalidReq := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	invalidReq := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	invalidReq.InputRecord.Hash = make([]byte, 32)
 	receivedUc, err := s.HandleBlockCertificationRequest(invalidReq)
 	require.Nil(t, receivedUc)
@@ -285,12 +283,12 @@ func TestHandleInputRequestEvent_DuplicateWithDifferentHash(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 5)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 
 	receivedUc, err := s.HandleBlockCertificationRequest(req)
 	require.Nil(t, receivedUc)
 	require.Nil(t, err)
-	invalidReq := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	invalidReq := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	invalidReq.InputRecord.Hash = make([]byte, 32)
 	require.NoError(t, invalidReq.Sign(signers[0]))
 	receivedUc, err = s.HandleBlockCertificationRequest(invalidReq)
@@ -303,19 +301,19 @@ func TestHandleInputRequestEvent_ConsensusNotPossible(t *testing.T) {
 	signers, _, partition1, _ := createPartitionRecord(t, partition1IR, partition1ID, 3)
 	partitions := []*genesis.PartitionRecord{partition1}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
-	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	req := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	req.InputRecord.Hash = []byte{0, 0, 0}
 	require.NoError(t, req.Sign(signers[0]))
 	uc, err := s.HandleBlockCertificationRequest(req)
 	require.NoError(t, err)
 	require.Nil(t, uc)
-	r1 := CreateBlockCertificationRequest(t, partition1.Validators[1].NodeIdentifier, s, signers[0])
+	r1 := CreateBlockCertificationRequest(t, partition1.Validators[1].NodeIdentifier, 2, signers[0])
 	r1.InputRecord.Hash = []byte{1, 1, 1}
 	require.NoError(t, r1.Sign(signers[1]))
 	uc, err = s.HandleBlockCertificationRequest(r1)
 	require.NoError(t, err)
 	require.Nil(t, uc)
-	r2 := CreateBlockCertificationRequest(t, partition1.Validators[2].NodeIdentifier, s, signers[0])
+	r2 := CreateBlockCertificationRequest(t, partition1.Validators[2].NodeIdentifier, 2, signers[0])
 	r2.InputRecord.Hash = []byte{2, 2, 2}
 	require.NoError(t, r2.Sign(signers[2]))
 	uc, err = s.HandleBlockCertificationRequest(r2)
@@ -342,20 +340,20 @@ func TestHandleInputRequestEvent_ConsensusNotAchievedByAll(t *testing.T) {
 	partitions := []*genesis.PartitionRecord{partition1, partition2}
 	s := createStateAndExecuteRound(t, partitions, rootSigner)
 	// partition 1 does not achieve consensus
-	p1r1 := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, s, signers[0])
+	p1r1 := CreateBlockCertificationRequest(t, partition1.Validators[0].NodeIdentifier, 2, signers[0])
 	p1r1.InputRecord.Hash = []byte{0, 0, 1}
 	require.NoError(t, p1r1.Sign(signers[0]))
 	uc, err := s.HandleBlockCertificationRequest(p1r1)
 	require.NoError(t, err)
 	require.Nil(t, uc)
-	p1r2 := CreateBlockCertificationRequest(t, partition1.Validators[1].NodeIdentifier, s, signers[0])
+	p1r2 := CreateBlockCertificationRequest(t, partition1.Validators[1].NodeIdentifier, 2, signers[0])
 	p1r2.InputRecord.Hash = []byte{1, 1, 1}
 	require.NoError(t, p1r2.Sign(signers[1]))
 	uc, err = s.HandleBlockCertificationRequest(p1r2)
 	require.NoError(t, err)
 	require.Nil(t, uc)
 	// partition 2 achieves consensus
-	p2r1 := CreateBlockCertificationRequest(t, partition2.Validators[0].NodeIdentifier, s, signers2[0])
+	p2r1 := CreateBlockCertificationRequest(t, partition2.Validators[0].NodeIdentifier, 2, signers2[0])
 	p2r1.SystemIdentifier = partition2ID
 	p2r1.InputRecord.PreviousHash = partition2IR.Hash
 	p2r1.InputRecord.Hash = []byte{0, 0, 0}
@@ -363,7 +361,7 @@ func TestHandleInputRequestEvent_ConsensusNotAchievedByAll(t *testing.T) {
 	uc, err = s.HandleBlockCertificationRequest(p2r1)
 	require.NoError(t, err)
 	require.Nil(t, uc)
-	p2r2 := CreateBlockCertificationRequest(t, partition2.Validators[1].NodeIdentifier, s, signers2[1])
+	p2r2 := CreateBlockCertificationRequest(t, partition2.Validators[1].NodeIdentifier, 2, signers2[1])
 	p2r2.SystemIdentifier = partition2ID
 	p2r2.InputRecord.PreviousHash = partition2IR.Hash
 	p2r2.InputRecord.Hash = []byte{0, 0, 0}
@@ -371,7 +369,7 @@ func TestHandleInputRequestEvent_ConsensusNotAchievedByAll(t *testing.T) {
 	uc, err = s.HandleBlockCertificationRequest(p2r2)
 	require.NoError(t, err)
 	require.Nil(t, uc)
-	p2r3 := CreateBlockCertificationRequest(t, partition2.Validators[2].NodeIdentifier, s, signers2[2])
+	p2r3 := CreateBlockCertificationRequest(t, partition2.Validators[2].NodeIdentifier, 2, signers2[2])
 	p2r3.SystemIdentifier = partition2ID
 	p2r3.InputRecord.PreviousHash = partition2IR.Hash
 	p2r3.InputRecord.Hash = []byte{0, 0, 0}
@@ -435,7 +433,6 @@ func createPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID 
 		req := &certification.BlockCertificationRequest{
 			SystemIdentifier: systemID,
 			NodeIdentifier:   partitionNodePeer.ID().String(),
-			RootRoundNumber:  1,
 			InputRecord:      ir,
 		}
 		err = req.Sign(partition1Signer)
@@ -455,21 +452,19 @@ func createPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID 
 	return
 }
 
-func CreateBlockCertificationRequest(t *testing.T, nodeIdentifier string, s *State, signers crypto.Signer) *certification.BlockCertificationRequest {
-	rootState, err := s.store.Get()
-	require.NoError(t, err)
+func CreateBlockCertificationRequest(t *testing.T, nodeIdentifier string, round uint64, signers crypto.Signer) *certification.BlockCertificationRequest {
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: partition1ID,
 		NodeIdentifier:   nodeIdentifier,
-		RootRoundNumber:  rootState.LatestRound,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: partition1IR.Hash,
 			Hash:         []byte{0, 1, 0, 1},
 			BlockHash:    []byte{0, 2, 0, 1},
 			SummaryValue: []byte{0, 0, 0, 1},
+			RoundNumber:  round,
 		},
 	}
-	err = req.Sign(signers)
+	err := req.Sign(signers)
 	require.NoError(t, err)
 	return req
 }

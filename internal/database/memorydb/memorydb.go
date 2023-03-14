@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/alphabill-org/alphabill/internal/database"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
 )
 
 var (

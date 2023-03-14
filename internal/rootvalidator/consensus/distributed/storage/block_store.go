@@ -64,19 +64,23 @@ func NewBlockStore(hash gocrypto.Hash, pg []*genesis.GenesisPartitionRecord, s *
 	certStore := s.GetCertificatesDB()
 	// read certificates from storage
 	itr := certStore.First()
-	defer itr.Close()
+	defer func() {
+		if err := itr.Close(); err != nil {
+			logger.Warning("Unexpected error, db iterator close %v", err)
+		}
+	}()
 	ucs := make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
 	for ; itr.Valid(); itr.Next() {
 		id := protocol.SystemIdentifier(itr.Key())
 		var uc certificates.UnicityCertificate
 		if err := itr.Value(&uc); err != nil {
-			return nil, fmt.Errorf("read certificated from db failed, %w", err)
+			return nil, fmt.Errorf("block store init failed, read certificated from db error, %w", err)
 		}
 		ucs[id] = &uc
 	}
 	blTree, err := NewBlockTree(s.GetBlocksDB())
 	if err != nil {
-		return nil, fmt.Errorf("block tree init failed, %w", err)
+		return nil, fmt.Errorf("block store init failed, %w", err)
 	}
 	return &BlockStore{
 		hash:         hash,
@@ -92,7 +96,9 @@ func (x *BlockStore) ProcessTc(tc *atomic_broadcast.TimeoutCert) error {
 	}
 	// Remove proposal for TC round if it exists, since quorum voted for timeout, it will never be committed
 	// So we will prune the block now, also it is ok, if we do not have the block, it does not matter anyway
-	_ = x.blockTree.RemoveLeaf(tc.Timeout.Round)
+	if err := x.blockTree.RemoveLeaf(tc.Timeout.Round); err != nil {
+		logger.Warning("Unexpected error when removing timeout block %v, %v", tc.Timeout.Round, err)
+	}
 	return nil
 }
 
@@ -195,4 +201,54 @@ func (x *BlockStore) GetCertificates() map[protocol.SystemIdentifier]*certificat
 
 func (x *BlockStore) GetRoot() *ExecutedBlock {
 	return x.blockTree.Root()
+}
+
+func (x *BlockStore) UpdateCertificates(cert []*certificates.UnicityCertificate) {
+	newerCerts := make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
+	for _, c := range cert {
+		id := protocol.SystemIdentifier(c.UnicityTreeCertificate.SystemIdentifier)
+		cachedCert, found := x.Certificates[id]
+		if !found || cachedCert.UnicitySeal.RootRoundInfo.RoundNumber < c.UnicitySeal.RootRoundInfo.RoundNumber {
+			newerCerts[id] = c
+		}
+	}
+	x.updateCertificateCache(newerCerts)
+}
+
+func ToRecoveryInputData(data []*InputData) []*atomic_broadcast.InputData {
+	inputData := make([]*atomic_broadcast.InputData, len(data))
+	for i, d := range data {
+		inputData[i] = &atomic_broadcast.InputData{
+			SysID: d.SysID,
+			Ir:    d.IR,
+			Sdrh:  d.Sdrh,
+		}
+	}
+	return inputData
+}
+
+func (x *BlockStore) GetPendingBlocks() []*ExecutedBlock {
+	return x.blockTree.GetAllUncommittedNodes()
+}
+
+func (x *BlockStore) RecoverState(rRootBlock *atomic_broadcast.RecoveryBlock, rNodes []*atomic_broadcast.RecoveryBlock, verifier IRChangeReqVerifier) error {
+	rootNode, err := NewExecutedBlockFromRecovery(x.hash, rRootBlock, verifier)
+	if err != nil {
+		return fmt.Errorf("state recovery failed, %w", err)
+	}
+	nodes := make([]*ExecutedBlock, len(rNodes))
+	for i, n := range rNodes {
+		executedBlock, err := NewExecutedBlockFromRecovery(x.hash, n, verifier)
+		if err != nil {
+			return fmt.Errorf("state recovery failed, %w", err)
+		}
+		nodes[i] = executedBlock
+	}
+	bt, err := NewBlockTreeFromRecovery(rootNode, nodes, x.storage.GetBlocksDB())
+	if err != nil {
+		return fmt.Errorf("state recovery, failed to create block tree from recovered blocks, %w", err)
+	}
+	// replace block tree
+	x.blockTree = bt
+	return nil
 }

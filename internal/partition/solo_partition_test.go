@@ -373,10 +373,9 @@ func createPeer(t *testing.T) *network.Peer {
 
 func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.Block) func() bool {
 	return func() bool {
-		// since empty blocks are not persisted, latest block may be certified, but only its UC is saved
-		uc, err := tp.store.LatestUC()
-		require.NoError(t, err)
-		return uc.InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
+		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
+		// NB! it could also be that repeat UC is received
+		return tp.partition.luc.InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
 	}
 }
 
@@ -401,6 +400,18 @@ func ContainsError(t *testing.T, tp *SingleNodePartition, errStr string) {
 		events := tp.eh.GetEvents()
 		for _, e := range events {
 			if e.EventType == event.Error && strings.Contains(e.Content.(error).Error(), errStr) {
+				return true
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+}
+
+func ContainsEventType(t *testing.T, tp *SingleNodePartition, evType event.Type) {
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == evType {
 				return true
 			}
 		}

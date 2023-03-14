@@ -134,7 +134,6 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 	blockCertificationRequest := &certification.BlockCertificationRequest{
 		SystemIdentifier: c.systemIdentifier,
 		NodeIdentifier:   id,
-		RootRoundNumber:  pg.GenesisRootRoundNumber,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: zeroHash, // extend zero hash
 			Hash:         hash,

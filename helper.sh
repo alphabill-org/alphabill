@@ -22,12 +22,10 @@ echo "$addresses"
 }
 
 function generate_log_configuration() {
-  # to iterate over all directories with key files
-  for key_file_path in testab/*/*/keys.json
-  do
-    node_path=${key_file_path%/*}
+  # to iterate over all home directories
+  for homedir in testab/*; do
     # generate log file itself
-    cat <<EOT >> "$node_path/logger-config.yaml"
+    cat <<EOT >> "$homedir/logger-config.yaml"
 # File name to log to. If not set, logs to stdout.
 outputPath:
 # Set to true to log in console optimized way. If false, uses JSON format.
@@ -42,7 +40,7 @@ showGoroutineID: true
 showNodeID: true
 # The default log level for all loggers
 # Possible levels: NONE; ERROR; WARNING; INFO; DEBUG; TRACE
-defaultLevel: DEBUG
+defaultLevel: TRACE
 # Override the logger level for each package. Use _ for separating directories and other special characters.
 # E.g. internal/txsystem/state becomes internal_txsystem_state.
 packageLevels:
@@ -122,11 +120,16 @@ function generate_root_genesis() {
 function start_root_nodes() {
   local rPort=29666
   local pPort=26662
+  # generate local addresses based on number of key files and listener port
   root_node_addresses=$(generate_peer_addresses "testab/rootchain*/rootchain/keys.json" $rPort)
   i=1
-  for fgen in testab/rootchain*/rootchain/root-genesis.json
+  for genesisFile in testab/rootchain*/rootchain/root-genesis.json
   do
-  build/alphabill root --home testab/rootchain$i -f testab/rootchain$i/rootchain/rootchain.db -k testab/rootchain$i/rootchain/keys.json --partition-listener="/ip4/127.0.0.1/tcp/$pPort" -g $fgen --root-listener="/ip4/127.0.0.1/tcp/$rPort" -p $root_node_addresses  >> testab/rootchain$i/rootchain/rootchain.log &
+    if [[ ! -f $genesisFile ]]; then
+      echo "Root genesis files do not exist, generate setup!" 1>&2
+      exit 1
+    fi
+    build/alphabill root --home testab/rootchain$i --partition-listener="/ip4/127.0.0.1/tcp/$pPort" --root-listener="/ip4/127.0.0.1/tcp/$rPort" -p $root_node_addresses  >> testab/rootchain$i/rootchain/rootchain.log &
     ((rPort=rPort+1))
     ((pPort=pPort+1))
     ((i=i+1))

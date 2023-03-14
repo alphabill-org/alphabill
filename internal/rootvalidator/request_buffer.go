@@ -7,7 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 )
 
 type CertRequestBuffer struct {
@@ -45,10 +45,9 @@ func (c *CertRequestBuffer) GetRequests(id p.SystemIdentifier) []*certification.
 }
 
 // IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
-func (c *CertRequestBuffer) IsConsensusReceived(partitionInfo partition_store.PartitionInfo) (*certificates.InputRecord, bool) {
-	id := p.SystemIdentifier(partitionInfo.SystemDescription.SystemIdentifier)
+func (c *CertRequestBuffer) IsConsensusReceived(id p.SystemIdentifier, tb partitions.PartitionTrustBase) (*certificates.InputRecord, bool) {
 	rs := c.get(id)
-	return rs.isConsensusReceived(partitionInfo)
+	return rs.isConsensusReceived(tb)
 }
 
 // get returns an existing store for system identifier or registers and returns a new one if none existed
@@ -71,7 +70,6 @@ func (c *CertRequestBuffer) Reset() {
 // Clear clears requests in one partition
 func (c *CertRequestBuffer) Clear(id p.SystemIdentifier) {
 	rs := c.get(id)
-	logger.Trace("Resetting request store for partition '%X'", id)
 	rs.reset()
 }
 
@@ -89,10 +87,8 @@ func (rs *requestBuffer) add(req *certification.BlockCertificationRequest) error
 	if f {
 		// Partition node tries to certify and equivocating request
 		if !bytes.Equal(prevReq.InputRecord.Hash, req.InputRecord.Hash) {
-			logger.Warning("Equivocating request with different hash: %v", req)
 			return errors.New("equivocating request with different hash")
 		} else {
-			logger.Trace("Duplicated request: %v", req)
 			return errors.New("duplicated request")
 		}
 	}
@@ -101,7 +97,6 @@ func (rs *requestBuffer) add(req *certification.BlockCertificationRequest) error
 	rs.requests[req.NodeIdentifier] = req
 	count := rs.hashCounts[hashString]
 	rs.hashCounts[hashString] = count + 1
-	logger.Trace("Added new IR hash: %X, block hash: %X, total hash count: %v", req.InputRecord.Hash, req.InputRecord.BlockHash, rs.hashCounts[hashString])
 	return nil
 }
 
@@ -110,7 +105,7 @@ func (rs *requestBuffer) reset() {
 	rs.hashCounts = make(map[string]uint)
 }
 
-func (rs *requestBuffer) isConsensusReceived(partition partition_store.PartitionInfo) (*certificates.InputRecord, bool) {
+func (rs *requestBuffer) isConsensusReceived(tb partitions.PartitionTrustBase) (*certificates.InputRecord, bool) {
 	var h []byte
 	var c uint = 0
 	for hash, count := range rs.hashCounts {
@@ -124,32 +119,19 @@ func (rs *requestBuffer) isConsensusReceived(partition partition_store.Partition
 		logger.Trace("Consensus possible in the future, no hashes received yet")
 		return nil, true
 	}
-	quorum := partition.GetQuorum()
-	if uint64(c) >= quorum {
+	quorum := int(tb.GetQuorum())
+	if int(c) >= quorum {
 		// consensus received
 		for _, req := range rs.requests {
 			if bytes.Equal(h, req.InputRecord.Hash) {
-				logger.Trace("Consensus achieved, returning IR (hash: %X, block hash: %X)", req.InputRecord.Hash, req.InputRecord.BlockHash)
 				return req.InputRecord, true
 			}
 		}
-	} else if len(partition.TrustBase)-len(rs.requests)+int(c) < int(quorum) {
-		logger.Trace("Consensus not possible, hash count: %v, needed count: %v, missing: %v", c, quorum, len(partition.TrustBase)-len(rs.requests))
+	} else if int(tb.GetTotalNodes())-len(rs.requests)+int(c) < quorum {
 		// consensus not possible
 		return nil, false
 	}
 	// consensus possible in the future
 	logger.Trace("Consensus possible in the future, hash count: %v, needed count: %v, hash:%X", c, quorum, h)
 	return nil, true
-}
-
-func (rs *requestBuffer) remove(nodeID string) {
-	oldReq, f := rs.requests[nodeID]
-	if !f {
-		return
-	}
-	hashString := string(oldReq.InputRecord.Hash)
-	rs.hashCounts[hashString] = rs.hashCounts[hashString] - 1
-	logger.Trace("Removing old IR hash: %X, block hash: %X, new hash count: %v", oldReq.InputRecord.Hash, oldReq.InputRecord.BlockHash, rs.hashCounts[hashString])
-	delete(rs.requests, nodeID)
 }

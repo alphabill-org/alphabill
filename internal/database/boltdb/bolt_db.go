@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/database"
+	"github.com/alphabill-org/alphabill/internal/database"
 	bolt "go.etcd.io/bbolt"
 )
 

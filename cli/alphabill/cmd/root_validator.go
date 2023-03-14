@@ -17,7 +17,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -75,10 +75,6 @@ func newRootNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 	cmd.Flags().StringVar(&config.RootListener, "root-listener", "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root validator identifiers and addresses. must contain all genesis validator addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
-	err := cmd.MarkFlagRequired(keyFileCmdFlag)
-	if err != nil {
-		panic(err)
-	}
 	return cmd
 }
 
@@ -135,7 +131,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		return fmt.Errorf("error root node key not found in genesis file")
 	}
 	// Initiate partition store
-	partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+	partitionCfg, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 	if err != nil {
 		return fmt.Errorf("failed to extract partition info from genesis file %s, %w", config.getGenesisFilePath(), err)
 	}
@@ -144,7 +140,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	if len(rootGenesis.Root.RootValidators) == 1 {
 		cm, err := monolithic.NewMonolithicConsensusManager(prtHost.ID().String(),
 			rootGenesis,
-			partitionStore,
+			partitionCfg,
 			keys.SigningPrivateKey,
 			consensus.WithPersistentStoragePath(config.getStoragePath()))
 		if err != nil {
@@ -153,7 +149,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		node, err = rootvalidator.NewRootValidatorNode(
 			prtHost,
 			partitionNet,
-			partitionStore,
+			partitionCfg,
 			cm)
 		if err != nil {
 			return fmt.Errorf("failed initiate root node: %w", err)
@@ -171,14 +167,14 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 		// Create distributed consensus manager function
 		cm, err := distributed.NewDistributedAbConsensusManager(rootHost,
 			rootGenesis,
-			partitionStore,
+			partitionCfg,
 			rootNet,
 			keys.SigningPrivateKey,
 			consensus.WithPersistentStoragePath(config.getStoragePath()))
 		node, err = rootvalidator.NewRootValidatorNode(
 			prtHost,
 			partitionNet,
-			partitionStore,
+			partitionCfg,
 			cm)
 		if err != nil {
 			return fmt.Errorf("failed initiate root node: %w", err)

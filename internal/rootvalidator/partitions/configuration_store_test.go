@@ -1,4 +1,4 @@
-package partition_store
+package partitions
 
 import (
 	"testing"
@@ -80,27 +80,26 @@ func TestPartitionStore(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store, err := NewPartitionStoreFromGenesis(tt.args.partitions)
+			conf, err := NewPartitionStoreFromGenesis(tt.args.partitions)
 			require.NoError(t, err)
-			require.Equal(t, tt.want.size, len(store.partitions))
+			require.Equal(t, tt.want.size, len(conf.partitions))
 			for i, id := range tt.want.containsPartitions {
-				info, err := store.Info(id)
+				sysDesc, tb, err := conf.GetInfo(id)
 				require.NoError(t, err)
 				if tt.want.nodeCounts != nil {
-					require.Equal(t, tt.want.nodeCounts[i], len(info.TrustBase))
-					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.SystemIdentifier, info.SystemDescription.GetSystemIdentifier())
-					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.T2Timeout, info.SystemDescription.GetT2Timeout())
+					require.Equal(t, tt.want.nodeCounts[i], int(tb.GetTotalNodes()))
+					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.SystemIdentifier, sysDesc.GetSystemIdentifier())
+					require.Equal(t, tt.args.partitions[i].SystemDescriptionRecord.T2Timeout, sysDesc.GetT2Timeout())
 				}
 			}
 			for _, id := range tt.want.doesNotContainPartitions {
-				_, err := store.Info(id)
+				_, _, err := conf.GetInfo(id)
 				require.Error(t, err)
 			}
 		})
 	}
 }
 
-// todo: should probably only give read only access
 func TestPartitionStore_Info(t *testing.T) {
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := encPubKey.MarshalPublicKey()
@@ -130,16 +129,10 @@ func TestPartitionStore_Info(t *testing.T) {
 	}
 	store, err := NewPartitionStoreFromGenesis(partitions)
 	require.NoError(t, err)
-	info, err := store.Info(p.SystemIdentifier(id1))
+	sysDesc, tb, err := store.GetInfo(p.SystemIdentifier(id1))
 	require.NoError(t, err)
-	require.Equal(t, id1, info.SystemDescription.SystemIdentifier)
-	require.Equal(t, uint32(2600), info.SystemDescription.T2Timeout)
-	require.Equal(t, 3, len(info.TrustBase))
-	require.Equal(t, uint64(2), info.GetQuorum())
-	// try to change the values
-	info.SystemDescription.T2Timeout = 100
-	// source must not change
-	info2, err := store.Info(p.SystemIdentifier(id1))
-	require.Equal(t, uint32(100), info2.SystemDescription.T2Timeout)
-	require.Equal(t, uint64(2), info2.GetQuorum())
+	require.Equal(t, id1, sysDesc.SystemIdentifier)
+	require.Equal(t, uint32(2600), sysDesc.T2Timeout)
+	require.Equal(t, 3, int(tb.GetTotalNodes()))
+	require.Equal(t, uint64(2), tb.GetQuorum())
 }

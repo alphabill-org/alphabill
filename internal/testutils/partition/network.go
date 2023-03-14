@@ -16,7 +16,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -138,7 +138,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 		}
 		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeers[i], 100, 300*time.Millisecond)
 		// Initiate partition store
-		partitionStore, err := partition_store.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
+		partitionStore, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract partition info from genesis, %w", err)
 		}

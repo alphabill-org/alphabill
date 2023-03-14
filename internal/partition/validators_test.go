@@ -78,6 +78,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
 		SummaryValue: make([]byte, 32),
+		RoundNumber:  1,
 	}
 	uc := testcertificates.CreateUnicityCertificate(
 		t,
@@ -149,6 +150,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		Hash:         make([]byte, 32),
 		BlockHash:    make([]byte, 32),
 		SummaryValue: make([]byte, 32),
+		RoundNumber:  1,
 	}
 	uc := testcertificates.CreateUnicityCertificate(
 		t,

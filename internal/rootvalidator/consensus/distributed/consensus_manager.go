@@ -15,7 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/leader"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/distributed/storage"
-	"github.com/alphabill-org/alphabill/internal/rootvalidator/partition_store"
+	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
 	"github.com/alphabill-org/alphabill/internal/timer"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -40,10 +40,6 @@ type (
 		GetRootNodes() []*network.PeerInfo
 	}
 
-	PartitionStore interface {
-		Info(id p.SystemIdentifier) (partition_store.PartitionInfo, error)
-	}
-
 	ConsensusManager struct {
 		ctx            context.Context
 		ctxCancel      context.CancelFunc
@@ -60,7 +56,7 @@ type (
 		safety         *SafetyModule
 		datastore      *storage.Storage
 		blockStore     *storage.BlockStore
-		partitions     PartitionStore
+		partitions     partitions.PartitionConfiguration
 		irReqVerifier  *IRChangeReqVerifier
 		t2Timeouts     *PartitionTimeoutGenerator
 		waitPropose    bool
@@ -70,7 +66,7 @@ type (
 
 // NewDistributedAbConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewDistributedAbConsensusManager(host *network.Peer, rg *genesis.RootGenesis,
-	partitionStore PartitionStore, net RootNet, signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
+	partitionStore partitions.PartitionConfiguration, net RootNet, signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
 	// Sanity checks
 	if rg == nil {
 		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
@@ -219,25 +215,38 @@ func (x *ConsensusManager) loop() {
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
 				x.onTimeoutMsg(req)
-				// Todo: AB-320 add handling
-				/*
-					case network.ProtocolRootStateReq:
-						req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
-						if !correctType {
-							logger.Warning("Type %T not supported", msg.Message)
-							continue
-						}
-						util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery request from %v", msg.From), req)
-						// Send state, with proof (signed by other validators)
-					case network.ProtocolRootStateResp:
-						req, correctType := msg.Message.(*atomic_broadcast.StateReplyMsg)
-						if !correctType {
-							logger.Warning("Type %T not supported", msg.Message)
-							continue
-						}
-						util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), req)
-						// Verify and store
-				*/
+			case network.ProtocolRootCertReq:
+				req, correctType := msg.Message.(*atomic_broadcast.GetCertificates)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates request from %v", msg.From), req)
+				x.onCertificateReq(req)
+			case network.ProtocolRootCertResp:
+				req, correctType := msg.Message.(*atomic_broadcast.CertificatesMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates response from %v", msg.From), req)
+				x.onCertificateResp(req.Certificates)
+			case network.ProtocolRootStateReq:
+				req, correctType := msg.Message.(*atomic_broadcast.GetStateMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery state request from %v", msg.From), req)
+				x.onStateReq(req)
+			case network.ProtocolRootStateResp:
+				req, correctType := msg.Message.(*atomic_broadcast.StateMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), req)
+				x.onStateResponse(req)
 			default:
 				logger.Warning("%v unknown protocol req %s from %v", x.peer.LogID(), msg.Protocol, msg.From)
 			}
@@ -271,6 +280,8 @@ func (x *ConsensusManager) loop() {
 	}
 }
 
+// onPartitionIRChangeReq handle partition change requests. Received from go routine handling
+// partition communication when either partition reaches consensus or cannot reach consensus.
 func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
 	logger.Trace("%v round %v, IR change request from partition",
 		x.peer.LogID(), x.pacemaker.GetCurrentRound())
@@ -303,7 +314,8 @@ func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest
 	}
 }
 
-// onLocalTimeout handle timeouts
+// onLocalTimeout handle local timeout, either no proposal is received or voting does not
+// reach consensus. Triggers timeout voting.
 func (x *ConsensusManager) onLocalTimeout() {
 	// always restart timer, time might be adjusted in case a new round is started
 	// to account for throttling
@@ -363,7 +375,7 @@ func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg)
 	}
 }
 
-// onVoteMsg handle votes and timeout votes
+// onVoteMsg handle votes messages from other root validators
 func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
@@ -417,7 +429,7 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	// time from last proposal and see if we need to wait
 	slowDownTime := x.pacemaker.CalcTimeTilNextProposal(x.pacemaker.GetCurrentRound() + 1)
 	// advance view/round on QC
-	x.processCertificateQC(qc)
+	x.processQC(qc)
 	if slowDownTime > 0 {
 		logger.Trace("%v round %v node %v wait %v before proposing",
 			x.peer.LogID(), x.pacemaker.GetCurrentRound(), x.peer.ID().String(), slowDownTime)
@@ -429,6 +441,9 @@ func (x *ConsensusManager) onVoteMsg(vote *atomic_broadcast.VoteMsg) {
 	x.processNewRoundEvent()
 }
 
+// onTimeoutMsg handles timeout vote messages from other root validators
+// Timeout votes are broadcast to all nodes on local timeout and all validators try to assemble
+// timeout certificate independently.
 func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	// verify signature on vote
 	err := vote.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
@@ -468,6 +483,8 @@ func (x *ConsensusManager) onTimeoutMsg(vote *atomic_broadcast.TimeoutMsg) {
 	}
 }
 
+// checkRecoveryNeeded verify current state against received state and determine if the validator needs to
+// recover or not. Basically either the state is different or validator is behind (has skipped some views/rounds)
 func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) bool {
 	// Get block and check if we have the same state
 	rootHash, err := x.blockStore.GetBlockRootHash(qc.VoteInfo.RoundNumber)
@@ -483,6 +500,8 @@ func (x *ConsensusManager) checkRecoveryNeeded(qc *atomic_broadcast.QuorumCert) 
 	return false
 }
 
+// onProposalMsg handles block proposal messages from other validators.
+// Only a proposal made by the leader of this view/round shall be accepted and processed
 func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg) {
 	// verify signature on proposal (does not verify partition request signatures)
 	err := proposal.Verify(x.trustBase.GetQuorumThreshold(), x.trustBase.GetVerifiers())
@@ -511,7 +530,7 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	}
 	// Every proposal must carry a QC or TC for previous round
 	// Process QC first, update round
-	x.processCertificateQC(proposal.Block.Qc)
+	x.processQC(proposal.Block.Qc)
 	x.processTC(proposal.LastRoundTc)
 	// execute proposed payload
 	execStateId, err := x.blockStore.Add(proposal.Block, x.irReqVerifier)
@@ -552,7 +571,8 @@ func (x *ConsensusManager) onProposalMsg(proposal *atomic_broadcast.ProposalMsg)
 	}
 }
 
-func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert) {
+// processQC - handles timeout certificate
+func (x *ConsensusManager) processQC(qc *atomic_broadcast.QuorumCert) {
 	if qc == nil {
 		return
 	}
@@ -570,6 +590,7 @@ func (x *ConsensusManager) processCertificateQC(qc *atomic_broadcast.QuorumCert)
 	x.timers.Restart(localTimeoutID)
 }
 
+// processTC - handles timeout certificate
 func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 	if tc == nil {
 		return
@@ -580,6 +601,9 @@ func (x *ConsensusManager) processTC(tc *atomic_broadcast.TimeoutCert) {
 	x.pacemaker.AdvanceRoundTC(tc)
 }
 
+// processNewRoundEvent handled new view event, is called when either QC or TC is reached locally and
+// triggers a new round. If this node is the leader in the new view/round, then make a proposal otherwise
+// wait for a proposal from a leader in this round/view
 func (x *ConsensusManager) processNewRoundEvent() {
 	// to counteract throttling (find a better solution)
 	x.waitPropose = false
@@ -617,5 +641,82 @@ func (x *ConsensusManager) processNewRoundEvent() {
 			Protocol: network.ProtocolRootProposal,
 			Message:  proposalMsg}, receivers); err != nil {
 		logger.Warning("%v failed to send proposal message, network error: %v", x.peer.LogID(), err)
+	}
+}
+
+func (x *ConsensusManager) onCertificateReq(req *atomic_broadcast.GetCertificates) {
+	logger.Trace("%v round %v certificate request from %v",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound(), req.NodeId)
+	certs := x.blockStore.GetCertificates()
+	payload := make([]*certificates.UnicityCertificate, 0, len(certs))
+	for _, c := range certs {
+		payload = append(payload, c)
+	}
+	respMsg := &atomic_broadcast.CertificatesMsg{Certificates: payload}
+	peerID, err := peer.Decode(req.NodeId)
+	if err != nil {
+		logger.Warning("%v invalid node identifier: '%s'", req.NodeId)
+		return
+	}
+	if err = x.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolRootCertResp,
+			Message:  respMsg}, []peer.ID{peerID}); err != nil {
+		logger.Warning("%v failed to send certificates response message, network error: %v", x.peer.LogID(), err)
+	}
+}
+
+func (x *ConsensusManager) onCertificateResp(certs []*certificates.UnicityCertificate) {
+	// check validity
+	for _, c := range certs {
+		if err := c.IsValid(x.trustBase.GetVerifiers(), x.params.HashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
+			logger.Warning("received invalid certificate, dropping all")
+			return
+		}
+	}
+	x.blockStore.UpdateCertificates(certs)
+}
+
+func (x *ConsensusManager) onStateReq(req *atomic_broadcast.GetStateMsg) {
+	logger.Trace("%v round %v received state request from %v",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound(), req.NodeId)
+	committedBlock := x.blockStore.GetRoot()
+	pendingBlocks := x.blockStore.GetPendingBlocks()
+	pending := make([]*atomic_broadcast.RecoveryBlock, len(pendingBlocks))
+	for i, b := range pendingBlocks {
+		pending[i] = &atomic_broadcast.RecoveryBlock{
+			Block:    b.BlockData,
+			Ir:       storage.ToRecoveryInputData(b.CurrentIR),
+			Qc:       b.Qc,
+			CommitQc: nil,
+		}
+	}
+	respMsg := &atomic_broadcast.StateMsg{
+		CommittedHead: &atomic_broadcast.RecoveryBlock{
+			Block:    committedBlock.BlockData,
+			Ir:       storage.ToRecoveryInputData(committedBlock.CurrentIR),
+			Qc:       committedBlock.Qc,
+			CommitQc: committedBlock.CommitQc,
+		},
+		BlockNode: pending,
+	}
+	peerID, err := peer.Decode(req.NodeId)
+	if err != nil {
+		logger.Warning("%v invalid node identifier: '%s'", req.NodeId)
+		return
+	}
+	if err = x.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolRootCertResp,
+			Message:  respMsg}, []peer.ID{peerID}); err != nil {
+		logger.Warning("%v failed to send state response message, network error: %v", x.peer.LogID(), err)
+	}
+}
+
+func (x *ConsensusManager) onStateResponse(req *atomic_broadcast.StateMsg) {
+	logger.Trace("%v round %v received state response",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	if err := x.blockStore.RecoverState(req.CommittedHead, req.BlockNode, x.irReqVerifier); err != nil {
+		logger.Warning("state response failed, %v", err)
 	}
 }

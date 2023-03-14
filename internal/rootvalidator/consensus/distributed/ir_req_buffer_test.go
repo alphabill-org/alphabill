@@ -156,7 +156,6 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	req1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysID1,
 		NodeIdentifier:   "1",
-		RootRoundNumber:  2,
 		InputRecord:      inputRecord1,
 	}
 	IrChReqMsg := &atomic_broadcast.IRChangeReqMsg{
@@ -223,7 +222,6 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	req1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: sysID1,
 		NodeIdentifier:   "1",
-		RootRoundNumber:  2,
 		InputRecord:      inputRecord1,
 	}
 	IrChReqMsg := &atomic_broadcast.IRChangeReqMsg{

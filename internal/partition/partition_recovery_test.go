@@ -29,10 +29,14 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// prepare proposal
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
-	// send UC with different IR hash
-	ir := proto.Clone(bl.UnicityCertificate.InputRecord).(*certificates.InputRecord)
-	ir.Hash = test.RandomBytes(32)
-
+	// simulate UC with different state hash and block hash
+	ir := &certificates.InputRecord{
+		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: bl.UnicityCertificate.InputRecord.SummaryValue,
+		RoundNumber:  bl.UnicityCertificate.InputRecord.RoundNumber + 1,
+	}
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
 		bl.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
@@ -52,8 +56,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
+	// increment round number
+	irNew := &certificates.InputRecord{
+		PreviousHash: ir.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: bl.UnicityCertificate.InputRecord.SummaryValue,
+		RoundNumber:  ir.RoundNumber + 1,
+	}
 	newerUC, err := tp.CreateUnicityCertificate(
-		ir,
+		irNew,
 		repeatUC.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
@@ -105,6 +117,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	// send UC with different block hash
 	ir := proto.Clone(bl.UnicityCertificate.InputRecord).(*certificates.InputRecord)
 	ir.BlockHash = test.RandomBytes(32)
+	ir.RoundNumber++
 
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
@@ -125,8 +138,11 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
+	irNew := proto.Clone(ir).(*certificates.InputRecord)
+	irNew.BlockHash = test.RandomBytes(32)
+	irNew.RoundNumber++
 	newerUC, err := tp.CreateUnicityCertificate(
-		ir,
+		irNew,
 		repeatUC.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)

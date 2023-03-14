@@ -96,7 +96,9 @@ func (x *BlockStore) ProcessTc(tc *atomic_broadcast.TimeoutCert) error {
 	}
 	// Remove proposal for TC round if it exists, since quorum voted for timeout, it will never be committed
 	// So we will prune the block now, also it is ok, if we do not have the block, it does not matter anyway
-	_ = x.blockTree.RemoveLeaf(tc.Timeout.Round)
+	if err := x.blockTree.RemoveLeaf(tc.Timeout.Round); err != nil {
+		logger.Warning("Unexpected error when removing timeout block %v, %v", tc.Timeout.Round, err)
+	}
 	return nil
 }
 

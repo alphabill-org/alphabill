@@ -60,7 +60,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTyp
 	if err != nil {
 		return nil, err
 	}
-	err = sub.toBatch(w.backend, acc.PubKey).sendTx(ctx)
+	err = sub.toBatch(w, acc.PubKey).sendTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	if err != nil {
 		return nil, err
 	}
-	err = sub.toBatch(w.backend, key.PubKey).sendTx(ctx)
+	err = sub.toBatch(w, key.PubKey).sendTx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -171,12 +171,13 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId twb.UnitID, attrs proto.M
 	return txSub, nil
 }
 
-func (s *txSubmission) toBatch(backend TokenBackend, sender twb.PubKey) *txSubmissionBatch {
+func (s *txSubmission) toBatch(w *Wallet, sender twb.PubKey) *txSubmissionBatch {
 	return &txSubmissionBatch{
 		sender:      sender,
-		backend:     backend,
+		backend:     w.backend,
 		submissions: []*txSubmission{s},
 		maxTimeout:  s.tx.Timeout,
+		confirmTx:   w.confirmTx,
 	}
 }
 

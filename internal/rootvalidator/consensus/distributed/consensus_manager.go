@@ -215,25 +215,38 @@ func (x *ConsensusManager) loop() {
 				}
 				util.WriteTraceJsonLog(logger, fmt.Sprintf("Timeout vote from %v", msg.From), req)
 				x.onTimeoutMsg(req)
-				// Todo: AB-320 add handling
-				/*
-					case network.ProtocolRootStateReq:
-						req, correctType := msg.Message.(*atomic_broadcast.StateRequestMsg)
-						if !correctType {
-							logger.Warning("Type %T not supported", msg.Message)
-							continue
-						}
-						util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery request from %v", msg.From), req)
-						// Send state, with proof (signed by other validators)
-					case network.ProtocolRootStateResp:
-						req, correctType := msg.Message.(*atomic_broadcast.StateReplyMsg)
-						if !correctType {
-							logger.Warning("Type %T not supported", msg.Message)
-							continue
-						}
-						util.WriteDebugJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), req)
-						// Verify and store
-				*/
+			case network.ProtocolRootCertReq:
+				req, correctType := msg.Message.(*atomic_broadcast.GetCertificates)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates request from %v", msg.From), req)
+				x.onCertificateReq(req)
+			case network.ProtocolRootCertResp:
+				req, correctType := msg.Message.(*atomic_broadcast.CertificatesMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery certificates response from %v", msg.From), req)
+				x.onCertificateResp(req.Certificates)
+			case network.ProtocolRootStateReq:
+				req, correctType := msg.Message.(*atomic_broadcast.GetStateMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Recovery state request from %v", msg.From), req)
+				x.onStateReq(req)
+			case network.ProtocolRootStateResp:
+				req, correctType := msg.Message.(*atomic_broadcast.StateMsg)
+				if !correctType {
+					logger.Warning("Type %T not supported", msg.Message)
+					continue
+				}
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Received recovery response from %v", msg.From), req)
+				x.onStateResponse(req)
 			default:
 				logger.Warning("%v unknown protocol req %s from %v", x.peer.LogID(), msg.Protocol, msg.From)
 			}
@@ -613,5 +626,82 @@ func (x *ConsensusManager) processNewRoundEvent() {
 			Protocol: network.ProtocolRootProposal,
 			Message:  proposalMsg}, receivers); err != nil {
 		logger.Warning("%v failed to send proposal message, network error: %v", x.peer.LogID(), err)
+	}
+}
+
+func (x *ConsensusManager) onCertificateReq(req *atomic_broadcast.GetCertificates) {
+	logger.Trace("%v round %v certificate request from %v",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound(), req.NodeId)
+	certs := x.blockStore.GetCertificates()
+	payload := make([]*certificates.UnicityCertificate, 0, len(certs))
+	for _, c := range certs {
+		payload = append(payload, c)
+	}
+	respMsg := &atomic_broadcast.CertificatesMsg{Certificates: payload}
+	peerID, err := peer.Decode(req.NodeId)
+	if err != nil {
+		logger.Warning("%v invalid node identifier: '%s'", req.NodeId)
+		return
+	}
+	if err = x.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolRootCertResp,
+			Message:  respMsg}, []peer.ID{peerID}); err != nil {
+		logger.Warning("%v failed to send certificates response message, network error: %v", x.peer.LogID(), err)
+	}
+}
+
+func (x *ConsensusManager) onCertificateResp(certs []*certificates.UnicityCertificate) {
+	// check validity
+	for _, c := range certs {
+		if err := c.IsValid(x.trustBase.GetVerifiers(), x.params.HashAlgorithm, c.UnicityTreeCertificate.SystemIdentifier, c.UnicityTreeCertificate.SystemDescriptionHash); err != nil {
+			logger.Warning("received invalid certificate, dropping all")
+			return
+		}
+	}
+	x.blockStore.UpdateCertificates(certs)
+}
+
+func (x *ConsensusManager) onStateReq(req *atomic_broadcast.GetStateMsg) {
+	logger.Trace("%v round %v received state request from %v",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound(), req.NodeId)
+	committedBlock := x.blockStore.GetRoot()
+	pendingBlocks := x.blockStore.GetPendingBlocks()
+	pending := make([]*atomic_broadcast.RecoveryBlock, len(pendingBlocks))
+	for i, b := range pendingBlocks {
+		pending[i] = &atomic_broadcast.RecoveryBlock{
+			Block:    b.BlockData,
+			Ir:       storage.ToRecoveryInputData(b.CurrentIR),
+			Qc:       b.Qc,
+			CommitQc: nil,
+		}
+	}
+	respMsg := &atomic_broadcast.StateMsg{
+		CommittedHead: &atomic_broadcast.RecoveryBlock{
+			Block:    committedBlock.BlockData,
+			Ir:       storage.ToRecoveryInputData(committedBlock.CurrentIR),
+			Qc:       committedBlock.Qc,
+			CommitQc: committedBlock.CommitQc,
+		},
+		BlockNode: pending,
+	}
+	peerID, err := peer.Decode(req.NodeId)
+	if err != nil {
+		logger.Warning("%v invalid node identifier: '%s'", req.NodeId)
+		return
+	}
+	if err = x.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolRootCertResp,
+			Message:  respMsg}, []peer.ID{peerID}); err != nil {
+		logger.Warning("%v failed to send state response message, network error: %v", x.peer.LogID(), err)
+	}
+}
+
+func (x *ConsensusManager) onStateResponse(req *atomic_broadcast.StateMsg) {
+	logger.Trace("%v round %v received state response",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	if err := x.blockStore.RecoverState(req.CommittedHead, req.BlockNode, x.irReqVerifier); err != nil {
+		logger.Warning("state response failed, %v", err)
 	}
 }

@@ -107,14 +107,20 @@ message GetCertificates {
 }
 
 message CertificatesMsg {
-  repeated UnicityCertificate cert = 1;
+  repeated UnicityCertificate certificates = 1;
 }
 
-message ExecutedBlock{
+message InputData {
+  bytes sysID  = 1;
+  InputRecord ir = 2;
+  bytes sdrh = 3;
+}
+
+message RecoveryBlock{
   BlockData block = 1;
-  // block qc
-  optional QuorumCert qc = 2;
-  optional QuorumCert commitQc = 3;
+  repeated InputData ir = 2;
+  optional QuorumCert qc = 3;
+  optional QuorumCert commitQc = 4;
 }
 
 message GetStateMsg {
@@ -122,6 +128,6 @@ message GetStateMsg {
 }
 
 message StateMsg {
-  ExecutedBlock committedHead = 1;
-  repeated ExecutedBlock blockNode = 2;
+  RecoveryBlock committedHead = 1;
+  repeated RecoveryBlock blockNode = 2;
 }

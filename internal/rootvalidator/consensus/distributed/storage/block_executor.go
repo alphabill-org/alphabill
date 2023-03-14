@@ -115,6 +115,65 @@ func NewExecutedBlockFromGenesis(hash gocrypto.Hash, pg []*genesis.GenesisPartit
 	}
 }
 
+func NewExecutedBlockFromRecovery(hash gocrypto.Hash, recoverBlock *atomic_broadcast.RecoveryBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
+	changed := make(InputRecords, 0, len(recoverBlock.Block.Payload.Requests))
+	changes := make([][]byte, 0, len(recoverBlock.Block.Payload.Requests))
+	// verify requests for IR change and proof of consensus
+	for _, irChReq := range recoverBlock.Block.Payload.Requests {
+		irData, err := verifier.VerifyIRChangeReq(recoverBlock.Block.Round, irChReq)
+		if err != nil {
+			return nil, fmt.Errorf("new block verification in round %v error, %w", recoverBlock.Block.Round, err)
+		}
+		changed = append(changed, irData)
+		changes = append(changes, irChReq.SystemIdentifier)
+	}
+	// recover input records
+	irState := make(InputRecords, len(recoverBlock.Ir))
+	for i, d := range recoverBlock.Ir {
+		irState[i] = &InputData{
+			SysID: d.SysID,
+			IR:    d.Ir,
+			Sdrh:  d.Sdrh,
+		}
+	}
+	// calculate root hash
+	utData := make([]*unicitytree.Data, 0, len(irState))
+	for _, data := range irState {
+		// if it is valid it must have at least one validator with a valid certification request
+		// if there is more, all input records are matching
+		utData = append(utData, &unicitytree.Data{
+			SystemIdentifier:            data.SysID,
+			InputRecord:                 data.IR,
+			SystemDescriptionRecordHash: data.Sdrh,
+		})
+	}
+	ut, err := unicitytree.New(hash.New(), utData)
+	if err != nil {
+		return nil, err
+	}
+	root := ut.GetRootHash()
+	// check against qc and commit qc
+	if recoverBlock.Qc != nil {
+		if bytes.Equal(root, recoverBlock.Qc.VoteInfo.CurrentRootHash) == false {
+			return nil, fmt.Errorf("invalid recovery data, qc state hash does not match input records")
+		}
+	}
+	if recoverBlock.CommitQc != nil {
+		if bytes.Equal(root, recoverBlock.CommitQc.LedgerCommitInfo.RootHash) == false {
+			return nil, fmt.Errorf("invalid recovery data, commit qc state hash does not match input records")
+		}
+	}
+	return &ExecutedBlock{
+		BlockData: recoverBlock.Block,
+		CurrentIR: irState,
+		Changed:   changes,
+		HashAlgo:  hash,
+		RootHash:  ut.GetRootHash(),
+		Qc:        recoverBlock.Qc,
+		CommitQc:  recoverBlock.CommitQc,
+	}, nil
+}
+
 func NewExecutedBlock(hash gocrypto.Hash, newBlock *atomic_broadcast.BlockData, parent *ExecutedBlock, verifier IRChangeReqVerifier) (*ExecutedBlock, error) {
 	changed := make(InputRecords, 0, len(newBlock.Payload.Requests))
 	changes := make([][]byte, 0, len(newBlock.Payload.Requests))

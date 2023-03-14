@@ -163,6 +163,11 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId twb.UnitID, attrs proto.M
 		return nil, err
 	}
 	tx.OwnerProof = sig
+	// covert again for hashing as the tx might have been modified
+	gtx, err = ttxs.NewGenericTx(tx)
+	if err != nil {
+		return nil, err
+	}
 	txSub := &txSubmission{
 		id:     unitId,
 		tx:     tx,
@@ -327,8 +332,9 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*tw
 	})
 
 	batch := &txSubmissionBatch{
-		sender:  acc.PubKey,
-		backend: w.backend,
+		sender:    acc.PubKey,
+		backend:   w.backend,
+		confirmTx: w.confirmTx,
 	}
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum

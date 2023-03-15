@@ -167,6 +167,7 @@ func (p *blockProcessor) processTx(inTx *txsystem.Transaction, b *block.Block) e
 			return fmt.Errorf("transfer nft tx: failed to get token with id=%X: %w", id, err)
 		}
 		token.Owner = tx.NewBearer()
+		token.TxHash = txHash
 		return p.saveToken(token, proof)
 	case tokens.UpdateNonFungibleToken:
 		token, err := p.store.GetToken(id)

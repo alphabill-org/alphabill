@@ -345,6 +345,18 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
 }
 
+func TestSendingFailsWithInsufficientBalance(t *testing.T) {
+	am, homedir := createNewWallet(t)
+	pubKey, _ := am.GetPublicKey(0)
+	am.Close()
+
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 5e8})
+	defer mockServer.Close()
+
+	_, err := execCommand(homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
+	require.Error(t, err, "insufficient balance for transaction")
+}
+
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {
 	network, err := testpartition.NewNetwork(1, func(tb map[string]abcrypto.Verifier) txsystem.TransactionSystem {
 		system, err := moneytx.NewMoneyTxSystem(

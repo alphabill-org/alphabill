@@ -162,7 +162,7 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId twb.UnitID, attrs proto.M
 		return nil, err
 	}
 	tx.OwnerProof = sig
-	// covert again for hashing as the tx might have been modified
+	// convert again for hashing as the tx might have been modified
 	gtx, err = ttxs.NewGenericTx(tx)
 	if err != nil {
 		return nil, err

@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"bytes"
 	gocrypto "crypto"
 	"fmt"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 var partitionID = []byte{0, 0xFF, 0, 1}
@@ -209,6 +211,11 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// await the next proposal as well, the proposal must contain TC
 	lastProposalMsg = testutils.MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.NotNil(t, lastProposalMsg.LastRoundTc)
+	require.Equal(t, uint64(3), lastProposalMsg.LastRoundTc.Timeout.Round)
+	// query state
+	getStateMsg := &atomic_broadcast.GetStateMsg{
+		NodeId: partitionNodes[0].Peer.ID().String(),
+	}
 	// no change requests added, previous changes still not committed as timeout occurred
 	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
 	require.Equal(t, uint64(4), lastProposalMsg.Block.Round)
@@ -218,6 +225,15 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	lastVoteMsg = testutils.MockAwaitMessage[*atomic_broadcast.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(4), lastVoteMsg.VoteInfo.RoundNumber)
 	require.Nil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	// Check state before routing vote back to root
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootStateReq, getStateMsg)
+	stateMsg := testutils.MockAwaitMessage[*atomic_broadcast.StateMsg](t, mockNet, network.ProtocolRootStateResp)
+	// commit head is still at round 1, as round 3 that would have committed 2 resulted in timeout
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
+	require.Equal(t, 2, len(stateMsg.BlockNode))
+	// round 3 has been removed as it resulted in timeout quorum
+	require.Equal(t, uint64(2), stateMsg.BlockNode[0].Block.Round)
+	require.Equal(t, uint64(4), stateMsg.BlockNode[1].Block.Round)
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootVote, lastVoteMsg)
 
@@ -231,6 +247,18 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	lastVoteMsg = testutils.MockAwaitMessage[*atomic_broadcast.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(5), lastVoteMsg.VoteInfo.RoundNumber)
 	require.NotNil(t, lastVoteMsg.LedgerCommitInfo.RootHash)
+	// Check state before routing vote back to root
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootStateReq, getStateMsg)
+	stateMsg = testutils.MockAwaitMessage[*atomic_broadcast.StateMsg](t, mockNet, network.ProtocolRootStateResp)
+	// commit head is still at round 1, rounds 2, 4 and 5 are added, 5 will commit 4 when it reaches quorum, but
+	// this will after vote is routed back, so current expected state is:
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
+	require.Equal(t, 3, len(stateMsg.BlockNode))
+	// round 3 has been removed as it resulted in timeout quorum
+	require.Equal(t, uint64(2), stateMsg.BlockNode[0].Block.Round)
+	require.Equal(t, uint64(4), stateMsg.BlockNode[1].Block.Round)
+	require.Equal(t, uint64(5), stateMsg.BlockNode[2].Block.Round)
+
 	// send vote back to validator
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootVote, lastVoteMsg)
 	// after two successful rounds since timeout the IR change will be finally committed and UC is returned
@@ -239,6 +267,28 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.NotNil(t, result)
 	require.Equal(t, partitionID, result.UnicityTreeCertificate.SystemIdentifier)
 	require.False(t, cm.blockStore.IsChangeInProgress(p.SystemIdentifier(partitionID)))
+	// verify certificates have been updated when recovery query is sent
+	getCertsMsg := &atomic_broadcast.GetCertificates{
+		NodeId: partitionNodes[0].Peer.ID().String(),
+	}
+	// simulate IR change request message
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootCertReq, getCertsMsg)
+	// As the node is the leader, next round will trigger a proposal
+	certsMsg := testutils.MockAwaitMessage[*atomic_broadcast.CertificatesMsg](t, mockNet, network.ProtocolRootCertResp)
+	require.Equal(t, len(rg.Partitions), len(certsMsg.Certificates))
+	idx := slices.IndexFunc(certsMsg.Certificates, func(c *certificates.UnicityCertificate) bool {
+		return bytes.Equal(c.UnicityTreeCertificate.SystemIdentifier, partitionID)
+	})
+	require.False(t, idx == -1)
+	require.True(t, certsMsg.Certificates[idx].UnicitySeal.RootRoundInfo.RoundNumber > uint64(1))
+	// simulate IR change request message
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootStateReq, getStateMsg)
+	// As the node is the leader, next round will trigger a proposal
+	stateMsg = testutils.MockAwaitMessage[*atomic_broadcast.StateMsg](t, mockNet, network.ProtocolRootStateResp)
+	// at this stage the committed round is 4 and round 5 block is pending, if it reaches quorum it will commit 4
+	require.Equal(t, uint64(4), stateMsg.CommittedHead.Block.Round)
+	require.Equal(t, 1, len(stateMsg.BlockNode))
+	require.Equal(t, uint64(5), stateMsg.BlockNode[0].Block.Round)
 }
 
 func TestIRChangeRequestFromRootValidator(t *testing.T) {
@@ -369,4 +419,34 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 	lastProposalMsg = testutils.MockAwaitMessage[*atomic_broadcast.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.True(t, lastProposalMsg.Block.Payload.IsEmpty())
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootProposal, lastProposalMsg)
+}
+
+func TestGetCertificates(t *testing.T) {
+	mockNet := testnetwork.NewMockNetwork()
+	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
+	defer cm.Stop()
+	getCertsMsg := &atomic_broadcast.GetCertificates{
+		NodeId: partitionNodes[0].Peer.ID().String(),
+	}
+	// simulate IR change request message
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootCertReq, getCertsMsg)
+	// As the node is the leader, next round will trigger a proposal
+	certsMsg := testutils.MockAwaitMessage[*atomic_broadcast.CertificatesMsg](t, mockNet, network.ProtocolRootCertResp)
+	require.Equal(t, len(rg.Partitions), len(certsMsg.Certificates))
+}
+
+func TestGetState(t *testing.T) {
+	mockNet := testnetwork.NewMockNetwork()
+	cm, rootNode, partitionNodes, _ := initConsensusManager(t, mockNet)
+	defer cm.Stop()
+	getStateMsg := &atomic_broadcast.GetStateMsg{
+		NodeId: partitionNodes[0].Peer.ID().String(),
+	}
+	// simulate IR change request message
+	testutils.MockValidatorNetReceives(t, mockNet, rootNode.Peer.ID(), network.ProtocolRootStateReq, getStateMsg)
+	// As the node is the leader, next round will trigger a proposal
+	stateMsg := testutils.MockAwaitMessage[*atomic_broadcast.StateMsg](t, mockNet, network.ProtocolRootStateResp)
+	// at this stage there is only genesis block
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
+	require.Equal(t, 0, len(stateMsg.BlockNode))
 }

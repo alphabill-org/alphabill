@@ -195,7 +195,9 @@ func (bt *BlockTree) RemoveLeaf(round uint64) error {
 	}
 	n, found := bt.roundToNode[round]
 	if found == false {
-		return fmt.Errorf("error block for round %v not found", round)
+		logger.Debug("Remove node failed, node for round %v not found, perhaps already removed?", round)
+		// this is ok if we do not have the node, on TC remove might be triggered twice
+		return nil
 	}
 	if n.child != nil {
 		return fmt.Errorf("error round %v is not child node", round)

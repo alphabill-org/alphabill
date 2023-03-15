@@ -707,7 +707,7 @@ func (x *ConsensusManager) onStateReq(req *atomic_broadcast.GetStateMsg) {
 	}
 	if err = x.net.Send(
 		network.OutputMessage{
-			Protocol: network.ProtocolRootCertResp,
+			Protocol: network.ProtocolRootStateResp,
 			Message:  respMsg}, []peer.ID{peerID}); err != nil {
 		logger.Warning("%v failed to send state response message, network error: %v", x.peer.LogID(), err)
 	}

@@ -40,7 +40,7 @@ func buildCmdStartTokenWalletBackend(ctx context.Context, config *baseConfigurat
 		},
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
-	cmd.Flags().StringP(serverAddrCmdName, "s", "http://localhost:9735", "server address")
+	cmd.Flags().StringP(serverAddrCmdName, "s", "localhost:9735", "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
 	return cmd
 }

@@ -35,7 +35,6 @@ type (
 		submissions []*txSubmission
 		maxTimeout  uint64
 		backend     TokenBackend
-		confirmTx   bool
 	}
 
 	txPreprocessor func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error
@@ -60,7 +59,7 @@ func (w *Wallet) newType(ctx context.Context, accNr uint64, attrs AttrWithSubTyp
 	if err != nil {
 		return nil, err
 	}
-	err = sub.toBatch(w, acc.PubKey).sendTx(ctx)
+	err = sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, w.confirmTx)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +111,7 @@ func (w *Wallet) newToken(ctx context.Context, accNr uint64, attrs MintAttr, tok
 	if err != nil {
 		return nil, err
 	}
-	err = sub.toBatch(w, key.PubKey).sendTx(ctx)
+	err = sub.toBatch(w.backend, key.PubKey).sendTx(ctx, w.confirmTx)
 	if err != nil {
 		return nil, err
 	}
@@ -176,13 +175,12 @@ func (w *Wallet) prepareTx(ctx context.Context, unitId twb.UnitID, attrs proto.M
 	return txSub, nil
 }
 
-func (s *txSubmission) toBatch(w *Wallet, sender twb.PubKey) *txSubmissionBatch {
+func (s *txSubmission) toBatch(backend TokenBackend, sender twb.PubKey) *txSubmissionBatch {
 	return &txSubmissionBatch{
 		sender:      sender,
-		backend:     w.backend,
+		backend:     backend,
 		submissions: []*txSubmission{s},
 		maxTimeout:  s.tx.Timeout,
-		confirmTx:   w.confirmTx,
 	}
 }
 
@@ -201,7 +199,7 @@ func (t *txSubmissionBatch) transactions() []*txsystem.Transaction {
 	return txs
 }
 
-func (t *txSubmissionBatch) sendTx(ctx context.Context) error {
+func (t *txSubmissionBatch) sendTx(ctx context.Context, confirmTx bool) error {
 	if len(t.submissions) == 0 {
 		return errors.New("no transactions to send")
 	}
@@ -209,7 +207,7 @@ func (t *txSubmissionBatch) sendTx(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if t.confirmTx {
+	if confirmTx {
 		return t.confirmUnitsTx(ctx)
 	}
 	return nil
@@ -223,40 +221,41 @@ func (t *txSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			roundNr, err := t.backend.GetRoundNumber(ctx)
+		}
+
+		roundNr, err := t.backend.GetRoundNumber(ctx)
+		if err != nil {
+			return err
+		}
+		if roundNr >= t.maxTimeout {
+			log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
+			for _, sub := range t.submissions {
+				if !sub.confirmed {
+					log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X", sub.id))
+				}
+			}
+			return errors.New("confirmation timeout")
+		}
+		unconfirmed := false
+		for _, sub := range t.submissions {
+			if sub.confirmed || roundNr >= sub.tx.Timeout {
+				continue
+			}
+			proof, err := t.backend.GetTxProof(ctx, sub.id, sub.txHash)
 			if err != nil {
 				return err
 			}
-			if roundNr >= t.maxTimeout {
-				log.Info(fmt.Sprintf("Tx confirmation timeout is reached, block (#%v)", roundNr))
-				for _, sub := range t.submissions {
-					if !sub.confirmed {
-						log.Info(fmt.Sprintf("Tx not confirmed for UnitID=%X", sub.id))
-					}
-				}
-				return errors.New("confirmation timeout")
+			if proof != nil {
+				log.Debug(fmt.Sprintf("UnitID=%X is confirmed", sub.id))
+				sub.confirmed = true
 			}
-			unconfirmed := false
-			for _, sub := range t.submissions {
-				if sub.confirmed || roundNr >= sub.tx.Timeout {
-					continue
-				}
-				proof, err := t.backend.GetTxProof(ctx, sub.id, sub.txHash)
-				if err != nil {
-					return err
-				}
-				if proof != nil {
-					log.Debug(fmt.Sprintf("UnitID=%X is confirmed", sub.id))
-					sub.confirmed = true
-				}
-				unconfirmed = unconfirmed || !sub.confirmed
-			}
-			if unconfirmed {
-				time.Sleep(500 * time.Millisecond)
-			} else {
-				log.Info("All transactions confirmed")
-				return nil
-			}
+			unconfirmed = unconfirmed || !sub.confirmed
+		}
+		if unconfirmed {
+			time.Sleep(500 * time.Millisecond)
+		} else {
+			log.Info("All transactions confirmed")
+			return nil
 		}
 	}
 }
@@ -332,9 +331,8 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*tw
 	})
 
 	batch := &txSubmissionBatch{
-		sender:    acc.PubKey,
-		backend:   w.backend,
-		confirmTx: w.confirmTx,
+		sender:  acc.PubKey,
+		backend: w.backend,
 	}
 	for _, t := range tokens {
 		remainingAmount := amount - accumulatedSum
@@ -348,7 +346,7 @@ func (w *Wallet) doSendMultiple(ctx context.Context, amount uint64, tokens []*tw
 			break
 		}
 	}
-	return batch.sendTx(ctx)
+	return batch.sendTx(ctx, w.confirmTx)
 }
 
 func (w *Wallet) prepareSplitOrTransferTx(ctx context.Context, acc *account.AccountKey, amount uint64, token *twb.TokenUnit, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) (*txSubmission, error) {

@@ -260,7 +260,7 @@ func (w *Wallet) TransferNFT(ctx context.Context, accountNumber uint64, tokenId 
 	if err != nil {
 		return err
 	}
-	return sub.toBatch(w, key.PubKey).sendTx(ctx)
+	return sub.toBatch(w.backend, key.PubKey).sendTx(ctx, w.confirmTx)
 }
 
 func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId twb.TokenTypeID, targetAmount uint64, receiverPubKey []byte, invariantPredicateArgs []*PredicateInput) error {
@@ -311,7 +311,7 @@ func (w *Wallet) SendFungible(ctx context.Context, accountNumber uint64, typeId 
 		if err != nil {
 			return err
 		}
-		return sub.toBatch(w, acc.PubKey).sendTx(ctx)
+		return sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, w.confirmTx)
 	} else {
 		return w.doSendMultiple(ctx, targetAmount, matchingTokens, acc, receiverPubKey, invariantPredicateArgs)
 	}
@@ -350,7 +350,7 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 	if err != nil {
 		return err
 	}
-	return sub.toBatch(w, acc.PubKey).sendTx(ctx)
+	return sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, w.confirmTx)
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

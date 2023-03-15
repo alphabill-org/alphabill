@@ -17,12 +17,9 @@ func TestConfirmUnitsTx_skip(t *testing.T) {
 			return nil
 		},
 	}
-	batch := &txSubmissionBatch{
-		confirmTx: false,
-		backend:   backend,
-	}
+	batch := &txSubmissionBatch{backend: backend}
 	batch.add(&txSubmission{tx: &txsystem.Transaction{Timeout: 1}})
-	err := batch.sendTx(context.Background())
+	err := batch.sendTx(context.Background(), false)
 	require.NoError(t, err)
 
 }
@@ -43,12 +40,9 @@ func TestConfirmUnitsTx_ok(t *testing.T) {
 			return &twb.Proof{}, nil
 		},
 	}
-	batch := &txSubmissionBatch{
-		confirmTx: true,
-		backend:   backend,
-	}
+	batch := &txSubmissionBatch{backend: backend}
 	batch.add(&txSubmission{tx: &txsystem.Transaction{Timeout: 101}})
-	err := batch.sendTx(context.Background())
+	err := batch.sendTx(context.Background(), true)
 	require.NoError(t, err)
 	require.True(t, getRoundNumberCalled)
 	require.True(t, getTxProofCalled)
@@ -63,8 +57,8 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			return nil
 		},
 		getRoundNumber: func(ctx context.Context) (uint64, error) {
-			defer func() { getRoundNumberCalled++ }()
-			if getRoundNumberCalled == 0 {
+			getRoundNumberCalled++
+			if getRoundNumberCalled == 1 {
 				return 100, nil
 			}
 			return 102, nil
@@ -77,15 +71,12 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 			return nil, nil
 		},
 	}
-	batch := &txSubmissionBatch{
-		confirmTx: true,
-		backend:   backend,
-	}
+	batch := &txSubmissionBatch{backend: backend}
 	sub1 := &txSubmission{tx: &txsystem.Transaction{Timeout: 101}, id: randomID1}
 	batch.add(sub1)
 	sub2 := &txSubmission{tx: &txsystem.Transaction{Timeout: 102}}
 	batch.add(sub2)
-	err := batch.sendTx(context.Background())
+	err := batch.sendTx(context.Background(), true)
 	require.ErrorContains(t, err, "confirmation timeout")
 	require.EqualValues(t, 2, getRoundNumberCalled)
 	require.EqualValues(t, 2, getTxProofCalled)

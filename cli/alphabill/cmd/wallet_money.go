@@ -249,7 +249,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		return fmt.Errorf("failed to read current balance: %w", err)
 	}
 	if amount > balance {
-		fmt.Printf("amount: %d balance: %d\n", amount, balance)
+		fmt.Printf("amount: %s balance: %s\n", amountToString(amount, 8), amountToString(balance, 8))
 		return money.ErrInsufficientBalance
 	}
 

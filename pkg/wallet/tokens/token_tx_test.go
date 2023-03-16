@@ -83,3 +83,19 @@ func TestConfirmUnitsTx_timeout(t *testing.T) {
 	require.True(t, sub1.confirmed)
 	require.False(t, sub2.confirmed)
 }
+
+func TestConfirmUnitsTx_canceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	batch := &txSubmissionBatch{}
+	err := batch.confirmUnitsTx(ctx)
+	require.NoError(t, err)
+}
+
+func TestConfirmUnitsTx_contextError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	batch := &txSubmissionBatch{}
+	err := batch.confirmUnitsTx(ctx)
+	require.ErrorContains(t, err, "confirmation failed:")
+}

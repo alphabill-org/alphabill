@@ -33,7 +33,7 @@ func Test_Load(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil)
+	w, err := New(ttxs.DefaultTokenTxSystemIdentifier, srv.URL, nil, false)
 	require.NoError(t, err)
 
 	rn, err := w.getRoundNumber(context.Background())
@@ -734,6 +734,7 @@ type mockTokenBackend struct {
 	getRoundNumber   func(ctx context.Context) (uint64, error)
 	postTransactions func(ctx context.Context, pubKey twb.PubKey, txs *txsystem.Transactions) error
 	getTypeHierarchy func(ctx context.Context, id twb.TokenTypeID) ([]twb.TokenUnitType, error)
+	getTxProof       func(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error)
 }
 
 func (m *mockTokenBackend) GetToken(ctx context.Context, id twb.TokenID) (*twb.TokenUnit, error) {
@@ -776,6 +777,13 @@ func (m *mockTokenBackend) GetTypeHierarchy(ctx context.Context, id twb.TokenTyp
 		return m.getTypeHierarchy(ctx, id)
 	}
 	return nil, fmt.Errorf("GetTypeHierarchy not implemented")
+}
+
+func (m *mockTokenBackend) GetTxProof(ctx context.Context, unitID twb.UnitID, txHash twb.TxHash) (*twb.Proof, error) {
+	if m.getTxProof != nil {
+		return m.getTxProof(ctx, unitID, txHash)
+	}
+	return nil, fmt.Errorf("GetTxProof not implemented")
 }
 
 func getSubarray[T interface{}](array []T, offsetKey string) ([]T, string, error) {

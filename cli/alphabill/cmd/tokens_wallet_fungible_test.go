@@ -113,7 +113,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 
 	require.NoError(t, wlog.InitStdoutLogger(wlog.INFO))
 
-	backendUrl, client, ctx := startTokensBackend(t, nodeDialUrl)
+	backendUrl, _, _ := startTokensBackend(t, nodeDialUrl)
 
 	w1, homedirW1 := createNewTokenWallet(t, backendUrl)
 	w1key, err := w1.GetAccountManager().GetAccountKey(0)
@@ -129,8 +129,7 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	// fungible token types
 	symbol1 := "AB"
 	execTokensCmdWithError(t, homedirW1, "new-type fungible", "required flag(s) \"symbol\" not set")
-	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible  --symbol %s -u %s --type %X --decimals 0", symbol1, backendUrl, typeID1))
-	ensureTokenTypeIndexed(t, ctx, client, w1key.PubKey, typeID1)
+	execTokensCmd(t, homedirW1, fmt.Sprintf("new-type fungible  --symbol %s -u %s --type %X --decimals 0 -w", symbol1, backendUrl, typeID1))
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types fungible -u %s", backendUrl)), "symbol=AB (fungible)")
 	// mint tokens
 	crit := func(amount uint64) func(tx *txsystem.Transaction) bool {
@@ -157,19 +156,16 @@ func TestFungibleTokens_Sending_Integration(t *testing.T) {
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", backendUrl))
 	}, "amount='5'", "amount='3'", "Symbol='AB'")
-	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w2key.PubKey)) //transfer (5) + split (3=>2+1)
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -u %s", backendUrl))
-	}, "amount='6'", "amount='5'", "amount='1'", "Symbol='AB'")
+	execTokensCmd(t, homedirW1, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1 --%s", backendUrl, typeID1, w2key.PubKey, waitForConfCmdName)) //transfer (5) + split (3=>2+1)
+	//check immediately as tx must be confirmed
+	verifyStdout(t, execTokensCmd(t, homedirW2, fmt.Sprintf("list fungible -u %s", backendUrl)), "amount='6'", "amount='5'", "amount='1'", "Symbol='AB'")
 	//check what is left in w1
 	verifyStdoutEventually(t, func() *testConsoleWriter {
 		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", backendUrl))
 	}, "amount='2'")
 	//transfer back w2->w1 (AB-513)
-	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1", backendUrl, typeID1, w1key.PubKey))
-	verifyStdoutEventually(t, func() *testConsoleWriter {
-		return execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", backendUrl))
-	}, "amount='2'", "amount='6'")
+	execTokensCmd(t, homedirW2, fmt.Sprintf("send fungible -u %s --type %X --amount 6 --address 0x%X -k 1 --%s", backendUrl, typeID1, w1key.PubKey, waitForConfCmdName))
+	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list fungible -u %s", backendUrl)), "amount='2'", "amount='6'")
 }
 
 func TestWalletCreateFungibleTokenTypeAndTokenAndSendCmd_IntegrationTest(t *testing.T) {

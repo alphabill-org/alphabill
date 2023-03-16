@@ -561,8 +561,9 @@ func execTokenCmdSendNonFungible(cmd *cobra.Command, config *walletConfig) error
 
 func tokenCmdDC(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "collect-dust",
-		Short: "join fungible tokens into one unit",
+		Use:    "collect-dust",
+		Hidden: true, //TODO: AB-751
+		Short:  "join fungible tokens into one unit",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execTokenCmdDC(cmd, config)
 		},

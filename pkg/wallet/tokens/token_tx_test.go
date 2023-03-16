@@ -89,7 +89,8 @@ func TestConfirmUnitsTx_canceled(t *testing.T) {
 	cancel()
 	batch := &txSubmissionBatch{}
 	err := batch.confirmUnitsTx(ctx)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "confirming transactions interrupted")
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestConfirmUnitsTx_contextError(t *testing.T) {
@@ -97,5 +98,5 @@ func TestConfirmUnitsTx_contextError(t *testing.T) {
 	defer cancel()
 	batch := &txSubmissionBatch{}
 	err := batch.confirmUnitsTx(ctx)
-	require.ErrorContains(t, err, "confirmation failed:")
+	require.ErrorContains(t, err, "confirming transactions interrupted")
 }

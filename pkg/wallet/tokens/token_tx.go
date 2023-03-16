@@ -218,12 +218,7 @@ func (t *txSubmissionBatch) confirmUnitsTx(ctx context.Context) error {
 
 	for {
 		if err := ctx.Err(); err != nil {
-			if errors.Is(err, context.Canceled) {
-				log.Info("Transactions confirmation canceled")
-				return nil
-			} else {
-				return fmt.Errorf("confirmation failed: %w", err)
-			}
+			return fmt.Errorf("confirming transactions interrupted: %w", err)
 		}
 
 		roundNr, err := t.backend.GetRoundNumber(ctx)

@@ -32,7 +32,6 @@ type (
 	// Shutdown needs to be called to release resources used by wallet.
 	Wallet struct {
 		BlockProcessor  BlockProcessor
-		config          Config
 		AlphabillClient client.ABClient
 		syncFlag        *syncFlagWrapper
 	}

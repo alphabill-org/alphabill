@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -86,7 +85,7 @@ func TestGetBills_OK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))
-	gtx, err := backend.NewTxConverter(moneySystemID).ConvertTx(tx)
+	gtx, err := newTxConverter(moneySystemID).ConvertTx(tx)
 	require.NoError(t, err)
 	txHash := gtx.Hash(gocrypto.SHA256)
 
@@ -153,7 +152,7 @@ func TestGetBills_SHA512OK(t *testing.T) {
 
 func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
 	storage, _ := createTestBillStore(t)
-	bp := NewBlockProcessor(storage, backend.NewTxConverter(moneySystemID))
+	bp := NewBlockProcessor(storage, newTxConverter(moneySystemID))
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 	return New(genericWallet, storage)
 }

@@ -18,7 +18,7 @@ import (
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
-func CreateTransactions(pubKey []byte, amount uint64, bills []*Bill, k *account.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
+func createTransactions(pubKey []byte, amount uint64, bills []*Bill, k *account.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
 	var txs []*txsystem.Transaction
 	var accumulatedSum uint64
 	// sort bills by value in descending order
@@ -93,7 +93,7 @@ func createSplitTx(amount uint64, pubKey []byte, k *account.AccountKey, bill *Bi
 	return tx, nil
 }
 
-func CreateDustTx(k *account.AccountKey, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
+func createDustTx(k *account.AccountKey, bill *Bill, nonce []byte, timeout uint64) (*txsystem.Transaction, error) {
 	tx := createGenericTx(bill.GetID(), timeout)
 	err := anypb.MarshalFrom(tx.TransactionAttributes, &money.TransferDCOrder{
 		TargetValue:  bill.Value,
@@ -111,7 +111,7 @@ func CreateDustTx(k *account.AccountKey, bill *Bill, nonce []byte, timeout uint6
 	return tx, nil
 }
 
-func CreateSwapTx(k *account.AccountKey, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
+func createSwapTx(k *account.AccountKey, dcBills []*Bill, dcNonce []byte, billIds [][]byte, timeout uint64) (*txsystem.Transaction, error) {
 	if len(dcBills) == 0 {
 		return nil, errors.New("cannot create swap transaction as no dust bills exist")
 	}

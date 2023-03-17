@@ -1,10 +1,11 @@
 package money
 
 import (
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -78,8 +79,9 @@ func TestWallet_GetBalances(t *testing.T) {
 	w, _ := CreateTestWalletFromSeed(t, &backendMockReturnConf{balance: 10})
 	_, _, err := w.am.AddAccount()
 
-	balances, err := w.GetBalances(GetBalanceCmd{})
+	balances, sum, err := w.GetBalances(GetBalanceCmd{})
 	require.NoError(t, err)
 	require.EqualValues(t, 10, balances[0])
 	require.EqualValues(t, 10, balances[1])
+	require.EqualValues(t, 20, sum)
 }

@@ -6,11 +6,12 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"sort"
 	"strconv"
 	"time"
+
+	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -89,10 +90,13 @@ func (w *Wallet) GetAccountManager() account.Manager {
 	return w.am
 }
 
-// Shutdown terminates connection to alphabill node, closes wallet db, cancels dust collector job and any background goroutines.
+// Shutdown terminates connection to alphabill node, closes account manager and cancels any background goroutines.
 func (w *Wallet) Shutdown() {
 	w.Wallet.Shutdown()
 	w.am.Close()
+	if w.dcWg != nil {
+		w.dcWg.ResetWaitGroup()
+	}
 }
 
 // CollectDust starts the dust collector process for all accounts in the wallet.
@@ -121,17 +125,19 @@ func (w *Wallet) GetBalance(cmd GetBalanceCmd) (uint64, error) {
 
 // GetBalances returns sum value of all bills currently owned by the wallet, for all accounts.
 // The value returned is the smallest denomination of alphabills.
-func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, error) {
+func (w *Wallet) GetBalances(cmd GetBalanceCmd) ([]uint64, uint64, error) {
 	pubKeys, err := w.am.GetPublicKeys()
 	totals := make([]uint64, len(pubKeys))
+	sum := uint64(0)
 	for accountIndex, pubKey := range pubKeys {
 		balance, err := w.restClient.GetBalance(pubKey, cmd.CountDCBills)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
+		sum += balance
 		totals[accountIndex] = balance
 	}
-	return totals, err
+	return totals, sum, err
 }
 
 // Send creates, signs and broadcasts transactions, in total for the given amount,
@@ -175,7 +181,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, err
 	}
 
-	txs, err := CreateTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
+	txs, err := createTransactions(cmd.ReceiverPubKey, cmd.Amount, bills, k, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +212,10 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 	if err != nil {
 		return err
 	}
-	pubKey, _ := w.am.GetPublicKey(accountIndex)
+	pubKey, err := w.am.GetPublicKey(accountIndex)
+	if err != nil {
+		return err
+	}
 	billResponse, err := w.restClient.ListBills(pubKey)
 	if err != nil {
 		return err
@@ -223,7 +232,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		}
 		bills = append(bills, convertBill(proof.Bills[0]))
 	}
-	var expectedSwaps []ExpectedSwap
+	var expectedSwaps []expectedSwap
 	dcBills := collectDcBills(bills)
 	dcNonce := calculateDcNonce(bills)
 	if len(dcBills) > 0 {
@@ -232,7 +241,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		if err != nil {
 			return err
 		}
-		expectedSwaps = append(expectedSwaps, ExpectedSwap{DcNonce: dcNonce, Timeout: swapTimeout})
+		expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: swapTimeout})
 	} else {
 		k, err := w.am.GetAccountKey(accountIndex)
 		if err != nil {
@@ -241,7 +250,7 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 
 		dcTimeout := blockHeight + dcTimeoutBlockCount
 		for _, b := range bills {
-			tx, err := CreateDustTx(k, b, dcNonce, dcTimeout)
+			tx, err := createDustTx(k, b, dcNonce, dcTimeout)
 			if err != nil {
 				return err
 			}
@@ -251,17 +260,10 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				return err
 			}
 		}
-		expectedSwaps = append(expectedSwaps, ExpectedSwap{DcNonce: dcNonce, Timeout: dcTimeout})
-
-		if err != nil {
-			return err
-		}
+		expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
 	}
 	if blocking {
 		w.dcWg.AddExpectedSwaps(expectedSwaps)
-	}
-	if err != nil {
-		return err
 	}
 	if blocking {
 		log.Info("waiting for blocking collect dust on account=", accountIndex, " (wallet needs to be synchronizing to finish this process)")
@@ -289,7 +291,7 @@ func (w *Wallet) swapDcBills(dcBills []*Bill, dcNonce []byte, billIds [][]byte, 
 	if err != nil {
 		return err
 	}
-	swap, err := CreateSwapTx(k, dcBills, dcNonce, billIds, timeout)
+	swap, err := createSwapTx(k, dcBills, dcNonce, billIds, timeout)
 	if err != nil {
 		return err
 	}

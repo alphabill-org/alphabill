@@ -4,6 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/pkg/client"
@@ -12,12 +19,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
-	"io"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"syscall"
 
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -180,7 +181,6 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	defer am.Close()
 	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
 	if err != nil {
 		return err
@@ -213,6 +213,9 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
+	}
+	if accountNumber == 0 {
+		return fmt.Errorf("invalid parameter for \"--key\":0 is not a valid account key")
 	}
 	waitForConfStr, err := cmd.Flags().GetString(waitForConfCmdName)
 	if err != nil {
@@ -293,7 +296,6 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	defer am.Close()
 	w, err := money.LoadExistingWallet(&money.WalletConfig{}, am, restClient)
 	if err != nil {
 		return err
@@ -320,20 +322,13 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		quiet = false // quiet is supposed to work only when total or key flag is provided
 	}
 	if accountNumber == 0 {
-		sum := uint64(0)
-		pubKeys, err := am.GetPublicKeys()
+		totals, sum, err := w.GetBalances(money.GetBalanceCmd{CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
-		for accountIndex, _ := range pubKeys {
-			balance, err := w.GetBalance(money.GetBalanceCmd{AccountIndex: uint64(accountIndex), CountDCBills: showUnswapped})
-			if err != nil {
-				return err
-			}
-			sum += balance
-			if !total {
-				balanceStr := amountToString(balance, 8)
-				consoleWriter.Println(fmt.Sprintf("#%d %s", accountIndex+1, balanceStr))
+		if !total {
+			for i, v := range totals {
+				consoleWriter.Println(fmt.Sprintf("#%d %s", i+1, amountToString(v, 8)))
 			}
 		}
 		sumStr := amountToString(sum, 8)
@@ -398,6 +393,7 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},
+		Hidden: true,
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
@@ -421,7 +417,6 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	defer am.Close()
 
 	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
 	if err != nil {
@@ -434,8 +429,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 	// any error from CollectDust or Sync causes either goroutine to terminate
 	// if collect dust returns without error we signal Sync to cancel manually
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, cancel := context.WithCancel(cmd.Context())
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {

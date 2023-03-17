@@ -3,6 +3,8 @@ package money
 import (
 	"context"
 	"crypto"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
@@ -14,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
@@ -43,7 +44,7 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	nonce := calculateDcNonce(bills)
 	dcBills := []*Bill{addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 1, swapTimeoutBlockCount), addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 2, swapTimeoutBlockCount)}
 	billIds := [][]byte{util.Uint256ToBytes(dcBills[0].Id), util.Uint256ToBytes(dcBills[1].Id)}
-	swapTx, _ := CreateSwapTx(accKey, dcBills, calculateDcNonce(dcBills), billIds, swapTimeout)
+	swapTx, _ := createSwapTx(accKey, dcBills, calculateDcNonce(dcBills), billIds, swapTimeout)
 	_, _ = mockClient.SendTransaction(swapTx)
 
 	// and swap tx is broadcast
@@ -101,7 +102,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	pubKey, _ := w.am.GetPublicKey(0)
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
-	swapTx, _ := CreateSwapTx(k, []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, 10)
+	swapTx, _ := createSwapTx(k, []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, 10)
 	_, _ = mockClient.SendTransaction(swapTx)
 
 	// when dcTimeout is reached
@@ -137,7 +138,7 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	pubKey, _ := w.am.GetPublicKey(0)
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
-	swapTx, _ := CreateSwapTx(k, []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, swapTimeoutBlockCount)
+	swapTx, _ := createSwapTx(k, []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, swapTimeoutBlockCount)
 	_, _ = mockClient.SendTransaction(swapTx)
 
 	// when swapTimeout is reached
@@ -189,7 +190,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	tx, err := CreateSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
+	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
 	require.NoError(t, err)
 	swapTx := parseSwapTx(t, tx)
 
@@ -233,7 +234,7 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 	nonce := calculateDcNonce([]*Bill{b1, b2, b3})
 	dcBills := []*Bill{addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 1, 10), addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 2, 10)}
 	billIds := [][]byte{util.Uint256ToBytes(dcBills[0].Id), util.Uint256ToBytes(dcBills[1].Id), util.Uint256ToBytes(b3.Id)}
-	swapTx, _ := CreateSwapTx(accKey, dcBills, calculateDcNonce(dcBills), billIds, 10)
+	swapTx, _ := createSwapTx(accKey, dcBills, calculateDcNonce(dcBills), billIds, 10)
 	_, _ = mockClient.SendTransaction(swapTx)
 
 	// then swap should be broadcast
@@ -282,7 +283,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, nonce *uint256.Int, value ui
 		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
 
-	tx, err := CreateDustTx(k, &b, nonceB32[:], timeout)
+	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
 	require.NoError(t, err)
 	b.BlockProof = &BlockProof{Tx: tx}
 

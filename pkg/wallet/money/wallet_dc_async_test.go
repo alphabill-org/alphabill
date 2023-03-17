@@ -2,9 +2,10 @@ package money
 
 import (
 	"context"
+	"testing"
+
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestDcJobWithExistingDcBills(t *testing.T) {
@@ -109,19 +110,3 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 		require.NotNil(t, parseSwapTx(t, tx))
 	}
 }
-
-/*
-func TestConcurrentDcJobCannotBeStarted(t *testing.T) {
-	// wallet contains 2 normal bills and dc metadata as if dc process was started
-	w, _ := CreateTestWallet(t)
-	addBills(t, w)
-	dcNonce := calculateExpectedDcNonce(t, w)
-	setDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount})
-
-	// when dust collector runs
-	err := w.collectDust(context.Background(), false, 0)
-	require.ErrorIs(t, err, ErrSwapInProgress)
-
-	// then metadata is the same
-	verifyDcMetadata(t, w, dcNonce, &dcMetadata{DcValueSum: 3, DcTimeout: dcTimeoutBlockCount})
-}*/

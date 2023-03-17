@@ -3,6 +3,8 @@ package money
 import (
 	"sync"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	"github.com/holiman/uint256"
 )
 
@@ -36,10 +38,10 @@ type dcWaitGroup struct {
 	swaps map[uint256.Int]uint64
 }
 
-// ExpectedSwap helper struct to support blocking collect dust feature
-type ExpectedSwap struct {
-	DcNonce []byte
-	Timeout uint64
+// expectedSwap helper struct to support blocking collect dust feature
+type expectedSwap struct {
+	dcNonce []byte
+	timeout uint64
 }
 
 func newDcWaitGroup() *dcWaitGroup {
@@ -59,7 +61,7 @@ func (m *dcMetadata) timeoutReached(blockHeight uint64) bool {
 }
 
 // AddExpectedSwaps increments wg and records expected swap data for each expected swap.
-func (wg *dcWaitGroup) AddExpectedSwaps(swaps []ExpectedSwap) {
+func (wg *dcWaitGroup) AddExpectedSwaps(swaps []expectedSwap) {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 	for _, swap := range swaps {
@@ -113,7 +115,7 @@ func (wg *dcWaitGroup) ResetWaitGroup() {
 }
 
 // addExpectedSwap increments wg and records expected swap data
-func (wg *dcWaitGroup) addExpectedSwap(swap ExpectedSwap) {
+func (wg *dcWaitGroup) addExpectedSwap(swap expectedSwap) {
 	wg.wg.Add(1)
-	wg.swaps[*uint256.NewInt(0).SetBytes(swap.DcNonce)] = swap.Timeout
+	wg.swaps[*util.BytesToUint256(swap.dcNonce)] = swap.timeout
 }

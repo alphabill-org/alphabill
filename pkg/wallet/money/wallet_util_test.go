@@ -4,6 +4,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
+	"testing"
+
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -12,13 +20,6 @@ import (
 	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/holiman/uint256"
 	"google.golang.org/protobuf/encoding/protojson"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strconv"
-	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
@@ -155,9 +156,9 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 		k, _ := w.am.GetAccountKey(0)
 		var dcTx *txsystem.Transaction
 		if overrideNonce != nil {
-			dcTx, _ = CreateDustTx(k, b, overrideNonce, timeout)
+			dcTx, _ = createDustTx(k, b, overrideNonce, timeout)
 		} else {
-			dcTx, _ = CreateDustTx(k, b, calculateDcNonce([]*Bill{b}), timeout)
+			dcTx, _ = createDustTx(k, b, calculateDcNonce([]*Bill{b}), timeout)
 		}
 		mockClient.SetBlock(&block.Block{
 			SystemIdentifier:   alphabillMoneySystemId,

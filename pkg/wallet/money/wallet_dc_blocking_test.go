@@ -2,12 +2,13 @@ package money
 
 import (
 	"context"
-	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBlockingDcWithNormalBills(t *testing.T) {

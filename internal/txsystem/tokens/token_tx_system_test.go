@@ -712,6 +712,49 @@ func TestTransferNFT_Ok(t *testing.T) {
 	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
 }
 
+func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT, set bearer to unspendable predicate
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
+			NewBearer:                    script.PredicateAlwaysFalse(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}),
+	)
+	require.NoError(t, txs.Execute(tx))
+
+	u, err := txs.state.GetUnit(uint256.NewInt(0).SetBytes(unitID))
+	require.NoError(t, err)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), u.StateHash)
+	require.IsType(t, &nonFungibleTokenData{}, u.Data)
+	require.Equal(t, script.PredicateAlwaysFalse(), []byte(u.Bearer))
+
+	// the token must be considered as burned and not transferable
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
+			NewBearer:                    []byte{script.StartByte},
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}),
+	)
+	require.ErrorIs(t, txs.Execute(tx), script.ErrScriptResultFalse)
+}
+
 func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)

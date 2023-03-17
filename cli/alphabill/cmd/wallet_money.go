@@ -466,9 +466,10 @@ func execGetPubKeysCmd(cmd *cobra.Command, config *walletConfig) error {
 
 func collectDustCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "collect-dust",
-		Short: "consolidates bills and synchronizes wallet",
-		Long:  "consolidates all bills into a single bill and synchronizes wallet",
+		Hidden: true, // feature will be enabled in v0.2.0 version
+		Use:    "collect-dust",
+		Short:  "consolidates bills and synchronizes wallet",
+		Long:   "consolidates all bills into a single bill and synchronizes wallet",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},

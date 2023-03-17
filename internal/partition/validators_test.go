@@ -192,7 +192,7 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 			tx:                       moneytesttx.RandomGenericBillTransfer(t), // default systemID is 0000
 			latestBlockNumber:        10,
 			expectedSystemIdentifier: []byte{1, 2, 3, 4},
-			errStr:                   "system identifier is invalid",
+			errStr:                   "invalid system identifier, expected 01020304, got 00000000",
 		},
 		{
 			name:                     "expired transaction",

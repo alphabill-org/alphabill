@@ -103,8 +103,8 @@ func (v *Node) loop() {
 					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
 					return
 				}
-				v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
 				logger.Trace("%v handshake: system id %v, node %v", v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
+				v.onHandshake(req)
 				break
 			default:
 				logger.Warning("%v protocol %s not supported.", v.peer.LogID(), msg.Protocol)
@@ -137,6 +137,20 @@ func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) 
 	)
 }
 
+func (v *Node) onHandshake(req *handshake.Handshake) {
+	v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
+	sysID := proto.SystemIdentifier(req.SystemIdentifier)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
+	if err != nil {
+		logger.Warning("%v handshake error, partition %X certificate read failed, %v", v.peer.LogID(), sysID.Bytes(), err)
+		return
+	}
+	if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
+		logger.Warning("%v handshake error, failed to send response, %v", v.peer.LogID(), err)
+		return
+	}
+}
+
 // OnBlockCertificationRequest handle certification requests from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
@@ -152,14 +166,13 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
-	systemIdentifier := proto.SystemIdentifier(req.SystemIdentifier)
-	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(systemIdentifier)
+	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v rejected, failed to read last certified state %v",
 			v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier, err)
 		return
 	}
-	v.subscription.Subscribe(systemIdentifier, req.NodeIdentifier)
+	v.subscription.Subscribe(sysID, req.NodeIdentifier)
 	err = consensus.CheckBlockCertificationRequest(req, latestUnicityCertificate)
 	if err != nil {
 		logger.Warning("%v block certification request from %X node %v invalid, %v",
@@ -179,10 +192,10 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 	// In case of quorum or no quorum possible forward the IR change request to consensus manager
 	if ir != nil {
 		logger.Debug("%v partition %X reached consensus, new InputHash: %X",
-			v.peer.LogID(), systemIdentifier.Bytes(), ir.Hash)
-		requests := v.incomingRequests.GetRequests(systemIdentifier)
+			v.peer.LogID(), sysID.Bytes(), ir.Hash)
+		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: systemIdentifier,
+			SystemIdentifier: sysID,
 			Reason:           consensus.Quorum,
 			Requests:         requests,
 		}
@@ -190,11 +203,11 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 	}
 	if !consensusPossible {
 		logger.Debug("%v partition %X consensus not possible, repeat UC",
-			v.peer.LogID(), systemIdentifier.Bytes())
+			v.peer.LogID(), sysID.Bytes())
 		// add all requests to prove that no consensus is possible
-		requests := v.incomingRequests.GetRequests(systemIdentifier)
+		requests := v.incomingRequests.GetRequests(sysID)
 		v.consensusManager.RequestCertification() <- consensus.IRChangeRequest{
-			SystemIdentifier: systemIdentifier,
+			SystemIdentifier: sysID,
 			Reason:           consensus.QuorumNotPossible,
 			Requests:         requests,
 		}

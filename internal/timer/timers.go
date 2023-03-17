@@ -29,6 +29,11 @@ func (t *Task) Name() string {
 	return t.name
 }
 
+// todo: this is a quick hack to simulate timer event in test, find a better way
+func (t *Task) SetName(n string) {
+	t.name = n
+}
+
 func (t *Task) Duration() time.Duration {
 	return t.duration
 }

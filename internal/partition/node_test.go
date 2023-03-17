@@ -268,8 +268,7 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	//genericBlock, _ := block.ToGenericBlock(txSystem)
 	//blockHash, _ := genericBlock.Hash(gocrypto.SHA256)
 	//block2 := tp.GetLatestBlock()
-	uc2, err := tp.store.LatestUC()
-	require.NoError(t, err)
+	uc2 := tp.partition.luc
 	require.Equal(t, block.UnicityCertificate.InputRecord.RoundNumber+1, uc2.InputRecord.RoundNumber)
 	require.Equal(t, block.SystemIdentifier, uc2.UnicityTreeCertificate.SystemIdentifier)
 	//require.Equal(t, blockHash, block2.PreviousBlockHash)
@@ -303,7 +302,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificates, different input records for same partition round")
+	ContainsError(t, tp, "equivocating certificate, different input records for same partition round")
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
@@ -331,7 +330,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	require.NoError(t, err)
 
 	tp.SubmitUnicityCertificate(equivocatingUC)
-	ContainsError(t, tp, "equivocating certificates, different input records for same partition round 2")
+	ContainsError(t, tp, "equivocating certificate, different input records for same partition round 2")
 }
 
 // state does not change in case of no transactions in money partition
@@ -440,7 +439,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "1", UnicityCertificate: block.UnicityCertificate})
-	ContainsError(t, tp, "public key with node id 1 not found")
+	ContainsError(t, tp, "public key for id 1 not found")
 }
 
 func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
@@ -458,7 +457,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.SystemDescriptionRecord, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", UnicityCertificate: block.UnicityCertificate})
+	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: tp.nodeDeps.peer.ID().String(), UnicityCertificate: block.UnicityCertificate})
 
 	ContainsError(t, tp, "invalid system identifier")
 }
@@ -473,7 +472,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, block), test.WaitDuration, test.WaitTick)
 
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "r", SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
+	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: tp.nodeDeps.peer.ID().String(), SystemIdentifier: tp.nodeConf.GetSystemIdentifier(), UnicityCertificate: block.UnicityCertificate})
 
 	ContainsError(t, tp, "received UC is older, uc round 1, luc round 2")
 }
@@ -493,7 +492,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	}
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     "r",
+		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
 		UnicityCertificate: uc,
 		Transactions:       []*txsystem.Transaction{},
 	}
@@ -514,7 +513,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 	require.NoError(t, err)
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     "r",
+		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
 		UnicityCertificate: uc,
 		Transactions:       []*txsystem.Transaction{},
 	}
@@ -536,7 +535,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	require.NoError(t, err)
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     "r",
+		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
 		UnicityCertificate: uc,
 		Transactions:       []*txsystem.Transaction{},
 	}
@@ -544,7 +543,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	require.NoError(t, err)
 	system.InitCount = 10000
 	tp.SubmitBlockProposal(bp)
-	ContainsError(t, tp, "invalid tx system state root. expected")
+	ContainsError(t, tp, "tx system start state mismatch error, expected")
 }
 
 func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
@@ -567,7 +566,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	require.NoError(t, err)
 	bp := &blockproposal.BlockProposal{
 		SystemIdentifier:   uc.UnicityTreeCertificate.SystemIdentifier,
-		NodeIdentifier:     "r",
+		NodeIdentifier:     tp.nodeDeps.peer.ID().String(),
 		UnicityCertificate: uc,
 		Transactions:       []*txsystem.Transaction{},
 	}

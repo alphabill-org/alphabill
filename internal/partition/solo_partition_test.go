@@ -4,6 +4,7 @@ import (
 	gocrypto "crypto"
 	"crypto/rand"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -12,13 +13,13 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/database"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	rstore "github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
@@ -40,7 +41,7 @@ type AlwaysValidTransactionValidator struct{}
 
 type SingleNodePartition struct {
 	nodeConf   *configuration
-	store      store.BlockStore
+	store      database.KeyValueDB
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
 	rootState  rstore.RootState
@@ -75,11 +76,10 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
-
 	systemId := []byte{1, 1, 1, 1}
 	nodeGenesis, err := NewNodeGenesis(
 		txSystem,
-		WithPeerID("1"),
+		WithPeerID(peer.ID()),
 		WithSigningKey(nodeSigner),
 		WithEncryptionPubKey(pubKeyBytes),
 		WithSystemIdentifier(systemId),
@@ -151,8 +151,8 @@ func (sn *SingleNodePartition) StartNode() error {
 		append([]NodeOption{
 			WithT1Timeout(100 * time.Minute),
 			WithLeaderSelector(&TestLeaderSelector{
-				leader:      "1",
-				currentNode: "1",
+				leader:      sn.nodeDeps.peer.ID(),
+				currentNode: sn.nodeDeps.peer.ID(),
 			}),
 			WithTxValidator(&AlwaysValidTransactionValidator{}),
 			WithEventHandler(sn.eh.HandleEvent, 100),
@@ -259,9 +259,15 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []
 }
 
 func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *block.Block {
-	bl, err := sn.store.LatestBlock()
-	require.NoError(t, err)
-	return bl
+	dbIt := sn.store.Last()
+	defer func() {
+		if err := dbIt.Close(); err != nil {
+			logger.Warning("Unexpected DB iterator error %v", err)
+		}
+	}()
+	var bl block.Block
+	require.NoError(t, dbIt.Value(&bl))
+	return &bl
 }
 
 func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
@@ -297,7 +303,9 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityC
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
-	sn.partition.timers.C <- &timer.Task{}
+	t1 := &timer.Task{}
+	t1.SetName(t1TimerName)
+	sn.partition.timers.C <- t1
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
@@ -372,6 +380,7 @@ func createPeer(t *testing.T) *network.Peer {
 }
 
 func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.Block) func() bool {
+	t.Helper()
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
 		// NB! it could also be that repeat UC is received
@@ -381,7 +390,7 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.B
 
 func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
 	for _, t := range block.Transactions {
-		if t == tx {
+		if reflect.DeepEqual(t, tx) {
 			return true
 		}
 	}

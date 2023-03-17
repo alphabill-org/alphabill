@@ -84,12 +84,12 @@ func CheckNonEquivocatingCertificates(prevUC *UnicityCertificate, newUC *Unicity
 	}
 	// 1. uc.IR.hB = 0H - empty block must not change state - this is done when certificate validity is verified
 	if isZeroHash(newUC.InputRecord.BlockHash) && bytes.Equal(newUC.InputRecord.PreviousHash, newUC.InputRecord.Hash) == false {
-		return fmt.Errorf("invalid UC, state hash has changed, but block is zero hash")
+		return fmt.Errorf("state hash has changed, but block is zero hash")
 	}
 	// 2. uc.IR.n = uc′ .IR.n - if the partition round number is the same then input records must also match
 	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber {
 		if newUC.InputRecord != prevUC.InputRecord {
-			return fmt.Errorf("equivocating certificates, different input records for same partition round %v", newUC.InputRecord.RoundNumber)
+			return fmt.Errorf("different input records for same partition round %v", newUC.InputRecord.RoundNumber)
 		}
 		// ok, these are just duplicates
 	}
@@ -99,7 +99,7 @@ func CheckNonEquivocatingCertificates(prevUC *UnicityCertificate, newUC *Unicity
 		//				- the new UC extends from the previous UC
 		if !(bytes.Equal(newUC.InputRecord.Hash, prevUC.InputRecord.Hash) == true ||
 			bytes.Equal(prevUC.InputRecord.Hash, newUC.InputRecord.PreviousHash) == true) {
-			return fmt.Errorf("equivocating certificates, previous state hash is equal, but new certificate does not extend it nor is it a repeat certificate")
+			return fmt.Errorf("previous state hash is equal, but new certificate does not extend it nor is it a repeat certificate")
 		}
 	}
 	// 4. uc.IR.h = uc′ .IR.h - if certificates new input record new state hash is the same
@@ -108,13 +108,13 @@ func CheckNonEquivocatingCertificates(prevUC *UnicityCertificate, newUC *Unicity
 		//              - new UC is repeat UC from previous state
 		if !(bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.PreviousHash) == true ||
 			bytes.Equal(newUC.InputRecord.Hash, newUC.InputRecord.PreviousHash) == true) {
-			return fmt.Errorf("equivocating certificates, new state hash is equal, but both are not repeat certificates of the same state nor is the new repeat certificate")
+			return fmt.Errorf("new state hash is equal, but both are not repeat certificates of the same state nor is the new repeat certificate")
 		}
 	}
 	// 5. uc.IR.n = uc′ .IR.n + 1 - if this new UC follows previous UC
 	if newUC.InputRecord.RoundNumber == prevUC.InputRecord.RoundNumber+1 {
 		if bytes.Equal(newUC.InputRecord.PreviousHash, prevUC.InputRecord.Hash) == false {
-			return fmt.Errorf("equivocating certificates, new certiticte does not extend previous state hash")
+			return fmt.Errorf("new certiticte does not extend previous state hash")
 		}
 	}
 	return nil

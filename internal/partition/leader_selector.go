@@ -2,10 +2,10 @@ package partition
 
 import (
 	"crypto"
+	"errors"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/holiman/uint256"
@@ -69,7 +69,7 @@ func (l *DefaultLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.leader = l.LeaderFromUnicitySeal(seal)
-	logger.Info("Leader set to '%v'", l.leader)
+	logger.Debug("Leader set to '%v'", l.leader)
 }
 
 func (l *DefaultLeaderSelector) LeaderFromUnicitySeal(seal *certificates.UnicitySeal) peer.ID {

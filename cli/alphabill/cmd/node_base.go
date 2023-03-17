@@ -9,11 +9,13 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
+	"github.com/alphabill-org/alphabill/internal/database"
+	"github.com/alphabill-org/alphabill/internal/database/boltdb"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/starter"
@@ -27,6 +29,8 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
+
+const BoltBlockStoreFileName = "blocks.db"
 
 type baseNodeConfiguration struct {
 	Base *baseConfiguration
@@ -237,11 +241,11 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	return p, node, nil
 }
 
-func initNodeBlockStore(dbFile string) (store.BlockStore, error) {
+func initNodeBlockStore(dbFile string) (database.KeyValueDB, error) {
 	if dbFile != "" {
-		return store.NewBoltBlockStore(dbFile)
+		return boltdb.New(dbFile)
 	} else {
-		return store.NewInMemoryBlockStore(), nil
+		return memorydb.New(), nil
 	}
 }
 
@@ -267,7 +271,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringToStringVarP(&config.Peers, "peers", "p", nil, "a map of partition peer identifiers and addresses. must contain all genesis validator addresses")
 	nodeCmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the key file (default: $AB_HOME/%s/keys.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
-	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, store.BoltBlockStoreFileName))
+	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 }

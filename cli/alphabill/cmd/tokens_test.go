@@ -110,7 +110,7 @@ func TestRunTokensNode(t *testing.T) {
 		// failing case
 		tx.SystemId = []byte{1, 0, 0, 0} // incorrect system id
 		response, err = rpcClient.ProcessTransaction(ctx, tx, grpc.WaitForReady(true))
-		require.ErrorContains(t, err, "system identifier is invalid")
+		require.ErrorContains(t, err, "invalid system identifier")
 		require.Nil(t, response, "expected nil response in case of error")
 	})
 }

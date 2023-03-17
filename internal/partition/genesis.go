@@ -2,10 +2,10 @@ package partition
 
 import (
 	gocrypto "crypto"
+	"errors"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	pg "github.com/alphabill-org/alphabill/internal/partition/genesis"
@@ -94,13 +94,13 @@ func WithParams(params *anypb.Any) GenesisOption {
 // block certification request by calling the TransactionSystem.EndBlock function. Must contain PeerID, signer, and
 // system identifier and public encryption key configuration:
 //
-//    pn, err := NewNodeGenesis(
-//					txSystem,
-//					WithPeerID(myPeerID),
-//					WithSigningKey(signer),
-//					WithSystemIdentifier(sysID),
-// 					WithEncryptionPubKey(encPubKey),
-//				)
+//	   pn, err := NewNodeGenesis(
+//						txSystem,
+//						WithPeerID(myPeerID),
+//						WithSigningKey(signer),
+//						WithSystemIdentifier(sysID),
+//						WithEncryptionPubKey(encPubKey),
+//					)
 //
 // This function must be called by all partition nodes in the network.
 func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) (*genesis.PartitionNode, error) {

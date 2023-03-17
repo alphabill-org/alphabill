@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -12,6 +11,10 @@ import (
 
 const (
 	moneyBackendHomeDir = "money-backend"
+
+	serverAddrCmdName  = "server-addr"
+	dbFileCmdName      = "db"
+	listBillsPageLimit = "list-bills-page-limit"
 )
 
 type moneyBackendConfig struct {
@@ -58,8 +61,8 @@ func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 			consoleWriter.Println("Error: must specify a subcommand")
 		},
 	}
-	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", fmt.Sprintf("log file path (default output to stderr)"))
-	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", fmt.Sprintf("logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)"))
+	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
+	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
 	walletCmd.AddCommand(startMoneyBackendCmd(ctx, config))
 	return walletCmd
 }

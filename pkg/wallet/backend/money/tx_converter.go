@@ -1,4 +1,4 @@
-package backend
+package money
 
 import (
 	"errors"
@@ -7,15 +7,15 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem/money"
 )
 
-type TxConverter struct {
+type txConverter struct {
 	systemID []byte
 }
 
-func NewTxConverter(systemId []byte) *TxConverter {
-	return &TxConverter{systemID: systemId}
+func NewTxConverter(systemId []byte) *txConverter {
+	return &txConverter{systemID: systemId}
 }
 
-func (t *TxConverter) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
+func (t *txConverter) ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) {
 	if tx == nil {
 		return nil, errors.New("cannot convert tx: tx is nil")
 	}

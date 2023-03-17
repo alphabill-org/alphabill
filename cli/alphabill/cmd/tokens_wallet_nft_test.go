@@ -62,6 +62,9 @@ func TestNFTs_Integration(t *testing.T) {
 	// list token types
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types -u %s", backendUrl)), "symbol=ABNFT (nft)")
 	verifyStdout(t, execTokensCmd(t, homedirW1, fmt.Sprintf("list-types non-fungible -u %s", backendUrl)), "symbol=ABNFT (nft)")
+	// transfer back
+	execTokensCmd(t, homedirW2, fmt.Sprintf("send non-fungible -u %s --token-identifier %X --address 0x%X -k 1", backendUrl, nftID, w1key.PubKey))
+	ensureTokenIndexed(t, ctx, client, w1key.PubKey, nftID)
 }
 
 func TestNFTDataUpdateCmd_Integration(t *testing.T) {

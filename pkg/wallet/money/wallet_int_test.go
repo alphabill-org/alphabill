@@ -4,6 +4,12 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"net"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -20,7 +26,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -30,11 +35,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"net"
-	"path/filepath"
-	"sync"
-	"testing"
-	"time"
 )
 
 const port = 9111
@@ -287,7 +287,7 @@ func createInitialBillTransferTx(pubKey []byte, billId *uint256.Int, billValue u
 func createWalletBackend(t *testing.T, addr string) (*money.WalletBackend, *money.BoltBillStore) {
 	dbFile := filepath.Join(t.TempDir(), money.BoltBillStoreFileName)
 	storage, _ := money.NewBoltBillStore(dbFile)
-	bp := money.NewBlockProcessor(storage, backend.NewTxConverter([]byte{0, 0, 0, 0}))
+	bp := money.NewBlockProcessor(storage, money.NewTxConverter([]byte{0, 0, 0, 0}))
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(client.New(client.AlphabillClientConfig{Uri: addr})).Build()
 	return money.New(genericWallet, storage), storage
 }

@@ -11,16 +11,16 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/term"
-
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/spf13/cobra"
 )
@@ -53,11 +53,6 @@ const (
 	totalCmdName            = "total"
 	quietCmdName            = "quiet"
 	showUnswappedCmdName    = "show-unswapped"
-	maxTxFailedTries        = 3
-	txBufferFullErrMsg      = "tx buffer is full"
-	dcTimeoutBlockCount     = 10
-	swapTimeoutBlockCount   = 60
-	txTimeoutBlockCount     = 100
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.

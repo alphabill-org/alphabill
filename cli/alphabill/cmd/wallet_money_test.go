@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/pkg/wallet/money"
+
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
@@ -355,6 +357,18 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --alphabill-api-uri %s", 1, pubKey2Hex, homedir, addr.Host))
 	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
 	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
+}
+
+func TestSendingFailsWithInsufficientBalance(t *testing.T) {
+	am, homedir := createNewWallet(t)
+	pubKey, _ := am.GetPublicKey(0)
+	am.Close()
+
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: 5e8})
+	defer mockServer.Close()
+
+	_, err := execCommand(homedir, "send --amount 10 --address "+hexutil.Encode(pubKey)+" --alphabill-api-uri "+addr.Host)
+	require.ErrorIs(t, err, money.ErrInsufficientBalance)
 }
 
 func startAlphabillPartition(t *testing.T, initialBill *moneytx.InitialBill) *testpartition.AlphabillPartition {

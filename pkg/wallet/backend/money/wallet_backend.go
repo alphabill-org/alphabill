@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -91,7 +90,7 @@ func CreateAndRun(ctx context.Context, config *Config) error {
 		return fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	bp := NewBlockProcessor(store, backend.NewTxConverter(config.ABMoneySystemIdentifier))
+	bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier))
 	w := wallet.New().SetBlockProcessor(bp).SetABClient(client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})).Build()
 
 	service := New(w, store)

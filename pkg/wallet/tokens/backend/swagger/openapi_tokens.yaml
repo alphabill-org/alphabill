@@ -2,8 +2,10 @@ openapi: 3.0.3
 info:
   title: Token Wallet Backend REST API
   description: |-
-    So called Indexing backend for token partition. Meant as a back-end for wallet.
-  version: 0.0.1
+    So called Indexing back-end for token partition (UTP).
+    
+    Meant as a back-end for wallet, it supports some queries which are not possible on "pure blockchain".
+  version: 0.0.2
 servers:
   - url: /api/v1
   - url: https://dev-ab-tokens-backend.abdev1.guardtime.com/api/v1
@@ -50,7 +52,7 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/TokenTypeIDParam'
+            $ref: '#/components/schemas/UnitIDParam'
       responses:
         '200':
           description: token type with given ID was found.
@@ -86,7 +88,7 @@ paths:
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/PublicKey'
+            $ref: '#/components/schemas/PublicKeyParam'
         - name: offsetKey
           description: when doing batched queries, offset key returned by the previous query. 
           in: query
@@ -131,10 +133,7 @@ paths:
             Hex encoded string of the token ID which starts with `0x`.
             Must be 66 characters long (including 0x prefix).
           schema:
-            type: string
-            minLength: 66
-            maxLength: 66
-            default: 0x
+            $ref: '#/components/schemas/UnitIDParam'
       responses:
         '200':
           description: Token with given ID was found.
@@ -167,7 +166,7 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/PublicKey'
+            $ref: '#/components/schemas/PublicKeyParam'
         - name: offsetKey
           description: when doing batched queries, offset key returned by the previous query. 
           in: query
@@ -193,6 +192,42 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /units/{unitId}/transactions/{txHash}/proof:
+    get:
+      tags:
+        - token type
+        - token
+      summary: Query transaction proofs
+      description: return proofs for token transactions.
+      parameters:
+        - name: unitId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UnitIDParam'
+        - name: txHash
+          in: path
+          required: true
+          schema:
+            type: string
+            default: 0x
+      responses:
+        '200':
+          description: transaction proof was found.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Proof'
+        '404':
+          description: transaction is not in the index.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /transactions/{pubkey}:
     post:
       tags:
@@ -207,7 +242,7 @@ paths:
           required: true
           description: identifies the sender of the transactions.
           schema:
-            $ref: '#/components/schemas/PublicKey'
+            $ref: '#/components/schemas/PublicKeyParam'
       requestBody:
         $ref: '#/components/requestBodies/TransactionArray'
       responses:
@@ -253,27 +288,32 @@ components:
       enum:
         - 2
         - 4
-    PublicKey:
-      type: string
-      description: |-
-        Hex encoded string of the public key which starts with `0x`.
-        Must be 68 characters long (including 0x prefix).
-      minLength: 68
-      maxLength: 68
-      default: 0x
     TokenTypeID:
       type: string
       format: byte
       nullable: false
       example: I+v1+3MrmBCoSuk1zlff0loozI9BHc8fqVb3WGeQrC4=
-    TokenTypeIDParam:
+    PublicKeyParam:
       type: string
       description: |-
-        Hex encoded string of the token type ID which starts with `0x`.
-        Must be 66 characters long (including 0x prefix).
+        Hex encoded string of the public key, prefixed by `0x`.
+        Must be 68 characters long (including 0x prefix).
+        
+        This type is used for query input parameters.
+      minLength: 68
+      maxLength: 68
+      default: 0x
+    UnitIDParam:
+      type: string
+      description: |-
+        Unit ID is a 32 byte binary value encoded as hex string, prefixed by `0x` marker.
+        So the valid string representation of the value must be 66 characters long (including 0x prefix).
+        
+        This type is used for query input parameters like token ID or token type ID.
       minLength: 66
       maxLength: 66
       default: 0x
+      example: '0x3a04762909373b3c273ff3726746d7a787836d767733dabc2773619870c081a3'
     TxHash:
       type: string
       format: byte
@@ -352,6 +392,17 @@ components:
             - description: only when "kind" is "nft"
         txHash:
           $ref: '#/components/schemas/TxHash'
+    Proof:
+      type: object
+      properties:
+        blockNumber:
+          type: string
+          description: uint64 encoded as string
+          example: "62534"
+        tx:
+          $ref: '#/components/schemas/transaction.Transaction'
+        proof:
+          $ref: '#/components/schemas/block_proof.BlockProof'
     ErrorResponse:
       description: returned by endpoint in case of bad request or internal error.
       type: object
@@ -550,13 +601,7 @@ components:
                 format: byte
                 type: string
               proofType:
-                enum:
-                - PRIM
-                - SEC
-                - ONLYSEC
-                - NOTRANS
-                - EMPTYBLOCK
-                type: string
+                $ref: '#/components/schemas/block_proof.ProofType'
               secTreeHashChain:
                 properties:
                   items:
@@ -782,6 +827,118 @@ components:
             type: string
           type: array
       type: object
+    block_proof.BlockProof:
+      properties:
+        blockHeaderHash:
+          format: byte
+          type: string
+        blockTreeHashChain:
+          properties:
+            items:
+              items:
+                properties:
+                  hash:
+                    format: byte
+                    type: string
+                  val:
+                    format: byte
+                    type: string
+                type: object
+              type: array
+          type: object
+        hashValue:
+          description: hash value of either primary tx or secondary txs or zero hash, depending on proof type
+          format: byte
+          type: string
+        proofType:
+          $ref: '#/components/schemas/block_proof.ProofType'
+        secTreeHashChain:
+          properties:
+            items:
+              items:
+                properties:
+                  directionLeft:
+                    description: DirectionLeft direction from parent node; left=true right=false
+                    type: boolean
+                  pathItem:
+                    description: PathItem Hash of Merkle Tree node
+                    format: byte
+                    type: string
+                type: object
+              type: array
+          type: object
+        transactionsHash:
+          format: byte
+          type: string
+        unicityCertificate:
+          properties:
+            inputRecord:
+              properties:
+                blockHash:
+                  description: hash of the block
+                  format: byte
+                  type: string
+                hash:
+                  description: hash to be certified
+                  format: byte
+                  type: string
+                previousHash:
+                  description: previously certified root hash
+                  format: byte
+                  type: string
+                summaryValue:
+                  description: summary value to certified
+                  format: byte
+                  type: string
+              type: object
+            unicitySeal:
+              type: object
+              properties:
+                hash:
+                  format: byte
+                  type: string
+                previousHash:
+                  format: byte
+                  type: string
+                rootChainRoundNumber:
+                  format: int64
+                  type: integer
+                signatures:
+                  type: object
+                  additionalProperties:
+                    format: byte
+                    type: string
+            unicityTreeCertificate:
+              properties:
+                siblingHashes:
+                  items:
+                    format: byte
+                    type: string
+                  type: array
+                systemDescriptionHash:
+                  format: byte
+                  type: string
+                systemIdentifier:
+                  format: byte
+                  type: string
+              type: object
+          type: object
+      type: object
+    block_proof.ProofType:
+      type: integer
+      description: |
+        - PRIM = 0
+        - SEC = 1
+        - ONLYSEC = 2
+        - NOTRANS = 3
+        - EMPTYBLOCK = 4
+      enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+
   requestBodies:
     TransactionArray:
       description: List of transaction objects

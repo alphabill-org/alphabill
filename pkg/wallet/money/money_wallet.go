@@ -158,7 +158,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 		return nil, ErrInsufficientBalance
 	}
 
-	maxBlockNo, err := w.GetMaxBlockNumber()
+	maxBlockNo, err := w.GetMaxBlockNumber(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func (w *Wallet) Send(ctx context.Context, cmd SendCmd) ([]*Bill, error) {
 // if blocking is false then the function returns after sending the dc transfers.
 func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex uint64) error {
 	log.Info("starting dust collection for account=", accountIndex, " blocking=", blocking)
-	blockHeight, err := w.GetMaxBlockNumber()
+	blockHeight, err := w.GetMaxBlockNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func (w *Wallet) waitForConfirmation(ctx context.Context, pendingTxs []*txsystem
 	blockNumber := maxBlockNumber
 	txsLog := NewTxLog(pendingTxs)
 	for blockNumber <= timeout {
-		b, err := w.AlphabillClient.GetBlock(blockNumber)
+		b, err := w.AlphabillClient.GetBlock(ctx, blockNumber)
 		if err != nil {
 			return nil, err
 		}

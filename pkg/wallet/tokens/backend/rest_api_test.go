@@ -2,6 +2,7 @@ package twb
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -106,7 +107,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) { return nil, expErr },
-			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return nil, fmt.Errorf("unexpected call")
 			},
@@ -139,7 +140,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: txsys.ConvertTx,
-			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return &txsystem.TransactionResponse{Ok: true}, nil
 			},
@@ -177,7 +178,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: txsys.ConvertTx,
-			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return &txsystem.TransactionResponse{Ok: true}, nil
 			},
@@ -338,7 +339,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := encodeHex[TokenID](data[len(data)-1].ID)
+			exp := encodeHex(data[len(data)-1].ID)
 			if s := u.Query().Get("offsetKey"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
@@ -569,7 +570,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := encodeHex[TokenTypeID](data[len(data)-1].ID)
+			exp := encodeHex(data[len(data)-1].ID)
 			if s := u.Query().Get("offsetKey"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
@@ -620,7 +621,7 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 			},
 		}
 
-		rsp := makeRequest(api, encodeHex[TokenTypeID](tokTyp.ID))
+		rsp := makeRequest(api, encodeHex(tokTyp.ID))
 		var rspData []*TokenUnitType
 		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
@@ -640,7 +641,7 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 			},
 		}
 
-		rsp := makeRequest(api, encodeHex[TokenTypeID](tokTyp.ID))
+		rsp := makeRequest(api, encodeHex(tokTyp.ID))
 		var rspData []*TokenUnitType
 		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
@@ -667,7 +668,7 @@ func Test_restAPI_typeHierarchy(t *testing.T) {
 			},
 		}
 
-		rsp := makeRequest(api, encodeHex[TokenTypeID](tokTypB.ID))
+		rsp := makeRequest(api, encodeHex(tokTypB.ID))
 		var rspData []*TokenUnitType
 		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
 		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTypA, tokTypB})

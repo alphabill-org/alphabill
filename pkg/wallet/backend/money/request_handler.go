@@ -218,8 +218,8 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 // @produce application/json
 // @Success 200 {object} BlockHeightResponse
 // @Router /block-height [get]
-func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, _ *http.Request) {
-	maxBlockNumber, err := s.Service.GetMaxBlockNumber()
+func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
+	maxBlockNumber, err := s.Service.GetMaxBlockNumber(r.Context())
 	if err != nil {
 		log.Error("GET /block-height error fetching max block number", err)
 		w.WriteHeader(http.StatusInternalServerError)

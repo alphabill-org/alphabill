@@ -74,7 +74,7 @@ func Test_Run(t *testing.T) {
 		cfg := &mockCfg{
 			dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 			abc: &mockABClient{
-				getBlocks: func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+				getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 					cancel() // stop the service
 					return nil, expErr
 				},
@@ -94,7 +94,7 @@ func Test_Run(t *testing.T) {
 		cfg := &mockCfg{
 			dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 			abc: &mockABClient{
-				getBlocks: func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+				getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 					select {
 					case syncing <- struct{}{}:
 					default:
@@ -144,11 +144,11 @@ func Test_Run_API(t *testing.T) {
 		log:    logger,
 		dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 		abc: &mockABClient{
-			sendTransaction: func(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				syncing <- tx
 				return &txsystem.TransactionResponse{Ok: true}, nil
 			},
-			getBlocks: func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+			getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 				select {
 				case tx := <-syncing:
 					return &alphabill.GetBlocksResponse{

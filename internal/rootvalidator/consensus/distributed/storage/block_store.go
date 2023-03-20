@@ -189,6 +189,7 @@ func (x *BlockStore) updateCertificateCache(certs map[protocol.SystemIdentifier]
 	for id, uc := range certs {
 		x.Certificates[id] = uc
 		// and persist changes
+		// todo: AB-795 persistent storage failure?
 		x.storage.GetCertificatesDB().Write(id.Bytes(), uc)
 	}
 }

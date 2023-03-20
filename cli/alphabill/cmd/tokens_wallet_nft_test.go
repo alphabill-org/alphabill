@@ -134,7 +134,7 @@ func TestNFTDataUpdateCmd_Integration(t *testing.T) {
 	nft2 := ensureTokenIndexed(t, ctx, client, w1key.PubKey, nftID2)
 	require.Equal(t, []byte{0x01}, nft2.NftData)
 	//try to update and observe failure
-	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --token-identifier %X --data 02 --data-update-input false,true", backendUrl, nftID2))
+	execTokensCmd(t, homedir, fmt.Sprintf("update -u %s --token-identifier %X --data 02 --data-update-input false,true -w false", backendUrl, nftID2))
 	testevent.ContainsEvent(t, partition.EventHandler, event.TransactionFailed)
 }
 

@@ -24,7 +24,8 @@ func (p *blockProcessor) ProcessBlock(ctx context.Context, b *block.Block) error
 	if err != nil {
 		return fmt.Errorf("failed to read current block number: %w", err)
 	}
-	// TODO: AB-505 block numbers are not sequential any more, gaps might appear as empty block are not stored and sent
+	// block numbers must not be sequential (gaps might appear as empty block are not stored
+	// and sent) but must be in ascending order
 	if lastBlockNumber >= b.UnicityCertificate.InputRecord.RoundNumber {
 		return fmt.Errorf("invalid block, received block %d, current wallet block %d", b.UnicityCertificate.InputRecord.RoundNumber, lastBlockNumber)
 	}

@@ -890,9 +890,8 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	// check if recovery is complete
 	latestBlockUc := n.lastBlock.UnicityCertificate
 	logger.Debug("Checking if recovery is complete, last block is from round: %v", latestBlockUc.InputRecord.RoundNumber)
-	// todo: this is not enough as a block may exist that does not change the state hash and due to this we cannot know
-	// if we are in fact up to date or are missing the blocks from the end that did not change the state. There is no way to be sure.
-	// If a block is missing, node will know about it when extending the chain and should fall back to recovery again.
+	// every non-empty block is guaranteed to change state hash, meaning if the state hash is equal to luc state hash
+	// then recovery is complete
 	if bytes.Equal(latestBlockUc.InputRecord.Hash, n.luc.InputRecord.Hash) {
 		n.startNewRound(n.luc)
 	} else {

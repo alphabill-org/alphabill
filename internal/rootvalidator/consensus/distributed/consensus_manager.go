@@ -280,40 +280,6 @@ func (x *ConsensusManager) loop() {
 	}
 }
 
-// onPartitionIRChangeReq handle partition change requests. Received from go routine handling
-// partition communication when either partition reaches consensus or cannot reach consensus.
-func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
-	logger.Trace("%v round %v, IR change request from partition",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound())
-	reason := atomic_broadcast.IRChangeReqMsg_QUORUM
-	if req.Reason == consensus.QuorumNotPossible {
-		reason = atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE
-	}
-	irReq := &atomic_broadcast.IRChangeReqMsg{
-		SystemIdentifier: req.SystemIdentifier.Bytes(),
-		CertReason:       reason,
-		Requests:         req.Requests}
-	// are we the next leader or leader in current round waiting/throttling to send proposal
-	nextRound := x.pacemaker.GetCurrentRound() + 1
-	nextLeader := x.leaderSelector.GetLeaderForRound(nextRound)
-	if x.leaderSelector.GetLeaderForRound(nextRound) == x.peer.ID() || x.waitPropose == true {
-		// store the request in local buffer
-		x.onIRChange(irReq)
-		return
-	}
-	// route the IR change to the next root chain leader
-	logger.Trace("%v round %v forwarding IR change request to next leader in round %v - %v",
-		x.peer.LogID(), x.pacemaker.GetCurrentRound(), nextRound, nextLeader.String())
-	err := x.net.Send(
-		network.OutputMessage{
-			Protocol: network.ProtocolRootIrChangeReq,
-			Message:  irReq,
-		}, []peer.ID{nextLeader})
-	if err != nil {
-		logger.Warning("%v failed to forward IR Change request: %v", x.peer.LogID(), err)
-	}
-}
-
 // onLocalTimeout handle local timeout, either no proposal is received or voting does not
 // reach consensus. Triggers timeout voting.
 func (x *ConsensusManager) onLocalTimeout() {
@@ -344,34 +310,73 @@ func (x *ConsensusManager) onLocalTimeout() {
 		receivers[i] = id
 	}
 	logger.Trace("%v round %v broadcasting timeout vote", x.peer.LogID(), x.pacemaker.GetCurrentRound())
-	err := x.net.Send(
+	if err := x.net.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolRootTimeout,
 			Message:  timeoutVoteMsg,
-		}, receivers)
+		}, receivers); err != nil {
+		logger.Warning("%v failed to forward ir change message: %v", x.peer.LogID(), err)
+	}
+}
+
+// onPartitionIRChangeReq handle partition change requests. Received from go routine handling
+// partition communication when either partition reaches consensus or cannot reach consensus.
+func (x *ConsensusManager) onPartitionIRChangeReq(req *consensus.IRChangeRequest) {
+	logger.Debug("%v round %v, IR change request from partition",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound())
+	reason := atomic_broadcast.IRChangeReqMsg_QUORUM
+	if req.Reason == consensus.QuorumNotPossible {
+		reason = atomic_broadcast.IRChangeReqMsg_QUORUM_NOT_POSSIBLE
+	}
+	irReq := &atomic_broadcast.IRChangeReqMsg{
+		SystemIdentifier: req.SystemIdentifier.Bytes(),
+		CertReason:       reason,
+		Requests:         req.Requests}
+	// are we the next leader or leader in current round waiting/throttling to send proposal
+	nextRound := x.pacemaker.GetCurrentRound() + 1
+	nextLeader := x.leaderSelector.GetLeaderForRound(nextRound)
+	if x.leaderSelector.GetLeaderForRound(nextRound) == x.peer.ID() || x.waitPropose == true {
+		// store the request in local buffer
+		x.onIRChange(irReq)
+		return
+	}
+	// route the IR change to the next root chain leader
+	logger.Debug("%v round %v forwarding IR change request to next leader in round %v - %v",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound(), nextRound, nextLeader.String())
+	err := x.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolRootIrChangeReq,
+			Message:  irReq,
+		}, []peer.ID{nextLeader})
 	if err != nil {
-		logger.Warning("%v failed to send vote message: %v", x.peer.LogID(), err)
+		logger.Warning("%v failed to forward IR Change request: %v", x.peer.LogID(), err)
 	}
 }
 
 // onIRChange handles IR change request from other root nodes
 func (x *ConsensusManager) onIRChange(irChange *atomic_broadcast.IRChangeReqMsg) {
-	// Am I the next leader or current leader and have not yet proposed? If not, ignore.
-	// todo: AB-549 what if I am no longer the leader, should this be forwarded again to the next leader?
-	if x.waitPropose == false {
-		// forward to the next round leader
-		nextRound := x.pacemaker.GetCurrentRound() + 1
-		if x.leaderSelector.GetLeaderForRound(nextRound) != x.peer.ID() {
-			logger.Warning("%v is not leader in next round %v, IR change req ignored",
-				x.peer.LogID(), nextRound)
-			return
+	nextLeader := x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound() + 1)
+	// todo: if in recovery then forward to next
+	// if the node is either next leader or leader now, but has not yet proposed then buffer the request
+	if (x.leaderSelector.GetLeaderForRound(x.pacemaker.GetCurrentRound()) == x.peer.ID() && x.waitPropose) ||
+		(nextLeader == x.peer.ID()) {
+		logger.Debug("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
+		// Verify and buffer and wait for opportunity to make the next proposal
+		if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {
+			logger.Warning("%v IR change request from partition %X error: %v", x.peer.LogID(), irChange.SystemIdentifier, err)
 		}
-	}
-	logger.Trace("%v round %v IR change request received", x.peer.LogID(), x.pacemaker.GetCurrentRound())
-	// Verify and buffer and wait for opportunity to make the next proposal
-	if err := x.irReqBuffer.Add(x.pacemaker.GetCurrentRound(), irChange, x.irReqVerifier); err != nil {
-		logger.Warning("%v IR change request from partition %X error: %v", x.peer.LogID(), irChange.SystemIdentifier, err)
 		return
+	}
+	// todo: AB-549 add max hop count or some sort of TTL?
+	// either this a completely lots message or because of race we just proposed, try to forward again to the next leader
+	logger.Warning("%v is not leader in next round %v, IR change req forwarded again %v",
+		x.peer.LogID(), x.pacemaker.GetCurrentRound()+1, nextLeader.String())
+	if err := x.net.Send(
+		network.OutputMessage{
+			Protocol: network.ProtocolRootIrChangeReq,
+			Message:  irChange,
+		}, []peer.ID{nextLeader}); err != nil {
+		logger.Warning("%v failed to forward ir chang message: %v", x.peer.LogID(), err)
 	}
 }
 

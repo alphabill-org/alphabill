@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 )
 
-type BlocksLoaderFunc func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error)
+type BlocksLoaderFunc func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error)
 type BlockProcessorFunc func(context.Context, *block.Block) error
 
 /*
@@ -69,7 +69,7 @@ func fetchBlocks(ctx context.Context, getBlocks BlocksLoaderFunc, blockNumber ui
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		rsp, err := getBlocks(blockNumber, uint64(cap(out)))
+		rsp, err := getBlocks(ctx, blockNumber, uint64(cap(out)))
 		if err != nil {
 			return fmt.Errorf("failed to fetch blocks [%d...]: %w", blockNumber, err)
 		}
@@ -100,14 +100,14 @@ func processBlocks(ctx context.Context, blocks <-chan *block.Block, processor Bl
 }
 
 func loadUntilBlockNumber(maxBN uint64, f BlocksLoaderFunc) BlocksLoaderFunc {
-	return func(blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
+	return func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 		if blockNumber > maxBN {
 			return nil, errMaxBlockReached
 		}
 		if blockNumber+batchSize > maxBN {
 			batchSize = (maxBN - blockNumber) + 1
 		}
-		return f(blockNumber, batchSize)
+		return f(ctx, blockNumber, batchSize)
 	}
 }
 

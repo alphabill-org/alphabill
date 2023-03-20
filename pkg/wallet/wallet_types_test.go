@@ -1,6 +1,8 @@
 package wallet
 
 import (
+	"context"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -16,19 +18,19 @@ func (p DummyBlockProcessor) ProcessBlock(b *block.Block) error {
 type DummyAlphabillClient struct {
 }
 
-func (c *DummyAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (c *DummyAlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	return &txsystem.TransactionResponse{Ok: true}, nil
 }
 
-func (c *DummyAlphabillClient) GetBlock(blockNo uint64) (*block.Block, error) {
+func (c *DummyAlphabillClient) GetBlock(ctx context.Context, blockNo uint64) (*block.Block, error) {
 	return &block.Block{BlockNumber: blockNo}, nil
 }
 
-func (c *DummyAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+func (c *DummyAlphabillClient) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 	return &alphabill.GetBlocksResponse{MaxBlockNumber: 10, Blocks: []*block.Block{{BlockNumber: blockNumber}}}, nil
 }
 
-func (c *DummyAlphabillClient) GetMaxBlockNumber() (uint64, error) {
+func (c *DummyAlphabillClient) GetMaxBlockNumber(ctx context.Context) (uint64, error) {
 	return 10, nil
 }
 

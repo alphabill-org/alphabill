@@ -1,6 +1,7 @@
 package twb
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,20 +77,20 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 }
 
 type mockABClient struct {
-	getBlocks       func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	sendTransaction func(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	getBlocks       func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
+	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 }
 
-func (abc *mockABClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	if abc.sendTransaction != nil {
-		return abc.sendTransaction(tx)
+		return abc.sendTransaction(ctx, tx)
 	}
 	return nil, fmt.Errorf("unexpected mockABClient.SendTransaction call")
 }
 
-func (abc *mockABClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+func (abc *mockABClient) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 	if abc.getBlocks != nil {
-		return abc.getBlocks(blockNumber, blockCount)
+		return abc.getBlocks(ctx, blockNumber, blockCount)
 	}
 	return nil, fmt.Errorf("unexpected mockABClient.GetBlocks(%d, %d) call", blockNumber, blockCount)
 }

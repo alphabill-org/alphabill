@@ -389,7 +389,6 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},
-		Hidden: true,
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")

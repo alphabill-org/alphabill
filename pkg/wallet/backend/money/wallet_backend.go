@@ -183,8 +183,8 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 }
 
 // GetMaxBlockNumber returns max block number known to the connected AB node.
-func (w *WalletBackend) GetMaxBlockNumber() (uint64, error) {
-	return w.genericWallet.GetMaxBlockNumber()
+func (w *WalletBackend) GetMaxBlockNumber(ctx context.Context) (uint64, error) {
+	return w.genericWallet.GetMaxBlockNumber(ctx)
 }
 
 // Shutdown terminates wallet backend Service.

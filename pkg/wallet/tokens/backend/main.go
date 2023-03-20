@@ -30,8 +30,8 @@ type Configuration interface {
 }
 
 type ABClient interface {
-	SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
-	GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
+	SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
 }
 
 type Storage interface {

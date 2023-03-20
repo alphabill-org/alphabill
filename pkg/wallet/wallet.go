@@ -96,8 +96,8 @@ func (w *Wallet) SyncToMaxBlockNumber(ctx context.Context, lastBlockNumber uint6
 }
 
 // GetMaxBlockNumber queries the node for latest block number
-func (w *Wallet) GetMaxBlockNumber() (uint64, error) {
-	return w.AlphabillClient.GetMaxBlockNumber()
+func (w *Wallet) GetMaxBlockNumber(ctx context.Context) (uint64, error) {
+	return w.AlphabillClient.GetMaxBlockNumber(ctx)
 }
 
 // SendTransaction broadcasts transaction to configured node.
@@ -178,7 +178,7 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 			if maxBlockNumber != 0 && lastBlockNumber == maxBlockNumber {
 				time.Sleep(sleepTimeAtMaxBlockHeightMs * time.Millisecond)
 			}
-			lastBlockNumber, maxBlockNumber, err = w.fetchBlocks(lastBlockNumber, blockDownloadMaxBatchSize, ch)
+			lastBlockNumber, maxBlockNumber, err = w.fetchBlocks(ctx, lastBlockNumber, blockDownloadMaxBatchSize, ch)
 			if err != nil {
 				return err
 			}
@@ -187,7 +187,7 @@ func (w *Wallet) fetchBlocksForever(ctx context.Context, lastBlockNumber uint64,
 }
 
 func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber uint64, ch chan<- *block.Block) error {
-	maxBlockNumber, err := w.GetMaxBlockNumber()
+	maxBlockNumber, err := w.GetMaxBlockNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 			return nil
 		default:
 			batchSize := util.Min(blockDownloadMaxBatchSize, maxBlockNumber-lastBlockNumber)
-			lastBlockNumber, _, err = w.fetchBlocks(lastBlockNumber, batchSize, ch)
+			lastBlockNumber, _, err = w.fetchBlocks(ctx, lastBlockNumber, batchSize, ch)
 			if err != nil {
 				return err
 			}
@@ -209,8 +209,8 @@ func (w *Wallet) fetchBlocksUntilMaxBlock(ctx context.Context, lastBlockNumber u
 	return nil
 }
 
-func (w *Wallet) fetchBlocks(lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (uint64, uint64, error) {
-	res, err := w.AlphabillClient.GetBlocks(lastBlockNumber+1, batchSize)
+func (w *Wallet) fetchBlocks(ctx context.Context, lastBlockNumber uint64, batchSize uint64, ch chan<- *block.Block) (uint64, uint64, error) {
+	res, err := w.AlphabillClient.GetBlocks(ctx, lastBlockNumber+1, batchSize)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -238,7 +238,7 @@ func (w *Wallet) sendTx(ctx context.Context, tx *txsystem.Transaction, maxRetrie
 	for {
 		// node side error is incuded in both res.Message and err.Error(),
 		// we use res.Message here to check if tx passed
-		res, err := w.AlphabillClient.SendTransaction(tx)
+		res, err := w.AlphabillClient.SendTransaction(ctx, tx)
 		if res == nil && err == nil {
 			return errors.New("send transaction returned nil response with nil error")
 		}

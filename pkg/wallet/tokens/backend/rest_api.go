@@ -37,7 +37,7 @@ type dataSource interface {
 
 type restAPI struct {
 	db              dataSource
-	sendTransaction func(*txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	sendTransaction func(context.Context, *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 	convertTx       func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
 	logErr          func(a ...any)
 }
@@ -119,7 +119,7 @@ func (api *restAPI) listTokens(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeHex[TokenID](next))
+	setLinkHeader(r.URL, w, encodeHex(next))
 	api.writeResponse(w, data)
 }
 
@@ -171,7 +171,7 @@ func (api *restAPI) listTypes(w http.ResponseWriter, r *http.Request) {
 		api.writeErrorResponse(w, err)
 		return
 	}
-	setLinkHeader(r.URL, w, encodeHex[TokenTypeID](next))
+	setLinkHeader(r.URL, w, encodeHex(next))
 	api.writeResponse(w, data)
 }
 
@@ -250,7 +250,7 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 		}
 		go func(tx *txsystem.Transaction) {
 			defer sem.Release(1)
-			if err := api.saveTx(tx, owner); err != nil {
+			if err := api.saveTx(ctx, tx, owner); err != nil {
 				m.Lock()
 				errs[hex.EncodeToString(tx.GetUnitId())] = err.Error()
 				m.Unlock()
@@ -268,7 +268,7 @@ func (api *restAPI) saveTxs(ctx context.Context, txs []*txsystem.Transaction, ow
 	return errs
 }
 
-func (api *restAPI) saveTx(tx *txsystem.Transaction, owner []byte) error {
+func (api *restAPI) saveTx(ctx context.Context, tx *txsystem.Transaction, owner []byte) error {
 	// if "creator type tx" then save the type->owner relation
 	gtx, err := api.convertTx(tx)
 	if err != nil {
@@ -287,7 +287,7 @@ func (api *restAPI) saveTx(tx *txsystem.Transaction, owner []byte) error {
 		}
 	}
 
-	rsp, err := api.sendTransaction(tx)
+	rsp, err := api.sendTransaction(ctx, tx)
 	if err != nil {
 		return fmt.Errorf("failed to forward tx: %w", err)
 	}

@@ -930,6 +930,7 @@ func createTx(t *testing.T, unitID *uint256.Int, attributes proto.Message) txsys
 		NewGenericTx,
 		testtransaction.WithUnitId(id[:]),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(attributes),
 	)
 }

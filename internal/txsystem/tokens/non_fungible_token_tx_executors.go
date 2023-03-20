@@ -213,7 +213,7 @@ func (t *transferNonFungibleTokenTxExecutor) validate(tx *transferNonFungibleTok
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(Predicate(u.Bearer), predicates, tx)
 }
 
 func (te *updateNonFungibleTokenTxExecutor) validate(tx *updateNonFungibleTokenWrapper) error {

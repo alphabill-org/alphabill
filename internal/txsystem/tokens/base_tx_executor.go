@@ -69,8 +69,8 @@ type TokenOwnershipProver interface {
 	SigBytes() []byte
 }
 
-func verifyOwnership(bearer Predicate, invPredicates []Predicate, prover TokenOwnershipProver) error {
-	predicates := append([]Predicate{bearer}, invPredicates...)
+func verifyOwnership(bearer Predicate, invariants []Predicate, prover TokenOwnershipProver) error {
+	predicates := append([]Predicate{bearer}, invariants...)
 	proofs := append([][]byte{prover.OwnerProof()}, prover.InvariantPredicateSignatures()...)
 	return verifyPredicates(predicates, proofs, prover.SigBytes())
 }

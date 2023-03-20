@@ -114,8 +114,8 @@ func Test_NewClient(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error for parameter %q: %v", tc.param, err)
 			}
-			if mbc.baseUrl != tc.url {
-				t.Errorf("expected URL for %q to be %q, got %q", tc.param, tc.url, mbc.baseUrl)
+			if mbc.BaseUrl != tc.url {
+				t.Errorf("expected URL for %q to be %q, got %q", tc.param, tc.url, mbc.BaseUrl)
 			}
 		}
 	})

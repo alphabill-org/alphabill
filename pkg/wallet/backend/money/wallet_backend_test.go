@@ -85,7 +85,7 @@ func TestGetBills_OK(t *testing.T) {
 		TargetValue: txValue,
 		NewBearer:   bearer,
 	}))
-	gtx, err := newTxConverter(moneySystemID).ConvertTx(tx)
+	gtx, err := NewTxConverter(moneySystemID).ConvertTx(tx)
 	require.NoError(t, err)
 	txHash := gtx.Hash(gocrypto.SHA256)
 
@@ -152,7 +152,7 @@ func TestGetBills_SHA512OK(t *testing.T) {
 
 func createWalletBackend(t *testing.T, abclient client.ABClient) *WalletBackend {
 	storage, _ := createTestBillStore(t)
-	bp := NewBlockProcessor(storage, newTxConverter(moneySystemID))
+	bp := NewBlockProcessor(storage, NewTxConverter(moneySystemID))
 	genericWallet := wallet.New().SetBlockProcessor(bp).SetABClient(abclient).Build()
 	return New(genericWallet, storage)
 }

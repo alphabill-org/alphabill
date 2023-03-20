@@ -2,107 +2,99 @@ package money
 
 import (
 	"context"
-	"sync"
-	"testing"
-
+	"encoding/base64"
+	"fmt"
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/holiman/uint256"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWalletSendFunction(t *testing.T) {
-	w, mockClient := CreateTestWallet(t)
-	invalidPubKey := make([]byte, 32)
+	w, _ := CreateTestWallet(t, &backendMockReturnConf{balance: 70, billId: uint256.NewInt(0), billValue: 50})
 	validPubKey := make([]byte, 33)
+	amount := uint64(50)
+	ctx := context.Background()
+
+	// test ok response
+	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	require.NoError(t, err)
+}
+
+func TestWalletSendFunction_InvalidPubKey(t *testing.T) {
+	w, _ := CreateTestWallet(t, &backendMockReturnConf{})
+	invalidPubKey := make([]byte, 32)
 	amount := uint64(50)
 	ctx := context.Background()
 
 	// test ErrInvalidPubKey
 	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: invalidPubKey, Amount: amount})
 	require.ErrorIs(t, err, ErrInvalidPubKey)
+}
+
+func TestWalletSendFunction_InsufficientBalance(t *testing.T) {
+	w, _ := CreateTestWallet(t, &backendMockReturnConf{balance: 10})
+	validPubKey := make([]byte, 33)
+	amount := uint64(50)
+	ctx := context.Background()
 
 	// test ErrInsufficientBalance
-	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorIs(t, err, ErrInsufficientBalance)
+}
+
+func TestWalletSendFunction_ClientError(t *testing.T) {
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 70, billId: uint256.NewInt(0), billValue: 50})
+	validPubKey := make([]byte, 33)
+	amount := uint64(50)
+	ctx := context.Background()
 
 	// test abclient returns error
-	b := Bill{
-		Id:     uint256.NewInt(0),
-		Value:  100,
-		TxHash: hash.Sum256([]byte{0x01}),
-	}
-	err = w.db.Do().SetBill(0, &b)
-	require.NoError(t, err)
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: "some error"})
-	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
+	_, err := w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
 	require.ErrorContains(t, err, "transaction returned error code: some error")
 	mockClient.SetTxResponse(nil)
-
-	// test ErrSwapInProgress
-	nonce := calculateExpectedDcNonce(t, w)
-	setDcMetadata(t, w, nonce, &dcMetadata{DcValueSum: 101, DcTimeout: dcTimeoutBlockCount})
-	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
-	require.ErrorIs(t, err, ErrSwapInProgress)
-	setDcMetadata(t, w, nonce, nil)
-
-	// test ok response
-	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount})
-	require.NoError(t, err)
-
-	// test another account
-	_, _, _ = w.AddAccount()
-	_ = w.db.Do().SetBill(1, &Bill{Id: uint256.NewInt(55555), Value: 50})
-	_, err = w.Send(ctx, SendCmd{ReceiverPubKey: validPubKey, Amount: amount, AccountIndex: 1})
-	require.NoError(t, err)
 }
 
 func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
-	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
 	b := &Bill{
 		Id:     uint256.NewInt(0),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	_ = w.db.Do().SetBill(0, b)
 
 	// create block with expected transaction
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billTxHash: base64.StdEncoding.EncodeToString(b.TxHash), billValue: b.Value})
 	k, _ := w.am.GetAccountKey(0)
 	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
 	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
 		tx,
 	}})
 
-	// verify balance before transaction
-	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
-	require.Equal(t, b.Value, balance)
-
 	// test send successfully waits for confirmation
 	_, err = w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b.Value, WaitForConfirmation: true, AccountIndex: 0})
 	require.NoError(t, err)
-	balance, _ = w.db.Do().GetBalance(GetBalanceCmd{})
-	require.EqualValues(t, 0, balance)
+	balance, _ := w.GetBalance(GetBalanceCmd{})
+	require.EqualValues(t, 100, balance)
 }
 
 func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
-	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
-	b1 := &Bill{
-		Id:     uint256.NewInt(1),
-		Value:  1,
-		TxHash: hash.Sum256([]byte{0x01}),
+	b1 := addBill(1)
+	b2 := addBill(2)
+	billsList := ""
+	for i := 1; i <= 2; i++ {
+		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"%s","isDCBill":false},`, toBillId(uint256.NewInt(uint64(i))), i, base64.StdEncoding.EncodeToString(hash.Sum256([]byte{byte(i)})))
 	}
-	b2 := &Bill{
-		Id:     uint256.NewInt(2),
-		Value:  2,
-		TxHash: hash.Sum256([]byte{0x02}),
-	}
-	_ = w.db.Do().SetBill(0, b1)
-	_ = w.db.Do().SetBill(0, b2)
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: fmt.Sprintf(`{"total": 2, "bills": [%s]}`, strings.TrimSuffix(billsList, ","))})
 
 	// create block with expected transactions
 	k, _ := w.am.GetAccountKey(0)
@@ -112,34 +104,20 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmations(t *testing.T) {
 		tx2, tx1,
 	}})
 
-	// verify balance before transactions
-	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
-	require.EqualValues(t, b1.Value+b2.Value, balance)
-
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
 	require.NoError(t, err)
-
-	// verify balance after transactions
-	balance, _ = w.db.Do().GetBalance(GetBalanceCmd{})
-	require.EqualValues(t, 0, balance)
 }
 
 func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *testing.T) {
-	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
-	b1 := &Bill{
-		Id:     uint256.NewInt(1),
-		Value:  1,
-		TxHash: hash.Sum256([]byte{0x01}),
+	b1 := addBill(1)
+	b2 := addBill(2)
+	billsList := ""
+	for i := 1; i <= 2; i++ {
+		billsList = billsList + fmt.Sprintf(`{"id":"%s","value":"%d","txHash":"%s","isDCBill":false},`, toBillId(uint256.NewInt(uint64(i))), i, base64.StdEncoding.EncodeToString(hash.Sum256([]byte{byte(i)})))
 	}
-	b2 := &Bill{
-		Id:     uint256.NewInt(2),
-		Value:  2,
-		TxHash: hash.Sum256([]byte{0x02}),
-	}
-	_ = w.db.Do().SetBill(0, b1)
-	_ = w.db.Do().SetBill(0, b2)
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: fmt.Sprintf(`{"total": 2, "bills": [%s]}`, strings.TrimSuffix(billsList, ","))})
 
 	// create block with expected transactions
 	k, _ := w.am.GetAccountKey(0)
@@ -152,29 +130,15 @@ func TestWalletSendFunction_WaitForMultipleTxConfirmationsInDifferentBlocks(t *t
 		tx2,
 	}})
 
-	// verify balance before transactions
-	balance, _ := w.db.Do().GetBalance(GetBalanceCmd{})
-	require.EqualValues(t, b1.Value+b2.Value, balance)
-
 	// test send successfully waits for confirmation
 	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: b1.Value + b2.Value, WaitForConfirmation: true})
-
 	require.NoError(t, err)
-
-	// verify balance after transactions
-	balance, _ = w.db.Do().GetBalance(GetBalanceCmd{})
-	require.EqualValues(t, 0, balance)
 }
 
 func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
-	w, mockClient := CreateTestWallet(t)
 	pubKey := make([]byte, 33)
-	b := &Bill{
-		Id:     uint256.NewInt(1),
-		Value:  1,
-		TxHash: hash.Sum256([]byte{0x01}),
-	}
-	_ = w.db.Do().SetBill(0, b)
+	b := addBill(1)
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 10, billId: b.Id, billValue: b.Value})
 
 	for i := 0; i <= txTimeoutBlockCount; i++ {
 		mockClient.SetBlock(&block.Block{BlockNumber: uint64(i)})
@@ -186,12 +150,16 @@ func TestWalletSendFunction_ErrTxFailedToConfirm(t *testing.T) {
 
 func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 	// create wallet with single bill
-	w, mockClient := CreateTestWallet(t)
-	addBill(t, w, 100)
-	pubkey := make([]byte, 33)
+	pubKey := make([]byte, 33)
+	b := &Bill{
+		Id:     uint256.NewInt(1),
+		Value:  100,
+		TxHash: hash.Sum256([]byte{0x01}),
+	}
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
 
 	// when whole balance is spent
-	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubkey, Amount: 100})
+	_, err := w.Send(context.Background(), SendCmd{ReceiverPubKey: pubKey, Amount: 100})
 	require.NoError(t, err)
 
 	// then bill transfer order should be sent
@@ -202,13 +170,12 @@ func TestWholeBalanceIsSentUsingBillTransferOrder(t *testing.T) {
 
 func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 	// setup wallet
-	w, mockClient := CreateTestWallet(t)
-	b := Bill{
-		Id:     uint256.NewInt(0),
+	b := &Bill{
+		Id:     uint256.NewInt(1),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	_ = w.db.Do().SetBill(0, &b)
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
 
 	// make server return TxBufferFullErrMessage
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})
@@ -236,13 +203,12 @@ func TestWalletSendFunction_RetryTxWhenTxBufferIsFull(t *testing.T) {
 
 func TestWalletSendFunction_RetryCanBeCanceledByUser(t *testing.T) {
 	// setup wallet
-	w, mockClient := CreateTestWallet(t)
-	b := Bill{
-		Id:     uint256.NewInt(0),
+	b := &Bill{
+		Id:     uint256.NewInt(1),
 		Value:  100,
 		TxHash: hash.Sum256([]byte{0x01}),
 	}
-	_ = w.db.Do().SetBill(0, &b)
+	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billValue: b.Value})
 
 	// make server return TxBufferFullErrMessage
 	mockClient.SetTxResponse(&txsystem.TransactionResponse{Ok: false, Message: txBufferFullErrMsg})

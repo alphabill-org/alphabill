@@ -18,7 +18,7 @@ import (
 
 var alphabillMoneySystemId = []byte{0, 0, 0, 0}
 
-func CreateTransactions(pubKey []byte, amount uint64, bills []*Bill, k *account.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
+func createTransactions(pubKey []byte, amount uint64, bills []*Bill, k *account.AccountKey, timeout uint64) ([]*txsystem.Transaction, error) {
 	var txs []*txsystem.Transaction
 	var accumulatedSum uint64
 	// sort bills by value in descending order

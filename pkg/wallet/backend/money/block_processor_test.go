@@ -48,7 +48,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	store, err := createTestBillStore(t)
 	require.NoError(t, err)
-	bp := NewBlockProcessor(store, newTxConverter(moneySystemID))
+	bp := NewBlockProcessor(store, NewTxConverter(moneySystemID))
 
 	// process transactions
 	err = bp.ProcessBlock(b)

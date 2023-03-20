@@ -3,6 +3,8 @@ package money
 import (
 	"sync"
 
+	"github.com/alphabill-org/alphabill/internal/util"
+
 	"github.com/holiman/uint256"
 )
 
@@ -14,12 +16,12 @@ type dcMetadata struct {
 	SwapTimeout uint64   `json:"swapTimeout"`
 }
 
-// dcBillGroup helper struct for grouped dc bills and their aggregate data
-type dcBillGroup struct {
-	dcBills   []*Bill
-	valueSum  uint64
-	dcNonce   []byte
-	dcTimeout uint64
+// DcBillGroup helper struct for grouped dc bills and their aggregate data
+type DcBillGroup struct {
+	DcBills   []*Bill
+	ValueSum  uint64
+	DcNonce   []byte
+	DcTimeout uint64
 }
 
 // dcWaitGroup helper struct to support blocking collect dust feature.
@@ -115,5 +117,5 @@ func (wg *dcWaitGroup) ResetWaitGroup() {
 // addExpectedSwap increments wg and records expected swap data
 func (wg *dcWaitGroup) addExpectedSwap(swap expectedSwap) {
 	wg.wg.Add(1)
-	wg.swaps[*uint256.NewInt(0).SetBytes(swap.dcNonce)] = swap.timeout
+	wg.swaps[*util.BytesToUint256(swap.dcNonce)] = swap.timeout
 }

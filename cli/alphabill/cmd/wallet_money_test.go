@@ -199,7 +199,6 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 
 	txHash, blockNumber := getLastTransactionProps(network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
-	defer mockServer.Close()
 
 	// verify bill is received by wallet 1
 	waitForBalance(t, homedir1, initialBill.Value, 0)
@@ -207,6 +206,11 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	// send two transactions (two bills) to wallet-2
 	stdout := execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	mockServer.Close()
+	txHash, blockNumber = getLastTransactionProps(network)
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
+	defer mockServer.Close()
 
 	stdout = execWalletCmd(t, homedir1, "send --amount 1 --address "+hexutil.Encode(w2PubKey)+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
@@ -255,11 +259,15 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 
 	txHash, blockNumber := getLastTransactionProps(network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
-	defer mockServer.Close()
 
 	// send two transactions (two bills) to wallet account 2
 	stdout := execWalletCmd(t, homedir, "send --amount 1 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
+
+	mockServer.Close()
+	txHash, blockNumber = getLastTransactionProps(network)
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
+	defer mockServer.Close()
 
 	stdout = execWalletCmd(t, homedir, "send --amount 1 --address "+pubKey2Hex+" --alphabill-api-uri "+addr.Host)
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
@@ -335,12 +343,16 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 
 	txHash, blockNumber := getLastTransactionProps(network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
-	defer mockServer.Close()
 
 	// send two transactions to wallet account 2 and verify the proof files
 	stdout, _ := execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --alphabill-api-uri %s", 1, pubKey2Hex, homedir, addr.Host))
 	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")
 	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
+
+	mockServer.Close()
+	txHash, blockNumber = getLastTransactionProps(network)
+	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
+	defer mockServer.Close()
 
 	stdout, _ = execCommand(homedir, fmt.Sprintf("send --amount %d --address %s --output-path %s --alphabill-api-uri %s", 1, pubKey2Hex, homedir, addr.Host))
 	require.Contains(t, stdout.lines[0], "Successfully confirmed transaction(s)")

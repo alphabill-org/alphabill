@@ -11,7 +11,7 @@ type txConverter struct {
 	systemID []byte
 }
 
-func newTxConverter(systemId []byte) *txConverter {
+func NewTxConverter(systemId []byte) *txConverter {
 	return &txConverter{systemID: systemId}
 }
 

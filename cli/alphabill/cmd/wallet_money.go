@@ -10,15 +10,13 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/txsystem"
-	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/alphabill-org/alphabill/pkg/client"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
@@ -55,9 +53,6 @@ const (
 	totalCmdName            = "total"
 	quietCmdName            = "quiet"
 	showUnswappedCmdName    = "show-unswapped"
-	txTimeoutBlockCount     = 100
-	maxTxFailedTries        = 3
-	txBufferFullErrMsg      = "tx buffer is full"
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
@@ -110,25 +105,22 @@ func createCmd(config *walletConfig) *cobra.Command {
 	return cmd
 }
 
-func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
+func execCreateCmd(cmd *cobra.Command, config *walletConfig) (err error) {
 	mnemonic, err := cmd.Flags().GetString(seedCmdName)
 	if err != nil {
-		return err
+		return
 	}
 	password, err := createPassphrase(cmd)
 	if err != nil {
-		return err
+		return
 	}
 	am, err := account.NewManager(config.WalletHomeDir, password, true)
 	if err != nil {
-		return err
+		return
 	}
 	defer am.Close()
 
-	err = am.CreateKeys(mnemonic)
-	if err != nil {
-		return err
-	}
+	err = money.CreateNewWallet(am, mnemonic)
 
 	if mnemonic == "" {
 		mnemonicSeed, err := am.GetMnemonic()
@@ -138,7 +130,7 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) error {
 		consoleWriter.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 		consoleWriter.Println("mnemonic key: " + mnemonicSeed)
 	}
-	return nil
+	return
 }
 
 func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
@@ -168,7 +160,7 @@ func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
 }
 
 func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) error {
-	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	nodeUri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return err
 	}
@@ -184,7 +176,11 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	defer am.Close()
+	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
+	if err != nil {
+		return err
+	}
+	defer w.Shutdown()
 
 	receiverPubKeyHex, err := cmd.Flags().GetString(addressCmdName)
 	if err != nil {
@@ -213,6 +209,9 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
+	if accountNumber == 0 {
+		return fmt.Errorf("invalid parameter for \"--key\":0 is not a valid account key")
+	}
 	waitForConfStr, err := cmd.Flags().GetString(waitForConfCmdName)
 	if err != nil {
 		return err
@@ -238,94 +237,18 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 		}
 	}
 
-	accountIndex := accountNumber - 1
-	k, err := am.GetAccountKey(accountIndex)
+	bills, err := w.Send(ctx, money.SendCmd{ReceiverPubKey: receiverPubKey, Amount: amount, WaitForConfirmation: waitForConf, AccountIndex: accountNumber - 1})
 	if err != nil {
 		return err
-	}
-
-	balance, err := restClient.GetBalance(k.PubKey, false)
-	if err != nil {
-		return fmt.Errorf("failed to read current balance: %w", err)
-	}
-	if amount > balance {
-		fmt.Printf("amount: %s balance: %s\n", amountToString(amount, 8), amountToString(balance, 8))
-		return money.ErrInsufficientBalance
-	}
-
-	maxBlockNo, err := restClient.GetBlockHeight()
-	if err != nil {
-		return err
-	}
-	timeout := maxBlockNo + txTimeoutBlockCount
-	if err != nil {
-		return err
-	}
-	billResponse, err := restClient.ListBills(k.PubKey)
-	if err != nil {
-		return err
-	}
-
-	var bills []*money.Bill
-	for _, b := range billResponse.Bills {
-		billValueUint, err := strconv.ParseUint(b.Value, 10, 64)
-		if err != nil {
-			return err
-		}
-		bill := &money.Bill{Id: util.BytesToUint256(b.Id), Value: billValueUint, TxHash: b.TxHash, IsDcBill: b.IsDCBill}
-		bills = append(bills, bill)
-	}
-
-	txs, err := money.CreateTransactions(receiverPubKey, amount, bills, k, timeout)
-	if err != nil {
-		return err
-	}
-	rpcClientConf := client.AlphabillClientConfig{Uri: uri}
-	rpcClient := client.New(rpcClientConf)
-
-	for _, tx := range txs {
-		failedTries := 0
-		for {
-			res, err := rpcClient.SendTransaction(tx)
-			if res == nil && err == nil {
-				return errors.New("send transaction returned nil response with nil error")
-			}
-			if res != nil {
-				if !res.Ok {
-					if res.Message == txBufferFullErrMsg {
-						failedTries += 1
-						if failedTries >= maxTxFailedTries {
-							return wallet.ErrFailedToBroadcastTx
-						}
-						wlog.Debug("tx buffer full, waiting 1s to retry...")
-						timer := time.NewTimer(time.Second)
-						select {
-						case <-timer.C:
-							continue
-						case <-ctx.Done():
-							timer.Stop()
-							return wallet.ErrTxRetryCanceled
-						}
-					}
-					return errors.New("transaction returned error code: " + res.Message)
-				} else {
-					wlog.Debug("successfully sent transaction")
-					break
-				}
-			}
-			if err != nil {
-				return err
-			}
-		}
 	}
 	if waitForConf {
-		bills, err = waitForConfirmation(ctx, txs, rpcClient, maxBlockNo, timeout)
-		if err != nil {
-			return err
-		}
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			outputFile, err := writeBillsToFile(outputPath, newBillsDTO(bills...).Bills...)
+			var outputBills []*block.Bill
+			for _, b := range bills {
+				outputBills = append(outputBills, b.ToProto())
+			}
+			outputFile, err := writeBillsToFile(outputPath, outputBills...)
 			if err != nil {
 				return err
 			}
@@ -344,7 +267,7 @@ func getBalanceCmd(config *walletConfig) *cobra.Command {
 			return execGetBalanceCmd(cmd, config)
 		},
 	}
-	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which key balance to query "+
 		"(by default returns all key balances including total balance over all keys)")
 	cmd.Flags().BoolP(totalCmdName, "t", false,
@@ -368,7 +291,11 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	defer am.Close()
+	w, err := money.LoadExistingWallet(&money.WalletConfig{}, am, restClient)
+	if err != nil {
+		return err
+	}
+	defer w.Shutdown()
 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
@@ -390,20 +317,13 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 		quiet = false // quiet is supposed to work only when total or key flag is provided
 	}
 	if accountNumber == 0 {
-		sum := uint64(0)
-		pubKeys, err := am.GetPublicKeys()
+		totals, sum, err := w.GetBalances(money.GetBalanceCmd{CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
-		for accountIndex, pubKey := range pubKeys {
-			balance, err := restClient.GetBalance(pubKey, showUnswapped)
-			if err != nil {
-				return err
-			}
-			sum += balance
-			if !total {
-				balanceStr := amountToString(balance, 8)
-				consoleWriter.Println(fmt.Sprintf("#%d %s", accountIndex+1, balanceStr))
+		if !total {
+			for i, v := range totals {
+				consoleWriter.Println(fmt.Sprintf("#%d %s", i+1, amountToString(v, 8)))
 			}
 		}
 		sumStr := amountToString(sum, 8)
@@ -413,11 +333,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Total %s", sumStr))
 		}
 	} else {
-		pubKey, err := am.GetPublicKey(accountNumber - 1)
-		if err != nil {
-			return err
-		}
-		balance, err := restClient.GetBalance(pubKey, showUnswapped)
+		balance, err := w.GetBalance(money.GetBalanceCmd{AccountIndex: accountNumber - 1, CountDCBills: showUnswapped})
 		if err != nil {
 			return err
 		}
@@ -473,13 +389,58 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},
+		Hidden: true,
 	}
-	cmd.Flags().StringP(alphabillApiURLCmdName, "u", defaultAlphabillApiURL, "alphabill API uri to connect to")
+	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	return cmd
 }
 
 func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
-	// TODO
+	nodeUri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	if err != nil {
+		return err
+	}
+	apiUri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+	restClient, err := moneyclient.NewClient(apiUri)
+	if err != nil {
+		return err
+	}
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+
+	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
+	if err != nil {
+		return err
+	}
+	defer w.Shutdown()
+
+	consoleWriter.Println("Starting dust collection, this may take a while...")
+	// start dust collection by calling CollectDust (sending dc transfers) and Sync (waiting for dc transfers to confirm)
+	// any error from CollectDust or Sync causes either goroutine to terminate
+	// if collect dust returns without error we signal Sync to cancel manually
+
+	ctx, cancel := context.WithCancel(cmd.Context())
+
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		err := w.CollectDust(ctx)
+		if err == nil {
+			defer cancel() // signal Sync to cancel
+		}
+		return err
+	})
+	err = group.Wait()
+	if err != nil {
+		consoleWriter.Println("Failed to collect dust: " + err.Error())
+		return err
+	}
+	consoleWriter.Println("Dust collection finished successfully.")
 	return nil
 }
 
@@ -507,44 +468,6 @@ func execAddKeyCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	consoleWriter.Println(fmt.Sprintf("Added key #%d %s", accIdx+1, hexutil.Encode(accPubKey)))
 	return nil
-}
-
-func waitForConfirmation(ctx context.Context, pendingTxs []*txsystem.Transaction, rpcClient *client.AlphabillClient, maxBlockNumber, timeout uint64) ([]*money.Bill, error) {
-	wlog.Info("waiting for confirmation(s)...")
-	blockNumber := maxBlockNumber
-	txsLog := money.NewTxLog(pendingTxs)
-	for blockNumber <= timeout {
-		b, err := rpcClient.GetBlock(blockNumber)
-		if err != nil {
-			return nil, err
-		}
-		if b == nil {
-			// wait for some time before retrying to fetch new block
-			timer := time.NewTimer(100 * time.Millisecond)
-			select {
-			case <-timer.C:
-				continue
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, nil
-			}
-		}
-		for _, tx := range b.Transactions {
-			if txsLog.Contains(tx) {
-				wlog.Info("confirmed tx ", hexutil.Encode(tx.UnitId))
-				err = txsLog.RecordTx(tx, b)
-				if err != nil {
-					return nil, err
-				}
-				if txsLog.IsAllTxsConfirmed() {
-					wlog.Info("transaction(s) confirmed")
-					return txsLog.GetAllRecordedBills(), nil
-				}
-			}
-		}
-		blockNumber += 1
-	}
-	return nil, money.ErrTxFailedToConfirm
 }
 
 func loadExistingAccountManager(cmd *cobra.Command, walletDir string) (account.Manager, error) {

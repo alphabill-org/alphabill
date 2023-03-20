@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -63,7 +64,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
 	cmd.PersistentFlags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill backend uri to connect to")
-	cmd.PersistentFlags().BoolP(waitForConfCmdName, "w", false, "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction")
+	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction, defaults to 'true'")
 	return cmd
 }
 
@@ -170,7 +171,7 @@ func execTokenCmdNewTypeFungible(cmd *cobra.Command, config *walletConfig) error
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Created new fungible token type with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token type with id=%X", id))
 	return nil
 }
 
@@ -241,7 +242,7 @@ func execTokenCmdNewTypeNonFungible(cmd *cobra.Command, config *walletConfig) er
 	if err != nil {
 		return err
 	}
-	consoleWriter.Println(fmt.Sprintf("Created new NFT type with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new NFT type with id=%X", id))
 	return nil
 }
 
@@ -321,7 +322,7 @@ func execTokenCmdNewTokenFungible(cmd *cobra.Command, config *walletConfig) erro
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Created new fungible token with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new fungible token with id=%X", id))
 	return nil
 }
 
@@ -398,7 +399,7 @@ func execTokenCmdNewTokenNonFungible(cmd *cobra.Command, config *walletConfig) e
 		return err
 	}
 
-	consoleWriter.Println(fmt.Sprintf("Created new non-fungible token with id=%X", id))
+	consoleWriter.Println(fmt.Sprintf("Sent request for new non-fungible token with id=%X", id))
 	return nil
 }
 
@@ -772,7 +773,11 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet,
 	if err != nil {
 		return nil, err
 	}
-	confirmTx, err := cmd.Flags().GetBool(waitForConfCmdName)
+	confirmTxStr, err := cmd.Flags().GetString(waitForConfCmdName)
+	if err != nil {
+		return nil, err
+	}
+	confirmTx, err := strconv.ParseBool(confirmTxStr)
 	if err != nil {
 		return nil, err
 	}

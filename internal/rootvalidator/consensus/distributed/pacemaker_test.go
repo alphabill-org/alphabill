@@ -178,19 +178,28 @@ func TestRoundState_RegisterVote(t *testing.T) {
 	require.NotNil(t, qc)
 }
 
-func TestRoundState_OddRoundCalcTimeTilFirstProposal(t *testing.T) {
-	const lastCommittedRound = uint64(0)
+func TestRoundState_OddRoundCalcTimeTilProposal(t *testing.T) {
+	const lastCommittedRound = uint64(2)
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
-	require.Equal(t, uint64(1), pacemaker.GetCurrentRound())
+	require.Equal(t, uint64(3), pacemaker.GetCurrentRound())
 	timeout := pacemaker.CalcTimeTilNextProposal(2)
+	// symmetric delay (half of block rate) in each view/round
 	// subtract some small amount of time to reduce race
-	require.Equal(t, timeout, time.Duration(0))
+	// expected delay is bigger than 495 ms when half of block rate is 500 ms
+	require.Greater(t, timeout, testBlockRate/2-(time.Duration(5)*time.Millisecond))
+	// in case of asymmetric delay
+	// require.Equal(t, timeout, time.Duration(0))
 }
 
-func TestRoundState_EvenRoundCalcTimeTilFirstProposal(t *testing.T) {
+func TestRoundState_EvenRoundCalcTimeTilProposal(t *testing.T) {
 	const lastCommittedRound = uint64(1)
 	pacemaker := NewPacemaker(lastCommittedRound, testLocalTimeout, testBlockRate)
 	require.Equal(t, uint64(2), pacemaker.GetCurrentRound())
 	timeout := pacemaker.CalcTimeTilNextProposal(3)
-	require.Greater(t, timeout, testBlockRate-(time.Duration(5)*time.Millisecond))
+	// symmetric delay (half of block rate) in each view/round
+	// subtract some small amount of time to reduce race
+	// expected delay is bigger than 495 ms when half of block rate is 500 ms
+	require.Greater(t, timeout, testBlockRate/2-(time.Duration(5)*time.Millisecond))
+	// in case of asymmetric delay
+	// require.Greater(t, timeout, testBlockRate-(time.Duration(5)*time.Millisecond))
 }

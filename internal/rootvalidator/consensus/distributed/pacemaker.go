@@ -122,12 +122,19 @@ func (x *Pacemaker) RegisterVote(vote *atomic_broadcast.VoteMsg, quorum QuorumIn
 }
 
 func (x *Pacemaker) CalcTimeTilNextProposal(round uint64) time.Duration {
-	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
+	//symmetric delay
 	now := time.Now()
+	if now.Sub(x.lastViewChange) >= x.blockRate/2 {
+		return 0
+	}
+	return x.lastViewChange.Add(x.blockRate / 2).Sub(now)
+	/* asymmetric delay
+	// according to spec. in case of 2-chain-rule finality the wait is every 2nd block
 	if now.Sub(x.lastViewChange) >= time.Duration(round%2)*x.blockRate {
 		return 0
 	}
 	return x.lastViewChange.Add(x.blockRate).Sub(now)
+	*/
 }
 
 func (x *Pacemaker) RegisterTimeoutVote(vote *atomic_broadcast.TimeoutMsg, quorum QuorumInfo) *atomic_broadcast.TimeoutCert {

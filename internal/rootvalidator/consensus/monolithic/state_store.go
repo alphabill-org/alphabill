@@ -6,9 +6,9 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
-	"github.com/alphabill-org/alphabill/internal/database"
-	"github.com/alphabill-org/alphabill/internal/database/boltdb"
-	"github.com/alphabill-org/alphabill/internal/database/memorydb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 )
@@ -27,7 +27,7 @@ type (
 
 	StateStore struct {
 		state *RootState
-		db    database.KeyValueDB
+		db    keyvaleudb.KeyValueDB
 		mu    sync.Mutex
 	}
 )

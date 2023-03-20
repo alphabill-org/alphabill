@@ -9,10 +9,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/async/future"
-	"github.com/alphabill-org/alphabill/internal/database"
-	"github.com/alphabill-org/alphabill/internal/database/boltdb"
-	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition"
@@ -241,7 +241,7 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 	return p, node, nil
 }
 
-func initNodeBlockStore(dbFile string) (database.KeyValueDB, error) {
+func initNodeBlockStore(dbFile string) (keyvaleudb.KeyValueDB, error) {
 	if dbFile != "" {
 		return boltdb.New(dbFile)
 	} else {

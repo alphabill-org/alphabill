@@ -1,4 +1,4 @@
-package database
+package keyvaleudb
 
 // Reader interface for DB
 type Reader interface {
@@ -16,6 +16,9 @@ type Writer interface {
 	Delete(key []byte) error
 }
 
+// DBTx interface for database transactions
+// NB! all transactions MUST be completed by either calling Commit() or Rollback() which releases
+// the transaction. Multiple parallel transactions are not possible and result in deadlock.
 type DBTx interface {
 	StartTx() (DBTransaction, error)
 }

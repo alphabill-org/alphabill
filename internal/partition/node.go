@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/database"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
 	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/network"
@@ -71,7 +71,7 @@ type (
 		txValidator                 TxValidator
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
-		blockStore                  database.KeyValueDB
+		blockStore                  keyvaleudb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
 		ctx                         context.Context
 		ctxCancel                   context.CancelFunc

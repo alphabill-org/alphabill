@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/alphabill-org/alphabill/internal/database"
-	"github.com/alphabill-org/alphabill/internal/database/boltdb"
-	"github.com/alphabill-org/alphabill/internal/database/memorydb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb/boltdb"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb/memorydb"
 )
 
 const (
@@ -17,9 +17,9 @@ const (
 
 type (
 	Storage struct {
-		rootDB   database.KeyValueDB
-		blocksDB database.KeyValueDB
-		certsDB  database.KeyValueDB
+		rootDB   keyvaleudb.KeyValueDB
+		blocksDB keyvaleudb.KeyValueDB
+		certsDB  keyvaleudb.KeyValueDB
 	}
 )
 
@@ -60,14 +60,14 @@ func New(dbPath string) (*Storage, error) {
 	}
 }
 
-func (s *Storage) GetBlocksDB() database.KeyValueDB {
+func (s *Storage) GetBlocksDB() keyvaleudb.KeyValueDB {
 	return s.blocksDB
 }
 
-func (s *Storage) GetRootDB() database.KeyValueDB {
+func (s *Storage) GetRootDB() keyvaleudb.KeyValueDB {
 	return s.rootDB
 }
 
-func (s *Storage) GetCertificatesDB() database.KeyValueDB {
+func (s *Storage) GetCertificatesDB() keyvaleudb.KeyValueDB {
 	return s.certsDB
 }

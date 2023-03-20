@@ -6,8 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/database"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -25,7 +25,7 @@ type (
 		peerID   string
 		signer   crypto.Signer
 		verifier crypto.Verifier
-		storage  database.KeyValueDB
+		storage  keyvaleudb.KeyValueDB
 	}
 )
 
@@ -43,7 +43,7 @@ func isSafeToExtend(blockRound, qcRound uint64, tc *atomic_broadcast.TimeoutCert
 	return true
 }
 
-func NewSafetyModule(id string, signer crypto.Signer, s database.KeyValueDB) (*SafetyModule, error) {
+func NewSafetyModule(id string, signer crypto.Signer, s keyvaleudb.KeyValueDB) (*SafetyModule, error) {
 	ver, err := signer.Verifier()
 	if err != nil {
 		return nil, fmt.Errorf("invalid root validator sign key: %w", err)

@@ -46,13 +46,10 @@ type validatorConfig struct {
 	Validators map[string]string
 
 	// path to Bolt storage file
-	DbFile string
+	StoragePath string
 
 	// validator partition certification request channel capacity
 	MaxRequests uint
-
-	// persistent storage
-	StoragePath string
 }
 
 // newRootNodeCmd creates a new cobra command for root validator chain
@@ -70,7 +67,7 @@ func newRootNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root validator validator key file  (default $AB_HOME/rootchain/"+defaultKeysFileName+")")
 	cmd.Flags().StringVarP(&config.GenesisFile, "genesis-file", "g", "", "path to root-genesis.json file (default $AB_HOME/rootchain/"+rootGenesisFileName+")")
-	cmd.Flags().StringVarP(&config.DbFile, "db", "f", "", "persistent store path (default: $AB_HOME/rootchain/)")
+	cmd.Flags().StringVarP(&config.StoragePath, "db", "f", "", "persistent store path (default: $AB_HOME/rootchain/)")
 	cmd.Flags().StringVar(&config.PartitionListener, "partition-listener", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringVar(&config.RootListener, "root-listener", "/ip4/127.0.0.1/tcp/29666", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringToStringVarP(&config.Validators, "peers", "p", nil, "a map of root validator identifiers and addresses. must contain all genesis validator addresses")
@@ -88,8 +85,8 @@ func (c *validatorConfig) getGenesisFilePath() string {
 }
 
 func (c *validatorConfig) getStoragePath() string {
-	if c.DbFile != "" {
-		return c.DbFile
+	if c.StoragePath != "" {
+		return c.StoragePath
 	}
 	return c.Base.defaultRootGenesisDir()
 }

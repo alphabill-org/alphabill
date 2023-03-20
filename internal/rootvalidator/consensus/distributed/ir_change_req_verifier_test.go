@@ -251,7 +251,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		{
 			SystemDescriptionRecord: &genesis.SystemDescriptionRecord{
 				SystemIdentifier: sysID1,
-				T2Timeout:        2600,
+				T2Timeout:        2500,
 			},
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes},
@@ -269,13 +269,13 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		{
 			name:   "no timeout",
 			fields: fields{c: &consensus.Parameters{BlockRateMs: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
-			args:   args{currenRound: 6},
+			args:   args{currenRound: 11}, // last certified round is 1 then 11 - 1 = 10 we have not heard from partition in 10 rounds ~ at minimum 2500 ms not yet timeout
 			want:   []protocol.SystemIdentifier{},
 		},
 		{
 			name:   "timeout - 6 round since last UC",
 			fields: fields{c: &consensus.Parameters{BlockRateMs: 500 * time.Millisecond}, pInfo: conf, sMonitor: &MockState{}},
-			args:   args{currenRound: 7},
+			args:   args{currenRound: 12}, // last certified round is 1 then 12 - 1 = 11 we have not heard from partition in 12 rounds ~ at minimum 2750 ms not yet timeout
 			want:   []protocol.SystemIdentifier{protocol.SystemIdentifier(sysID1)},
 		},
 		{

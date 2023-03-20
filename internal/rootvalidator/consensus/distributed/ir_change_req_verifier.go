@@ -80,7 +80,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *atomic_br
 		return nil, fmt.Errorf("invalid payload: unknown partition %X", sysID.Bytes())
 	}
 	// verify request
-	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRateMs))
+	inputRecord, err := irChReq.Verify(tb, luc, round, t2TimeoutToRootRounds(sysDesRecord.T2Timeout, x.params.BlockRateMs/2))
 	if err != nil {
 		return nil, fmt.Errorf("invalid payload: partition %X certification request verifiaction failed %w", sysID.Bytes(), err)
 	}
@@ -117,7 +117,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currenRound uint64) []protocol
 			// still try to compose a payload, better than nothing
 			continue
 		}
-		if currenRound-cert.UnicitySeal.RootRoundInfo.RoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRateMs) {
+		if currenRound-cert.UnicitySeal.RootRoundInfo.RoundNumber >= t2TimeoutToRootRounds(sysDesc.T2Timeout, x.params.BlockRateMs/2) {
 			timeoutIds = append(timeoutIds, id)
 		}
 	}

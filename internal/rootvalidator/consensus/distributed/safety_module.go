@@ -132,7 +132,7 @@ func (s *SafetyModule) MakeVote(block *atomic_broadcast.BlockData, execStateID [
 	return voteMsg, nil
 }
 
-func (s SafetyModule) SignTimeout(vote *atomic_broadcast.TimeoutMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
+func (s *SafetyModule) SignTimeout(vote *atomic_broadcast.TimeoutMsg, lastRoundTC *atomic_broadcast.TimeoutCert) error {
 	qcRound := vote.Timeout.HighQc.VoteInfo.RoundNumber
 	round := vote.Timeout.Round
 	if !s.isSafeToTimeout(round, qcRound, lastRoundTC) {
@@ -144,7 +144,7 @@ func (s SafetyModule) SignTimeout(vote *atomic_broadcast.TimeoutMsg, lastRoundTC
 	return vote.Sign(s.signer)
 }
 
-func (s SafetyModule) SignProposal(proposalMsg *atomic_broadcast.ProposalMsg) error {
+func (s *SafetyModule) SignProposal(proposalMsg *atomic_broadcast.ProposalMsg) error {
 	return proposalMsg.Sign(s.signer)
 }
 

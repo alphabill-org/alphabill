@@ -111,18 +111,27 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 
 	tp.partition.startNewRound(tp.partition.luc)
 
-	// send UC with different block hash
-	ir := proto.Clone(bl.UnicityCertificate.InputRecord).(*certificates.InputRecord)
-	ir.BlockHash = test.RandomBytes(32)
-	ir.RoundNumber++
-
-	repeatUC, err := tp.CreateUnicityCertificate(
+	// send new UC
+	rootRound := bl.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber
+	partitionRound := bl.UnicityCertificate.InputRecord.RoundNumber
+	sum := bl.UnicityCertificate.InputRecord.SummaryValue
+	rootRound++
+	partitionRound++
+	newStateHash := test.RandomBytes(32)
+	ir := &certificates.InputRecord{
+		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
+		Hash:         newStateHash,
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: sum,
+		RoundNumber:  partitionRound,
+	}
+	uc, err := tp.CreateUnicityCertificate(
 		ir,
-		bl.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
+		rootRound,
 	)
 	require.NoError(t, err)
 
-	tp.SubmitUnicityCertificate(repeatUC)
+	tp.SubmitUnicityCertificate(uc)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
@@ -135,15 +144,20 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
-	irNew := proto.Clone(ir).(*certificates.InputRecord)
-	irNew.BlockHash = test.RandomBytes(32)
-	irNew.RoundNumber++
-	newerUC, err := tp.CreateUnicityCertificate(
-		irNew,
-		repeatUC.UnicitySeal.RootRoundInfo.RoundNumber+1,
+	rootRound++
+	partitionRound++
+	ir = &certificates.InputRecord{
+		PreviousHash: newStateHash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: sum,
+		RoundNumber:  partitionRound,
+	}
+	uc, err = tp.CreateUnicityCertificate(
+		ir,
+		rootRound,
 	)
-	require.NoError(t, err)
-	tp.SubmitUnicityCertificate(newerUC)
+	tp.SubmitUnicityCertificate(uc)
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
 	require.Equal(t, recovering, tp.partition.status)
 }

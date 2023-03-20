@@ -43,7 +43,7 @@ const monitorTimerName = "monitor"
 const proposalKey = uint64(0)
 
 var (
-	ErrNodeDoesNotHaveLatestBlock = errors.New("node does not have the latest block")
+	ErrNodeDoesNotHaveLatestBlock = errors.New("recovery needed, node does not have the latest block")
 
 	transactionsCounter = metrics.GetOrRegisterCounter("partition/node/transaction/handled")
 )
@@ -206,7 +206,7 @@ func initState(n *Node) error {
 			return fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 		}
 		if !bytes.Equal(prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.PreviousBlockHash) {
-			return fmt.Errorf("invalid blockchain (previous block #%v hash='%X', current block %v backlink='%X')", prevBlock.UnicityCertificate.InputRecord.RoundNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.UnicityCertificate.InputRecord.RoundNumber, bl.PreviousBlockHash)
+			return fmt.Errorf("invalid blockchain (previous block %v hash='%X', current block %v backlink='%X')", prevBlock.UnicityCertificate.InputRecord.RoundNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.UnicityCertificate.InputRecord.RoundNumber, bl.PreviousBlockHash)
 		}
 		if err := n.applyBlock(roundNo, &bl); err != nil {
 			return fmt.Errorf("block %v error, %w", roundNo, err)
@@ -661,15 +661,9 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 			n.startRecovery(uc)
 			return fmt.Errorf("recovery needed, transaction system state error, %w", err)
 		}
+		// if state hash does not match - start recovery
 		if !bytes.Equal(uc.InputRecord.Hash, state.Root()) {
 			logger.Warning("Start recovery, UC IR hash not equal to state's hash: '%X' vs '%X'", uc.InputRecord.Hash, state.Root())
-			n.startRecovery(uc)
-			return ErrNodeDoesNotHaveLatestBlock
-
-		}
-		if !bytes.Equal(uc.InputRecord.BlockHash, n.luc.InputRecord.BlockHash) {
-			logger.Warning("Recovery needed, received UC IR block hash not equal to last round %v block hash: '%X' vs '%X'",
-				n.luc.InputRecord.RoundNumber, uc.InputRecord.BlockHash, n.luc.InputRecord.BlockHash)
 			n.startRecovery(uc)
 			return ErrNodeDoesNotHaveLatestBlock
 		}
@@ -857,7 +851,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	}
 	if lr.Status != replication.LedgerReplicationResponse_OK {
 		recoverFrom := n.luc.InputRecord.RoundNumber
-		logger.Debug("Resending replication request starting with round #%v", recoverFrom)
+		logger.Debug("Resending replication request starting with round %v", recoverFrom)
 		go func() {
 			time.Sleep(500 * time.Millisecond) // TODO: needs to be fixed as it could cause issues on shutdown
 			n.sendLedgerReplicationRequest(recoverFrom)

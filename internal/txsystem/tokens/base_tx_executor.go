@@ -63,20 +63,32 @@ func verifyPredicates(predicates []Predicate, signatures [][]byte, sigData []byt
 	return nil
 }
 
-func (b *baseTxExecutor[T]) getFungibleTokenData(unitID *uint256.Int) (*fungibleTokenData, error) {
+type TokenOwnershipProver interface {
+	OwnerProof() []byte
+	InvariantPredicateSignatures() [][]byte
+	SigBytes() []byte
+}
+
+func verifyOwnership(bearer Predicate, invPredicates []Predicate, prover TokenOwnershipProver) error {
+	predicates := append([]Predicate{bearer}, invPredicates...)
+	proofs := append([][]byte{prover.OwnerProof()}, prover.InvariantPredicateSignatures()...)
+	return verifyPredicates(predicates, proofs, prover.SigBytes())
+}
+
+func (b *baseTxExecutor[T]) getFungibleTokenData(unitID *uint256.Int) (Predicate, *fungibleTokenData, error) {
 	if unitID.IsZero() {
-		return nil, errors.New(ErrStrUnitIDIsZero)
+		return nil, nil, errors.New(ErrStrUnitIDIsZero)
 	}
 	u, err := b.state.GetUnit(unitID)
 	if err != nil {
 		if goerrors.Is(err, rma.ErrUnitNotFound) {
-			return nil, errors.Wrapf(err, "unit %v does not exist", unitID)
+			return nil, nil, errors.Wrapf(err, "unit %v does not exist", unitID)
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	d, ok := u.Data.(*fungibleTokenData)
 	if !ok {
-		return nil, errors.Errorf("unit %v is not fungible token data", unitID)
+		return nil, nil, errors.Errorf("unit %v is not fungible token data", unitID)
 	}
-	return d, nil
+	return Predicate(u.Bearer), d, nil
 }

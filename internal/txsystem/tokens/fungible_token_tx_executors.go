@@ -280,7 +280,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 }
 
 func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrapper) error {
-	d, err := t.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := t.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -309,11 +309,11 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }
 
 func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) error {
-	d, err := s.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := s.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -353,11 +353,11 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }
 
 func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) error {
-	d, err := b.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := b.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -383,11 +383,11 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }
 
 func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) error {
-	d, err := j.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := j.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -430,5 +430,5 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }

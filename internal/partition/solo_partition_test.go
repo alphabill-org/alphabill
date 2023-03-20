@@ -311,6 +311,14 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
 }
 
+func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
+	t.Helper()
+	sn.eh.Reset()
+	t1 := &timer.Task{}
+	t1.SetName(monitorTimerName)
+	sn.partition.timers.C <- t1
+}
+
 type TestLeaderSelector struct {
 	leader      peer.ID
 	currentNode peer.ID
@@ -397,9 +405,9 @@ func ContainsTransaction(block *block.Block, tx *txsystem.Transaction) bool {
 	return false
 }
 
-func CertificationRequestReceived(tp *SingleNodePartition) func() bool {
+func RequestReceived(tp *SingleNodePartition, req string) func() bool {
 	return func() bool {
-		messages := tp.mockNet.SentMessages(network.ProtocolBlockCertification)
+		messages := tp.mockNet.SentMessages(req)
 		return len(messages) > 0
 	}
 }

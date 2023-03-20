@@ -138,7 +138,7 @@ func NewNodeGenesis(txSystem txsystem.TransactionSystem, opts ...GenesisOption) 
 			PreviousHash: zeroHash, // extend zero hash
 			Hash:         hash,
 			BlockHash:    zeroHash, // first block's hash is zero
-			RoundNumber:  pg.GenesisRoundNumber,
+			RoundNumber:  pg.PartitionRoundNumber,
 			SummaryValue: summaryValue,
 		},
 	}

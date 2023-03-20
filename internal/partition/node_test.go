@@ -3,6 +3,7 @@ package partition
 import (
 	gocrypto "crypto"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -108,6 +109,32 @@ func TestNode_ConvertingTxToGenericTxFails(t *testing.T) {
 	err := pn.partition.handleTxMessage(message)
 	require.ErrorContains(t, err, "invalid tx")
 	require.Equal(t, 0, len(pn.partition.proposedTransactions))
+}
+
+func TestNode_NodeStartTest(t *testing.T) {
+	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
+	defer tp.Close()
+	// node starts in init state
+	require.Equal(t, initializing, tp.partition.status)
+	// node sends a handshake to root and subscribes to UC messages
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	// simulate no response, but monitor timeout
+	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
+	tp.SubmitMonitorTimeout(t)
+	// node sends a handshake to root and subscribes to UC messages
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	// while no response is received a retry is triggered on each timeout
+	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
+	tp.SubmitMonitorTimeout(t)
+	// node sends a handshake to root and subscribes to UC messages
+	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
+	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
+	// root responds with genesis
+	tp.SubmitUnicityCertificate(tp.partition.luc)
+	// node is initiated
+	require.Eventually(t, func() bool {
+		return tp.partition.status == normal
+	}, test.WaitDuration, test.WaitTick)
 }
 
 func TestNode_CreateBlocks(t *testing.T) {
@@ -520,7 +547,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 	err = bp.Sign(gocrypto.SHA256, tp.nodeConf.signer)
 	require.NoError(t, err)
 	tp.SubmitBlockProposal(bp)
-	require.Eventually(t, CertificationRequestReceived(tp), test.WaitDuration, test.WaitTick)
+	require.Eventually(t, RequestReceived(tp, network.ProtocolBlockCertification), test.WaitDuration, test.WaitTick)
 }
 
 func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {

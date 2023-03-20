@@ -74,7 +74,7 @@ func createInputRequest(t *testing.T, systemIdentifier []byte, nodeID string, pa
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
 			SummaryValue: []byte{1, 0, 0},
-			RoundNumber:  pg.GenesisRoundNumber,
+			RoundNumber:  pg.PartitionRoundNumber,
 		},
 	}
 

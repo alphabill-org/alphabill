@@ -666,6 +666,7 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
@@ -687,6 +688,7 @@ func TestTransferNFT_Ok(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
@@ -722,6 +724,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysFalse(),
@@ -744,6 +747,7 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
 			NftType:                      nftTypeID,
 			NewBearer:                    []byte{script.StartByte},

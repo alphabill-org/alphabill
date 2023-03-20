@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -63,7 +64,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
 	cmd.PersistentFlags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill backend uri to connect to")
-	cmd.PersistentFlags().BoolP(waitForConfCmdName, "w", true, "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction, defaults to 'true'")
+	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction, defaults to 'true'")
 	return cmd
 }
 
@@ -772,7 +773,11 @@ func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet,
 	if err != nil {
 		return nil, err
 	}
-	confirmTx, err := cmd.Flags().GetBool(waitForConfCmdName)
+	confirmTxStr, err := cmd.Flags().GetString(waitForConfCmdName)
+	if err != nil {
+		return nil, err
+	}
+	confirmTx, err := strconv.ParseBool(confirmTxStr)
 	if err != nil {
 		return nil, err
 	}

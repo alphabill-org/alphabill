@@ -8,9 +8,9 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	test "github.com/alphabill-org/alphabill/internal/testutils/peer"
@@ -105,7 +105,7 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	p := test.CreatePeer(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	blockStore := &store.InMemoryBlockStore{}
+	blockStore := memorydb.New()
 	selector := &mockLeaderSelector{}
 	ctx := context.Background()
 	t1Timeout := 250 * time.Millisecond
@@ -225,7 +225,7 @@ func TestGetPublicKey_NotFound(t *testing.T) {
 	conf, err := loadAndValidateConfiguration(p, signer, pg, &testtxsystem.CounterTxSystem{}, testnetwork.NewMockNetwork())
 	require.NoError(t, err)
 	_, err = conf.GetSigningPublicKey("1")
-	require.ErrorContains(t, err, "public key with node id 1 not found")
+	require.ErrorContains(t, err, "public key for id 1 not found")
 }
 
 func TestGetGenesisBlock(t *testing.T) {

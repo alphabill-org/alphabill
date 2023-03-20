@@ -54,7 +54,6 @@ func (x *BlockCertificationRequest) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemIdentifier)
 	b.WriteString(x.NodeIdentifier)
-	b.Write(util.Uint64ToBytes(x.RootRoundNumber))
 	b.Write(x.InputRecord.PreviousHash)
 	b.Write(x.InputRecord.Hash)
 	b.Write(x.InputRecord.BlockHash)

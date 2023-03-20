@@ -105,12 +105,12 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	req := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeIdentifier,
-		RootRoundNumber:  1,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
 			SummaryValue: make([]byte, 32),
+			RoundNumber:  1,
 		},
 	}
 	require.NoError(t, req.Sign(signer))

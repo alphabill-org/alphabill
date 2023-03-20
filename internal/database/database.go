@@ -65,12 +65,15 @@ type ReverseIterator interface {
 type Iteratee interface {
 	// First creates a binary-alphabetical forward iterator starting with first item.
 	// If the DB is empty the returned iterator returned is not valid (it.Valid() == false)
+	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock
 	First() Iterator
 	// Last creates a binary-alphabetical reverse iterator starting with last item.
 	// If the DB is empty the returned iterator returned is not valid (it.Valid() == false)
+	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock
 	Last() ReverseIterator
 	// Find returns forward iterator to the closest binary-alphabetical match.
 	// If no match or DB is empty the returned iterator returned is not valid (it.Valid() == false)
+	// NB! when done iterator MUST be released with Close() or next DB operation will result in deadlock
 	Find(key []byte) Iterator
 }
 

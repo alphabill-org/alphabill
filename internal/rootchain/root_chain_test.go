@@ -2,7 +2,6 @@ package rootchain
 
 import (
 	"bytes"
-	gocrypto "crypto"
 	"testing"
 	"time"
 
@@ -24,20 +23,13 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+	RoundNumber:  1,
 }
 
 type node struct {
 	signingKey       crypto.Signer
 	signingPublicKey crypto.Verifier
 	peer             *network.Peer
-}
-
-var consensus = &genesis.ConsensusParams{
-	TotalRootValidators: 1,
-	BlockRateMs:         900,
-	ConsensusTimeoutMs:  10000,
-	QuorumThreshold:     1,
-	HashAlgorithm:       uint32(gocrypto.SHA256),
 }
 
 func TestNewRootChain_Ok(t *testing.T) {
@@ -78,13 +70,13 @@ func TestPartitionReceivesUnicityCertificates(t *testing.T) {
 	mockNet.Receive(network.ReceivedMessage{
 		From:     partitionNodes[0].peer.ID(),
 		Protocol: network.ProtocolBlockCertification,
-		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[0], newHash, blockHash, partitionNodes[0]),
+		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[0], newHash, blockHash, 2, partitionNodes[0]),
 	})
 
 	mockNet.Receive(network.ReceivedMessage{
 		From:     partitionNodes[1].peer.ID(),
 		Protocol: network.ProtocolBlockCertification,
-		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[1], newHash, blockHash, partitionNodes[1]),
+		Message:  createBlockCertificationRequest(t, partitionRecord.Validators[1], newHash, blockHash, 2, partitionNodes[1]),
 	})
 	require.Eventually(t, func() bool {
 		messages := mockNet.SentMessages(network.ProtocolUnicityCertificates)
@@ -97,17 +89,17 @@ func TestPartitionReceivesUnicityCertificates(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 }
 
-func createBlockCertificationRequest(t *testing.T, pn *genesis.PartitionNode, newHash []byte, blockHash []byte, partitionNode *node) *certification.BlockCertificationRequest {
+func createBlockCertificationRequest(t *testing.T, pn *genesis.PartitionNode, newHash []byte, blockHash []byte, round uint64, partitionNode *node) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
 		SystemIdentifier: partitionID,
 		NodeIdentifier:   pn.BlockCertificationRequest.NodeIdentifier,
-		RootRoundNumber:  1,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: pn.BlockCertificationRequest.InputRecord.Hash,
 			Hash:         newHash,
 			BlockHash:    blockHash,
 			SummaryValue: pn.BlockCertificationRequest.InputRecord.SummaryValue,
+			RoundNumber:  round,
 		},
 	}
 	require.NoError(t, r1.Sign(partitionNode.signingKey))
@@ -117,9 +109,9 @@ func createBlockCertificationRequest(t *testing.T, pn *genesis.PartitionNode, ne
 func (n *node) GetEncryptionPublicKeyBytes(t *testing.T) []byte {
 	pk, err := n.peer.PublicKey()
 	require.NoError(t, err)
-	bytes, err := pk.Raw()
+	b, err := pk.Raw()
 	require.NoError(t, err)
-	return bytes
+	return b
 }
 
 func createPartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.InputRecord, systemID []byte, nrOfValidators int) (partitionNodes []*node, record *genesis.PartitionRecord) {
@@ -144,7 +136,6 @@ func createPartitionNodesAndPartitionRecord(t *testing.T, ir *certificates.Input
 		req := &certification.BlockCertificationRequest{
 			SystemIdentifier: systemID,
 			NodeIdentifier:   partitionNode.peer.ID().String(),
-			RootRoundNumber:  1,
 			InputRecord:      ir,
 		}
 		err = req.Sign(partitionNode.signingKey)

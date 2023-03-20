@@ -146,12 +146,12 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey crypto.Signer, 
 	request := &certification.BlockCertificationRequest{
 		SystemIdentifier: []byte{0, 0, 0, 0},
 		NodeIdentifier:   nodeID,
-		RootRoundNumber:  1,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
 			SummaryValue: make([]byte, 32),
+			RoundNumber:  1,
 		},
 	}
 	require.NoError(t, request.Sign(signingKey))

@@ -174,9 +174,8 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		if !f {
 			return fmt.Errorf("ir change request ignored, no last state for system id %X", req.SystemIdentifier.Bytes())
 		}
-		// repeat UC
-		// todo: AB-505 add partition round number increment and 'nullhash' for block, epoch check
-		newInputRecord = luc.InputRecord
+		// repeat UC, ignore error here as we found the luc, and it cannot be nil
+		newInputRecord, _ = certificates.NewRepeatInputRecord(luc.InputRecord)
 		break
 
 	default:
@@ -249,7 +248,8 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *RootState) error 
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
-				x.changes[id] = cert.InputRecord
+				repeatIR, _ := certificates.NewRepeatInputRecord(cert.InputRecord)
+				x.changes[id] = repeatIR
 			}
 		}
 	}

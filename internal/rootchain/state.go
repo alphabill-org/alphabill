@@ -159,18 +159,15 @@ func (s *State) HandleBlockCertificationRequest(req *certification.BlockCertific
 	if err != nil {
 		return nil, err
 	}
+	if req.InputRecord.RoundNumber != latestUnicityCertificate.InputRecord.RoundNumber+1 {
+		return latestUnicityCertificate, errors.Errorf("partition out of sync: request round %v, latest certified round: %v", req.InputRecord.RoundNumber, latestUnicityCertificate.InputRecord.RoundNumber)
+	}
 	seal := latestUnicityCertificate.UnicitySeal
-	if req.RootRoundNumber < seal.RootRoundInfo.RoundNumber {
-		// Older UC, return current.
-		return latestUnicityCertificate, errors.Errorf("old request: root round number %v, partition node round number %v", seal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
-	} else if req.RootRoundNumber > seal.RootRoundInfo.RoundNumber {
-		// should not happen, partition has newer UC
-		return latestUnicityCertificate, errors.Errorf("partition has never unicity certificate: root round number %v, partition node round number %v", seal.RootRoundInfo.RoundNumber, req.RootRoundNumber)
-	} else if !bytes.Equal(req.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
+	if !bytes.Equal(req.InputRecord.PreviousHash, latestUnicityCertificate.InputRecord.Hash) {
 		// Extending of unknown State.
 		return latestUnicityCertificate, errors.Errorf("request extends unknown state: expected hash: %v, got: %v", seal.CommitInfo.RootHash, req.InputRecord.PreviousHash)
 	}
-	if err := s.incomingRequests.Add(req); err != nil {
+	if err = s.incomingRequests.Add(req); err != nil {
 		return nil, err
 	}
 	s.checkConsensus(systemIdentifier)
@@ -191,7 +188,12 @@ func (s *State) checkConsensus(id p.SystemIdentifier) bool {
 			logger.Error("Cannot re-certify partition: SystemIdentifier: %X, error: %v", []byte(id), err.Error())
 			return false
 		}
-		s.inputRecords[id] = luc.InputRecord
+		repeatIR, err := certificates.NewRepeatInputRecord(luc.InputRecord)
+		if err != nil {
+			logger.Error("Cannot re-certify partition: SystemIdentifier: %X, error: %v", []byte(id), err.Error())
+			return false
+		}
+		s.inputRecords[id] = repeatIR
 	}
 	return false
 }

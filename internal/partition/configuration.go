@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/database"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -42,7 +44,7 @@ type (
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
 		leaderSelector              LeaderSelector
-		blockStore                  store.BlockStore
+		blockStore                  database.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
@@ -96,7 +98,7 @@ func WithLeaderSelector(leaderSelector LeaderSelector) NodeOption {
 	}
 }
 
-func WithBlockStore(blockStore store.BlockStore) NodeOption {
+func WithBlockStore(blockStore database.KeyValueDB) NodeOption {
 	return func(c *configuration) {
 		c.blockStore = blockStore
 	}
@@ -154,14 +156,13 @@ func loadAndValidateConfiguration(peer *network.Peer, signer crypto.Signer, gene
 		option(c)
 	}
 	// init default for those not specified by the user
-	err := c.initMissingDefaults(peer)
-	if err != nil {
-		return nil, err
+	if err := c.initMissingDefaults(peer); err != nil {
+		return nil, fmt.Errorf("failed to initiate default parameters, %w", err)
 	}
 	if err := c.isGenesisValid(txs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("genesis error, %w", err)
 	}
-	return c, err
+	return c, nil
 }
 
 // initMissingDefaults loads missing default configuration.
@@ -173,36 +174,36 @@ func (c *configuration) initMissingDefaults(peer *network.Peer) error {
 		c.t1Timeout = DefaultT1Timeout
 	}
 	if c.blockStore == nil {
-		c.blockStore = store.NewInMemoryBlockStore()
+		c.blockStore = memorydb.New()
 	}
 
 	var err error
 	c.txBuffer, err = txbuffer.New(DefaultTxBufferSize, c.hashAlgorithm)
 	if err != nil {
-		return err
+		return fmt.Errorf("tx buffer init error, %w", err)
 	}
 
 	if c.leaderSelector == nil {
 		c.leaderSelector, err = NewDefaultLeaderSelector(peer, c.GetSystemIdentifier())
 		if err != nil {
-			return err
+			return fmt.Errorf("leader election init error, %w", err)
 		}
 	}
 	c.rootTrustBase, err = genesis.NewValidatorTrustBase(c.genesis.RootValidators)
 	if err != nil {
-		return err
+		return fmt.Errorf("root trust base init error, %w", err)
 	}
 	if c.blockProposalValidator == nil {
 
 		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
 		if err != nil {
-			return err
+			return fmt.Errorf("block proposal validator init error, %w", err)
 		}
 	}
 	if c.unicityCertificateValidator == nil {
 		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.SystemDescriptionRecord, c.rootTrustBase, c.hashAlgorithm)
 		if err != nil {
-			return err
+			return fmt.Errorf("unicity certificate validator init error, %w", err)
 		}
 	}
 	if c.txValidator == nil {
@@ -235,7 +236,7 @@ func (c *configuration) genesisBlock() *block.Block {
 func (c *configuration) isGenesisValid(txs txsystem.TransactionSystem) error {
 	if err := c.genesis.IsValid(c.rootTrustBase, c.hashAlgorithm); err != nil {
 		logger.Warning("Invalid partition genesis file: %v", err)
-		return errors.Wrap(err, "invalid root partition genesis file")
+		return fmt.Errorf("invalid partition genesis file, %w", err)
 	}
 	state, err := txs.State()
 	if err != nil {
@@ -263,11 +264,15 @@ func (c *configuration) GetSystemIdentifier() []byte {
 	return c.genesis.SystemDescriptionRecord.SystemIdentifier
 }
 
+func (c *configuration) GetT2Timeout() time.Duration {
+	return time.Duration(c.genesis.SystemDescriptionRecord.T2Timeout) * time.Millisecond
+}
+
 func (c *configuration) GetSigningPublicKey(nodeIdentifier string) (crypto.Verifier, error) {
 	for _, key := range c.genesis.Keys {
 		if key.NodeIdentifier == nodeIdentifier {
 			return crypto.NewVerifierSecp256k1(key.SigningPublicKey)
 		}
 	}
-	return nil, errors.Errorf("signing public key with node id %v not found", nodeIdentifier)
+	return nil, fmt.Errorf("signing public key for id %v not found", nodeIdentifier)
 }

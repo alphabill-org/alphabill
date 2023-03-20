@@ -25,6 +25,7 @@ var genesisInputRecord = &certificates.InputRecord{
 	Hash:         []byte{1, 1, 1, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+	RoundNumber:  1,
 }
 
 func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
@@ -89,7 +90,6 @@ func TestExecutedBlock(t *testing.T) {
 	certReq := &certification.BlockCertificationRequest{
 		SystemIdentifier: partitionID1,
 		NodeIdentifier:   "1",
-		RootRoundNumber:  2,
 		InputRecord: &certificates.InputRecord{
 			PreviousHash: []byte{1, 1, 1, 1},
 			Hash:         []byte{2, 2, 2, 2},

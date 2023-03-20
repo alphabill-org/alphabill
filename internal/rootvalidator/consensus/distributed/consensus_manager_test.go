@@ -30,6 +30,7 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+	RoundNumber:  1,
 }
 
 func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
@@ -79,7 +80,7 @@ func TestIRChangeRequestFromPartition(t *testing.T) {
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  1,
+		RoundNumber:  2,
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
@@ -155,7 +156,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  1,
+		RoundNumber:  2,
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
@@ -305,7 +306,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
-		RoundNumber:  1,
+		RoundNumber:  2,
 	}
 	requests[0] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	requests[1] = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])

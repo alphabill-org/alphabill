@@ -28,6 +28,7 @@ var partitionInputRecord = &certificates.InputRecord{
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
+	RoundNumber:  1,
 }
 
 func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration) (*certificates.UnicityCertificate, error) {
@@ -142,9 +143,10 @@ func TestConsensusManager_PartitionTimeout(t *testing.T) {
 	// require, that repeat UC certificates are received for partition ID in 3 root rounds (partition timeout 2500 < 3 * 900)
 	result, err := readResult(cm.CertificationResult(), 3000*time.Millisecond)
 	require.NoError(t, err)
-	require.Equal(t, partitionInputRecord, result.InputRecord)
-	require.Equal(t, uint64(4), result.UnicitySeal.RootRoundInfo.RoundNumber)
-	require.Equal(t, uint64(3), result.UnicitySeal.RootRoundInfo.ParentRoundNumber)
+	require.Equal(t, uint64(2), result.InputRecord.RoundNumber)
+	require.Equal(t, []byte{0, 0, 0, 0}, result.InputRecord.BlockHash)
+	require.Equal(t, result.InputRecord.Hash, result.InputRecord.PreviousHash)
+	require.Equal(t, partitionInputRecord.Hash, result.InputRecord.Hash)
 	require.NotNil(t, result.UnicitySeal.CommitInfo.RootHash)
 	require.Equal(t, result.UnicitySeal.CommitInfo.RootHash, result.UnicitySeal.RootRoundInfo.CurrentRootHash)
 	trustBase := map[string]crypto.Verifier{rootNode.Peer.ID().String(): rootNode.Verifier}

@@ -58,7 +58,10 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 			return nil, fmt.Errorf("invalid ir change request proof, %X node %v proof system id %X does not match",
 				x.SystemIdentifier, req.NodeIdentifier, req.SystemIdentifier)
 		}
-		// todo: AB-505 add partition round number and epoch check, also skipping root round number checks for now as they are not part of the new spec.
+		// does not extend from previous partition round
+		if req.InputRecord.RoundNumber != luc.InputRecord.RoundNumber+1 {
+			return nil, fmt.Errorf("invalid partition round number %v, last certified round number %v", req.InputRecord.RoundNumber, luc.InputRecord.RoundNumber)
+		}
 		// validate against last unicity certificate
 		if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
 			return nil, fmt.Errorf("invalid ir change request proof, partition %X validator %v input records does not extend last certified",
@@ -104,7 +107,8 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 			return nil, fmt.Errorf("invalid ir change request no quorum proof for %X, not enough requests to prove no quorum is possible", x.SystemIdentifier)
 		}
 		// initiate repeat UC
-		return luc.InputRecord, nil
+		return certificates.NewRepeatInputRecord(luc.InputRecord)
+
 	case IRChangeReqMsg_T2_TIMEOUT:
 		// timout does not carry proof in form of certification requests
 		// again this is not fatal in itself, but we should not encourage redundant info
@@ -118,7 +122,7 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 				x.SystemIdentifier, lucAge, t2InRounds)
 		}
 		// initiate repeat UC
-		return luc.InputRecord, nil
+		return certificates.NewRepeatInputRecord(luc.InputRecord)
 	}
 	// should be unreachable, since validate method already makes sure that reason is known
 	return nil, fmt.Errorf("unknown certificatio reason %v", x.CertReason)

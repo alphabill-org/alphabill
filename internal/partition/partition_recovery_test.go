@@ -5,10 +5,10 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
+	"github.com/alphabill-org/alphabill/internal/database/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
-	"github.com/alphabill-org/alphabill/internal/partition/store"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
@@ -29,10 +29,14 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// prepare proposal
 	tp.SubmitT1Timeout(t)
 	require.Equal(t, uint64(0), system.RevertCount)
-	// send UC with different IR hash
-	ir := proto.Clone(bl.UnicityCertificate.InputRecord).(*certificates.InputRecord)
-	ir.Hash = test.RandomBytes(32)
-
+	// simulate UC with different state hash and block hash
+	ir := &certificates.InputRecord{
+		PreviousHash: bl.UnicityCertificate.InputRecord.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: bl.UnicityCertificate.InputRecord.SummaryValue,
+		RoundNumber:  bl.UnicityCertificate.InputRecord.RoundNumber + 1,
+	}
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
 		bl.UnicityCertificate.UnicitySeal.RootRoundInfo.RoundNumber+1,
@@ -52,8 +56,16 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
+	// increment round number
+	irNew := &certificates.InputRecord{
+		PreviousHash: ir.Hash,
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		SummaryValue: bl.UnicityCertificate.InputRecord.SummaryValue,
+		RoundNumber:  ir.RoundNumber + 1,
+	}
 	newerUC, err := tp.CreateUnicityCertificate(
-		ir,
+		irNew,
 		repeatUC.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
@@ -66,9 +78,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 // the proposal is valid and must be restored correctly since the latest UC will certify it
 // that is, node does not need to send replication request, but instead should restore proposal and accept UC to finalize the block
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR(t *testing.T) {
-	t.SkipNow() // TODO fix test
-
-	store := store.NewInMemoryBlockStore()
+	store := memorydb.New()
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(store))
 	t.Cleanup(func() {
 		tp.Close()
@@ -99,12 +109,12 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	defer tp.Close()
 	bl := tp.GetLatestBlock(t)
 
-	err := tp.partition.startNewRound(tp.partition.luc)
-	require.NoError(t, err)
+	tp.partition.startNewRound(tp.partition.luc)
 
 	// send UC with different block hash
 	ir := proto.Clone(bl.UnicityCertificate.InputRecord).(*certificates.InputRecord)
 	ir.BlockHash = test.RandomBytes(32)
+	ir.RoundNumber++
 
 	repeatUC, err := tp.CreateUnicityCertificate(
 		ir,
@@ -125,8 +135,11 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 
 	// send newer UC and check LUC is updated and node still recovering
 	tp.eh.Reset()
+	irNew := proto.Clone(ir).(*certificates.InputRecord)
+	irNew.BlockHash = test.RandomBytes(32)
+	irNew.RoundNumber++
 	newerUC, err := tp.CreateUnicityCertificate(
-		ir,
+		irNew,
 		repeatUC.UnicitySeal.RootRoundInfo.RoundNumber+1,
 	)
 	require.NoError(t, err)
@@ -179,7 +192,7 @@ func TestNode_RecoverBlocks(t *testing.T) {
 		},
 	})
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
-	require.Equal(t, idle, tp.partition.status)
+	require.Equal(t, normal, tp.partition.status)
 }
 
 func TestNode_RespondToReplicationRequest(t *testing.T) {
@@ -187,8 +200,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	defer tp.Close()
 	genesisBlockNumber := tp.GetLatestBlock(t).UnicityCertificate.InputRecord.RoundNumber
 
-	err := tp.partition.startNewRound(tp.partition.luc)
-	require.NoError(t, err)
+	tp.partition.startNewRound(tp.partition.luc)
 
 	// generate 4 blocks with 3 tx each (but only 2 blocks will be matched and sent)
 	for i := 0; i < 4; i++ {
@@ -212,12 +224,12 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	require.Equal(t, uint64(4), latestBlockNumber-genesisBlockNumber)
 
 	//send replication request, it will hit tx replication limit
-	peer := "16Uiu2HAm826WzV3ZDwtEA93VJVxMPSvyrVUK7ArifTmhr3CwLzMj"
+	//peer := "16Uiu2HAm826WzV3ZDwtEA93VJVxMPSvyrVUK7ArifTmhr3CwLzMj"
 	tp.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",
 		Protocol: network.ProtocolLedgerReplicationReq,
 		Message: &replication.LedgerReplicationRequest{
-			NodeIdentifier:   peer,
+			NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
 			BeginBlockNumber: genesisBlockNumber + 1,
 			SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
 		},
@@ -230,7 +242,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	require.Equal(t, 1, len(resp))
 	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
 	require.Equal(t, replication.LedgerReplicationResponse_OK, resp[0].Message.(*replication.LedgerReplicationResponse).Status)
-	require.Equal(t, peer, resp[0].ID.String())
+	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp[0].ID.String())
 	require.Equal(t, 2, len(resp[0].Message.(*replication.LedgerReplicationResponse).Blocks))
 
 	tp.eh.Reset()
@@ -241,7 +253,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 		From:     "from-test",
 		Protocol: network.ProtocolLedgerReplicationReq,
 		Message: &replication.LedgerReplicationRequest{
-			NodeIdentifier:   peer,
+			NodeIdentifier:   tp.nodeDeps.peer.ID().String(),
 			BeginBlockNumber: genesisBlockNumber + 1,
 			SystemIdentifier: tp.nodeConf.GetSystemIdentifier(),
 		},
@@ -251,12 +263,13 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	require.Equal(t, 1, len(resp))
 	require.IsType(t, resp[0].Message, &replication.LedgerReplicationResponse{})
 	require.Equal(t, replication.LedgerReplicationResponse_OK, resp[0].Message.(*replication.LedgerReplicationResponse).Status)
-	require.Equal(t, peer, resp[0].ID.String())
+	require.Equal(t, tp.nodeDeps.peer.ID().String(), resp[0].ID.String())
 	require.Equal(t, 1, len(resp[0].Message.(*replication.LedgerReplicationResponse).Blocks))
 }
 
 func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *testtxsystem.CounterTxSystem, currentBlock *block.Block) *block.Block {
 	// simulate new block's state
+	system.BeginBlock(currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1)
 	_ = system.Execute(nil)
 	state, _ := system.EndBlock()
 	system.Commit()

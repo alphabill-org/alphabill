@@ -157,7 +157,7 @@ func (rc *RootChain) loop() {
 					continue
 				}
 				util.WriteDebugJsonLog(logger, fmt.Sprintf("Handling Block Certification Request from peer %s", req.NodeIdentifier), req)
-				logger.Debug("Handling Block Certification Request from peer %s, IR hash %X, Block Hash %X", req.NodeIdentifier, req.InputRecord.Hash, req.InputRecord.BlockHash)
+				logger.Debug("Handling Block Certification Request from peer %s, IR hash %X, block Hash %X, round %v", req.NodeIdentifier, req.InputRecord.Hash, req.InputRecord.BlockHash, req.InputRecord.RoundNumber)
 				uc, err := rc.state.HandleBlockCertificationRequest(req)
 				if err != nil {
 					logger.Warning("invalid block certification request: %v", err)

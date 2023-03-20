@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 )
 
 var (
@@ -113,7 +113,7 @@ func (db *MemoryDB) Delete(key []byte) error {
 }
 
 // First returns forward iterator to the first element in DB
-func (db *MemoryDB) First() keyvaleudb.Iterator {
+func (db *MemoryDB) First() keyvaluedb.Iterator {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 	it := NewIterator(db.db, db.decoder)
@@ -122,7 +122,7 @@ func (db *MemoryDB) First() keyvaleudb.Iterator {
 }
 
 // Last returns reverse iterator from the last element in DB
-func (db *MemoryDB) Last() keyvaleudb.ReverseIterator {
+func (db *MemoryDB) Last() keyvaluedb.ReverseIterator {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 	it := NewIterator(db.db, db.decoder)
@@ -131,7 +131,7 @@ func (db *MemoryDB) Last() keyvaleudb.ReverseIterator {
 }
 
 // Find returns the closest binary search match
-func (db *MemoryDB) Find(key []byte) keyvaleudb.Iterator {
+func (db *MemoryDB) Find(key []byte) keyvaluedb.Iterator {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 	it := NewIterator(db.db, db.decoder)
@@ -139,7 +139,7 @@ func (db *MemoryDB) Find(key []byte) keyvaleudb.Iterator {
 	return it
 }
 
-func (db *MemoryDB) StartTx() (keyvaleudb.DBTransaction, error) {
+func (db *MemoryDB) StartTx() (keyvaluedb.DBTransaction, error) {
 	db.lock.RLock()
 	defer db.lock.RUnlock()
 	tx, err := NewMapTx(db, db.encoder)

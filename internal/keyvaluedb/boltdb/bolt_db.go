@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -136,25 +136,25 @@ func (db *BoltDB) Delete(key []byte) error {
 	return nil
 }
 
-func (db *BoltDB) First() keyvaleudb.Iterator {
+func (db *BoltDB) First() keyvaluedb.Iterator {
 	it := NewIterator(db.db, db.bucket, db.decoder)
 	it.first()
 	return it
 }
 
-func (db *BoltDB) Last() keyvaleudb.ReverseIterator {
+func (db *BoltDB) Last() keyvaluedb.ReverseIterator {
 	it := NewIterator(db.db, db.bucket, db.decoder)
 	it.last()
 	return it
 }
 
-func (db *BoltDB) Find(key []byte) keyvaleudb.Iterator {
+func (db *BoltDB) Find(key []byte) keyvaluedb.Iterator {
 	it := NewIterator(db.db, db.bucket, db.decoder)
 	it.seek(key)
 	return it
 }
 
-func (db *BoltDB) StartTx() (keyvaleudb.DBTransaction, error) {
+func (db *BoltDB) StartTx() (keyvaluedb.DBTransaction, error) {
 	tx, err := NewBoltTx(db.db, db.bucket, db.encoder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Bolt tx, %w", err)

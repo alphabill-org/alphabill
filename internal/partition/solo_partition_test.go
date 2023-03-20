@@ -13,7 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
@@ -41,7 +41,7 @@ type AlwaysValidTransactionValidator struct{}
 
 type SingleNodePartition struct {
 	nodeConf   *configuration
-	store      keyvaleudb.KeyValueDB
+	store      keyvaluedb.KeyValueDB
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
 	rootState  rstore.RootState

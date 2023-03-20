@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/atomic_broadcast"
 	"github.com/alphabill-org/alphabill/internal/util"
 )
@@ -21,7 +21,7 @@ type (
 		root        *node
 		roundToNode map[uint64]*node
 		highQc      *atomic_broadcast.QuorumCert
-		blocksDB    keyvaleudb.KeyValueDB
+		blocksDB    keyvaluedb.KeyValueDB
 	}
 )
 
@@ -41,14 +41,14 @@ func (l *node) removeChild() {
 	l.child = nil
 }
 
-func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks keyvaleudb.KeyValueDB) error {
+func blockStoreGenesisInit(genesisBlock *ExecutedBlock, blocks keyvaluedb.KeyValueDB) error {
 	if err := blocks.Write(util.Uint64ToBytes(genesisBlock.BlockData.Round), genesisBlock); err != nil {
 		return fmt.Errorf("genesis block write failed, %w", err)
 	}
 	return nil
 }
 
-func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB keyvaleudb.KeyValueDB) (*BlockTree, error) {
+func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	rootNode := newNode(cBlock)
 	hQC := rootNode.data.Qc
 	// make sure that nodes are sorted by round
@@ -81,7 +81,7 @@ func NewBlockTreeFromRecovery(cBlock *ExecutedBlock, nodes []*ExecutedBlock, bDB
 	}, nil
 }
 
-func NewBlockTree(bDB keyvaleudb.KeyValueDB) (*BlockTree, error) {
+func NewBlockTree(bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	if bDB == nil {
 		return nil, fmt.Errorf("block tree init failed, databes is nil")
 	}
@@ -142,7 +142,7 @@ func NewBlockTree(bDB keyvaleudb.KeyValueDB) (*BlockTree, error) {
 	}, nil
 }
 
-func (bt *BlockTree) InsertQc(qc *atomic_broadcast.QuorumCert, bockDB keyvaleudb.KeyValueDB) error {
+func (bt *BlockTree) InsertQc(qc *atomic_broadcast.QuorumCert, bockDB keyvaluedb.KeyValueDB) error {
 	// find block, if it does not exist, return error we need to recover missing info
 	b, err := bt.FindBlock(qc.VoteInfo.RoundNumber)
 	if err != nil {

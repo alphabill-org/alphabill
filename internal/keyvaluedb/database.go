@@ -1,4 +1,4 @@
-package keyvaleudb
+package keyvaluedb
 
 // Reader interface for DB
 type Reader interface {

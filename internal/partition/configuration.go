@@ -10,8 +10,8 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
-	"github.com/alphabill-org/alphabill/internal/keyvaleudb"
-	"github.com/alphabill-org/alphabill/internal/keyvaleudb/memorydb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
@@ -44,7 +44,7 @@ type (
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
 		leaderSelector              LeaderSelector
-		blockStore                  keyvaleudb.KeyValueDB
+		blockStore                  keyvaluedb.KeyValueDB
 		txBuffer                    *txbuffer.TxBuffer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 		hashAlgorithm               gocrypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
@@ -98,7 +98,7 @@ func WithLeaderSelector(leaderSelector LeaderSelector) NodeOption {
 	}
 }
 
-func WithBlockStore(blockStore keyvaleudb.KeyValueDB) NodeOption {
+func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	return func(c *configuration) {
 		c.blockStore = blockStore
 	}

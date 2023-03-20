@@ -64,7 +64,7 @@ func (x *IRChangeReqMsg) Verify(tb partitions.PartitionTrustBase, luc *certifica
 		}
 		// validate against last unicity certificate
 		if !bytes.Equal(req.InputRecord.PreviousHash, luc.InputRecord.Hash) {
-			return nil, fmt.Errorf("invalid ir change request proof, partition %X validator %v input records does not extend last certified",
+			return nil, fmt.Errorf("invalid ir change request proof, partition %X node %v input record does not extend last certified state",
 				x.SystemIdentifier, req.NodeIdentifier)
 		}
 		if _, found := nodeIDs[req.NodeIdentifier]; found {

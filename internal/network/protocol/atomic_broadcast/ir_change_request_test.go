@@ -348,7 +348,7 @@ func TestIRChangeReqMsg_GeneralReq(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 1}, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "input records does not extend last certified",
+			wantErrStr: "input record does not extend last certified",
 		},
 	}
 	for _, tt := range tests {
@@ -550,7 +550,7 @@ func TestIRChangeReqMsg_VerifyQuorum(t *testing.T) {
 					InputRecord: &certificates.InputRecord{Hash: []byte{0, 0, 1}, RoundNumber: 1},
 				},
 			},
-			wantErrStr: "input records does not extend last certified",
+			wantErrStr: "input record does not extend last certified",
 		},
 		{
 			name: "Contains not matching proofs",

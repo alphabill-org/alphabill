@@ -15,6 +15,8 @@ import (
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
+const defaultTokenApiURL = "localhost:9735"
+
 func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "token-backend",
@@ -41,7 +43,7 @@ func buildCmdStartTokenWalletBackend(ctx context.Context, config *baseConfigurat
 		},
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
-	cmd.Flags().StringP(serverAddrCmdName, "s", "localhost:9735", "server address")
+	cmd.Flags().StringP(serverAddrCmdName, "s", defaultTokenApiURL, "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
 	return cmd
 }

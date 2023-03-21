@@ -35,9 +35,6 @@ func newWalletBillsCmd(config *walletConfig) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "bills",
 		Short: "cli for managing alphabill wallet bills and proofs",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand")
-		},
 	}
 	cmd.AddCommand(listCmd(config))
 	cmd.AddCommand(exportCmd(config))

@@ -63,7 +63,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
-	cmd.PersistentFlags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill backend uri to connect to")
+	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultTokenApiURL, "alphabill token API uri to connect to")
 	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction, defaults to 'true'")
 	return cmd
 }
@@ -765,7 +765,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind twb.Ki
 }
 
 func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet, error) {
-	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return nil, err
 	}

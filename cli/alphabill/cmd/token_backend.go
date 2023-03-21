@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -78,7 +79,12 @@ func execTokenWalletBackendStartCmd(ctx context.Context, cmd *cobra.Command, con
 		stop()
 	}()
 
-	return twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
+	err = twb.Run(ctx, twb.NewConfig(srvAddr, abURL, dbFile, logger))
+	if errors.Is(err, context.Canceled) {
+		logger.Info("Token backend stopped")
+		return nil
+	}
+	return err
 }
 
 /*

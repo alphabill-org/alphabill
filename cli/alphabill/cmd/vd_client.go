@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
 
@@ -20,9 +19,6 @@ func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 		Short: "cli for submitting data to Verifiable Data partition",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return initializeConfig(cmd, baseConfig)
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Error: must specify a subcommand")
 		},
 	}
 

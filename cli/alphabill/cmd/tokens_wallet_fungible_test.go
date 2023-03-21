@@ -27,9 +27,6 @@ func TestFungibleToken_Subtyping_Integration(t *testing.T) {
 	require.NoError(t, err)
 	w1.Shutdown()
 
-	verifyStdout(t, execTokensCmd(t, homedirW1, ""), "Error: must specify a subcommand like new-type, send etc")
-	verifyStdout(t, execTokensCmd(t, homedirW1, "new-type"), "Error: must specify a subcommand: fungible|non-fungible")
-
 	symbol1 := "AB"
 	// test subtyping
 	typeID11 := randomID(t)

@@ -57,9 +57,6 @@ func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 			// init logger
 			return initWalletLogger(&walletConfig{LogLevel: config.LogLevel, LogFile: config.LogFile})
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand")
-		},
 	}
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")

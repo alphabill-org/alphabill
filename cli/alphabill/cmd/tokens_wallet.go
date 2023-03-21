@@ -52,9 +52,6 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "token",
 		Short: "create and manage fungible and non-fungible tokens",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand like new-type, send etc")
-		},
 	}
 	cmd.AddCommand(tokenCmdNewType(config))
 	cmd.AddCommand(tokenCmdNewToken(config))
@@ -72,9 +69,6 @@ func tokenCmdNewType(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new-type",
 		Short: "create new token type",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
-		},
 	}
 	cmd.AddCommand(addCommonAccountFlags(addCommonTypeFlags(tokenCmdNewTypeFungible(config))))
 	cmd.AddCommand(addCommonAccountFlags(addCommonTypeFlags(tokenCmdNewTypeNonFungible(config))))
@@ -250,9 +244,6 @@ func tokenCmdNewToken(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new",
 		Short: "mint new token",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
-		},
 	}
 	cmd.AddCommand(addCommonAccountFlags(tokenCmdNewTokenFungible(config)))
 	cmd.AddCommand(addCommonAccountFlags(tokenCmdNewTokenNonFungible(config)))
@@ -407,9 +398,6 @@ func tokenCmdSend(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: "send a token",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
-		},
 	}
 	cmd.AddCommand(tokenCmdSendFungible(config))
 	cmd.AddCommand(tokenCmdSendNonFungible(config))

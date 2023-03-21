@@ -73,9 +73,6 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 			}
 			return initWalletLogger(config)
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand like create, sync, send etc")
-		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
 	walletCmd.AddCommand(createCmd(config))
@@ -384,8 +381,8 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden: true, // feature will be enabled in v0.2.0 version
 		Use:    "collect-dust",
-		Short:  "consolidates bills and synchronizes wallet",
-		Long:   "consolidates all bills into a single bill and synchronizes wallet",
+		Short:  "consolidates bills",
+		Long:   "consolidates all bills into a single bill",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},

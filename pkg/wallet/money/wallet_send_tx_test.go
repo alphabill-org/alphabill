@@ -4,17 +4,18 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/alphabill-org/alphabill/internal/block"
-	"github.com/alphabill-org/alphabill/internal/hash"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/pkg/wallet"
-	"github.com/holiman/uint256"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
+	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/hash"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 )
 
 func TestWalletSendFunction(t *testing.T) {
@@ -75,6 +76,7 @@ func TestWalletSendFunction_WaitForConfirmation(t *testing.T) {
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 100, billId: b.Id, billTxHash: base64.StdEncoding.EncodeToString(b.TxHash), billValue: b.Value})
 	k, _ := w.am.GetAccountKey(0)
 	tx, err := createTransaction(pubKey, k, b.Value, b, txTimeoutBlockCount)
+	require.NoError(t, err)
 	mockClient.SetBlock(&block.Block{BlockNumber: 0, Transactions: []*txsystem.Transaction{
 		tx,
 	}})

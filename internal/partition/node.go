@@ -256,33 +256,36 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 		logger.Info("No pending block proposal stored")
 		return
 	}
+	// make sure proposal extends the previous state
+	if !bytes.Equal(prevBlock.UnicityCertificate.InputRecord.Hash, proposal.PrevHash) {
+		logger.Debug("Stored block proposal does not extend previous state, stale proposal")
+		return
+	}
+	// apply stored proposal to current state
+	logger.Debug("Stored block proposal extends the previous state")
+	roundNr := prevBlock.UnicityCertificate.InputRecord.RoundNumber + 1
+	n.transactionSystem.BeginBlock(roundNr)
 	reportAndRevert := func(msg string, err error) {
 		logger.Warning(msg, err)
 		n.revertState()
 	}
-	// make sure proposal extends the previous state
-	if bytes.Equal(prevBlock.UnicityCertificate.InputRecord.Hash, proposal.PrevHash) {
-		logger.Debug("Stored block proposal extends the previous state")
-		roundNr := prevBlock.UnicityCertificate.InputRecord.RoundNumber + 1
-		n.transactionSystem.BeginBlock(roundNr)
-		for _, gtx := range proposal.Transactions {
-			if err = n.validateAndExecuteTx(gtx, roundNr); err != nil {
-				reportAndRevert("Error executing tx from block proposal: %s", err)
-				return
-			}
-		}
-		state, err := n.transactionSystem.EndBlock()
-		if err != nil {
-			reportAndRevert("Error in transaction system: %s", err)
+	for _, gtx := range proposal.Transactions {
+		if err = n.validateAndExecuteTx(gtx, roundNr); err != nil {
+			reportAndRevert("Error executing tx from block proposal: %s", err)
 			return
 		}
-		if !bytes.Equal(proposal.StateHash, state.Root()) {
-			reportAndRevert("Block proposal recovery failed: %s", fmt.Errorf(", invalid state (proposal's state hash: %X, current state hash: %X", proposal.StateHash, state.Root()))
-			return
-		}
-		// wait for UC to certify the block proposal
-		n.pendingBlockProposal = &proposal
 	}
+	state, err := n.transactionSystem.EndBlock()
+	if err != nil {
+		reportAndRevert("Error in transaction system: %s", err)
+		return
+	}
+	if !bytes.Equal(proposal.StateHash, state.Root()) {
+		reportAndRevert("Block proposal recovery failed: %s", fmt.Errorf(", invalid state (proposal's state hash: %X, current state hash: %X", proposal.StateHash, state.Root()))
+		return
+	}
+	// wait for UC to certify the block proposal
+	n.pendingBlockProposal = &proposal
 }
 
 // Close shuts down the Node component.
@@ -726,17 +729,25 @@ func (n *Node) proposalHash(transactions []txsystem.GenericTransaction, uc *cert
 	return b.ToProtobuf(), blockHash, nil
 }
 
+func (n *Node) persistBlock(b *block.Block) error {
+	// do not persist empty blocks
+	if len(b.Transactions) == 0 {
+		return nil
+	}
+	roundNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
+	if err := n.blockStore.Write(roundNoInBytes, b); err != nil {
+		return fmt.Errorf("db write failed, %w", err)
+	}
+	// cache last stored non-empty block, but only if store succeeds
+	n.lastBlock = b
+	return nil
+}
+
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(b *block.Block) error {
 	defer trackExecutionTime(time.Now(), fmt.Sprintf("Block %v finalization", b.UnicityCertificate.InputRecord.RoundNumber))
-	if len(b.Transactions) != 0 {
-		roundNoInBytes := util.Uint64ToBytes(b.UnicityCertificate.InputRecord.RoundNumber)
-		err := n.blockStore.Write(roundNoInBytes, b)
-		if err != nil {
-			return fmt.Errorf("block %v persist failed, %w", b.UnicityCertificate.InputRecord.RoundNumber, err)
-		}
-		// only update cache if persist does not return error
-		n.lastBlock = b
+	if err := n.persistBlock(b); err != nil {
+		return fmt.Errorf("block %v persist failed, %w", b.UnicityCertificate.InputRecord.RoundNumber, err)
 	}
 	n.transactionSystem.Commit()
 	transactionsCounter.Inc(int64(len(b.Transactions)))
@@ -864,22 +875,16 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 		if !bytes.Equal(b.SystemIdentifier, n.configuration.GetSystemIdentifier()) {
 			return fmt.Errorf("block %v error, wrong System ID: %X", b.UnicityCertificate.InputRecord.RoundNumber, b.SystemIdentifier)
 		}
-
 		if err := n.applyBlock(roundNr, b); err != nil {
 			n.revertState()
 			// ask the for the failed block again, what else can we do?
 			go n.sendLedgerReplicationRequest(roundNr)
 			return fmt.Errorf("block %v error, %w", roundNr, err)
 		}
-		// sanity check
-		if len(b.Transactions) == 0 {
-			// do not persist empty blocks even if response contains them
-			continue
+		// update DB and last block
+		if err := n.persistBlock(b); err != nil {
+			return fmt.Errorf("block %v persist failed, %w", b.UnicityCertificate.InputRecord.RoundNumber, err)
 		}
-		if err := n.blockStore.Write(util.Uint64ToBytes(roundNr), b); err != nil {
-			return fmt.Errorf("block %v persist error, %w", roundNr, err)
-		}
-		n.lastBlock = b
 	}
 	// check if recovery is complete
 	latestBlockUc := n.lastBlock.UnicityCertificate

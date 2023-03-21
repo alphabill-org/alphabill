@@ -107,3 +107,13 @@ do
   ((tokensGrpcPort=tokensGrpcPort+1))
   ((tokensRestPort=tokensRestPort+1))
 done
+
+#start Money partition backend
+build/alphabill money-backend start -u localhost:26766 -s localhost:9654 -f testab/money-backend/bills.db --log-file testab/money-backend/money-backend.log --log-level DEBUG &
+
+echo "Started money backend, check the API at http://localhost:9654/api/v1/swagger/"
+
+#start UTP backend
+build/alphabill token-backend start -u localhost:28766 -s localhost:9735 -f testab/token-backend/tokens.db --log-file testab/token-backend/token-backend.log --log-level DEBUG &
+
+echo "Started token backend, check the API at http://localhost:9735/api/v1/swagger/"

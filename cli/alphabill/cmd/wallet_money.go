@@ -176,7 +176,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -291,7 +291,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(&money.WalletConfig{}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -413,7 +413,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
 	if err != nil {
 		return err
 	}

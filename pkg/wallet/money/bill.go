@@ -76,25 +76,3 @@ func (b *BlockProof) ToSchema() *block.TxProof {
 		BlockNumber: b.BlockNumber,
 	}
 }
-
-// isExpired returns true if dcBill, that was left unswapped, should be deleted
-func (b *Bill) isExpired(blockHeight uint64) bool {
-	return b.IsDcBill && blockHeight >= b.DcExpirationTimeout
-}
-
-func (b *Bill) addProof(bl *block.Block, txPb *txsystem.Transaction) error {
-	genericBlock, err := bl.ToGenericBlock(txConverter)
-	if err != nil {
-		return err
-	}
-	proof, err := block.NewPrimaryProof(genericBlock, b.GetID(), crypto.SHA256)
-	if err != nil {
-		return err
-	}
-	blockProof, err := NewBlockProof(txPb, proof, bl.BlockNumber)
-	if err != nil {
-		return err
-	}
-	b.BlockProof = blockProof
-	return nil
-}

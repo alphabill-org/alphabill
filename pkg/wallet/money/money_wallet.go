@@ -10,18 +10,19 @@ import (
 	"strconv"
 	"time"
 
-	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
+	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
+	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -51,7 +52,6 @@ type (
 		*wallet.Wallet
 
 		dcWg       *dcWaitGroup
-		config     *WalletConfig
 		am         account.Manager
 		restClient *client.MoneyBackendClient
 	}
@@ -76,11 +76,11 @@ func CreateNewWallet(am account.Manager, mnemonic string) error {
 	return createMoneyWallet(mnemonic, am)
 }
 
-func LoadExistingWallet(config *WalletConfig, am account.Manager, restClient *client.MoneyBackendClient) (*Wallet, error) {
-	mw := &Wallet{config: config, am: am, restClient: restClient, dcWg: newDcWaitGroup()}
+func LoadExistingWallet(config abclient.AlphabillClientConfig, am account.Manager, restClient *client.MoneyBackendClient) (*Wallet, error) {
+	mw := &Wallet{am: am, restClient: restClient, dcWg: newDcWaitGroup()}
 
 	mw.Wallet = wallet.New().
-		SetABClientConf(config.AlphabillClientConfig).
+		SetABClientConf(config).
 		Build()
 
 	return mw, nil
@@ -354,27 +354,29 @@ func (s *SendCmd) isValid() error {
 	return nil
 }
 
-func createMoneyWallet(mnemonic string, am account.Manager) (err error) {
+func createMoneyWallet(mnemonic string, am account.Manager) error {
 	// load accounts from account manager
 	accountKeys, err := am.GetAccountKeys()
 	if err != nil {
-		return
+		return fmt.Errorf("failed to check does account have any keys: %w", err)
 	}
 	// create keys in account manager if not exists
 	if len(accountKeys) == 0 {
 		// creating keys also adds the first account
-		err = am.CreateKeys(mnemonic)
-		if err != nil {
-			return
+		if err = am.CreateKeys(mnemonic); err != nil {
+			return fmt.Errorf("failed to create keys for the account: %w", err)
 		}
 		// reload accounts after adding the first account
 		accountKeys, err = am.GetAccountKeys()
 		if err != nil {
-			return
+			return fmt.Errorf("failed to read account keys: %w", err)
+		}
+		if len(accountKeys) == 0 {
+			return errors.New("failed to create key for the first account")
 		}
 	}
 
-	return
+	return nil
 }
 
 func calculateDcNonce(bills []*Bill) []byte {
@@ -434,8 +436,4 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 
 func convertBill(b *block.Bill) *Bill {
 	return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: hashId(b.Id), BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
-}
-
-func (w *Wallet) GetConfig() *WalletConfig {
-	return w.config
 }

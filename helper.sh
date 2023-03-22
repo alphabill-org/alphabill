@@ -40,7 +40,7 @@ showGoroutineID: true
 showNodeID: true
 # The default log level for all loggers
 # Possible levels: NONE; ERROR; WARNING; INFO; DEBUG; TRACE
-defaultLevel: TRACE
+defaultLevel: DEBUG
 # Override the logger level for each package. Use _ for separating directories and other special characters.
 # E.g. internal/txsystem/state becomes internal_txsystem_state.
 packageLevels:

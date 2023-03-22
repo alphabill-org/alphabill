@@ -303,9 +303,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityC
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
-	t1 := &timer.Task{}
-	t1.SetName(t1TimerName)
-	sn.partition.timers.C <- t1
+	sn.partition.timers.C <- &timer.Task{}
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
@@ -314,9 +312,7 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	t1 := &timer.Task{}
-	t1.SetName(monitorTimerName)
-	sn.partition.timers.C <- t1
+	sn.partition.handleMonitoring()
 }
 
 type TestLeaderSelector struct {

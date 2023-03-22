@@ -75,7 +75,6 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
-	// todo root genesis: this will become obsolete when dynamic configuration is implemented??
 	// Locate local node from genesis info
 	nodeInfo := genesis.Root.FindPubKeyById(peer.ID().String())
 	if nodeInfo == nil {

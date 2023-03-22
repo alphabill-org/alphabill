@@ -6,6 +6,7 @@ import (
 	goerrors "errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
@@ -51,6 +52,9 @@ type (
 )
 
 func New(systemID []byte, backendUrl string, am account.Manager, confirmTx bool) (*Wallet, error) {
+	if !strings.HasPrefix(backendUrl, "http://") && !strings.HasPrefix(backendUrl, "https://") {
+		backendUrl = "http://" + backendUrl
+	}
 	addr, err := url.Parse(backendUrl)
 	if err != nil {
 		return nil, err

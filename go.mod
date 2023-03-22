@@ -1,6 +1,6 @@
 module github.com/alphabill-org/alphabill
 
-go 1.18
+go 1.20
 
 replace (
 	github.com/apache/thrift v0.13.0 => github.com/apache/thrift v0.16.0

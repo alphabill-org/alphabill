@@ -11,6 +11,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -205,7 +206,7 @@ func Test_GetRoundNumber(t *testing.T) {
 
 					w := httptest.NewRecorder()
 					w.WriteHeader(http.StatusOK)
-					if _, err := w.WriteString(`{"roundNumber": 0}`); err != nil {
+					if _, err := w.WriteString(`{"roundNumber": "0"}`); err != nil {
 						t.Errorf("failed to write response body: %v", err)
 					}
 					return w.Result(), nil
@@ -243,17 +244,88 @@ func Test_GetRoundNumber(t *testing.T) {
 	})
 
 	t.Run("invalid response: negative value", func(t *testing.T) {
-		cli := createClient(t, `{"roundNumber": -8}`)
+		cli := createClient(t, `{"roundNumber": "-8"}`)
 		rn, err := cli.GetRoundNumber(context.Background())
 		require.EqualError(t, err, `get round-number request failed: failed to decode response body: json: cannot unmarshal number -8 into Go struct field RoundNumberResponse.roundNumber of type uint64`)
 		require.Zero(t, rn)
 	})
 
 	t.Run("success", func(t *testing.T) {
-		cli := createClient(t, `{"roundNumber": 3}`)
+		cli := createClient(t, `{"roundNumber": "3"}`)
 		rn, err := cli.GetRoundNumber(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 3, rn)
+	})
+}
+
+func Test_GetToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid request is built", func(t *testing.T) {
+		tokenID := test.RandomBytes(32)
+		cli := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					tokenIdStr := hexutil.Encode(tokenID)
+					expURL := fmt.Sprintf("http://localhost/api/v1/tokens/%s", tokenIdStr)
+					if r.URL.String() != expURL {
+						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
+					}
+					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusOK)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		data, err := cli.GetToken(context.Background(), tokenID)
+		require.NoError(t, err)
+		require.Empty(t, data)
+	})
+
+	createClient := func(t *testing.T, respBody *twb.TokenUnit) *TokenBackend {
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if respBody == nil {
+							w.WriteHeader(http.StatusNotFound)
+							w.WriteString(`{"message":"no token with this id"}`)
+							return w.Result(), nil
+						}
+
+						err := json.NewEncoder(w).Encode(respBody)
+						return w.Result(), err
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("no token with given id", func(t *testing.T) {
+		cli := createClient(t, nil)
+		data, err := cli.GetToken(context.Background(), test.RandomBytes(32))
+		require.EqualError(t, err, `get token request failed: no token with this id: not found`)
+		require.ErrorIs(t, err, ErrNotFound)
+		require.Empty(t, data)
+	})
+
+	t.Run("token found", func(t *testing.T) {
+		token := &twb.TokenUnit{
+			ID:     test.RandomBytes(32),
+			Symbol: "OUCH!",
+			Amount: 10000,
+		}
+		cli := createClient(t, token)
+		data, err := cli.GetToken(context.Background(), token.ID)
+		require.NoError(t, err)
+		require.Equal(t, token, data)
 	})
 }
 
@@ -387,6 +459,162 @@ func Test_GetTokenTypes(t *testing.T) {
 	})
 }
 
+func Test_GetTypeHierarchy(t *testing.T) {
+	t.Parallel()
+
+	typeID := test.RandomBytes(32)
+
+	t.Run("valid request is built", func(t *testing.T) {
+		cli := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "127.0.0.1:4321"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					typeIDStr := hexutil.Encode(typeID)
+					expURL := fmt.Sprintf("http://127.0.0.1:4321/api/v1/types/%s/hierarchy", typeIDStr)
+					if r.URL.String() != expURL {
+						t.Errorf("expected request URL %q, got %q", expURL, r.URL.String())
+					}
+					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusOK)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.NoError(t, err)
+		require.Empty(t, data)
+	})
+
+	createClient := func(t *testing.T, respBody []twb.TokenUnitType) *TokenBackend {
+		return &TokenBackend{
+			hc: &http.Client{
+				Transport: &mockRoundTripper{
+					do: func(r *http.Request) (*http.Response, error) {
+						w := httptest.NewRecorder()
+						if respBody == nil {
+							w.WriteHeader(http.StatusNotFound)
+							w.WriteString(`{"message":"no type with this id"}`)
+							return w.Result(), nil
+						}
+
+						err := json.NewEncoder(w).Encode(respBody)
+						return w.Result(), err
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("no type with given id", func(t *testing.T) {
+		cli := createClient(t, nil)
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.EqualError(t, err, `get token type hierarchy request failed: no type with this id: not found`)
+		require.ErrorIs(t, err, ErrNotFound)
+		require.Empty(t, data)
+	})
+
+	t.Run("type with given id exists", func(t *testing.T) {
+		expData := []twb.TokenUnitType{{ID: []byte{0, 1}, Symbol: "test"}}
+		cli := createClient(t, expData)
+		data, err := cli.GetTypeHierarchy(context.Background(), typeID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, data, expData)
+	})
+}
+
+func Test_GetTxProof(t *testing.T) {
+	t.Parallel()
+
+	unitID := test.RandomBytes(32)
+	txHash := test.RandomBytes(32)
+
+	createClient := func(t *testing.T, proof *twb.Proof) *TokenBackend {
+		return &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					unitIDHex := hexutil.Encode(unitID)
+					txHashHex := hexutil.Encode(txHash)
+
+					if r.URL.String() != fmt.Sprintf("http://localhost/api/v1/units/%s/transactions/%s/proof", unitIDHex, txHashHex) {
+						t.Errorf("unexpected request URL: %s", r.URL.String())
+					}
+					if ua := r.Header.Get("User-Agent"); ua != clientUserAgent {
+						t.Errorf("expected User-Agent header %q, got %q", clientUserAgent, ua)
+					}
+
+					w := httptest.NewRecorder()
+					if proof == nil {
+						w.WriteHeader(http.StatusNotFound)
+						w.WriteString(`{"message":"no proof found"}`)
+					} else {
+						if err := json.NewEncoder(w).Encode(proof); err != nil {
+							return nil, fmt.Errorf("failed to write response body: %v", err)
+						}
+						w.WriteHeader(http.StatusOK)
+					}
+					return w.Result(), nil
+				},
+			}},
+		}
+	}
+
+	t.Run("valid proof returned", func(t *testing.T) {
+		proof := &twb.Proof{
+			BlockNumber: 1,
+			Tx:          &txsystem.Transaction{UnitId: unitID},
+			Proof:       &block.BlockProof{TransactionsHash: txHash},
+		}
+
+		proofFromClient, err := createClient(t, proof).GetTxProof(context.Background(), unitID, txHash)
+		require.NoError(t, err)
+		require.Equal(t, proof, proofFromClient)
+	})
+
+	t.Run("nil proof returned", func(t *testing.T) {
+		proofFromClient, err := createClient(t, nil).GetTxProof(context.Background(), unitID, txHash)
+		require.NoError(t, err)
+		require.Nil(t, proofFromClient)
+	})
+
+	t.Run("404 returned", func(t *testing.T) {
+		api := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusNotFound)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		_, err := api.GetTxProof(context.Background(), unitID, txHash)
+		require.ErrorContains(t, err, "get tx proof request failed")
+	})
+
+	t.Run("500 returned", func(t *testing.T) {
+		api := &TokenBackend{
+			addr: url.URL{Scheme: "http", Host: "localhost"},
+			hc: &http.Client{Transport: &mockRoundTripper{
+				do: func(r *http.Request) (*http.Response, error) {
+					w := httptest.NewRecorder()
+					w.WriteHeader(http.StatusInternalServerError)
+					return w.Result(), nil
+				},
+			}},
+		}
+
+		_, err := api.GetTxProof(context.Background(), unitID, txHash)
+		require.ErrorContains(t, err, "get tx proof request failed")
+	})
+}
+
 func Test_PostTransactions(t *testing.T) {
 	t.Parallel()
 
@@ -496,7 +724,7 @@ func Test_New(t *testing.T) {
 			t.Errorf("expected request %q, got: %q", rp, r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"roundNumber": 900}`)
+		fmt.Fprint(w, `{"roundNumber": "900"}`)
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(h))

@@ -9,7 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 )
 
 type (

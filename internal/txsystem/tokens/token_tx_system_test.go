@@ -27,7 +27,7 @@ var (
 	parent1Identifier = uint256.NewInt(1)
 	parent2Identifier = uint256.NewInt(2)
 	unitIdentifier    = uint256.NewInt(10)
-	nftTypeID         = []byte{100}
+	nftTypeID         = test.RandomBytes(32)
 )
 
 func TestNewTokenTxSystem_DefaultOptions(t *testing.T) {
@@ -171,7 +171,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 			},
 		),
 	)
-	signature, p2pkhPredicate := signTx(t, txs, unsignedCreateParent2Tx, parent2Signer, parent2PubKey)
+	_, p2pkhPredicate := signTx(t, txs, unsignedCreateParent2Tx, parent2Signer, parent2PubKey)
 
 	signedCreateParent2Tx := testtransaction.NewTransaction(
 		t,
@@ -209,7 +209,7 @@ func TestExecuteCreateNFTType_InheritanceChainWithP2PKHPredicates(t *testing.T) 
 	gtx, err = txs.ConvertTx(createChildTx)
 	require.NoError(t, err)
 
-	signature, err = childSigner.SignBytes(gtx.SigBytes())
+	signature, err := childSigner.SignBytes(gtx.SigBytes())
 	require.NoError(t, err)
 	signature2, err := parent2Signer.SignBytes(gtx.SigBytes())
 	require.NoError(t, err)
@@ -576,10 +576,10 @@ func TestTransferNFT_UnitIsNotNFT(t *testing.T) {
 
 func TestTransferNFT_InvalidBacklink(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+	createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
 
 	// transfer NFT
-	tx = testtransaction.NewGenericTransaction(
+	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
@@ -594,6 +594,47 @@ func TestTransferNFT_InvalidBacklink(t *testing.T) {
 	require.ErrorContains(t, txs.Execute(tx), "invalid backlink")
 }
 
+func TestTransferNFT_InvalidTypeID(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      test.RandomBytes(32),
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{{0, 0, 0, 1}},
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "invalid type identifier")
+}
+
+func TestTransferNFT_EmptyTypeID(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NewBearer:                    script.PredicateAlwaysTrue(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{{0, 0, 0, 1}},
+		}),
+	)
+	require.ErrorContains(t, txs.Execute(tx), "invalid type identifier")
+}
+
 func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 	txs := newTokenTxSystem(t)
 	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
@@ -605,6 +646,7 @@ func TestTransferNFT_InvalidPredicateFormat(t *testing.T) {
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -624,7 +666,9 @@ func TestTransferNFT_InvalidSignature(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -644,7 +688,9 @@ func TestTransferNFT_Ok(t *testing.T) {
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
 		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
 		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
 			NewBearer:                    script.PredicateAlwaysTrue(),
 			Nonce:                        test.RandomBytes(32),
 			Backlink:                     tx.Hash(gocrypto.SHA256),
@@ -666,6 +712,51 @@ func TestTransferNFT_Ok(t *testing.T) {
 	require.Equal(t, uint64(0), d.t)
 	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
 	require.Equal(t, script.PredicateAlwaysTrue(), []byte(u.Bearer))
+}
+
+func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
+	txs := newTokenTxSystem(t)
+	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+
+	// transfer NFT, set bearer to unspendable predicate
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
+			NewBearer:                    script.PredicateAlwaysFalse(),
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}),
+	)
+	require.NoError(t, txs.Execute(tx))
+
+	u, err := txs.state.GetUnit(uint256.NewInt(0).SetBytes(unitID))
+	require.NoError(t, err)
+	require.Equal(t, tx.Hash(gocrypto.SHA256), u.StateHash)
+	require.IsType(t, &nonFungibleTokenData{}, u.Data)
+	require.Equal(t, script.PredicateAlwaysFalse(), []byte(u.Bearer))
+
+	// the token must be considered as burned and not transferable
+	tx = testtransaction.NewGenericTransaction(
+		t,
+		txs.ConvertTx,
+		testtransaction.WithUnitId(unitID),
+		testtransaction.WithSystemID(DefaultTokenTxSystemIdentifier),
+		testtransaction.WithOwnerProof(script.PredicateArgumentEmpty()),
+		testtransaction.WithAttributes(&TransferNonFungibleTokenAttributes{
+			NftType:                      nftTypeID,
+			NewBearer:                    []byte{script.StartByte},
+			Nonce:                        test.RandomBytes(32),
+			Backlink:                     tx.Hash(gocrypto.SHA256),
+			InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+		}),
+	)
+	require.ErrorIs(t, txs.Execute(tx), script.ErrScriptResultFalse)
 }
 
 func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
@@ -733,9 +824,9 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 
 func TestUpdateNFT_InvalidBacklink(t *testing.T) {
 	txs := newTokenTxSystem(t)
-	tx := createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
+	createNFTTypeAndMintToken(t, txs, nftTypeID, unitID)
 
-	tx = testtransaction.NewGenericTransaction(
+	tx := testtransaction.NewGenericTransaction(
 		t,
 		txs.ConvertTx,
 		testtransaction.WithUnitId(unitID),
@@ -886,7 +977,5 @@ func signTx(t *testing.T, txs *tokensTxSystem, tx *txsystem.Transaction, signer 
 	signature, err := signer.SignBytes(gtx.SigBytes())
 	require.NoError(t, err)
 
-	gtx, err = txs.ConvertTx(tx)
-	require.NoError(t, err)
 	return signature, script.PredicateArgumentPayToPublicKeyHashDefault(signature, pubKey)
 }

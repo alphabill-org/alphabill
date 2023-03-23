@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +18,22 @@ func Test_storage(t *testing.T) {
 
 	// testing things in one bucket only ie can (re)use the same db
 	db := initTestStorage(t)
+
+	t.Run("trying to open the same DB doesn't hang", func(t *testing.T) {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			storage, err := newBoltStore(db.db.Path())
+			require.EqualError(t, err, `failed to open bolt DB: timeout`)
+			require.Nil(t, storage)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("test didn't complete within timeout")
+		}
+	})
 
 	t.Run("block number", func(t *testing.T) {
 		testBlockNumber(t, db)
@@ -82,6 +99,10 @@ func testTokenType(t *testing.T, db *storage) {
 	typeFromDB, err = db.GetTokenType(typeUnit.ID)
 	require.NoError(t, err)
 	require.Equal(t, typeUnit, typeFromDB)
+
+	proofFromDB, err := db.GetTxProof(UnitID(typeUnit.ID), typeUnit.TxHash)
+	require.NoError(t, err)
+	require.Equal(t, proof, proofFromDB)
 }
 
 func testSaveToken(t *testing.T, db *storage) {
@@ -113,6 +134,10 @@ func testSaveToken(t *testing.T, db *storage) {
 	tokenFromDB, err = db.GetToken(token.ID)
 	require.NoError(t, err)
 	require.Equal(t, token, tokenFromDB)
+
+	proofFromDB, err := db.GetTxProof(UnitID(token.ID), token.TxHash)
+	require.NoError(t, err)
+	require.Equal(t, proof, proofFromDB)
 }
 
 func testBlockNumber(t *testing.T, db *storage) {
@@ -150,20 +175,6 @@ func testBlockNumber(t *testing.T, db *storage) {
 func Test_storage_QueryTokenType(t *testing.T) {
 	t.Parallel()
 
-	randomTokenType := func(kind Kind) *TokenUnitType {
-		return &TokenUnitType{
-			ID:                       test.RandomBytes(32),
-			ParentTypeID:             test.RandomBytes(32),
-			Symbol:                   "AB",
-			SubTypeCreationPredicate: test.RandomBytes(32),
-			TokenCreationPredicate:   test.RandomBytes(32),
-			InvariantPredicate:       test.RandomBytes(32),
-			DecimalPlaces:            8,
-			NftDataUpdatePredicate:   test.RandomBytes(32),
-			Kind:                     kind,
-			TxHash:                   test.RandomBytes(32),
-		}
-	}
 	proof := &Proof{BlockNumber: 1}
 	ctorA := test.RandomBytes(32)
 
@@ -331,6 +342,21 @@ func Test_storage_QueryTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, next)
 	require.Nil(t, data)
+}
+
+func randomTokenType(kind Kind) *TokenUnitType {
+	return &TokenUnitType{
+		ID:                       test.RandomBytes(32),
+		ParentTypeID:             test.RandomBytes(32),
+		Symbol:                   "AB",
+		SubTypeCreationPredicate: test.RandomBytes(32),
+		TokenCreationPredicate:   test.RandomBytes(32),
+		InvariantPredicate:       test.RandomBytes(32),
+		DecimalPlaces:            8,
+		NftDataUpdatePredicate:   test.RandomBytes(32),
+		Kind:                     kind,
+		TxHash:                   test.RandomBytes(32),
+	}
 }
 
 func randomToken(owner Predicate, kind Kind) *TokenUnit {

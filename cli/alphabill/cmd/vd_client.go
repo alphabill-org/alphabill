@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
 
@@ -21,13 +20,10 @@ func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return initializeConfig(cmd, baseConfig)
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Error: must specify a subcommand")
-		},
 	}
 
 	var wait bool
-	vdCmd.PersistentFlags().StringP(alphabillUriCmdName, "u", defaultAlphabillUri, "alphabill uri to connect to")
+	vdCmd.PersistentFlags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill uri to connect to")
 	vdCmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "wait until server is available")
 	err := vdCmd.PersistentFlags().MarkHidden("wait")
 	if err != nil {
@@ -100,7 +96,7 @@ func listBlocksCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra
 }
 
 func initVDClient(ctx context.Context, cmd *cobra.Command, wait *bool, sync bool) (*vd.VDClient, error) {
-	uri, err := cmd.Flags().GetString(alphabillUriCmdName)
+	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
 	if err != nil {
 		return nil, err
 	}

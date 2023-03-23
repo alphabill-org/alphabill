@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
-	"github.com/alphabill-org/alphabill/internal/logger"
+	"github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -50,7 +50,6 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newVDClientCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newTokensNodeCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newUserTokenGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newPubkeyIndexerCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newMoneyBackendCmd(ctx, a.baseConfig))
 	a.baseCmd.AddCommand(newTokenWalletBackendCmd(ctx, a.baseConfig))
 	return a.baseCmd.Execute()

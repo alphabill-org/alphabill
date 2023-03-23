@@ -124,6 +124,7 @@ func TestExecute_TransferDCOk(t *testing.T) {
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
 	err = txSystem.Execute(splitOk)
+	require.NoError(t, err)
 
 	splitWrapper := splitOk.(*billSplitWrapper)
 	billID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
@@ -151,6 +152,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	roundNumber := uint64(10)
 	txSystem.BeginBlock(roundNumber)
 	err = txSystem.Execute(splitOk)
+	require.NoError(t, err)
 
 	splitWrapper := splitOk.(*billSplitWrapper)
 	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))
@@ -165,6 +167,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	}
 	rmaTree.GetRootHash()
 	swap, err := NewMoneyTx(systemIdentifier, swapTx)
+	require.NoError(t, err)
 	err = txSystem.Execute(swap)
 	require.NoError(t, err)
 	_, newBillData := getBill(t, rmaTree, swap.UnitID())
@@ -268,6 +271,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	}
 	rmaTree.GetRootHash()
 	swap, err := NewMoneyTx(systemIdentifier, swapTx)
+	require.NoError(t, err)
 	err = txSystem.Execute(swap)
 	require.NoError(t, err)
 	_, newBillData := getBill(t, rmaTree, swap.UnitID())
@@ -317,6 +321,7 @@ func TestValidateSwap_SwapBillAlreadyExists(t *testing.T) {
 	require.NoError(t, err)
 	txSystem.BeginBlock(roundNumber)
 	err = txSystem.Execute(splitOk)
+	require.NoError(t, err)
 
 	splitWrapper := splitOk.(*billSplitWrapper)
 	splitBillID := txutil.SameShardID(splitOk.UnitID(), unitIdFromTransaction(splitWrapper))

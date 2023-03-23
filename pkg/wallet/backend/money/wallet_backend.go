@@ -2,6 +2,7 @@ package money
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -16,7 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
@@ -88,10 +88,10 @@ type (
 func CreateAndRun(ctx context.Context, config *Config) error {
 	store, err := NewBoltBillStore(config.DbFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get storage: %w", err)
 	}
 
-	bp := NewBlockProcessor(store, backend.NewTxConverter(config.ABMoneySystemIdentifier))
+	bp := NewBlockProcessor(store, NewTxConverter(config.ABMoneySystemIdentifier))
 	w := wallet.New().SetBlockProcessor(bp).SetABClient(client.New(client.AlphabillClientConfig{Uri: config.AlphabillUrl})).Build()
 
 	service := New(w, store)
@@ -184,8 +184,8 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 }
 
 // GetMaxBlockNumber returns latest persisted block number and latest round number.
-func (w *WalletBackend) GetMaxBlockNumber() (uint64, uint64, error) {
-	return w.genericWallet.GetMaxBlockNumber()
+func (w *WalletBackend) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
+	return w.genericWallet.GetMaxBlockNumber(ctx)
 }
 
 // Shutdown terminates wallet backend Service.

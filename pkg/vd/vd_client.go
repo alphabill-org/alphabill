@@ -78,11 +78,11 @@ func (v *VDClient) RegisterFileHash(filePath string) error {
 
 	hash := hasher.Sum(nil)
 	log.Debug("Hash of file '", filePath, "': ", hash)
-	return v.registerHashTx(hash)
+	return v.registerHashTx(context.Background(), hash)
 }
 
 func (v *VDClient) RegisterHashBytes(bytes []byte) error {
-	return v.registerHashTx(bytes)
+	return v.registerHashTx(context.Background(), bytes)
 }
 
 func (v *VDClient) RegisterHash(hash string) error {
@@ -90,7 +90,7 @@ func (v *VDClient) RegisterHash(hash string) error {
 	if err != nil {
 		return err
 	}
-	return v.registerHashTx(b)
+	return v.registerHashTx(context.Background(), b)
 }
 
 // FetchBlockWithHash is a temporary workaround for verifying registered hash values.
@@ -102,7 +102,7 @@ func (v *VDClient) FetchBlockWithHash(hash []byte, blockNumber uint64) error {
 func (v *VDClient) ListAllBlocksWithTx() error {
 	defer v.shutdown()
 	log.Info("Fetching blocks...")
-	maxBlockNumber, _, err := v.abClient.GetMaxBlockNumber()
+	maxBlockNumber, _, err := v.abClient.GetMaxBlockNumber(context.Background())
 	if err != nil {
 		return err
 	}
@@ -115,14 +115,14 @@ func (v *VDClient) ListAllBlocksWithTx() error {
 	return nil
 }
 
-func (v *VDClient) registerHashTx(hash []byte) error {
+func (v *VDClient) registerHashTx(ctx context.Context, hash []byte) error {
 	defer v.shutdown()
 
 	if err := validateHash(hash); err != nil {
 		return err
 	}
 
-	_, currentRoundNumber, err := v.abClient.GetMaxBlockNumber()
+	_, currentRoundNumber, err := v.abClient.GetMaxBlockNumber(ctx)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (v *VDClient) registerHashTx(hash []byte) error {
 	if err != nil {
 		return err
 	}
-	resp, err := v.abClient.SendTransaction(tx)
+	resp, err := v.abClient.SendTransaction(ctx, tx)
 	if err != nil {
 		return err
 	}

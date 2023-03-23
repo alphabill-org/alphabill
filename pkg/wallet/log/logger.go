@@ -61,6 +61,8 @@ var Levels = map[string]Priority{
 // A WriterLogger represents an active logging object that generates lines of
 // output to an io.Writer.
 // It is a wrapper object for the standard library log.Logger.
+//
+// Deprecated: Use pkg/logger instead.
 type WriterLogger struct {
 	log       *stdlog.Logger
 	priority  Priority
@@ -77,6 +79,7 @@ const (
 // will have greater impact on the performance. The log entries are written
 // to the output. In case output is not provided the log is written to stdout.
 // Return a new WriterLogger object, or error.
+// Deprecated: Use pkg/logger instead.
 func New(priority Priority, output io.Writer) (*WriterLogger, error) {
 	if priority == NONE {
 		return nil, errors.New("invalid logging level")

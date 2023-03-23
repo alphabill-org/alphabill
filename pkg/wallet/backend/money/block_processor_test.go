@@ -10,7 +10,6 @@ import (
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -48,7 +47,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 
 	store, err := createTestBillStore(t)
 	require.NoError(t, err)
-	bp := NewBlockProcessor(store, backend.NewTxConverter(moneySystemID))
+	bp := NewBlockProcessor(store, NewTxConverter(moneySystemID))
 
 	// process transactions
 	err = bp.ProcessBlock(b)

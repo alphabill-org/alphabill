@@ -39,20 +39,20 @@ func (a *alphabillApp) Execute(ctx context.Context) {
 }
 
 func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
-	a.baseCmd.AddCommand(newMoneyNodeCmd(ctx, a.baseConfig, convertOptsToRunnable(a.opts)))
-	a.baseCmd.AddCommand(newMoneyGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newVDNodeCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newVDGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newWalletCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newRootGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newRootChainCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newNodeIdentifierCmd(ctx))
-	a.baseCmd.AddCommand(newVDClientCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newTokensNodeCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newUserTokenGenesisCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newMoneyBackendCmd(ctx, a.baseConfig))
-	a.baseCmd.AddCommand(newTokenWalletBackendCmd(ctx, a.baseConfig))
-	return a.baseCmd.Execute()
+	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(a.opts)))
+	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newVDNodeCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newVDGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newRootChainCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newNodeIdentifierCmd())
+	a.baseCmd.AddCommand(newVDClientCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newMoneyBackendCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newTokenWalletBackendCmd(a.baseConfig))
+	return a.baseCmd.ExecuteContext(ctx)
 }
 
 func newBaseCmd() (*cobra.Command, *baseConfiguration) {

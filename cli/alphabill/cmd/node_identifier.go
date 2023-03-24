@@ -7,17 +7,16 @@ import (
 	"github.com/alphabill-org/alphabill/internal/errors"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-
 	"github.com/spf13/cobra"
 )
 
-func newNodeIdentifierCmd(ctx context.Context) *cobra.Command {
+func newNodeIdentifierCmd() *cobra.Command {
 	var file string
 	var cmd = &cobra.Command{
 		Use:   "identifier",
 		Short: "Returns the ID of the node",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return identifierRunFun(ctx, file)
+			return identifierRunFun(cmd.Context(), file)
 		},
 	}
 	cmd.Flags().StringVarP(&file, keyFileCmdFlag, "k", "", "path to the key file")

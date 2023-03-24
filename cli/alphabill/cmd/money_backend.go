@@ -42,7 +42,7 @@ func (c *moneyBackendConfig) GetDbFile() (string, error) {
 }
 
 // newMoneyBackendCmd creates a new cobra command for the money-backend component.
-func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newMoneyBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &moneyBackendConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "money-backend",
@@ -60,15 +60,15 @@ func newMoneyBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 	}
 	walletCmd.PersistentFlags().StringVar(&config.LogFile, logFileCmdName, "", "log file path (default output to stderr)")
 	walletCmd.PersistentFlags().StringVar(&config.LogLevel, logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
-	walletCmd.AddCommand(startMoneyBackendCmd(ctx, config))
+	walletCmd.AddCommand(startMoneyBackendCmd(config))
 	return walletCmd
 }
 
-func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobra.Command {
+func startMoneyBackendCmd(config *moneyBackendConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execMoneyBackendStartCmd(ctx, cmd, config)
+			return execMoneyBackendStartCmd(cmd.Context(), config)
 		},
 	}
 	cmd.Flags().StringVarP(&config.AlphabillUrl, alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
@@ -78,7 +78,7 @@ func startMoneyBackendCmd(ctx context.Context, config *moneyBackendConfig) *cobr
 	return cmd
 }
 
-func execMoneyBackendStartCmd(ctx context.Context, _ *cobra.Command, config *moneyBackendConfig) error {
+func execMoneyBackendStartCmd(ctx context.Context, config *moneyBackendConfig) error {
 	dbFile, err := config.GetDbFile()
 	if err != nil {
 		return err

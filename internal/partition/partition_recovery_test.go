@@ -471,7 +471,7 @@ func TestNode_RecoveryThrowRocksAtNode(t *testing.T) {
 		},
 	})
 	// wait for message to be processed
-	require.Eventually(t, func() bool { return len(tp.mockNet.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	// all is normal
 	require.Equal(t, normal, tp.partition.status)
 }

@@ -42,6 +42,7 @@ const t1TimerName = "t1"
 // Key 0 is used for proposal, that way it is still possible to reverse iterate the DB
 // and use 4 byte key, make it incompatible with block number
 const proposalKey = uint32(0)
+const ledgerReplicationTimeout = 1500 * time.Millisecond
 
 var (
 	ErrNodeDoesNotHaveLatestBlock = errors.New("recovery needed, node does not have the latest block")
@@ -50,8 +51,8 @@ var (
 )
 
 type (
-	// PendingBlockProposalStorage - persisted type
-	PendingBlockProposalStorage struct {
+	// pendingBlockProposalStorage - persisted type
+	pendingBlockProposalStorage struct {
 		RoundNumber  uint64
 		PrevHash     []byte
 		StateHash    []byte
@@ -89,6 +90,7 @@ type (
 		eventCh                     chan event.Event
 		eventChCancel               chan bool
 		lastRootMsgTime             time.Time
+		lastLedgerReqTime           time.Time
 		eventHandler                event.Handler
 		recoveryLastProp            *blockproposal.BlockProposal
 		ticker                      *time.Ticker
@@ -148,6 +150,7 @@ func New(
 		network:                     net,
 		txWaitGroup:                 &sync.WaitGroup{},
 		lastRootMsgTime:             time.Time{},
+		lastLedgerReqTime:           time.Time{},
 		ticker:                      time.NewTicker(time.Second),
 	}
 	n.ctx, n.ctxCancel = context.WithCancel(conf.context)
@@ -200,7 +203,6 @@ func initState(n *Node) error {
 		return nil
 	}
 	// restore state from db
-	logger.Info("Init restore from store")
 	prevBlock := genesisBlock
 	// get next block from genesis block
 	dbIt := n.blockStore.Find(util.Uint64ToBytes(pgenesis.PartitionRoundNumber + 1))
@@ -257,14 +259,14 @@ func (n *Node) applyBlock(roundNr uint64, bl *block.Block) error {
 }
 
 func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
-	var pr PendingBlockProposalStorage
+	var pr pendingBlockProposalStorage
 	found, err := n.blockStore.Read(util.Uint32ToBytes(proposalKey), &pr)
 	if err != nil {
 		logger.Error("Error fetching block proposal: %s", err)
 		return
 	}
 	if !found {
-		logger.Info("No pending block proposal stored")
+		logger.Debug("No pending block proposal stored")
 		return
 	}
 	// make sure proposal extends the previous state
@@ -371,7 +373,7 @@ func (n *Node) loop() {
 					logger.Warning("Invalid unicity certificate type: %T", m.Message)
 					continue
 				}
-				util.WriteTraceJsonLog(logger, "Unicity Certificate", uc)
+				logger.Trace("Unicity Certificate:\n%s", util.EncodeToJsonHelper(uc))
 				n.lastRootMsgTime = time.Now()
 				err := n.handleUnicityCertificate(uc)
 				if err != nil {
@@ -421,7 +423,6 @@ func (n *Node) loop() {
 			if nt == nil {
 				continue
 			}
-			logger.Info("Handling T1 timeout")
 			n.handleT1TimeoutEvent()
 		case _, ok := <-n.ticker.C:
 			if !ok {
@@ -539,7 +540,6 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
-	logger.Debug("Handling block proposal, its UC IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	nodeSignatureVerifier, err := n.configuration.GetSigningPublicKey(prop.NodeIdentifier)
 	if err != nil {
 		return fmt.Errorf("unknown node id, %w", err)
@@ -547,6 +547,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if err = n.blockProposalValidator.Validate(prop, nodeSignatureVerifier); err != nil {
 		return fmt.Errorf("block proposal validation failed, %w", err)
 	}
+	logger.Debug("Handling block proposal, its UC IR Hash %X, Block hash %X", prop.UnicityCertificate.InputRecord.Hash, prop.UnicityCertificate.InputRecord.BlockHash)
 	// verify proposal unicity certificate, must not be older than latest seen received by the node
 	uc := prop.UnicityCertificate
 	// UC must be newer than the last one seen
@@ -561,7 +562,7 @@ func (n *Node) handleBlockProposal(prop *blockproposal.BlockProposal) error {
 	if uc.InputRecord.RoundNumber > n.luc.InputRecord.RoundNumber {
 		// either the other node received it faster from root or there must be some issue with root communication?
 		logger.Debug("Received newer UC round nr %v via block proposal, LUC round %v", uc.InputRecord.RoundNumber, n.luc.InputRecord.RoundNumber)
-		// just to be sure, subscribe to root chain again, this will result in a duplicate UC received
+		// just to be sure, subscribe to root chain again, this may result in a duplicate UC received
 		n.sendHandshake()
 		if err = n.handleUnicityCertificate(uc); err != nil {
 			return fmt.Errorf("block proposal unicity cerrificate hanlding faild, %w", err)
@@ -629,6 +630,7 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 	if n.status == recovering {
 		// already recovering, but if uc is newer than luc, let's update luc
 		logger.Debug("Recovery already in progress, recovering to %v", n.luc.InputRecord.RoundNumber)
+		return
 	}
 	// starting recovery
 	n.revertState()
@@ -637,8 +639,7 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 	logger.Debug("Entering recovery state, recover node up to %v", n.luc.InputRecord.RoundNumber)
 	fromBlockNr := n.lastBlock.UnicityCertificate.InputRecord.RoundNumber + 1
 	n.sendEvent(event.RecoveryStarted, fromBlockNr)
-
-	go n.sendLedgerReplicationRequest(fromBlockNr)
+	n.sendLedgerReplicationRequest(fromBlockNr)
 }
 
 // handleUnicityCertificate processes the Unicity Certificate and finalizes a block. Performs the following steps:
@@ -654,18 +655,22 @@ func (n *Node) startRecovery(uc *certificates.UnicityCertificate) {
 //  8. Alternatively, recovery is initiated, after rollback. Note that recovery may end up with
 //     newer last known UC than the one being processed.
 //  8. New round is started.
+//
+// See algorithm 5 "Processing a received Unicity Certificate" in Yellowpaper for more details
 func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) error {
 	defer trackExecutionTime(time.Now(), "Handling unicity certificate")
 	if uc == nil {
 		return fmt.Errorf("unicity certificate is nil")
 	}
-	logger.Debug("Received Unicity Certificate:\nH:\t%X\nH':\t%X\nHb:\t%X", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash)
-	logger.Debug("LUC:\nH:\t%X\nH':\t%X\nHb:\t%X", n.luc.InputRecord.Hash, n.luc.InputRecord.PreviousHash, n.luc.InputRecord.BlockHash)
 	// UC is validated cryptographically
 	if err := n.unicityCertificateValidator.Validate(uc); err != nil {
 		n.sendEvent(event.Error, err)
 		return fmt.Errorf("certificate invalid, %w", err)
 	}
+	// validation must make sure all mandatory fields are present and UC is cryptographically sound
+	// from this point fields can be logged, that must not be nil can be logged
+	logger.Debug("Received Unicity Certificate:\nH:\t%X\nH':\t%X\nHb:\t%X", uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash)
+	logger.Debug("LUC:\nH:\t%X\nH':\t%X\nHb:\t%X", n.luc.InputRecord.Hash, n.luc.InputRecord.PreviousHash, n.luc.InputRecord.BlockHash)
 	// ignore duplicates
 	if bytes.Equal(n.luc.InputRecord.Bytes(), uc.InputRecord.Bytes()) {
 		if n.status == initializing {
@@ -677,9 +682,10 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 	}
 	// check for equivocation
 	if err := certificates.CheckNonEquivocatingCertificates(n.luc, uc); err != nil {
+		// this is not normal, log all info
 		logger.Warning("Round %v UC error, %v", uc.InputRecord.RoundNumber, err)
-		util.WriteDebugJsonLog(logger, "LUC:", n.luc)
-		util.WriteDebugJsonLog(logger, "equivocating UC:", uc)
+		logger.Warning("LUC:\n%s", util.EncodeToJsonHelper(n.luc))
+		logger.Warning("equivocating UC::\n%s", util.EncodeToJsonHelper(uc))
 		return fmt.Errorf("equivocating certificate, %w", err)
 	}
 	// If there is no pending block proposal i.e. no certification request has been sent by the node
@@ -793,6 +799,7 @@ func (n *Node) handleT1TimeoutEvent() {
 		logger.Info("T1 timeout: node is recovering")
 		return
 	}
+	logger.Info("Handling T1 timeout")
 	if n.leaderSelector.IsCurrentNodeLeader() {
 		logger.Debug("Current node is the leader.")
 		if err := n.sendBlockProposal(); err != nil {
@@ -815,6 +822,11 @@ func (n *Node) handleMonitoring() {
 		// subscribe again
 		n.sendHandshake()
 	}
+	// handle ledger replication timeout - no response from node is received
+	if n.status == recovering && time.Since(n.lastLedgerReqTime) > ledgerReplicationTimeout {
+		logger.Warning("Ledger replication timeout, repeat request")
+		n.sendLedgerReplicationRequest(n.lastBlock.GetRoundNumber() + 1)
+	}
 }
 
 func (n *Node) sendLedgerReplicationResponse(msg *replication.LedgerReplicationResponse, toId string) error {
@@ -834,7 +846,11 @@ func (n *Node) sendLedgerReplicationResponse(msg *replication.LedgerReplicationR
 }
 
 func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationRequest) error {
-	util.WriteDebugJsonLog(logger, "Ledger replication request received", lr)
+	logger.Trace("Ledger replication request received:\n%s", util.EncodeToJsonHelper(lr))
+	if err := lr.IsValid(); err != nil {
+		// for now do not respond to obviously invalid requests
+		return fmt.Errorf("invalid request, %w", err)
+	}
 	// check if the node is known
 	if _, err := n.configuration.GetSigningPublicKey(lr.NodeIdentifier); err != nil {
 		return fmt.Errorf("unknown node, %w", err)
@@ -842,7 +858,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 	if !bytes.Equal(lr.SystemIdentifier, n.configuration.GetSystemIdentifier()) {
 		resp := &replication.LedgerReplicationResponse{
 			Status:  replication.LedgerReplicationResponse_UNKNOWN_SYSTEM_IDENTIFIER,
-			Message: fmt.Sprintf("Unknown system identifier: %v", lr.GetSystemIdentifier()),
+			Message: fmt.Sprintf("Unknown system identifier: %X", lr.GetSystemIdentifier()),
 		}
 		return n.sendLedgerReplicationResponse(resp, lr.NodeIdentifier)
 	}
@@ -852,7 +868,7 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 	if maxBlock < startBlock {
 		resp := &replication.LedgerReplicationResponse{
 			Status:  replication.LedgerReplicationResponse_BLOCKS_NOT_FOUND,
-			Message: fmt.Sprintf("Unknown block to form recovery response: %v, latest block: %v", startBlock, maxBlock),
+			Message: fmt.Sprintf("Node does not have block: %v, latest block: %v", startBlock, maxBlock),
 		}
 		return n.sendLedgerReplicationResponse(resp, lr.NodeIdentifier)
 	}
@@ -893,46 +909,75 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 	return nil
 }
 
+// handleLedgerReplicationResponse handles ledger replication responses from other partition nodes.
+// This method is an approximation of YellowPaper algorithm 10 "Partition Node Recovery" (synchronous algorithm)
 func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplicationResponse) error {
-	logger.Debug("Ledger replication response received: %s, ", lr.Pretty())
+	if err := lr.IsValid(); err != nil {
+		return fmt.Errorf("invalid ledger replication response, %w", err)
+	}
 	if n.status != recovering {
-		logger.Warning("Unexpected Ledger Replication response, node is not recovering: %s", lr.Pretty())
+		logger.Debug("Stale Ledger Replication response, node is not recovering: %s", lr.Pretty())
 		return nil
 	}
+	logger.Debug("Ledger replication response received: %s, ", lr.Pretty())
 	if lr.Status != replication.LedgerReplicationResponse_OK {
-		recoverFrom := n.luc.InputRecord.RoundNumber
+		recoverFrom := n.lastBlock.GetRoundNumber() + 1
 		logger.Debug("Resending replication request starting with round %v", recoverFrom)
-		go func() {
-			time.Sleep(500 * time.Millisecond) // TODO: needs to be fixed as it could cause issues on shutdown
-			n.sendLedgerReplicationRequest(recoverFrom)
-		}()
+		n.sendLedgerReplicationRequest(recoverFrom)
 		return fmt.Errorf("received error response, status=%s, message='%s'", lr.Status.String(), lr.Message)
 	}
+	var err error
 	for _, b := range lr.Blocks {
-		roundNr := b.UnicityCertificate.InputRecord.RoundNumber
-		logger.Debug("Recovering block from round %v", roundNr)
-		if !bytes.Equal(b.SystemIdentifier, n.configuration.GetSystemIdentifier()) {
-			return fmt.Errorf("block %v error, wrong System ID: %X", b.UnicityCertificate.InputRecord.RoundNumber, b.SystemIdentifier)
+		if err = b.IsValid(n.unicityCertificateValidator); err != nil {
+			// sends invalid blocks, do not trust the response and try again
+			err = fmt.Errorf("ledger replication response contains invalid block, %w", err)
+			break
 		}
-		if err := n.applyBlock(roundNr, b); err != nil {
-			n.revertState()
-			// ask the for the failed block again, what else can we do?
-			go n.sendLedgerReplicationRequest(roundNr)
-			return fmt.Errorf("block %v error, %w", roundNr, err)
+		// it could be that we receive blocks from earlier time or later time, make sure to extend from what is missing
+		roundNr := b.GetRoundNumber()
+		logger.Debug("Recovering block from round %v", roundNr)
+		// skip earlier blocks
+		if roundNr <= n.lastBlock.GetRoundNumber() {
+			logger.Debug("Node already has this block %v, skipping block %v", n.lastBlock.GetRoundNumber(), roundNr)
+			continue
+		}
+		// make sure it extends current state
+		var state txsystem.State
+		state, err = n.transactionSystem.State()
+		if err != nil {
+			err = fmt.Errorf("error reading current state, %w", err)
+			break
+		}
+		if !bytes.Equal(b.UnicityCertificate.InputRecord.PreviousHash, state.Root()) {
+			err = fmt.Errorf("received block does not extend current state")
+			break
+		}
+		if err = n.applyBlock(roundNr, b); err != nil {
+			err = fmt.Errorf("block %v error, %w", roundNr, err)
+			break
 		}
 		// update DB and last block
-		if err := n.persistBlock(b); err != nil {
-			return fmt.Errorf("block %v persist failed, %w", b.UnicityCertificate.InputRecord.RoundNumber, err)
+		if err = n.persistBlock(b); err != nil {
+			err = fmt.Errorf("block %v persist failed, %w", b.UnicityCertificate.InputRecord.RoundNumber, err)
+			break
 		}
 	}
-	// check if recovery is complete
 	latestBlockUc := n.lastBlock.UnicityCertificate
-	logger.Debug("Checking if recovery is complete, last block is from round: %v", latestBlockUc.InputRecord.RoundNumber)
+	// log problems
+	if err != nil {
+		// Revert any transactions that were applied
+		n.revertState()
+		// ask the for the failed block again, what else can we do?
+		n.sendLedgerReplicationRequest(latestBlockUc.GetRoundNumber() + 1)
+		return err
+	}
+	// check if recovery is complete
+	logger.Debug("Checking if recovery is complete, last block is from round: %v", latestBlockUc.GetRoundNumber())
 	// every non-empty block is guaranteed to change state hash, meaning if the state hash is equal to luc state hash
 	// then recovery is complete
 	if !bytes.Equal(latestBlockUc.InputRecord.Hash, n.luc.InputRecord.Hash) {
-		logger.Debug("Not fully recovered yet, latest block's UC root round %v vs LUC's root round %v", latestBlockUc.InputRecord.RoundNumber, n.luc.InputRecord.RoundNumber)
-		go n.sendLedgerReplicationRequest(latestBlockUc.InputRecord.RoundNumber + 1)
+		logger.Debug("Not fully recovered yet, latest block's UC root round %v vs LUC's root round %v", latestBlockUc.GetRoundNumber(), n.luc.GetRoundNumber())
+		n.sendLedgerReplicationRequest(latestBlockUc.GetRoundNumber() + 1)
 		return nil
 	}
 	// node should be recovered now, stop recovery and change state to normal
@@ -941,7 +986,7 @@ func (n *Node) handleLedgerReplicationResponse(lr *replication.LedgerReplication
 	// is in fact the last block received
 	if n.recoveryLastProp != nil {
 		// try to apply it to the latest state, may fail
-		if err := n.handleBlockProposal(n.recoveryLastProp); err != nil {
+		if err = n.handleBlockProposal(n.recoveryLastProp); err != nil {
 			logger.Debug("Recovery completed, failed to apply last received block proposal(stale?), %v", err)
 		}
 		n.recoveryLastProp = nil
@@ -955,12 +1000,13 @@ func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {
 		NodeIdentifier:   n.leaderSelector.SelfID().String(),
 		BeginBlockNumber: startingBlockNr,
 	}
-	util.WriteTraceJsonLog(logger, "Ledger replication request created", req)
+	logger.Trace("Ledger replication request:\n%s", util.EncodeToJsonHelper(req))
 	peers := n.configuration.peer.Validators()
 	if len(peers) == 0 {
-		logger.Error("Error sending ledger replication request, no peers")
+		logger.Warning("Error sending ledger replication request, no peers")
 	}
 	var err error
+	requestSent := false
 	// send Ledger Replication request to a first alive randomly chosen node
 	for _, p := range util.ShuffleSliceCopy(peers) {
 		logger.Debug("Sending ledger replication request to peer '%v'", p)
@@ -971,12 +1017,18 @@ func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {
 		// break loop on successful send, otherwise try again but different node, until all either
 		// able to send or all attempts have failed
 		if err == nil {
+			requestSent = true
 			break
 		}
+		// log every failed attempt?
+		logger.Debug("Error sending ledger replication request: %s", err)
 	}
-	if err != nil {
-		logger.Warning("Error sending ledger replication request: %s", err)
+	if requestSent == false {
+		logger.Warning("Error sending ledger replication request, all peers down")
+		return
 	}
+	// remember last request sent for timeout handling - if no response is received
+	n.lastLedgerReqTime = time.Now()
 }
 
 func (n *Node) sendBlockProposal() error {
@@ -989,12 +1041,10 @@ func (n *Node) sendBlockProposal() error {
 		UnicityCertificate: n.luc,
 		Transactions:       block.GenericTxsToProtobuf(n.proposedTransactions),
 	}
-	util.WriteTraceJsonLog(logger, "BlockProposal created", prop)
-	err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer)
-	if err != nil {
-		return err
+	logger.Trace("BlockProposal created:\n%s", util.EncodeToJsonHelper(prop))
+	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
+		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
-
 	return n.network.Send(network.OutputMessage{
 		Protocol: network.ProtocolBlockProposal,
 		Message:  prop,
@@ -1002,7 +1052,7 @@ func (n *Node) sendBlockProposal() error {
 }
 
 func (n *Node) persistBlockProposal(pr *block.PendingBlockProposal) error {
-	proposal := &PendingBlockProposalStorage{
+	proposal := &pendingBlockProposalStorage{
 		RoundNumber:  pr.RoundNumber,
 		PrevHash:     pr.PrevHash,
 		StateHash:    pr.StateHash,
@@ -1064,7 +1114,7 @@ func (n *Node) sendCertificationRequest() error {
 	}
 	logger.Info("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X",
 		pendingProposal.RoundNumber, stateHash, blockHash)
-	util.WriteTraceJsonLog(logger, "Sending block certification request to root chain", req)
+	logger.Trace("Block Certification req:\n%s", util.EncodeToJsonHelper(req))
 
 	return n.network.Send(network.OutputMessage{
 		Protocol: network.ProtocolBlockCertification,

@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 
 	log "github.com/alphabill-org/alphabill/internal/logger"
 )
@@ -18,4 +19,12 @@ func WriteTraceJsonLog(l log.Logger, m string, arg interface{}) {
 		j, _ := json.MarshalIndent(arg, "", "\t")
 		l.Trace("%s\n%s", m, string(j))
 	}
+}
+
+func EncodeToJsonHelper(arg interface{}) string {
+	j, err := json.MarshalIndent(arg, "", "\t")
+	if err != nil {
+		fmt.Errorf("json encode error: %w", err)
+	}
+	return string(j)
 }

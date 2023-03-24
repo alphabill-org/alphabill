@@ -188,6 +188,10 @@ func (sn *SingleNodePartition) SubmitTx(tx *txsystem.Transaction) error {
 	return nil
 }
 
+func (sn *SingleNodePartition) SubmitTxFromRPC(tx *txsystem.Transaction) error {
+	return sn.partition.SubmitTx(tx)
+}
+
 func (sn *SingleNodePartition) SubmitUnicityCertificate(uc *certificates.UnicityCertificate) {
 	sn.mockNet.Receive(network.ReceivedMessage{
 		From:     "from-test",

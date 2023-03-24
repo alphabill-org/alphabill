@@ -158,7 +158,7 @@ func TestNode_CreateBlocks(t *testing.T) {
 	require.True(t, ContainsTransaction(block1, transfer))
 
 	tx1 := moneytesttx.RandomBillTransfer(t)
-	require.NoError(t, tp.SubmitTx(tx1))
+	require.NoError(t, tp.SubmitTxFromRPC(tx1))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
 		for _, e := range events {

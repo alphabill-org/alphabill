@@ -14,17 +14,12 @@ import (
 
 const DustBillDeletionTimeout = 65536
 
-type (
-	BlockProcessor struct {
-		store       BillStore
-		TxConverter TxConverter
-	}
-	TxConverter interface {
-		ConvertTx(tx *txsystem.Transaction) (txsystem.GenericTransaction, error)
-	}
-)
+type BlockProcessor struct {
+	store       BillStore
+	TxConverter block.TxConverter
+}
 
-func NewBlockProcessor(store BillStore, txConverter TxConverter) *BlockProcessor {
+func NewBlockProcessor(store BillStore, txConverter block.TxConverter) *BlockProcessor {
 	return &BlockProcessor{store: store, TxConverter: txConverter}
 }
 

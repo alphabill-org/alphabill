@@ -2,6 +2,7 @@ package twb
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -36,7 +37,7 @@ func decodePubKeyHex(pubKey string) (PubKey, error) {
 	return bytes, nil
 }
 
-func parseTokenID(value string, required bool) (TokenID, error) {
+func parseHex[T UnitID | TokenTypeID | TokenID | TxHash](value string, required bool) (T, error) {
 	if value == "" {
 		if required {
 			return nil, fmt.Errorf("parameter is required")
@@ -51,31 +52,33 @@ func parseTokenID(value string, required bool) (TokenID, error) {
 	return bytes, nil
 }
 
-func encodeTokenID(value TokenID) string {
+func encodeHex[T UnitID | TokenTypeID | TokenID | TxHash](value T) string {
 	if len(value) == 0 {
 		return ""
 	}
 	return hexutil.Encode(value)
 }
 
-func parseTokenTypeID(value string, required bool) (TokenTypeID, error) {
-	if value == "" {
-		if required {
-			return nil, fmt.Errorf("parameter is required")
-		}
-		return nil, nil
+/*
+parseMaxResponseItems parses input "s" as integer.
+When empty string or int over "maxValue" is sent in "maxValue" is returned.
+In case of invalid int or value smaller than 1 error is returned.
+*/
+func parseMaxResponseItems(s string, maxValue int) (int, error) {
+	if s == "" {
+		return maxValue, nil
 	}
 
-	bytes, err := hexutil.Decode(value)
+	v, err := strconv.Atoi(s)
 	if err != nil {
-		return nil, err
+		return 0, fmt.Errorf("failed to parse %q as integer: %w", s, err)
 	}
-	return bytes, nil
-}
+	if v <= 0 {
+		return 0, fmt.Errorf("value must be greater than zero, got %d", v)
+	}
 
-func encodeTokenTypeID(value TokenTypeID) string {
-	if len(value) == 0 {
-		return ""
+	if v > maxValue {
+		return maxValue, nil
 	}
-	return hexutil.Encode(value)
+	return v, nil
 }

@@ -1,6 +1,7 @@
 package twb
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 )
 
 func decodeResponse(t *testing.T, rsp *http.Response, code int, data any) error {
@@ -75,20 +77,20 @@ func randomTx(t *testing.T, attr proto.Message) *txsystem.Transaction {
 }
 
 type mockABClient struct {
-	getBlocks       func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
-	sendTransaction func(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
+	getBlocks       func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error)
+	sendTransaction func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error)
 }
 
-func (abc *mockABClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (abc *mockABClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	if abc.sendTransaction != nil {
-		return abc.sendTransaction(tx)
+		return abc.sendTransaction(ctx, tx)
 	}
 	return nil, fmt.Errorf("unexpected mockABClient.SendTransaction call")
 }
 
-func (abc *mockABClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+func (abc *mockABClient) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 	if abc.getBlocks != nil {
-		return abc.getBlocks(blockNumber, blockCount)
+		return abc.getBlocks(ctx, blockNumber, blockCount)
 	}
 	return nil, fmt.Errorf("unexpected mockABClient.GetBlocks(%d, %d) call", blockNumber, blockCount)
 }
@@ -98,13 +100,13 @@ type mockCfg struct {
 	db     Storage
 	abc    ABClient
 	srvL   net.Listener
-	errLog func(a ...any)
+	log    log.Logger
 }
 
 func (c *mockCfg) BatchSize() int   { return 50 }
 func (c *mockCfg) Client() ABClient { return c.abc }
 
-func (c *mockCfg) ErrLogger() func(a ...any) { return c.errLog }
+func (c *mockCfg) Logger() log.Logger { return c.log }
 
 func (c *mockCfg) Storage() (Storage, error) {
 	if c.db != nil {
@@ -159,6 +161,7 @@ type mockStorage struct {
 	getTokenType     func(id TokenTypeID) (*TokenUnitType, error)
 	queryTTypes      func(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 	saveTTypeCreator func(id TokenTypeID, kind Kind, creator PubKey) error
+	getTxProof       func(unitID UnitID, txHash TxHash) (*Proof, error)
 }
 
 func (ms *mockStorage) Close() error { return nil }
@@ -224,4 +227,11 @@ func (ms *mockStorage) QueryTokens(kind Kind, owner Predicate, startKey TokenID,
 		return ms.queryTokens(kind, owner, startKey, count)
 	}
 	return nil, nil, fmt.Errorf("unexpected QueryTokens call")
+}
+
+func (ms *mockStorage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
+	if ms.getTxProof != nil {
+		return ms.getTxProof(unitID, txHash)
+	}
+	return nil, fmt.Errorf("unexpected GetTxProof call")
 }

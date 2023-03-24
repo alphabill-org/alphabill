@@ -23,12 +23,11 @@ type (
 	WalletBackendService interface {
 		GetBills(ownerCondition []byte) ([]*Bill, error)
 		GetBill(unitID []byte) (*Bill, error)
-		GetMaxBlockNumber() (uint64, uint64, error)
+		GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error)
 	}
 
 	GenericWalletBackendHttpServer struct {
 		Handler RequestHandler
-		server  *http.Server
 	}
 )
 

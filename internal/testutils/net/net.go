@@ -1,6 +1,17 @@
 package net
 
-import "net"
+import (
+	"net"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func GetFreeRandomPort(t *testing.T) int {
+	port, err := GetFreePort()
+	require.NoError(t, err)
+	return port
+}
 
 func GetFreePort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")

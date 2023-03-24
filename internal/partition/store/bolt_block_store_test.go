@@ -143,7 +143,7 @@ func TestPersistentPendingBlockProposal(t *testing.T) {
 		PrevHash:    test.RandomBytes(32),
 		StateHash:   test.RandomBytes(32),
 	}
-	require.NoError(t, bs.AddPendingProposal(prop))
+	require.NoError(t, bs.SetPendingProposal(prop))
 	p, err := bs.GetPendingProposal()
 	require.NoError(t, err)
 	require.Equal(t, prop, p)
@@ -152,7 +152,7 @@ func TestPersistentPendingBlockProposal(t *testing.T) {
 func TestPersistentGetPendingBlockProposal_NotFound(t *testing.T) {
 	bs, _ := createTestBlockStore(t)
 	p, err := bs.GetPendingProposal()
-	require.ErrorContains(t, err, ErrStrPendingBlockProposalNotFound)
+	require.NoError(t, err)
 	require.Nil(t, p)
 }
 

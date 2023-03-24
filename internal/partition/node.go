@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
-	log "github.com/alphabill-org/alphabill/internal/logger"
 	"github.com/alphabill-org/alphabill/internal/metrics"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
@@ -26,6 +25,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txbuffer"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
+	log "github.com/alphabill-org/alphabill/pkg/logger"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -442,6 +442,10 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) error {
 	n.transactionSystem.BeginBlock(newBlockNr)
 	n.proposedTransactions = []txsystem.GenericTransaction{}
 	n.pendingBlockProposal = nil
+	err = n.blockStore.SetPendingProposal(nil)
+	if err != nil {
+		logger.Error("Failed to reset pending block proposal: %v", err)
+	}
 	n.leaderSelector.UpdateLeader(uc.UnicitySeal)
 	n.startHandleOrForwardTransactions()
 	n.updateLUC(uc)
@@ -686,7 +690,7 @@ func (n *Node) handleUnicityCertificate(uc *certificates.UnicityCertificate) err
 		}
 	} else if bytes.Equal(uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash) {
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
-		logger.Warning("Reverting state tree. UC IR hash: %X, proposal hash %X", uc.InputRecord.Hash, n.pendingBlockProposal.PrevHash)
+		logger.Warning("Reverting state tree. UC IR hash '%X' is equal to proposal's previous state hash", uc.InputRecord.Hash)
 		n.revertState()
 		return errors.Wrap(n.startNewRound(uc), ErrStateReverted.Error())
 	} else {
@@ -1002,7 +1006,7 @@ func (n *Node) sendCertificationRequest() error {
 		StateHash:    stateHash,
 		Transactions: n.proposedTransactions,
 	}
-	err = n.blockStore.AddPendingProposal(pendingProposal)
+	err = n.blockStore.SetPendingProposal(pendingProposal)
 	if err != nil {
 		return errors.Wrap(err, "failed to store pending block proposal")
 	}

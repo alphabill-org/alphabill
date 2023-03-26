@@ -34,7 +34,7 @@ func (x *Block) Hash(txConverter TxConverter, hashAlgorithm crypto.Hash) ([]byte
 }
 
 func (x *Block) ToGenericBlock(txConverter TxConverter) (*GenericBlock, error) {
-	txs, err := protobufTxsToGeneric(x.Transactions, txConverter)
+	txs, err := ProtobufTxsToGeneric(x.Transactions, txConverter)
 	if err != nil {
 		return nil, err
 	}

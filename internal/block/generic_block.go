@@ -197,7 +197,7 @@ func GenericTxsToProtobuf(src []txsystem.GenericTransaction) []*txsystem.Transac
 	return dst
 }
 
-func protobufTxsToGeneric(src []*txsystem.Transaction, txConverter TxConverter) ([]txsystem.GenericTransaction, error) {
+func ProtobufTxsToGeneric(src []*txsystem.Transaction, txConverter TxConverter) ([]txsystem.GenericTransaction, error) {
 	dst := make([]txsystem.GenericTransaction, len(src))
 	var err error
 	for i, tx := range src {

@@ -1,6 +1,8 @@
 package clientmock
 
 import (
+	"context"
+
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -49,7 +51,7 @@ func WithBlocks(blocks map[uint64]*block.Block) Option {
 	}
 }
 
-func (c *MockAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+func (c *MockAlphabillClient) SendTransaction(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 	c.recordedTxs = append(c.recordedTxs, tx)
 	if c.txListener != nil {
 		c.txListener(tx)
@@ -63,7 +65,7 @@ func (c *MockAlphabillClient) SendTransaction(tx *txsystem.Transaction) (*txsyst
 	return &txsystem.TransactionResponse{Ok: true}, nil
 }
 
-func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error) {
+func (c *MockAlphabillClient) GetBlock(ctx context.Context, blockNumber uint64) (*block.Block, error) {
 	if c.incrementOnFetch {
 		defer c.SetMaxBlockNumber(blockNumber + 1)
 	}
@@ -74,7 +76,7 @@ func (c *MockAlphabillClient) GetBlock(blockNumber uint64) (*block.Block, error)
 	return nil, nil
 }
 
-func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+func (c *MockAlphabillClient) GetBlocks(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 	c.lastRequestedBlockNumber = blockNumber
 	if c.incrementOnFetch {
 		defer c.SetMaxBlockNumber(blockNumber + 1)
@@ -104,7 +106,7 @@ func (c *MockAlphabillClient) GetBlocks(blockNumber, blockCount uint64) (*alphab
 	}, nil
 }
 
-func (c *MockAlphabillClient) GetMaxBlockNumber() (uint64, uint64, error) {
+func (c *MockAlphabillClient) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
 	return c.maxBlockNumber, c.maxRoundNumber, nil
 }
 

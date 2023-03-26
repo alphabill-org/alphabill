@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 	"github.com/alphabill-org/alphabill/internal/util"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -35,25 +35,18 @@ func Test_Run(t *testing.T) {
 		require.EqualError(t, err, `failed to get storage: neither db file name nor mock is assigned`)
 	})
 
-	// extract error from logger func passed in via conf - we expect
-	// that logger is called with two arguments (string, error) and we return
-	// the error argument logged.
-	getErrorFromLog := func(a ...any) error {
-		if len(a) != 2 {
-			return fmt.Errorf("expected slice length 2, got %d", len(a))
-		}
-		err, ok := a[1].(error)
-		if !ok {
-			return fmt.Errorf("the second element of the slice is not an error but %T", a[1])
-		}
-		return err
+	loggerForTest := func(t *testing.T) (log.Logger, *bytes.Buffer) {
+		buf := bytes.NewBuffer(nil)
+		l, err := log.New(log.DEBUG, buf)
+		require.NoError(t, err)
+		return l, buf
 	}
 
 	t.Run("failure to get starting block number from storage", func(t *testing.T) {
 		// as the sync subprocess runs in retry loop we check that expected error is
 		// logged and then stop the service by cancelling the ctx
 		ctx, cancel := context.WithCancel(context.Background())
-		var logCalls int32
+		logger, logBuf := loggerForTest(t)
 		expErr := fmt.Errorf("can't get block number")
 		cfg := &mockCfg{
 			db: &mockStorage{
@@ -63,50 +56,45 @@ func Test_Run(t *testing.T) {
 				},
 			},
 			abc: &mockABClient{},
-			errLog: func(a ...any) {
-				atomic.AddInt32(&logCalls, 1)
-				require.ErrorIs(t, getErrorFromLog(a...), expErr)
-			},
+			log: logger,
 		}
 		require.NoError(t, cfg.initListener())
 
 		err := Run(ctx, cfg)
 		require.ErrorIs(t, err, context.Canceled)
-		require.EqualValues(t, 1, logCalls, "expected logError to be called once")
+		require.Contains(t, logBuf.String(), expErr.Error())
 	})
 
 	t.Run("failure to fetch new blocks from AB", func(t *testing.T) {
 		// as the sync subprocess runs in retry loop we check that expected error is
 		// logged and then stop the service by cancelling the ctx
 		ctx, cancel := context.WithCancel(context.Background())
-		var logCalls int32
+		logger, logBuf := loggerForTest(t)
 		expErr := fmt.Errorf("AB doesn't return blocks right now")
 		cfg := &mockCfg{
 			dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 			abc: &mockABClient{
-				getBlocks: func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+				getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 					cancel() // stop the service
 					return nil, expErr
 				},
 			},
-			errLog: func(a ...any) {
-				atomic.AddInt32(&logCalls, 1)
-				require.ErrorIs(t, getErrorFromLog(a...), expErr)
-			},
+			log: logger,
 		}
 		require.NoError(t, cfg.initListener())
 
 		err := Run(ctx, cfg)
 		require.ErrorIs(t, err, context.Canceled)
-		require.EqualValues(t, 1, logCalls, "expected logError to be called once")
+		require.Contains(t, logBuf.String(), expErr.Error())
 	})
 
 	t.Run("cancelling ctx stops the backend", func(t *testing.T) {
+		logger, logBuf := loggerForTest(t)
 		syncing := make(chan struct{})
 		cfg := &mockCfg{
 			dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 			abc: &mockABClient{
-				getBlocks: func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+				getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 					select {
 					case syncing <- struct{}{}:
 					default:
@@ -115,7 +103,7 @@ func Test_Run(t *testing.T) {
 					return &alphabill.GetBlocksResponse{MaxBlockNumber: blockNumber}, nil
 				},
 			},
-			errLog: func(a ...any) { t.Log(a...) },
+			log: logger,
 		}
 		require.NoError(t, cfg.initListener())
 
@@ -139,23 +127,28 @@ func Test_Run(t *testing.T) {
 		case err := <-srvErr:
 			require.ErrorIs(t, err, context.Canceled)
 		}
+
+		require.Contains(t, logBuf.String(), `synchronizing blocks returned error: context canceled`)
 	})
 }
 
 func Test_Run_API(t *testing.T) {
 	t.Parallel()
 
+	logger, err := log.New(log.DEBUG, nil)
+	require.NoError(t, err)
+
 	syncing := make(chan *txsystem.Transaction)
 	// only AB backend is mocked, rest is "real"
 	cfg := &mockCfg{
-		errLog: func(a ...any) { fmt.Println(a...) },
+		log:    logger,
 		dbFile: filepath.Join(t.TempDir(), "tokens.db"),
 		abc: &mockABClient{
-			sendTransaction: func(tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, tx *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				syncing <- tx
 				return &txsystem.TransactionResponse{Ok: true}, nil
 			},
-			getBlocks: func(blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
+			getBlocks: func(ctx context.Context, blockNumber, blockCount uint64) (*alphabill.GetBlocksResponse, error) {
 				select {
 				case tx := <-syncing:
 					return &alphabill.GetBlocksResponse{

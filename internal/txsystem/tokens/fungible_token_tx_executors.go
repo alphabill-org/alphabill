@@ -3,6 +3,9 @@ package tokens
 import (
 	"bytes"
 	goerrors "errors"
+	"fmt"
+
+	"github.com/holiman/uint256"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/crypto"
@@ -12,7 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	txutil "github.com/alphabill-org/alphabill/internal/txsystem/util"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/holiman/uint256"
 )
 
 type (
@@ -232,11 +234,16 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 	}
 	u, err := m.state.GetUnit(unitID)
 	if u != nil {
-		return errors.Errorf("unit %v exists", unitID)
+		return errors.Errorf("unit with id %v already exists", unitID)
 	}
 	if !goerrors.Is(err, rma.ErrUnitNotFound) {
-		return err
+		return fmt.Errorf("failed to check does the unit with this ID already exists: %w", err)
 	}
+
+	if tx.Value() == 0 {
+		return goerrors.New("token must have value greater than zero")
+	}
+
 	// existence of the parent type is checked by the getChainedPredicates
 	predicates, err := m.getChainedPredicates(
 		tx.TypeIDInt(),
@@ -254,7 +261,7 @@ func (m *mintFungibleTokenTxExecutor) validate(tx *mintFungibleTokenWrapper) err
 }
 
 func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrapper) error {
-	d, err := t.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := t.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return err
 	}
@@ -265,6 +272,12 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
+
+	tokenTypeID := util.Uint256ToBytes(d.tokenType)
+	if !bytes.Equal(tx.TypeID(), tokenTypeID) {
+		return errors.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.TypeID())
+	}
+
 	predicates, err := t.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
@@ -277,20 +290,38 @@ func (t *transferFungibleTokenTxExecutor) validate(tx *transferFungibleTokenWrap
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }
 
 func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) error {
-	d, err := s.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := s.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return err
 	}
+
+	if tx.TargetValue() == 0 {
+		return goerrors.New("when splitting a token the value assigned to the new token must be greater than zero")
+	}
+	if tx.RemainingValue() == 0 {
+		return goerrors.New("when splitting a token the remaining value of the token must be greater than zero")
+	}
+
 	if d.value < tx.attributes.TargetValue {
 		return errors.Errorf("invalid token value: max allowed %v, got %v", d.value, tx.attributes.TargetValue)
 	}
+	if rm := d.value - tx.TargetValue(); tx.RemainingValue() != rm {
+		return goerrors.New("remaining value must equal to the original value minus target value")
+	}
+
 	if !bytes.Equal(d.backlink, tx.attributes.Backlink) {
 		return errors.Errorf("invalid backlink: expected %X, got %X", d.backlink, tx.attributes.Backlink)
 	}
+
+	tokenTypeID := util.Uint256ToBytes(d.tokenType)
+	if !bytes.Equal(tx.TypeID(), tokenTypeID) {
+		return errors.Errorf("invalid type identifier: expected '%X', got '%X'", tokenTypeID, tx.TypeID())
+	}
+
 	predicates, err := s.getChainedPredicates(
 		d.tokenType,
 		func(d *fungibleTokenTypeData) []byte {
@@ -303,17 +334,17 @@ func (s *splitFungibleTokenTxExecutor) validate(tx *splitFungibleTokenWrapper) e
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }
 
 func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) error {
-	d, err := b.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := b.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return err
 	}
-	tokenTypeID := d.tokenType.Bytes32()
-	if !bytes.Equal(tokenTypeID[:], tx.attributes.Type) {
-		return errors.Errorf("type of token to burn does not matches the actual type of the token: expected %X, got %X", tokenTypeID, tx.attributes.Type)
+	tokenTypeID := util.Uint256ToBytes(d.tokenType)
+	if !bytes.Equal(tokenTypeID, tx.attributes.Type) {
+		return errors.Errorf("type of token to burn does not matches the actual type of the token: expected '%X', got '%X'", tokenTypeID, tx.attributes.Type)
 	}
 	if tx.attributes.Value != d.value {
 		return errors.Errorf("invalid token value: expected %v, got %v", d.value, tx.attributes.Value)
@@ -333,11 +364,11 @@ func (b *burnFungibleTokenTxExecutor) validate(tx *burnFungibleTokenWrapper) err
 	if err != nil {
 		return err
 	}
-	return verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return verifyOwnership(bearer, predicates, tx)
 }
 
 func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) (uint64, error) {
-	d, err := j.getFungibleTokenData(tx.UnitID())
+	bearer, d, err := j.getFungibleTokenData(tx.UnitID())
 	if err != nil {
 		return 0, err
 	}
@@ -386,5 +417,5 @@ func (j *joinFungibleTokenTxExecutor) validate(tx *joinFungibleTokenWrapper) (ui
 	if err != nil {
 		return 0, err
 	}
-	return sum, verifyPredicates(predicates, tx.InvariantPredicateSignatures(), tx.SigBytes())
+	return sum, verifyOwnership(bearer, predicates, tx)
 }

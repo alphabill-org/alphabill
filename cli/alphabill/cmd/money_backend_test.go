@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/alphabill-org/alphabill/internal/util"
 	backend "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -24,7 +26,7 @@ func TestMoneyBackendCLI(t *testing.T) {
 	_ = wlog.InitStdoutLogger(wlog.INFO)
 	initialBill := &moneytx.InitialBill{
 		ID:    uint256.NewInt(1),
-		Value: 10000,
+		Value: 1e18,
 		Owner: script.PredicateAlwaysTrue(),
 	}
 	initialBillBytes32 := initialBill.ID.Bytes32()
@@ -62,14 +64,13 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// verify balance
 		res := &backend.BalanceResponse{}
-		httpRes, _ := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
+		httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
 		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify /list-bills
 	resListBills := &backend.ListBillsResponse{}
-	httpRes, err := testhttp.DoGet(fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
-	require.NoError(t, err)
+	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
@@ -83,4 +84,12 @@ func TestMoneyBackendCLI(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)
+}
+
+func TestMoneyBackendConfig_DbFileParentDirsAreCreated(t *testing.T) {
+	expectedFilePath := filepath.Join(t.TempDir(), "non-existent-dir", "my.db")
+	c := &moneyBackendConfig{DbFile: expectedFilePath}
+	_, err := c.GetDbFile()
+	require.NoError(t, err)
+	require.True(t, util.FileExists(filepath.Dir(expectedFilePath)))
 }

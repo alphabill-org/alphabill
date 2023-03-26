@@ -78,7 +78,7 @@ func NewRESTServer(node partitionNode, addr string, maxBodySize int64, self *net
 	r.HandleFunc("/api/v1/info", rs.infoHandler).Methods(http.MethodGet)
 	r.HandleFunc(pathTransactions, handler).Methods(http.MethodPost)
 	r.HandleFunc(pathTransactions, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		setCorsHeaders(w)
 	}).Methods(http.MethodOptions)
 	r.Use(mux.CORSMethodMiddleware(r))
 	rs.Handler = r
@@ -108,6 +108,7 @@ func (s *RestServer) infoHandler(w http.ResponseWriter, _ *http.Request) {
 
 func (s *RestServer) submitTransaction(writer http.ResponseWriter, r *http.Request) {
 	receivedTransactionsRESTMeter.Inc(1)
+	setCorsHeaders(writer)
 	tx := &txsystem.Transaction{}
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(r.Body)
@@ -223,4 +224,9 @@ func (pi *peerInfo) UnmarshalJSON(data []byte) error {
 		pi.Addresses = append(pi.Addresses, multiAddr)
 	}
 	return nil
+}
+
+func setCorsHeaders(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", headerContentType)
 }

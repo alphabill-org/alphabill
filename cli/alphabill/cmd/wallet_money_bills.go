@@ -5,28 +5,21 @@ import (
 	"os"
 	"path"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
-	"github.com/alphabill-org/alphabill/internal/util"
+	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
 	"github.com/spf13/cobra"
 )
 
 const (
-	billIdCmdName          = "bill-id"
-	billOrderNumberCmdName = "bill-order-number"
-	outputPathCmdName      = "output-path"
-	billFileCmdName        = "bill-file"
-	trustBaseFileCmdName   = "trust-base-file"
-)
-
-var (
-	errBillOrderNumberOutOfBounds = errors.New("bill order number out of bounds")
+	billIdCmdName        = "bill-id"
+	outputPathCmdName    = "output-path"
+	trustBaseFileCmdName = "trust-base-file"
 )
 
 type (
@@ -41,13 +34,9 @@ func newWalletBillsCmd(config *walletConfig) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "bills",
 		Short: "cli for managing alphabill wallet bills and proofs",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand")
-		},
 	}
 	cmd.AddCommand(listCmd(config))
 	cmd.AddCommand(exportCmd(config))
-	cmd.AddCommand(importCmd(config))
 	return cmd
 }
 
@@ -59,63 +48,71 @@ func listCmd(config *walletConfig) *cobra.Command {
 			return execListCmd(cmd, config)
 		},
 	}
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 0, "specifies which account bills to list (default: all accounts)")
 	cmd.Flags().BoolP(showUnswappedCmdName, "s", false, "includes unswapped dust bills in output")
 	return cmd
 }
 
 func execListCmd(cmd *cobra.Command, config *walletConfig) error {
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
+	if err != nil {
+		return err
+	}
+	restClient, err := moneyclient.NewClient(uri)
+	if err != nil {
+		return err
+	}
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
 	}
-	showUnswapped, err := cmd.Flags().GetBool(showUnswappedCmdName)
-	if err != nil {
-		return err
-	}
 
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	defer am.Close()
 
 	type accountBillGroup struct {
 		accountIndex uint64
-		bills        []*money.Bill
+		bills        *backendmoney.ListBillsResponse
 	}
 	var accountBillGroups []*accountBillGroup
 	if accountNumber == 0 {
-		bills, err := w.GetAllBills()
+		pubKeys, err := am.GetPublicKeys()
 		if err != nil {
 			return err
 		}
-		for accIdx, accBills := range bills {
-			accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: uint64(accIdx), bills: accBills})
+		for accountIndex, pubKey := range pubKeys {
+			bills, err := restClient.ListBills(pubKey)
+			if err != nil {
+				return err
+			}
+			accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: uint64(accountIndex), bills: bills})
 		}
 	} else {
 		accountIndex := accountNumber - 1
-		accountBills, err := w.GetBills(accountIndex)
+		pubKey, err := am.GetPublicKey(accountIndex)
+		if err != nil {
+			return err
+		}
+		accountBills, err := restClient.ListBills(pubKey)
 		if err != nil {
 			return err
 		}
 		accountBillGroups = append(accountBillGroups, &accountBillGroup{accountIndex: accountIndex, bills: accountBills})
 	}
 
-	if !showUnswapped {
-		for i, accBillGroup := range accountBillGroups {
-			accountBillGroups[i].bills = filterDcBills(accBillGroup.bills)
-		}
-	}
-
 	for _, group := range accountBillGroups {
-		if len(group.bills) == 0 {
+		if len(group.bills.Bills) == 0 {
 			consoleWriter.Println(fmt.Sprintf("Account #%d - empty", group.accountIndex+1))
 		} else {
 			consoleWriter.Println(fmt.Sprintf("Account #%d", group.accountIndex+1))
 		}
-		for j, bill := range group.bills {
-			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %d", j+1, bill.GetID(), bill.Value))
+		for j, bill := range group.bills.Bills {
+			billValueStr := amountToString(bill.Value, 8)
+			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s", j+1, bill.Id, billValueStr))
 		}
 	}
 	return nil
@@ -130,29 +127,28 @@ func exportCmd(config *walletConfig) *cobra.Command {
 		},
 		Hidden: true,
 	}
+	cmd.Flags().StringP(alphabillApiURLCmdName, "r", defaultAlphabillApiURL, "alphabill API uri to connect to")
 	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies which account bills to export")
 	cmd.Flags().BytesHexP(billIdCmdName, "b", nil, "bill ID in hex format (without 0x prefix)")
-	cmd.Flags().IntP(billOrderNumberCmdName, "n", 0, "bill order number (from list command output)")
 	cmd.Flags().StringP(outputPathCmdName, "o", "", "output directory for bills, directory is created if it does not exist (default: CWD)")
 	return cmd
 }
 
 func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return err
 	}
-	defer w.Shutdown()
+	restClient, err := moneyclient.NewClient(uri)
+	if err != nil {
+		return err
+	}
 
 	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
 	if err != nil {
 		return err
 	}
 	billId, err := cmd.Flags().GetBytesHex(billIdCmdName)
-	if err != nil {
-		return err
-	}
-	billOrderNumber, err := cmd.Flags().GetInt(billOrderNumberCmdName)
 	if err != nil {
 		return err
 	}
@@ -166,6 +162,17 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 			return err
 		}
 	}
+
+	am, err := loadExistingAccountManager(cmd, config.WalletHomeDir)
+	if err != nil {
+		return err
+	}
+	defer am.Close()
+	pk, err := am.GetPublicKey(accountNumber - 1)
+	if err != nil {
+		return err
+	}
+
 	// create directories if output path dir does not exist
 	err = os.MkdirAll(outputPath, 0700) // -rwx------
 	if err != nil {
@@ -173,30 +180,11 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	}
 	// export bill using --bill-id if present
 	if len(billId) > 0 {
-		b, err := w.GetBill(accountNumber-1, billId)
+		proof, err := restClient.GetProof(billId)
 		if err != nil {
 			return err
 		}
-		outputFile, err := writeBillsToFile(outputPath, b)
-		if err != nil {
-			return err
-		}
-		consoleWriter.Println("Exported bill(s) to: " + outputFile)
-		return nil
-	}
-	// export bill using --bill-order-number if present
-	if billOrderNumber > 0 {
-		bills, err := w.GetBills(accountNumber - 1)
-		if err != nil {
-			return err
-		}
-		bills = filterDcBills(bills)
-		billIndex := billOrderNumber - 1
-		if billIndex >= len(bills) {
-			return errBillOrderNumberOutOfBounds
-		}
-		b := bills[billIndex]
-		outputFile, err := writeBillsToFile(outputPath, b)
+		outputFile, err := writeBillsToFile(outputPath, proof.Bills...)
 		if err != nil {
 			return err
 		}
@@ -204,10 +192,20 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return nil
 	}
 	// export all bills if neither --bill-id or --bill-order-number are given
-	bills, err := w.GetBills(accountNumber - 1)
+	billsList, err := restClient.ListBills(pk)
 	if err != nil {
 		return err
 	}
+
+	var bills []*moneytx.Bill
+	for _, b := range billsList.Bills {
+		proof, err := restClient.GetProof(b.Id)
+		if err != nil {
+			return err
+		}
+		bills = append(bills, proof.Bills[0])
+	}
+
 	outputFile, err := writeBillsToFile(outputPath, bills...)
 	if err != nil {
 		return err
@@ -216,85 +214,9 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 	return nil
 }
 
-func importCmd(config *walletConfig) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "import",
-		Short: "imports bills to wallet",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return execImportCmd(cmd, config)
-		},
-		Hidden: true,
-	}
-	cmd.Flags().Uint64P(keyCmdName, "k", 1, "specifies to which account to import the bills")
-	cmd.Flags().StringP(billFileCmdName, "b", "", "path to bill file (any file from export command output)")
-	cmd.Flags().StringP(trustBaseFileCmdName, "t", "", "path to trust base file")
-	err := cmd.MarkFlagRequired(billFileCmdName)
-	if err != nil {
-		return nil
-	}
-	err = cmd.MarkFlagRequired(trustBaseFileCmdName)
-	if err != nil {
-		return nil
-	}
-	return cmd
-}
-
-func execImportCmd(cmd *cobra.Command, config *walletConfig) error {
-	w, err := loadExistingWallet(cmd, config.WalletHomeDir, "")
-	if err != nil {
-		return err
-	}
-	defer w.Shutdown()
-
-	accountNumber, err := cmd.Flags().GetUint64(keyCmdName)
-	if err != nil {
-		return err
-	}
-	billFile, err := cmd.Flags().GetString(billFileCmdName)
-	if err != nil {
-		return err
-	}
-	trustBaseFile, err := cmd.Flags().GetString(trustBaseFileCmdName)
-	if err != nil {
-		return err
-	}
-	trustBase, err := util.ReadJsonFile(trustBaseFile, &TrustBase{})
-	if err != nil {
-		return err
-	}
-	err = trustBase.verify()
-	if err != nil {
-		return err
-	}
-	verifiers, err := trustBase.toVerifiers()
-	if err != nil {
-		return err
-	}
-	billFileJson, err := moneytx.ReadBillsFile(billFile)
-	if err != nil {
-		return err
-	}
-	if len(billFileJson.Bills) == 0 {
-		return errors.New("bill file does not contain any bills")
-	}
-	txConverter := money.NewTxConverter(w.SystemID())
-	err = billFileJson.Verify(txConverter, verifiers)
-	if err != nil {
-		return err
-	}
-	for _, b := range billFileJson.Bills {
-		err = w.AddBill(accountNumber-1, newBill(b))
-		if err != nil {
-			return err
-		}
-	}
-	consoleWriter.Println("Successfully imported bill(s).")
-	return nil
-}
-
 // writeBillsToFile writes bill(s) to given directory.
 // Creates outputDir if it does not already exist. Returns output file.
-func writeBillsToFile(outputDir string, bills ...*money.Bill) (string, error) {
+func writeBillsToFile(outputDir string, bills ...*moneytx.Bill) (string, error) {
 	outputFile, err := getOutputFile(outputDir, bills)
 	if err != nil {
 		return "", err
@@ -303,7 +225,8 @@ func writeBillsToFile(outputDir string, bills ...*money.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = moneytx.WriteBillsFile(outputFile, newBillsDTO(bills...))
+	//err = moneytx.WriteBillsFile(outputFile, newBillsDTO(bills...)) TODO: merge
+	err = moneytx.WriteBillsFile(outputFile, &moneytx.Bills{Bills: bills})
 	if err != nil {
 		return "", err
 	}
@@ -311,26 +234,16 @@ func writeBillsToFile(outputDir string, bills ...*money.Bill) (string, error) {
 }
 
 // getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
-func getOutputFile(outputDir string, bills []*money.Bill) (string, error) {
+func getOutputFile(outputDir string, bills []*moneytx.Bill) (string, error) {
 	if len(bills) == 0 {
 		return "", errors.New("no bills to export")
 	} else if len(bills) == 1 {
-		billId := bills[0].GetID()
+		billId := bills[0].GetId()
 		filename := "bill-" + hexutil.Encode(billId[:]) + ".json"
 		return path.Join(outputDir, filename), nil
 	} else {
 		return path.Join(outputDir, "bills.json"), nil
 	}
-}
-
-func filterDcBills(bills []*money.Bill) []*money.Bill {
-	var normalBills []*money.Bill
-	for _, b := range bills {
-		if !b.IsDcBill {
-			normalBills = append(normalBills, b)
-		}
-	}
-	return normalBills
 }
 
 func newBillsDTO(bills ...*money.Bill) *moneytx.Bills {
@@ -339,24 +252,6 @@ func newBillsDTO(bills ...*money.Bill) *moneytx.Bills {
 		billsDTO = append(billsDTO, b.ToProto())
 	}
 	return &moneytx.Bills{Bills: billsDTO}
-}
-
-func newBill(b *moneytx.Bill) *money.Bill {
-	return &money.Bill{
-		Id:         uint256.NewInt(0).SetBytes(b.Id),
-		Value:      b.Value,
-		TxHash:     b.TxHash,
-		IsDcBill:   b.IsDcBill,
-		BlockProof: newBlockProof(b.TxProof),
-	}
-}
-
-func newBlockProof(b *block.TxProof) *money.BlockProof {
-	return &money.BlockProof{
-		Tx:          b.Tx,
-		BlockNumber: b.BlockNumber,
-		Proof:       b.Proof,
-	}
 }
 
 func (t *TrustBase) verify() error {

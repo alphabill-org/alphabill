@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 
@@ -113,7 +114,7 @@ func (s *storage) SaveTokenType(tokenType *TokenUnitType, proof *Proof) error {
 		if err != nil {
 			return fmt.Errorf("failed to save token type data: %w", err)
 		}
-		if err := s.storeUnitBlockProof(tx, tokenType.ID, tokenType.TxHash, proof); err != nil {
+		if err := s.storeUnitBlockProof(tx, UnitID(tokenType.ID), tokenType.TxHash, proof); err != nil {
 			return fmt.Errorf("failed to store unit block proof: %w", err)
 		}
 		return nil
@@ -169,7 +170,7 @@ func (s *storage) SaveToken(token *TokenUnit, proof *Proof) error {
 		if err = tx.Bucket(bucketTokenUnit).Put(token.ID, tokenData); err != nil {
 			return err
 		}
-		return s.storeUnitBlockProof(tx, token.ID, token.TxHash, proof)
+		return s.storeUnitBlockProof(tx, UnitID(token.ID), token.TxHash, proof)
 	})
 }
 
@@ -232,6 +233,16 @@ func (s *storage) SetBlockNumber(blockNumber uint64) error {
 	})
 }
 
+func (s *storage) GetTxProof(unitID UnitID, txHash TxHash) (*Proof, error) {
+	var proof *Proof
+	err := s.db.View(func(tx *bolt.Tx) error {
+		var err error
+		proof, err = s.getUnitBlockProof(tx, unitID, txHash)
+		return err
+	})
+	return proof, err
+}
+
 func (s *storage) getTokenType(tx *bolt.Tx, id TokenTypeID) (*TokenUnitType, error) {
 	var data []byte
 	if data = tx.Bucket(bucketTokenType).Get(id); data == nil {
@@ -256,7 +267,7 @@ func (s *storage) getToken(tx *bolt.Tx, id TokenID) (*TokenUnit, error) {
 	return token, nil
 }
 
-func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID []byte, txHash []byte, proof *Proof) error {
+func (s *storage) storeUnitBlockProof(tx *bolt.Tx, unitID UnitID, txHash TxHash, proof *Proof) error {
 	proofData, err := json.Marshal(proof)
 	if err != nil {
 		return fmt.Errorf("failed to serialize proof data: %w", err)
@@ -307,6 +318,25 @@ func (s *storage) initMetaData() error {
 	})
 }
 
+func (s *storage) getUnitBlockProof(dbTx *bolt.Tx, id []byte, txHash TxHash) (*Proof, error) {
+	b, err := s.ensureSubBucket(dbTx, bucketTxHistory, id, true)
+	if err != nil {
+		return nil, err
+	}
+	if b == nil {
+		return nil, nil
+	}
+	proofData := b.Get(txHash)
+	if proofData == nil {
+		return nil, nil
+	}
+	proof := &Proof{}
+	if err := json.Unmarshal(proofData, proof); err != nil {
+		return nil, fmt.Errorf("failed to deserialize proof data: %w", err)
+	}
+	return proof, nil
+}
+
 func setPosition(c *bolt.Cursor, key []byte) (k, v []byte) {
 	if key != nil {
 		return c.Seek(key)
@@ -315,7 +345,7 @@ func setPosition(c *bolt.Cursor, key []byte) (k, v []byte) {
 }
 
 func newBoltStore(dbFile string) (*storage, error) {
-	db, err := bolt.Open(dbFile, 0600, nil) // -rw-------
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second}) // -rw-------
 	if err != nil {
 		return nil, fmt.Errorf("failed to open bolt DB: %w", err)
 	}

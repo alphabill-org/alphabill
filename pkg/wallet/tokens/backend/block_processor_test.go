@@ -2,7 +2,9 @@ package twb
 
 import (
 	"context"
+	"crypto"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -10,6 +12,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
+	"github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -17,9 +20,13 @@ import (
 func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	t.Parallel()
 
+	logger, err := log.New(log.DEBUG, io.Discard)
+	require.NoError(t, err)
+
 	t.Run("failure to get current block number", func(t *testing.T) {
 		expErr := fmt.Errorf("can't get block number")
 		bp := &blockProcessor{
+			log: logger,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 0, expErr },
 			},
@@ -42,6 +49,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 
 	t.Run("blocks are not in correct order, received earlier block", func(t *testing.T) {
 		bp := &blockProcessor{
+			log: logger,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 5, nil },
 			},
@@ -81,6 +89,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 		createNTFTypeTx := randomTx(t, &tokens.CreateNonFungibleTokenTypeAttributes{Symbol: "test"})
 		expErr := fmt.Errorf("can't store tx")
 		bp := &blockProcessor{
+			log: logger,
 			txs: txs,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
@@ -101,6 +110,7 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 	t.Run("failure to store new current block number", func(t *testing.T) {
 		expErr := fmt.Errorf("can't store block number")
 		bp := &blockProcessor{
+			log: logger,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
 				setBlockNumber: func(blockNumber uint64) error { return expErr },
@@ -115,6 +125,8 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 func Test_blockProcessor_processTx(t *testing.T) {
 	t.Parallel()
 
+	logger, err := log.New(log.DEBUG, io.Discard)
+	require.NoError(t, err)
 	txs, err := tokens.New()
 	require.NoError(t, err)
 	require.NotNil(t, txs)
@@ -132,11 +144,15 @@ func Test_blockProcessor_processTx(t *testing.T) {
 			t.Run(fmt.Sprintf("case [%d] %s", n, tc.kind), func(t *testing.T) {
 				tx := randomTx(t, tc.txAttr)
 				bp := &blockProcessor{
+					log: logger,
 					txs: txs,
 					store: &mockStorage{
 						getBlockNumber: func() (uint64, error) { return 3, nil },
 						setBlockNumber: func(blockNumber uint64) error { return nil },
 						saveTokenType: func(data *TokenUnitType, proof *Proof) error {
+							gtx, err := txs.ConvertTx(tx)
+							require.NoError(t, err)
+							require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
 							require.EqualValues(t, tx.UnitId, data.ID, "token IDs do not match")
 							require.Equal(t, tc.kind, data.Kind, "expected kind %s got %s", tc.kind, data.Kind)
 							return nil
@@ -160,6 +176,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		}
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
+			log: logger,
 			txs: txs,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
@@ -169,6 +186,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return &TokenUnitType{ID: id, Kind: Fungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *Proof) error {
+					gtx, err := txs.ConvertTx(tx)
+					require.NoError(t, err)
+					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitId, data.ID)
 					require.EqualValues(t, txAttr.Type, data.TypeID)
 					require.EqualValues(t, txAttr.Bearer, data.Owner)
@@ -192,6 +212,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		}
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
+			log: logger,
 			txs: txs,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
@@ -201,6 +222,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return &TokenUnitType{ID: id, Kind: NonFungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *Proof) error {
+					gtx, err := txs.ConvertTx(tx)
+					require.NoError(t, err)
+					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitId, data.ID)
 					require.EqualValues(t, txAttr.NftType, data.TypeID)
 					require.EqualValues(t, txAttr.Bearer, data.Owner)
@@ -224,6 +248,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		}
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
+			log: logger,
 			txs: txs,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
@@ -232,6 +257,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return &TokenUnit{ID: id, TypeID: txAttr.Type, Amount: txAttr.Value, Kind: Fungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *Proof) error {
+					gtx, err := txs.ConvertTx(tx)
+					require.NoError(t, err)
+					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitId, data.ID)
 					require.EqualValues(t, txAttr.Type, data.TypeID)
 					require.EqualValues(t, txAttr.NewBearer, data.Owner)
@@ -255,6 +283,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		}
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
+			log: logger,
 			txs: txs,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
@@ -263,6 +292,9 @@ func Test_blockProcessor_processTx(t *testing.T) {
 					return &TokenUnit{ID: id, TypeID: txAttr.NftType, Owner: test.RandomBytes(4), Kind: NonFungible}, nil
 				},
 				saveToken: func(data *TokenUnit, proof *Proof) error {
+					gtx, err := txs.ConvertTx(tx)
+					require.NoError(t, err)
+					require.EqualValues(t, gtx.Hash(crypto.SHA256), data.TxHash)
 					require.EqualValues(t, tx.UnitId, data.ID)
 					require.EqualValues(t, txAttr.NftType, data.TypeID)
 					require.EqualValues(t, txAttr.NewBearer, data.Owner)
@@ -289,6 +321,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		saveTokenCalls := 0
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
+			log: logger,
 			txs: txs,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },
@@ -328,6 +361,7 @@ func Test_blockProcessor_processTx(t *testing.T) {
 		}
 		tx := randomTx(t, txAttr)
 		bp := &blockProcessor{
+			log: logger,
 			txs: txs,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 3, nil },

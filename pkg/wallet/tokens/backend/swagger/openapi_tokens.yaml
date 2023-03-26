@@ -1,0 +1,958 @@
+openapi: 3.0.3
+info:
+  title: Token Wallet Backend REST API
+  description: |-
+    So called Indexing back-end for token partition (UTP).
+    
+    Meant as a back-end for wallet, it supports some queries which are not possible on "pure blockchain".
+  version: 0.0.2
+servers:
+  - url: /api/v1
+  - url: https://dev-ab-tokens-backend.abdev1.guardtime.com/api/v1
+  - url: http://localhost:{port}/api/v1
+    variables:
+      port:
+        default: "9735"
+tags:
+  - name: token type
+    description: token type related endpoints
+  - name: token
+    description: token (both fungible and non-fungible) endpoints
+  - name: misc
+    description: utility endpoints
+paths:
+  /round-number:
+    get:
+      tags:
+        - misc
+      description: returns current round number indexed by the backend.
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roundNumber:
+                    type: string
+                    description: value is uint64 encoded as string
+                    example: "265"
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /types/{typeId}/hierarchy:
+    get:
+      tags:
+        - token type
+      summary: returns token type and all it's ancestors
+      description: |-
+        Returns token type whose id was sent in as a parameter and all it's ancestors if any.
+      parameters:
+        - name: typeId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UnitIDParam'
+      responses:
+        '200':
+          description: token type with given ID was found.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenType'
+        '404':
+          description: either no token type with given id or failed to load one of the ancestors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /kinds/{kind}/types:
+    get:
+      tags:
+        - token type
+      summary: Query token types
+      description: Allows to filter token types by kind and by creator.
+      operationId: listTokenTypes
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Kind'  
+        - name: creator
+          description: public key of the creator of the type.
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PublicKeyParam'
+        - name: offsetKey
+          description: when doing batched queries, offset key returned by the previous query. 
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          description: maximum number of items response may contain.
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: successful operation
+          headers:
+            Link:
+              schema:
+                type: string
+              description: link to next batch
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TokenType'          
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /tokens/{tokenId}:
+    get:
+      tags:
+        - token
+      summary: Get token by ID
+      description: Allows to get one token by it's ID
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          description: |-
+            Hex encoded string of the token ID which starts with `0x`.
+            Must be 66 characters long (including 0x prefix).
+          schema:
+            $ref: '#/components/schemas/UnitIDParam'
+      responses:
+        '200':
+          description: Token with given ID was found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: no token with given id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /kinds/{kind}/owners/{owner}/tokens:
+    get:
+      tags:
+        - token
+      summary: Query tokens
+      description: Allows to filter tokens by kind and by owner.
+      operationId: listTokensByKindAndOwner
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Kind'
+        - name: owner
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/PublicKeyParam'
+        - name: offsetKey
+          description: when doing batched queries, offset key returned by the previous query. 
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          description: maximum number of items response may contain.
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /units/{unitId}/transactions/{txHash}/proof:
+    get:
+      tags:
+        - token type
+        - token
+      summary: Query transaction proofs
+      description: return proofs for token transactions.
+      parameters:
+        - name: unitId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UnitIDParam'
+        - name: txHash
+          in: path
+          required: true
+          schema:
+            type: string
+            default: 0x
+      responses:
+        '200':
+          description: transaction proof was found.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Proof'
+        '404':
+          description: transaction is not in the index.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /transactions/{pubkey}:
+    post:
+      tags:
+        - token type
+        - token
+      summary: post transactions
+      description: Allows to send transactions to the AB.
+      operationId: postTransactions
+      parameters:
+        - name: pubkey
+          in: path
+          required: true
+          description: identifies the sender of the transactions.
+          schema:
+            $ref: '#/components/schemas/PublicKeyParam'
+      requestBody:
+        $ref: '#/components/requestBodies/TransactionArray'
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          description: |-
+            Server failed to process the request, either some of the
+            transactions posted were invalid or the server itself has
+            problems, ie can't connect to the AB node.
+            
+            Response is a hasmap where key is transaction ID and value is
+            error message describing what went wrong when trying to
+            process that transaction. Transactions which are not listed
+            might have been processed successfuly.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                example:
+                  ZD75s0+XCi3XwxOp3UxccXY6nM4ZhDnDyYNGoJv5K1U=: "failed to convert transaction: bad type name"
+                  v8aSJW4nDxgQf7VxvNh/a60ux7CovgAuJUwJJIJNvAk=: "failed to forward tx: connection refused"
+components:
+  schemas:
+    Kind:
+      type: string
+      description: token kind name, used in queries as a parameter value.
+      default: all
+      enum:
+        - all
+        - nft
+        - fungible
+    KindInt:
+      type: integer
+      description:  |-
+        Representation of Kind type as integer, used by responses:
+         - 2 = fungible
+         - 4 = nft
+      enum:
+        - 2
+        - 4
+    TokenTypeID:
+      type: string
+      format: byte
+      nullable: false
+      example: I+v1+3MrmBCoSuk1zlff0loozI9BHc8fqVb3WGeQrC4=
+    PublicKeyParam:
+      type: string
+      description: |-
+        Hex encoded string of the public key, prefixed by `0x`.
+        Must be 68 characters long (including 0x prefix).
+        
+        This type is used for query input parameters.
+      minLength: 68
+      maxLength: 68
+      default: 0x
+    UnitIDParam:
+      type: string
+      description: |-
+        Unit ID is a 32 byte binary value encoded as hex string, prefixed by `0x` marker.
+        So the valid string representation of the value must be 66 characters long (including 0x prefix).
+        
+        This type is used for query input parameters like token ID or token type ID.
+      minLength: 66
+      maxLength: 66
+      default: 0x
+      example: '0x3a04762909373b3c273ff3726746d7a787836d767733dabc2773619870c081a3'
+    TxHash:
+      type: string
+      format: byte
+      example: ux5oRDOUCKFCb06vuDOcGPspoBxTYOq9G97mzPAdQxc=
+    Predicate:
+      type: string
+      format: byte
+      example: U1EB
+    TokenType:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/TokenTypeID'
+        parentTypeId:
+          allOf:
+            - $ref: '#/components/schemas/TokenTypeID'
+            - nullable: true
+            - example: AA==
+        symbol:
+          type: string
+          example: foo bar
+        subTypeCreationPredicate:
+          $ref: '#/components/schemas/Predicate'
+        tokenCreationPredicate:
+          $ref: '#/components/schemas/Predicate'
+        invariantPredicate:
+          $ref: '#/components/schemas/Predicate'
+        kind:
+          $ref: '#/components/schemas/KindInt'
+        decimalPlaces:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 8
+          description: only when "kind" is "fungible"
+        nftDataUpdatePredicate:
+          allOf:
+            - $ref: '#/components/schemas/Predicate'
+            - description: only when "kind" is "nft"
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    Token:
+      type: object
+      properties:
+        id:
+          type: string
+          format: byte
+        typeId:
+          $ref: '#/components/schemas/TokenTypeID'
+        symbol:
+          type: string
+        owner:
+          $ref: '#/components/schemas/Predicate'
+        kind:
+          $ref: '#/components/schemas/KindInt'
+        amount:
+          type: string
+          description: uint64 value encoded as string
+          example: "1000"
+        decimals:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 8
+          description: only when "kind" is "fungible"
+        nftUri:
+          type: string
+          description: only when "kind" is "nft"
+        nftData:
+          type: string
+          format: byte
+          description: only when "kind" is "nft"
+        nftDataUpdatePredicate:
+          allOf:
+            - $ref: '#/components/schemas/Predicate'
+            - description: only when "kind" is "nft"
+        txHash:
+          $ref: '#/components/schemas/TxHash'
+    Proof:
+      type: object
+      properties:
+        blockNumber:
+          type: string
+          description: uint64 encoded as string
+          example: "62534"
+        tx:
+          $ref: '#/components/schemas/transaction.Transaction'
+        proof:
+          $ref: '#/components/schemas/block_proof.BlockProof'
+    ErrorResponse:
+      description: returned by endpoint in case of bad request or internal error.
+      type: object
+      properties:
+        message:
+          type: string
+          example: something went wrong
+    transaction.Transaction:
+      description: Transaction is a generic transaction order, same for all transaction systems.
+      type: object
+      properties:
+        unitId:
+          format: byte
+          type: string
+        ownerProof:
+          format: byte
+          type: string
+        systemId:
+          format: byte
+          type: string
+          example: AAAAAg==
+        timeout:
+          format: int64
+          type: integer
+          example: 10000
+        transactionAttributes:
+          allOf:
+            - $ref: '#/components/schemas/txAttributesTypeID'
+            - $ref: '#/components/schemas/txAttributesStruct'
+            - description: Value of the `@type` field determines which other attributes the object has. All the attributes are on the same level as the `@type` field, not as sub-object!
+    transaction.Transactions:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/transaction.Transaction'
+    txAttributesTypeID:
+      properties:
+        "@type":
+          type: string
+          nullable: false
+          description: Helper type which lists all the `@type` values for token transaction system.
+          enum:
+            - type.googleapis.com/alphabill.tokens.v1.BurnFungibleTokenAttributes
+            - type.googleapis.com/alphabill.tokens.v1.CreateFungibleTokenTypeAttributes
+            - type.googleapis.com/alphabill.tokens.v1.CreateNonFungibleTokenTypeAttributes
+            - type.googleapis.com/alphabill.tokens.v1.JoinFungibleTokenAttributes
+            - type.googleapis.com/alphabill.tokens.v1.MintFungibleTokenAttributes
+            - type.googleapis.com/alphabill.tokens.v1.MintNonFungibleTokenAttributes
+            - type.googleapis.com/alphabill.tokens.v1.SplitFungibleTokenAttributes
+            - type.googleapis.com/alphabill.tokens.v1.TransferFungibleTokenAttributes
+            - type.googleapis.com/alphabill.tokens.v1.TransferNonFungibleTokenAttributes
+            - type.googleapis.com/alphabill.tokens.v1.UpdateNonFungibleTokenAttributes
+    txAttributesStruct:
+      description: Helper type which lists all the "property sets" of the `transactionAttributes` for token transaction system.
+      oneOf:
+        - $ref: '#/components/schemas/alphabill.tokens.v1.BurnFungibleTokenAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.CreateFungibleTokenTypeAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.CreateNonFungibleTokenTypeAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.JoinFungibleTokenAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.MintFungibleTokenAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.MintNonFungibleTokenAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.SplitFungibleTokenAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.TransferFungibleTokenAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.TransferNonFungibleTokenAttributes'
+        - $ref: '#/components/schemas/alphabill.tokens.v1.UpdateNonFungibleTokenAttributes'
+    alphabill.tokens.v1.BurnFungibleTokenAttributes:
+      properties:
+        backlink:
+          description: the backlink to the previous transaction with this token
+          format: byte
+          type: string
+        invariantPredicateSignatures:
+          description: inputs to satisfy the token type invariant predicates down the inheritance chain
+          items:
+            format: byte
+            type: string
+          type: array
+        nonce:
+          format: byte
+          type: string
+        type:
+          description: identifies the type of the token to burn;
+          format: byte
+          type: string
+        value:
+          description: the value to burn
+          format: int64
+          type: integer
+      type: object
+    alphabill.tokens.v1.CreateFungibleTokenTypeAttributes:
+      properties:
+        decimalPlaces:
+          description: is the number of decimal places to display for values of tokens of the new type;
+          format: int32
+          type: integer
+        invariantPredicate:
+          description: the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their bearer predicates;
+          format: byte
+          type: string
+        parentTypeId:
+          description: identifies the parent type that the new type derives from; 0 indicates there is no parent type;
+          format: byte
+          type: string
+        subTypeCreationPredicate:
+          description: the predicate clause that controls defining new sub-types of this type;
+          format: byte
+          type: string
+        subTypeCreationPredicateSignatures:
+          description: inputs to satisfy the sub-type creation predicates of all parents.
+          items:
+            format: byte
+            type: string
+          type: array
+        symbol:
+          description: is the symbol (short name) of this token type
+          type: string
+        tokenCreationPredicate:
+          description: the predicate clause that controls creating new tokens of this type
+          format: byte
+          type: string
+      type: object
+    alphabill.tokens.v1.CreateNonFungibleTokenTypeAttributes:
+      properties:
+        dataUpdatePredicate:
+          description: the clause that all tokens of this type (and of sub-types of this type) inherit into their data update predicates
+          format: byte
+          type: string
+        invariantPredicate:
+          description: the invariant predicate clause that all tokens of this type (and of sub- types of this type) inherit into their bearer predicates;
+          format: byte
+          type: string
+        parentTypeId:
+          description: identifies the parent type that this type derives from; 0 indicates there is no parent type;
+          format: byte
+          type: string
+        subTypeCreationPredicate:
+          description: the predicate clause that controls defining new sub-types of this type;
+          format: byte
+          type: string
+        subTypeCreationPredicateSignatures:
+          description: inputs to satisfy the sub-type creation predicates of all parents.
+          items:
+            format: byte
+            type: string
+          type: array
+        symbol:
+          description: is the symbol (short name) of this token type, up to 32 characters in the UTF-8 encoding; note that the symbols are not guaranteed to be unique;
+          type: string
+        tokenCreationPredicate:
+          description: the predicate clause that controls creating new tokens of this type
+          format: byte
+          type: string
+      type: object
+    alphabill.tokens.v1.JoinFungibleTokenAttributes:
+      properties:
+        backlink:
+          description: the backlink to the previous transaction with this token
+          format: byte
+          type: string
+        burnTransactions:
+          description: the transactions that burned the source tokens;
+          type: array
+          items:
+            $ref: '#/components/schemas/transaction.Transaction'
+        invariantPredicateSignatures:
+          description: inputs to satisfy the token type invariant predicates down the inheritance chain
+          items:
+            format: byte
+            type: string
+          type: array
+        proofs:
+          description: block proofs for burn transactions
+          items:
+            properties:
+              blockHeaderHash:
+                format: byte
+                type: string
+              blockTreeHashChain:
+                properties:
+                  items:
+                    items:
+                      properties:
+                        hash:
+                          format: byte
+                          type: string
+                        val:
+                          format: byte
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              hashValue:
+                description: hash value of either primary tx or secondary txs or zero hash, depending on proof type
+                format: byte
+                type: string
+              proofType:
+                $ref: '#/components/schemas/block_proof.ProofType'
+              secTreeHashChain:
+                properties:
+                  items:
+                    items:
+                      properties:
+                        directionLeft:
+                          description: DirectionLeft direction from parent node; left=true right=false
+                          type: boolean
+                        pathItem:
+                          description: PathItem Hash of Merkle Tree node
+                          format: byte
+                          type: string
+                      type: object
+                    type: array
+                type: object
+              transactionsHash:
+                format: byte
+                type: string
+              unicityCertificate:
+                properties:
+                  inputRecord:
+                    properties:
+                      blockHash:
+                        description: hash of the block
+                        format: byte
+                        type: string
+                      hash:
+                        description: hash to be certified
+                        format: byte
+                        type: string
+                      previousHash:
+                        description: previously certified root hash
+                        format: byte
+                        type: string
+                      summaryValue:
+                        description: summary value to certified
+                        format: byte
+                        type: string
+                    type: object
+                  unicitySeal:
+                    properties:
+                      hash:
+                        format: byte
+                        type: string
+                      previousHash:
+                        format: byte
+                        type: string
+                      rootChainRoundNumber:
+                        format: int64
+                        type: integer
+                      signatures:
+                        additionalProperties:
+                          format: byte
+                          type: string
+                        type: object
+                    type: object
+                  unicityTreeCertificate:
+                    properties:
+                      siblingHashes:
+                        items:
+                          format: byte
+                          type: string
+                        type: array
+                      systemDescriptionHash:
+                        format: byte
+                        type: string
+                      systemIdentifier:
+                        format: byte
+                        type: string
+                    type: object
+                type: object
+            type: object
+          type: array
+      type: object
+    alphabill.tokens.v1.MintFungibleTokenAttributes:
+      properties:
+        bearer:
+          description: the initial bearer predicate of the new token
+          format: byte
+          type: string
+        tokenCreationPredicateSignatures:
+          description: inputs to satisfy the token creation predicates of all parent types.
+          items:
+            format: byte
+            type: string
+          type: array
+        type:
+          description: identifies the type of the new token;
+          format: byte
+          type: string
+        value:
+          description: the value of the new token;
+          format: int64
+          type: integer
+      type: object
+    alphabill.tokens.v1.MintNonFungibleTokenAttributes:
+      properties:
+        bearer:
+          description: the initial bearer predicate of the new token
+          format: byte
+          type: string
+        data:
+          description: the optional data associated with the new token
+          format: byte
+          type: string
+        dataUpdatePredicate:
+          description: the data update predicate of the new token;
+          format: byte
+          type: string
+        nftType:
+          description: identifies the type of the new token;
+          format: byte
+          type: string
+        tokenCreationPredicateSignatures:
+          description: inputs to satisfy the token creation predicates of all parent types.
+          items:
+            format: byte
+            type: string
+          type: array
+        uri:
+          description: the optional URI of an external resource associated with the new token
+          type: string
+      type: object
+    alphabill.tokens.v1.SplitFungibleTokenAttributes:
+      properties:
+        backlink:
+          description: the backlink to the previous transaction with this token
+          format: byte
+          type: string
+        invariantPredicateSignatures:
+          description: inputs to satisfy the token type invariant predicates down the inheritance chain
+          items:
+            format: byte
+            type: string
+          type: array
+        newBearer:
+          description: the bearer predicate of the new token;
+          format: byte
+          type: string
+        nonce:
+          format: byte
+          type: string
+        remainingValue:
+          description: new value of the source token
+          format: int64
+          type: integer
+        targetValue:
+          description: the value of the new token
+          format: int64
+          type: integer
+        type:
+          description: identifies the type of the token;
+          format: byte
+          type: string
+      type: object
+    alphabill.tokens.v1.TransferFungibleTokenAttributes:
+      properties:
+        backlink:
+          description: the backlink to the previous transaction with this token
+          format: byte
+          type: string
+        invariantPredicateSignatures:
+          description: inputs to satisfy the token type invariant predicates down the inheritance chain
+          items:
+            format: byte
+            type: string
+          type: array
+        newBearer:
+          description: the initial bearer predicate of the new token
+          format: byte
+          type: string
+        nonce:
+          format: byte
+          type: string
+        type:
+          description: identifies the type of the token;
+          format: byte
+          type: string
+        value:
+          description: the value to transfer
+          format: int64
+          type: integer
+      type: object
+    alphabill.tokens.v1.TransferNonFungibleTokenAttributes:
+      properties:
+        backlink:
+          description: the backlink to the previous transaction with the token
+          format: byte
+          type: string
+        invariantPredicateSignatures:
+          description: inputs to satisfy the token type invariant predicates down the inheritance chain
+          items:
+            format: byte
+            type: string
+          type: array
+        newBearer:
+          description: the new bearer predicate of the token
+          format: byte
+          type: string
+        nftType:
+          description: identifies the type of the token;
+          format: byte
+          type: string
+        nonce:
+          description: optional nonce
+          format: byte
+          type: string
+      type: object
+    alphabill.tokens.v1.UpdateNonFungibleTokenAttributes:
+      properties:
+        backlink:
+          description: the backlink to the previous transaction with the token
+          format: byte
+          type: string
+        data:
+          description: the new data to replace the data currently associated with the token
+          format: byte
+          type: string
+        dataUpdateSignatures:
+          description: inputs to satisfy the token data update predicates down the inheritance chain
+          items:
+            format: byte
+            type: string
+          type: array
+      type: object
+    block_proof.BlockProof:
+      properties:
+        blockHeaderHash:
+          format: byte
+          type: string
+        blockTreeHashChain:
+          properties:
+            items:
+              items:
+                properties:
+                  hash:
+                    format: byte
+                    type: string
+                  val:
+                    format: byte
+                    type: string
+                type: object
+              type: array
+          type: object
+        hashValue:
+          description: hash value of either primary tx or secondary txs or zero hash, depending on proof type
+          format: byte
+          type: string
+        proofType:
+          $ref: '#/components/schemas/block_proof.ProofType'
+        secTreeHashChain:
+          properties:
+            items:
+              items:
+                properties:
+                  directionLeft:
+                    description: DirectionLeft direction from parent node; left=true right=false
+                    type: boolean
+                  pathItem:
+                    description: PathItem Hash of Merkle Tree node
+                    format: byte
+                    type: string
+                type: object
+              type: array
+          type: object
+        transactionsHash:
+          format: byte
+          type: string
+        unicityCertificate:
+          properties:
+            inputRecord:
+              properties:
+                blockHash:
+                  description: hash of the block
+                  format: byte
+                  type: string
+                hash:
+                  description: hash to be certified
+                  format: byte
+                  type: string
+                previousHash:
+                  description: previously certified root hash
+                  format: byte
+                  type: string
+                summaryValue:
+                  description: summary value to certified
+                  format: byte
+                  type: string
+              type: object
+            unicitySeal:
+              type: object
+              properties:
+                hash:
+                  format: byte
+                  type: string
+                previousHash:
+                  format: byte
+                  type: string
+                rootChainRoundNumber:
+                  format: int64
+                  type: integer
+                signatures:
+                  type: object
+                  additionalProperties:
+                    format: byte
+                    type: string
+            unicityTreeCertificate:
+              properties:
+                siblingHashes:
+                  items:
+                    format: byte
+                    type: string
+                  type: array
+                systemDescriptionHash:
+                  format: byte
+                  type: string
+                systemIdentifier:
+                  format: byte
+                  type: string
+              type: object
+          type: object
+      type: object
+    block_proof.ProofType:
+      type: integer
+      description: |
+        - PRIM = 0
+        - SEC = 1
+        - ONLYSEC = 2
+        - NOTRANS = 3
+        - EMPTYBLOCK = 4
+      enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+
+  requestBodies:
+    TransactionArray:
+      description: List of transaction objects
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/transaction.Transactions'
+  responses:
+    ErrorResponse:
+      description: |-
+        Either invalid input parameter (response status 4nn) or something went
+        wrong while processing the request (response status 5nn).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

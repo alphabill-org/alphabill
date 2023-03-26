@@ -2,7 +2,9 @@ package twb
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
@@ -21,6 +24,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem/tokens"
 )
@@ -103,7 +107,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: func(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) { return nil, expErr },
-			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return nil, fmt.Errorf("unexpected call")
 			},
@@ -136,7 +140,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: txsys.ConvertTx,
-			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return &txsystem.TransactionResponse{Ok: true}, nil
 			},
@@ -174,7 +178,7 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		var saveTypeCalls, sendTxCalls int32
 		api := &restAPI{
 			convertTx: txsys.ConvertTx,
-			sendTransaction: func(t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
+			sendTransaction: func(ctx context.Context, t *txsystem.Transaction) (*txsystem.TransactionResponse, error) {
 				atomic.AddInt32(&sendTxCalls, 1)
 				return &txsystem.TransactionResponse{Ok: true}, nil
 			},
@@ -192,6 +196,58 @@ func Test_restAPI_postTransaction(t *testing.T) {
 		}
 		require.EqualValues(t, 0, saveTypeCalls, "unexpectedly saveTTypeCreator was called %d times", saveTypeCalls)
 		require.EqualValues(t, 1, sendTxCalls, "unexpectedly sendTransaction was called %d times", sendTxCalls)
+	})
+}
+
+func Test_restAPI_getToken(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, tokenId string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/tokens/%s", tokenId), nil)
+		req = mux.SetURLVars(req, map[string]string{"tokenId": tokenId})
+		w := httptest.NewRecorder()
+		api.getToken(w, req)
+		return w.Result()
+	}
+
+	t.Run("invalid id parameter", func(t *testing.T) {
+		api := &restAPI{db: &mockStorage{}}
+		rsp := makeRequest(api, "FOOBAR")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "tokenId": hex string without 0x prefix`)
+	})
+
+	t.Run("no token with given id", func(t *testing.T) {
+		tokenId := test.RandomBytes(32)
+		api := &restAPI{db: &mockStorage{
+			getToken: func(id TokenID) (*TokenUnit, error) {
+				if !bytes.Equal(id, tokenId) {
+					return nil, fmt.Errorf("expected token ID %x got %x", tokenId, id)
+				}
+				return nil, fmt.Errorf("no token with this id: %w", errRecordNotFound)
+			},
+		}}
+		rsp := makeRequest(api, hexutil.Encode(tokenId))
+		expectErrorResponse(t, rsp, http.StatusNotFound, `no token with this id: not found`)
+	})
+
+	t.Run("token found", func(t *testing.T) {
+		token := &TokenUnit{
+			ID:     test.RandomBytes(32),
+			Kind:   NonFungible,
+			Amount: 42,
+		}
+		api := &restAPI{db: &mockStorage{
+			getToken: func(id TokenID) (*TokenUnit, error) {
+				if !bytes.Equal(id, token.ID) {
+					return nil, fmt.Errorf("expected token ID %x got %x", token.ID, id)
+				}
+				return token, nil
+			},
+		}}
+		rsp := makeRequest(api, hexutil.Encode(token.ID))
+		var rspData *TokenUnit
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.Equal(t, token, rspData)
 	})
 }
 
@@ -219,6 +275,9 @@ func Test_restAPI_listTokens(t *testing.T) {
 			{kind: "all", owner: "0x" + strings.Repeat("ABCDEFGHIJK", 6), qparam: "", errMsg: `invalid parameter "owner": invalid hex string`}, // correct length but invalid content
 			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=ABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": hex string without 0x prefix`},
 			{kind: "all", owner: pubKeyHex, qparam: "offsetKey=0xABCDEFGHIJK", errMsg: `invalid parameter "offsetKey": invalid hex string`},
+			{kind: "all", owner: pubKeyHex, qparam: "limit=0", errMsg: `invalid parameter "limit": value must be greater than zero, got 0`},
+			{kind: "all", owner: pubKeyHex, qparam: "limit=-1", errMsg: `invalid parameter "limit": value must be greater than zero, got -1`},
+			{kind: "all", owner: pubKeyHex, qparam: "limit=foo", errMsg: `invalid parameter "limit": failed to parse "foo" as integer: strconv.Atoi: parsing "foo": invalid syntax`},
 		}
 
 		api := &restAPI{db: &mockStorage{
@@ -280,7 +339,7 @@ func Test_restAPI_listTokens(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := encodeTokenID(data[len(data)-1].ID)
+			exp := encodeHex(data[len(data)-1].ID)
 			if s := u.Query().Get("offsetKey"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
@@ -338,6 +397,9 @@ func Test_restAPI_listTypes(t *testing.T) {
 				qparam: "offsetKey=0x" + strings.Repeat("ABCDEFGHIJK", 6),
 				errMsg: `invalid parameter "offsetKey": invalid hex string`,
 			},
+			{qparam: "limit=0", errMsg: `invalid parameter "limit": value must be greater than zero, got 0`},
+			{qparam: "limit=-1", errMsg: `invalid parameter "limit": value must be greater than zero, got -1`},
+			{qparam: "limit=foo", errMsg: `invalid parameter "limit": failed to parse "foo" as integer: strconv.Atoi: parsing "foo": invalid syntax`},
 		}
 
 		api := &restAPI{db: &mockStorage{
@@ -354,20 +416,16 @@ func Test_restAPI_listTypes(t *testing.T) {
 	})
 
 	t.Run("limit param is sent to the query", func(t *testing.T) {
-		// when param is invalid or missing then default value 100 is used
 		cases := []struct {
 			qpar  string // param we send in URL
 			value int    // what we expect to see in a query callback
 		}{
-			{value: 100, qpar: "limit="},
-			{value: 100, qpar: "limit=0"},
+			{value: 100, qpar: "limit="}, // when param is missing then default value 100 is used
 			{value: 1, qpar: "limit=1"},
 			{value: 99, qpar: "limit=99"},
 			{value: 100, qpar: "limit=100"},
-			{value: 100, qpar: "limit=101"},
+			{value: 100, qpar: "limit=101"}, // when over limit max limit is used
 			{value: 100, qpar: "limit=321"},
-			{value: 100, qpar: "limit=-1"},
-			{value: 100, qpar: "limit=foo"},
 		}
 		for _, tc := range cases {
 			ds := &mockStorage{
@@ -417,7 +475,7 @@ func Test_restAPI_listTypes(t *testing.T) {
 				return nil, nil, nil
 			},
 		}
-		resp := makeRequest(&restAPI{db: ds}, Any, "offsetKey="+encodeTokenTypeID(currentID))
+		resp := makeRequest(&restAPI{db: ds}, Any, "offsetKey="+encodeHex[TokenTypeID](currentID))
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("unexpected status %d", resp.StatusCode)
 		}
@@ -512,11 +570,108 @@ func Test_restAPI_listTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal("failed to parse Link header:", err)
 			}
-			exp := encodeTokenTypeID(data[len(data)-1].ID)
+			exp := encodeHex(data[len(data)-1].ID)
 			if s := u.Query().Get("offsetKey"); s != exp {
 				t.Errorf("expected %q got %q", exp, s)
 			}
 		}
+	})
+}
+
+func Test_restAPI_typeHierarchy(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, typeId string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/types/%s/hierarchy", typeId), nil)
+		req = mux.SetURLVars(req, map[string]string{"typeId": typeId})
+		w := httptest.NewRecorder()
+		api.typeHierarchy(w, req)
+		return w.Result()
+	}
+
+	t.Run("invalid input params", func(t *testing.T) {
+		rsp := makeRequest(&restAPI{}, "foobar")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "typeId": hex string without 0x prefix`)
+	})
+
+	t.Run("no type with given id", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					return nil, fmt.Errorf("no such type: %w", errRecordNotFound)
+				},
+			},
+		}
+		typeId := "0x0001"
+		rsp := makeRequest(api, typeId)
+		expectErrorResponse(t, rsp, http.StatusNotFound, fmt.Sprintf(`failed to load type with id %s: no such type: not found`, typeId[2:]))
+	})
+
+	t.Run("type is root", func(t *testing.T) {
+		tokTyp := randomTokenType(NonFungible)
+		tokTyp.ParentTypeID = nil
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					if bytes.Equal(id, tokTyp.ID) {
+						return tokTyp, nil
+					}
+					return nil, fmt.Errorf("unexpected type id %x", id)
+				},
+			},
+		}
+
+		rsp := makeRequest(api, encodeHex(tokTyp.ID))
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
+	})
+
+	t.Run("type is root, parent typeID == 0x00", func(t *testing.T) {
+		tokTyp := randomTokenType(NonFungible)
+		tokTyp.ParentTypeID = NoParent
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					if bytes.Equal(id, tokTyp.ID) {
+						return tokTyp, nil
+					}
+					return nil, fmt.Errorf("unexpected type id %x", id)
+				},
+			},
+		}
+
+		rsp := makeRequest(api, encodeHex(tokTyp.ID))
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTyp})
+	})
+
+	t.Run("type has one parent", func(t *testing.T) {
+		tokTypA := randomTokenType(NonFungible)
+		tokTypA.ParentTypeID = nil
+
+		tokTypB := randomTokenType(NonFungible)
+		tokTypB.ParentTypeID = tokTypA.ID
+
+		api := &restAPI{
+			db: &mockStorage{
+				getTokenType: func(id TokenTypeID) (*TokenUnitType, error) {
+					switch {
+					case bytes.Equal(id, tokTypA.ID):
+						return tokTypA, nil
+					case bytes.Equal(id, tokTypB.ID):
+						return tokTypB, nil
+					}
+					return nil, fmt.Errorf("unexpected type id %x", id)
+				},
+			},
+		}
+
+		rsp := makeRequest(api, encodeHex(tokTypB.ID))
+		var rspData []*TokenUnitType
+		require.NoError(t, decodeResponse(t, rsp, http.StatusOK, &rspData))
+		require.ElementsMatch(t, rspData, []*TokenUnitType{tokTypA, tokTypB})
 	})
 }
 
@@ -558,5 +713,76 @@ func Test_restAPI_getRoundNumber(t *testing.T) {
 		if rnr.RoundNumber != 42 {
 			t.Errorf("expected response to be 42, got %d", rnr.RoundNumber)
 		}
+	})
+}
+
+func Test_restAPI_txProof(t *testing.T) {
+	t.Parallel()
+
+	makeRequest := func(api *restAPI, unitID, txHash string) *http.Response {
+		req := httptest.NewRequest("GET", fmt.Sprintf("http://ab.com/api/v1/units/%s/transactions/%s/proof", unitID, txHash), nil)
+		req = mux.SetURLVars(req, map[string]string{"unitId": unitID, "txHash": txHash})
+		w := httptest.NewRecorder()
+		api.getTxProof(w, req)
+		return w.Result()
+	}
+
+	t.Run("invalid 'unitId' input params", func(t *testing.T) {
+		rsp := makeRequest(&restAPI{}, "foo", "bar")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "unitId": hex string without 0x prefix`)
+	})
+
+	t.Run("invalid 'txHash' input params", func(t *testing.T) {
+		rsp := makeRequest(&restAPI{}, "0x01", "bar")
+		expectErrorResponse(t, rsp, http.StatusBadRequest, `invalid parameter "txHash": hex string without 0x prefix`)
+	})
+
+	t.Run("error fetching proof", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
+					return nil, errors.New("error fetching proof")
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01", "0xFF")
+		expectErrorResponse(t, rsp, http.StatusInternalServerError, "failed to load proof of tx 0xFF (unit 0x01): error fetching proof")
+	})
+
+	t.Run("no proof with given inputs", func(t *testing.T) {
+		api := &restAPI{
+			db: &mockStorage{
+				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
+					return nil, nil
+				},
+			},
+		}
+		rsp := makeRequest(api, "0x01", "0xFF")
+		expectErrorResponse(t, rsp, http.StatusNotFound, "no proof found for tx 0xFF (unit 0x01)")
+	})
+
+	t.Run("proof is fetched", func(t *testing.T) {
+		unitID := []byte{0x01}
+		txHash := []byte{0xFF}
+
+		proof := &Proof{1, &txsystem.Transaction{UnitId: unitID}, &block.BlockProof{TransactionsHash: txHash}}
+		api := &restAPI{
+			db: &mockStorage{
+				getTxProof: func(unitID UnitID, txHash TxHash) (*Proof, error) {
+					return proof, nil
+				},
+			},
+		}
+		rsp := makeRequest(api, encodeHex[UnitID](unitID), encodeHex[TxHash](txHash))
+		require.Equal(t, http.StatusOK, rsp.StatusCode, "unexpected status")
+
+		defer rsp.Body.Close()
+
+		proofFromApi := &Proof{}
+		if err := json.NewDecoder(rsp.Body).Decode(proofFromApi); err != nil {
+			t.Fatalf("failed to decode response body: %v", err)
+		}
+
+		require.Equal(t, proof, proofFromApi)
 	})
 }

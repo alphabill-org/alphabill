@@ -12,6 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
+	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/util"
@@ -24,9 +25,10 @@ func TestVD_UseClientForTx(t *testing.T) {
 	nodeGenesisFileLocation := path.Join(homeDirVD, nodeGenesisFileName)
 	partitionGenesisFileLocation := path.Join(homeDirVD, "partition-genesis.json")
 	testtime.MustRunInTime(t, 20*time.Second, func() {
-		port := "9744"
-		listenAddr := ":" + port // listen is on all devices, so it would work in CI inside docker too.
-		dialAddr := "localhost:" + port
+		freePort, err := net.GetFreePort()
+		require.NoError(t, err)
+		listenAddr := fmt.Sprintf(":%v", freePort) // listen is on all devices, so it would work in CI inside docker too.
+		dialAddr := fmt.Sprintf("localhost:%v", freePort)
 
 		appStoppedWg := sync.WaitGroup{}
 		ctx, _ := async.WithWaitGroup(context.Background())
@@ -36,7 +38,7 @@ func TestVD_UseClientForTx(t *testing.T) {
 		cmd := New()
 		args := "vd-genesis --home " + homeDirVD + " -o " + nodeGenesisFileLocation + " -g -k " + keysFileLocation
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.addAndExecuteCommand(context.Background())
+		err = cmd.addAndExecuteCommand(context.Background())
 		require.NoError(t, err)
 
 		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})

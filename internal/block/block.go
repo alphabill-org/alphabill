@@ -66,9 +66,11 @@ func (x *Block) IsValid(v CertificateValidator) error {
 	if x.PreviousBlockHash == nil {
 		return ErrPrevBlockHashIsNil
 	}
+	/* Todo: AB-845, currently this field is never set
 	if len(x.NodeIdentifier) == 0 {
 		return ErrBlockProposerIdIsMissing
 	}
+	*/
 	if x.Transactions == nil {
 		return ErrTransactionsIsNil
 	}

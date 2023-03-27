@@ -76,7 +76,7 @@ case $1 in
     ;;
 esac
 # execute cmd to generate genesis files
-for i in $(seq 1 $2)
+for i in $(seq 1 "$2")
 do
   # "-g" flags also generates keys
   build/alphabill "$cmd" --home "${home}$i" -g
@@ -96,9 +96,9 @@ function generate_root_genesis() {
     node_genesis_files="$node_genesis_files -p $file"
   done
   # generate individual root node genesis files
-  for i in $(seq 1 $1)
+  for i in $(seq 1 "$1")
   do
-    build/alphabill root-genesis new --home testab/rootchain$i -g --total-nodes=$1 $node_genesis_files
+    build/alphabill root-genesis new --home testab/rootchain"$i" -g --total-nodes="$1" $node_genesis_files
   done
   # if only one root node, then we are done
   if [ $1 == 1 ]; then
@@ -111,9 +111,9 @@ function generate_root_genesis() {
     root_genesis_files="$root_genesis_files -r $file"
   done
   # merge root genesis files
-  for i in $(seq 1 $1)
+  for i in $(seq 1 "$1")
   do
-  build/alphabill root-genesis combine --home testab/rootchain$i $root_genesis_files
+  build/alphabill root-genesis combine --home testab/rootchain"$i" $root_genesis_files
   done
 }
 
@@ -129,7 +129,7 @@ function start_root_nodes() {
       echo "Root genesis files do not exist, generate setup!" 1>&2
       exit 1
     fi
-    build/alphabill root --home testab/rootchain$i --partition-listener="/ip4/127.0.0.1/tcp/$pPort" --root-listener="/ip4/127.0.0.1/tcp/$rPort" -p $root_node_addresses  >> testab/rootchain$i/rootchain/rootchain.log &
+    build/alphabill root --home testab/rootchain$i --partition-listener="/ip4/127.0.0.1/tcp/$pPort" --root-listener="/ip4/127.0.0.1/tcp/$rPort" -p "$root_node_addresses"  >> testab/rootchain$i/rootchain/rootchain.log &
     ((rPort=rPort+1))
     ((pPort=pPort+1))
     ((i=i+1))
@@ -179,7 +179,7 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/$1/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file -p $nodeAddresses >> ${home}$i/$1/$1.log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k "$keyf" -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file -p "$nodeAddresses" >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))
@@ -188,3 +188,30 @@ local restPort=0
     echo "started $(($i-1)) $1 nodes, addresses: $nodeAddresses"
 }
 
+function start_backend() {
+  local home=""
+  local cmd=""
+
+    case $1 in
+      money)
+        home="testab/backend/money/"
+        cmd="money-backend"
+        grpcPort=26766
+        sPort=9654
+        ;;
+      token)
+        home="testab/backend/vd/"
+        cmd="token-backend"
+        grpcPort=28766
+        sPort=9735
+        ;;
+      *)
+        echo "error: unknown backend $1" >&2
+        return 1
+        ;;
+    esac
+    #create home if not present, ignore errors if already done
+    mkdir -p $home 1>&2
+    build/alphabill $cmd start -u "localhost:$grpcPort" -s "localhost:$sPort" -f "$home/bills.db" --log-file "$home/backend.log" --log-level DEBUG &
+    echo "Started $1 backend, check the API at http://localhost:$sPort/api/v1/swagger/"
+}

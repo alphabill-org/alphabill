@@ -26,8 +26,8 @@ function stop() {
     ;;
   esac
 
-  PID=`ps -eaf | grep "$program"  | grep -v grep | awk '{print $2}'`
-  if [ ! -z "$PID" ]; then
+  PID=$(ps -eaf | grep "$program"  | grep -v grep | awk '{print $2}')
+  if [ -n "$PID" ]; then
     echo "killing $PID"
     kill $PID
     return 0
@@ -35,13 +35,37 @@ function stop() {
   echo "program not running"
 }
 
-usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop partition: money, vd, tokens]"; exit 0; }
+function stop_backend() {
+  local program=""
+    case $1 in
+      money)
+        program="build/alphabill money-backend"
+        ;;
+      tokens)
+        program="build/alphabill tokens-backend"
+        ;;
+      *)
+        echo "error: unknown argument $1" >&2
+        return 1
+       ;;
+     esac
+   #stop the process
+   PID=$(ps -eaf | grep "$program"  | grep -v grep | awk '{print $2}')
+   if [ -n "$PID" ]; then
+     echo "killing $PID"
+     kill $PID
+     return 0
+   fi
+   echo "program not running"
+}
+
+usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop partition: money, vd, tokens] [-b stop backend: money, tokens]"; exit 0; }
 
 # stop requires an argument either -a for stop all or -p to stop a specific partition
 [ $# -eq 0 ] && usage
 
 # handle arguments
-while getopts "hap:" o; do
+while getopts "hab:p:" o; do
   case "${o}" in
   a) #kill all
     stop "all"
@@ -50,7 +74,10 @@ while getopts "hap:" o; do
     stop "root"
     ;;
   p)
-    stop ${OPTARG}
+    stop "${OPTARG}"
+    ;;
+  b)
+    stop_backend "${OPTARG}"
     ;;
   h | *) # help.
     usage && exit 0

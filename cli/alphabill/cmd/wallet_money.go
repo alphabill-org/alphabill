@@ -56,7 +56,7 @@ const (
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
-func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &walletConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "wallet",
@@ -76,7 +76,7 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
 	walletCmd.AddCommand(createCmd(config))
-	walletCmd.AddCommand(sendCmd(ctx, config))
+	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
 	walletCmd.AddCommand(getBalanceCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
@@ -130,11 +130,11 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) (err error) {
 	return
 }
 
-func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
+func sendCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "send",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSendCmd(ctx, cmd, config)
+			return execSendCmd(cmd.Context(), cmd, config)
 		},
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")

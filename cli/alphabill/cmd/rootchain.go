@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	gocrypto "crypto"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/async"
@@ -46,7 +46,7 @@ type rootChainConfig struct {
 }
 
 // newRootChainCmd creates a new cobra command for root chain
-func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newRootChainCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &rootChainConfig{
 		Base:       baseConfig,
 		StateStore: store.NewInMemStateStore(gocrypto.SHA256),
@@ -55,7 +55,7 @@ func newRootChainCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.
 		Use:   "root",
 		Short: "Starts a root chain node",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return defaultRootChainRunFunc(ctx, config)
+			return defaultRootChainRunFunc(cmd.Context(), config)
 		},
 	}
 	cmd.Flags().StringVarP(&config.KeyFile, keyFileCmdFlag, "k", "", "path to root chain key file")
@@ -77,7 +77,7 @@ func (c *rootChainConfig) getGenesisFilePath() string {
 	if c.GenesisFile != "" {
 		return c.GenesisFile
 	}
-	return path.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
+	return filepath.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
 }
 
 func defaultRootChainRunFunc(ctx context.Context, config *rootChainConfig) error {

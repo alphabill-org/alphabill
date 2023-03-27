@@ -18,7 +18,7 @@ type (
 	}
 )
 
-func newTokensNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newTokensNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &tokensConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
@@ -33,7 +33,7 @@ func newTokensNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra
 		Short: "Starts an User-Defined Token partition's node",
 		Long:  `Starts an User-Defined Token partition's node, binding to the network address provided by configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTokensNode(ctx, config)
+			return runTokensNode(cmd.Context(), config)
 		},
 	}
 

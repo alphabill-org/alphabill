@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/keyvaluedb"
 	bolt "go.etcd.io/bbolt"
 )
 
+// bucket feature currently not used as it is not compatible with most others kee-value database implementations
+// use more than one db file instead
 const defaultBucket = "default"
 
 var (
@@ -53,8 +56,10 @@ func checkKeyAndValue(key []byte, val any) error {
 	return nil
 }
 
+// New creates a new Bolt DB
+// todo: add options and make it possible to use other encode/decode methods
 func New(dbFile string) (*BoltDB, error) {
-	db, err := bolt.Open(dbFile, 0600, nil)
+	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second})
 	if err != nil {
 		return nil, err
 	}

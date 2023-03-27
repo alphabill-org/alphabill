@@ -53,7 +53,7 @@ type validatorConfig struct {
 }
 
 // newRootNodeCmd creates a new cobra command for root validator chain
-func newRootNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &validatorConfig{
 		Base: baseConfig,
 	}
@@ -61,7 +61,7 @@ func newRootNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 		Use:   "root",
 		Short: "Starts a root validator node",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return defaultValidatorRunFunc(ctx, config)
+			return defaultValidatorRunFunc(cmd.Context(), config)
 		},
 	}
 

@@ -110,8 +110,8 @@ func (s *TestAlphabillServiceServer) SetBlockFunc(blockNo uint64, blockFunc func
 	s.blocks[blockNo] = blockFunc
 }
 
-func StartServer(port int, alphabillService *TestAlphabillServiceServer) *grpc.Server {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+func StartServer(alphabillService *TestAlphabillServiceServer) (*grpc.Server, net.Addr) {
+	lis, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -123,7 +123,7 @@ func StartServer(port int, alphabillService *TestAlphabillServiceServer) *grpc.S
 			defer closeListener(lis)
 		}
 	}()
-	return grpcServer
+	return grpcServer, lis.Addr()
 }
 
 func closeListener(lis net.Listener) {

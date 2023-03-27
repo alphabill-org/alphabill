@@ -41,17 +41,17 @@ func createOutputDir(outputDir string) error {
 }
 
 // combineRootGenesisCmd creates a new cobra command for the root-genesis component.
-func combineRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	config := &combineGenesisConfig{Base: baseConfig}
+func combineRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
+	combineCfg := &combineGenesisConfig{Base: config.Base}
 	var cmd = &cobra.Command{
 		Use:   "combine",
 		Short: "Combines root chain genesis files",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return combineRootGenesisRunFunc(config)
+			return combineRootGenesisRunFunc(combineCfg)
 		},
 	}
-	cmd.Flags().StringSliceVarP(&config.RootGenesisFiles, rootGenesisFileName, "r", []string{}, "path to root node genesis files")
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
+	cmd.Flags().StringSliceVarP(&combineCfg.RootGenesisFiles, rootGenesisFileName, "r", []string{}, "path to root node genesis files")
+	cmd.Flags().StringVarP(&combineCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 
 	err := cmd.MarkFlagRequired(rootGenesisFileName)
 	if err != nil {
@@ -103,18 +103,18 @@ func loadRootGenesisFiles(paths []string) ([]*genesis.RootGenesis, error) {
 }
 
 // combineRootGenesisCmd creates a new cobra command for the root-genesis component.
-func signRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	config := &signGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
+func signRootGenesisCmd(config *rootGenesisConfig) *cobra.Command {
+	signCfg := &signGenesisConfig{Base: config.Base, Keys: NewKeysConf(config.Base, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "sign",
 		Short: "Sign root chain genesis file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return signRootGenesisRunFunc(config)
+			return signRootGenesisRunFunc(signCfg)
 		},
 	}
 	config.Keys.addCmdFlags(cmd)
-	cmd.Flags().StringVarP(&config.RootGenesisFile, rootGenesisFileName, "r", "", "path to root node genesis file")
-	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
+	cmd.Flags().StringVarP(&signCfg.RootGenesisFile, rootGenesisFileName, "r", "", "path to root node genesis file")
+	cmd.Flags().StringVarP(&signCfg.OutputDir, "output-dir", "o", "", "path to output directory (default: $AB_HOME/rootchain)")
 
 	err := cmd.MarkFlagRequired(rootGenesisFileName)
 	if err != nil {

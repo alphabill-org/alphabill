@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
@@ -44,7 +43,8 @@ type rootGenesisConfig struct {
 }
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
-func rootGenesisCmd(_ context.Context, config *baseConfiguration) *cobra.Command {
+func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
+	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
@@ -58,8 +58,7 @@ func rootGenesisCmd(_ context.Context, config *baseConfiguration) *cobra.Command
 	return cmd
 }
 
-func newGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
-	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
+func newGenesisCmd(config *rootGenesisConfig) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "new",
 		Short: "Generates root chain genesis file",
@@ -170,7 +169,7 @@ func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, er
 }
 
 func saveRootGenesisFile(rg *genesis.RootGenesis, outputDir string) error {
-	outputFile := path.Join(outputDir, rootGenesisFileName)
+	outputFile := filepath.Join(outputDir, rootGenesisFileName)
 	return util.WriteJsonFile(outputFile, rg)
 }
 
@@ -187,6 +186,6 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 func savePartitionGenesisFile(pg *genesis.PartitionGenesis, outputDir string) error {
 	sid := binary.BigEndian.Uint32(pg.SystemDescriptionRecord.SystemIdentifier)
 	filename := fmt.Sprintf("partition-genesis-%d.json", sid)
-	outputFile := path.Join(outputDir, filename)
+	outputFile := filepath.Join(outputDir, filename)
 	return util.WriteJsonFile(outputFile, pg)
 }

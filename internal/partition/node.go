@@ -359,7 +359,7 @@ func (n *Node) loop() {
 					logger.Warning("Invalid unicity certificate type: %T", m.Message)
 					continue
 				}
-				logger.Trace("Unicity Certificate:\n%s", util.EncodeToJsonHelper(uc))
+				util.WriteTraceJsonLog(logger, "Unicity Certificate:", uc)
 				n.lastRootMsgTime = time.Now()
 				err := n.handleUnicityCertificate(uc)
 				if err != nil {
@@ -826,7 +826,7 @@ func (n *Node) sendLedgerReplicationResponse(msg *replication.LedgerReplicationR
 }
 
 func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationRequest) error {
-	logger.Trace("Ledger replication request received:\n%s", util.EncodeToJsonHelper(lr))
+	util.WriteTraceJsonLog(logger, "Ledger replication request received:", lr)
 	if err := lr.IsValid(); err != nil {
 		// for now do not respond to obviously invalid requests
 		return fmt.Errorf("invalid request, %w", err)
@@ -983,7 +983,7 @@ func (n *Node) sendLedgerReplicationRequest(startingBlockNr uint64) {
 		NodeIdentifier:   n.leaderSelector.SelfID().String(),
 		BeginBlockNumber: startingBlockNr,
 	}
-	logger.Trace("Ledger replication request:\n%s", util.EncodeToJsonHelper(req))
+	util.WriteTraceJsonLog(logger, "Ledger replication request:", req)
 	peers := n.configuration.peer.Validators()
 	if len(peers) == 0 {
 		logger.Warning("Error sending ledger replication request, no peers")
@@ -1024,7 +1024,7 @@ func (n *Node) sendBlockProposal() error {
 		UnicityCertificate: n.luc,
 		Transactions:       block.GenericTxsToProtobuf(n.proposedTransactions),
 	}
-	logger.Trace("BlockProposal created:\n%s", util.EncodeToJsonHelper(prop))
+	util.WriteTraceJsonLog(logger, "BlockProposal created:", prop)
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
@@ -1091,7 +1091,7 @@ func (n *Node) sendCertificationRequest() error {
 	}
 	logger.Info("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X",
 		pendingProposal.RoundNumber, stateHash, blockHash)
-	logger.Trace("Block Certification req:\n%s", util.EncodeToJsonHelper(req))
+	util.WriteTraceJsonLog(logger, "Block Certification req:", req)
 
 	return n.network.Send(network.OutputMessage{
 		Protocol: network.ProtocolBlockCertification,

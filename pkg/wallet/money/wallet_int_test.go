@@ -37,8 +37,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-const port = 9111
-
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// start server
 	initialBill := &moneytx.InitialBill{
@@ -50,7 +48,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	addr := "localhost:9544"
 	startRPCServer(t, network, addr)
 	serverService := testserver.NewTestAlphabillServiceServer()
-	server := testserver.StartServer(port, serverService)
+	server, _ := testserver.StartServer(serverService)
 	t.Cleanup(server.GracefulStop)
 	restAddr, wb, _ := startRestServer(t, addr)
 	// start wallet backend

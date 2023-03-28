@@ -45,7 +45,7 @@ func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {
 	a.baseCmd.AddCommand(newVDGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newWalletCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newRootChainCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newNodeIdentifierCmd())
 	a.baseCmd.AddCommand(newVDClientCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))

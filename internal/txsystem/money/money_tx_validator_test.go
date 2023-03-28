@@ -2,11 +2,11 @@ package money
 
 import (
 	"crypto"
-	"github.com/alphabill-org/alphabill/internal/script"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"

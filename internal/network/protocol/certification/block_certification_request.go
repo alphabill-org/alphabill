@@ -2,6 +2,7 @@ package certification
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -32,7 +33,7 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 		return err
 	}
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
-		return err
+		return fmt.Errorf("signature verification failed")
 	}
 	return nil
 }
@@ -53,10 +54,10 @@ func (x *BlockCertificationRequest) Bytes() []byte {
 	var b bytes.Buffer
 	b.Write(x.SystemIdentifier)
 	b.WriteString(x.NodeIdentifier)
-	b.Write(util.Uint64ToBytes(x.RootRoundNumber))
 	b.Write(x.InputRecord.PreviousHash)
 	b.Write(x.InputRecord.Hash)
 	b.Write(x.InputRecord.BlockHash)
 	b.Write(x.InputRecord.SummaryValue)
+	b.Write(util.Uint64ToBytes(x.InputRecord.RoundNumber))
 	return b.Bytes()
 }

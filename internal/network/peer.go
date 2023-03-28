@@ -140,6 +140,14 @@ func (p *Peer) ID() peer.ID {
 	return p.host.ID()
 }
 
+func (p *Peer) LogID() string {
+	id := p.ID().String()
+	if len(id) <= 10 {
+		return fmt.Sprintf("NodeID:%s", id)
+	}
+	return fmt.Sprintf("NodeID:%s*%s", id[:2], id[len(id)-6:])
+}
+
 func (p *Peer) Validators() []peer.ID {
 	return p.validators
 }

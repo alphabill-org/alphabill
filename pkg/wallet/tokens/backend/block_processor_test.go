@@ -35,15 +35,29 @@ func Test_blockProcessor_ProcessBlock(t *testing.T) {
 		require.ErrorIs(t, err, expErr)
 	})
 
-	t.Run("blocks are not in correct order", func(t *testing.T) {
+	t.Run("blocks are not in correct order, same block twice", func(t *testing.T) {
+		bp := &blockProcessor{
+			store: &mockStorage{
+				getBlockNumber: func() (uint64, error) { return 5, nil },
+			},
+		}
+		err := bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 5}},
+		})
+		require.EqualError(t, err, `invalid block, received block 5, current wallet block 5`)
+	})
+
+	t.Run("blocks are not in correct order, received earlier block", func(t *testing.T) {
 		bp := &blockProcessor{
 			log: logger,
 			store: &mockStorage{
 				getBlockNumber: func() (uint64, error) { return 5, nil },
 			},
 		}
-		err := bp.ProcessBlock(context.Background(), &block.Block{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}}})
-		require.EqualError(t, err, `invalid block order: last processed block is 5, received block 4 as next to process`)
+		err := bp.ProcessBlock(context.Background(), &block.Block{
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 4}},
+		})
+		require.EqualError(t, err, `invalid block, received block 4, current wallet block 5`)
 	})
 
 	t.Run("missing block", func(t *testing.T) {

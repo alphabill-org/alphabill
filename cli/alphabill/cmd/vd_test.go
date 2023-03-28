@@ -11,7 +11,7 @@ import (
 
 	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
-	"github.com/alphabill-org/alphabill/internal/rootchain"
+	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
@@ -68,9 +68,9 @@ func TestRunVD(t *testing.T) {
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 		rootPubKeyBytes, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pr, err := rootchain.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
+		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		_, partitionGenesisFiles, err := rootchain.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+		_, partitionGenesisFiles, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)
 
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])

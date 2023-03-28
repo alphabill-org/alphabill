@@ -3,29 +3,31 @@ package certificates
 import (
 	"bytes"
 	gocrypto "crypto"
+	"errors"
+	"fmt"
 	"hash"
 
 	"github.com/alphabill-org/alphabill/internal/smt"
-
-	"github.com/alphabill-org/alphabill/internal/errors"
 )
 
 var ErrUnicityTreeCertificateIsNil = errors.New("unicity tree certificate is nil")
+var ErrUCIsNil = errors.New("new UC is nil")
+var ErrLastUCIsNil = errors.New("last UC is nil")
 
 func (x *UnicityTreeCertificate) IsValid(systemIdentifier, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrUnicityTreeCertificateIsNil
 	}
 	if !bytes.Equal(x.SystemIdentifier, systemIdentifier) {
-		return errors.Errorf("invalid system identifier: expected %X, got %X", systemIdentifier, x.SystemIdentifier)
+		return fmt.Errorf("invalid system identifier: expected %X, got %X", systemIdentifier, x.SystemIdentifier)
 	}
 	if !bytes.Equal(systemDescriptionHash, x.SystemDescriptionHash) {
-		return errors.Errorf("invalid system description hash: expected %X, got %X", systemDescriptionHash, x.SystemDescriptionHash)
+		return fmt.Errorf("invalid system description hash: expected %X, got %X", systemDescriptionHash, x.SystemDescriptionHash)
 	}
 
 	siblingHashesLength := len(systemIdentifier) * 8 // bits in system identifier
 	if c := len(x.SiblingHashes); c != siblingHashesLength {
-		return errors.Errorf("invalid count of sibling hashes: expected %v, got %v", siblingHashesLength, c)
+		return fmt.Errorf("invalid count of sibling hashes: expected %v, got %v", siblingHashesLength, c)
 	}
 	return nil
 }

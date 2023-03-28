@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"bytes"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 )
@@ -20,12 +21,23 @@ func (x *PartitionRecord) IsValid() error {
 		return ErrValidatorsMissing
 	}
 	id := x.GetSystemIdentifier()
+	var ir *certificates.InputRecord = nil
 	for _, node := range x.Validators {
 		if err := node.IsValid(); err != nil {
 			return err
 		}
 		if !bytes.Equal(id, node.BlockCertificationRequest.SystemIdentifier) {
 			return errors.Errorf("invalid system id: expected %X, got %X", id, node.BlockCertificationRequest.SystemIdentifier)
+		}
+		// Input record of different validator nodes must match
+		// remember first
+		if ir == nil {
+			ir = node.BlockCertificationRequest.InputRecord
+			continue
+		}
+		// more than one node, compare input record to fist node record
+		if !bytes.Equal(ir.Bytes(), node.BlockCertificationRequest.InputRecord.Bytes()) {
+			return errors.Errorf("system id %X node %v input record is different", id, node.BlockCertificationRequest.NodeIdentifier)
 		}
 	}
 	if err := nodesUnique(x.Validators); err != nil {

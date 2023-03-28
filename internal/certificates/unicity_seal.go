@@ -30,9 +30,6 @@ func (x *UnicitySeal) IsValid(verifiers map[string]crypto.Verifier) error {
 	if x.Hash == nil {
 		return ErrUnicitySealHashIsNil
 	}
-	if x.PreviousHash == nil {
-		return ErrUnicitySealPreviousHashIsNil
-	}
 	if x.RootChainRoundNumber < 1 {
 		return ErrInvalidBlockNumber
 	}

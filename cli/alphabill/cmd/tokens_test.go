@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootchain"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
@@ -34,8 +33,7 @@ func TestRunTokensNode(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, nodeGenesisFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	testtime.MustRunInTime(t, 5*time.Second, func() {
-		ctx, _ := async.WithWaitGroup(context.Background())
-		ctx, ctxCancel := context.WithCancel(ctx)
+		ctx, ctxCancel := context.WithCancel(context.Background())
 		appStoppedWg := sync.WaitGroup{}
 		defer func() {
 			ctxCancel()
@@ -73,7 +71,7 @@ func TestRunTokensNode(t *testing.T) {
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 
 			err = cmd.addAndExecuteCommand(ctx)
-			require.NoError(t, err)
+			require.ErrorIs(t, err, context.Canceled)
 			appStoppedWg.Done()
 		}()
 

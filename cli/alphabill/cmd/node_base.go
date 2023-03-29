@@ -3,12 +3,21 @@ package cmd
 import (
 	"bytes"
 	"context"
+	goerrors "errors"
 	"fmt"
 	"net"
+	"net/http"
 	"sort"
 
-	"github.com/alphabill-org/alphabill/internal/async"
-	"github.com/alphabill-org/alphabill/internal/async/future"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
+	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -16,16 +25,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/partition/store"
 	"github.com/alphabill-org/alphabill/internal/rpc"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
-	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
-	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type baseNodeConfiguration struct {
@@ -46,63 +47,75 @@ type startNodeConfiguration struct {
 func defaultNodeRunFunc(ctx context.Context, name string, txs txsystem.TransactionSystem, nodeCfg *startNodeConfiguration, rpcServerConf *grpcServerConfiguration, restServerConf *restServerConfiguration) error {
 	self, node, err := startNode(ctx, txs, nodeCfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start %s node: %w", name, err)
 	}
+	defer node.Close()
+
 	listener, err := net.Listen("tcp", rpcServerConf.Address)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open listener on %q for %s: %w", rpcServerConf.Address, name, err)
 	}
-	grpcServer, err := initRPCServer(node, rpcServerConf)
-	if err != nil {
-		return err
-	}
-	restServer, err := initRESTServer(node, self, restServerConf)
-	if err != nil {
-		return err
-	}
-	starterFunc := func(ctx context.Context) {
-		async.MakeWorker("grpc transport layer server", func(ctx context.Context) future.Value {
-			go func() {
-				log.Info("Starting gRPC server on %s", rpcServerConf.Address)
-				err = grpcServer.Serve(listener)
-				if err != nil {
-					log.Error("gRPC Server exited with erroneous situation: %s", err)
-				} else {
-					log.Info("gRPC Server exited successfully")
-				}
-			}()
-			if restServer != nil {
-				go func() {
-					log.Info("Starting REST server on %s", restServer.Addr)
-					err = restServer.ListenAndServe()
-					if err != nil {
-						log.Error("REST server exited with erroneous situation: %s", err)
-					} else {
-						log.Info("REST server exited successfully")
-					}
-				}()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		grpcServer, err := initRPCServer(node, rpcServerConf)
+		if err != nil {
+			return fmt.Errorf("failed to init gRPC server for %s: %w", name, err)
+		}
+
+		errch := make(chan error, 1)
+		go func() {
+			log.Info("%s gRPC server starting on %s", name, rpcServerConf.Address)
+			if err := grpcServer.Serve(listener); err != nil {
+				errch <- fmt.Errorf("%s gRPC server exited: %w", name, err)
 			}
-			<-ctx.Done()
+			log.Info("%s gRPC server exited", name)
+		}()
+
+		select {
+		case <-ctx.Done():
 			grpcServer.GracefulStop()
-			if restServer != nil {
-				e := restServer.Close()
-				if e != nil {
-					log.Error("Failed to close REST server: %v", err)
-				}
+			return ctx.Err()
+		case err := <-errch:
+			return err
+		}
+	})
+
+	g.Go(func() error {
+		if restServerConf.IsAddressEmpty() {
+			return nil // return nil in this case in order not to kill the group!
+		}
+		restServer, err := initRESTServer(node, self, restServerConf)
+		if err != nil {
+			return fmt.Errorf("failed to create REST server for %s: %w", name, err)
+		}
+
+		errch := make(chan error, 1)
+		go func() {
+			log.Info("%s REST server starting on %s", name, restServer.Addr)
+			if err := restServer.ListenAndServe(); err != nil && !goerrors.Is(err, http.ErrServerClosed) {
+				errch <- fmt.Errorf("%s REST server exited: %w", name, err)
 			}
-			node.Close()
-			return nil
-		}).Start(ctx)
-	}
-	// StartAndWait waits until ctx.waitgroup is done OR sigterm cancels signal OR timeout (not used here)
-	return starter.StartAndWait(ctx, name, starterFunc)
+			log.Info("%s REST server exited", name)
+		}()
+
+		select {
+		case <-ctx.Done():
+			err := ctx.Err()
+			if e := restServer.Close(); e != nil {
+				err = goerrors.Join(err, fmt.Errorf("closing REST server: %w", e))
+			}
+			return err
+		case err := <-errch:
+			return err
+		}
+	})
+
+	return g.Wait()
 }
 
 func initRESTServer(node *partition.Node, self *network.Peer, conf *restServerConfiguration) (*rpc.RestServer, error) {
-	if conf.IsAddressEmpty() {
-		// Address not configured.
-		return nil, nil
-	}
 	rs, err := rpc.NewRESTServer(node, conf.Address, conf.MaxBodyBytes, self)
 	if err != nil {
 		return nil, err

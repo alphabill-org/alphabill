@@ -35,13 +35,11 @@ type (
 	}
 
 	RootChain struct {
-		ctx        context.Context
-		ctxCancel  context.CancelFunc
-		net        Net
-		peer       *network.Peer // p2p network
-		state      *State        // state of the root chain. keeps everything needed for consensus.
-		stateStore StateStore
-		timers     *timer.Timers // keeps track of T2 and T3 timers
+		ctxCancel context.CancelFunc
+		net       Net
+		peer      *network.Peer // p2p network
+		state     *State        // state of the root chain. keeps everything needed for consensus.
+		timers    *timer.Timers // keeps track of T2 and T3 timers
 	}
 
 	rootChainConf struct {
@@ -112,18 +110,15 @@ func NewRootChain(peer *network.Peer, genesis *genesis.RootGenesis, signer crypt
 		}
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	rc := &RootChain{
 		net:    net,
 		peer:   peer,
 		state:  s,
 		timers: timers,
 	}
-	rc.ctx, rc.ctxCancel = context.WithCancel(context.Background())
-	go rc.loop()
+	var ctx context.Context
+	ctx, rc.ctxCancel = context.WithCancel(context.Background())
+	go rc.loop(ctx)
 	return rc, nil
 }
 
@@ -133,10 +128,10 @@ func (rc *RootChain) Close() {
 }
 
 // loop handles messages from different goroutines.
-func (rc *RootChain) loop() {
+func (rc *RootChain) loop(ctx context.Context) {
 	for {
 		select {
-		case <-rc.ctx.Done():
+		case <-ctx.Done():
 			logger.Info("Exiting root chain main loop")
 			return
 		case m, ok := <-rc.net.ReceivedChannel():

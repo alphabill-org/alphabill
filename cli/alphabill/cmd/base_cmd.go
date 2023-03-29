@@ -34,8 +34,8 @@ func (a *alphabillApp) WithOpts(opts interface{}) *alphabillApp {
 }
 
 // Execute adds all child commands and runs the application
-func (a *alphabillApp) Execute(ctx context.Context) {
-	cobra.CheckErr(a.addAndExecuteCommand(ctx))
+func (a *alphabillApp) Execute(ctx context.Context) error {
+	return a.addAndExecuteCommand(ctx)
 }
 
 func (a *alphabillApp) addAndExecuteCommand(ctx context.Context) error {

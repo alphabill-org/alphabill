@@ -110,7 +110,7 @@ function start_root_nodes() {
       echo "Root genesis files do not exist, generate setup!" 1>&2
       exit 1
     fi
-    build/alphabill root --home testab/rootchain$i --partition-listener="/ip4/127.0.0.1/tcp/$pPort" --root-listener="/ip4/127.0.0.1/tcp/$rPort" -p "$root_node_addresses"  >> testab/rootchain$i/rootchain/rootchain.log &
+    build/alphabill root --home testab/rootchain$i --partition-listener="/ip4/127.0.0.1/tcp/$pPort" >> testab/rootchain$i/rootchain/rootchain.log &
     ((rPort=rPort+1))
     ((pPort=pPort+1))
     ((i=i+1))
@@ -160,7 +160,7 @@ local restPort=0
   i=1
   for keyf in $key_files
   do
-    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k "$keyf" -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file -p "$nodeAddresses" >> ${home}$i/"$1"/"$1".log &
+    build/alphabill "$1" --home ${home}$i -f ${home}$i/"$1"/blocks.db -k $keyf -r "/ip4/127.0.0.1/tcp/26662" -a "/ip4/127.0.0.1/tcp/$aPort" --server-address ":$grpcPort" --rest-server-address "localhost:$restPort" -g $genesis_file -p "$nodeAddresses" >> ${home}$i/"$1"/"$1".log &
     ((i=i+1))
     ((aPort=aPort+1))
     ((grpcPort=grpcPort+1))

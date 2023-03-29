@@ -83,7 +83,7 @@ func TestBlock_IsValid(t *testing.T) {
 		{
 			name: "prev block hash is nil",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  nil,
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},
@@ -112,7 +112,7 @@ func TestBlock_IsValid(t *testing.T) {
 		{
 			name: "transactions array is nil",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       nil,
@@ -126,7 +126,7 @@ func TestBlock_IsValid(t *testing.T) {
 		{
 			name: "system id nil",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},
@@ -140,7 +140,7 @@ func TestBlock_IsValid(t *testing.T) {
 		{
 			name: "UC verification fails",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},
@@ -154,7 +154,7 @@ func TestBlock_IsValid(t *testing.T) {
 		{
 			name: "ok",
 			fields: fields{
-				SystemIdentifier:   []byte{1, 2, 3},
+				SystemIdentifier:   []byte{1, 2, 3, 4},
 				PreviousBlockHash:  []byte{1, 2, 3},
 				NodeIdentifier:     "test",
 				Transactions:       []*txsystem.Transaction{},

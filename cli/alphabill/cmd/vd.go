@@ -16,7 +16,7 @@ type (
 	}
 )
 
-func newVDNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newVDNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &vdConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
 			Base: baseConfig,
@@ -31,7 +31,7 @@ func newVDNodeCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 		Short: "Starts a Verifiable Data partition's node",
 		Long:  `Starts a Verifiable Data partition's node, binding to the network address provided by configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runVDNode(ctx, config)
+			return runVDNode(cmd.Context(), config)
 		},
 	}
 

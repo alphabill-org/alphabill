@@ -4,7 +4,7 @@ Run `make build` to build the application. Executable will be built to `build/al
 
 ### Build dependencies
 
-* `golang` version 1.18. (https://go.dev/doc/install)
+* `golang` version 1.20. (https://go.dev/doc/install)
 * in order to rebuild everything including protobuf definitions (`make` or `make all`):
   * `protoc` version 3.21.9+ (https://grpc.io/docs/protoc-installation)
   * `protoc-gen-go` (https://grpc.io/docs/languages/go/quickstart/)
@@ -77,4 +77,4 @@ building (this is `bash` example):
 
 See gitlab-ci.yml for details.
 
-GitLab runs the CI job inside docker container defined in `deployments/gitlab`.
+GitLab runs the CI job inside docker container defined in `alphabill/gitlab-ci-image`.

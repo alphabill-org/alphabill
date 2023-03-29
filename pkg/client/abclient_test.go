@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"crypto/sha256"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -19,17 +18,15 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-const port = 9222
-
 // TestRaceConditions meant to be run with -race flag
 func TestRaceConditions(t *testing.T) {
 	// start mock ab server
 	serviceServer := testserver.NewTestAlphabillServiceServer()
-	server := testserver.StartServer(port, serviceServer)
+	server, addr := testserver.StartServer(serviceServer)
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
+	abclient := New(AlphabillClientConfig{Uri: addr.String()})
 	t.Cleanup(func() { _ = abclient.Shutdown() })
 
 	// do async operations on abclient
@@ -48,13 +45,7 @@ func TestRaceConditions(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		_, _ = abclient.GetMaxBlockNumber(context.Background())
-		wg.Done()
-	}()
-
-	wg.Add(1)
-	go func() {
-		abclient.IsShutdown()
+		_, _, _ = abclient.GetMaxBlockNumber(context.Background())
 		wg.Done()
 	}()
 
@@ -78,7 +69,6 @@ func TestTimeout(t *testing.T) {
 	server.SetBlockFunc(0, func() *block.Block {
 		time.Sleep(100 * time.Millisecond)
 		return &block.Block{
-			BlockNumber:        0,
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
 			UnicityCertificate: &certificates.UnicityCertificate{},
@@ -112,11 +102,11 @@ func createRandomTx() *txsystem.Transaction {
 func startServerAndCreateClient(t *testing.T) (*testserver.TestAlphabillServiceServer, *AlphabillClient) {
 	// start mock ab server
 	serviceServer := testserver.NewTestAlphabillServiceServer()
-	server := testserver.StartServer(port, serviceServer)
+	server, addr := testserver.StartServer(serviceServer)
 	t.Cleanup(server.GracefulStop)
 
 	// create ab client
-	abclient := New(AlphabillClientConfig{Uri: "localhost:" + strconv.Itoa(port)})
+	abclient := New(AlphabillClientConfig{Uri: addr.String()})
 	t.Cleanup(func() { _ = abclient.Shutdown() })
 	return serviceServer, abclient
 }

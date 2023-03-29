@@ -28,7 +28,7 @@ func main() {
 	pubKeyHex := flag.String("pubkey", "", "public key of the new bill owner")
 	billIdUint := flag.Uint64("bill-id", 0, "bill id of the spendable bill")
 	billValue := flag.Uint64("bill-value", 0, "bill value of the spendable bill")
-	timeout := flag.Uint64("timeout", 0, "transaction timeout (block height)")
+	timeout := flag.Uint64("timeout", 0, "transaction timeout (block number)")
 	uri := flag.String("alphabill-uri", "", "alphabill node uri where to send the transaction")
 	flag.Parse()
 

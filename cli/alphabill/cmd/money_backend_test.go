@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
@@ -67,23 +65,22 @@ func TestMoneyBackendCLI(t *testing.T) {
 		// verify balance
 		res := &backend.BalanceResponse{}
 		httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/balance?pubkey=%s", serverAddr, pubkeyHex), res)
-		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == strconv.FormatUint(initialBill.Value, 10)
+		return httpRes != nil && httpRes.StatusCode == 200 && res.Balance == initialBill.Value
 	}, test.WaitDuration, test.WaitTick)
 
 	// verify /list-bills
 	resListBills := &backend.ListBillsResponse{}
 	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://%s/api/v1/list-bills?pubkey=%s", serverAddr, pubkeyHex), resListBills)
-	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resListBills.Bills, 1)
 	b := resListBills.Bills[0]
-	require.Equal(t, strconv.FormatUint(initialBill.Value, 10), b.Value)
+	require.Equal(t, initialBill.Value, b.Value)
 	require.Equal(t, initialBillBytes32[:], b.Id)
 	require.NotNil(t, b.TxHash)
 
 	// verify /proof
-	resBlockProof := &block.Bills{}
-	httpRes = testhttp.DoGetProto(t, fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
+	resBlockProof := &moneytx.Bills{}
+	httpRes, err = testhttp.DoGetProto(fmt.Sprintf("http://%s/api/v1/proof?bill_id=%s", serverAddr, initialBillHex), resBlockProof)
 	require.NoError(t, err)
 	require.EqualValues(t, 200, httpRes.StatusCode)
 	require.Len(t, resBlockProof.Bills, 1)

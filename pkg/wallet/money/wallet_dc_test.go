@@ -42,9 +42,9 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	mockClient.SetMaxBlockNumber(1)
 	accKey, _ := w.am.GetAccountKey(0)
 	nonce := calculateDcNonce(bills)
-	dcBills := []*Bill{addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 1, swapTimeoutBlockCount), addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 2, swapTimeoutBlockCount)}
+	dcBills := []*Bill{addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 1, swapTimeoutBlockCount), addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 2, swapTimeoutBlockCount)}
 	billIds := [][]byte{util.Uint256ToBytes(dcBills[0].Id), util.Uint256ToBytes(dcBills[1].Id)}
-	swapTx, _ := createSwapTx(accKey, dcBills, calculateDcNonce(dcBills), billIds, swapTimeout)
+	swapTx, _ := createSwapTx(accKey, w.SystemID(), dcBills, calculateDcNonce(dcBills), billIds, swapTimeout)
 	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// and swap tx is broadcast
@@ -66,11 +66,10 @@ func TestSwapIsTriggeredWhenDcSumIsReached(t *testing.T) {
 	mockClient.SetMaxBlockNumber(dcTimeoutBlockCount)
 	for blockHeight := uint64(2); blockHeight <= dcTimeoutBlockCount; blockHeight++ {
 		mockClient.SetBlock(&block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
-			BlockNumber:        blockHeight,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockHeight}},
 		})
 	}
 
@@ -94,7 +93,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	w, _ := CreateTestWallet(t, nil)
 	k, _ := w.am.GetAccountKey(0)
 	bill := addBill(1)
-	dc := addDcBill(t, k, nonce, 2, dcTimeoutBlockCount)
+	dc := addDcBill(t, w, k, nonce, 2, dcTimeoutBlockCount)
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
 	proofList := createBlockProofJsonResponse(t, []*Bill{bill, dc}, nil, 0, dcTimeoutBlockCount)
 
@@ -102,7 +101,7 @@ func TestSwapIsTriggeredWhenDcTimeoutIsReached(t *testing.T) {
 	pubKey, _ := w.am.GetPublicKey(0)
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
-	swapTx, _ := createSwapTx(k, []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, 10)
+	swapTx, _ := createSwapTx(k, w.SystemID(), []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, 10)
 	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// when dcTimeout is reached
@@ -132,13 +131,13 @@ func TestSwapIsTriggeredWhenSwapTimeoutIsReached(t *testing.T) {
 	w, _ := CreateTestWallet(t, nil)
 	k, _ := w.am.GetAccountKey(0)
 	bill := addBill(1)
-	dc := addDcBill(t, k, nonce, 2, swapTimeoutBlockCount)
+	dc := addDcBill(t, w, k, nonce, 2, swapTimeoutBlockCount)
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
 	w, mockClient := CreateTestWallet(t, &backendMockReturnConf{balance: 3, customBillList: billsList})
 	pubKey, _ := w.am.GetPublicKey(0)
 
 	billIds := [][]byte{util.Uint256ToBytes(dc.Id)}
-	swapTx, _ := createSwapTx(k, []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, swapTimeoutBlockCount)
+	swapTx, _ := createSwapTx(k, w.SystemID(), []*Bill{dc}, calculateDcNonce([]*Bill{dc}), billIds, swapTimeoutBlockCount)
 	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// when swapTimeout is reached
@@ -190,7 +189,7 @@ func TestSwapTxValuesAreCalculatedInCorrectBillOrder(t *testing.T) {
 		dcBillIds = append(dcBillIds, dcBill.GetID())
 	}
 
-	tx, err := createSwapTx(k, dcBills, dcNonce, dcBillIds, 10)
+	tx, err := createSwapTx(k, w.SystemID(), dcBills, dcNonce, dcBillIds, 10)
 	require.NoError(t, err)
 	swapTx := parseSwapTx(t, tx)
 
@@ -232,9 +231,9 @@ func TestSwapContainsUnconfirmedDustBillIds(t *testing.T) {
 
 	accKey, _ := w.am.GetAccountKey(0)
 	nonce := calculateDcNonce([]*Bill{b1, b2, b3})
-	dcBills := []*Bill{addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 1, 10), addDcBill(t, accKey, uint256.NewInt(0).SetBytes(nonce), 2, 10)}
+	dcBills := []*Bill{addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 1, 10), addDcBill(t, w, accKey, uint256.NewInt(0).SetBytes(nonce), 2, 10)}
 	billIds := [][]byte{util.Uint256ToBytes(dcBills[0].Id), util.Uint256ToBytes(dcBills[1].Id), util.Uint256ToBytes(b3.Id)}
-	swapTx, _ := createSwapTx(accKey, dcBills, calculateDcNonce(dcBills), billIds, 10)
+	swapTx, _ := createSwapTx(accKey, w.SystemID(), dcBills, calculateDcNonce(dcBills), billIds, 10)
 	_, _ = mockClient.SendTransaction(context.Background(), swapTx)
 
 	// then swap should be broadcast
@@ -275,7 +274,7 @@ func addBill(value uint64) *Bill {
 	return &b1
 }
 
-func addDcBill(t *testing.T, k *account.AccountKey, nonce *uint256.Int, value uint64, timeout uint64) *Bill {
+func addDcBill(t *testing.T, w *Wallet, k *account.AccountKey, nonce *uint256.Int, value uint64, timeout uint64) *Bill {
 	nonceB32 := nonce.Bytes32()
 	b := Bill{
 		Id:     uint256.NewInt(value),
@@ -283,7 +282,7 @@ func addDcBill(t *testing.T, k *account.AccountKey, nonce *uint256.Int, value ui
 		TxHash: hash.Sum256([]byte{byte(value)}),
 	}
 
-	tx, err := createDustTx(k, &b, nonceB32[:], timeout)
+	tx, err := createDustTx(k, w.SystemID(), &b, nonceB32[:], timeout)
 	require.NoError(t, err)
 	b.BlockProof = &BlockProof{Tx: tx}
 
@@ -297,7 +296,8 @@ func addDcBill(t *testing.T, k *account.AccountKey, nonce *uint256.Int, value ui
 }
 
 func verifyBlockHeight(t *testing.T, w *Wallet, blockHeight uint64) {
-	actualBlockHeight, _ := w.AlphabillClient.GetMaxBlockNumber(context.Background())
+	actualBlockHeight, _, err := w.AlphabillClient.GetMaxBlockNumber(context.Background())
+	require.NoError(t, err)
 	require.Equal(t, blockHeight, actualBlockHeight)
 }
 

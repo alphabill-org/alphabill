@@ -8,14 +8,6 @@ import (
 	"github.com/holiman/uint256"
 )
 
-// dcMetadata container for grouping dcMetadata by nonce, persisted to db
-type dcMetadata struct {
-	DcValueSum  uint64   `json:"dcValueSum"` // only set by wallet managed dc job
-	BillIds     [][]byte `json:"billIds"`
-	DcTimeout   uint64   `json:"dcTimeout"`
-	SwapTimeout uint64   `json:"swapTimeout"`
-}
-
 // dcBillGroup helper struct for grouped dc bills and their aggregate data
 type dcBillGroup struct {
 	dcBills   []*Bill
@@ -47,18 +39,6 @@ type expectedSwap struct {
 
 func newDcWaitGroup() *dcWaitGroup {
 	return &dcWaitGroup{swaps: map[uint256.Int]expectedSwap{}}
-}
-
-func (m *dcMetadata) isSwapRequired(blockHeight uint64, dcSum uint64) bool {
-	return m.dcSumReached(dcSum) || m.timeoutReached(blockHeight)
-}
-
-func (m *dcMetadata) dcSumReached(dcSum uint64) bool {
-	return m.DcValueSum > 0 && dcSum >= m.DcValueSum
-}
-
-func (m *dcMetadata) timeoutReached(blockHeight uint64) bool {
-	return blockHeight == m.DcTimeout || blockHeight == m.SwapTimeout
 }
 
 // AddExpectedSwaps increments wg and records expected swap data for each expected swap.

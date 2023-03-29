@@ -42,8 +42,7 @@ func TestGenericBlockProcessor_EachTxTypeCanBeProcessed(t *testing.T) {
 	}
 	b := &block.Block{
 		Transactions:       []*txsystem.Transaction{tx1, tx2, tx3, tx4},
-		UnicityCertificate: &certificates.UnicityCertificate{},
-		BlockNumber:        1,
+		UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
 	}
 
 	store, err := createTestBillStore(t)

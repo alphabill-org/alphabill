@@ -11,10 +11,10 @@ import (
 	"strings"
 	"syscall"
 
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -56,7 +56,7 @@ const (
 )
 
 // newWalletCmd creates a new cobra command for the wallet component.
-func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newWalletCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &walletConfig{Base: baseConfig}
 	var walletCmd = &cobra.Command{
 		Use:   "wallet",
@@ -73,13 +73,10 @@ func newWalletCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Com
 			}
 			return initWalletLogger(config)
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand like create, sync, send etc")
-		},
 	}
 	walletCmd.AddCommand(newWalletBillsCmd(config))
 	walletCmd.AddCommand(createCmd(config))
-	walletCmd.AddCommand(sendCmd(ctx, config))
+	walletCmd.AddCommand(sendCmd(config))
 	walletCmd.AddCommand(getPubKeysCmd(config))
 	walletCmd.AddCommand(getBalanceCmd(config))
 	walletCmd.AddCommand(collectDustCmd(config))
@@ -133,11 +130,11 @@ func execCreateCmd(cmd *cobra.Command, config *walletConfig) (err error) {
 	return
 }
 
-func sendCmd(ctx context.Context, config *walletConfig) *cobra.Command {
+func sendCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "send",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execSendCmd(ctx, cmd, config)
+			return execSendCmd(cmd.Context(), cmd, config)
 		},
 	}
 	cmd.Flags().StringP(addressCmdName, "a", "", "compressed secp256k1 public key of the receiver in hexadecimal format, must start with 0x and be 68 characters in length")
@@ -176,7 +173,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -244,7 +241,7 @@ func execSendCmd(ctx context.Context, cmd *cobra.Command, config *walletConfig) 
 	if waitForConf {
 		consoleWriter.Println("Successfully confirmed transaction(s)")
 		if outputPath != "" {
-			var outputBills []*block.Bill
+			var outputBills []*moneytx.Bill
 			for _, b := range bills {
 				outputBills = append(outputBills, b.ToProto())
 			}
@@ -291,7 +288,7 @@ func execGetBalanceCmd(cmd *cobra.Command, config *walletConfig) error {
 	if err != nil {
 		return err
 	}
-	w, err := money.LoadExistingWallet(&money.WalletConfig{}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{}, am, restClient)
 	if err != nil {
 		return err
 	}
@@ -384,8 +381,8 @@ func collectDustCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden: true, // feature will be enabled in v0.2.0 version
 		Use:    "collect-dust",
-		Short:  "consolidates bills and synchronizes wallet",
-		Long:   "consolidates all bills into a single bill and synchronizes wallet",
+		Short:  "consolidates bills",
+		Long:   "consolidates all bills into a single bill",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return execCollectDust(cmd, config)
 		},
@@ -413,7 +410,7 @@ func execCollectDust(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	w, err := money.LoadExistingWallet(&money.WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: nodeUri}}, am, restClient)
+	w, err := money.LoadExistingWallet(client.AlphabillClientConfig{Uri: nodeUri}, am, restClient)
 	if err != nil {
 		return err
 	}

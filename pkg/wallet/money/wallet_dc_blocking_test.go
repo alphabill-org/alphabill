@@ -38,7 +38,7 @@ func TestBlockingDcWithDcBills(t *testing.T) {
 	// wallet contains 2 dc bills
 	w, _ := CreateTestWallet(t, nil)
 	k, _ := w.am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
+	bills := []*Bill{addDcBill(t, w, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, w, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nil, 0, dcTimeoutBlockCount)
 

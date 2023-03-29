@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"crypto"
+	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -40,13 +40,13 @@ type moneyGenesisConfig struct {
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
-func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &moneyGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, moneyPartitionDir)}
 	var cmd = &cobra.Command{
 		Use:   "money-genesis",
 		Short: "Generates a genesis file for the Alphabill Money partition",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return abMoneyGenesisRunFun(ctx, config)
+			return abMoneyGenesisRunFun(cmd.Context(), config)
 		},
 	}
 
@@ -60,7 +60,7 @@ func newMoneyGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cob
 }
 
 func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
-	moneyPartitionHomePath := path.Join(config.Base.HomeDir, moneyPartitionDir)
+	moneyPartitionHomePath := filepath.Join(config.Base.HomeDir, moneyPartitionDir)
 	if !util.FileExists(moneyPartitionHomePath) {
 		err := os.MkdirAll(moneyPartitionHomePath, 0700) // -rwx------
 		if err != nil {
@@ -100,6 +100,10 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		config.DCMoneySupplyValue,
 		money.SchemeOpts.SystemIdentifier(config.SystemIdentifier),
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create money transaction system: %w", err)
+	}
+
 	params, err := config.getPartitionParams()
 	if err != nil {
 		return err
@@ -123,7 +127,7 @@ func (c *moneyGenesisConfig) getNodeGenesisFileLocation(home string) string {
 	if c.Output != "" {
 		return c.Output
 	}
-	return path.Join(home, vdGenesisFileName)
+	return filepath.Join(home, vdGenesisFileName)
 }
 
 func (c *moneyGenesisConfig) getPartitionParams() (*anypb.Any, error) {

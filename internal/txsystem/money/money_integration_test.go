@@ -152,7 +152,7 @@ func TestPartition_SwapOk(t *testing.T) {
 	}
 	// create swap order
 	swapOrder, err := anypb.New(&SwapOrder{
-		OwnerCondition:  script.PredicateArgumentEmpty(),
+		OwnerCondition:  script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)),
 		BillIdentifiers: billIDs,
 		DcTransfers:     dcTxs,
 		Proofs:          blockProofs,
@@ -169,9 +169,9 @@ func TestPartition_SwapOk(t *testing.T) {
 	}
 	// #nosec G104
 	gtx, _ := NewMoneyTx(systemIdentifier, swapTx)
-	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey2))
+	signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey1))
 	sig, _ := signer.SignBytes(gtx.SigBytes())
-	swapTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey2))
+	swapTx.OwnerProof = script.PredicateArgumentPayToPublicKeyHashDefault(sig, decodeHex(pubKey1))
 
 	err = network.SubmitTx(swapTx)
 	require.NoError(t, err)
@@ -205,7 +205,7 @@ func createDCAndSwapTxs(
 		_, billData := getBill(t, rmaTree, id)
 		// NB! dc transfer nonce must be equal to swap tx unit id
 		targetValue += billData.V
-		tx := createDCTransfer(id, billData.V, billData.Backlink, newBillID)
+		tx := createDCTransfer(id, billData.V, billData.Backlink, newBillID, script.PredicatePayToPublicKeyHashDefault(decodeAndHashHex(pubKey1)))
 		gtx, _ := NewMoneyTx(systemIdentifier, tx)
 		signer, _ := abcrypto.NewInMemorySecp256K1SignerFromKey(decodeHex(privKey2))
 		sig, _ := signer.SignBytes(gtx.SigBytes())

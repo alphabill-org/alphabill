@@ -130,7 +130,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/block.Bills"
+                            "$ref": "#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills"
                         }
                     },
                     "400": {
@@ -157,7 +157,7 @@
             "type": "object",
             "properties": {
                 "type_url": {
-                    "description": "A URL/resource name that uniquely identifies the type of the serialized\nprotocol buffer message. This string must contain at least\none \"/\" character. The last segment of the URL's path must represent\nthe fully qualified name of the type (as in\n`path/google.protobuf.Duration`). The name should be in a canonical form\n(e.g., leading \".\" is not accepted).\n\nIn practice, teams usually precompile into the binary all types that they\nexpect it to use in the context of Any. However, for URLs which use the\nscheme `http`, `https`, or no scheme, one can optionally set up a type\nserver that maps type URLs to message definitions as follows:\n\n* If no scheme is provided, `https` is assumed.\n* An HTTP GET on the URL must yield a [google.protobuf.Type][]\n  value in binary format, or produce an error.\n* Applications are allowed to cache lookup results based on the\n  URL, or have them precompiled into a binary to avoid any\n  lookup. Therefore, binary compatibility needs to be preserved\n  on changes to types. (Use versioned type names to manage\n  breaking changes.)\n\nNote: this functionality is not currently available in the official\nprotobuf release, and it is not used for type URLs beginning with\ntype.googleapis.com.\n\nSchemes other than `http`, `https` (or the empty scheme) might be\nused with implementation specific semantics.",
+                    "description": "A URL/resource name that uniquely identifies the type of the serialized\nprotocol buffer message. This string must contain at least\none \"/\" character. The last segment of the URL's path must represent\nthe fully qualified name of the type (as in\n`path/google.protobuf.Duration`). The name should be in a canonical form\n(e.g., leading \".\" is not accepted).\n\nIn practice, teams usually precompile into the binary all types that they\nexpect it to use in the context of Any. However, for URLs which use the\nscheme `http`, `https`, or no scheme, one can optionally set up a type\nserver that maps type URLs to message definitions as follows:\n\n  - If no scheme is provided, `https` is assumed.\n  - An HTTP GET on the URL must yield a [google.protobuf.Type][]\n    value in binary format, or produce an error.\n  - Applications are allowed to cache lookup results based on the\n    URL, or have them precompiled into a binary to avoid any\n    lookup. Therefore, binary compatibility needs to be preserved\n    on changes to types. (Use versioned type names to manage\n    breaking changes.)\n\nNote: this functionality is not currently available in the official\nprotobuf release, and it is not used for type URLs beginning with\ntype.googleapis.com.\n\nSchemes other than `http`, `https` (or the empty scheme) might be\nused with implementation specific semantics.",
                     "type": "string"
                 },
                 "value": {
@@ -165,43 +165,6 @@
                     "type": "array",
                     "items": {
                         "type": "integer"
-                    }
-                }
-            }
-        },
-        "block.Bill": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "is_dc_bill": {
-                    "type": "boolean"
-                },
-                "tx_hash": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "tx_proof": {
-                    "$ref": "#/definitions/block.TxProof"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "block.Bills": {
-            "type": "object",
-            "properties": {
-                "bills": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/block.Bill"
                     }
                 }
             }
@@ -314,20 +277,6 @@
                 }
             }
         },
-        "block.TxProof": {
-            "type": "object",
-            "properties": {
-                "block_number": {
-                    "type": "integer"
-                },
-                "proof": {
-                    "$ref": "#/definitions/block.BlockProof"
-                },
-                "tx": {
-                    "$ref": "#/definitions/txsystem.Transaction"
-                }
-            }
-        },
         "certificates.InputRecord": {
             "type": "object",
             "properties": {
@@ -339,18 +288,22 @@
                     }
                 },
                 "hash": {
-                    "description": "hash to be certified",
+                    "description": "state hash to be certified",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
                 },
                 "previous_hash": {
-                    "description": "previously certified root hash",
+                    "description": "previously certified state hash",
                     "type": "array",
                     "items": {
                         "type": "integer"
                     }
+                },
+                "round_number": {
+                    "description": "transaction system's round number",
+                    "type": "integer"
                 },
                 "summary_value": {
                     "description": "summary value to certified",
@@ -430,11 +383,59 @@
                 }
             }
         },
+        "github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill": {
+            "type": "object",
+            "properties": {
+                "OwnerPredicate": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "id": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "isDcBill": {
+                    "type": "boolean"
+                },
+                "orderNumber": {
+                    "description": "OrderNumber insertion order of given bill in pubkey =\u003e list of bills bucket, needed for determistic paging",
+                    "type": "integer"
+                },
+                "txHash": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "txProof": {
+                    "$ref": "#/definitions/money.TxProof"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bills": {
+            "type": "object",
+            "properties": {
+                "bills": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_alphabill-org_alphabill_pkg_wallet_backend_money.Bill"
+                    }
+                }
+            }
+        },
         "money.BalanceResponse": {
             "type": "object",
             "properties": {
                 "balance": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "0"
                 }
             }
         },
@@ -442,7 +443,11 @@
             "type": "object",
             "properties": {
                 "blockHeight": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "0"
+                },
+                "lastRoundNumber": {
+                    "type": "integer"
                 }
             }
         },
@@ -489,6 +494,20 @@
                 "total": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "money.TxProof": {
+            "type": "object",
+            "properties": {
+                "blockNumber": {
+                    "type": "integer"
+                },
+                "proof": {
+                    "$ref": "#/definitions/block.BlockProof"
+                },
+                "tx": {
+                    "$ref": "#/definitions/txsystem.Transaction"
                 }
             }
         },

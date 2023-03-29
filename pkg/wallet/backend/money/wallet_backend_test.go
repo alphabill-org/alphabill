@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/script"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -31,24 +32,26 @@ func TestWalletBackend_BillsCanBeIndexedByPredicates(t *testing.T) {
 	bearer1 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey1))
 	bearer2 := script.PredicatePayToPublicKeyHashDefault(hash.Sum256(pubkey2))
 
-	abclient := clientmock.NewMockAlphabillClient(1, map[uint64]*block.Block{
-		1: {
-			BlockNumber: 1,
-			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId1,
-				SystemId:              moneySystemID,
-				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey1)),
-			}},
-		},
-		2: {
-			BlockNumber: 2,
-			Transactions: []*txsystem.Transaction{{
-				UnitId:                billId2,
-				SystemId:              moneySystemID,
-				TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
-			}},
-		},
-	})
+	abclient := clientmock.NewMockAlphabillClient(
+		clientmock.WithMaxBlockNumber(1),
+		clientmock.WithBlocks(map[uint64]*block.Block{
+			1: {
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 1}},
+				Transactions: []*txsystem.Transaction{{
+					UnitId:                billId1,
+					SystemId:              moneySystemID,
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey1)),
+				}},
+			},
+			2: {
+				UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: 2}},
+				Transactions: []*txsystem.Transaction{{
+					UnitId:                billId2,
+					SystemId:              moneySystemID,
+					TransactionAttributes: moneytesttx.CreateBillTransferTx(hash.Sum256(pubkey2)),
+				}},
+			},
+		}))
 	w := createWalletBackend(t, abclient)
 
 	// start wallet backend

@@ -240,8 +240,10 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, previousRou
 	return u, u.Sign("test", sn.rootSigner)
 }
 
-func (sn *SingleNodePartition) GetLatestBlock() *block.Block {
-	return sn.store.LatestBlock()
+func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *block.Block {
+	bl, err := sn.store.LatestBlock()
+	require.NoError(t, err)
+	return bl
 }
 
 func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
@@ -306,7 +308,6 @@ func (l *TestLeaderSelector) UpdateLeader(seal *certificates.UnicitySeal) {
 		return
 	}
 	l.leader = l.currentNode
-	return
 }
 
 func (l *TestLeaderSelector) GetLeaderID() peer.ID {
@@ -326,6 +327,7 @@ func createPeer(t *testing.T) *network.Peer {
 	conf := &network.PeerConfiguration{}
 	// fake validator, so that network 'send' requests don't fail
 	_, validatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
 	validatorPubKeyBytes, _ := validatorPubKey.Raw()
 
 	conf.PersistentPeers = []*network.PeerInfo{{
@@ -349,10 +351,12 @@ func createPeer(t *testing.T) *network.Peer {
 	return peer
 }
 
-func NextBlockReceived(tp *SingleNodePartition, prevBlock *block.Block) func() bool {
+func NextBlockReceived(t *testing.T, tp *SingleNodePartition, prevBlock *block.Block) func() bool {
 	return func() bool {
-		b := tp.GetLatestBlock()
-		return b.UnicityCertificate.UnicitySeal.RootChainRoundNumber == prevBlock.UnicityCertificate.UnicitySeal.GetRootChainRoundNumber()+1
+		// since empty blocks are not persisted, latest block may be certified, but only its UC is saved
+		uc, err := tp.store.LatestUC()
+		require.NoError(t, err)
+		return uc.InputRecord.RoundNumber > prevBlock.UnicityCertificate.InputRecord.RoundNumber
 	}
 }
 

@@ -15,7 +15,9 @@ import (
 	twb "github.com/alphabill-org/alphabill/pkg/wallet/tokens/backend"
 )
 
-func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+const defaultTokenApiURL = "localhost:9735"
+
+func newTokenWalletBackendCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "token-backend",
 		Short: "starts token wallet backend service",
@@ -29,19 +31,19 @@ func newTokenWalletBackendCmd(ctx context.Context, baseConfig *baseConfiguration
 	}
 	cmd.PersistentFlags().String(logFileCmdName, "", "log file path (default output to stderr)")
 	cmd.PersistentFlags().String(logLevelCmdName, "INFO", "logging level (DEBUG, INFO, NOTICE, WARNING, ERROR)")
-	cmd.AddCommand(buildCmdStartTokenWalletBackend(ctx, baseConfig))
+	cmd.AddCommand(buildCmdStartTokenWalletBackend(baseConfig))
 	return cmd
 }
 
-func buildCmdStartTokenWalletBackend(ctx context.Context, config *baseConfiguration) *cobra.Command {
+func buildCmdStartTokenWalletBackend(config *baseConfiguration) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return execTokenWalletBackendStartCmd(ctx, cmd, config)
+			return execTokenWalletBackendStartCmd(cmd.Context(), cmd, config)
 		},
 	}
 	cmd.Flags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill node url")
-	cmd.Flags().StringP(serverAddrCmdName, "s", "localhost:9735", "server address")
+	cmd.Flags().StringP(serverAddrCmdName, "s", defaultTokenApiURL, "server address")
 	cmd.Flags().StringP(dbFileCmdName, "f", "", "path to the database file")
 	return cmd
 }

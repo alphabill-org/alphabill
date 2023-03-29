@@ -13,6 +13,7 @@ import (
 	aberrors "github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/script"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
@@ -182,8 +183,8 @@ func (w *WalletBackend) GetBill(unitID []byte) (*Bill, error) {
 	return w.store.Do().GetBill(unitID)
 }
 
-// GetMaxBlockNumber returns max block number known to the connected AB node.
-func (w *WalletBackend) GetMaxBlockNumber(ctx context.Context) (uint64, error) {
+// GetMaxBlockNumber returns latest persisted block number and latest round number.
+func (w *WalletBackend) GetMaxBlockNumber(ctx context.Context) (uint64, uint64, error) {
 	return w.genericWallet.GetMaxBlockNumber(ctx)
 }
 
@@ -197,8 +198,8 @@ func (w *WalletBackend) Shutdown() {
 	w.genericWallet.Shutdown()
 }
 
-func (b *Bill) toProto() *block.Bill {
-	return &block.Bill{
+func (b *Bill) toProto() *moneytx.Bill {
+	return &moneytx.Bill{
 		Id:       b.Id,
 		Value:    b.Value,
 		TxHash:   b.TxHash,
@@ -215,9 +216,9 @@ func (b *TxProof) toProto() *block.TxProof {
 	}
 }
 
-func (b *Bill) toProtoBills() *block.Bills {
-	return &block.Bills{
-		Bills: []*block.Bill{
+func (b *Bill) toProtoBills() *moneytx.Bills {
+	return &moneytx.Bills{
+		Bills: []*moneytx.Bill{
 			b.toProto(),
 		},
 	}

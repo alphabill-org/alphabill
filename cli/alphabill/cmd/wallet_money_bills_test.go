@@ -111,6 +111,7 @@ func TestWalletBillsExportCmd_BillIdFlag(t *testing.T) {
 	billFilePath := path.Join(homedir, "bill-0x0000000000000000000000000000000000000000000000000000000000000001.json")
 	stdout, err := execBillsCommand(homedir, "export --bill-id 0000000000000000000000000000000000000000000000000000000000000001 --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 }
 
@@ -127,6 +128,7 @@ func TestWalletBillsExportCmd(t *testing.T) {
 	billFilePath := path.Join(homedir, "bills.json")
 	stdout, err := execBillsCommand(homedir, "export --output-path "+homedir+" --alphabill-api-uri "+addr.Host)
 	require.NoError(t, err)
+	require.Len(t, stdout.lines, 1)
 	require.Equal(t, stdout.lines[0], fmt.Sprintf("Exported bill(s) to: %s", billFilePath))
 }
 

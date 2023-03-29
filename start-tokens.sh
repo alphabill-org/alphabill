@@ -44,6 +44,6 @@ do
 done
 
 #start UTP backend
-build/alphabill token-backend start -u localhost:28766 -s localhost:9735 -f testab/token-backend/tokens.db --log-file testab/token-backend/token-backend.log &
+build/alphabill token-backend start -u localhost:28766 -s localhost:9735 -f testab/token-backend/tokens.db --log-file testab/token-backend/token-backend.log --log-level DEBUG &
 
-echo "Started tokens backend, check the API at http://localhost:9735/api/v1/swagger/"
+echo "Started token backend, check the API at http://localhost:9735/api/v1/swagger/"

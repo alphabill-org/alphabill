@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -45,13 +45,13 @@ type rootGenesisConfig struct {
 }
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
-func newRootGenesisCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return rootGenesisRunFunc(ctx, config)
+			return rootGenesisRunFunc(cmd.Context(), config)
 		},
 	}
 	config.Keys.addCmdFlags(cmd)
@@ -87,23 +87,6 @@ func (c *rootGenesisConfig) getOutputDir() string {
 	return outputDir
 }
 
-func (c *rootGenesisConfig) getConsensusTimeout() uint32 {
-	// Only used when distributed genesis is created
-	if c.TotalNodes > 1 {
-		return c.ConsensusTimeoutMs
-	} else {
-		return 0
-	}
-}
-
-func (c *rootGenesisConfig) getQuorumThreshold() uint32 {
-	// Only used when distributed genesis is created
-	if c.TotalNodes == 1 {
-		return 0
-	}
-	return c.QuorumThreshold
-}
-
 func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	// ensure output dir is present before keys generation
 	_ = config.getOutputDir()
@@ -130,7 +113,6 @@ func rootGenesisRunFunc(_ context.Context, config *rootGenesisConfig) error {
 	}
 
 	rg, pg, err := rootchain.NewRootGenesis(peerID.String(), keys.SigningPrivateKey, encPubKeyBytes, pr)
-
 	if err != nil {
 		return err
 	}
@@ -158,7 +140,7 @@ func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, er
 }
 
 func saveRootGenesisFile(rg *genesis.RootGenesis, outputDir string) error {
-	outputFile := path.Join(outputDir, rootGenesisFileName)
+	outputFile := filepath.Join(outputDir, rootGenesisFileName)
 	return util.WriteJsonFile(outputFile, rg)
 }
 
@@ -175,6 +157,6 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 func savePartitionGenesisFile(pg *genesis.PartitionGenesis, outputDir string) error {
 	sid := binary.BigEndian.Uint32(pg.SystemDescriptionRecord.SystemIdentifier)
 	filename := fmt.Sprintf("partition-genesis-%d.json", sid)
-	outputFile := path.Join(outputDir, filename)
+	outputFile := filepath.Join(outputDir, filename)
 	return util.WriteJsonFile(outputFile, pg)
 }

@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strconv"
 
-	"github.com/alphabill-org/alphabill/internal/block"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
@@ -35,9 +34,6 @@ func newWalletBillsCmd(config *walletConfig) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "bills",
 		Short: "cli for managing alphabill wallet bills and proofs",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand")
-		},
 	}
 	cmd.AddCommand(listCmd(config))
 	cmd.AddCommand(exportCmd(config))
@@ -115,11 +111,7 @@ func execListCmd(cmd *cobra.Command, config *walletConfig) error {
 			consoleWriter.Println(fmt.Sprintf("Account #%d", group.accountIndex+1))
 		}
 		for j, bill := range group.bills.Bills {
-			billValueUint, err := strconv.ParseUint(bill.Value, 10, 64)
-			if err != nil {
-				return err
-			}
-			billValueStr := amountToString(billValueUint, 8)
+			billValueStr := amountToString(bill.Value, 8)
 			consoleWriter.Println(fmt.Sprintf("#%d 0x%X %s", j+1, bill.Id, billValueStr))
 		}
 	}
@@ -205,7 +197,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 		return err
 	}
 
-	var bills []*block.Bill
+	var bills []*moneytx.Bill
 	for _, b := range billsList.Bills {
 		proof, err := restClient.GetProof(b.Id)
 		if err != nil {
@@ -224,7 +216,7 @@ func execExportCmd(cmd *cobra.Command, config *walletConfig) error {
 
 // writeBillsToFile writes bill(s) to given directory.
 // Creates outputDir if it does not already exist. Returns output file.
-func writeBillsToFile(outputDir string, bills ...*block.Bill) (string, error) {
+func writeBillsToFile(outputDir string, bills ...*moneytx.Bill) (string, error) {
 	outputFile, err := getOutputFile(outputDir, bills)
 	if err != nil {
 		return "", err
@@ -233,7 +225,8 @@ func writeBillsToFile(outputDir string, bills ...*block.Bill) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = block.WriteBillsFile(outputFile, &block.Bills{Bills: bills})
+	//err = moneytx.WriteBillsFile(outputFile, newBillsDTO(bills...)) TODO: merge
+	err = moneytx.WriteBillsFile(outputFile, &moneytx.Bills{Bills: bills})
 	if err != nil {
 		return "", err
 	}
@@ -241,7 +234,7 @@ func writeBillsToFile(outputDir string, bills ...*block.Bill) (string, error) {
 }
 
 // getOutputFile returns filename either bill-<bill-id-hex>.json or bills.json
-func getOutputFile(outputDir string, bills []*block.Bill) (string, error) {
+func getOutputFile(outputDir string, bills []*moneytx.Bill) (string, error) {
 	if len(bills) == 0 {
 		return "", errors.New("no bills to export")
 	} else if len(bills) == 1 {
@@ -253,12 +246,12 @@ func getOutputFile(outputDir string, bills []*block.Bill) (string, error) {
 	}
 }
 
-func newBillsDTO(bills ...*money.Bill) *block.Bills {
-	var billsDTO []*block.Bill
+func newBillsDTO(bills ...*money.Bill) *moneytx.Bills {
+	var billsDTO []*moneytx.Bill
 	for _, b := range bills {
 		billsDTO = append(billsDTO, b.ToProto())
 	}
-	return &block.Bills{Bills: billsDTO}
+	return &moneytx.Bills{Bills: billsDTO}
 }
 
 func (t *TrustBase) verify() error {

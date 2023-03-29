@@ -52,9 +52,6 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "token",
 		Short: "create and manage fungible and non-fungible tokens",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand like new-type, send etc")
-		},
 	}
 	cmd.AddCommand(tokenCmdNewType(config))
 	cmd.AddCommand(tokenCmdNewToken(config))
@@ -63,7 +60,7 @@ func tokenCmd(config *walletConfig) *cobra.Command {
 	cmd.AddCommand(tokenCmdDC(config))
 	cmd.AddCommand(tokenCmdList(config, execTokenCmdList))
 	cmd.AddCommand(tokenCmdListTypes(config, execTokenCmdListTypes))
-	cmd.PersistentFlags().StringP(alphabillNodeURLCmdName, "u", defaultAlphabillNodeURL, "alphabill backend uri to connect to")
+	cmd.PersistentFlags().StringP(alphabillApiURLCmdName, "r", defaultTokenApiURL, "alphabill token API uri to connect to")
 	cmd.PersistentFlags().StringP(waitForConfCmdName, "w", "true", "waits for transaction confirmation on the blockchain, otherwise just broadcasts the transaction, defaults to 'true'")
 	return cmd
 }
@@ -72,9 +69,6 @@ func tokenCmdNewType(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new-type",
 		Short: "create new token type",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
-		},
 	}
 	cmd.AddCommand(addCommonAccountFlags(addCommonTypeFlags(tokenCmdNewTypeFungible(config))))
 	cmd.AddCommand(addCommonAccountFlags(addCommonTypeFlags(tokenCmdNewTypeNonFungible(config))))
@@ -250,9 +244,6 @@ func tokenCmdNewToken(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new",
 		Short: "mint new token",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
-		},
 	}
 	cmd.AddCommand(addCommonAccountFlags(tokenCmdNewTokenFungible(config)))
 	cmd.AddCommand(addCommonAccountFlags(tokenCmdNewTokenNonFungible(config)))
@@ -407,9 +398,6 @@ func tokenCmdSend(config *walletConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: "send a token",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand: fungible|non-fungible")
-		},
 	}
 	cmd.AddCommand(tokenCmdSendFungible(config))
 	cmd.AddCommand(tokenCmdSendNonFungible(config))
@@ -765,7 +753,7 @@ func execTokenCmdListTypes(cmd *cobra.Command, config *walletConfig, kind twb.Ki
 }
 
 func initTokensWallet(cmd *cobra.Command, config *walletConfig) (*tokens.Wallet, error) {
-	uri, err := cmd.Flags().GetString(alphabillNodeURLCmdName)
+	uri, err := cmd.Flags().GetString(alphabillApiURLCmdName)
 	if err != nil {
 		return nil, err
 	}

@@ -6,11 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/block"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -73,7 +72,7 @@ func (c *MoneyBackendClient) GetBalance(pubKey []byte, includeDCBills bool) (uin
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBalance response data: %w", err)
 	}
-	return strconv.ParseUint(responseObject.Balance, 10, 64)
+	return responseObject.Balance, nil
 }
 
 func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse, error) {
@@ -95,7 +94,7 @@ func (c *MoneyBackendClient) ListBills(pubKey []byte) (*money.ListBillsResponse,
 	return finalResponse, nil
 }
 
-func (c *MoneyBackendClient) GetProof(billId []byte) (*block.Bills, error) {
+func (c *MoneyBackendClient) GetProof(billId []byte) (*moneytx.Bills, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(proofUrlFormat, c.BaseUrl, ProofPath, hexutil.Encode(billId)), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build get proof request: %w", err)
@@ -116,7 +115,7 @@ func (c *MoneyBackendClient) GetProof(billId []byte) (*block.Bills, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read GetProof response: %w", err)
 	}
-	var responseObject block.Bills
+	var responseObject moneytx.Bills
 	err = protojson.Unmarshal(responseData, &responseObject)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall GetProof response data: %w", err)
@@ -147,7 +146,7 @@ func (c *MoneyBackendClient) GetBlockHeight() (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to unmarshall GetBlockHeight response data: %w", err)
 	}
-	return strconv.ParseUint(responseObject.BlockHeight, 10, 64)
+	return responseObject.BlockHeight, nil
 }
 
 func (c *MoneyBackendClient) retrieveBills(pubKey []byte, offset int) (*money.ListBillsResponse, error) {

@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testtransaction "github.com/alphabill-org/alphabill/internal/testutils/transaction"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/stretchr/testify/require"
@@ -113,10 +113,10 @@ func TestListBillsRequest_DCBillsIncluded(t *testing.T) {
 	require.Equal(t, 2, res.Total)
 	require.Len(t, res.Bills, 2)
 	bill := res.Bills[0]
-	require.Equal(t, "1", bill.Value)
+	require.EqualValues(t, 1, bill.Value)
 	require.False(t, bill.IsDCBill)
 	bill = res.Bills[1]
-	require.Equal(t, "2", bill.Value)
+	require.EqualValues(t, 2, bill.Value)
 	require.True(t, bill.IsDCBill)
 }
 
@@ -140,8 +140,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.Equal(t, "0", res.Bills[0].Value)
-	require.Equal(t, "99", res.Bills[99].Value)
+	require.EqualValues(t, 0, res.Bills[0].Value)
+	require.EqualValues(t, 99, res.Bills[99].Value)
 
 	// verify offset=100 returns next 100 elements
 	res = &ListBillsResponse{}
@@ -149,8 +149,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.Equal(t, "100", res.Bills[0].Value)
-	require.Equal(t, "199", res.Bills[99].Value)
+	require.EqualValues(t, 100, res.Bills[0].Value)
+	require.EqualValues(t, 199, res.Bills[99].Value)
 
 	// verify limit limits result size
 	res = &ListBillsResponse{}
@@ -158,8 +158,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 50)
-	require.Equal(t, "100", res.Bills[0].Value)
-	require.Equal(t, "149", res.Bills[49].Value)
+	require.EqualValues(t, 100, res.Bills[0].Value)
+	require.EqualValues(t, 149, res.Bills[49].Value)
 
 	// verify out of bounds offset returns nothing
 	res = &ListBillsResponse{}
@@ -174,8 +174,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 100)
-	require.Equal(t, "0", res.Bills[0].Value)
-	require.Equal(t, "99", res.Bills[99].Value)
+	require.EqualValues(t, 0, res.Bills[0].Value)
+	require.EqualValues(t, 99, res.Bills[99].Value)
 
 	// verify out of bounds offset+limit return all available data
 	res = &ListBillsResponse{}
@@ -183,8 +183,8 @@ func TestListBillsRequest_Paging(t *testing.T) {
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Equal(t, len(bills), res.Total)
 	require.Len(t, res.Bills, 10)
-	require.Equal(t, "190", res.Bills[0].Value)
-	require.Equal(t, "199", res.Bills[9].Value)
+	require.EqualValues(t, 190, res.Bills[0].Value)
+	require.EqualValues(t, 199, res.Bills[9].Value)
 }
 
 func TestBalanceRequest_Ok(t *testing.T) {
@@ -198,7 +198,7 @@ func TestBalanceRequest_Ok(t *testing.T) {
 	res := &BalanceResponse{}
 	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Equal(t, "1", res.Balance)
+	require.EqualValues(t, 1, res.Balance)
 }
 
 func TestBalanceRequest_NilPubKey(t *testing.T) {
@@ -239,7 +239,7 @@ func TestBalanceRequest_DCBillNotIncluded(t *testing.T) {
 	res := &BalanceResponse{}
 	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/balance?pubkey=%s", port, pubkeyHex), res)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Equal(t, "1", res.Balance)
+	require.EqualValues(t, 1, res.Balance)
 }
 
 func TestProofRequest_Ok(t *testing.T) {
@@ -262,8 +262,9 @@ func TestProofRequest_Ok(t *testing.T) {
 	walletBackend := newWalletBackend(t, withBills(b))
 	port := startServer(t, walletBackend)
 
-	response := &block.Bills{}
-	httpRes := testhttp.DoGetProto(t, fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
+	response := &moneytx.Bills{}
+	httpRes, err := testhttp.DoGetProto(fmt.Sprintf("http://localhost:%d/api/v1/proof?bill_id=%s", port, billId), response)
+	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
 	require.Len(t, response.Bills, 1)
 	res := response.Bills[0]
@@ -321,14 +322,19 @@ func TestProofRequest_ProofDoesNotExist(t *testing.T) {
 
 func TestBlockHeightRequest_Ok(t *testing.T) {
 	blockNumber := uint64(100)
-	service := newWalletBackend(t, withABClient(clientmock.NewMockAlphabillClient(blockNumber, nil)))
+	roundNumber := uint64(150)
+	alphabillClient := clientmock.NewMockAlphabillClient(
+		clientmock.WithMaxBlockNumber(blockNumber),
+		clientmock.WithMaxRoundNumber(roundNumber),
+	)
+	service := newWalletBackend(t, withABClient(alphabillClient))
 	port := startServer(t, service)
 
 	res := &BlockHeightResponse{}
 	httpRes := testhttp.DoGet(t, fmt.Sprintf("http://localhost:%d/api/v1/block-height", port), res)
-
 	require.Equal(t, http.StatusOK, httpRes.StatusCode)
-	require.Equal(t, strconv.FormatUint(blockNumber, 10), res.BlockHeight)
+	require.EqualValues(t, blockNumber, res.BlockHeight)
+	require.EqualValues(t, roundNumber, res.LastRoundNumber)
 }
 
 func TestInvalidUrl_NotFound(t *testing.T) {

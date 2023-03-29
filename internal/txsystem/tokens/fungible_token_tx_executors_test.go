@@ -3,6 +3,7 @@ package tokens
 import (
 	gocrypto "crypto"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/holiman/uint256"
@@ -753,15 +754,8 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	u, err := executor.state.GetUnit(uID)
-	require.NoError(t, err)
-	require.NotNil(t, u)
-	require.Equal(t, rma.Predicate([]byte{0}), u.Bearer)
-	require.IsType(t, &fungibleTokenData{}, u.Data)
-	d := u.Data.(*fungibleTokenData)
-
-	require.Equal(t, burnAttributes.Value, d.value)
-	require.Equal(t, tx.Hash(gocrypto.SHA256), d.backlink)
-	require.Equal(t, roundNr, d.t)
+	require.Nil(t, u)
+	require.ErrorContains(t, err, fmt.Sprintf("item %X does not exist", util.Uint256ToBytes(uID)))
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
@@ -796,8 +790,17 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		Backlink:                     make([]byte, 32),
 		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
 	})
+	maxUintValueTokenID := uint64(existingTokenUnitID2 + 1)
+	burnTx3 := createTx(t, uint256.NewInt(maxUintValueTokenID), &BurnFungibleTokenAttributes{
+		Type:                         existingTokenTypeUnitIDBytes2[:],
+		Value:                        math.MaxUint64,
+		Nonce:                        make([]byte, 32),
+		Backlink:                     make([]byte, 32),
+		InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+	})
 	proofInvalidSource := testblock.CreateProof(t, burnTxInvalidSource, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
 	proofBurnTx2 := testblock.CreateProof(t, burnTx2, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID2)))
+	proofBurnTx3 := testblock.CreateProof(t, burnTx3, signer, util.Uint256ToBytes(uint256.NewInt(maxUintValueTokenID)))
 	emptyBlockProof := testblock.CreateProof(t, nil, signer, util.Uint256ToBytes(uint256.NewInt(existingTokenUnitID)))
 
 	tests := []struct {
@@ -874,6 +877,16 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 				InvariantPredicateSignatures: [][]byte{script.PredicateAlwaysFalse()},
 			}),
 			wantErrStr: "proof is not valid",
+		},
+		{
+			name: "uint64 overflow",
+			tx: createTx(t, uint256.NewInt(existingTokenUnitID2), &JoinFungibleTokenAttributes{
+				BurnTransactions:             []*txsystem.Transaction{burnTx3.ToProtoBuf()},
+				Proofs:                       []*block.BlockProof{proofBurnTx3},
+				Backlink:                     make([]byte, 32),
+				InvariantPredicateSignatures: [][]byte{script.PredicateArgumentEmpty()},
+			}),
+			wantErrStr: "invalid sum of tokens: uint64 overflow",
 		},
 	}
 	for _, tt := range tests {

@@ -37,8 +37,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-const port = 9111
-
 func TestCollectDustTimeoutReached(t *testing.T) {
 	// start server
 	initialBill := &moneytx.InitialBill{
@@ -50,7 +48,7 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	addr := "localhost:9544"
 	startRPCServer(t, network, addr)
 	serverService := testserver.NewTestAlphabillServiceServer()
-	server := testserver.StartServer(port, serverService)
+	server, _ := testserver.StartServer(serverService)
 	t.Cleanup(server.GracefulStop)
 	restAddr, wb, _ := startRestServer(t, addr)
 	// start wallet backend
@@ -68,7 +66,8 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 	err = CreateNewWallet(am, "")
 	require.NoError(t, err)
 	restClient, err := testclient.NewClient(restAddr)
-	w, err := LoadExistingWallet(&WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: addr}}, am, restClient)
+	require.NoError(t, err)
+	w, err := LoadExistingWallet(client.AlphabillClientConfig{Uri: addr}, am, restClient)
 	require.NoError(t, err)
 	pubKeys, err := am.GetPublicKeys()
 	require.NoError(t, err)
@@ -101,11 +100,10 @@ func TestCollectDustTimeoutReached(t *testing.T) {
 
 	for blockNo := uint64(1); blockNo <= dcTimeoutBlockCount; blockNo++ {
 		b := &block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
-			BlockNumber:        blockNo,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNo}},
 		}
 		serverService.SetBlock(blockNo, b)
 	}
@@ -150,7 +148,8 @@ func TestCollectDustInMultiAccountWallet(t *testing.T) {
 	err = CreateNewWallet(am, "")
 	require.NoError(t, err)
 	restClient, err := testclient.NewClient(restAddr)
-	w, err := LoadExistingWallet(&WalletConfig{AlphabillClientConfig: client.AlphabillClientConfig{Uri: addr}}, am, restClient)
+	require.NoError(t, err)
+	w, err := LoadExistingWallet(client.AlphabillClientConfig{Uri: addr}, am, restClient)
 	require.NoError(t, err)
 
 	_, _, _ = am.AddAccount()

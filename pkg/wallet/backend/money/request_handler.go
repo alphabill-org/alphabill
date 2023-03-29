@@ -34,13 +34,13 @@ type (
 
 	ListBillVM struct {
 		Id       []byte `json:"id" swaggertype:"string" format:"base64" example:"AAAAAAgwv3UA1HfGO4qc1T3I3EOvqxfcrhMjJpr9Tn4="`
-		Value    string `json:"value" example:"1000"`
+		Value    uint64 `json:"value,string" example:"1000"`
 		TxHash   []byte `json:"txHash" swaggertype:"string" format:"base64" example:"Q4ShCITC0ODXPR+j1Zl/teYcoU3/mAPy0x8uSsvQFM8="`
 		IsDCBill bool   `json:"isDcBill" example:"false"`
 	}
 
 	BalanceResponse struct {
-		Balance string `json:"balance"`
+		Balance uint64 `json:"balance,string"`
 	}
 
 	AddKeyRequest struct {
@@ -48,7 +48,8 @@ type (
 	}
 
 	BlockHeightResponse struct {
-		BlockHeight string `json:"blockHeight"`
+		BlockHeight     uint64 `json:"blockHeight,string"`
+		LastRoundNumber uint64 `json:"lastRoundNumber"`
 	}
 
 	EmptyResponse struct{}
@@ -162,7 +163,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 			sum += b.Value
 		}
 	}
-	res := &BalanceResponse{Balance: strconv.FormatUint(sum, 10)}
+	res := &BalanceResponse{Balance: sum}
 	writeAsJson(w, res)
 }
 
@@ -171,7 +172,7 @@ func (s *RequestHandler) balanceFunc(w http.ResponseWriter, r *http.Request) {
 // @version 1.0
 // @produce application/json
 // @Param bill_id query string true "ID of the bill (hex)"
-// @Success 200 {object} block.Bills
+// @Success 200 {object} money.Bills
 // @Failure 400 {object} money.ErrorResponse
 // @Failure 404 {object} money.ErrorResponse
 // @Failure 500
@@ -219,12 +220,13 @@ func (s *RequestHandler) handlePubKeyNotFoundError(w http.ResponseWriter, err er
 // @Success 200 {object} BlockHeightResponse
 // @Router /block-height [get]
 func (s *RequestHandler) blockHeightFunc(w http.ResponseWriter, r *http.Request) {
-	maxBlockNumber, err := s.Service.GetMaxBlockNumber(r.Context())
+	maxBlockNumber, lastRoundNumber, err := s.Service.GetMaxBlockNumber(r.Context())
 	if err != nil {
 		log.Error("GET /block-height error fetching max block number", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		writeAsJson(w, &BlockHeightResponse{BlockHeight: strconv.FormatUint(maxBlockNumber, 10)})
+		//writeAsJson(w, &BlockHeightResponse{BlockHeight: strconv.FormatUint(maxBlockNumber, 10)}) // TODO: merge
+		writeAsJson(w, &BlockHeightResponse{BlockHeight: maxBlockNumber, LastRoundNumber: lastRoundNumber})
 	}
 }
 
@@ -335,7 +337,7 @@ func toBillVMList(bills []*Bill) []*ListBillVM {
 	for i, b := range bills {
 		billVMs[i] = &ListBillVM{
 			Id:       b.Id,
-			Value:    strconv.FormatUint(b.Value, 10),
+			Value:    b.Value,
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDCBill,
 		}

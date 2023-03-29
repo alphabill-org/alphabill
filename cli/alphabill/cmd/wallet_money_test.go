@@ -197,7 +197,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, testpartition.BlockchainContainsTx(transferInitialBillTx, network), test.WaitDuration, test.WaitTick)
 
-	txHash, blockNumber := getLastTransactionProps(network)
+	txHash, blockNumber := getLastTransactionProps(t, network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
 
 	// verify bill is received by wallet 1
@@ -208,7 +208,7 @@ func TestSendingMoneyBetweenWallets(t *testing.T) {
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	mockServer.Close()
-	txHash, blockNumber = getLastTransactionProps(network)
+	txHash, blockNumber = getLastTransactionProps(t, network)
 	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
 	defer mockServer.Close()
 
@@ -257,7 +257,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	// verify bill is received by wallet account 1
 	waitForBalance(t, homedir, initialBill.Value, 0)
 
-	txHash, blockNumber := getLastTransactionProps(network)
+	txHash, blockNumber := getLastTransactionProps(t, network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
 
 	// send two transactions (two bills) to wallet account 2
@@ -265,7 +265,7 @@ func TestSendingMoneyBetweenWalletAccounts(t *testing.T) {
 	verifyStdout(t, stdout, "Successfully confirmed transaction(s)")
 
 	mockServer.Close()
-	txHash, blockNumber = getLastTransactionProps(network)
+	txHash, blockNumber = getLastTransactionProps(t, network)
 	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
 	defer mockServer.Close()
 
@@ -304,8 +304,8 @@ func TestSendWithoutWaitingForConfirmation(t *testing.T) {
 	// verify bill is received by wallet account 1
 	waitForBalance(t, homedir, initialBill.Value, 0)
 
-	gb, bp, _ := network.GetBlockProof(transferInitialBillTx, txConverter)
-	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: gb.BlockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: base64.StdEncoding.EncodeToString(bp.TransactionsHash)})
+	_, bp, _ := network.GetBlockProof(transferInitialBillTx, txConverter)
+	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: bp.UnicityCertificate.GetRoundNumber(), billId: initialBill.ID, billValue: initialBill.Value, billTxHash: base64.StdEncoding.EncodeToString(bp.TransactionsHash)})
 	defer mockServer.Close()
 
 	// verify transaction is broadcasted immediately
@@ -341,7 +341,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	// verify bill is received by wallet account 1
 	waitForBalance(t, homedir, initialBill.Value, 0)
 
-	txHash, blockNumber := getLastTransactionProps(network)
+	txHash, blockNumber := getLastTransactionProps(t, network)
 	mockServer, addr := mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value, billTxHash: txHash})
 
 	// send two transactions to wallet account 2 and verify the proof files
@@ -350,7 +350,7 @@ func TestSendCmdOutputPathFlag(t *testing.T) {
 	require.Contains(t, stdout.lines[1], "Transaction proof(s) saved to: ")
 
 	mockServer.Close()
-	txHash, blockNumber = getLastTransactionProps(network)
+	txHash, blockNumber = getLastTransactionProps(t, network)
 	mockServer, addr = mockBackendCalls(&backendMockReturnConf{balance: initialBill.Value, blockHeight: blockNumber, billId: initialBill.ID, billValue: initialBill.Value - 100000000, billTxHash: txHash})
 	defer mockServer.Close()
 
@@ -583,8 +583,11 @@ func txConverter(tx *txsystem.Transaction) (txsystem.GenericTransaction, error) 
 	return moneytx.NewMoneyTx([]byte{0, 0, 0, 0}, tx)
 }
 
-func getLastTransactionProps(network *testpartition.AlphabillPartition) (string, uint64) {
-	gb, bp, _ := network.GetBlockProof(network.Nodes[0].GetLatestBlock().Transactions[0], txConverter)
+func getLastTransactionProps(t *testing.T, network *testpartition.AlphabillPartition) (string, uint64) {
+	bl, err := network.Nodes[0].GetLatestBlock()
+	require.NoError(t, err)
+	_, bp, err := network.GetBlockProof(bl.Transactions[0], txConverter)
+	require.NoError(t, err)
 	txHash := base64.StdEncoding.EncodeToString(bp.GetTransactionsHash())
-	return txHash, gb.BlockNumber
+	return txHash, bp.UnicityCertificate.GetRoundNumber()
 }

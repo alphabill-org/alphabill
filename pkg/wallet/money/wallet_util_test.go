@@ -7,24 +7,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/hash"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
 	"github.com/alphabill-org/alphabill/internal/util"
-	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
-	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
-	"github.com/holiman/uint256"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	"github.com/alphabill-org/alphabill/internal/block"
+	abclient "github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
-	"github.com/stretchr/testify/require"
+	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
+	testclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 )
 
 type (
@@ -48,13 +47,14 @@ func CreateTestWallet(t *testing.T, br *backendMockReturnConf) (*Wallet, *client
 	require.NoError(t, err)
 
 	err = CreateNewWallet(am, "")
-
 	require.NoError(t, err)
 
-	mockClient := clientmock.NewMockAlphabillClient(0, map[uint64]*block.Block{})
+	mockClient := clientmock.NewMockAlphabillClient(clientmock.WithMaxBlockNumber(0), clientmock.WithBlocks(map[uint64]*block.Block{}))
 	_, serverAddr := mockBackendCalls(br)
 	restClient, err := testclient.NewClient(serverAddr.Host)
-	w, err := LoadExistingWallet(&WalletConfig{DbPath: dir}, am, restClient)
+	require.NoError(t, err)
+	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
+	require.NoError(t, err)
 	w.AlphabillClient = mockClient
 	return w, mockClient
 }
@@ -69,45 +69,11 @@ func CreateTestWalletFromSeed(t *testing.T, br *backendMockReturnConf) (*Wallet,
 	mockClient := &clientmock.MockAlphabillClient{}
 	_, serverAddr := mockBackendCalls(br)
 	restClient, err := testclient.NewClient(serverAddr.Host)
-	w, err := LoadExistingWallet(&WalletConfig{DbPath: dir}, am, restClient)
+	require.NoError(t, err)
+	w, err := LoadExistingWallet(abclient.AlphabillClientConfig{}, am, restClient)
+	require.NoError(t, err)
 	w.AlphabillClient = mockClient
 	return w, mockClient
-}
-
-func DeleteWalletDbs(walletDir string) error {
-	if err := os.Remove(filepath.Join(walletDir, account.AccountFileName)); err != nil {
-		return err
-	}
-	return os.Remove(filepath.Join(walletDir, WalletFileName))
-}
-
-func CopyWalletDBFile(t *testing.T) (string, error) {
-	_ = DeleteWalletDbs(os.TempDir())
-	t.Cleanup(func() {
-		_ = DeleteWalletDbs(os.TempDir())
-	})
-	wd, _ := os.Getwd()
-	srcDir := filepath.Join(wd, "testdata", "wallet")
-	return copyWalletDB(srcDir)
-}
-
-func copyWalletDB(srcDir string) (string, error) {
-	dstDir := os.TempDir()
-	srcFile := filepath.Join(srcDir, WalletFileName)
-	dstFile := filepath.Join(dstDir, WalletFileName)
-	return dstDir, copyFile(srcFile, dstFile)
-}
-
-func copyFile(src string, dst string) error {
-	srcBytes, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(dst, srcBytes, 0700)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func mockBackendCalls(br *backendMockReturnConf) (*httptest.Server, *url.URL) {
@@ -156,16 +122,15 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 		k, _ := w.am.GetAccountKey(0)
 		var dcTx *txsystem.Transaction
 		if overrideNonce != nil {
-			dcTx, _ = createDustTx(k, b, overrideNonce, timeout)
+			dcTx, _ = createDustTx(k, w.SystemID(), b, overrideNonce, timeout)
 		} else {
-			dcTx, _ = createDustTx(k, b, calculateDcNonce([]*Bill{b}), timeout)
+			dcTx, _ = createDustTx(k, w.SystemID(), b, calculateDcNonce([]*Bill{b}), timeout)
 		}
 		mockClient.SetBlock(&block.Block{
-			SystemIdentifier:   alphabillMoneySystemId,
-			BlockNumber:        timeout,
+			SystemIdentifier:   w.SystemID(),
 			PreviousBlockHash:  hash.Sum256([]byte{}),
 			Transactions:       []*txsystem.Transaction{dcTx},
-			UnicityCertificate: &certificates.UnicityCertificate{},
+			UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: timeout}},
 		})
 		tp := &block.TxProof{
 			BlockNumber: blockNumber,
@@ -177,8 +142,8 @@ func createBlockProofJsonResponse(t *testing.T, bills []*Bill, overrideNonce []b
 				},
 			},
 		}
-		b := &block.Bill{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}
-		bills := &block.Bills{Bills: []*block.Bill{b}}
+		b := &moneytx.Bill{Id: util.Uint256ToBytes(b.Id), Value: b.Value, IsDcBill: b.IsDcBill, TxProof: tp, TxHash: b.TxHash}
+		bills := &moneytx.Bills{Bills: []*moneytx.Bill{b}}
 		res, _ := protojson.MarshalOptions{EmitUnpopulated: true}.Marshal(bills)
 		jsonList = append(jsonList, string(res))
 	}
@@ -190,7 +155,7 @@ func createBillListJsonResponse(bills []*Bill) string {
 	for i, b := range bills {
 		billVMs[i] = &money.ListBillVM{
 			Id:       util.Uint256ToBytes(b.Id),
-			Value:    strconv.FormatUint(b.Value, 10),
+			Value:    b.Value,
 			TxHash:   b.TxHash,
 			IsDCBill: b.IsDcBill,
 		}

@@ -12,7 +12,7 @@ func TestDcJobWithExistingDcBills(t *testing.T) {
 	// wallet contains 2 dc bills with the same nonce that have timed out
 	w, _ := CreateTestWallet(t, nil)
 	k, _ := w.am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
+	bills := []*Bill{addDcBill(t, w, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, w, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
 	nonce := calculateDcNonce(bills)
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount)
@@ -42,7 +42,7 @@ func TestDcJobWithExistingDcAndNonDcBills(t *testing.T) {
 	w, _ := CreateTestWallet(t, nil)
 	k, _ := w.am.GetAccountKey(0)
 	bill := addBill(1)
-	dc := addDcBill(t, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)
+	dc := addDcBill(t, w, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)
 	nonce := calculateDcNonce([]*Bill{bill, dc})
 	billsList := createBillListJsonResponse([]*Bill{bill, dc})
 	proofList := createBlockProofJsonResponse(t, []*Bill{bill, dc}, nonce, 0, dcTimeoutBlockCount)
@@ -94,7 +94,7 @@ func TestDcJobSendsSwapsIfDcBillTimeoutHasBeenReached(t *testing.T) {
 	// wallet contains 2 dc bills that both have timed out
 	w, _ := CreateTestWallet(t, nil)
 	k, _ := w.am.GetAccountKey(0)
-	bills := []*Bill{addDcBill(t, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
+	bills := []*Bill{addDcBill(t, w, k, uint256.NewInt(1), 1, dcTimeoutBlockCount), addDcBill(t, w, k, uint256.NewInt(1), 2, dcTimeoutBlockCount)}
 	nonce := calculateDcNonce(bills)
 	billsList := createBillListJsonResponse(bills)
 	proofList := createBlockProofJsonResponse(t, bills, nonce, 0, dcTimeoutBlockCount)

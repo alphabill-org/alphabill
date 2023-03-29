@@ -3,26 +3,22 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
+
+	"github.com/spf13/cobra"
 
 	"github.com/alphabill-org/alphabill/pkg/client"
-
 	vd "github.com/alphabill-org/alphabill/pkg/vd"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
-	"github.com/spf13/cobra"
 )
 
 const timeoutDelta = 100 // TODO make timeout configurable?
 
-func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.Command {
+func newVDClientCmd(baseConfig *baseConfiguration) *cobra.Command {
 	var vdCmd = &cobra.Command{
 		Use:   "vd-client",
 		Short: "cli for submitting data to Verifiable Data partition",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return initializeConfig(cmd, baseConfig)
-		},
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Error: must specify a subcommand")
 		},
 	}
 
@@ -34,13 +30,13 @@ func newVDClientCmd(ctx context.Context, baseConfig *baseConfiguration) *cobra.C
 		return nil
 	}
 
-	vdCmd.AddCommand(regCmd(ctx, baseConfig, &wait))
-	vdCmd.AddCommand(listBlocksCmd(ctx, baseConfig, &wait))
+	vdCmd.AddCommand(regCmd(&wait))
+	vdCmd.AddCommand(listBlocksCmd(&wait))
 
 	return vdCmd
 }
 
-func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Command {
+func regCmd(wait *bool) *cobra.Command {
 	var sync bool
 	cmd := &cobra.Command{
 		Use:   "register",
@@ -59,7 +55,7 @@ func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Comman
 				return errors.New("'hash' and 'file' flags are mutually exclusive")
 			}
 
-			vdClient, err := initVDClient(ctx, cmd, wait, sync)
+			vdClient, err := initVDClient(cmd.Context(), cmd, wait, sync)
 			if err != nil {
 				return err
 			}
@@ -80,12 +76,12 @@ func regCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Comman
 	return cmd
 }
 
-func listBlocksCmd(ctx context.Context, _ *baseConfiguration, wait *bool) *cobra.Command {
+func listBlocksCmd(wait *bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list-blocks",
 		Short: "prints all non-empty blocks from the ledger",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			vdClient, err := initVDClient(ctx, cmd, wait, false)
+			vdClient, err := initVDClient(cmd.Context(), cmd, wait, false)
 			if err != nil {
 				return err
 			}

@@ -3,9 +3,9 @@ package tokens
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
 	"reflect"
 	"sort"
 	"time"

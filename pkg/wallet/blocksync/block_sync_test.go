@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
+	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/rpc/alphabill"
 )
 
@@ -99,7 +100,9 @@ func Test_Run(t *testing.T) {
 			// on first call return a block, next call(s) return error
 			if blockNumber == 1 {
 				return &alphabill.GetBlocksResponse{
-					Blocks:         []*block.Block{{BlockNumber: blockNumber}},
+					Blocks: []*block.Block{
+						{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
+					},
 					MaxBlockNumber: blockNumber + batchSize,
 				}, nil
 			}
@@ -135,7 +138,9 @@ func Test_Run(t *testing.T) {
 			time.Sleep(time.Millisecond)
 			// ignore batchSize and send always single block
 			return &alphabill.GetBlocksResponse{
-				Blocks:         []*block.Block{{BlockNumber: blockNumber}},
+				Blocks: []*block.Block{
+					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
+				},
 				MaxBlockNumber: blockNumber + batchSize, //always signal there is one more batch
 			}, nil
 		}
@@ -143,7 +148,7 @@ func Test_Run(t *testing.T) {
 		expErr := fmt.Errorf("failed to process block")
 		processor := func(ctx context.Context, b *block.Block) error {
 			// consume first two blocks, then return error
-			if b.BlockNumber < 3 {
+			if b.UnicityCertificate.InputRecord.RoundNumber < 3 {
 				return nil
 			}
 			return expErr
@@ -179,7 +184,9 @@ func Test_Run(t *testing.T) {
 			// ignore batchSize and send number of blocks based on which iteration it is
 			var b []*block.Block
 			for i := 0; i < int(n); i++ {
-				b = append(b, &block.Block{BlockNumber: blockNumber + uint64(i)})
+				b = append(b, &block.Block{
+					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber + uint64(i)}},
+				})
 			}
 			return &alphabill.GetBlocksResponse{
 				Blocks:         b,
@@ -190,10 +197,10 @@ func Test_Run(t *testing.T) {
 		var lastBN uint64
 		processor := func(ctx context.Context, b *block.Block) error {
 			cbn := atomic.LoadUint64(&lastBN)
-			if cbn != 0 && cbn+1 != b.BlockNumber {
-				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.BlockNumber)
+			if cbn != 0 && cbn+1 != b.UnicityCertificate.InputRecord.RoundNumber {
+				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.UnicityCertificate.InputRecord.RoundNumber)
 			}
-			atomic.StoreUint64(&lastBN, b.BlockNumber)
+			atomic.StoreUint64(&lastBN, b.UnicityCertificate.InputRecord.RoundNumber)
 			if cbn == 6 {
 				// generator did 3 iterations generating 1+2+3 blocks, stop the test
 				cancel()
@@ -223,7 +230,9 @@ func Test_Run(t *testing.T) {
 		getBlocks := func(ctx context.Context, blockNumber, batchSize uint64) (*alphabill.GetBlocksResponse, error) {
 			var b []*block.Block
 			for i := 0; i < int(batchSize); i++ {
-				b = append(b, &block.Block{BlockNumber: blockNumber + uint64(i)})
+				b = append(b, &block.Block{
+					UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber + uint64(i)}},
+				})
 			}
 			return &alphabill.GetBlocksResponse{
 				Blocks:         b,
@@ -234,10 +243,10 @@ func Test_Run(t *testing.T) {
 		var lastBN uint64
 		processor := func(ctx context.Context, b *block.Block) error {
 			cbn := atomic.LoadUint64(&lastBN)
-			if cbn != 0 && cbn+1 != b.BlockNumber {
-				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.BlockNumber)
+			if cbn != 0 && cbn+1 != b.UnicityCertificate.InputRecord.RoundNumber {
+				return fmt.Errorf("unexpected block order: last %d current %d", cbn, b.UnicityCertificate.InputRecord.RoundNumber)
 			}
-			atomic.StoreUint64(&lastBN, b.BlockNumber)
+			atomic.StoreUint64(&lastBN, b.UnicityCertificate.InputRecord.RoundNumber)
 			// to give context cancellations better chanche to propagate
 			time.Sleep(5 * time.Millisecond)
 			return nil
@@ -363,7 +372,9 @@ func Test_fetchBlocks(t *testing.T) {
 			}
 			// ignore batchSize and send only one block
 			return &alphabill.GetBlocksResponse{
-				Blocks:         []*block.Block{{BlockNumber: blockNumber}},
+				Blocks: []*block.Block{
+					{UnicityCertificate: &certificates.UnicityCertificate{InputRecord: &certificates.InputRecord{RoundNumber: blockNumber}}},
+				},
 				MaxBlockNumber: 4,
 			}, nil
 		}

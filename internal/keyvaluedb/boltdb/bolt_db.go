@@ -11,7 +11,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// bucket feature currently not used as it is not compatible with most others kee-value database implementations
+// bucket feature currently not used as it is not compatible with most others key-value database implementations
 // use more than one db file instead
 const defaultBucket = "default"
 

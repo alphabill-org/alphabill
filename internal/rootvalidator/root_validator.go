@@ -103,7 +103,6 @@ func (v *Node) loop() {
 					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
 					return
 				}
-				v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
 				logger.Trace("%v handshake: system id %v, node %v", v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
 				v.onHandshake(req)
 				break
@@ -139,13 +138,13 @@ func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) 
 }
 
 func (v *Node) onHandshake(req *handshake.Handshake) {
-	v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
 		logger.Warning("%v handshake error, partition %X certificate read failed, %v", v.peer.LogID(), sysID.Bytes(), err)
 		return
 	}
+	v.subscription.Subscribe(proto.SystemIdentifier(req.SystemIdentifier), req.NodeIdentifier)
 	if err = v.sendResponse(req.NodeIdentifier, latestUnicityCertificate); err != nil {
 		logger.Warning("%v handshake error, failed to send response, %v", v.peer.LogID(), err)
 		return
@@ -183,6 +182,16 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 		}
 		return
 	}
+	// check if consensus is already achieved
+	if ir, _ := v.incomingRequests.IsConsensusReceived(sysID, ver); ir != nil {
+		// stale request buffer, but no need to add extra proof
+		if err = v.incomingRequests.Add(req); err != nil {
+			logger.Warning("%v stale block certification request from %X node %v could not be stored, %v",
+				v.peer.LogID(), err.Error())
+		}
+		return
+	}
+
 	if err = v.incomingRequests.Add(req); err != nil {
 		logger.Warning("%v block certification request from %X node %v could not be stored, %v",
 			v.peer.LogID(), err.Error())

@@ -60,7 +60,7 @@ func (it *Itr) Key() []byte {
 }
 func (it *Itr) Value(v any) error {
 	if !it.Valid() {
-		fmt.Errorf("iterator invalid")
+		return fmt.Errorf("iterator invalid")
 	}
 	return it.decoder(it.value, v)
 }

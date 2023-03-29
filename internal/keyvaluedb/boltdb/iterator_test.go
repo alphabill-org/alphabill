@@ -59,7 +59,7 @@ func TestBoltIterator_TestEmptyDB(t *testing.T) {
 	}()
 	require.False(t, it.Valid())
 	var value string
-	require.ErrorContains(t, it.Value(value), "unexpected end of JSON input")
+	require.ErrorContains(t, it.Value(value), "iterator invalid")
 	require.Len(t, it.Key(), 0)
 }
 

@@ -27,7 +27,6 @@ type (
 	}
 
 	Node struct {
-		ctx              context.Context
 		ctxCancel        context.CancelFunc
 		peer             *network.Peer // p2p network host for partition
 		partitions       partitions.PartitionConfiguration
@@ -60,10 +59,12 @@ func NewRootValidatorNode(
 		net:              pNet,
 		consensusManager: cm,
 	}
-	node.ctx, node.ctxCancel = context.WithCancel(context.Background())
+	var ctx context.Context
+	ctx, node.ctxCancel = context.WithCancel(context.Background())
 	// Start receiving messages from partition nodes
-	go node.loop()
-	go node.handleConsensus()
+	go node.loop(ctx)
+	// Start handling certification responses
+	go node.handleConsensus(ctx)
 	return node, nil
 }
 
@@ -73,10 +74,10 @@ func (v *Node) Close() {
 }
 
 // loop handles messages from different goroutines.
-func (v *Node) loop() {
+func (v *Node) loop(ctx context.Context) {
 	for {
 		select {
-		case <-v.ctx.Done():
+		case <-ctx.Done():
 			logger.Info("%v exiting root validator main loop", v.peer.LogID())
 			return
 		case msg, ok := <-v.net.ReceivedChannel():
@@ -104,7 +105,7 @@ func (v *Node) loop() {
 					logger.Warning("%v type %T not supported", v.peer.LogID(), msg.Message)
 					return
 				}
-				logger.Trace("%v handshake: system id %v, node %v", v.peer.LogID(), req.SystemIdentifier, req.NodeIdentifier)
+				util.WriteTraceJsonLog(logger, fmt.Sprintf("Handshake from %s", msg.From), req)
 				v.onHandshake(req)
 				break
 			default:
@@ -133,6 +134,11 @@ func (v *Node) sendResponse(nodeID string, uc *certificates.UnicityCertificate) 
 }
 
 func (v *Node) onHandshake(req *handshake.Handshake) {
+	if err := req.IsValid(); err != nil {
+		logger.Warning("%v handshake error, invalid handshake request, %v", v.peer.LogID(), err)
+		return
+	}
+	// process
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
 	latestUnicityCertificate, err := v.consensusManager.GetLatestUnicityCertificate(sysID)
 	if err != nil {
@@ -149,6 +155,10 @@ func (v *Node) onHandshake(req *handshake.Handshake) {
 // OnBlockCertificationRequest handle certification requests from partition nodes.
 // Partition nodes can only extend the stored/certified state
 func (v *Node) onBlockCertificationRequest(req *certification.BlockCertificationRequest) {
+	if req.SystemIdentifier == nil {
+		logger.Warning("%v invalid block certification request system id is nil, rejected", v.peer.LogID())
+		return
+	}
 	sysID := proto.SystemIdentifier(req.SystemIdentifier)
 	_, ver, err := v.partitions.GetInfo(sysID)
 	if err != nil {
@@ -221,10 +231,10 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 }
 
 // handleConsensus - receives consensus results and delivers certificates to subscribers
-func (v *Node) handleConsensus() {
+func (v *Node) handleConsensus(ctx context.Context) {
 	for {
 		select {
-		case <-v.ctx.Done():
+		case <-ctx.Done():
 			logger.Info("%v exiting root validator consensus result handler", v.peer.LogID())
 			return
 		case uc, ok := <-v.consensusManager.CertificationResult():

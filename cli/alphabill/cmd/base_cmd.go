@@ -59,15 +59,15 @@ func newBaseCmd() (*cobra.Command, *baseConfiguration) {
 	config := &baseConfiguration{}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
-		Use:   "alphabill",
-		Short: "The alphabill CLI",
-		Long:  `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
+		Use:           "alphabill",
+		Short:         "The alphabill CLI",
+		Long:          `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
+		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the base command works well
 			// If subcommand does not define PersistentPreRunE, the one from base cmd is used.
-			err := initializeConfig(cmd, config)
-			if err != nil {
-				return err
+			if err := initializeConfig(cmd, config); err != nil {
+				return fmt.Errorf("failed to initialize configuration: %w", err)
 			}
 			initializeLogger(config)
 			return nil

@@ -11,18 +11,19 @@ import (
 	"strings"
 	"syscall"
 
-	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/spf13/cobra"
+	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
+	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/wallet/account"
 	moneyclient "github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 	wlog "github.com/alphabill-org/alphabill/pkg/wallet/log"
 	"github.com/alphabill-org/alphabill/pkg/wallet/money"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/spf13/cobra"
 )
 
 type walletConfig struct {
@@ -103,31 +104,44 @@ func createCmd(config *walletConfig) *cobra.Command {
 }
 
 func execCreateCmd(cmd *cobra.Command, config *walletConfig) (err error) {
-	mnemonic, err := cmd.Flags().GetString(seedCmdName)
-	if err != nil {
-		return
+	mnemonic := ""
+	if cmd.Flags().Changed(seedCmdName) {
+		// when user omits value for "s" flag, ie by executing
+		// wallet create -s --wallet-location some/path
+		// then Cobra eats next param name (--wallet-location) as value for "s". So we validate the mnemonic here to
+		// catch this case as otherwise we most likely get error about creating wallet db which is confusing
+		if mnemonic, err = cmd.Flags().GetString(seedCmdName); err != nil {
+			return fmt.Errorf("failed to read the value of the %q flag: %w", seedCmdName, err)
+		}
+		if !bip39.IsMnemonicValid(mnemonic) {
+			return fmt.Errorf("invalid value %q for flag %q (mnemonic)", mnemonic, seedCmdName)
+		}
 	}
+
 	password, err := createPassphrase(cmd)
 	if err != nil {
-		return
+		return err
 	}
+
 	am, err := account.NewManager(config.WalletHomeDir, password, true)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to create account manager: %w", err)
 	}
 	defer am.Close()
 
-	err = money.CreateNewWallet(am, mnemonic)
+	if err := money.CreateNewWallet(am, mnemonic); err != nil {
+		return fmt.Errorf("failed to create new wallet: %w", err)
+	}
 
 	if mnemonic == "" {
 		mnemonicSeed, err := am.GetMnemonic()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read mnemonic created for the wallet: %w", err)
 		}
 		consoleWriter.Println("The following mnemonic key can be used to recover your wallet. Please write it down now, and keep it in a safe, offline place.")
 		consoleWriter.Println("mnemonic key: " + mnemonicSeed)
 	}
-	return
+	return nil
 }
 
 func sendCmd(config *walletConfig) *cobra.Command {

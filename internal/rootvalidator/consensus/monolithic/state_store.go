@@ -56,7 +56,7 @@ func (s *StateStore) save(newRound uint64, certificates map[protocol.SystemIdent
 	if err != nil {
 		return fmt.Errorf("root state persist failed, %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if err = tx.Write([]byte(roundKey), newRound); err != nil {
 		return fmt.Errorf("root state failed to persist round  %v, %w, rollback", newRound, err)
 	}
@@ -100,15 +100,16 @@ func (s *StateStore) GetLastCertifiedInputRecords() (map[protocol.SystemIdentifi
 	defer s.mu.Unlock()
 	ir := make(map[protocol.SystemIdentifier]*certificates.InputRecord)
 	it := s.db.Find([]byte(certPrefix))
-	defer it.Close()
+	var err error
+	defer func() { err = it.Close() }()
 	for ; it.Valid() && strings.HasPrefix(string(it.Key()), certPrefix); it.Next() {
 		var cert certificates.UnicityCertificate
-		if err := it.Value(&cert); err != nil {
+		if err = it.Value(&cert); err != nil {
 			return nil, fmt.Errorf("read certificate %v failed, %w", it.Key(), err)
 		}
 		ir[protocol.SystemIdentifier(cert.UnicityTreeCertificate.SystemIdentifier)] = cert.InputRecord
 	}
-	return ir, nil
+	return ir, err
 }
 
 func (s *StateStore) GetCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {

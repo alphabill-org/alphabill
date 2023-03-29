@@ -198,23 +198,21 @@ func initState(n *Node) error {
 	}
 	// restore state from db
 	prevBlock := genesisBlock
+	var err error
 	// get next block from genesis block
 	dbIt := n.blockStore.Find(util.Uint64ToBytes(pgenesis.PartitionRoundNumber + 1))
-	defer func() {
-		if err := dbIt.Close(); err != nil {
-			logger.Warning("Unexpected DB iterator error %v", err)
-		}
-	}()
+	defer func() { err = dbIt.Close() }()
 	for ; dbIt.Valid(); dbIt.Next() {
 		var bl block.Block
 		roundNo := util.BytesToUint64(dbIt.Key())
-		if err := dbIt.Value(&bl); err != nil {
+		if err = dbIt.Value(&bl); err != nil {
 			return fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 		}
 		if !bytes.Equal(prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.PreviousBlockHash) {
 			return fmt.Errorf("invalid blockchain (previous block %v hash='%X', current block %v backlink='%X')", prevBlock.UnicityCertificate.InputRecord.RoundNumber, prevBlock.UnicityCertificate.InputRecord.BlockHash, bl.UnicityCertificate.InputRecord.RoundNumber, bl.PreviousBlockHash)
 		}
-		state, err := n.applyBlockTransactions(bl.GetRoundNumber(), bl.Transactions)
+		var state txsystem.State
+		state, err = n.applyBlockTransactions(bl.GetRoundNumber(), bl.Transactions)
 		if err != nil {
 			return fmt.Errorf("block %v apply transactions failed, %w", roundNo, err)
 		}
@@ -230,7 +228,7 @@ func initState(n *Node) error {
 	n.luc = prevBlock.UnicityCertificate
 	n.lastStoredBlock = prevBlock
 	n.restoreBlockProposal(prevBlock)
-	return nil
+	return err
 }
 
 func verifyTxSystemState(state txsystem.State, ucIR *certificates.InputRecord) error {
@@ -858,7 +856,8 @@ func (n *Node) handleLedgerReplicationRequest(lr *replication.LedgerReplicationR
 		dbIt := n.blockStore.Find(util.Uint64ToBytes(startBlock))
 		defer func() {
 			if err := dbIt.Close(); err != nil {
-				logger.Warning("Unexpected DB iterator error %v", err)
+				logger.Warning(
+					"Unexpected DB iterator error %v", err)
 			}
 		}()
 		for ; dbIt.Valid(); dbIt.Next() {
@@ -1132,17 +1131,14 @@ func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
 
 func (n *Node) GetLatestBlock() (*block.Block, error) {
 	dbIt := n.blockStore.Last()
-	defer func() {
-		if err := dbIt.Close(); err != nil {
-			logger.Warning("Unexpected DB iterator error %v", err)
-		}
-	}()
+	var err error
+	defer func() { err = dbIt.Close() }()
 	var bl block.Block
 	roundNo := util.BytesToUint64(dbIt.Key())
-	if err := dbIt.Value(&bl); err != nil {
+	if err = dbIt.Value(&bl); err != nil {
 		return nil, fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 	}
-	return &bl, nil
+	return &bl, err
 }
 
 func (n *Node) GetLatestRoundNumber() (uint64, error) {

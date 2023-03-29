@@ -251,8 +251,8 @@ func TestNode_HandleOlderUnicityCertificate(t *testing.T) {
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := NewSingleNodePartition(t, &testtxsystem.CounterTxSystem{})
 	defer tp.Close()
-	systemIdentifier := p.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
-	luc, found := tp.rootState.Certificates[systemIdentifier]
+	systemId := p.SystemIdentifier(tp.nodeConf.GetSystemIdentifier())
+	luc, found := tp.certs[systemId]
 	require.True(t, found)
 	// Mock and skip some root rounds
 	uc, err := tp.CreateUnicityCertificate(luc.InputRecord, luc.UnicitySeal.RootChainRoundNumber+3)

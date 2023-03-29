@@ -3,6 +3,7 @@ package monolithic
 import (
 	"fmt"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
@@ -15,115 +16,126 @@ import (
 
 const (
 	BoltRootChainStoreFileName = "rootchain.db"
-	stateKey                   = "state"
+	roundKey                   = "round"
+	certPrefix                 = "cert"
 )
 
 type (
-	RootState struct {
-		Round        uint64                                                         `json:"latestRound"`
-		RootHash     []byte                                                         `json:"latestRootHash"`
-		Certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate `json:"certificates"`
-	}
-
 	StateStore struct {
-		state *RootState
-		db    keyvaluedb.KeyValueDB
-		mu    sync.Mutex
+		db keyvaluedb.KeyValueDB
+		mu sync.Mutex
 	}
 )
 
-func NewRootStateFromGenesis(rg *genesis.RootGenesis) *RootState {
+func certKey(id []byte) []byte {
+	return append([]byte(certPrefix), id...)
+}
+
+func NewStateStore(dbPath string) (*StateStore, error) {
+	if dbPath == "" {
+		return &StateStore{db: memorydb.New()}, nil
+	} else {
+		boltDB, err := boltdb.New(path.Join(dbPath, BoltRootChainStoreFileName))
+		if err != nil {
+			return nil, fmt.Errorf("bolt db initialization failed, %w", err)
+		}
+		return &StateStore{db: boltDB}, nil
+	}
+}
+
+func (s *StateStore) IsEmpty() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.db.Empty()
+}
+
+func (s *StateStore) save(newRound uint64, certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, err := s.db.StartTx()
+	if err != nil {
+		return fmt.Errorf("root state persist failed, %w", err)
+	}
+	defer tx.Rollback()
+	if err = tx.Write([]byte(roundKey), newRound); err != nil {
+		return fmt.Errorf("root state failed to persist round  %v, %w, rollback", newRound, err)
+	}
+	// update certificates
+	for id, uc := range certificates {
+		key := certKey(id.Bytes())
+		if err = tx.Write(key, uc); err != nil {
+			return fmt.Errorf("root state failed to persist certificate for  %X, %w", id.Bytes(), err)
+		}
+	}
+	// persist state
+	return tx.Commit()
+}
+
+func (s *StateStore) Init(rg *genesis.RootGenesis) error {
 	var certs = make(map[protocol.SystemIdentifier]*certificates.UnicityCertificate)
+	if rg == nil {
+		return fmt.Errorf("store init failed, root genesis is nil")
+	}
 	for _, partition := range rg.Partitions {
 		identifier := partition.GetSystemIdentifierString()
 		certs[identifier] = partition.Certificate
 	}
-	// If not initiated, save genesis file to store
-	return &RootState{Round: rg.GetRoundNumber(), Certificates: certs, RootHash: rg.GetRoundHash()}
+	return s.save(rg.GetRoundNumber(), certs)
 }
 
-func (r *RootState) Update(newState *RootState) {
-	r.Round = newState.Round
-	r.RootHash = newState.RootHash
-	// Update changed UC's
-	for id, uc := range newState.Certificates {
-		r.Certificates[id] = uc
-	}
-}
-
-func newWithMemoryDB(rg *genesis.RootGenesis) (*StateStore, error) {
-	db := memorydb.New()
-	state := NewRootStateFromGenesis(rg)
-	if err := db.Write([]byte(stateKey), state); err != nil {
-		return nil, err
-	}
-	return &StateStore{
-		db:    db,
-		state: state,
-	}, nil
-}
-
-func newWithBoltDB(rg *genesis.RootGenesis, dbPath string) (*StateStore, error) {
-	var state *RootState
-	db, err := boltdb.New(path.Join(dbPath, BoltRootChainStoreFileName))
+func (s *StateStore) Update(newRound uint64, certificates map[protocol.SystemIdentifier]*certificates.UnicityCertificate) error {
+	// sanity check
+	round, err := s.GetRound()
 	if err != nil {
-		return nil, fmt.Errorf("bolt db init failed, %w", err)
+		return fmt.Errorf("failed to read root round")
 	}
-	if db.Empty() {
-		state = NewRootStateFromGenesis(rg)
-		if err = db.Write([]byte(stateKey), state); err != nil {
-			return nil, fmt.Errorf("bolt db genesis write failed, %w", err)
-		}
-	} else {
-		// read last stored state
-		var lastState RootState
-		found, err := db.Read([]byte(stateKey), &lastState)
-		if found == false || err != nil {
-			return nil, fmt.Errorf("read last state from bolt db failed, %w", err)
-		}
-		state = &lastState
+	if round >= newRound {
+		return fmt.Errorf("error new round %v is in the past, latest stored round %v", newRound, round)
 	}
-	return &StateStore{
-		db:    db,
-		state: state,
-	}, nil
+	return s.save(newRound, certificates)
 }
 
-func NewStateStore(rg *genesis.RootGenesis, dbPath string) (*StateStore, error) {
-	if len(dbPath) == 0 {
-		return newWithMemoryDB(rg)
-	} else {
-		return newWithBoltDB(rg, dbPath)
-	}
-}
-
-func (s *StateStore) Save(newState *RootState) error {
+func (s *StateStore) GetLastCertifiedInputRecords() (map[protocol.SystemIdentifier]*certificates.InputRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if newState == nil {
-		return fmt.Errorf("state is nil")
+	ir := make(map[protocol.SystemIdentifier]*certificates.InputRecord)
+	it := s.db.Find([]byte(certPrefix))
+	defer it.Close()
+	for ; it.Valid() && strings.HasPrefix(string(it.Key()), certPrefix); it.Next() {
+		var cert certificates.UnicityCertificate
+		if err := it.Value(&cert); err != nil {
+			return nil, fmt.Errorf("read certificate %v failed, %w", it.Key(), err)
+		}
+		ir[protocol.SystemIdentifier(cert.UnicityTreeCertificate.SystemIdentifier)] = cert.InputRecord
 	}
-	if err := checkRoundNumber(s.state, newState); err != nil {
-		return err
-	}
-	// update local cache
-	s.state.Update(newState)
-	// persist state
-	return s.db.Write([]byte(stateKey), newState)
+	return ir, nil
 }
 
-func (s *StateStore) Get() *RootState {
+func (s *StateStore) GetCertificate(id protocol.SystemIdentifier) (*certificates.UnicityCertificate, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.state
+	var cert certificates.UnicityCertificate
+	cKey := certKey(id.Bytes())
+	found, err := s.db.Read(cKey, &cert)
+	if found == false {
+		return nil, fmt.Errorf("certificate id %X not found", id.Bytes())
+	}
+	if err != nil {
+		return nil, fmt.Errorf("certificate id %X read failed, %w", id.Bytes(), err)
+	}
+	return &cert, nil
 }
 
-// checkRoundNumber makes sure that the round number monotonically increases
-// This will become obsolete in distributed root chain solution, then it just has to be bigger and caps are possible
-func checkRoundNumber(current, newState *RootState) error {
-	// Round number must be increasing
-	if current.Round >= newState.Round {
-		return fmt.Errorf("error new round %v is in past, latest stored round %v", newState.Round, current.Round)
+func (s *StateStore) GetRound() (uint64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	round := uint64(0)
+	found, err := s.db.Read([]byte(roundKey), &round)
+	if found == false {
+		return 0, fmt.Errorf("round not stored in db")
 	}
-	return nil
+	if err != nil {
+		return 0, fmt.Errorf("round read failed, %w", err)
+	}
+	return round, nil
 }

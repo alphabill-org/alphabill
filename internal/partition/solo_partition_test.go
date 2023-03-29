@@ -21,7 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
-	rstore "github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
 	rootgenesis "github.com/alphabill-org/alphabill/internal/rootvalidator/genesis"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/unicitytree"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -43,7 +42,8 @@ type SingleNodePartition struct {
 	store      keyvaluedb.KeyValueDB
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
-	rootState  rstore.RootState
+	rootRound  uint64
+	certs      map[p.SystemIdentifier]*certificates.UnicityCertificate
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
@@ -104,11 +104,6 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	for _, partition := range rootGenesis.Partitions {
 		certs[partition.GetSystemIdentifierString()] = partition.Certificate
 	}
-	rootState := rstore.RootState{
-		Round:        rootGenesis.GetRoundNumber(),
-		RootHash:     rootGenesis.GetRoundHash(),
-		Certificates: certs,
-	}
 	/*	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemStateStore(gocrypto.SHA256))
 		require.NoError(t, err)
 	*/
@@ -127,7 +122,8 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 
 	partition := &SingleNodePartition{
 		nodeDeps:   deps,
-		rootState:  rootState,
+		rootRound:  rootGenesis.GetRoundNumber(),
+		certs:      certs,
 		rootSigner: rootSigner,
 		mockNet:    net,
 		eh:         eh,
@@ -282,16 +278,15 @@ func (sn *SingleNodePartition) SubmitUC(t *testing.T, uc *certificates.UnicityCe
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *certificates.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)]
+	luc, found := sn.certs[p.SystemIdentifier(req.SystemIdentifier)]
 	require.True(t, found)
 	err := consensus.CheckBlockCertificationRequest(req, luc)
 	require.NoError(t, err)
-	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootState.Round+1)
+	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state
-	sn.rootState.Round = uc.UnicitySeal.RootChainRoundNumber
-	sn.rootState.RootHash = uc.UnicitySeal.Hash
-	sn.rootState.Certificates[p.SystemIdentifier(req.SystemIdentifier)] = uc
+	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
+	sn.certs[p.SystemIdentifier(req.SystemIdentifier)] = uc
 	return uc
 }
 

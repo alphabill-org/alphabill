@@ -3,6 +3,7 @@ package monolithic
 import (
 	gocrypto "crypto"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -43,7 +44,7 @@ func readResult(ch <-chan certificates.UnicityCertificate, timeout time.Duration
 	}
 }
 
-func initConsensusManager(t *testing.T) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
+func initConsensusManager(t *testing.T, dbPath string) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
 	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
@@ -53,9 +54,16 @@ func initConsensusManager(t *testing.T) (*ConsensusManager, *testutils.TestNode,
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	partitions, err := partitions.NewPartitionStoreFromGenesis(rootGenesis.Partitions)
-	cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer)
-	require.NoError(t, err)
-	return cm, rootNode, partitionNodes, rootGenesis
+	if dbPath == "" {
+		cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer)
+		require.NoError(t, err)
+		return cm, rootNode, partitionNodes, rootGenesis
+
+	} else {
+		cm, err := NewMonolithicConsensusManager(rootNode.Peer.ID().String(), rootGenesis, partitions, rootNode.Signer, consensus.WithPersistentStoragePath(dbPath))
+		require.NoError(t, err)
+		return cm, rootNode, partitionNodes, rootGenesis
+	}
 }
 
 func TestConsensusManager_checkT2Timeout(t *testing.T) {
@@ -65,21 +73,10 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 		{SystemDescriptionRecord: &genesis.SystemDescriptionRecord{SystemIdentifier: sysID2, T2Timeout: 2500}},
 	})
 	require.NoError(t, err)
-	manager := &ConsensusManager{
-		selfID: "test",
-		params: &consensus.Parameters{
-			BlockRateMs: 900 * time.Millisecond, // also known as T3
-		},
-		partitions: partitions,
-		ir: map[p.SystemIdentifier]*certificates.InputRecord{
-			p.SystemIdentifier(sysID0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			p.SystemIdentifier(sysID1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-			p.SystemIdentifier(sysID2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
-		},
-		changes: map[p.SystemIdentifier]*certificates.InputRecord{},
-	}
+	store, err := NewStateStore("")
+	require.NoError(t, err)
 	// store mock state
-	lastState := RootState{Round: 4, RootHash: []byte{0, 1}, Certificates: map[p.SystemIdentifier]*certificates.UnicityCertificate{
+	certs := map[p.SystemIdentifier]*certificates.UnicityCertificate{
 		p.SystemIdentifier(sysID0): {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 1}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
@@ -92,15 +89,32 @@ func TestConsensusManager_checkT2Timeout(t *testing.T) {
 			InputRecord:            &certificates.InputRecord{Hash: []byte{1, 3}, PreviousHash: []byte{1, 1}, BlockHash: []byte{2, 3}, SummaryValue: []byte{3, 4}},
 			UnicityTreeCertificate: &certificates.UnicityTreeCertificate{},
 			UnicitySeal:            &certificates.UnicitySeal{RootChainRoundNumber: 4}}, // no timeout
-	}}
-	require.NoError(t, manager.checkT2Timeout(5, &lastState))
+	}
+	// shortcut, to avoid generating root genesis file
+	require.NoError(t, store.save(4, certs))
+
+	manager := &ConsensusManager{
+		selfID: "test",
+		params: &consensus.Parameters{
+			BlockRateMs: 900 * time.Millisecond, // also known as T3
+		},
+		partitions: partitions,
+		stateStore: store,
+		ir: map[p.SystemIdentifier]*certificates.InputRecord{
+			p.SystemIdentifier(sysID0): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			p.SystemIdentifier(sysID1): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+			p.SystemIdentifier(sysID2): {Hash: []byte{0, 1}, PreviousHash: []byte{0, 0}, BlockHash: []byte{1, 2}, SummaryValue: []byte{2, 3}},
+		},
+		changes: map[p.SystemIdentifier]*certificates.InputRecord{},
+	}
+	require.NoError(t, manager.checkT2Timeout(5))
 	// if round is 900ms then timeout of 2500 is reached in 3 * 900ms rounds, which is 2700ms
 	require.Equal(t, 1, len(manager.changes))
 	require.Contains(t, manager.changes, p.SystemIdentifier(sysID1))
 }
 
 func TestConsensusManager_NormalOperation(t *testing.T) {
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t)
+	cm, rootNode, partitionNodes, rg := initConsensusManager(t, "")
 	defer cm.Stop()
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)
@@ -134,7 +148,11 @@ func TestConsensusManager_NormalOperation(t *testing.T) {
 
 // this will run long, cut timeouts or find a way to manipulate timeouts
 func TestConsensusManager_PartitionTimeout(t *testing.T) {
-	cm, rootNode, partitionNodes, rg := initConsensusManager(t)
+	dir, err := os.MkdirTemp("", "bolt*")
+	defer func() {
+		require.NoError(t, os.RemoveAll(dir))
+	}()
+	cm, rootNode, partitionNodes, rg := initConsensusManager(t, dir)
 	defer cm.Stop()
 	// make sure that 3 partition nodes where generated, needed for the next steps
 	require.Len(t, partitionNodes, 3)

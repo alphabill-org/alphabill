@@ -16,16 +16,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-const (
-	t3TimerID = "t3timer"
-)
-
 type (
-	Store interface {
-		Save(*RootState) error
-		Get() (*RootState, error)
-	}
-
 	ConsensusManager struct {
 		ctx          context.Context
 		ctxCancel    context.CancelFunc
@@ -36,6 +27,7 @@ type (
 		selfID       string // node identifier
 		partitions   partitions.PartitionConfiguration
 		stateStore   *StateStore
+		round        uint64
 		ir           map[p.SystemIdentifier]*certificates.InputRecord
 		changes      map[p.SystemIdentifier]*certificates.InputRecord
 		signer       crypto.Signer // private key of the root chain
@@ -49,14 +41,6 @@ func trackExecutionTime(start time.Time, name string) {
 	logger.Debug(fmt.Sprintf("%v took %v", name, time.Since(start)))
 }
 
-func loadInputRecords(state *RootState) map[p.SystemIdentifier]*certificates.InputRecord {
-	ir := make(map[p.SystemIdentifier]*certificates.InputRecord)
-	for id, uc := range state.Certificates {
-		ir[id] = uc.InputRecord
-	}
-	return ir
-}
-
 // NewMonolithicConsensusManager creates new monolithic (single node) consensus manager
 func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, partitionStore partitions.PartitionConfiguration,
 	signer crypto.Signer, opts ...consensus.Option) (*ConsensusManager, error) {
@@ -67,11 +51,28 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 	// load optional parameters
 	optional := consensus.LoadConf(opts)
 	// Initiate store
-	storage, err := NewStateStore(rg, optional.StoragePath)
+	storage, err := NewStateStore(optional.StoragePath)
+	if err != nil {
+		return nil, fmt.Errorf("storage init failed, %w", err)
+	}
+	if storage.IsEmpty() {
+		// init form genesis
+		logger.Info("Consensus init from genesis")
+		if err = storage.Init(rg); err != nil {
+			return nil, fmt.Errorf("consneus manager genesis init failed, %w", err)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("consneus manager storage init failed, %w", err)
 	}
-	lastState := storage.Get()
+	lastIR, err := storage.GetLastCertifiedInputRecords()
+	if err != nil {
+		return nil, fmt.Errorf("restore root state from DB failed, %w", err)
+	}
+	lastRound, err := storage.GetRound()
+	if err != nil {
+		return nil, fmt.Errorf("restore root round from DB failed, %w", err)
+	}
 	consensusParams := consensus.NewConsensusParams(rg.Root)
 	consensusManager := &ConsensusManager{
 		certReqCh:    make(chan consensus.IRChangeRequest),
@@ -81,7 +82,8 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		selfID:       selfStr,
 		partitions:   partitionStore,
 		stateStore:   storage,
-		ir:           loadInputRecords(lastState),
+		round:        lastRound,
+		ir:           lastIR,
 		changes:      make(map[p.SystemIdentifier]*certificates.InputRecord),
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
@@ -111,10 +113,9 @@ func (x *ConsensusManager) Stop() {
 }
 
 func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*certificates.UnicityCertificate, error) {
-	state := x.stateStore.Get()
-	luc, f := state.Certificates[id]
-	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %X", id)
+	luc, err := x.stateStore.GetCertificate(id)
+	if err != nil {
+		return nil, fmt.Errorf("find certificate for system id %X failed, %w", id, err)
 	}
 	return luc, nil
 }
@@ -145,9 +146,8 @@ func (x *ConsensusManager) loop() {
 }
 
 // onIRChangeReq handles partition IR change requests.
-// NB! this is a test implementation, which receives the request from validator go routine running in the same instance.
-// Hence, we assume that the partition request handler is working correctly and do not check the proof here.
-// More correct would be to
+// NB! the request is received from validator go routine running in the same instance.
+// Hence, it is assumed that the partition request handler is working correctly and the proof is not double verified here
 func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 	var newInputRecord *certificates.InputRecord = nil
 	switch req.Reason {
@@ -159,24 +159,22 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 		newInputRecord = req.Requests[0].InputRecord
 		break
 	case consensus.QuorumNotPossible:
-		state := x.stateStore.Get()
-		luc, f := state.Certificates[req.SystemIdentifier]
-		if !f {
-			return fmt.Errorf("ir change request ignored, no last state for system id %X", req.SystemIdentifier.Bytes())
+		luc, err := x.stateStore.GetCertificate(req.SystemIdentifier)
+		if err != nil {
+			return fmt.Errorf("ir change request ignored, read state for system id %X failed, %w", req.SystemIdentifier.Bytes(), err)
 		}
 		// repeat UC, ignore error here as we found the luc, and it cannot be nil
 		newInputRecord, _ = certificates.NewRepeatInputRecord(luc.InputRecord)
 		break
-
 	default:
 		return fmt.Errorf("invalid certfification reason %v", req.Reason)
 	}
-
-	ir, found := x.changes[req.SystemIdentifier]
-
+	// In this round, has a request already been received?
+	_, found := x.changes[req.SystemIdentifier]
+	// ignore duplicate request, first come, first served
+	// should probably be more vocal if this not a binary duplicate
 	if found {
-		logger.Debug("Partition %X, pending request exists %v, ignoring new %v", req.SystemIdentifier,
-			ir, newInputRecord)
+		logger.Debug("Partition %X, pending request exists, ignoring new", req.SystemIdentifier)
 		return nil
 	}
 	logger.Debug("Partition %X, IR change request received", req.SystemIdentifier)
@@ -187,59 +185,57 @@ func (x *ConsensusManager) onIRChangeReq(req *consensus.IRChangeRequest) error {
 func (x *ConsensusManager) onT3Timeout() {
 	defer trackExecutionTime(time.Now(), "t3 timeout handling")
 	logger.Info("T3 timeout")
-	lastState := x.stateStore.Get()
-	newRound := lastState.Round + 1
+	// increment
+	newRound := x.round + 1
 	// evaluate timeouts and add repeat UC requests if timeout
-	if err := x.checkT2Timeout(newRound, lastState); err != nil {
+	if err := x.checkT2Timeout(newRound); err != nil {
 		return
 	}
-	// if no new consensus or timeout then skip the round
+	// if no new consensus or timeouts then skip the round
 	if len(x.changes) == 0 {
 		logger.Info("Round %v, no IR changes", newRound)
 		// persist new round
-		newState := &RootState{
-			Round:    newRound,
-			RootHash: lastState.RootHash,
-		}
-		if err := x.stateStore.Save(newState); err != nil {
-			logger.Warning("Round %d failed to persist new root state, %v", newState.Round, err)
+		if err := x.stateStore.Update(newRound, nil); err != nil {
+			logger.Warning("Round %d failed to persist new root state, %v", newRound, err)
 			return
 		}
+		// update local cache for round number
+		x.round = newRound
 		return
 	}
-	newState, err := x.generateUnicityCertificates(newRound)
+	certs, err := x.generateUnicityCertificates(newRound)
 	if err != nil {
 		logger.Warning("Round %d, T3 timeout failed: %v", newRound, err)
-		// restore input records form last state
-		x.ir = loadInputRecords(lastState)
 		return
 	}
-	// persist new state
-	if err = x.stateStore.Save(newState); err != nil {
-		logger.Warning("Round %d failed to persist new root state, %v", newState.Round, err)
-		return
-	}
+	// update local cache for round number
+	x.round = newRound
 	// Only deliver updated (new input or repeat) certificates
-	for id, cert := range newState.Certificates {
-		logger.Debug("Round %d sending new UC for '%X'", newState.Round, id.Bytes())
+	for id, cert := range certs {
+		logger.Debug("Round %d sending new UC for '%X'", newRound, id.Bytes())
 		x.certResultCh <- *cert
 	}
 }
 
-func (x *ConsensusManager) checkT2Timeout(round uint64, state *RootState) error {
+func (x *ConsensusManager) checkT2Timeout(round uint64) error {
 	// evaluate timeouts
-	for id, cert := range state.Certificates {
+	for id := range x.ir {
 		// if new input was this partition id was not received for this round
 		if _, found := x.changes[id]; !found {
 			partInfo, _, err := x.partitions.GetInfo(id)
 			if err != nil {
 				return err
 			}
-			if time.Duration(round-cert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRateMs >
+			lastCert, err := x.stateStore.GetCertificate(id)
+			if err != nil {
+				logger.Warning("Unexpected error, read certificate for %X failed, %v", id.Bytes(), err)
+				continue
+			}
+			if time.Duration(round-lastCert.UnicitySeal.RootChainRoundNumber)*x.params.BlockRateMs >
 				time.Duration(partInfo.T2Timeout)*time.Millisecond {
 				// timeout
 				logger.Info("Round %v, partition %X T2 timeout", round, id.Bytes())
-				repeatIR, _ := certificates.NewRepeatInputRecord(cert.InputRecord)
+				repeatIR, _ := certificates.NewRepeatInputRecord(lastCert.InputRecord)
 				x.changes[id] = repeatIR
 			}
 		}
@@ -247,28 +243,36 @@ func (x *ConsensusManager) checkT2Timeout(round uint64, state *RootState) error 
 	return nil
 }
 
-func (x *ConsensusManager) generateUnicityCertificates(round uint64) (*RootState, error) {
+func getMergeInputRecords(currentIR, changed map[p.SystemIdentifier]*certificates.InputRecord) map[p.SystemIdentifier]*certificates.InputRecord {
+	result := make(map[p.SystemIdentifier]*certificates.InputRecord)
+	for id, ir := range currentIR {
+		result[id] = ir
+	}
+	for id, ch := range changed {
+		result[id] = ch
+		// trace level log for more details
+		util.WriteTraceJsonLog(logger, fmt.Sprintf("Partition %X IR:", id), ch)
+	}
+	return result
+}
+
+// generateUnicityCertificates generates certificates for all changed input records in round
+func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.SystemIdentifier]*certificates.UnicityCertificate, error) {
 	// log all changes for this round
 	logger.Info("Round %v, certify changes for partitions %X", round, maps.Keys(x.changes))
-	// apply changes
-	for id, ch := range x.changes {
-		// add sanity checks
-		// log and store
-		util.WriteTraceJsonLog(logger, fmt.Sprintf("Partition %X IR:", id), ch)
-		x.ir[id] = ch
-	}
-	utData := make([]*unicitytree.Data, 0, len(x.ir))
-	for id, ir := range x.ir {
+	// merge changed and unchanged input records and create unicity tree from the whole set
+	newIR := getMergeInputRecords(x.ir, x.changes)
+	// convert IR to unicity tree input
+	utData := make([]*unicitytree.Data, 0, len(newIR))
+	for id, rec := range newIR {
 		sysDesc, _, err := x.partitions.GetInfo(id)
 		if err != nil {
 			return nil, err
 		}
 		sdrh := sysDesc.Hash(x.params.HashAlgorithm)
-		// if it is valid it must have at least one validator with a valid certification request
-		// if there is more, all input records are matching
 		utData = append(utData, &unicitytree.Data{
 			SystemIdentifier:            sysDesc.SystemIdentifier,
-			InputRecord:                 ir,
+			InputRecord:                 rec,
 			SystemDescriptionRecordHash: sdrh,
 		})
 	}
@@ -310,9 +314,15 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (*RootState
 		util.WriteTraceJsonLog(logger, fmt.Sprintf("NewStateStore unicity certificate for partition %X is", sysID.Bytes()), uc)
 		certs[sysID] = uc
 	}
-	// Persist all changes
-	newState := RootState{Round: round, Certificates: certs, RootHash: rootHash}
+	// persist new state
+	if err = x.stateStore.Update(round, certs); err != nil {
+		return nil, fmt.Errorf("round %v failed to persist new root state, %w", round, err)
+	}
+	// now that everything is stored, persist changes to input records
+	for id, ir := range x.changes {
+		x.ir[id] = ir
+	}
 	// clear changed and return new certificates
 	x.changes = make(map[p.SystemIdentifier]*certificates.InputRecord)
-	return &newState, nil
+	return certs, nil
 }

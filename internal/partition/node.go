@@ -132,6 +132,7 @@ func New(
 		status:                      initializing,
 		configuration:               conf,
 		transactionSystem:           txSystem,
+		timers:                      timer.NewTimers(),
 		leaderSelector:              conf.leaderSelector,
 		txValidator:                 conf.txValidator,
 		unicityCertificateValidator: conf.unicityCertificateValidator,
@@ -147,9 +148,6 @@ func New(
 	}
 	n.ctx, n.ctxCancel = context.WithCancel(conf.context)
 
-	// init timer
-	n.timers = timer.NewTimers()
-	n.timers.Start(t1TimerName, conf.t1Timeout)
 	n.txCh = make(chan txsystem.GenericTransaction, conf.txBuffer.Capacity())
 	if n.eventHandler != nil {
 		n.eventCh = make(chan event.Event, conf.eventChCapacity)
@@ -605,7 +603,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	}
 	n.leaderSelector.UpdateLeader(uc)
 	n.startHandleOrForwardTransactions()
-	n.timers.Restart(t1TimerName)
+	n.timers.Start(t1TimerName, n.configuration.t1Timeout)
 	n.sendEvent(event.NewRoundStarted, newRoundNr)
 }
 

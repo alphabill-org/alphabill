@@ -63,6 +63,7 @@ func newBaseCmd() (*cobra.Command, *baseConfiguration) {
 		Short:         "The alphabill CLI",
 		Long:          `The alphabill CLI includes commands for all different parts of the system: shard, core, wallet etc.`,
 		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// You can bind cobra and viper in a few locations, but PersistencePreRunE on the base command works well
 			// If subcommand does not define PersistentPreRunE, the one from base cmd is used.

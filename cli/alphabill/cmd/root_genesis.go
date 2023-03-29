@@ -43,13 +43,14 @@ type rootGenesisConfig struct {
 }
 
 // newRootGenesisCmd creates a new cobra command for the root-genesis component.
+// there will be other commands added in the future
 func newRootGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	config := &rootGenesisConfig{Base: baseConfig, Keys: NewKeysConf(baseConfig, defaultRootChainDir)}
 	var cmd = &cobra.Command{
 		Use:   "root-genesis",
 		Short: "Generates root chain genesis files",
-		Run: func(cmd *cobra.Command, args []string) {
-			consoleWriter.Println("Error: must specify a subcommand like new, combine, sign")
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fmt.Errorf("error: must specify a subcommand, new")
 		},
 	}
 	cmd.AddCommand(newGenesisCmd(config))

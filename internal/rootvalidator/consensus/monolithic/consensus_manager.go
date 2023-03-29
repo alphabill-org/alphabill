@@ -18,7 +18,6 @@ import (
 
 type (
 	ConsensusManager struct {
-		ctx          context.Context
 		ctxCancel    context.CancelFunc
 		certReqCh    chan consensus.IRChangeRequest
 		certResultCh chan certificates.UnicityCertificate
@@ -88,8 +87,9 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 		signer:       signer,
 		trustBase:    map[string]crypto.Verifier{selfStr: verifier},
 	}
-	consensusManager.ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
-	consensusManager.start()
+	var ctx context.Context
+	ctx, consensusManager.ctxCancel = context.WithCancel(context.Background())
+	go consensusManager.loop(ctx)
 	return consensusManager, nil
 }
 
@@ -99,12 +99,6 @@ func (x *ConsensusManager) RequestCertification() chan<- consensus.IRChangeReque
 
 func (x *ConsensusManager) CertificationResult() <-chan certificates.UnicityCertificate {
 	return x.certResultCh
-}
-
-func (x *ConsensusManager) start() {
-	// Start T3 timer
-	x.ticker.Reset(x.params.BlockRateMs)
-	go x.loop()
 }
 
 func (x *ConsensusManager) Stop() {
@@ -120,10 +114,10 @@ func (x *ConsensusManager) GetLatestUnicityCertificate(id p.SystemIdentifier) (*
 	return luc, nil
 }
 
-func (x *ConsensusManager) loop() {
+func (x *ConsensusManager) loop(ctx context.Context) {
 	for {
 		select {
-		case <-x.ctx.Done():
+		case <-ctx.Done():
 			logger.Info("Exiting consensus manager main loop")
 			return
 		case req, ok := <-x.certReqCh:
@@ -293,7 +287,8 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.Syst
 	// extract certificates for all changed IR's
 	for sysID, ir := range x.changes {
 		// get certificate for change
-		utCert, err := ut.GetCertificate(sysID.Bytes())
+		var utCert *certificates.UnicityTreeCertificate
+		utCert, err = ut.GetCertificate(sysID.Bytes())
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +313,7 @@ func (x *ConsensusManager) generateUnicityCertificates(round uint64) (map[p.Syst
 	if err = x.stateStore.Update(round, certs); err != nil {
 		return nil, fmt.Errorf("round %v failed to persist new root state, %w", round, err)
 	}
-	// now that everything is stored, persist changes to input records
+	// now that everything is successfully stored, persist changes to input records
 	for id, ir := range x.changes {
 		x.ir[id] = ir
 	}

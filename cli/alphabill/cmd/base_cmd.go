@@ -3,8 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/alphabill-org/alphabill/internal/errors"
@@ -120,13 +119,12 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration) error {
 
 func initializeLogger(config *baseConfiguration) {
 	loggerConfigFile := config.LogCfgFile
-	if !strings.HasPrefix(config.LogCfgFile, string(os.PathSeparator)) {
+	if !filepath.IsAbs(loggerConfigFile) {
 		// Logger config file URL is using relative path
-		loggerConfigFile = path.Join(config.HomeDir, config.LogCfgFile)
+		loggerConfigFile = filepath.Join(config.HomeDir, config.LogCfgFile)
 	}
 
-	err := logger.UpdateGlobalConfigFromFile(loggerConfigFile)
-	if err != nil {
+	if err := logger.UpdateGlobalConfigFromFile(loggerConfigFile); err != nil {
 		if errors.ErrorCausedBy(err, errors.ErrFileNotFound) {
 			// In a common case when the config file is not found, the error message is made shorter. Not to spam the log.
 			log.Debug("The logger configuration file (%s) not found", loggerConfigFile)

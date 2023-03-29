@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -23,7 +23,7 @@ func TestMoneyGenesis_KeyFileNotFound(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.addAndExecuteCommand(context.Background())
 
-	s := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	s := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
 	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", s))
 }
 
@@ -35,18 +35,16 @@ func TestMoneyGenesis_ForceKeyGeneration(t *testing.T) {
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	gf := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
-	require.FileExists(t, kf)
-	require.FileExists(t, gf)
+	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
+	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName))
 }
 
 func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	err := os.MkdirAll(path.Join(homeDir, moneyGenesisDir), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 
-	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
 	err = util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{NodeIdentifier: "1"})
 	require.NoError(t, err)
 
@@ -55,16 +53,15 @@ func TestMoneyGenesis_DefaultNodeGenesisExists(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.ErrorContains(t, err, fmt.Sprintf("node genesis %s exists", nodeGenesisFile))
-	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	require.NoFileExists(t, kf)
+	require.NoFileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
 }
 
 func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	err := os.MkdirAll(path.Join(homeDir, moneyGenesisDir), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
-	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	kf := filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
 	nodeKeys, err := GenerateKeys()
 	require.NoError(t, err)
 	err = nodeKeys.WriteTo(kf)
@@ -82,15 +79,13 @@ func TestMoneyGenesis_LoadExistingKeys(t *testing.T) {
 
 func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	err := os.MkdirAll(path.Join(homeDir, alphabillDir), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, alphabillDir), 0700)
 	require.NoError(t, err)
 
-	err = os.MkdirAll(path.Join(homeDir, moneyGenesisDir, "n1"), 0700)
+	err = os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir, "n1"), 0700)
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, moneyGenesisDir, defaultKeysFileName)
-
-	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
 
 	cmd := New()
 	args := "money-genesis --gen-keys -o " + nodeGenesisFile + " --home " + homeDir
@@ -98,20 +93,20 @@ func TestMoneyGenesis_WritesGenesisToSpecifiedOutputLocation(t *testing.T) {
 	err = cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	require.FileExists(t, kf)
+	require.FileExists(t, filepath.Join(homeDir, moneyGenesisDir, defaultKeysFileName))
 	require.FileExists(t, nodeGenesisFile)
 }
 
 func TestMoneyGenesis_WithSystemIdentifier(t *testing.T) {
 	homeDir := setupTestHomeDir(t, alphabillDir)
-	err := os.MkdirAll(path.Join(homeDir, moneyGenesisDir), 0700)
+	err := os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir), 0700)
 	require.NoError(t, err)
 
-	err = os.MkdirAll(path.Join(homeDir, moneyGenesisDir, "n1"), 0700)
+	err = os.MkdirAll(filepath.Join(homeDir, moneyGenesisDir, "n1"), 0700)
 	require.NoError(t, err)
 
-	kf := path.Join(homeDir, moneyGenesisDir, "n1", defaultKeysFileName)
-	nodeGenesisFile := path.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
+	kf := filepath.Join(homeDir, moneyGenesisDir, "n1", defaultKeysFileName)
+	nodeGenesisFile := filepath.Join(homeDir, moneyGenesisDir, "n1", nodeGenesisFileName)
 
 	cmd := New()
 	args := "money-genesis -g -k " + kf + " -o " + nodeGenesisFile + " -s 01010101"
@@ -135,7 +130,7 @@ func TestMoneyGenesis_DefaultParamsExist(t *testing.T) {
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	gf := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	gf := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
 	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
 	require.NoError(t, err)
 	require.NotNil(t, pg)
@@ -156,7 +151,7 @@ func TestMoneyGenesis_ParamsCanBeChanged(t *testing.T) {
 	err := cmd.addAndExecuteCommand(context.Background())
 	require.NoError(t, err)
 
-	gf := path.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
+	gf := filepath.Join(homeDir, moneyGenesisDir, nodeGenesisFileName)
 	pg, err := util.ReadJsonFile(gf, &genesis.PartitionGenesis{})
 	require.NoError(t, err)
 	require.NotNil(t, pg)

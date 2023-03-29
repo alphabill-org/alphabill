@@ -3,7 +3,7 @@ package store
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/alphabill-org/alphabill/internal/block"
@@ -71,6 +71,7 @@ func TestPersistentBlockStore_AddGet_EmptyBlock(t *testing.T) {
 
 	// verify block is not persisted, but round number and UC are updated
 	latestPersistedBlock, err := bs.LatestBlock()
+	require.NoError(t, err)
 	require.Equal(t, genesisBlock, latestPersistedBlock)
 	b, err := bs.Get(newBlock.UnicityCertificate.InputRecord.RoundNumber)
 	require.NoError(t, err)
@@ -191,7 +192,7 @@ func newNonEmptyBlock(t *testing.T, blockNo uint64) *block.Block {
 }
 
 func createTestBlockStore(t *testing.T) (*BoltBlockStore, error) {
-	dbFile := path.Join(os.TempDir(), BoltBlockStoreFileName)
+	dbFile := filepath.Join(os.TempDir(), BoltBlockStoreFileName)
 	t.Cleanup(func() {
 		err := os.Remove(dbFile)
 		if err != nil {

@@ -45,5 +45,5 @@ cancelledByQuitSignal returns true when ctx has been cancelled with quit sigal c
 */
 func cancelledByQuitSignal(ctx context.Context) bool {
 	err := context.Cause(ctx)
-	return err != nil && !errors.Is(err, errQuitSignal)
+	return err != nil && errors.Is(err, errQuitSignal)
 }

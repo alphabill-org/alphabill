@@ -2,7 +2,7 @@ package monolithic
 
 import (
 	"fmt"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -35,7 +35,7 @@ func NewStateStore(dbPath string) (*StateStore, error) {
 	if dbPath == "" {
 		return &StateStore{db: memorydb.New()}, nil
 	} else {
-		boltDB, err := boltdb.New(path.Join(dbPath, BoltRootChainStoreFileName))
+		boltDB, err := boltdb.New(filepath.Join(dbPath, BoltRootChainStoreFileName))
 		if err != nil {
 			return nil, fmt.Errorf("bolt db initialization failed, %w", err)
 		}

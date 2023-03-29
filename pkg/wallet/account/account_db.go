@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -371,7 +371,7 @@ func createNewDb(dir string, pw string) (*adb, error) {
 		return nil, err
 	}
 
-	dbFilePath := path.Join(dir, AccountFileName)
+	dbFilePath := filepath.Join(dir, AccountFileName)
 	return openDb(dbFilePath, pw, true)
 }
 

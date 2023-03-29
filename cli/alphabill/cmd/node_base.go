@@ -257,9 +257,8 @@ func startNode(ctx context.Context, txs txsystem.TransactionSystem, cfg *startNo
 func initNodeBlockStore(dbFile string) (keyvaluedb.KeyValueDB, error) {
 	if dbFile != "" {
 		return boltdb.New(dbFile)
-	} else {
-		return memorydb.New(), nil
 	}
+	return memorydb.New(), nil
 }
 
 func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error) {

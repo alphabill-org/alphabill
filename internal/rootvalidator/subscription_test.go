@@ -11,7 +11,7 @@ func TestNewSubscriptionsEmpty(t *testing.T) {
 	require.NotNil(t, subscriptions)
 	// no panic
 	subscriptions.SubscriberError("foo", "1")
-	require.Len(t, subscriptions, 0)
+	require.Len(t, subscriptions.subs, 0)
 	subscribed := subscriptions.Get("foo")
 	require.Len(t, subscribed, 0)
 }
@@ -60,5 +60,5 @@ func TestSubscriptionRefresh(t *testing.T) {
 	require.Len(t, subscribed, 2)
 	// simulate new request from partition
 	subscriptions.Subscribe("foo", "1")
-	require.Equal(t, defaultSubscriptionErrorCount, subscriptions["foo"]["1"])
+	require.Equal(t, defaultSubscriptionErrorCount, subscriptions.subs["foo"]["1"])
 }

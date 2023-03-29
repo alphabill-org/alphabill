@@ -3,6 +3,7 @@ package rootvalidator
 import (
 	"bytes"
 	"errors"
+	"sync"
 
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
@@ -11,6 +12,7 @@ import (
 )
 
 type CertRequestBuffer struct {
+	mu    sync.RWMutex
 	store map[p.SystemIdentifier]*requestBuffer
 }
 
@@ -30,12 +32,16 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 // Add request to certification store. Per node id first valid request is stored. Rest are either duplicate or
 // equivocating and in both cases error is returned. Clear or Reset in order to receive new requests
 func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	rs := c.get(p.SystemIdentifier(request.SystemIdentifier))
 	return rs.add(request)
 }
 
 // GetRequests returns all stored requests per system identifier
 func (c *CertRequestBuffer) GetRequests(id p.SystemIdentifier) []*certification.BlockCertificationRequest {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	rs := c.get(id)
 	allReq := make([]*certification.BlockCertificationRequest, 0, len(rs.requests))
 	for _, req := range rs.requests {
@@ -46,8 +52,27 @@ func (c *CertRequestBuffer) GetRequests(id p.SystemIdentifier) []*certification.
 
 // IsConsensusReceived has partition with id reached consensus. Required nrOfNodes as input to calculate consensus
 func (c *CertRequestBuffer) IsConsensusReceived(id p.SystemIdentifier, tb partitions.PartitionTrustBase) (*certificates.InputRecord, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	rs := c.get(id)
 	return rs.isConsensusReceived(tb)
+}
+
+// Reset removed all incoming requests from all stores
+func (c *CertRequestBuffer) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, rs := range c.store {
+		rs.reset()
+	}
+}
+
+// Clear clears requests in one partition
+func (c *CertRequestBuffer) Clear(id p.SystemIdentifier) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	rs := c.get(id)
+	rs.reset()
 }
 
 // get returns an existing store for system identifier or registers and returns a new one if none existed
@@ -58,19 +83,6 @@ func (c *CertRequestBuffer) get(id p.SystemIdentifier) *requestBuffer {
 		c.store[id] = rs
 	}
 	return rs
-}
-
-// Reset removed all incoming requests from all stores
-func (c *CertRequestBuffer) Reset() {
-	for _, rs := range c.store {
-		rs.reset()
-	}
-}
-
-// Clear clears requests in one partition
-func (c *CertRequestBuffer) Clear(id p.SystemIdentifier) {
-	rs := c.get(id)
-	rs.reset()
 }
 
 // newRequestStore creates a new empty requestBuffer.

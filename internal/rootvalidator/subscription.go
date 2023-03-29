@@ -1,25 +1,38 @@
 package rootvalidator
 
-import p "github.com/alphabill-org/alphabill/internal/network/protocol"
+import (
+	"sync"
+
+	p "github.com/alphabill-org/alphabill/internal/network/protocol"
+)
 
 const defaultSubscriptionErrorCount = 3
 
-type Subscriptions map[p.SystemIdentifier]map[string]int
+type Subscriptions struct {
+	mu   sync.RWMutex
+	subs map[p.SystemIdentifier]map[string]int
+}
 
 func NewSubscriptions() Subscriptions {
-	return Subscriptions{}
+	return Subscriptions{
+		subs: map[p.SystemIdentifier]map[string]int{},
+	}
 }
 
 func (s Subscriptions) Subscribe(id p.SystemIdentifier, nodeId string) {
-	_, found := s[id]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, found := s.subs[id]
 	if found == false {
-		s[id] = make(map[string]int)
+		s.subs[id] = make(map[string]int)
 	}
-	s[id][nodeId] = defaultSubscriptionErrorCount
+	s.subs[id][nodeId] = defaultSubscriptionErrorCount
 }
 
 func (s Subscriptions) SubscriberError(id p.SystemIdentifier, nodeId string) {
-	subs, found := s[id]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	subs, found := s.subs[id]
 	if !found {
 		return
 	}
@@ -30,7 +43,9 @@ func (s Subscriptions) SubscriberError(id p.SystemIdentifier, nodeId string) {
 }
 
 func (s Subscriptions) Get(id p.SystemIdentifier) []string {
-	subs := s[id]
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	subs := s.subs[id]
 	subscribed := make([]string, 0, len(subs))
 	for k := range subs {
 		subscribed = append(subscribed, k)

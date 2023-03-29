@@ -63,6 +63,7 @@ func NewRootValidatorNode(
 	node.ctx, node.ctxCancel = context.WithCancel(context.Background())
 	// Start receiving messages from partition nodes
 	go node.loop()
+	go node.handleConsensus()
 	return node, nil
 }
 
@@ -110,12 +111,6 @@ func (v *Node) loop() {
 				logger.Warning("%v protocol %s not supported.", v.peer.LogID(), msg.Protocol)
 				break
 			}
-		case uc, ok := <-v.consensusManager.CertificationResult():
-			if !ok {
-				logger.Warning("%v consensus channel closed, exiting loop", v.peer.LogID())
-				return
-			}
-			v.onCertificationResult(&uc)
 		}
 	}
 }
@@ -222,6 +217,23 @@ func (v *Node) onBlockCertificationRequest(req *certification.BlockCertification
 			Requests:         requests,
 		}
 		return
+	}
+}
+
+// handleConsensus - receives consensus results and delivers certificates to subscribers
+func (v *Node) handleConsensus() {
+	for {
+		select {
+		case <-v.ctx.Done():
+			logger.Info("%v exiting root validator consensus result handler", v.peer.LogID())
+			return
+		case uc, ok := <-v.consensusManager.CertificationResult():
+			if !ok {
+				logger.Warning("%v consensus channel closed, exiting loop", v.peer.LogID())
+				return
+			}
+			v.onCertificationResult(&uc)
+		}
 	}
 }
 

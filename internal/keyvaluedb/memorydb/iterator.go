@@ -44,7 +44,7 @@ func (it *Itr) Prev() {
 }
 
 func (it *Itr) Valid() bool {
-	return !(it.index < 0)
+	return it.index >= 0
 }
 
 func (it *Itr) Key() []byte {

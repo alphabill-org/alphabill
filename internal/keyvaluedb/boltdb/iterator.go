@@ -52,7 +52,7 @@ func (it *Itr) Prev() {
 }
 
 func (it *Itr) Valid() bool {
-	return !(it.key == nil)
+	return it.key != nil
 }
 
 func (it *Itr) Key() []byte {

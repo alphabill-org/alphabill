@@ -181,13 +181,13 @@ func (n *Node) sendHandshake() {
 	}
 }
 
-func initState(n *Node) error {
+func initState(n *Node) (err error) {
 	defer trackExecutionTime(time.Now(), "Restore node state")
 	// get genesis block from the genesis
 	genesisBlock := n.configuration.genesisBlock()
 	if n.blockStore.Empty() {
 		logger.Info("State initialised from genesis")
-		if err := n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
+		if err = n.blockStore.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock); err != nil {
 			return fmt.Errorf("init failed to persist genesis block, %w", err)
 		}
 		n.transactionSystem.Commit() // commit everything from the genesis
@@ -198,7 +198,6 @@ func initState(n *Node) error {
 	}
 	// restore state from db
 	prevBlock := genesisBlock
-	var err error
 	// get next block from genesis block
 	dbIt := n.blockStore.Find(util.Uint64ToBytes(pgenesis.PartitionRoundNumber + 1))
 	defer func() { err = dbIt.Close() }()
@@ -1131,14 +1130,17 @@ func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
 
 func (n *Node) GetLatestBlock() (*block.Block, error) {
 	dbIt := n.blockStore.Last()
-	var err error
-	defer func() { err = dbIt.Close() }()
+	defer func() {
+		if err := dbIt.Close(); err != nil {
+			logger.Warning("iterator close error %v", err)
+		}
+	}()
 	var bl block.Block
 	roundNo := util.BytesToUint64(dbIt.Key())
-	if err = dbIt.Value(&bl); err != nil {
+	if err := dbIt.Value(&bl); err != nil {
 		return nil, fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 	}
-	return &bl, err
+	return &bl, nil
 }
 
 func (n *Node) GetLatestRoundNumber() (uint64, error) {

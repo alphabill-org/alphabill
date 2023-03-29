@@ -95,12 +95,11 @@ func (s *StateStore) Update(newRound uint64, certificates map[protocol.SystemIde
 	return s.save(newRound, certificates)
 }
 
-func (s *StateStore) GetLastCertifiedInputRecords() (map[protocol.SystemIdentifier]*certificates.InputRecord, error) {
+func (s *StateStore) GetLastCertifiedInputRecords() (ir map[protocol.SystemIdentifier]*certificates.InputRecord, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ir := make(map[protocol.SystemIdentifier]*certificates.InputRecord)
+	ir = make(map[protocol.SystemIdentifier]*certificates.InputRecord)
 	it := s.db.Find([]byte(certPrefix))
-	var err error
 	defer func() { err = it.Close() }()
 	for ; it.Valid() && strings.HasPrefix(string(it.Key()), certPrefix); it.Next() {
 		var cert certificates.UnicityCertificate

@@ -12,7 +12,7 @@ import (
 func EncodeToJsonHelper(arg interface{}) string {
 	j, err := json.MarshalIndent(arg, "", "\t")
 	if err != nil {
-		fmt.Errorf("json encode error: %w", err)
+		return fmt.Sprintf("json encode error: %v", err)
 	}
 	return string(j)
 }

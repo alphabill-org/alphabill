@@ -17,17 +17,16 @@ type (
 )
 
 func (it *Itr) Close() error {
-	if it.tx != nil {
-		// it seems error is only returned if already closed
-		err := it.tx.Rollback()
-		// release iterator, so it cannot be closed twice - hence this should never return error
-		it.tx = nil
-		it.key = nil
-		it.value = nil
-		return err
-	} else {
+	if it.tx == nil {
 		return nil
 	}
+	// it seems error is only returned if already closed
+	err := it.tx.Rollback()
+	// release iterator, so it cannot be closed twice - hence this should never return error
+	it.tx = nil
+	it.key = nil
+	it.value = nil
+	return err
 }
 
 func NewIterator(db *bolt.DB, bucket []byte, d DecodeFn) *Itr {

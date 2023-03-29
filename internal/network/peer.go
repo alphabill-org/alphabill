@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill/internal/metrics"
-	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -188,20 +187,14 @@ func (p *Peer) Configuration() *PeerConfiguration {
 }
 
 // Close shuts down the libp2p host and related services.
-func (p *Peer) Close() (res error) {
+func (p *Peer) Close() error {
 	logger.Info("Closing peer")
 
 	// close libp2p host
-	logger.Debug("Stopping libp2p node")
 	if err := p.host.Close(); err != nil {
-		res = multierror.Append(res, err)
+		return fmt.Errorf("closing the host returned error: %w", err)
 	}
-	logger.Debug("Closing peer store")
-	// to prevent peerstore go routine leak (https://github.com/libp2p/go-libp2p/issues/718)
-	if err := p.host.Peerstore().Close(); err != nil {
-		res = multierror.Append(res, err)
-	}
-	return
+	return nil
 }
 
 // GetRandomPeerID returns a random peer.ID from the peerstore.

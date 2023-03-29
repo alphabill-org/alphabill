@@ -16,7 +16,6 @@ require (
 	github.com/ethereum/go-ethereum v1.10.25
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
-	github.com/hashicorp/go-multierror v1.1.1
 	github.com/holiman/uint256 v1.2.1
 	github.com/libp2p/go-libp2p v0.26.2
 	github.com/multiformats/go-multiaddr v0.8.0
@@ -72,7 +71,6 @@ require (
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huin/goupnp v1.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect

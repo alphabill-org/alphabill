@@ -3,31 +3,32 @@ package cmd
 import (
 	"context"
 	"os"
-	"path"
-	"sync"
+	"path/filepath"
 	"testing"
+	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
-func TestRootValidatorCanBeStarted(t *testing.T) {
+func TestRootChainCanBeStarted(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
 	dbDir := t.TempDir()
 	defer func() { require.NoError(t, os.RemoveAll(dbDir)) }()
-	conf := validMonolithicRootValidatorConfig(dbDir)
-	ctx, _ := async.WithWaitGroup(context.Background())
-	ctx, cancel := context.WithCancel(ctx)
+	g, ctx := errgroup.WithContext(ctx)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := defaultValidatorRunFunc(ctx, conf)
-		require.NoError(t, err)
-	}()
+	g.Go(func() error { return defaultValidatorRunFunc(ctx, validMonolithicRootValidatorConfig(dbDir)) })
 
-	cancel()
-	wg.Wait() // wait for root validator to close and require statements to execute
+	g.Go(func() error {
+		// give rootchain some time to start up (should try to sens message it to verify it is up!)
+		// and then cancel the ctx which should cause it to exit
+		time.Sleep(500 * time.Millisecond)
+		cancel()
+		return nil
+	})
+
+	err := g.Wait()
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T) {
@@ -35,17 +36,14 @@ func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidKeyFile(t *testing.T)
 	defer func() { require.NoError(t, os.RemoveAll(dbDir)) }()
 	conf := validMonolithicRootValidatorConfig("")
 	conf.KeyFile = "testdata/invalid-root-key.json"
-	ctx, _ := async.WithWaitGroup(context.Background())
 
-	err := defaultValidatorRunFunc(ctx, conf)
+	err := defaultValidatorRunFunc(context.Background(), conf)
 	require.ErrorContains(t, err, "error root node key not found in genesis file")
 }
 
 func TestRootValidatorInvalidRootKey_CannotBeStartedInvalidDBDir(t *testing.T) {
 	conf := validMonolithicRootValidatorConfig("/foobar/doesnotexist3454/")
-	ctx, _ := async.WithWaitGroup(context.Background())
-
-	err := defaultValidatorRunFunc(ctx, conf)
+	err := defaultValidatorRunFunc(context.Background(), conf)
 	require.ErrorContains(t, err, "no such file or directory")
 }
 
@@ -53,12 +51,12 @@ func validMonolithicRootValidatorConfig(dbDir string) *validatorConfig {
 	conf := &validatorConfig{
 		Base: &baseConfiguration{
 			HomeDir:    alphabillHomeDir(),
-			CfgFile:    path.Join(alphabillHomeDir(), defaultConfigFile),
+			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
 		},
 		KeyFile:      "testdata/root-key.json",
 		GenesisFile:  "testdata/expected/root-genesis.json",
-		RootListener: "/ip4/0.0.0.0/tcp/0",
+		RootListener: "/ip4/127.0.0.1/tcp/0",
 		MaxRequests:  1000,
 		StoragePath:  dbDir,
 	}

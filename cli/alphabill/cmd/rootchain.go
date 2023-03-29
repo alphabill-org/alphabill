@@ -7,8 +7,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/alphabill-org/alphabill/internal/async"
-	"github.com/alphabill-org/alphabill/internal/async/future"
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/network"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/genesis"
@@ -16,7 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/consensus/monolithic"
 	"github.com/alphabill-org/alphabill/internal/rootvalidator/partitions"
-	"github.com/alphabill-org/alphabill/internal/starter"
 	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/spf13/cobra"
@@ -146,14 +143,10 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	if err != nil {
 		return fmt.Errorf("failed initiate root node: %w", err)
 	}
-	// use StartAndWait for SIGTERM hook
-	return starter.StartAndWait(ctx, "root validator", func(ctx context.Context) {
-		async.MakeWorker("root validator shutdown hook", func(ctx context.Context) future.Value {
-			<-ctx.Done()
-			node.Close()
-			return nil
-		}).Start(ctx)
-	})
+
+	<-ctx.Done()
+	node.Close()
+	return ctx.Err()
 }
 
 func createHost(address string, encPrivate crypto.PrivKey) (*network.Peer, error) {

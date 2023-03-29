@@ -61,9 +61,6 @@ func NewMonolithicConsensusManager(selfStr string, rg *genesis.RootGenesis, part
 			return nil, fmt.Errorf("consneus manager genesis init failed, %w", err)
 		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("consneus manager storage init failed, %w", err)
-	}
 	lastIR, err := storage.GetLastCertifiedInputRecords()
 	if err != nil {
 		return nil, fmt.Errorf("restore root state from DB failed, %w", err)

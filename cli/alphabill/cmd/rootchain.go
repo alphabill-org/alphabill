@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"path"
+	"path/filepath"
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill/internal/crypto"
@@ -75,7 +75,7 @@ func (c *validatorConfig) getGenesisFilePath() string {
 	if c.GenesisFile != "" {
 		return c.GenesisFile
 	}
-	return path.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
+	return filepath.Join(c.Base.defaultRootGenesisDir(), rootGenesisFileName)
 }
 
 func (c *validatorConfig) getStoragePath() string {
@@ -89,7 +89,7 @@ func (c *validatorConfig) getKeyFilePath() string {
 	if c.KeyFile != "" {
 		return c.KeyFile
 	}
-	return path.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
+	return filepath.Join(c.Base.defaultRootGenesisDir(), defaultKeysFileName)
 }
 
 func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error {

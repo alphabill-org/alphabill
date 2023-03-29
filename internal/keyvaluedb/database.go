@@ -18,7 +18,7 @@ type Writer interface {
 
 // DBTx interface for database transactions
 // NB! all transactions MUST be completed by either calling Commit() or Rollback() which releases
-// the transaction. Multiple parallel transactions are not possible and result in deadlock.
+// the transaction.  Only one read-write transaction is allowed at a time.
 type DBTx interface {
 	StartTx() (DBTransaction, error)
 }

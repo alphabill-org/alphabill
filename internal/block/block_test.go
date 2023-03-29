@@ -78,7 +78,7 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrSystemIdIsNil.Error(),
+			wantErr: errSystemIdIsNil.Error(),
 		},
 		{
 			name: "prev block hash is nil",
@@ -92,7 +92,7 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrPrevBlockHashIsNil.Error(),
+			wantErr: errPrevBlockHashIsNil.Error(),
 		},
 		/* Todo: AB-845
 		{
@@ -106,7 +106,7 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrBlockProposerIdIsMissing.Error(),
+			wantErr: errBlockProposerIdIsMissing.Error(),
 		},
 		*/
 		{
@@ -121,7 +121,7 @@ func TestBlock_IsValid(t *testing.T) {
 			args: args{
 				v: &alwaysOkValidator{},
 			},
-			wantErr: ErrTransactionsIsNil.Error(),
+			wantErr: errTransactionsIsNil.Error(),
 		},
 		{
 			name: "system id nil",

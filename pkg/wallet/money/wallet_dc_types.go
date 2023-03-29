@@ -16,12 +16,12 @@ type dcMetadata struct {
 	SwapTimeout uint64   `json:"swapTimeout"`
 }
 
-// DcBillGroup helper struct for grouped dc bills and their aggregate data
-type DcBillGroup struct {
-	DcBills   []*Bill
-	ValueSum  uint64
-	DcNonce   []byte
-	DcTimeout uint64
+// dcBillGroup helper struct for grouped dc bills and their aggregate data
+type dcBillGroup struct {
+	dcBills   []*Bill
+	valueSum  uint64
+	dcNonce   []byte
+	dcTimeout uint64
 }
 
 // dcWaitGroup helper struct to support blocking collect dust feature.
@@ -35,17 +35,18 @@ type dcWaitGroup struct {
 	// swaps list of expected transactions to be received during dc process
 	// key - dc nonce;
 	// value - timeout block height
-	swaps map[uint256.Int]uint64
+	swaps map[uint256.Int]expectedSwap
 }
 
 // expectedSwap helper struct to support blocking collect dust feature
 type expectedSwap struct {
 	dcNonce []byte
 	timeout uint64
+	dcSum   uint64
 }
 
 func newDcWaitGroup() *dcWaitGroup {
-	return &dcWaitGroup{swaps: map[uint256.Int]uint64{}}
+	return &dcWaitGroup{swaps: map[uint256.Int]expectedSwap{}}
 }
 
 func (m *dcMetadata) isSwapRequired(blockHeight uint64, dcSum uint64) bool {
@@ -70,18 +71,13 @@ func (wg *dcWaitGroup) AddExpectedSwaps(swaps []expectedSwap) {
 }
 
 // DecrementSwaps decrement waitgroup after receiving expected swap bills, or timing out on dc/swap
-func (wg *dcWaitGroup) DecrementSwaps(tx TxContext, blockHeight uint64, accountIndex uint64) error {
+func (wg *dcWaitGroup) DecrementSwaps(dcNonce *uint256.Int, blockHeight uint64) error {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 
-	for dcNonce, timeout := range wg.swaps {
-		exists, err := tx.ContainsBill(accountIndex, &dcNonce)
-		if err != nil {
-			return err
-		}
-		if exists || blockHeight >= timeout {
-			wg.removeSwap(dcNonce)
-		}
+	swap, exists := wg.swaps[*dcNonce]
+	if exists || blockHeight >= swap.timeout {
+		wg.removeSwap(*dcNonce)
 	}
 	return nil
 }
@@ -98,9 +94,9 @@ func (wg *dcWaitGroup) UpdateTimeout(dcNonce []byte, timeout uint64) {
 	defer wg.mu.Unlock()
 
 	key := *uint256.NewInt(0).SetBytes(dcNonce)
-	_, exists := wg.swaps[key]
+	swap, exists := wg.swaps[key]
 	if exists {
-		wg.swaps[key] = timeout
+		swap.timeout = timeout
 	}
 }
 
@@ -117,5 +113,9 @@ func (wg *dcWaitGroup) ResetWaitGroup() {
 // addExpectedSwap increments wg and records expected swap data
 func (wg *dcWaitGroup) addExpectedSwap(swap expectedSwap) {
 	wg.wg.Add(1)
-	wg.swaps[*util.BytesToUint256(swap.dcNonce)] = swap.timeout
+	wg.swaps[*util.BytesToUint256(swap.dcNonce)] = swap
+}
+
+func (wg *dcWaitGroup) getExpectedSwap(dcNonce []byte) expectedSwap {
+	return wg.swaps[*util.BytesToUint256(dcNonce)]
 }

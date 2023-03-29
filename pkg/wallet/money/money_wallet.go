@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/holiman/uint256"
+
 	backendmoney "github.com/alphabill-org/alphabill/pkg/wallet/backend/money"
 	"github.com/alphabill-org/alphabill/pkg/wallet/backend/money/client"
 
@@ -32,13 +34,11 @@ const (
 )
 
 var (
-	ErrSwapInProgress       = errors.New("swap is in progress, synchronize your wallet to complete the process")
-	ErrInsufficientBalance  = errors.New("insufficient balance for transaction")
-	ErrInvalidPubKey        = errors.New("invalid public key, public key must be in compressed secp256k1 format")
-	ErrInvalidAmount        = errors.New("invalid amount")
-	ErrInvalidAccountIndex  = errors.New("invalid account index")
-	ErrInvalidBlockSystemID = errors.New("invalid system identifier")
-	ErrTxFailedToConfirm    = errors.New("transaction(s) failed to confirm")
+	ErrInsufficientBalance = errors.New("insufficient balance for transaction")
+	ErrInvalidPubKey       = errors.New("invalid public key, public key must be in compressed secp256k1 format")
+	ErrInvalidAmount       = errors.New("invalid amount")
+	ErrInvalidAccountIndex = errors.New("invalid account index")
+	ErrTxFailedToConfirm   = errors.New("transaction(s) failed to confirm")
 )
 
 var (
@@ -233,15 +233,23 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		bills = append(bills, convertBill(proof.Bills[0]))
 	}
 	var expectedSwaps []expectedSwap
-	dcBills := collectDcBills(bills)
-	dcNonce := calculateDcNonce(bills)
-	if len(dcBills) > 0 {
-		swapTimeout := blockHeight + swapTimeoutBlockCount
-		err = w.swapDcBills(dcBills, dcNonce, getBillIds(dcBills), swapTimeout, accountIndex)
-		if err != nil {
-			return err
+	dcBillGroups := groupDcBills(bills)
+	if len(dcBillGroups) > 0 {
+		for _, v := range dcBillGroups {
+			if blockHeight >= v.dcTimeout {
+				swapTimeout := blockHeight + swapTimeoutBlockCount
+				billIds := getBillIds(v.dcBills)
+				err = w.swapDcBills(v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
+				if err != nil {
+					return err
+				}
+				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: swapTimeout, dcSum: v.valueSum})
+			} else {
+				// expecting to receive swap during dcTimeout
+				expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: v.dcNonce, timeout: v.dcTimeout, dcSum: v.valueSum})
+			}
+			w.dcWg.AddExpectedSwaps(expectedSwaps)
 		}
-		expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: swapTimeout})
 	} else {
 		k, err := w.am.GetAccountKey(accountIndex)
 		if err != nil {
@@ -249,7 +257,10 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 		}
 
 		dcTimeout := blockHeight + dcTimeoutBlockCount
+		dcNonce := calculateDcNonce(bills)
+		var dcValueSum uint64
 		for _, b := range bills {
+			dcValueSum += b.Value
 			tx, err := createDustTx(k, b, dcNonce, dcTimeout)
 			if err != nil {
 				return err
@@ -260,29 +271,112 @@ func (w *Wallet) collectDust(ctx context.Context, blocking bool, accountIndex ui
 				return err
 			}
 		}
-		expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout})
-	}
-	if blocking {
+		expectedSwaps = append(expectedSwaps, expectedSwap{dcNonce: dcNonce, timeout: dcTimeout, dcSum: dcValueSum})
 		w.dcWg.AddExpectedSwaps(expectedSwaps)
-	}
-	if blocking {
-		log.Info("waiting for blocking collect dust on account=", accountIndex, " (wallet needs to be synchronizing to finish this process)")
 
-		// wrap wg.Wait() as channel
-		done := make(chan struct{})
-		go func() {
-			w.dcWg.wg.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-ctx.Done():
-			// context canceled externally
-		case <-done:
-			// dust collection finished (swap received or timed out)
+		err = w.doSwap(ctx, accountIndex)
+		if err != nil {
+			return err
 		}
-		log.Info("finished waiting for blocking collect dust on account=", accountIndex)
 	}
+
+	err = w.confirmSwap(ctx)
+	if err != nil {
+		log.Error("failed to confirm swap tx", err)
+	}
+
+	log.Info("finished waiting for blocking collect dust on account=", accountIndex)
+
+	return nil
+}
+
+func (w *Wallet) doSwap(ctx context.Context, accountIndex uint64) error {
+	pubKey, err := w.am.GetPublicKey(accountIndex)
+	if err != nil {
+		return err
+	}
+	log.Info("waiting for swap confirmation(s)...")
+	attempt := 0
+	for attempt <= swapTimeoutBlockCount {
+		billResponse, err := w.restClient.ListBills(pubKey)
+		if err != nil {
+			return err
+		}
+		var bills []*Bill
+		for _, b := range billResponse.Bills {
+			proof, err := w.restClient.GetProof(b.Id)
+			if err != nil {
+				return err
+			}
+			bills = append(bills, convertBill(proof.Bills[0]))
+		}
+		dcBillGroups := groupDcBills(bills)
+		if len(dcBillGroups) > 0 {
+			blockHeight, err := w.GetMaxBlockNumber(ctx)
+			if err != nil {
+				return err
+			}
+			for _, v := range dcBillGroups {
+				s := w.dcWg.getExpectedSwap(v.dcNonce)
+				if blockHeight >= v.dcTimeout || v.valueSum >= s.dcSum {
+					swapTimeout := blockHeight + swapTimeoutBlockCount
+					billIds := getBillIds(v.dcBills)
+					err = w.swapDcBills(v.dcBills, v.dcNonce, billIds, swapTimeout, accountIndex)
+					if err != nil {
+						return err
+					}
+					w.dcWg.UpdateTimeout(v.dcNonce, swapTimeout)
+					return nil
+				}
+			}
+		}
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-timer.C:
+			attempt += 1
+			continue
+		case <-ctx.Done():
+			timer.Stop()
+			return nil
+		}
+	}
+	return nil
+}
+
+func (w *Wallet) confirmSwap(ctx context.Context) error {
+	blockHeight, err := w.GetMaxBlockNumber(ctx)
+	if err != nil {
+		return err
+	}
+	blockNumber := blockHeight
+	log.Info("waiting for swap confirmation(s)...")
+	swapTimeout := blockHeight + swapTimeoutBlockCount
+	for blockNumber <= swapTimeout {
+		b, err := w.AlphabillClient.GetBlock(ctx, blockNumber)
+		if err != nil {
+			return err
+		}
+		if b == nil {
+			// wait for some time before retrying to fetch new block
+			timer := time.NewTimer(100 * time.Millisecond)
+			select {
+			case <-timer.C:
+				continue
+			case <-ctx.Done():
+				timer.Stop()
+				return nil
+			}
+		}
+		for _, tx := range b.Transactions {
+			err = w.dcWg.DecrementSwaps(util.BytesToUint256(tx.UnitId), blockNumber)
+			if err != nil {
+				return err
+			}
+		}
+		blockNumber += 1
+	}
+	w.dcWg.ResetWaitGroup()
+
 	return nil
 }
 
@@ -395,6 +489,26 @@ func calculateDcNonce(bills []*Bill) []byte {
 	return hasher.Sum(nil)
 }
 
+// groupDcBills groups bills together by dc nonce
+func groupDcBills(bills []*Bill) map[uint256.Int]*dcBillGroup {
+	m := map[uint256.Int]*dcBillGroup{}
+	for _, b := range bills {
+		if b.IsDcBill {
+			k := *uint256.NewInt(0).SetBytes(b.DcNonce)
+			billContainer, exists := m[k]
+			if !exists {
+				billContainer = &dcBillGroup{}
+				m[k] = billContainer
+			}
+			billContainer.valueSum += b.Value
+			billContainer.dcBills = append(billContainer.dcBills, b)
+			billContainer.dcNonce = b.DcNonce
+			billContainer.dcTimeout = b.DcTimeout
+		}
+	}
+	return m
+}
+
 func hashId(id []byte) []byte {
 	hasher := crypto.Hash.New(crypto.SHA256)
 	hasher.Write(id)
@@ -433,7 +547,7 @@ func convertBills(billsList []*backendmoney.ListBillVM) ([]*Bill, error) {
 }
 
 func convertBill(b *block.Bill) *Bill {
-	return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: hashId(b.Id), BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
+	return &Bill{Id: util.BytesToUint256(b.Id), Value: b.Value, TxHash: b.TxHash, IsDcBill: b.IsDcBill, DcNonce: b.TxProof.Tx.UnitId, BlockProof: &BlockProof{Tx: b.TxProof.Tx, Proof: b.TxProof.Proof, BlockNumber: b.TxProof.BlockNumber}}
 }
 
 func (w *Wallet) GetConfig() *WalletConfig {

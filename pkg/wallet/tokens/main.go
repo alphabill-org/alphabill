@@ -195,28 +195,9 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 
 	// account number -> list of its tokens
 	allTokensByAccountNumber := make(map[uint64][]*twb.TokenUnit, 0)
-	fetchForPubKey := func(pubKey []byte) ([]*twb.TokenUnit, error) {
-		allTokensForKey := make([]*twb.TokenUnit, 0)
-		var ts []twb.TokenUnit
-		offsetKey := ""
-		var err error
-		for {
-			ts, offsetKey, err = w.backend.GetTokens(ctx, kind, pubKey, offsetKey, 0)
-			if err != nil {
-				return nil, err
-			}
-			for i := range ts {
-				allTokensForKey = append(allTokensForKey, &ts[i])
-			}
-			if offsetKey == "" {
-				break
-			}
-		}
-		return allTokensForKey, nil
-	}
 
 	if singleKey {
-		ts, err := fetchForPubKey(pubKeys[0])
+		ts, err := w.getTokens(ctx, kind, pubKeys[0])
 		if err != nil {
 			return nil, err
 		}
@@ -225,13 +206,33 @@ func (w *Wallet) ListTokens(ctx context.Context, kind twb.Kind, accountNumber ui
 	}
 
 	for idx, pubKey := range pubKeys {
-		ts, err := fetchForPubKey(pubKey)
+		ts, err := w.getTokens(ctx, kind, pubKey)
 		if err != nil {
 			return nil, err
 		}
 		allTokensByAccountNumber[uint64(idx)+1] = ts
 	}
 	return allTokensByAccountNumber, nil
+}
+
+func (w *Wallet) getTokens(ctx context.Context, kind twb.Kind, pubKey twb.PubKey) ([]*twb.TokenUnit, error) {
+	allTokens := make([]*twb.TokenUnit, 0)
+	var ts []twb.TokenUnit
+	offsetKey := ""
+	var err error
+	for {
+		ts, offsetKey, err = w.backend.GetTokens(ctx, kind, pubKey, offsetKey, 0)
+		if err != nil {
+			return nil, err
+		}
+		for i := range ts {
+			allTokens = append(allTokens, &ts[i])
+		}
+		if offsetKey == "" {
+			break
+		}
+	}
+	return allTokens, nil
 }
 
 func (w *Wallet) GetToken(ctx context.Context, owner twb.PubKey, kind twb.Kind, tokenId twb.TokenID) (*twb.TokenUnit, error) {
@@ -355,6 +356,127 @@ func (w *Wallet) UpdateNFTData(ctx context.Context, accountNumber uint64, tokenI
 		return err
 	}
 	return sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, w.confirmTx)
+}
+
+func (w *Wallet) CollectDust(ctx context.Context, accountNumber uint64, tokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+	var keys []*account.AccountKey
+	var err error
+	singleKey := false
+	if accountNumber > AllAccounts {
+		key, err := w.am.GetAccountKey(accountNumber - 1)
+		if err != nil {
+			return err
+		}
+		keys = append(keys, key)
+		singleKey = true
+	} else {
+		keys, err = w.am.GetAccountKeys()
+		if err != nil {
+			return err
+		}
+	}
+	if singleKey {
+		return w.collectDust(ctx, accountNumber, tokenTypes, invariantPredicateArgs)
+	}
+	// TODO: rewrite with goroutines?
+	for idx := range keys {
+		err := w.collectDust(ctx, uint64(idx+1), tokenTypes, invariantPredicateArgs)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Wallet) collectDust(ctx context.Context, accountNumber uint64, allowedTokenTypes []twb.TokenTypeID, invariantPredicateArgs []*PredicateInput) error {
+	acc, err := w.am.GetAccountKey(accountNumber - 1)
+	if err != nil {
+		return err
+	}
+	// find tokens to join
+	allTokens, err := w.getTokens(ctx, twb.Fungible, acc.PubKey)
+	if err != nil {
+		return err
+	}
+	// group tokens by type
+	var tokensByTypes = make(map[string][]*twb.TokenUnit, len(allowedTokenTypes))
+	for _, tokenType := range allowedTokenTypes {
+		tokensByTypes[string(tokenType)] = make([]*twb.TokenUnit, 0)
+	}
+	for _, tok := range allTokens {
+		tokenTypeStr := string(tok.TypeID)
+		tokenz, found := tokensByTypes[tokenTypeStr]
+		if !found {
+			if len(allowedTokenTypes) == 0 {
+				tokenz = make([]*twb.TokenUnit, 0, 1)
+			} else {
+				continue
+			}
+		}
+		tokensByTypes[tokenTypeStr] = append(tokenz, tok)
+	}
+
+	for k, v := range tokensByTypes {
+		if len(v) < 2 { // not interested if tokens count is less than two
+			delete(tokensByTypes, k)
+			continue
+		}
+		// first token to be joined into
+		targetToken := v[0]
+		burnBatch := &txSubmissionBatch{
+			sender:  acc.PubKey,
+			backend: w.backend,
+		}
+		// burn the rest
+		for i := 1; i < len(v); i++ {
+			token := v[i]
+			attrs := newBurnTxAttrs(token, targetToken.TxHash)
+			sub, err := w.prepareTx(ctx, twb.UnitID(token.ID), attrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+				signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+				if err != nil {
+					return err
+				}
+				attrs.SetInvariantPredicateSignatures(signatures)
+				return anypb.MarshalFrom(tx.TransactionAttributes, attrs, proto.MarshalOptions{})
+			})
+			if err != nil {
+				return err
+			}
+			burnBatch.add(sub)
+		}
+		if err = burnBatch.sendTx(ctx, true); err != nil {
+			return err
+		}
+		burnTxs := make([]*txsystem.Transaction, 0, len(burnBatch.submissions))
+		proofs := make([]*block.BlockProof, 0, len(burnBatch.submissions))
+		for _, sub := range burnBatch.submissions {
+			burnTxs = append(burnTxs, sub.tx)
+			proofs = append(proofs, sub.txProof)
+		}
+
+		joinAttrs := &tokens.JoinFungibleTokenAttributes{
+			BurnTransactions:             burnTxs,
+			Proofs:                       proofs,
+			Backlink:                     targetToken.TxHash,
+			InvariantPredicateSignatures: nil,
+		}
+
+		sub, err := w.prepareTx(ctx, twb.UnitID(targetToken.ID), joinAttrs, acc, func(tx *txsystem.Transaction, gtx txsystem.GenericTransaction) error {
+			signatures, err := preparePredicateSignatures(w.GetAccountManager(), invariantPredicateArgs, gtx)
+			if err != nil {
+				return err
+			}
+			joinAttrs.SetInvariantPredicateSignatures(signatures)
+			return anypb.MarshalFrom(tx.TransactionAttributes, joinAttrs, proto.MarshalOptions{})
+		})
+		if err != nil {
+			return err
+		}
+		if err = sub.toBatch(w.backend, acc.PubKey).sendTx(ctx, true); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (w *Wallet) getRoundNumber(ctx context.Context) (uint64, error) {

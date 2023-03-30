@@ -45,6 +45,7 @@ type Storage interface {
 	QueryTokenType(kind Kind, creator PubKey, startKey TokenTypeID, count int) ([]*TokenUnitType, TokenTypeID, error)
 
 	SaveToken(data *TokenUnit, proof *Proof) error
+	RemoveToken(id TokenID) error
 	GetToken(id TokenID) (*TokenUnit, error)
 	QueryTokens(kind Kind, owner Predicate, startKey TokenID, count int) ([]*TokenUnit, TokenID, error)
 

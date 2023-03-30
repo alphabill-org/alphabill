@@ -281,7 +281,7 @@ func (n *Node) restoreBlockProposal(prevBlock *block.Block) {
 	roundNo := prevBlock.UnicityCertificate.InputRecord.RoundNumber + 1
 	state, err := n.applyBlockTransactions(roundNo, pr.Transactions)
 	if err != nil {
-		logger.Warning("Block proposal recovery failed, %w", err)
+		logger.Warning("Block proposal recovery failed, %v", err)
 		n.revertState()
 		return
 	}
@@ -329,7 +329,7 @@ func (n *Node) loop() {
 				}
 			} else {
 				if err := n.process(tx, n.getCurrentRound()); err != nil {
-					logger.Warning("Processing tx failed, %w", err)
+					logger.Warning("Processing tx failed, %v", err)
 				}
 			}
 		case m, ok := <-n.network.ReceivedChannel():
@@ -596,7 +596,7 @@ func (n *Node) startNewRound(uc *certificates.UnicityCertificate) {
 	n.pendingBlockProposal = nil
 	// not a fatal issue, but log anyway
 	if err := n.blockStore.Delete(util.Uint32ToBytes(proposalKey)); err != nil {
-		logger.Debug("DB delete failed, %w", err)
+		logger.Debug("DB delete failed, %v", err)
 	}
 	n.leaderSelector.UpdateLeader(uc)
 	n.startHandleOrForwardTransactions()

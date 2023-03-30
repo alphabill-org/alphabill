@@ -200,7 +200,10 @@ func initState(n *Node) (err error) {
 	prevBlock := genesisBlock
 	// get next block from genesis block
 	dbIt := n.blockStore.Find(util.Uint64ToBytes(pgenesis.PartitionRoundNumber + 1))
-	defer func() { err = dbIt.Close() }()
+	defer func() {
+		ce := dbIt.Close()
+		errors.Join(err, ce)
+	}()
 	for ; dbIt.Valid(); dbIt.Next() {
 		var bl block.Block
 		roundNo := util.BytesToUint64(dbIt.Key())
@@ -1130,7 +1133,10 @@ func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
 
 func (n *Node) GetLatestBlock() (b *block.Block, err error) {
 	dbIt := n.blockStore.Last()
-	defer func() { err = dbIt.Close() }()
+	defer func() {
+		ce := dbIt.Close()
+		errors.Join(err, ce)
+	}()
 	var bl block.Block
 	roundNo := util.BytesToUint64(dbIt.Key())
 	if err = dbIt.Value(&bl); err != nil {

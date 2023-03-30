@@ -101,10 +101,7 @@ func (s *StateStore) GetLastCertifiedInputRecords() (ir map[protocol.SystemIdent
 	defer s.mu.Unlock()
 	ir = make(map[protocol.SystemIdentifier]*certificates.InputRecord)
 	it := s.db.Find([]byte(certPrefix))
-	defer func() {
-		ce := it.Close()
-		errors.Join(err, ce)
-	}()
+	defer func() { err = errors.Join(err, it.Close()) }()
 	for ; it.Valid() && strings.HasPrefix(string(it.Key()), certPrefix); it.Next() {
 		var cert certificates.UnicityCertificate
 		if err = it.Value(&cert); err != nil {

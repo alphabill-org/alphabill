@@ -1128,19 +1128,15 @@ func (n *Node) GetBlock(blockNr uint64) (*block.Block, error) {
 	return &bl, nil
 }
 
-func (n *Node) GetLatestBlock() (*block.Block, error) {
+func (n *Node) GetLatestBlock() (b *block.Block, err error) {
 	dbIt := n.blockStore.Last()
-	defer func() {
-		if err := dbIt.Close(); err != nil {
-			logger.Warning("iterator close error %v", err)
-		}
-	}()
+	defer func() { err = dbIt.Close() }()
 	var bl block.Block
 	roundNo := util.BytesToUint64(dbIt.Key())
-	if err := dbIt.Value(&bl); err != nil {
+	if err = dbIt.Value(&bl); err != nil {
 		return nil, fmt.Errorf("failed to read block %v from db, %w", roundNo, err)
 	}
-	return &bl, nil
+	return &bl, err
 }
 
 func (n *Node) GetLatestRoundNumber() (uint64, error) {

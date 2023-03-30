@@ -459,7 +459,7 @@ func (n *Node) handleOrForwardTransaction(tx txsystem.GenericTransaction) bool {
 		n.txCh <- tx
 		return true
 	}
-	logger.Info("Forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader)
+	logger.Debug("Forwarding tx %X to %v", tx.Hash(gocrypto.SHA256), leader)
 	err := n.network.Send(
 		network.OutputMessage{
 			Protocol: network.ProtocolInputForward,

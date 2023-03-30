@@ -1,6 +1,7 @@
 package partition
 
 import (
+	gocrypto "crypto"
 	"testing"
 	"time"
 
@@ -652,14 +653,14 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, system *te
 	// create new block
 	newBlock := proto.Clone(currentBlock).(*block.Block)
 	newBlock.UnicityCertificate.InputRecord.RoundNumber = currentBlock.UnicityCertificate.InputRecord.RoundNumber + 1
-	newBlock.PreviousBlockHash, _ = currentBlock.Hash(system, tp.partition.configuration.hashAlgorithm)
+	newBlock.PreviousBlockHash, _ = currentBlock.Hash(system, gocrypto.SHA256)
 	newBlock.Transactions = make([]*txsystem.Transaction, 1)
 	newBlock.Transactions[0] = moneytesttx.RandomBillTransfer(t)
 
 	// send UC certifying new block
 	ir := newBlock.UnicityCertificate.InputRecord
 	ir.PreviousHash = ir.Hash
-	ir.BlockHash, _ = newBlock.Hash(system, tp.partition.configuration.hashAlgorithm)
+	ir.BlockHash, _ = newBlock.Hash(system, gocrypto.SHA256)
 	ir.Hash = state.Root()
 	ir.SummaryValue = state.Summary()
 

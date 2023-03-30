@@ -66,7 +66,7 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 	return nil
 }
 
-func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+func SetupNewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
 	peer := createPeer(t)
 	key, err := peer.PublicKey()
 	require.NoError(t, err)
@@ -104,9 +104,7 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 	for _, partition := range rootGenesis.Partitions {
 		certs[partition.GetSystemIdentifierString()] = partition.Certificate
 	}
-	/*	rc, err := rootchain.NewState(rootGenesis, "test", rootSigner, rstore.NewInMemStateStore(gocrypto.SHA256))
-		require.NoError(t, err)
-	*/
+
 	net := testnetwork.NewMockNetwork()
 	eh := &testevent.TestEventHandler{}
 
@@ -128,11 +126,17 @@ func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, n
 		mockNet:    net,
 		eh:         eh,
 	}
+	return partition
+}
 
+func StartSingleNodePartition(t *testing.T, p *SingleNodePartition) {
 	// partition node
-	err = partition.StartNode()
-	require.NoError(t, err)
+	require.NoError(t, p.StartNode())
+}
 
+func NewSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
+	partition := SetupNewSingleNodePartition(t, txSystem, nodeOptions...)
+	StartSingleNodePartition(t, partition)
 	return partition
 }
 
@@ -205,10 +209,10 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRecord, roundNumber uint64) (*certificates.UnicityCertificate, error) {
-	id := sn.nodeConf.GetSystemIdentifier()
-	sdrHash := sn.nodeConf.genesis.SystemDescriptionRecord.Hash(gocrypto.SHA256)
+	sdr := sn.nodeDeps.genesis.SystemDescriptionRecord
+	sdrHash := sdr.Hash(gocrypto.SHA256)
 	data := []*unicitytree.Data{{
-		SystemIdentifier:            id,
+		SystemIdentifier:            sdr.SystemIdentifier,
 		InputRecord:                 ir,
 		SystemDescriptionRecordHash: sdrHash,
 	},
@@ -222,7 +226,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *certificates.InputRe
 	if err != nil {
 		return nil, err
 	}
-	cert, err := ut.GetCertificate(id)
+	cert, err := ut.GetCertificate(sdr.SystemIdentifier)
 	if err != nil {
 		// this should never happen. if it does then exit with panic because we cannot generate
 		// unicity tree certificates.

@@ -5,18 +5,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill/internal/block"
 	"github.com/alphabill-org/alphabill/internal/certificates"
 	"github.com/alphabill-org/alphabill/internal/crypto"
 	"github.com/alphabill-org/alphabill/internal/errors"
+	"github.com/alphabill-org/alphabill/internal/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/internal/network"
 	p "github.com/alphabill-org/alphabill/internal/network/protocol"
 	"github.com/alphabill-org/alphabill/internal/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/internal/partition/event"
+	pgenesis "github.com/alphabill-org/alphabill/internal/partition/genesis"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	moneytesttx "github.com/alphabill-org/alphabill/internal/testutils/transaction/money"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/txsystem"
+	"github.com/alphabill-org/alphabill/internal/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -126,6 +130,43 @@ func TestNode_NodeStartTest(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return tp.partition.status == normal
 	}, test.WaitDuration, test.WaitTick)
+}
+
+func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
+	db := memorydb.New()
+	// used to generate test blocks
+	system := &testtxsystem.CounterTxSystem{}
+	tp := SetupNewSingleNodePartition(t, &testtxsystem.CounterTxSystem{}, WithBlockStore(db))
+	genesisBlock := &block.Block{
+		SystemIdentifier:   tp.nodeDeps.genesis.SystemDescriptionRecord.SystemIdentifier,
+		NodeIdentifier:     "genesis",
+		Transactions:       []*txsystem.Transaction{},
+		UnicityCertificate: tp.nodeDeps.genesis.GetCertificate(),
+	}
+	newBlock2 := createNewBlockOutsideNode(t, tp, system, genesisBlock)
+	newBlock3 := createNewBlockOutsideNode(t, tp, system, newBlock2)
+	newBlock4 := createNewBlockOutsideNode(t, tp, system, newBlock3)
+	require.NoError(t, db.Write(util.Uint64ToBytes(pgenesis.PartitionRoundNumber), genesisBlock))
+	require.NoError(t, db.Write(util.Uint64ToBytes(2), newBlock2))
+	require.NoError(t, db.Write(util.Uint64ToBytes(3), newBlock3))
+	// add transactions from block 4 as pending block
+	proposal := &block.PendingBlockProposal{
+		RoundNumber:    newBlock4.GetRoundNumber(),
+		ProposerNodeId: newBlock4.GetNodeIdentifier(),
+		PrevHash:       newBlock3.UnicityCertificate.InputRecord.Hash,
+		StateHash:      newBlock4.UnicityCertificate.InputRecord.Hash,
+		Transactions:   newBlock4.Transactions,
+	}
+	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), proposal))
+	// start node with db filled
+	StartSingleNodePartition(t, tp)
+	// Ask Node for latest block
+	b := tp.GetLatestBlock(t)
+	require.Equal(t, uint64(3), b.GetRoundNumber())
+	// Simulate UC received for block 4 - the pending block
+	tp.SubmitUnicityCertificate(newBlock4.UnicityCertificate)
+	ContainsEventType(t, tp, event.BlockFinalized)
+	require.Equal(t, uint64(3), b.GetRoundNumber())
 }
 
 func TestNode_CreateBlocks(t *testing.T) {

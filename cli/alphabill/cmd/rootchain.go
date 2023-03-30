@@ -135,7 +135,7 @@ func defaultValidatorRunFunc(ctx context.Context, config *validatorConfig) error
 	if err != nil {
 		return fmt.Errorf("failed initiate monolithic consensus manager: %w", err)
 	}
-	node, err := rootvalidator.NewRootValidatorNode(
+	node, err := rootvalidator.New(
 		prtHost,
 		partitionNet,
 		partitionCfg,

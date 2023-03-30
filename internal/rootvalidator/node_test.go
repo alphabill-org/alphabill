@@ -86,7 +86,7 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	require.NoError(t, err)
 	cm, err := NewMockConsensus(rootGenesis, partitionStore)
 	require.NoError(t, err)
-	validator, err := NewRootValidatorNode(node.Peer, net, partitionStore, cm)
+	validator, err := New(node.Peer, net, partitionStore, cm)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	return validator, node, partitionNodes, rootGenesis
@@ -109,7 +109,7 @@ func TestRootValidatorTest_ConstructWithMonolithicManager(t *testing.T) {
 		partitionStore,
 		node.Signer)
 	require.NoError(t, err)
-	validator, err := NewRootValidatorNode(node.Peer, mockNet, partitionStore, cm)
+	validator, err := New(node.Peer, mockNet, partitionStore, cm)
 	require.NoError(t, err)
 	require.NotNil(t, validator)
 	defer validator.Close()

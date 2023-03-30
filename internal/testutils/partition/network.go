@@ -142,7 +142,7 @@ func NewNetwork(partitionNodes int, txSystemProvider func(trustBase map[string]c
 	if err != nil {
 		return nil, fmt.Errorf("consensus manager initialization failed, %w", err)
 	}
-	rootNode, err := rootvalidator.NewRootValidatorNode(partitionHost, rootNet, partitionStore, cm)
+	rootNode, err := rootvalidator.New(partitionHost, rootNet, partitionStore, cm)
 	if err != nil {
 		return nil, err
 	}

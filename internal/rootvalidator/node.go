@@ -37,8 +37,8 @@ type (
 	}
 )
 
-// NewRootValidatorNode creates a new instance of the root validator node
-func NewRootValidatorNode(
+// New creates a new instance of the root validator node
+func New(
 	host *network.Peer,
 	pNet PartitionNet,
 	ps partitions.PartitionConfiguration,

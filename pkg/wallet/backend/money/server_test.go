@@ -2,9 +2,12 @@ package money
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/alphabill-org/alphabill/internal/block"
 	testhttp "github.com/alphabill-org/alphabill/internal/testutils/http"
@@ -13,6 +16,7 @@ import (
 	moneytx "github.com/alphabill-org/alphabill/internal/txsystem/money"
 	"github.com/alphabill-org/alphabill/pkg/client"
 	"github.com/alphabill-org/alphabill/pkg/client/clientmock"
+	"github.com/alphabill-org/alphabill/pkg/wallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +30,10 @@ type (
 )
 
 func newWalletBackend(t *testing.T, options ...option) *WalletBackend {
-	service := createWalletBackend(t, &clientmock.MockAlphabillClient{})
+	storage, err := createTestBillStore(t)
+	require.NoError(t, err)
+
+	service := &WalletBackend{store: storage, genericWallet: wallet.New().SetABClient(&clientmock.MockAlphabillClient{}).Build()}
 	for _, o := range options {
 		err := o(service)
 		require.NoError(t, err)
@@ -355,11 +362,31 @@ func startServer(t *testing.T, service WalletBackendService) int {
 	port, err := net.GetFreePort()
 	require.NoError(t, err)
 
-	server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
-	err = server.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = server.Shutdown(context.Background())
-	})
-	return port
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		server := NewHttpServer(fmt.Sprintf("localhost:%d", port), 100, service)
+		err := server.Run(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+	}()
+	// stop the server
+	t.Cleanup(func() { cancel() })
+
+	// wait until server is up
+	tout := time.After(1500 * time.Millisecond)
+	for {
+		if _, err := http.Get(fmt.Sprintf("http://localhost:%d", port)); err != nil {
+			if !errors.Is(err, syscall.ECONNREFUSED) {
+				t.Fatalf("unexpected error from http server: %v", err)
+			}
+		} else {
+			return port
+		}
+
+		select {
+		case <-time.After(50 * time.Millisecond):
+		case <-tout:
+			t.Fatalf("http server didn't become available within timeout")
+		}
+	}
 }

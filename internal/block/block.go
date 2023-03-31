@@ -16,7 +16,7 @@ var (
 	errSystemIdIsNil            = errors.New("system identifier is nil")
 )
 
-type CertificateValidator interface {
+type UCValidator interface {
 	Validate(uc *certificates.UnicityCertificate) error
 }
 
@@ -55,7 +55,7 @@ func (x *Block) GetRoundNumber() uint64 {
 	return 0
 }
 
-func (x *Block) IsValid(v CertificateValidator) error {
+func (x *Block) IsValid(v UCValidator) error {
 	if x == nil {
 		return ErrBlockIsNil
 	}

@@ -58,7 +58,7 @@ func TestBlock_IsValid(t *testing.T) {
 		UnicityCertificate *certificates.UnicityCertificate
 	}
 	type args struct {
-		v CertificateValidator
+		v UCValidator
 	}
 	tests := []struct {
 		name    string
